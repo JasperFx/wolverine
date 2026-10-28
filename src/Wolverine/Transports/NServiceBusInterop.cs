@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core;
+using Wolverine.Configuration;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
 
 namespace Wolverine.Transports;
@@ -19,6 +21,41 @@ namespace Wolverine.Transports;
 internal static class NServiceBusInterop
 {
     public const string EnclosedMessageTypesHeader = "NServiceBus.EnclosedMessageTypes";
+    public const string ContentTypeHeader = "NServiceBus.ContentType";
+
+    /// <summary>
+    /// Make an NServiceBus interop endpoint read both JSON and XML bodies, picking the reader by the content type
+    /// NServiceBus stamps on each message, while sending with JSON unless an <see cref="NServiceBusXmlSerializer" />
+    /// was chosen as the endpoint's default serializer.
+    /// </summary>
+    /// <remarks>
+    /// GH-5244. A system part way through moving its NServiceBus endpoints from XML to JSON has both on the wire at
+    /// once, so a Wolverine endpoint has to accept either regardless of which one it sends. Choosing XML before or
+    /// after <c>UseNServiceBusInterop()</c> has the same result.
+    /// </remarks>
+    /// <param name="endpoint"></param>
+    /// <param name="json">The JSON serializer for the transport, or null to keep the endpoint's existing default</param>
+    public static void UseNServiceBusSerializers(Endpoint endpoint, IMessageSerializer? json)
+    {
+        var xmlIsDefault = endpoint.DefaultSerializer is NServiceBusXmlSerializer;
+
+        if (json != null)
+        {
+            if (xmlIsDefault)
+            {
+                endpoint.RegisterSerializer(json);
+            }
+            else
+            {
+                endpoint.DefaultSerializer = json;
+            }
+        }
+
+        if (!xmlIsDefault)
+        {
+            endpoint.RegisterSerializer(new NServiceBusXmlSerializer());
+        }
+    }
 
     /// <summary>
     /// Resolve the Wolverine message type name from an <c>NServiceBus.EnclosedMessageTypes</c> header value.

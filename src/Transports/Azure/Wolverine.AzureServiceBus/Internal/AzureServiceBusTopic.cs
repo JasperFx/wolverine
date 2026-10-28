@@ -139,7 +139,9 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
     // its IL2057 suppression live in NServiceBusInterop.ResolveMessageType, next to the call.
     internal void UseNServiceBusInterop()
     {
-        DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
+        // GH-5244: XML bodies are read too, and sent instead of JSON when the endpoint\'s default serializer is
+        // an NServiceBusXmlSerializer
+        NServiceBusInterop.UseNServiceBusSerializers(this, new NewtonsoftSerializer(new JsonSerializerSettings()));
         customizeMapping((m, _) =>
         {
             m.MapPropertyToHeader(x => x.ConversationId, "NServiceBus.ConversationId");
@@ -168,6 +170,23 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
             }
 
             m.MapProperty(x => x.ReplyUri!, ReadReplyUri, WriteReplyToAddress);
+
+            // NServiceBus picks its deserializer from the NServiceBus.ContentType header, so stamp it next to
+            // the native content type, and prefer it on the way in
+            m.MapProperty(x => x.ContentType!, (e, msg) =>
+                {
+                    e.ContentType = msg.ApplicationProperties.TryGetValue(NServiceBusInterop.ContentTypeHeader, out var raw) && raw != null
+                        ? raw is byte[] b ? Encoding.UTF8.GetString(b) : raw.ToString()
+                        : msg.ContentType;
+                },
+                (e, msg) =>
+                {
+                    msg.ContentType = e.ContentType;
+                    if (e.ContentType != null)
+                    {
+                        msg.ApplicationProperties[NServiceBusInterop.ContentTypeHeader] = e.ContentType;
+                    }
+                });
 
             m.MapProperty(x => x.MessageType!, (e, msg) =>
             {

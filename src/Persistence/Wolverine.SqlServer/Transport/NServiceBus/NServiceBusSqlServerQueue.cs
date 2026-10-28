@@ -90,6 +90,10 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
 
         DefaultSerializer ??= runtime.Options.DefaultSerializer;
 
+        // GH-5244: NServiceBus endpoints still on its XmlSerializer send XML bodies, so read those by content type
+        // next to JSON
+        NServiceBusInterop.UseNServiceBusSerializers(this, null);
+
         var replyName = new Lazy<string?>(() =>
         {
             if (InteropReplyQueueName.IsNotEmpty()) return InteropReplyQueueName;
