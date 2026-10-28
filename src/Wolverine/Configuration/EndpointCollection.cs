@@ -813,6 +813,16 @@ public class EndpointCollection : IEndpointCollection
         {
             try
             {
+                // GH-5254. BufferedReceiver.DrainAsync() only waits for in-flight messages when the receiver is
+                // already latched -- unlatched, it assumes it was called from inside the handler pipeline, where
+                // waiting would deadlock. Shutdown never latched a buffered local queue, so StopAsync() returned
+                // with a handler still running, and the host then disposed its logging (and the rest of the
+                // container) under it. DurableLocalQueue latches its own receiver in DrainAsync().
+                if (queue is BufferedLocalQueue buffered)
+                {
+                    buffered.Latch();
+                }
+
                 await queue.DrainAsync();
             }
             catch (Exception e)
