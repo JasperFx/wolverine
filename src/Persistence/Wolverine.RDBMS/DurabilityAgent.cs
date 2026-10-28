@@ -23,6 +23,10 @@ internal class DurabilityAgent : IAgent
     private readonly ILogger<DurabilityAgent> _logger;
     private readonly Block<IAgentCommand> _runningBlock;
 
+    // GH-5247. Not linked to the runtime's token, so there is no registration to dispose and
+    // StopAsync() stays safe to call more than once
+    private readonly CancellationTokenSource _cancellation = new();
+
     private readonly IWolverineRuntime _runtime;
     private readonly DurabilitySettings _settings;
     private Timer? _expirationTimer;
@@ -53,18 +57,25 @@ internal class DurabilityAgent : IAgent
 
         _health = new DurabilityHealthSignals(_settings);
 
-#pragma warning disable VSTHRD101 // Avoid unsupported async delegates
-        _runningBlock = new Block<IAgentCommand>(async batch =>
+        // GH-5247. Deliberately the (item, token) overload: a one-argument async lambda binds to
+        // Block(Action<T>), which made every command async void, so nothing -- StopAsync included --
+        // could ever wait for one that was already running
+        _runningBlock = new Block<IAgentCommand>(async (batch, _) =>
         {
-            if (runtime.Cancellation.IsCancellationRequested)
+            var token = _cancellation.Token;
+            if (token.IsCancellationRequested || runtime.Cancellation.IsCancellationRequested)
             {
                 return;
             }
 
             try
             {
-                await executor.InvokeAsync(batch, new MessageBus(runtime));
+                await executor.InvokeAsync(batch, new MessageBus(runtime), token);
                 _health.RecordPollSuccess();
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                // The agent is stopping, and this is the command it cancelled
             }
             catch (Exception e)
             {
@@ -72,7 +83,6 @@ internal class DurabilityAgent : IAgent
                 _logger.LogError(e, "Error trying to run durability agent commands");
             }
         });
-#pragma warning restore VSTHRD101 // Avoid unsupported async delegates
     }
 
     public bool AutoStartScheduledJobPolling { get; set; } = false;
@@ -188,7 +198,22 @@ internal class DurabilityAgent : IAgent
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
+        // GH-5247. Stop everything that posts to the block first, then cancel whatever command is
+        // already running and wait for it. A command left running here outlives the agent and then
+        // works against a store -- and a data source -- that the host is about to dispose
+        await disposeTimersAsync();
+
         _runningBlock.Complete();
+        await _cancellation.CancelAsync();
+
+        try
+        {
+            await _runningBlock.WaitForCompletionAsync().WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // The command did not stop within the caller's stop window; give up on waiting for it
+        }
 
         // GH-5235. The sweep may already be fetching this database's counts; wait for that
         // query rather than let it run on against a store that is about to go away
@@ -210,6 +235,11 @@ internal class DurabilityAgent : IAgent
 
         _metrics.SafeDispose();
 
+        Status = AgentStatus.Stopped;
+    }
+
+    private async Task disposeTimersAsync()
+    {
         if (_scheduledJobTimer != null)
         {
             await _scheduledJobTimer.DisposeAsync();
@@ -249,8 +279,6 @@ internal class DurabilityAgent : IAgent
         {
             await _deduplicatedResponsesCleanupTimer.DisposeAsync();
         }
-
-        Status = AgentStatus.Stopped;
     }
 
     public Uri Uri { get; internal set; }
