@@ -301,6 +301,10 @@ public partial class NodeAgentController
                 await stepDownAsync("the leadership advisory lock could not be renewed");
             }
         }
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+        {
+            // The node is stopping; cancellation of its leadership work is expected.
+        }
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to attain a leadership lock");
