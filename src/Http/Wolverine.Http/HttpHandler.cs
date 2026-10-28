@@ -782,4 +782,26 @@ public abstract partial class HttpHandler
 
         return Results.Problem(details).ExecuteAsync(context);
     }
+
+    /// <summary>
+    /// Called by generated code when <see cref="WolverineHttpOptions.RejectUnparseableHeaderValues"/>
+    /// is enabled and a header value is present but cannot be parsed to the expected parameter type.
+    /// Writes a 400 ProblemDetails response naming the offending header, the header counterpart of
+    /// <see cref="WriteQueryValueParsingProblem"/>.
+    /// </summary>
+    public static Task WriteHeaderValueParsingProblem(HttpContext context, string headerName, string? rawValue,
+        string expectedType)
+    {
+        var details = new ProblemDetails
+        {
+            Status = 400,
+            Title = "Invalid header value",
+            Detail =
+                $"Header '{headerName}' has the value '{rawValue}' which cannot be parsed to the expected type {expectedType}"
+        };
+
+        details.Extensions["header"] = headerName;
+
+        return Results.Problem(details).ExecuteAsync(context);
+    }
 }

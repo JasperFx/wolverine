@@ -81,6 +81,12 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     internal bool RejectUnparseableQueryValues { get; set; }
 
     /// <summary>
+    /// Mirrors <see cref="WolverineHttpOptions.RejectUnparseableHeaderValues"/>, transferred before endpoint
+    /// discovery like <see cref="RejectUnparseableQueryValues"/>
+    /// </summary>
+    internal bool RejectUnparseableHeaderValues { get; set; }
+
+    /// <summary>
     /// GH-4939. Mirrors <see cref="WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints"/>; transferred
     /// before endpoint discovery, like <see cref="RejectUnparseableQueryValues"/>.
     /// </summary>

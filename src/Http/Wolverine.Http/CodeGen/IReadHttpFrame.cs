@@ -36,11 +36,12 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
         _isNullable = parameterType.IsNullable();
         _rawType = _isNullable ? parameterType.GetInnerTypeFromNullable() : parameterType;
 
-        // GH-3372 strict query string binding: only applies to parsed (non-string) query string
-        // values. The 400 + ProblemDetails short circuit writes the response asynchronously,
+        // GH-3372 strict query string binding, and the same for headers: only applies to parsed
+        // (non-string) values. The 400 + ProblemDetails short circuit writes the response asynchronously,
         // so the frame has to force the generated method into async mode.
-        _rejectUnparseableValue = rejectUnparseableValue && source == BindingSource.QueryString &&
-                                  _rawType != typeof(string);
+        _rejectUnparseableValue = rejectUnparseableValue
+                                  && source is BindingSource.QueryString or BindingSource.Header
+                                  && _rawType != typeof(string);
         if (_rejectUnparseableValue)
         {
             IsAsync = true;
@@ -184,7 +185,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
         if (_rejectUnparseableValue)
         {
             throw new NotSupportedException(
-                "F# code generation does not yet support strict query string binding (WolverineHttpOptions.RejectUnparseableQueryValues).");
+                "F# code generation does not yet support strict query string or header binding (WolverineHttpOptions.RejectUnparseableQueryValues / RejectUnparseableHeaderValues).");
         }
 
         if (_isNullable || _isOptional)
@@ -345,13 +346,17 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
 
         if (_rejectUnparseableValue)
         {
-            // GH-3372 strict query binding: a query string value that is *present* but unparseable
-            // short-circuits the request with a 400 ProblemDetails naming the offending parameter,
-            // matching ASP.NET Core minimal API binding. A *missing* value falls through and keeps
-            // the parameter's default / property initializer in both modes.
+            // GH-3372 strict query binding: a query string value (or header) that is *present* but
+            // unparseable short-circuits the request with a 400 ProblemDetails naming the offending
+            // parameter, matching ASP.NET Core minimal API binding. A *missing* value falls through and
+            // keeps the parameter's default / property initializer in both modes.
+            var writeProblem = _source == BindingSource.Header
+                ? nameof(HttpHandler.WriteHeaderValueParsingProblem)
+                : nameof(HttpHandler.WriteQueryValueParsingProblem);
+
             writer.Write($"BLOCK:else if (!string.IsNullOrEmpty({Variable.Usage}_rawValue))");
             writer.Write(
-                $"await {nameof(HttpHandler.WriteQueryValueParsingProblem)}(httpContext, \"{Key}\", {Variable.Usage}_rawValue, \"{_rawType.FullNameInCode()}\").ConfigureAwait(false);");
+                $"await {writeProblem}(httpContext, \"{Key}\", {Variable.Usage}_rawValue, \"{_rawType.FullNameInCode()}\").ConfigureAwait(false);");
             writer.Write(method.ToExitStatement());
             writer.FinishBlock();
         }
