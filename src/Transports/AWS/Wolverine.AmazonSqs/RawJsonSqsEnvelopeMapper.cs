@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using System.Text.Json;
 using Amazon.SQS.Model;
 using Wolverine.Transports;
@@ -51,6 +52,12 @@ internal class RawJsonSqsEnvelopeMapper : ISqsEnvelopeMapper
         // assuming json serialized message
         envelope.MessageType = _defaultMessageType.ToMessageTypeName();
         envelope.ContentType = EnvelopeConstants.JsonContentType;
+
+        // The raw body is the message's serialized form. A durable listener has to persist it in the inbox, and
+        // without Data an envelope that only has Message cannot be written there: no serializer is attached to
+        // it, so the insert failed on every delivery and the listener was paused as if the inbox were down.
+        envelope.Data = Encoding.UTF8.GetBytes(messageBody);
+
         envelope.Message = JsonSerializer.Deserialize(
             messageBody,
             _defaultMessageType,

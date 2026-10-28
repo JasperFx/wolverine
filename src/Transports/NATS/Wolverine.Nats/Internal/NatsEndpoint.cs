@@ -90,6 +90,11 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     internal HashSet<string> TenantIds() => _transport.Tenants.Select(x => x.TenantId).ToHashSet();
 
     /// <summary>
+    /// The name of the transport this endpoint belongs to: <c>nats</c>, or the name of an additional broker
+    /// </summary>
+    internal string TransportName => _transport.Protocol;
+
+    /// <summary>
     /// Normalize a per-message subject honoring the transport's
     /// <see cref="NatsTransportConfiguration.NormalizeSubjects"/> flag.
     /// </summary>
@@ -608,7 +613,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         // The shared listener consumes the default connection plus every subject-prefix tenant, whose messages
         // arrive on the shared connection under the wildcard pattern.
         var sharedListener = await startListenerAsync(
-            runtime, receiver, _connection, useJetStream, subscriptionPattern, tenantMapper, deadLetterSender);
+            runtime, receiver, _connection, useJetStream, subscriptionPattern, tenantMapper, deadLetterSender, null);
 
         // Tenants with their own connection publish on a separate server/account the shared listener can't see,
         // so consume each over its own connection and stamp the tenant id onto inbound envelopes. Mirrors the
@@ -639,7 +644,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             {
                 tenantListener = await startListenerAsync(
                     runtime, tenantReceiver, _transport.GetTenantConnection(tenant), useJetStream,
-                    mapper.GetSubscriptionPattern(Subject), mapper, deadLetterSender);
+                    mapper.GetSubscriptionPattern(Subject), mapper, deadLetterSender, tenant.TenantId);
             }
             catch
             {
@@ -670,7 +675,8 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         bool useJetStream,
         string subscriptionPattern,
         ITenantSubjectMapper? tenantMapper,
-        ISender? deadLetterSender)
+        ISender? deadLetterSender,
+        string? connectionTenantId)
     {
         var jetStreamContext = useJetStream ? _transport.CreateJetStreamContext(connection) : null;
 
@@ -685,7 +691,8 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             runtime.Cancellation,
             useJetStream,
             subscriptionPattern,
-            tenantMapper
+            tenantMapper,
+            connectionTenantId
         );
 
         try

@@ -578,6 +578,13 @@ Buffered and inline listeners have no inbox to deduplicate against, and keep a f
 With `EnableInboxPartitioning`, a handled row no longer blocks an incoming row with the same id, so a
 redelivery that arrives after the first copy was handled is handled again, whatever its id. See
 `DurabilitySettings.EnableInboxPartitioning`.
+
+If your inbox is in SQL Server, be aware that these derived ids are effectively random as far as SQL Server's
+clustered index is concerned, so a high volume of non-Wolverine records will fragment the inbox table. See
+[Optimized Envelope IDs for SQL Server](/guide/durability/sqlserver#optimized-envelope-ids-for-sql-server).
+
+A *structured-mode* CloudEvent (the whole CloudEvents document is the record value) whose `id` isn't a GUID
+does **not** get this protection today. See [Deduplicating CloudEvents](/tutorials/interop#deduplicating-cloudevents).
 :::
 
 ### Idempotent producer

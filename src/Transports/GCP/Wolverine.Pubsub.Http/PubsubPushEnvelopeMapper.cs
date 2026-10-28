@@ -1,9 +1,9 @@
-using System.Security.Cryptography;
 using Google.Cloud.PubSub.V1;
 using ImTools;
 using JasperFx.Core;
 using Microsoft.AspNetCore.Http;
 using Wolverine.Http.Transport.Push;
+using Wolverine.Pubsub.Internal;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 
@@ -60,19 +60,12 @@ public class PubsubPushEnvelopeMapper : IPushEnvelopeMapper
         }
         else
         {
-            var envelope = new Envelope();
-            var assigned = envelope.Id;
-
             var mapper = target.Endpoint.EnvelopeMapper ??= target.Endpoint.BuildMapper(_runtime);
-            mapper.MapIncomingToEnvelope(envelope, message);
 
-            // A message Wolverine did not publish carries no Wolverine id (the mapping leaves an empty one), so derive
-            // a stable one from the Pub/Sub message id. A redelivery then has the same id, and the push receiver's
-            // inbox deduplication sees it
-            if ((envelope.Id == assigned || envelope.Id == Guid.Empty) && message.MessageId.IsNotEmpty())
-            {
-                envelope.Id = idFor(push.Subscription, message.MessageId);
-            }
+            // A message Wolverine did not publish carries no Wolverine id, so it gets a stable one derived from the
+            // Pub/Sub message id. A redelivery then has the same id, and the push receiver's inbox deduplication
+            // sees it. A pulled delivery of the same message to the same subscription gets the same id
+            var envelope = PubsubMessageIdentity.ReadEnvelope(mapper, message, push.Subscription);
 
             envelopes = [envelope];
         }
@@ -152,12 +145,6 @@ public class PubsubPushEnvelopeMapper : IPushEnvelopeMapper
     {
         var parts = subscription.Split('/');
         return parts.Length == 4 && parts[0] == "projects" ? parts[1] : null;
-    }
-
-    private static Guid idFor(string subscription, string messageId)
-    {
-        var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"pubsub:{subscription}:{messageId}"));
-        return new Guid(hash.AsSpan(0, 16));
     }
 
     private record PushTarget(PubsubEndpoint Endpoint, string? TenantId, bool IsKnown);

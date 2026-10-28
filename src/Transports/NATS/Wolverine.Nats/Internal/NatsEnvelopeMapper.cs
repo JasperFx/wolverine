@@ -124,6 +124,32 @@ public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHe
         _tenancy.Apply(envelope, incoming.Subject);
     }
 
+    /// <summary>
+    /// Builds the envelope for a consumed JetStream message. With an <paramref name="identity" />, a message the
+    /// mapping gave no id of its own -- it carries no Wolverine <c>id</c> header, and no mapping set one -- gets the
+    /// id of its place in the stream, so a redelivery of it is the same envelope to the durable inbox.
+    /// </summary>
+    internal NatsEnvelope CreateEnvelope(INatsJSMsg<byte[]> incoming, JetStreamMessageIdentity? identity)
+    {
+        var envelope = new NatsEnvelope(null, incoming);
+
+        // A fresh envelope's id is a new IdGenerator() value nobody else has seen, so the id still being that value
+        // after mapping means neither the id header nor any other mapping supplied one
+        var provisionalId = envelope.Id;
+
+        MapIncoming(envelope, incoming);
+
+        // A missing or unreadable id header is mapped to Guid.Empty instead, which the durable receiver replaces
+        // with a fresh IdGenerator() value just before the inbox insert. Neither is an id.
+        if (identity != null && incoming.Metadata is { } metadata &&
+            (envelope.Id == provisionalId || envelope.Id == Guid.Empty))
+        {
+            envelope.Id = identity.IdFor(metadata.Sequence.Stream);
+        }
+
+        return envelope;
+    }
+
     protected override void writeOutgoingHeader(NatsHeaders headers, string key, string value)
     {
         headers[key] = NatsHeaderValues.Sanitize(value);

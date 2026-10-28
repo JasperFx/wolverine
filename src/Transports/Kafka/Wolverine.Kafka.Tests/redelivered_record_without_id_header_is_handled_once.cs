@@ -248,7 +248,7 @@ public class redelivered_record_without_id_header_is_handled_once
                 }
                 catch (AlterConsumerGroupOffsetsException) when (DateTimeOffset.UtcNow < deadline)
                 {
-                    await Task.Delay(500);
+                    await Task.Delay(500, TestContext.Current.CancellationToken);
                 }
             }
 
@@ -305,7 +305,7 @@ public class redelivered_record_without_id_header_is_handled_once
                     throw new TimeoutException($"Never found {description}. {ForeignOrderPlacedHandler.Describe(Id)}");
                 }
 
-                await Task.Delay(100);
+                await Task.Delay(100, TestContext.Current.CancellationToken);
             }
         }
 
@@ -401,7 +401,7 @@ public static class ForeignOrderPlacedHandler
                 throw new TimeoutException($"Sequence {sequence} of run {runId} was never handled. {Describe(runId)}");
             }
 
-            await Task.Delay(100);
+            await Task.Delay(100, TestContext.Current.CancellationToken);
         }
     }
 }
