@@ -223,7 +223,12 @@ public void UseNServiceBusInterop()
 
         var replyAddress = new Lazy<string>(() =>
         {
-            var replyEndpoint = (RabbitMqEndpoint)_parent.ReplyEndpoint()!;
+            // NServiceBus replies through an exchange named after this address, which Wolverine's own
+            // system response queue never has. Its system queue is also flagged for replies, so an
+            // application queue marked with UseForReplies() has to win over it explicitly
+            var replyEndpoint = _parent.Queues
+                                    .FirstOrDefault(x => x is { IsListener: true, IsUsedForReplies: true, Role: EndpointRole.Application })
+                                ?? (RabbitMqEndpoint)_parent.ReplyEndpoint()!;
             return replyEndpoint.RoutingKey();
         });
 
@@ -267,7 +272,7 @@ public void UseNServiceBusInterop()
     });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ/Internal/RabbitMqEndpoint.NServiceBus.cs#L11-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_show_the_nservicebus_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ/Internal/RabbitMqEndpoint.NServiceBus.cs#L12-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_show_the_nservicebus_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Finally, here's another example that works quite differently where the mapper sets a serializer directly on the `Envelope`:
@@ -454,7 +459,7 @@ opts.PublishMessage<NServiceBusXmlMessage>().ToRabbitQueue(theQueueName)
     // instead of JSON
     .DefaultSerializer(new NServiceBusXmlSerializer());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/nservicebus_xml_interop_5244.cs#L45-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_xml_interop' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/nservicebus_xml_interop_5244.cs#L46-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_xml_interop' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine writes the same XML that NServiceBus does: the root element is named for the message type in the

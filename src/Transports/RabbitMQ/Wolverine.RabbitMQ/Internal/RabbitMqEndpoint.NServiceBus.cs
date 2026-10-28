@@ -1,6 +1,7 @@
 using System.Text;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
+using Wolverine.Configuration;
 using Wolverine.Newtonsoft;
 using Wolverine.Transports;
 
@@ -26,7 +27,12 @@ public abstract partial class RabbitMqEndpoint
 
             var replyAddress = new Lazy<string>(() =>
             {
-                var replyEndpoint = (RabbitMqEndpoint)_parent.ReplyEndpoint()!;
+                // NServiceBus replies through an exchange named after this address, which Wolverine's own
+                // system response queue never has. Its system queue is also flagged for replies, so an
+                // application queue marked with UseForReplies() has to win over it explicitly
+                var replyEndpoint = _parent.Queues
+                                        .FirstOrDefault(x => x is { IsListener: true, IsUsedForReplies: true, Role: EndpointRole.Application })
+                                    ?? (RabbitMqEndpoint)_parent.ReplyEndpoint()!;
                 return replyEndpoint.RoutingKey();
             });
 

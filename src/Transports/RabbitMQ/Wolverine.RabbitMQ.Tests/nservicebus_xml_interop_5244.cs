@@ -18,6 +18,7 @@ namespace Wolverine.RabbitMQ.Tests;
 public class nservicebus_xml_interop_5244 : IAsyncLifetime
 {
     private readonly string theQueueName = "nsb-xml-" + Guid.NewGuid().ToString("N")[..8];
+    private readonly string theReplyQueueName = "nsb-xml-replies-" + Guid.NewGuid().ToString("N")[..8];
     private IHost theListener = null!;
     private IHost theXmlSender = null!;
     private IHost theJsonSender = null!;
@@ -54,6 +55,10 @@ public class nservicebus_xml_interop_5244 : IAsyncLifetime
                     .DefaultSerializer(new NServiceBusXmlSerializer());
 
                 #endregion
+
+                // Where NServiceBus should send its replies. The system response queue Wolverine declares
+                // is also a reply endpoint, but NServiceBus has no way to reach it
+                opts.ListenToRabbitQueue(theReplyQueueName).UseNServiceBusInterop().UseForReplies();
 
                 opts.DisableConventionalDiscovery();
             }).StartAsync();
@@ -111,6 +116,15 @@ public class nservicebus_xml_interop_5244 : IAsyncLifetime
         received.Name.ShouldBe("xml");
         received.Tags.ShouldBe(["a", "b"]);
         received.Amount.ShouldBe(12.5m);
+    }
+
+    [Fact]
+    public async Task nservicebus_is_told_to_reply_to_the_queue_marked_for_replies()
+    {
+        var envelope = await sendFrom(theXmlSender, new NServiceBusXmlMessage { Id = Guid.NewGuid(), Name = "reply" });
+
+        // Not the wolverine.response.{guid} system queue, which NServiceBus cannot reply to
+        envelope.Headers["NServiceBus.ReplyToAddress"].ShouldBe(theReplyQueueName);
     }
 
     [Fact]
