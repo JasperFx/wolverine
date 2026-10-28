@@ -94,5 +94,9 @@ internal class AgentCommandHandler : MessageHandler
 
             throw;
         }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            // GH-5247. The owner of this command cancelled it while stopping; that is not a failure
+        }
     }
 }
