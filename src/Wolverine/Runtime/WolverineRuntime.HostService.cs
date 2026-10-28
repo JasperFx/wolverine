@@ -700,6 +700,9 @@ public partial class WolverineRuntime
 
     private async Task shutdownAsync()
     {
+        // GH-5257. Before the endpoints drain, so a retry cooldown still in progress gives up its wait
+        await _stopping.CancelAsync();
+
         await _agentCancellation.CancelAsync();
 
         // GH-5235. Stop the metrics sweep and wait out any query it has in flight before

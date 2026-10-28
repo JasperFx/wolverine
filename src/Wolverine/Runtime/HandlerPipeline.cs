@@ -54,6 +54,28 @@ public class HandlerPipeline : IHandlerPipeline
 
     internal IExecutorFactory ExecutorFactory { get; }
 
+    // GH-5257. Cancelled when the listener that owns this pipeline starts a real stop, BEFORE the listener is
+    // stopped and joined, so an inline retry cooldown can give up its wait instead of holding that join for
+    // the rest of the cooldown. Deliberately not runtime.Cancellation, which shutdown cancels only after every
+    // endpoint has drained, because the durability work a draining handler still needs runs on that token.
+    private CancellationTokenSource _stopping = new();
+
+    internal CancellationToken Stopping => Volatile.Read(ref _stopping).Token;
+
+    internal Task SignalStoppingAsync() => Volatile.Read(ref _stopping).CancelAsync();
+
+    /// <summary>
+    /// GH-5257. A listener can be stopped and started again with the same pipeline, so a restart needs a
+    /// fresh, uncancelled signal
+    /// </summary>
+    internal void ResetStopping()
+    {
+        if (Volatile.Read(ref _stopping).IsCancellationRequested)
+        {
+            Volatile.Write(ref _stopping, new CancellationTokenSource());
+        }
+    }
+
     public IMessageTracker Logger { get; }
     public bool TelemetryEnabled { get; set; } = true;
 

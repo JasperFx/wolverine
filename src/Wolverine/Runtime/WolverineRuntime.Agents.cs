@@ -31,6 +31,17 @@ public partial class WolverineRuntime : IAgentRuntime
 
     private readonly CancellationTokenSource _agentCancellation;
 
+    // GH-5257. Cancelled first thing in shutdown, before any endpoint drains. See Stopping.
+    private readonly CancellationTokenSource _stopping = new();
+
+    /// <summary>
+    /// GH-5257. Signals that this runtime has started shutting down, long before <see cref="Cancellation"/>
+    /// does: shutdown cancels that only after every endpoint has drained, because the handlers it is draining
+    /// still need persistence. An inline retry cooldown waits on this instead, so it cannot hold the drain
+    /// for the rest of the cooldown.
+    /// </summary>
+    internal CancellationToken Stopping => _stopping.Token;
+
     public NodeAgentController? NodeController { get; private set; }
 
     public Task StartLocallyAsync(Uri agentUri)
