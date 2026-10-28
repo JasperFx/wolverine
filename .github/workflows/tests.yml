@@ -85,7 +85,11 @@ jobs:
           - CINATS
           - CIOracle
           - CIOtel
+          # PersistenceTests + PostgresqlTests split two ways: CIPostgresql owns the message store compliance
+          # classes and the Transport namespace, CIPersistence is everything else. It sat at ~18m of the
+          # 20 minute cap as one job and was regularly cancelled (2026-10-28).
           - CIPersistence
+          - CIPostgresql
           # PolecatTests is one serial SqlServer project sharded three ways by namespace. CIPolecat is the
           # "everything else" shard, so a newly added namespace still runs somewhere. See #3350.
           - CIPolecat
