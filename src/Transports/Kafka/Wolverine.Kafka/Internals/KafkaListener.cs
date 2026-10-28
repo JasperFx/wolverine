@@ -39,6 +39,9 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
     // GH-4422: set when a teardown step blew through the drain budget and was abandoned on its own thread.
     // The consumer handle is still owned by that thread, so it must NOT be disposed underneath it.
     private volatile bool _teardownAbandoned;
+    // Gives a record without an id of its own the id of its position in the log, so the durable inbox sees a
+    // redelivery of it as the duplicate it is. Null for an endpoint without an inbox to deduplicate against.
+    private readonly KafkaRecordIdentity? _recordIdentity;
 
     public KafkaListener(KafkaTopic topic, ConsumerConfig config,
         IConsumer<string, byte[]> consumer, IReceiver receiver,
@@ -71,6 +74,12 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
         }
 
         _messageTypeName = topic.MessageType?.ToMessageTypeName();
+
+        // Only the durable inbox deduplicates on the envelope id. Anywhere else a derived id would be a hash per
+        // record on the hot path that buys nothing.
+        _recordIdentity = topic.Mode == EndpointMode.Durable
+            ? KafkaRecordIdentity.For(topic.Parent, tenantTransport, config)
+            : null;
 
         Config = config;
         _receiver = receiver;
@@ -213,7 +222,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
 
     private Envelope buildEnvelope(ConsumeResult<string, byte[]> result)
     {
-        var envelope = _endpoint.EnvelopeMapper!.CreateEnvelope(result.Topic, result.Message);
+        var envelope = _endpoint.EnvelopeMapper!.CreateEnvelope(result, _recordIdentity);
         envelope.TopicName = result.Topic;
         envelope.Offset = result.Offset.Value;
         envelope.PartitionId = result.Partition.Value;

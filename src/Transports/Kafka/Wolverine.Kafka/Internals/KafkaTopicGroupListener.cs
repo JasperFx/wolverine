@@ -35,6 +35,9 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
     // Broker-per-tenant (GH-3303): the cluster this listener's DLQ records are produced to. Null for the shared
     // (default-cluster) listener, which falls back to the endpoint's parent transport.
     private readonly KafkaTransport? _tenantTransport;
+    // Gives a record without an id of its own the id of its position in the log, so the durable inbox sees a
+    // redelivery of it as the duplicate it is. Null for an endpoint without an inbox to deduplicate against.
+    private readonly KafkaRecordIdentity? _recordIdentity;
 
     public KafkaTopicGroupListener(KafkaTopicGroup endpoint, ConsumerConfig config,
         IConsumer<string, byte[]> consumer, IReceiver receiver,
@@ -65,6 +68,11 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
                 "Wolverine composed its Kafka connection-state tracking behind the consumer error handler registered through ConfigureConsumerBuilders for {Uri}. Both handlers run; yours runs first.",
                 Address);
         }
+
+        // Only the durable inbox deduplicates on the envelope id; see KafkaListener
+        _recordIdentity = endpoint.Mode == EndpointMode.Durable
+            ? KafkaRecordIdentity.For(endpoint.Parent, tenantTransport, config)
+            : null;
 
         Config = config;
         _receiver = receiver;
@@ -187,7 +195,7 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
     {
         var message = result.Message;
 
-        var envelope = _endpoint.EnvelopeMapper!.CreateEnvelope(result.Topic, message);
+        var envelope = _endpoint.EnvelopeMapper!.CreateEnvelope(result, _recordIdentity);
         envelope.TopicName = result.Topic;
         envelope.Offset = result.Offset.Value;
         envelope.PartitionId = result.Partition.Value;
