@@ -18,10 +18,12 @@ public class when_durable_receiver_detects_duplicate_incoming_envelopes_in_batch
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     private readonly DurableReceiver theReceiver;
     private readonly MockWolverineRuntime theRuntime;
+    private readonly CapturedLogs theLogs = new();
 
     public when_durable_receiver_detects_duplicate_incoming_envelopes_in_batch()
     {
         theRuntime = new MockWolverineRuntime();
+        theRuntime.LoggerFactory.AddProvider(theLogs);
         var stubEndpoint = new StubEndpoint("one", new StubTransport());
         theReceiver = new DurableReceiver(stubEndpoint, theRuntime, thePipeline);
 
@@ -71,5 +73,13 @@ public class when_durable_receiver_detects_duplicate_incoming_envelopes_in_batch
         // the inbox layer verifies the fall-back contract directly, without
         // depending on the receiver's downstream Dataflow drain ordering.
         await theRuntime.Storage.Inbox.Received().StoreIncomingAsync(theFreshEnvelope);
+    }
+
+    [Fact]
+    public void the_duplicate_is_not_reported_as_a_failure()
+    {
+        // A redelivery inside one received batch is discarded by design, one envelope at a time
+        theLogs.Errors.ShouldBeEmpty();
+        theLogs.Warnings.ShouldBeEmpty();
     }
 }
