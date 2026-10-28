@@ -145,7 +145,7 @@ public class OurKafkaJsonMapper<TMessage> : IKafkaEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L197-L232' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourkafkajsonmapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L246-L281' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourkafkajsonmapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which is essentially how the built in "Raw JSON" mapper works in external transport mappers. In the envelope mapper above
@@ -196,7 +196,7 @@ builder.UseWolverine(opts =>
 
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L451-L489' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_envelope_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L763-L801' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_envelope_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That code isn't necessarily for the feint of heart, but that will sometimes be an easier recipe than trying to write
@@ -210,8 +210,11 @@ public void UseNServiceBusInterop()
 {
     // We haven't tried to address this yet, but NSB can stick in some characters
     // that STJ chokes on, but good ol' Newtonsoft handles just fine
-    DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
-    
+    //
+    // GH-5244: XML bodies are read too, and sent instead of JSON when the endpoint's default serializer is
+    // an NServiceBusXmlSerializer
+    NServiceBusInterop.UseNServiceBusSerializers(this, new NewtonsoftSerializer(new JsonSerializerSettings()));
+
     customizeMapping((m, _) =>
     {
         m.MapPropertyToHeader(x => x.ConversationId, "NServiceBus.ConversationId");
@@ -239,10 +242,32 @@ public void UseNServiceBusInterop()
         }
 
         m.MapProperty(x => x.ReplyUri!, ReadReplyUri, WriteReplyToAddress);
+
+        // NServiceBus picks its deserializer from the NServiceBus.ContentType header, so stamp it next to
+        // the native content type, and prefer it on the way in
+        void ReadContentType(Envelope e, IReadOnlyBasicProperties props)
+        {
+            e.ContentType = props.Headers != null &&
+                            props.Headers.TryGetValue(NServiceBusInterop.ContentTypeHeader, out var raw) &&
+                            raw != null
+                ? raw is byte[] b ? Encoding.UTF8.GetString(b) : raw.ToString()
+                : props.ContentType;
+        }
+
+        void WriteContentType(Envelope e, IBasicProperties props)
+        {
+            props.ContentType = e.ContentType;
+            if (e.ContentType != null)
+            {
+                props.Headers![NServiceBusInterop.ContentTypeHeader] = e.ContentType;
+            }
+        }
+
+        m.MapProperty(x => x.ContentType!, ReadContentType, WriteContentType);
     });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ/Internal/RabbitMqEndpoint.NServiceBus.cs#L10-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_show_the_nservicebus_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ/Internal/RabbitMqEndpoint.NServiceBus.cs#L11-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_show_the_nservicebus_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Finally, here's another example that works quite differently where the mapper sets a serializer directly on the `Envelope`:
@@ -257,10 +282,11 @@ internal class MassTransitMapper : ISqsEnvelopeMapper
     private readonly IMassTransitInteropEndpoint _endpoint;
     private MassTransitJsonSerializer _serializer;
 
-    public MassTransitMapper(IMassTransitInteropEndpoint endpoint)
+    public MassTransitMapper(IMassTransitInteropEndpoint endpoint, Action<IMassTransitInterop>? configure = null)
     {
         _endpoint = endpoint;
         _serializer = new MassTransitJsonSerializer(endpoint);
+        configure?.Invoke(_serializer);
     }
 
     public override string ToString() => "MassTransit Interop";
@@ -298,7 +324,7 @@ internal class MassTransitMapper : ISqsEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs/Internal/MassTransitMapper.cs#L7-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransitmapper_for_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs/Internal/MassTransitMapper.cs#L7-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransitmapper_for_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, the `MassTransitSerializer` is a two step process that first deserializes a JSON document that contains
@@ -391,7 +417,7 @@ builder.UseWolverine(opts =>
     opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L497-L520' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_nservicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L809-L832' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_nservicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And some details that you will need to know:
@@ -402,6 +428,58 @@ And some details that you will need to know:
   NServiceBus and your Wolverine application to help Wolverine be able to map from NServiceBus publishing by an interface and Wolverine only
   handling concrete types
 * Wolverine does support request/reply interactions with NServiceBus. Wolverine is able to interpret and also translate to NServiceBus's version of Wolverine's `Envelope.ReplyUri`
+
+### XML Serialization with NServiceBus <Badge type="tip" text="6.57" />
+
+NServiceBus used its own `XmlSerializer` by default for years, so a lot of existing NServiceBus systems still exchange XML
+on the wire. You don't have to move those systems to JSON before you can start bringing in Wolverine.
+
+Every NServiceBus interop endpoint in Wolverine reads **both** JSON and XML message bodies, and picks the right one per
+message from the `NServiceBus.ContentType` header that NServiceBus puts on every message. Nothing needs to be configured
+for that. This holds for Rabbit MQ, Azure Service Bus, Amazon SQS and SNS, and the
+[SQL Server and PostgreSQL NServiceBus transports](#interop-with-nservicebus-over-database-transports).
+
+To *send* XML to an NServiceBus endpoint that is still on its `XmlSerializer`, make Wolverine's `NServiceBusXmlSerializer`
+the default serializer for that endpoint:
+
+<!-- snippet: sample_nservicebus_xml_interop -->
+<a id='snippet-sample_nservicebus_xml_interop'></a>
+```cs
+opts.PublishMessage<NServiceBusXmlMessage>().ToRabbitQueue(theQueueName)
+
+    // NServiceBus headers and conventions
+    .UseNServiceBusInterop()
+
+    // Send the message bodies in the XML format of NServiceBus' XmlSerializer
+    // instead of JSON
+    .DefaultSerializer(new NServiceBusXmlSerializer());
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/nservicebus_xml_interop_5244.cs#L45-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_xml_interop' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Wolverine writes the same XML that NServiceBus does: the root element is named for the message type in the
+`http://tempuri.net/{message type namespace}` XML namespace, followed by an element for each public property and then each
+public field. Wolverine also writes `text/xml` into the `NServiceBus.ContentType` header so the NServiceBus endpoint knows
+to use its XML deserializer. If you changed the namespace on the NServiceBus side with
+`UseSerialization<XmlSerializer>().Namespace("...")`, set the same value on Wolverine's side with
+`new NServiceBusXmlSerializer { Namespace = "..." }`. Wolverine ignores XML namespaces when it reads messages, so this
+setting only affects outgoing messages.
+
+Because reading doesn't depend on the outgoing format, the XML support also works for moving off XML gradually. A Wolverine
+endpoint keeps handling messages from NServiceBus endpoints that have already switched to JSON as well as from those that
+haven't yet, and you can switch Wolverine's own outgoing format endpoint by endpoint when the receiving NServiceBus
+endpoint is ready for JSON.
+
+A few things to know about the XML support:
+
+* Wolverine needs the `NServiceBus.EnclosedMessageTypes` header to know which type to read the XML into. NServiceBus always
+  sends it. Messages that NServiceBus sends as interfaces are handled just like they are with JSON, through
+  `RegisterInteropMessageAssembly()`.
+* The supported types are the ones the NServiceBus `XmlSerializer` supports: primitives, `string`, `Guid`, `DateTime`,
+  `DateTimeOffset`, `TimeSpan`, enums (including flags), `Uri`, `byte[]` (as base64), nullable values, nested objects,
+  arrays and generic collections, and dictionaries.
+* NServiceBus [property encryption](https://docs.particular.net/nservicebus/security/property-encryption) and message
+  properties that hold raw `XDocument` or `XElement` values are not supported.
 
 ## Interop with CloudEvents
 

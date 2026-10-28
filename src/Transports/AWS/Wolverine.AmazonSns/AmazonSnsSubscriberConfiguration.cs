@@ -6,6 +6,7 @@ using Wolverine.Configuration;
 using Wolverine.Newtonsoft;
 using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 
 namespace Wolverine.AmazonSns;
 
@@ -94,7 +95,9 @@ public class AmazonSnsSubscriberConfiguration : SubscriberConfiguration<AmazonSn
     {
         add(e =>
         {
-            e.DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
+            // GH-5244: XML bodies are read too, and sent instead of JSON when the endpoint's default serializer
+            // is an NServiceBusXmlSerializer
+            NServiceBusInterop.UseNServiceBusSerializers(e, new NewtonsoftSerializer(new JsonSerializerSettings()));
             e.Mapper = new NServiceBusEnvelopeMapper(replyQueueName!, e);
         });
 

@@ -688,12 +688,17 @@ opts.Policies.RegisterInteropMessageAssembly(typeof(SharedMessages).Assembly);
 Wolverine detects message types from standard NServiceBus headers. You may need [message type aliases](/guide/messages#message-type-name-or-alias)
 to bridge naming differences. See the full [interoperability guide](/tutorials/interop#interop-with-nservicebus).
 
+If your NServiceBus endpoints still use the NServiceBus `XmlSerializer`, you don't have to switch them to JSON first.
+Wolverine reads XML and JSON from NServiceBus on the same endpoint, and can send XML back. See
+[XML serialization with NServiceBus](/tutorials/interop#xml-serialization-with-nservicebus).
+
 ### Migration Checklist
 
 **Phase 1: Coexistence**
 - [ ] Add Wolverine and transport NuGet packages alongside NServiceBus
 - [ ] Configure `UseWolverine()` in your host setup
 - [ ] Enable `UseNServiceBusInterop()` on endpoints exchanging messages
+- [ ] For NServiceBus endpoints still on `XmlSerializer`, send XML with `.DefaultSerializer(new NServiceBusXmlSerializer())`
 - [ ] Register shared assemblies: `opts.Policies.RegisterInteropMessageAssembly(assembly)`
 - [ ] Convert `ICommand`/`IEvent` interface message types to concrete types
 - [ ] Write new handlers in Wolverine while NServiceBus handlers continue running

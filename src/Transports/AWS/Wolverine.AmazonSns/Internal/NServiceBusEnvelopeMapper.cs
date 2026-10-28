@@ -42,8 +42,6 @@ internal class NServiceBusEnvelopeMapper : ISnsEnvelopeMapper
 
     public void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes)
     {
-        envelope.Serializer = _endpoint.DefaultSerializer;
-
         var sqs = _serializer.ReadFromData<SnsEnvelope>(
             Encoding.UTF8.GetBytes(messageBody));
 
@@ -81,6 +79,9 @@ internal class NServiceBusEnvelopeMapper : ISnsEnvelopeMapper
             envelope.ContentType = contentType;
         }
 
+        // GH-5244: NServiceBus may send JSON or XML, so read the body with the serializer for its content type
+        envelope.Serializer = _endpoint.TryFindSerializer(envelope.ContentType) ?? _endpoint.DefaultSerializer;
+
         if (sqs.Headers.TryGetValue("NServiceBus.TimeSent", out var rawTime))
         {
             if (DateTimeOffset.TryParse(rawTime, new DateTimeFormatInfo{FullDateTimePattern = "yyyy-MM-dd HH:mm:ss:ffffff Z"}, DateTimeStyles.AssumeUniversal, out var result))
@@ -101,7 +102,10 @@ internal class NServiceBusEnvelopeMapper : ISnsEnvelopeMapper
     
     public string BuildMessageBody(Envelope envelope)
     {
-        var data = Convert.ToBase64String(_serializer.WriteMessage(envelope.Message!));
+        // The body is written by the endpoint's serializer -- JSON, or XML for NServiceBus endpoints still on its
+        // XmlSerializer -- while the transport envelope wrapped around it is always JSON
+        var serializer = _endpoint.DefaultSerializer ?? _serializer;
+        var data = Convert.ToBase64String(serializer.WriteMessage(envelope.Message!));
         var sqs = new SnsEnvelope(data, new())
         {
             Headers =
@@ -110,7 +114,7 @@ internal class NServiceBusEnvelopeMapper : ISnsEnvelopeMapper
                 ["NServiceBus.ConversationId"] = envelope.ConversationId.ToString(),
                 ["NServiceBus.CorrelationId"] = envelope.CorrelationId!,
                 ["NServiceBus.ReplyToAddress"] = _replyName,
-                ["NServiceBus.ContentType"] = "application/json",
+                ["NServiceBus.ContentType"] = serializer.ContentType,
                 ["NServiceBus.TimeSent"] = envelope.SentAt.ToString("yyyy-MM-dd HH:mm:ss:ffffff Z"),
                 ["NServiceBus.EnclosedMessageTypes"] = envelope.Message!.GetType().ToMessageTypeName()
             }

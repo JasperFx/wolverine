@@ -186,6 +186,9 @@ Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
 }).StartAsync();
 ```
 
+NServiceBus endpoints that still use the NServiceBus `XmlSerializer` are supported too. See
+[XML serialization with NServiceBus](/tutorials/interop#xml-serialization-with-nservicebus).
+
 ## Interoperability with Mass Transit
 
 Wolverine can interoperate bi-directionally with [MassTransit](https://masstransit-project.com/) using [RabbitMQ](http://www.rabbitmq.com/).
