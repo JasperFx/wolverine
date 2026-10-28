@@ -122,6 +122,22 @@ opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString,
 An explicit `opts.EnvelopeIdGeneration` always wins over all of this. See
 [envelope ID generation](/guide/messages#envelope-id-generation) for all the options.
 
+::: warning Messages from non-Wolverine producers don't get ordered ids
+`EnvelopeIdGeneration` only governs the ids that Wolverine *creates*. When a durable listener receives a message from
+some other producer -- raw JSON, a binary-mode CloudEvent, anything without Wolverine's own `id` header -- Wolverine
+gives that message an id derived from the broker's own identity for it (a Kafka topic, partition and offset, for
+example) so that the inbox can recognize a redelivery of the same message. See
+[Messages from producers that aren't Wolverine](/guide/durability/idempotency#messages-from-producers-that-aren-t-wolverine).
+
+That id has to be the same every time the message is delivered, so it's a hash, and a hash is just as random to SQL
+Server's clustered index as any other GUID. If your SQL Server inbox takes a high volume of messages from
+non-Wolverine producers, expect those rows to fragment the inbox table in exactly the way described above, no matter
+how you configure `EnvelopeIdGeneration`. The rows only live for `DurabilitySettings.KeepAfterMessageHandling`
+after they're handled, so the damage is bounded, but you may want to keep an eye on index maintenance for the
+inbox table in that case. If you control the producer, having it send a sequential GUID in the `id` header avoids
+the problem entirely.
+:::
+
 ## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
 
 Let's say you're running your system under [.NET Aspire](/guide/aspire), and your AppHost declares a SQL Server

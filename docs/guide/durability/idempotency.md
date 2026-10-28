@@ -38,6 +38,54 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L204-L214' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_keepaftermessagehandling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Messages from producers that aren't Wolverine
+
+All of the above hinges on the incoming message having the same envelope id every time the broker hands it to
+you. A message published by Wolverine always does, because Wolverine sends its envelope id in its own `id` header.
+A message from *some other producer* -- raw JSON, a binary-mode CloudEvent, a message from a Node.js or Java
+service -- doesn't have that header. Before 6.57, Wolverine gave such a message a brand new id every time it was
+read, so a broker redelivery looked like a brand new message to the inbox and got handled twice.
+
+Now, when an incoming message doesn't come with an id of its own, Wolverine derives one from the broker's own
+identity for that message. Every delivery of the same message gets the same id, and a redelivery is discarded
+as a duplicate just like it would be for a Wolverine-produced message. Two rules hold on every transport:
+
+* An `id` header from Wolverine, or an id that your own custom envelope mapper assigns, always wins. The derived
+  id only fills in when there's nothing else.
+* Two independent subscriptions to the same message -- two Kafka consumer groups, two Pulsar subscriptions, two
+  SQS queues subscribed to one SNS topic -- get two different ids, so each one still handles the message once.
+
+Here's what each transport derives the id from:
+
+| Transport | The id is derived from | Endpoint modes |
+|---|---|---|
+| [Kafka](/guide/messaging/transports/kafka) | broker, tenant, consumer group, topic, partition and offset | Durable |
+| [Amazon SQS](/guide/messaging/transports/sqs/) | broker, tenant, queue, and the SNS notification's `MessageId` if SNS wrapped the message, the fragment set id for a fragmented message, or else the SQS `MessageId` | All |
+| [GCP Pub/Sub](/guide/messaging/transports/gcp-pubsub/) | subscription and Pub/Sub message id, for both pull and push | All |
+| [NATS JetStream](/guide/messaging/transports/nats) | broker, tenant (for tenants with their own connection), stream name and creation time, consumer, and stream sequence | Durable |
+| [Apache Pulsar](/guide/messaging/transports/pulsar) | broker, tenant, subscription, topic and `MessageId` | Durable |
+| [Redis Streams](/guide/messaging/transports/redis) | broker, tenant, database, consumer group, stream key and entry id | Durable |
+| [Rabbit MQ](/guide/messaging/transports/rabbitmq/) | the AMQP `message-id`, if it's a GUID | All |
+| [Azure Service Bus](/guide/messaging/transports/azureservicebus/) | the Service Bus `MessageId`, if it's a GUID | All |
+
+A few things to know:
+
+* The NATS id includes the stream's creation time because deleting and recreating a stream starts its sequence
+  numbers over at 1. Without it, a brand new message could be mistaken for an old one the inbox still remembers.
+* **MQTT and core NATS are not covered.** Neither one gives a message any identity that survives a redelivery
+  (core NATS doesn't redeliver at all), so there's nothing stable to derive an id from. If you need deduplication
+  for messages from non-Wolverine producers on those transports, have the producer send a GUID in the `id` header,
+  or use [logical message deduplication](#logical-message-deduplication) below.
+* A structured-mode CloudEvent whose `id` isn't a GUID doesn't get this protection yet, except on Amazon SQS. See
+  [Deduplicating CloudEvents](/tutorials/interop#deduplicating-cloudevents).
+* The inbox still only remembers a handled message for `KeepAfterMessageHandling`, and the
+  `EnableInboxPartitioning` caveat at the top of this page still applies.
+* The derived ids are hashes, so they're effectively random. If your inbox is in SQL Server, see the note on
+  [optimized envelope ids for SQL Server](/guide/durability/sqlserver#optimized-envelope-ids-for-sql-server).
+* Rewinding a consumer group, cursor or subscription on purpose *within* the `KeepAfterMessageHandling` window
+  will now skip the messages the inbox still remembers, exactly as it always has for Wolverine-produced messages.
+  If you really mean to process them again, wait out the window or use the transport's replay support.
+
 ## Logical Message Deduplication <Badge type="tip" text="6.31" />
 
 ::: warning

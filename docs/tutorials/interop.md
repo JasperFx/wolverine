@@ -444,6 +444,30 @@ With CloudEvents interoperability:
   have to explicitly register message type aliases to bridge the gap between CloudEvents and your Wolverine application.
 * Custom headers are carried as CloudEvents extension attributes. See the next section.
 
+### Deduplicating CloudEvents
+
+The durable inbox recognizes a redelivered message by its envelope id. How a CloudEvent gets its envelope id depends on
+which CloudEvents mode the producer is using:
+
+* **Binary mode**, where the CloudEvents attributes ride in transport headers like `ce_id` and the message body is
+  just your data. Wolverine doesn't read `ce_id` as the envelope id. Instead, a durable listener derives a stable id
+  from the broker's own identity for the message, so a redelivery is still discarded as a duplicate on the transports
+  that support it. See [Messages from producers that aren't Wolverine](/guide/durability/idempotency#messages-from-producers-that-aren-t-wolverine).
+* **Structured mode**, where the entire CloudEvents JSON document is the message body and you've opted in with
+  `InteropWithCloudEvents()`. If the CloudEvent's `id` is a GUID, Wolverine uses it as the envelope id and you're in
+  good shape. If it's anything else -- and the CloudEvents spec only asks for a string that's unique per `source`, so
+  values like `"order-123"` are perfectly legal -- Wolverine currently assigns a brand new random envelope id every
+  time the message is read, and that *replaces* the stable id the transport would otherwise have derived.
+
+::: warning
+That last case means that a structured-mode CloudEvent with a non-GUID `id` is **not** deduplicated by the durable
+inbox today, and a broker redelivery of it will be handled again. Amazon SQS is the one exception, where Wolverine
+keeps the id it derived from the SQS (or SNS) message instead. Until Wolverine derives the envelope id from the
+CloudEvent's `source` and `id` (which is unique by the spec), the workarounds are to have the producer use GUID ids,
+to use binary mode instead, or to make the handler itself idempotent, for example with
+[logical message deduplication](/guide/durability/idempotency#logical-message-deduplication).
+:::
+
 ### Custom Headers with CloudEvents
 
 Wolverine carries the custom headers on an outgoing `Envelope` as top level CloudEvents
