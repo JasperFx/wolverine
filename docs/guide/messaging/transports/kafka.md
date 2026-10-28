@@ -564,6 +564,22 @@ This gives you effectively-once processing that **spans your database and Kafka*
 transactions alone cannot do, because they can't enlist an external database. This is how most Wolverine
 applications should get exactly-once-style guarantees; you do **not** need Kafka transactions for it.
 
+::: tip Records from producers that aren't Wolverine
+The inbox recognizes a redelivery by its envelope id, and keeps a handled message's row for
+`DurabilitySettings.KeepAfterMessageHandling` (five minutes by default) to catch one. A record published by
+Wolverine carries its id in the `id` header. A record from any other producer, raw JSON or a binary-mode
+CloudEvent for example, has none, so a durable listener derives the id from where the record sits in the log:
+the broker, the tenant, the consumer group, the topic, the partition and the offset. Every read of that record
+gets the same id, so a rewind, a rebalance or a listener restart that hands it over again is discarded as a
+duplicate, not handled twice. An `id` header, or an id that your own `IKafkaEnvelopeMapper` assigns, still
+takes precedence. Two consumer groups are two independent subscriptions, and each handles the record once.
+Buffered and inline listeners have no inbox to deduplicate against, and keep a fresh id per read.
+
+With `EnableInboxPartitioning`, a handled row no longer blocks an incoming row with the same id, so a
+redelivery that arrives after the first copy was handled is handled again, whatever its id. See
+`DurabilitySettings.EnableInboxPartitioning`.
+:::
+
 ### Idempotent producer
 
 Opt into the idempotent producer so producer-side retries can't write duplicates to the broker:

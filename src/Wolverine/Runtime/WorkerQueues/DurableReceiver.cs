@@ -1554,7 +1554,12 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     private async Task handleDuplicateIncomingEnvelope(Envelope envelope, DuplicateIncomingEnvelopeException e)
     {
-        _logger.LogError(e, "Duplicate incoming envelope detected");
+        // Not an error: refusing a delivery the inbox already holds is what the inbox is for, and a broker
+        // redelivery -- a rebalance, a consumer restart, a rewind -- produces one of these per redelivered
+        // message. The exception carries nothing the message does not, so it stays out of the log.
+        _logger.LogInformation(
+            "Discarding a duplicate delivery of envelope {EnvelopeId} at {Uri}, which the inbox already holds",
+            envelope.Id, Uri);
 
         if (envelope.Listener == null) return;
 

@@ -17,11 +17,12 @@ public class when_durable_receiver_detects_duplicate_incoming_envelope : IAsyncL
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     private readonly DurableReceiver theReceiver;
     private readonly MockWolverineRuntime theRuntime;
+    private readonly CapturedLogs theLogs = new();
 
     public when_durable_receiver_detects_duplicate_incoming_envelope()
     {
         theRuntime = new MockWolverineRuntime();
-
+        theRuntime.LoggerFactory.AddProvider(theLogs);
 
         var stubEndpoint = new StubEndpoint("one", new StubTransport());
         theReceiver = new DurableReceiver(stubEndpoint, theRuntime, thePipeline);
@@ -53,5 +54,13 @@ public class when_durable_receiver_detects_duplicate_incoming_envelope : IAsyncL
     public async Task the_envelope_was_not_processed()
     {
         await thePipeline.DidNotReceive().InvokeAsync(theEnvelope, theReceiver);
+    }
+
+    [Fact]
+    public void the_duplicate_is_not_reported_as_a_failure()
+    {
+        // Discarding a delivery the inbox already holds is the designed outcome of a redelivery
+        theLogs.Errors.ShouldBeEmpty();
+        theLogs.Warnings.ShouldBeEmpty();
     }
 }

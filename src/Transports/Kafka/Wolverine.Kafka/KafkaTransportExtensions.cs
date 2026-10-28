@@ -255,6 +255,30 @@ public static class KafkaTransportExtensions
 
     internal static Envelope CreateEnvelope(this IKafkaEnvelopeMapper mapper, string topicName, Message<string, byte[]> message)
     {
+        return mapper.createEnvelope(topicName, message, out _);
+    }
+
+    /// <summary>
+    /// Builds the envelope for a consumed record. With an <paramref name="identity" />, a record the mapper gave
+    /// no id of its own -- it carries no Wolverine <c>id</c> header, and a custom mapper set none -- gets the id
+    /// of its position in the log, so a redelivery of it is the same envelope to the durable inbox.
+    /// </summary>
+    internal static Envelope CreateEnvelope(this IKafkaEnvelopeMapper mapper, ConsumeResult<string, byte[]> result,
+        KafkaRecordIdentity? identity)
+    {
+        var envelope = mapper.createEnvelope(result.Topic, result.Message, out var mapperAssignedId);
+
+        if (identity != null && !mapperAssignedId)
+        {
+            envelope.Id = identity.IdFor(result.Topic, result.Partition.Value, result.Offset.Value);
+        }
+
+        return envelope;
+    }
+
+    private static Envelope createEnvelope(this IKafkaEnvelopeMapper mapper, string topicName,
+        Message<string, byte[]> message, out bool mapperAssignedId)
+    {
         var envelope = new Envelope
         {
             PartitionKey = message.Key,
@@ -262,9 +286,17 @@ public static class KafkaTransportExtensions
             TopicName = topicName
         };
 
+        // A fresh envelope's id is a new IdGenerator() value nobody else has seen, so the id still being that
+        // value after mapping means neither the id header nor a custom mapper supplied one
+        var provisionalId = envelope.Id;
+
         message.Headers ??= new Headers(); // prevent NRE
 
         mapper.MapIncomingToEnvelope(envelope, message);
+
+        // KafkaEnvelopeMapper maps a missing or unreadable id header to Guid.Empty instead, which the durable
+        // receiver replaces with a fresh IdGenerator() value just before the inbox insert. Neither is an id.
+        mapperAssignedId = envelope.Id != provisionalId && envelope.Id != Guid.Empty;
 
         return envelope;
     }
