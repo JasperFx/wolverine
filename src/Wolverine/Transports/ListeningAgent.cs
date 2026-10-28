@@ -385,6 +385,15 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StoppingListener);
             activity?.SetTag(WolverineTracing.EndpointAddress, Uri);
 
+            // GH-5257. A real stop interrupts any inline retry cooldown on this listener BEFORE the listener
+            // is stopped, because some listeners (the Azure Service Bus session listener) join the processing
+            // of the messages they handed out, and a cooldown would hold that join to its end. A pause from
+            // inside the pipeline (latchBeforeDrain: false) leaves them alone: the listener resumes later.
+            if (latchBeforeDrain)
+            {
+                await _pipeline.SignalStoppingAsync();
+            }
+
             if (listener != null)
             {
                 await listener.StopAsync();
@@ -500,6 +509,8 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     private async ValueTask startAsync()
     {
+        // GH-5257. A restarted listener's retries must not see the last stop's signal
+        _pipeline.ResetStopping();
 
         if (_runtime.DurabilitySettings.Mode == DurabilityMode.Balanced
             && _runtime.Restrictions.FindPausedAgentUris().Any(u => u == Uri))

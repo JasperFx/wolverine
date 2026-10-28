@@ -300,6 +300,11 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
 
         foreach (var message in messages)
         {
+            // GH-5257. The listener is stopping: don't start the rest of the batch. The messages left here are
+            // never settled, so the session lock is released with them when the session receiver is disposed,
+            // and the broker redelivers them -- in order, which re-sending them through _defer would not keep
+            if (cancellationToken.IsCancellationRequested) break;
+
             try
             {
                 var envelope = new AzureServiceBusEnvelope(message, _sessionReceiver);
