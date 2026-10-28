@@ -279,12 +279,13 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
         if (Tenants.Any() && endpoint.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             var compound = new CompoundListener(endpoint.Uri);
-            compound.Inner.Add(buildSingleListener(endpoint, receiver, this, runtime));
+            compound.Inner.Add(buildSingleListener(endpoint, receiver, this, null, runtime));
 
             foreach (var tenant in Tenants)
             {
                 var wrapped = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
-                compound.Inner.Add(buildSingleListener(endpoint, wrapped, tenant.Transport, runtime));
+                compound.Inner.Add(buildSingleListener(endpoint, wrapped, tenant.Transport, tenant.TenantId,
+                    runtime));
             }
 
             foreach (var inner in compound.Inner)
@@ -295,7 +296,7 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
             return compound;
         }
 
-        var listener = buildSingleListener(endpoint, receiver, this, runtime);
+        var listener = buildSingleListener(endpoint, receiver, this, null, runtime);
         await waitForSubscriptionAsync(listener);
 
         return listener;
@@ -314,8 +315,10 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
             : ValueTask.CompletedTask;
     }
 
+    // tenantId is the broker-per-tenant tenant whose cluster this listener consumes, or null for the transport's
+    // own cluster
     private static IListener buildSingleListener(PulsarEndpoint endpoint, IReceiver receiver,
-        PulsarTransport transport, IWolverineRuntime runtime)
+        PulsarTransport transport, string? tenantId, IWolverineRuntime runtime)
     {
         // Hot-tail (GH-3184): a non-durable Reader at the tail rather than a durable subscription.
         if (endpoint.IsHotTail)
@@ -323,6 +326,6 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
             return new PulsarReaderListener(runtime, endpoint, receiver, transport, runtime.Cancellation);
         }
 
-        return new PulsarListener(runtime, endpoint, receiver, transport, runtime.Cancellation);
+        return new PulsarListener(runtime, endpoint, receiver, transport, runtime.Cancellation, tenantId);
     }
 }

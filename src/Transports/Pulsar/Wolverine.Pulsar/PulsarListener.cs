@@ -6,6 +6,7 @@ using DotPulsar.Extensions;
 using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.Pulsar.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -43,6 +44,10 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     private IProducer<ReadOnlySequence<byte>>? _retryLetterQueueProducer;
     private IProducer<ReadOnlySequence<byte>>? _dlqProducer;
 
+    // Gives a message without an id of its own the id of its MessageId, so the durable inbox sees a redelivery of
+    // it as the duplicate it is. Null for an endpoint without an inbox to deduplicate against.
+    private readonly PulsarMessageIdentity? _messageIdentity;
+
     // GH-3231: DotPulsar exposes consumer state only via change-notifications, so a background monitor tracks the
     // latest state here. Volatile because it is written by the monitor task and read by external health probes.
     private volatile TransportConnectionState _connectionState = TransportConnectionState.Disconnected;
@@ -51,7 +56,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
     public PulsarListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
         PulsarTransport transport,
-        CancellationToken cancellation)
+        CancellationToken cancellation, string? tenantId = null)
     {
         _endpoint = endpoint;
         _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
@@ -90,6 +95,13 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         _unsubscribeOnClose = endpoint.UnsubscribeOnClose;
 
         var mapper = endpoint.BuildMapper(runtime);
+
+        // Only the durable inbox deduplicates on the envelope id. Anywhere else a derived id would be a hash per
+        // message on the hot path that buys nothing. The endpoint's scheme is the broker name, the same for the
+        // default listener and every broker-per-tenant listener, which the tenant id tells apart.
+        _messageIdentity = endpoint.Mode == EndpointMode.Durable
+            ? new PulsarMessageIdentity(endpoint.Uri.Scheme, tenantId, endpoint.SubscriptionName)
+            : null;
 
         _localCancellation = new CancellationTokenSource();
 
@@ -163,13 +175,8 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
                 // Record receipt so the ack handler can compute the cumulative-ack watermark safely.
                 _ackHandler.Track(FixMessageId(message.MessageId, _consumer.Topic));
 
-                var envelope = new PulsarEnvelope(message)
-                {
-                    Data = message.Data.ToArray(),
-                    IsFromRetryConsumer = false
-                };
-
-                mapper.MapIncomingToEnvelope(envelope, message);
+                var envelope = PulsarMessageIdentity.CreateEnvelope(mapper, message, _consumer.Topic,
+                    isFromRetryConsumer: false, _messageIdentity);
 
                 // GH-3213: a schema codec (Avro) owns the body encoding, so decode the message object
                 // directly here — the pipeline then skips its own body deserialization.
@@ -191,17 +198,15 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         if (NativeRetryLetterQueueEnabled)
         {
-            _retryConsumer = createRetryConsumer(endpoint, transport);
+            var retryConsumer = createRetryConsumer(endpoint, transport);
+            _retryConsumer = retryConsumer;
             _receivingRetryLoop = Task.Run(
-                () => consumeAsync(_retryConsumer, _combinedCancellation.Token, async message =>
+                () => consumeAsync(retryConsumer, _combinedCancellation.Token, async message =>
                 {
-                    var envelope = new PulsarEnvelope(message)
-                    {
-                        Data = message.Data.ToArray(),
-                        IsFromRetryConsumer = true
-                    };
-
-                    mapper.MapIncomingToEnvelope(envelope, message);
+                    // A retry copy is a new message on the retry letter topic, so one without an id property gets
+                    // the id of its own MessageId there. See PulsarMessageIdentity.
+                    var envelope = PulsarMessageIdentity.CreateEnvelope(mapper, message,
+                        retryConsumer.Topic, isFromRetryConsumer: true, _messageIdentity);
 
                     if (_codec != null)
                     {
