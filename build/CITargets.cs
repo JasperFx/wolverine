@@ -644,20 +644,64 @@ partial class Build
 
     // ─── Persistence CI Targets ────────────────────────────────────────
 
+    // CIPersistence ran PersistenceTests and all of PostgresqlTests in one job, and outgrew the 20 minute
+    // cap: green runs came in at ~18m and most runs on 2026-10-27/28 were cancelled at the cap. Split the
+    // way CISqlServer is: CIPostgresql lists what it owns, and CIPersistence keeps PersistenceTests plus
+    // the NEGATION of that list, so a newly added PostgresqlTests class or namespace still runs.
+    //
+    // Measured from the last green CIPersistence run (2026-10-28, job 122931451370): PersistenceTests
+    // 183s; PostgresqlTests 750s, of which the root namespace is 481s and Transport 132s. The root
+    // namespace is dominated by the four MessageStoreCompliance subclasses below (290s together), so the
+    // split is keyed on those CLASS names plus the Transport namespace -- includeNamespaces is a prefix
+    // match, and it works for a fully-qualified class name as well:
+    //
+    //   CIPostgresql    the four message store compliance classes + Transport    ~422s
+    //   CIPersistence   PersistenceTests + everything else in PostgresqlTests    ~511s
+    //
+    // CIPersistence is deliberately the larger of the two only because PersistenceTests cannot be split
+    // out without a third runner; it is still roughly half of what the single job used to carry.
+
+    AbsolutePath PostgresqlTests => RootDirectory / "src" / "Persistence" / "PostgresqlTests" / "PostgresqlTests.csproj";
+
+    static readonly string[] PostgresqlShard =
+    [
+        "PostgresqlTests.compliance_using_table_partitioning",                // 133.5s / 79 tests
+        "PostgresqlTests.PostgresqlMessageStore_with_IdAndDestination_Identity", // 65.8s / 79 tests
+        "PostgresqlTests.PostgresqlMessageStoreTests",                        //  58.8s / 79 tests
+        "PostgresqlTests.PostgresqlMessageStore_with_DeadLetter_Expiration",  //  32.3s / 75 tests
+        "PostgresqlTests.Transport"                                           // 132.1s / 141 tests
+    ];
+
+    /// <summary>
+    /// PersistenceTests, plus every PostgresqlTests test not claimed by <see cref="CIPostgresql"/>.
+    /// </summary>
     Target CIPersistence => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
         {
             var persistenceTests = RootDirectory / "src" / "Persistence" / "PersistenceTests" / "PersistenceTests.csproj";
-            var postgresqlTests = RootDirectory / "src" / "Persistence" / "PostgresqlTests" / "PostgresqlTests.csproj";
 
-            BuildTestProjects(postgresqlTests);
+            BuildTestProjects(PostgresqlTests);
             // Pin PersistenceTests to net9.0 in CI; csproj targets net9.0;net10.0.
             BuildTestProjectsWithFramework("net9.0", persistenceTests);
             StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 
             RunTestProject(persistenceTests, frameworkOverride: "net9.0");
-            RunTestProject(postgresqlTests);
+            RunTestProject(PostgresqlTests, testFilter: excludeNamespaces(PostgresqlShard));
+        });
+
+    /// <summary>
+    /// PostgresqlTests shard: the message store compliance batteries and the PostgreSQL transport.
+    /// </summary>
+    Target CIPostgresql => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            LaunchDockerServices("postgresql");
+            BuildTestProjects(PostgresqlTests);
+            AwaitDockerServices("postgresql");
+
+            RunTestProject(PostgresqlTests, testFilter: includeNamespaces(PostgresqlShard));
         });
 
     /// <summary>

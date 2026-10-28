@@ -111,7 +111,7 @@ code and commit.
 | Suite | Command | Docker services |
 |---|---|---|
 | CoreTests | `./build.sh CoreTests --framework net9.0` | none |
-| PostgresqlTests (with PersistenceTests) | `./build.sh CIPersistence --framework net9.0` | postgresql, sqlserver, rabbitmq |
+| PostgresqlTests (with PersistenceTests) | `./build.sh CIPostgresql --framework net9.0` and `./build.sh CIPersistence --framework net9.0` (two shards of PostgresqlTests; both make the whole suite) | postgresql, sqlserver, rabbitmq |
 | MartenTests | `./build.sh CIMartenDistribution --framework net9.0`, `./build.sh CIMartenTenancy --framework net9.0` and `./build.sh CIMarten --framework net9.0` (three shards of one project; all three make the whole suite) | postgresql |
 | EfCoreTests | `./build.sh CIEfCore --framework net9.0` | postgresql, sqlserver, rabbitmq |
 | SqlServerTests | `./build.sh CISqlServer --framework net9.0` | sqlserver |
@@ -126,7 +126,7 @@ own projects.
 |---|---|---|---|
 | `CoreTests` | CoreTests | none | full-solution compile first |
 | `CIMessageRouting` | MessageRoutingTests | rabbitmq | `./build.sh ci` runs this after CoreTests |
-| `CIPersistence` | PersistenceTests (net9.0), PostgresqlTests | postgresql, sqlserver, rabbitmq | |
+| `CIPostgresql` / `CIPersistence` | PostgresqlTests shards (+ PersistenceTests (net9.0) in `CIPersistence`) | postgresql (+ sqlserver, rabbitmq in `CIPersistence`) | |
 | `CISqlServer` | SqlServerTests | sqlserver | 4 workers, one database per lane (`wolverine_w0..`) |
 | `CIMySql` | MySqlTests | mysql | |
 | `CIOracle` | OracleTests | oracle | the slowest image to become ready |
