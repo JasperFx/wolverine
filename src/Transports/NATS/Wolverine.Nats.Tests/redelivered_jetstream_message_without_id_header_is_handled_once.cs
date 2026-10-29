@@ -61,12 +61,6 @@ public class redelivered_jetstream_message_without_id_header_is_handled_once
         AfterTheFirstCopyWasHandled
     }
 
-    // Not a NATS problem: the Wolverine id control fails the same way. With EnableInboxPartitioning a handled row
-    // sits in the handled partition, where it does not block an Incoming insert of the same id, so a redelivery after
-    // handling is stored and handled again whatever its id -- as DurabilitySettings.EnableInboxPartitioning documents
-    private const string PartitionedInboxHandledGap =
-        "A partitioned inbox does not refuse an incoming id that is already handled (DurabilitySettings.EnableInboxPartitioning)";
-
     private readonly ITestOutputHelper _output;
 
     public redelivered_jetstream_message_without_id_header_is_handled_once(ITestOutputHelper output)
@@ -80,13 +74,11 @@ public class redelivered_jetstream_message_without_id_header_is_handled_once
     [InlineData(MessageShape.NoIdHeader, false, Redelivery.WhileTheFirstCopyIsStillIncoming)]
     [InlineData(MessageShape.NoIdHeader, false, Redelivery.AfterTheFirstCopyWasHandled)]
     [InlineData(MessageShape.NoIdHeader, true, Redelivery.WhileTheFirstCopyIsStillIncoming)]
-    [InlineData(MessageShape.NoIdHeader, true, Redelivery.AfterTheFirstCopyWasHandled,
-        Skip = PartitionedInboxHandledGap)]
+    [InlineData(MessageShape.NoIdHeader, true, Redelivery.AfterTheFirstCopyWasHandled)]
     [InlineData(MessageShape.WolverineIdHeader, false, Redelivery.WhileTheFirstCopyIsStillIncoming)]
     [InlineData(MessageShape.WolverineIdHeader, false, Redelivery.AfterTheFirstCopyWasHandled)]
     [InlineData(MessageShape.WolverineIdHeader, true, Redelivery.WhileTheFirstCopyIsStillIncoming)]
-    [InlineData(MessageShape.WolverineIdHeader, true, Redelivery.AfterTheFirstCopyWasHandled,
-        Skip = PartitionedInboxHandledGap)]
+    [InlineData(MessageShape.WolverineIdHeader, true, Redelivery.AfterTheFirstCopyWasHandled)]
     public async Task a_redelivered_message_is_handled_once(MessageShape shape, bool partitionedInbox,
         Redelivery redelivery)
     {
