@@ -253,6 +253,53 @@ A durability pass is bounded by a maximum duration (30 seconds by default) and a
 so it fits comfortably inside a function invocation. Each message store takes a non-blocking lock before doing any work, so if two passes
 overlap, the second one just skips the stores the first one is already working on instead of waiting.
 
+### Behind a Transaction-Mode Connection Pooler
+
+With PostgreSQL, that lock is a session-level advisory lock on a dedicated connection. If your function reaches
+PostgreSQL through a connection pooler in transaction mode, like PgBouncer with `pool_mode = transaction` or Cloud SQL
+managed connection pooling, a session-level lock isn't reliable. The pooler only keeps your client on one server
+connection for the length of a transaction, so the lock can be taken on one server connection and the unlock sent to
+another. The lock then stays held on the first one, and later passes skip that store, or overlap, until the pooler
+closes that server connection.
+
+In that case, opt into a transaction-scoped lock instead:
+
+<!-- snippet: sample_transaction_scoped_durability_pass_lock -->
+<a id='snippet-sample_transaction_scoped_durability_pass_lock'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // A connection string that goes through PgBouncer or another
+        // pooler in transaction mode
+        opts.Services.AddMarten("some connection string")
+            .IntegrateWithWolverine();
+
+        opts.Durability.Mode = DurabilityMode.ServerlessWithOutbox;
+
+        // Take the durability pass lock inside a transaction that stays
+        // open for the pass, so it is taken and released on the same
+        // server connection. Don't use this with Marten's async daemon
+        opts.Durability.UseTransactionScopedDurabilityPassLock = true;
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L111-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_transaction_scoped_durability_pass_lock' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With `UseTransactionScopedDurabilityPassLock`, Wolverine opens a transaction on the dedicated lock connection, takes
+`pg_try_advisory_xact_lock` inside it, keeps that transaction open while the pass runs, and rolls it back when the pass
+is done, even if a step fails. Ending the transaction releases the lock on the same server connection that took it. The
+pass steps still use their own connections, just like before.
+
+::: warning
+The lock connection sits idle in an open transaction for as long as the pass runs, which is why this is off by default.
+Marten's async daemon treats any session with an open transaction older than an event sequence gap as a possible
+reserver of that gap, so asynchronous projections can wait while a pass is running. Only use this option if you don't
+run Marten's async daemon against the same database, or if that wait is acceptable to you. Also make sure the server's
+`idle_in_transaction_session_timeout` and PgBouncer's `idle_transaction_timeout`, if you set either one, are longer
+than a pass, or the transaction is ended and the lock released early. Only the PostgreSQL message store honors this setting today.
+:::
+
 ::: warning
 A durability pass only runs under `DurabilityMode.ServerlessWithOutbox`, and all three ways of triggering one refuse to run in any other mode. In
 the other modes Wolverine's own durability agents are already doing this work, and a pass running beside them could send or handle a message twice.
@@ -283,7 +330,7 @@ while (report.HasMoreWork && !report.TimedOut && passes < 5)
 
 Console.WriteLine($"Sent {report.OutgoingSent} outgoing messages, dead lettered {report.OutgoingDeadLettered}, released {report.ScheduledReleased} scheduled messages");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L111-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_running_a_durability_pass' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L133-L149' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_running_a_durability_pass' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `DurabilityPassReport` that comes back tells you what the pass did for each message store and each step, which stores it skipped because

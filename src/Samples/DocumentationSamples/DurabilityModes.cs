@@ -106,6 +106,28 @@ public class DurabilityModes
         #endregion
     }
 
+    public static async Task bootstrap_for_serverless_with_outbox_behind_a_pooler()
+    {
+        #region sample_transaction_scoped_durability_pass_lock
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // A connection string that goes through PgBouncer or another
+                // pooler in transaction mode
+                opts.Services.AddMarten("some connection string")
+                    .IntegrateWithWolverine();
+
+                opts.Durability.Mode = DurabilityMode.ServerlessWithOutbox;
+
+                // Take the durability pass lock inside a transaction that stays
+                // open for the pass, so it is taken and released on the same
+                // server connection. Don't use this with Marten's async daemon
+                opts.Durability.UseTransactionScopedDurabilityPassLock = true;
+            }).StartAsync();
+
+        #endregion
+    }
+
     public static async Task run_a_durability_pass(IHost host)
     {
         #region sample_running_a_durability_pass

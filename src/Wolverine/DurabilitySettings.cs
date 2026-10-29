@@ -286,7 +286,31 @@ public class DurabilitySettings : IDescribeMyself
     /// change unless you ask for one
     /// </summary>
     public bool EnableOutgoingTimestampIndex { get; set; }
-    
+
+    /// <summary>
+    /// GH-5279. Opt in to a transaction-scoped durability pass lock for the message stores that support one, which
+    /// today is PostgreSQL. Use this when the application reaches its database through a connection pooler in
+    /// transaction mode, such as PgBouncer or Cloud SQL managed connection pooling, and runs
+    /// <see cref="DurabilityMode.ServerlessWithOutbox"/> durability passes. Default is false, which keeps the
+    /// session-level advisory lock
+    /// </summary>
+    /// <remarks>
+    /// <para>A transaction-mode pooler only keeps a client on one server connection for the length of a
+    /// transaction. A session-level advisory lock taken outside of a transaction can be taken on one server
+    /// connection and released on another, so it stays held and later passes skip the store until that server
+    /// connection is closed. With this option on, PostgreSQL takes <c>pg_try_advisory_xact_lock</c> inside a
+    /// transaction on the dedicated lock connection, keeps that transaction open while the pass runs, and ends
+    /// it when the pass is done, which releases the lock on the same server connection that took it.</para>
+    /// <para>The trade-off: the lock connection is idle in an open transaction for as long as the pass runs.
+    /// Marten's async daemon treats any session with an open transaction older than an event sequence gap as a
+    /// possible reserver of that gap (see GH-3664), so asynchronous projections can wait while a pass runs.
+    /// Only turn this on when the application does not run Marten's async daemon against this database, or
+    /// when that wait is acceptable. A server-side <c>idle_in_transaction_session_timeout</c> or a PgBouncer
+    /// <c>idle_transaction_timeout</c> shorter than a pass would also end the transaction and release the lock
+    /// early.</para>
+    /// </remarks>
+    public bool UseTransactionScopedDurabilityPassLock { get; set; }
+
     /// <summary>
     /// If non-null, this directs Wolverine to "push" any message in the durable inbox that is older
     /// than the configured time even if the message is marked as owned by an active node. Should NOT ever
@@ -1220,6 +1244,7 @@ public class DurabilitySettings : IDescribeMyself
 
         if (OutboxStaleTime.HasValue) desc.AddValue(nameof(OutboxStaleTime), OutboxStaleTime.Value);
         if (EnableOutgoingTimestampIndex) desc.AddValue(nameof(EnableOutgoingTimestampIndex), EnableOutgoingTimestampIndex);
+        if (UseTransactionScopedDurabilityPassLock) desc.AddValue(nameof(UseTransactionScopedDurabilityPassLock), UseTransactionScopedDurabilityPassLock);
         if (InboxStaleTime.HasValue) desc.AddValue(nameof(InboxStaleTime), InboxStaleTime.Value);
         if (MessageStorageSchemaName != null) desc.AddValue(nameof(MessageStorageSchemaName), MessageStorageSchemaName);
         return desc;

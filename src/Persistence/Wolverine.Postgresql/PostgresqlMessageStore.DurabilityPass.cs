@@ -23,21 +23,34 @@ internal partial class PostgresqlMessageStore : IMessageStoreWithDurabilityPass,
     IDurabilityPassInboxSource
 {
     /// <summary>
-    ///     The session-level advisory lock that keeps two overlapping durability passes against the same
-    ///     message schema from sending the same rows twice. Derived from the schema name so that two Wolverine
-    ///     applications sharing one database with their own schemas do not skip each other's passes
+    ///     The advisory lock that keeps two overlapping durability passes against the same message schema from
+    ///     sending the same rows twice. Derived from the schema name so that two Wolverine applications sharing
+    ///     one database with their own schemas do not skip each other's passes
     /// </summary>
     internal int DurabilityPassLockId => $"{SchemaName}:durability-pass".GetDeterministicHashCode();
 
     public async Task<IAsyncDisposable?> TryAcquireDurabilityPassLockAsync(CancellationToken token)
     {
-        // A dedicated connection with no transaction open on it for as long as the pass runs. See the
-        // GH-3664 note in PollForScheduledMessagesAsync for why a long-held lock must not be transaction scoped
         var conn = await NpgsqlDataSource.OpenConnectionAsync(token);
 
         try
         {
-            if (await conn.TryGetGlobalLock(DurabilityPassLockId, cancellation: token) == AttainLockResult.Success)
+            if (Durability.UseTransactionScopedDurabilityPassLock)
+            {
+                // Behind a transaction-mode pooler only a transaction keeps this client on one server connection,
+                // so the lock is taken and released inside one. This is the trade-off the GH-3664 note in
+                // PollForScheduledMessagesAsync warns about, which is why it is opt in
+                var tx = await conn.BeginTransactionAsync(token);
+                if (await tx.TryGetGlobalTxLock(DurabilityPassLockId, token) == AttainLockResult.Success)
+                {
+                    return new TransactionScopedDurabilityPassLock(conn, tx);
+                }
+
+                await tx.RollbackAsync(token);
+            }
+            // A dedicated connection with no transaction open on it for as long as the pass runs. See the
+            // GH-3664 note in PollForScheduledMessagesAsync for why a long-held lock must not be transaction scoped
+            else if (await conn.TryGetGlobalLock(DurabilityPassLockId, cancellation: token) == AttainLockResult.Success)
             {
                 return new DurabilityPassLock(conn, DurabilityPassLockId);
             }
@@ -271,6 +284,39 @@ internal partial class PostgresqlMessageStore : IMessageStoreWithDurabilityPass,
             finally
             {
                 // Closing the session releases a session-level lock no matter what
+                await _conn.DisposeAsync();
+            }
+        }
+    }
+
+    /// <summary>
+    ///     GH-5279. See <see cref="DurabilitySettings.UseTransactionScopedDurabilityPassLock" />. Ending the
+    ///     transaction releases the lock on the same server connection that took it, even behind a
+    ///     transaction-mode pooler
+    /// </summary>
+    private sealed class TransactionScopedDurabilityPassLock : IAsyncDisposable
+    {
+        private readonly NpgsqlConnection _conn;
+        private readonly NpgsqlTransaction _tx;
+
+        public TransactionScopedDurabilityPassLock(NpgsqlConnection conn, NpgsqlTransaction tx)
+        {
+            _conn = conn;
+            _tx = tx;
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            try
+            {
+                // Nothing was written in this transaction, it only holds the lock
+                await _tx.RollbackAsync(CancellationToken.None);
+            }
+            finally
+            {
+                // If the rollback failed, closing still ends the transaction: Npgsql either queues a rollback
+                // for the pooled connection, sent with its next command, or closes a broken one
+                await _tx.DisposeAsync();
                 await _conn.DisposeAsync();
             }
         }
