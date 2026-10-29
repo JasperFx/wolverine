@@ -352,21 +352,25 @@ public class DurabilitySettings : IDescribeMyself
     /// Under <see cref="MessageIdentity.IdOnly"/> the identity is the envelope id alone, so a pair
     /// like this is resolved across listening endpoints rather than within one.
     ///
-    /// The Incoming/Handled pair is weakened in the same way, and the poller never sees it. A message
-    /// retained after handling by <see cref="KeepAfterMessageHandling"/> sits in the handled partition, where it no
-    /// longer blocks an insert of the same identity as Incoming. On a durable listening endpoint duplicate
-    /// detection is that insert failing, so a redelivery arriving inside that retention window is stored and
-    /// handled again rather than discarded. Retiring that second copy is a cross-partition move onto the key
-    /// the retained row still holds, so it is discarded outright instead of flipped; the retained handled row
-    /// is what serves the retention window and it is already there. Parking a retry for such an identity is
-    /// the same shape and is resolved the same way -- a retained handled row is never dragged into the
-    /// scheduled partition alongside the row being parked, and a redundant incoming copy gives way to a
-    /// scheduled row that already exists.
+    /// A message retained after handling by <see cref="KeepAfterMessageHandling"/> sits in the handled partition,
+    /// where the primary key no longer blocks an insert of the same identity. The inbox insert refuses such an
+    /// identity itself, so a redelivery arriving inside that retention window is discarded as a duplicate with
+    /// the same <see cref="Persistence.Durability.DuplicateIncomingEnvelopeException"/> the primary key raises
+    /// without partitioning, whether it is stored alone, in a batch or inside the caller's transaction.
     ///
-    /// Neither pair raises <see cref="Persistence.Durability.DuplicateIncomingEnvelopeException"/>, which is the
-    /// only path to <see cref="MaximumBrokerRedeliveries"/>. That setting dead-letters a delivery the inbox
-    /// rejected as a duplicate and the listener could not settle; it does not bound duplicate execution, and
-    /// neither pair reaches it.
+    /// That refusal reads the handled partition as of the insert, so a redelivery stored at the moment the first
+    /// copy is being marked handled -- after its row left the incoming partition, before the handled row is
+    /// committed -- can still land beside it and run again, a window the unpartitioned key does not have. Retiring
+    /// that second copy is a cross-partition move onto the key the retained row holds, so it is discarded
+    /// outright instead of flipped; the retained handled row is what serves the retention window and it is
+    /// already there. Parking a retry for such an identity is the same shape and is resolved the same way -- a
+    /// retained handled row is never dragged into the scheduled partition alongside the row being parked, and a
+    /// redundant incoming copy gives way to a scheduled row that already exists.
+    ///
+    /// The Incoming/Scheduled pair does not raise <see cref="Persistence.Durability.DuplicateIncomingEnvelopeException"/>,
+    /// which is the only path to <see cref="MaximumBrokerRedeliveries"/>. That setting dead-letters a delivery the
+    /// inbox rejected as a duplicate and the listener could not settle; it does not bound duplicate execution, and
+    /// that pair does not reach it.
     /// </summary>
     public bool EnableInboxPartitioning { get; set; }
 

@@ -91,18 +91,30 @@ public abstract partial class MessageDatabase<T>
     /// </remarks>
     public async Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes)
     {
+        var refusesHandled = incomingInsertRefusesHandled;
+
         foreach (var chunk in chunkByParameterLimit(envelopes, DatabaseConstants.IncomingParametersPerEnvelope))
         {
-            await using var cmd = DatabasePersistence.BuildIncomingStorageCommand(chunk.ToArray(), this);
+            await using var cmd = refusesHandled
+                ? BuildBatchedIncomingCommand(chunk)
+                : DatabasePersistence.BuildIncomingStorageCommand(chunk.ToArray(), this);
 
             cmd.Transaction = tx;
             cmd.Connection = tx.Connection;
 
+            int inserted;
             try
             {
-                await cmd.ExecuteNonQueryAsync(_cancellation);
+                inserted = await cmd.ExecuteNonQueryAsync(_cancellation);
             }
             catch (Exception e) when (IsDuplicateEnvelopeException(e))
+            {
+                throw new DuplicateIncomingEnvelopeException(envelopes);
+            }
+
+            // A refused row leaves the caller's transaction usable, where a key violation would have aborted it.
+            // The exception is what keeps it from committing, together with the caller's other work
+            if (refusesHandled && inserted < chunk.Count)
             {
                 throw new DuplicateIncomingEnvelopeException(envelopes);
             }
@@ -399,17 +411,20 @@ public abstract partial class MessageDatabase<T>
     {
         if (HasDisposed) return;
 
-        var builder = ToCommandBuilder();
-        DatabasePersistence.BuildIncomingStorageCommand(this, builder, envelope);
+        var refusesHandled = incomingInsertRefusesHandled;
 
-        await using var cmd = builder.Compile();
+        await using var cmd = refusesHandled
+            ? BuildBatchedIncomingCommand([envelope])
+            : buildIncomingCommand(envelope);
+
+        int inserted;
         try
         {
             await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
             try
             {
                 cmd.Connection = conn;
-                await cmd.ExecuteNonQueryAsync(_cancellation).ConfigureAwait(false);
+                inserted = await cmd.ExecuteNonQueryAsync(_cancellation).ConfigureAwait(false);
             }
             finally
             {
@@ -425,7 +440,36 @@ public abstract partial class MessageDatabase<T>
 
             throw;
         }
+
+        if (refusesHandled && inserted == 0)
+        {
+            throw new DuplicateIncomingEnvelopeException(envelope);
+        }
     }
+
+    private DbCommand buildIncomingCommand(Envelope envelope)
+    {
+        var builder = ToCommandBuilder();
+        DatabasePersistence.BuildIncomingStorageCommand(this, builder, envelope);
+        return builder.Compile();
+    }
+
+    /// <summary>
+    /// True when this store's inbox INSERT refuses an envelope by inserting nothing, rather than by raising a key
+    /// violation, so a short row count is how the duplicate shows. Such a store builds every inbox insert -- one
+    /// envelope or a batch, on its own connection or on the caller's transaction -- with
+    /// <see cref="BuildBatchedIncomingCommand" />, which is the statement that carries the refusal, and every caller
+    /// still gets the <see cref="DuplicateIncomingEnvelopeException" /> a key violation produces.
+    ///
+    /// <para>
+    /// PostgreSQL sets it under <see cref="DurabilitySettings.EnableInboxPartitioning" />. The incoming table is
+    /// then PARTITION BY LIST (status) with status in the primary key, so a Handled row retained for
+    /// <see cref="DurabilitySettings.KeepAfterMessageHandling" /> -- the row that exists to refuse a broker
+    /// redelivery -- does not collide with an insert of its identity, and the redelivery was stored and handled a
+    /// second time. The insert refuses an identity the handled partition holds instead.
+    /// </para>
+    /// </summary>
+    protected virtual bool incomingInsertRefusesHandled => false;
 
     /// <summary>
     /// GH-4320. The batched inbox INSERT, as one command. Virtual because the default shape -- one
@@ -464,17 +508,30 @@ public abstract partial class MessageDatabase<T>
             // "envelope was already there". Npgsql already does this implicitly,
             // but being explicit costs nothing and removes a per-driver footgun.
             await using var tx = await conn.BeginTransactionAsync(_cancellation);
+            var refused = false;
             try
             {
+                var inserted = 0;
                 foreach (var chunk in chunks)
                 {
                     await using var cmd = BuildBatchedIncomingCommand(chunk);
                     cmd.Connection = conn;
                     cmd.Transaction = tx;
-                    await cmd.ExecuteNonQueryAsync(_cancellation);
+                    inserted += await cmd.ExecuteNonQueryAsync(_cancellation);
                 }
 
-                await tx.CommitAsync(_cancellation);
+                // The insert left out an envelope whose identity is already handled. Rolled back like a key
+                // violation below, so that a refused batch is still one where nothing landed: the receiver and
+                // the store coalescer re-run every envelope of it one at a time
+                refused = incomingInsertRefusesHandled && inserted < envelopes.Count;
+                if (refused)
+                {
+                    await tx.RollbackAsync(_cancellation);
+                }
+                else
+                {
+                    await tx.CommitAsync(_cancellation);
+                }
             }
             catch (Exception e) when (IsDuplicateEnvelopeException(e))
             {
@@ -505,11 +562,37 @@ public abstract partial class MessageDatabase<T>
                 // the copy dropped here would run anyway.
                 throw new DuplicateIncomingEnvelopeException(duplicates.Count > 0 ? duplicates : envelopes);
             }
+
+            if (refused)
+            {
+                throw new DuplicateIncomingEnvelopeException(await alreadyHandledAsync(envelopes));
+            }
         }
         finally
         {
             await conn.CloseAsync();
         }
+    }
+
+    /// <summary>
+    /// The envelopes of a refused batch whose identity is already handled, which is the only reason the insert
+    /// leaves one out. Asked of the handled rows rather than through <see cref="ExistsAsync" />, which would also
+    /// report an identity that only sits in the scheduled partition -- one the insert accepted
+    /// </summary>
+    private async Task<IReadOnlyList<Envelope>> alreadyHandledAsync(IReadOnlyList<Envelope> envelopes)
+    {
+        var handled = new List<Envelope>();
+        foreach (var envelope in envelopes)
+        {
+            if (await handledRowExistsAsync(envelope, _cancellation).ConfigureAwait(false))
+            {
+                handled.Add(envelope);
+            }
+        }
+
+        // A handled row purged since the insert leaves nothing to point at. The batch rolled back, so report all of
+        // it, as GH-5123 does, and let the receiver's one-at-a-time path settle each envelope
+        return handled.Count > 0 ? handled : envelopes;
     }
 
     protected bool IsDuplicateEnvelopeException(Exception ex)

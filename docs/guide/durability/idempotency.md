@@ -6,13 +6,12 @@ on any Wolverine listening endpoint where you want this behavior.
 :::
 
 ::: warning
-This guarantee is weaker under `Durability.EnableInboxPartitioning` on PostgreSQL. The inbox primary key
-gains the `status` column, so uniqueness is only enforced *within* a status partition. A message still
-inside the `KeepAfterMessageHandling` retention window sits in the `handled` partition, where it no longer
-blocks an insert of the same `Envelope.Id` as `Incoming`. On a durable listening endpoint deduplication is
-that insert failing, so a redelivery is stored and handled again rather than discarded, and then cannot be
-marked handled itself. See
-[PostgreSQL](/guide/durability/postgresql) for the full statement.
+Under `Durability.EnableInboxPartitioning` on PostgreSQL the inbox primary key gains the `status` column, so
+uniqueness is only enforced *within* a status partition. A message still inside the `KeepAfterMessageHandling`
+retention window sits in the `handled` partition, and the inbox insert looks there itself, so a redelivery is
+still discarded. The guarantee is weaker only at the edges: a redelivery stored at the very moment the first
+copy is being marked handled can run a second time, and one that arrives while a retry is parked is run in the
+retry's place. See [PostgreSQL](/guide/durability/postgresql) for the full statement.
 :::
 
 When applying the [durable inbox](/guide/durability/#using-the-inbox-for-incoming-messages) to [message listeners](/guide/messaging/listeners), you also get a no more than once, 
@@ -78,7 +77,7 @@ A few things to know:
   or use [logical message deduplication](#logical-message-deduplication) below.
 * A structured-mode CloudEvent whose `id` isn't a GUID doesn't get this protection yet, except on Amazon SQS. See
   [Deduplicating CloudEvents](/tutorials/interop#deduplicating-cloudevents).
-* The inbox still only remembers a handled message for `KeepAfterMessageHandling`, and the
+* The inbox still only remembers a handled message for `KeepAfterMessageHandling`, and the narrow
   `EnableInboxPartitioning` caveat at the top of this page still applies.
 * The derived ids are hashes, so they're effectively random. If your inbox is in SQL Server, see the note on
   [optimized envelope ids for SQL Server](/guide/durability/sqlserver#optimized-envelope-ids-for-sql-server).

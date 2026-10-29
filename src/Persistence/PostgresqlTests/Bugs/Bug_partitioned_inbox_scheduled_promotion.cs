@@ -166,7 +166,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         redelivered.Destination = redeliveryDestinationFor(envelope);
         redelivered.Status = EnvelopeStatus.Incoming;
 
-        await thePersistence.Inbox.StoreIncomingAsync(redelivered);
+        await storeBesideTheHandledRowAsync(redelivered);
 
         // Guard: the pair the partitioned key permits, which is the state this statement has to survive.
         (await statusesForAsync(envelope.Id)).ShouldBe(["Handled", "Incoming"]);
@@ -196,7 +196,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         redelivered.Destination = redeliveryDestinationFor(envelope);
         redelivered.Status = EnvelopeStatus.Incoming;
 
-        await thePersistence.Inbox.StoreIncomingAsync(redelivered);
+        await storeBesideTheHandledRowAsync(redelivered);
 
         await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync([redelivered]);
 
@@ -225,7 +225,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         redelivered.Destination = redeliveryDestinationFor(envelope);
         redelivered.Status = EnvelopeStatus.Incoming;
 
-        await thePersistence.Inbox.StoreIncomingAsync(redelivered);
+        await storeBesideTheHandledRowAsync(redelivered);
 
         // Guard: the pair the partitioned key permits
         (await statusesForAsync(envelope.Id)).ShouldBe(["Handled", "Incoming"]);
@@ -262,7 +262,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         retry.Id = handled.Id;
         retry.Destination = redeliveryDestinationFor(handled);
 
-        await thePersistence.Inbox.StoreIncomingAsync(retry);
+        await storeBesideTheHandledRowAsync(retry);
 
         // Guard: the pair the partitioned key permits, which is the state this statement has to survive.
         (await statusesForAsync(handled.Id)).ShouldBe(["Handled", "Incoming"]);
@@ -290,7 +290,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         retry.Id = handled.Id;
         retry.Destination = redeliveryDestinationFor(handled);
 
-        await thePersistence.Inbox.StoreIncomingAsync(retry);
+        await storeBesideTheHandledRowAsync(retry);
         await thePersistence.Inbox.RescheduleExistingEnvelopeForRetryAsync(retry);
 
         (await statusesForAsync(handled.Id)).ShouldBe(["Handled", "Scheduled"]);
@@ -439,7 +439,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         scheduled.Id = handled.Id;
         scheduled.Destination = redeliveryDestinationFor(handled);
 
-        await thePersistence.Inbox.StoreIncomingAsync(scheduled);
+        await storeBesideTheHandledRowAsync(scheduled);
 
         // GH-4216: this used to be a raw-SQL helper, because ScheduleExecutionAsync could not build this pair
         // under IdAndDestination -- it matched the identity with no status predicate, so under partitioning it
@@ -480,6 +480,25 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         value.ShouldNotBeNull("The row under test must still exist.");
 
         return (int)value;
+    }
+
+    /// <summary>
+    /// Writes an Incoming copy beside a retained Handled row with the plain, unguarded insert. The store refuses that
+    /// insert itself (see a_redelivery_alongside_a_handled_row_is_refused), but the pair is still reachable: rows
+    /// written before it refused them, or a redelivery stored while the first copy's mark-as-handled was still
+    /// committing -- the partitioned key lets it in once the incoming row has moved out, before the handled row is
+    /// visible. The statements under test here are what clean that pair up.
+    /// </summary>
+    protected async Task storeBesideTheHandledRowAsync(Envelope envelope)
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var database = (IMessageDatabase)thePersistence;
+
+        await using var command = DatabasePersistence.BuildIncomingStorageCommand([envelope], database);
+        await using var conn = await database.DataSource.OpenConnectionAsync(cancellation);
+        command.Connection = conn;
+
+        await command.ExecuteNonQueryAsync(cancellation);
     }
 
     protected async Task<List<string>> statusesForAsync(Guid id)
