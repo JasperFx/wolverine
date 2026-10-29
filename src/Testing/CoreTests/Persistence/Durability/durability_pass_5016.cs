@@ -448,6 +448,7 @@ public class FakePassStore : NullMessageStore, IMessageStore, IMessageStoreWithD
     public new Uri Uri { get; }
 
     public bool LockAvailable { get; set; } = true;
+    public bool SupportsTransactionScopedDurabilityPassLock { get; set; }
     public Exception? LockFailure { get; set; }
     public bool LockHeld { get; private set; }
     public int LockAcquisitions { get; private set; }

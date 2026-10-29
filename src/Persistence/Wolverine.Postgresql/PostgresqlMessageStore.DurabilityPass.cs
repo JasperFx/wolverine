@@ -1,6 +1,7 @@
 using JasperFx;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using System.Transactions;
 using Npgsql;
 using Weasel.Core;
 using Weasel.Core.Migrations;
@@ -29,9 +30,21 @@ internal partial class PostgresqlMessageStore : IMessageStoreWithDurabilityPass,
     /// </summary>
     internal int DurabilityPassLockId => $"{SchemaName}:durability-pass".GetDeterministicHashCode();
 
+    public bool SupportsTransactionScopedDurabilityPassLock => true;
+
     public async Task<IAsyncDisposable?> TryAcquireDurabilityPassLockAsync(CancellationToken token)
     {
-        var conn = await NpgsqlDataSource.OpenConnectionAsync(token);
+        NpgsqlConnection conn;
+
+        // The lock connection never joins an ambient System.Transactions scope. With Enlist=true it would, and
+        // BeginTransactionAsync below then throws because a transaction is already in progress. Nor should the
+        // session lock's lifetime depend on whether somebody else's scope commits
+        using (new TransactionScope(TransactionScopeOption.Suppress, TransactionScopeAsyncFlowOption.Enabled))
+        {
+            conn = await NpgsqlDataSource.OpenConnectionAsync(token);
+        }
+
+        NpgsqlTransaction? tx = null;
 
         try
         {
@@ -40,29 +53,92 @@ internal partial class PostgresqlMessageStore : IMessageStoreWithDurabilityPass,
                 // Behind a transaction-mode pooler only a transaction keeps this client on one server connection,
                 // so the lock is taken and released inside one. This is the trade-off the GH-3664 note in
                 // PollForScheduledMessagesAsync warns about, which is why it is opt in
-                var tx = await conn.BeginTransactionAsync(token);
-                if (await tx.TryGetGlobalTxLock(DurabilityPassLockId, token) == AttainLockResult.Success)
+                tx = await conn.BeginTransactionAsync(token);
+
+                // A server-side idle_in_transaction_session_timeout shorter than the pass would end this
+                // transaction, and release the lock, while the pass is still sending. SET LOCAL lasts only as long
+                // as this transaction, so it is safe behind a transaction-mode pooler. No keepalive query instead:
+                // see the GH-3664 note, a statement on this session while it holds the lock is what makes Marten's
+                // gap detection treat it as a live reserver
+                await using (var cmd = conn.CreateCommand(
+                                 "select set_config('idle_in_transaction_session_timeout', '0', true)"))
                 {
-                    return new TransactionScopedDurabilityPassLock(conn, tx);
+                    cmd.Transaction = tx;
+                    await cmd.ExecuteNonQueryAsync(token);
                 }
 
-                await tx.RollbackAsync(token);
+                if (await tx.TryGetGlobalTxLock(DurabilityPassLockId, token) == AttainLockResult.Success)
+                {
+                    return new TransactionScopedDurabilityPassLock(conn, tx, DurabilityPassLockId);
+                }
             }
             // A dedicated connection with no transaction open on it for as long as the pass runs. See the
             // GH-3664 note in PollForScheduledMessagesAsync for why a long-held lock must not be transaction scoped
             else if (await conn.TryGetGlobalLock(DurabilityPassLockId, cancellation: token) == AttainLockResult.Success)
             {
-                return new DurabilityPassLock(conn, DurabilityPassLockId);
+                return new DurabilityPassLock(conn, DurabilityPassLockId, Logger);
             }
         }
         catch
         {
-            await conn.DisposeAsync();
+            await closeLockConnectionAsync(conn, tx);
             throw;
         }
 
-        await conn.DisposeAsync();
+        await closeLockConnectionAsync(conn, tx);
         return null;
+    }
+
+    // Ends the lock transaction, if there is one, and closes the lock connection, even when the rollback or the
+    // transaction's own disposal fails
+    private static async Task closeLockConnectionAsync(NpgsqlConnection conn, NpgsqlTransaction? tx)
+    {
+        try
+        {
+            if (tx != null)
+            {
+                await rollBackLockTransactionAsync(conn, tx);
+            }
+        }
+        finally
+        {
+            await conn.DisposeAsync();
+        }
+    }
+
+    /// <returns>The rollback failure, if there was one</returns>
+    private static async Task<Exception?> rollBackLockTransactionAsync(NpgsqlConnection conn, NpgsqlTransaction tx)
+    {
+        Exception? failure = null;
+
+        try
+        {
+            // Nothing was written in this transaction, it only holds the lock
+            await tx.RollbackAsync(CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            failure = e;
+
+            // Returned to the pool as it is, the connection would carry the open transaction, and the lock, until
+            // Npgsql's deferred reset ran on its next use -- which in a function instance may be never. Behind a
+            // pooler that keeps the server connection pinned in the transaction and every later pass skips the
+            // store. Clearing the pool makes Npgsql close this physical connection when it is returned instead
+            NpgsqlConnection.ClearPool(conn);
+        }
+        finally
+        {
+            try
+            {
+                await tx.DisposeAsync();
+            }
+            catch (Exception e)
+            {
+                failure ??= e;
+            }
+        }
+
+        return failure;
     }
 
     public IReadOnlyList<IDurabilityPassStep> BuildDurabilityPassSteps(IWolverineRuntime runtime)
@@ -268,18 +344,28 @@ internal partial class PostgresqlMessageStore : IMessageStoreWithDurabilityPass,
     {
         private readonly NpgsqlConnection _conn;
         private readonly int _lockId;
+        private readonly ILogger _logger;
 
-        public DurabilityPassLock(NpgsqlConnection conn, int lockId)
+        public DurabilityPassLock(NpgsqlConnection conn, int lockId, ILogger logger)
         {
             _conn = conn;
             _lockId = lockId;
+            _logger = logger;
         }
 
         public async ValueTask DisposeAsync()
         {
             try
             {
-                await _conn.ReleaseGlobalLock(_lockId, cancellation: CancellationToken.None);
+                await using var cmd = _conn.CreateCommand("select pg_advisory_unlock(:id)").With("id", _lockId);
+                if (await cmd.ExecuteScalarAsync(CancellationToken.None) is false)
+                {
+                    // The server connection this unlock reached does not hold the lock, so the one that does keeps
+                    // it. That is what a pooler in transaction mode does to a session-level lock
+                    _logger.LogWarning(
+                        "The durability pass lock {LockId} was not held by the database session that tried to release it. If this application reaches PostgreSQL through a connection pooler in transaction mode (PgBouncer, Cloud SQL managed connection pooling), session-level locks are not reliable there: set DurabilitySettings.UseTransactionScopedDurabilityPassLock to true",
+                        _lockId);
+                }
             }
             finally
             {
@@ -298,26 +384,34 @@ internal partial class PostgresqlMessageStore : IMessageStoreWithDurabilityPass,
     {
         private readonly NpgsqlConnection _conn;
         private readonly NpgsqlTransaction _tx;
+        private readonly int _lockId;
 
-        public TransactionScopedDurabilityPassLock(NpgsqlConnection conn, NpgsqlTransaction tx)
+        public TransactionScopedDurabilityPassLock(NpgsqlConnection conn, NpgsqlTransaction tx, int lockId)
         {
             _conn = conn;
             _tx = tx;
+            _lockId = lockId;
         }
 
         public async ValueTask DisposeAsync()
         {
+            Exception? failure;
             try
             {
-                // Nothing was written in this transaction, it only holds the lock
-                await _tx.RollbackAsync(CancellationToken.None);
+                failure = await rollBackLockTransactionAsync(_conn, _tx);
             }
             finally
             {
-                // If the rollback failed, closing still ends the transaction: Npgsql either queues a rollback
-                // for the pooled connection, sent with its next command, or closes a broken one
-                await _tx.DisposeAsync();
                 await _conn.DisposeAsync();
+            }
+
+            if (failure != null)
+            {
+                // The transaction holding the lock was already gone, so the lock may have been released before
+                // the pass ended and another pass could have overlapped this one
+                throw new InvalidOperationException(
+                    $"The transaction holding the durability pass lock {_lockId} ended before the pass did, so the lock may have been released early and another pass may have run against this store at the same time. If this happens regularly, check that PgBouncer's idle_transaction_timeout (or anything else that ends idle transactions) is longer than DurabilityPassOptions.MaxDuration",
+                    failure);
             }
         }
     }

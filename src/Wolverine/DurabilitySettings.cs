@@ -305,9 +305,10 @@ public class DurabilitySettings : IDescribeMyself
     /// Marten's async daemon treats any session with an open transaction older than an event sequence gap as a
     /// possible reserver of that gap (see GH-3664), so asynchronous projections can wait while a pass runs.
     /// Only turn this on when the application does not run Marten's async daemon against this database, or
-    /// when that wait is acceptable. A server-side <c>idle_in_transaction_session_timeout</c> or a PgBouncer
-    /// <c>idle_transaction_timeout</c> shorter than a pass would also end the transaction and release the lock
-    /// early.</para>
+    /// when that wait is acceptable. PostgreSQL turns off the server-side <c>idle_in_transaction_session_timeout</c>
+    /// for the lock transaction alone, but a PgBouncer <c>idle_transaction_timeout</c> shorter than a pass would
+    /// still end the transaction and release the lock early, which the pass reports as an error when it releases
+    /// the lock. A store that does not support this setting keeps its usual lock, and the pass logs a warning.</para>
     /// </remarks>
     public bool UseTransactionScopedDurabilityPassLock { get; set; }
 
