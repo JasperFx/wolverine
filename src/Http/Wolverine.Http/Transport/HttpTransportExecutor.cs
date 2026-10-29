@@ -11,6 +11,7 @@ using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 
 namespace Wolverine.Http.Transport;
 
@@ -18,6 +19,10 @@ internal class HttpTransportExecutor
 {
     private readonly WolverineRuntime _runtime;
     private readonly ILogger<HttpTransportExecutor> _logger;
+
+    // How long a batch post to a durable local queue waits for the inbox to store it before asking the sender
+    // to retry. A batch stored after the answer is retried anyway, and the inbox deduplicates it by id
+    internal static TimeSpan BatchReceiptTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     public HttpTransportExecutor(IWolverineRuntime runtime)
     {
@@ -71,8 +76,41 @@ internal class HttpTransportExecutor
             // receives by push and registers no listener at all), so a replayed dead letter or the rows of
             // a dead node were skipped on every durability pass, silently, forever. The local queue's own
             // address is both resolvable and the truth about where the envelope is sitting.
-            var nulloListener = new NulloListener(queue.Uri);
-            await queue.ReceivedAsync(nulloListener, envelopes.ToArray());
+            if (queue is DurableLocalQueue)
+            {
+                // GH-5276. The durable receiver returns before it has stored the batch, and when the inbox write
+                // fails it defers each envelope back to the listener -- which over HTTP used to be a NulloListener
+                // that did nothing, after this had already answered 200 and the sender had deleted the envelopes
+                // from its outbox. Answer only once the receiver says where every envelope ended up.
+                var listener = new BatchReceiptListener(queue.Uri, envelopes);
+                await queue.ReceivedAsync(listener, envelopes.ToArray());
+
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(httpContext.RequestAborted);
+                timeout.CancelAfter(BatchReceiptTimeout);
+
+                bool stored;
+                try
+                {
+                    stored = await listener.AllStoredAsync(timeout.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    stored = false;
+                }
+
+                if (!stored)
+                {
+                    _logger.LogWarning(
+                        "The durable inbox at {Uri} could not store a batch of {Count} envelope(s) received over the Http transport. Asking the sender to retry it",
+                        queue.Uri, envelopes.Length);
+                    return Results.Problem("The messages could not be stored in the durable inbox", statusCode: 503);
+                }
+            }
+            else
+            {
+                var nulloListener = new NulloListener(queue.Uri);
+                await queue.ReceivedAsync(nulloListener, envelopes.ToArray());
+            }
         }
         catch (Exception e)
         {
