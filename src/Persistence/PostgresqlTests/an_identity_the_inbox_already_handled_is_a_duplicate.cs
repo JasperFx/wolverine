@@ -83,6 +83,31 @@ public class an_identity_the_inbox_already_handled_is_a_duplicate
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task a_refused_batch_is_reported_on_a_pool_of_one_connection(bool partitioned)
+    {
+        // Finding which envelopes of a refused batch are duplicates takes a connection of its own. Holding the
+        // batch's connection meanwhile left nothing to take, and the lookup timed out instead of reporting
+        var poolOfOne = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString)
+        {
+            MaxPoolSize = 1,
+            Timeout = 5
+        }.ConnectionString;
+
+        await using var inbox = await HandledInbox.StartAsync(MessageIdentity.IdOnly, partitioned, poolOfOne);
+
+        var handled = await inbox.HandleAsync();
+        var fresh = inbox.NewEnvelope(handled.Destination!);
+        var redelivered = inbox.CopyOf(handled, handled.Destination!, EnvelopeStatus.Incoming);
+
+        var ex = await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(() =>
+            inbox.Store.Inbox.StoreIncomingAsync([fresh, redelivered]));
+
+        ex.Duplicates.Select(x => x.Id).ShouldBe([handled.Id]);
+    }
+
+    [Theory]
     [InlineData(MessageIdentity.IdOnly, false)]
     [InlineData(MessageIdentity.IdOnly, true)]
     [InlineData(MessageIdentity.IdAndDestination, false)]
@@ -158,15 +183,16 @@ public class an_identity_the_inbox_already_handled_is_a_duplicate
 
         public IMessageStore Store { get; }
 
-        public static async Task<HandledInbox> StartAsync(MessageIdentity identity, bool partitioned)
+        public static async Task<HandledInbox> StartAsync(MessageIdentity identity, bool partitioned,
+            string? connectionString = null)
         {
             var schema = $"handled_identity_{(identity == MessageIdentity.IdOnly ? "id" : "id_dest")}" +
-                         (partitioned ? "_partitioned" : "");
+                         (partitioned ? "_partitioned" : "") + (connectionString == null ? "" : "_pool");
 
             var host = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, schema);
+                    opts.PersistMessagesWithPostgresql(connectionString ?? Servers.PostgresConnectionString, schema);
                     opts.Durability.MessageIdentity = identity;
                     opts.Durability.EnableInboxPartitioning = partitioned;
 

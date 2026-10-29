@@ -497,6 +497,9 @@ public abstract partial class MessageDatabase<T>
             : chunkByParameterLimit(envelopes as Envelope[] ?? envelopes.ToArray(),
                 DatabaseConstants.IncomingParametersPerEnvelope).ToArray();
 
+        var refused = false;
+        var duplicateKey = false;
+
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         try
         {
@@ -508,7 +511,6 @@ public abstract partial class MessageDatabase<T>
             // "envelope was already there". Npgsql already does this implicitly,
             // but being explicit costs nothing and removes a per-driver footgun.
             await using var tx = await conn.BeginTransactionAsync(_cancellation);
-            var refused = false;
             try
             {
                 var inserted = 0;
@@ -536,41 +538,47 @@ public abstract partial class MessageDatabase<T>
             catch (Exception e) when (IsDuplicateEnvelopeException(e))
             {
                 await tx.RollbackAsync(_cancellation);
-
-                // Now that the batch is guaranteed rolled back, identify exactly
-                // which envelopes were already present via id-existence. Callers
-                // can retry the rest per-envelope.
-                var duplicates = new List<Envelope>();
-                foreach (var envelope in envelopes)
-                {
-                    if (await ExistsAsync(envelope, _cancellation).ConfigureAwait(false))
-                    {
-                        duplicates.Add(envelope);
-                    }
-                }
-
-                // GH-5123. A duplicate-key error with no matching row means the duplicate is INSIDE the batch:
-                // two copies of one message in the same micro-batch, which is what a broker redelivery plus an
-                // outbox resend after an outage looks like. That is still a duplicate, and rethrowing the raw
-                // provider exception made the receiver pause the listener for an "unavailable" inbox (and
-                // MultiTenantedMessageStore trip the tenant's write brake). Report the whole batch, the way
-                // RavenDB does: the transaction rolled back, so nothing landed, and the receiver's per-envelope
-                // path stores the first copy and settles the second as the duplicate it is.
-                //
-                // Deduplicating the batch here before the insert would be wrong rather than just slower: the
-                // caller marks every envelope it passed as persisted and hands all of them to the handlers, so
-                // the copy dropped here would run anyway.
-                throw new DuplicateIncomingEnvelopeException(duplicates.Count > 0 ? duplicates : envelopes);
-            }
-
-            if (refused)
-            {
-                throw new DuplicateIncomingEnvelopeException(await alreadyHandledAsync(envelopes));
+                duplicateKey = true;
             }
         }
         finally
         {
             await conn.CloseAsync();
+        }
+
+        // The lookups below each open a connection of their own, so the batch's goes back to the pool first:
+        // holding it while they wait for another hangs until the open times out when the pool has one left
+        if (duplicateKey)
+        {
+            // Now that the batch is guaranteed rolled back, identify exactly
+            // which envelopes were already present via id-existence. Callers
+            // can retry the rest per-envelope.
+            var duplicates = new List<Envelope>();
+            foreach (var envelope in envelopes)
+            {
+                if (await ExistsAsync(envelope, _cancellation).ConfigureAwait(false))
+                {
+                    duplicates.Add(envelope);
+                }
+            }
+
+            // GH-5123. A duplicate-key error with no matching row means the duplicate is INSIDE the batch:
+            // two copies of one message in the same micro-batch, which is what a broker redelivery plus an
+            // outbox resend after an outage looks like. That is still a duplicate, and rethrowing the raw
+            // provider exception made the receiver pause the listener for an "unavailable" inbox (and
+            // MultiTenantedMessageStore trip the tenant's write brake). Report the whole batch, the way
+            // RavenDB does: the transaction rolled back, so nothing landed, and the receiver's per-envelope
+            // path stores the first copy and settles the second as the duplicate it is.
+            //
+            // Deduplicating the batch here before the insert would be wrong rather than just slower: the
+            // caller marks every envelope it passed as persisted and hands all of them to the handlers, so
+            // the copy dropped here would run anyway.
+            throw new DuplicateIncomingEnvelopeException(duplicates.Count > 0 ? duplicates : envelopes);
+        }
+
+        if (refused)
+        {
+            throw new DuplicateIncomingEnvelopeException(await alreadyHandledAsync(envelopes));
         }
     }
 
