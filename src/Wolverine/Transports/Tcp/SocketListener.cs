@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 
 namespace Wolverine.Transports.Tcp;
@@ -13,6 +14,7 @@ public class SocketListener : IListener, IDisposable
     private readonly CancellationToken _parentToken;
     private readonly int _port;
     private readonly IReceiver _receiver;
+    private readonly bool _durable;
     private CancellationToken _cancellationToken;
     private TcpListener? _listener;
     private CancellationTokenSource? _listenerCancellation;
@@ -29,6 +31,7 @@ public class SocketListener : IListener, IDisposable
         _parentToken = cancellationToken;
 
         Address = endpoint.Uri;
+        _durable = endpoint.Mode == EndpointMode.Durable;
 
         _receiver = receiver;
 
@@ -146,8 +149,15 @@ public class SocketListener : IListener, IDisposable
         }, _cancellationToken);
     }
 
+    // How long a durable listener waits for the inbox to store a batch before asking the sender to retry it. A batch
+    // stored after the answer is retried anyway, and the inbox deduplicates it by id
+    internal static TimeSpan InboxReceiptTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
     public Task HandleStreamAsync(IReceiver receiver, Stream stream)
     {
-        return WireProtocol.ReceiveAsync(this, _logger, stream, receiver);
+        // GH-5278. Only a durable receiver defers what it could not store; the others never settle on receipt
+        return _durable
+            ? WireProtocol.ReceiveAsync(this, _logger, stream, receiver, InboxReceiptTimeout, _cancellationToken)
+            : WireProtocol.ReceiveAsync(this, _logger, stream, receiver);
     }
 }

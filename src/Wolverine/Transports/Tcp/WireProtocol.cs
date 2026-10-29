@@ -77,7 +77,17 @@ public static class WireProtocol
         }
     }
 
-    public static async Task ReceiveAsync(IListener listener, ILogger logger, Stream stream, IReceiver callback)
+    public static Task ReceiveAsync(IListener listener, ILogger logger, Stream stream, IReceiver callback)
+    {
+        return ReceiveAsync(listener, logger, stream, callback, null, CancellationToken.None);
+    }
+
+    /// <param name="inboxReceiptTimeout">
+    ///     GH-5278. Set for a durable listener: answer the sender only once the durable receiver has stored every
+    ///     envelope, waiting at most this long, and ask the sender to retry the batch if it could not
+    /// </param>
+    internal static async Task ReceiveAsync(IListener listener, ILogger logger, Stream stream, IReceiver callback,
+        TimeSpan? inboxReceiptTimeout, CancellationToken cancellation)
     {
         Envelope[]? messages;
 
@@ -108,7 +118,7 @@ public static class WireProtocol
 
         try
         {
-            await receiveAsync(listener, logger, stream, callback, messages);
+            await receiveAsync(listener, logger, stream, callback, messages, inboxReceiptTimeout, cancellation);
         }
         catch (Exception ex)
         {
@@ -118,7 +128,7 @@ public static class WireProtocol
     }
 
     private static async Task receiveAsync(IListener listener, ILogger logger, Stream stream, IReceiver callback,
-        Envelope[] messages)
+        Envelope[] messages, TimeSpan? inboxReceiptTimeout, CancellationToken cancellation)
     {
         // Just a ping
         if (messages.Length != 0 && messages.First().IsPing())
@@ -132,7 +142,29 @@ public static class WireProtocol
 
         try
         {
-            await callback.ReceivedAsync(listener, messages);
+            if (inboxReceiptTimeout is { } timeout)
+            {
+                // GH-5278. The durable receiver returns before it has stored the batch, and when the inbox write
+                // fails it defers each envelope back to the listener -- which over TCP does nothing, after this
+                // had already answered Received and the sender had deleted the envelopes from its outbox. Answer
+                // only once the receiver says where every envelope ended up.
+                var receipt = new InboxReceiptListener(listener, messages);
+                await callback.ReceivedAsync(receipt, messages);
+
+                if (!await receipt.AllStoredAsync(timeout, cancellation))
+                {
+                    logger.LogWarning(
+                        "The durable inbox at {Uri} could not store a batch of {Count} envelope(s) received over TCP. Asking the sender to retry it",
+                        listener.Address, messages.Length);
+                    await stream.SendBufferAsync(ProcessingFailureBuffer);
+                    return;
+                }
+            }
+            else
+            {
+                await callback.ReceivedAsync(listener, messages);
+            }
+
             await stream.SendBufferAsync(ReceivedBuffer);
             await stream.ReadExpectedBufferAsync(AcknowledgedBuffer);
         }
