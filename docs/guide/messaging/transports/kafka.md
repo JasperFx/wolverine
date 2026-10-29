@@ -575,9 +575,9 @@ duplicate, not handled twice. An `id` header, or an id that your own `IKafkaEnve
 takes precedence. Two consumer groups are two independent subscriptions, and each handles the record once.
 Buffered and inline listeners have no inbox to deduplicate against, and keep a fresh id per read.
 
-With `EnableInboxPartitioning`, a handled row no longer blocks an incoming row with the same id, so a
-redelivery that arrives after the first copy was handled is handled again, whatever its id. See
-`DurabilitySettings.EnableInboxPartitioning`.
+With `EnableInboxPartitioning` the same holds: the inbox looks for the handled row in its own partition, so a
+redelivery that arrives after the first copy was handled is discarded too. See
+[PostgreSQL](/guide/durability/postgresql) for the one timing window partitioning leaves open.
 
 If your inbox is in SQL Server, be aware that these derived ids are effectively random as far as SQL Server's
 clustered index is concerned, so a high volume of non-Wolverine records will fragment the inbox table. See

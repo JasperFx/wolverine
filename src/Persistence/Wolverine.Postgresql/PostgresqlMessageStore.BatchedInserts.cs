@@ -49,12 +49,40 @@ internal partial class PostgresqlMessageStore
     private string? _batchedIncomingSql;
     private string? _batchedOutgoingSql;
 
+    // Built on first use rather than in the constructor: EnableInboxPartitioning is not reliably settled there (GH-4216)
     private string batchedIncomingSql()
     {
-        return _batchedIncomingSql ??=
-            $"insert into {QuotedTableNameFor(DatabaseConstants.IncomingTable)}({DatabaseConstants.IncomingFields}) " +
-            "select * from unnest(@bodies, @ids, @statuses, @owners, @executions, @attempts, @types, @destinations, @keeps)";
+        return _batchedIncomingSql ??= buildBatchedIncomingSql();
     }
+
+    private string buildBatchedIncomingSql()
+    {
+        var table = QuotedTableNameFor(DatabaseConstants.IncomingTable);
+        var insert =
+            $"insert into {table}({DatabaseConstants.IncomingFields}) " +
+            "select * from unnest(@bodies, @ids, @statuses, @owners, @executions, @attempts, @types, @destinations, @keeps)";
+
+        if (!Durability.EnableInboxPartitioning) return insert;
+
+        // With partitioning status is part of the primary key, so a retained Handled row does not block an insert of
+        // its identity and the insert has to refuse it itself. Whatever status the new row carries: without
+        // partitioning the key refuses an Incoming or a Scheduled copy of a handled identity alike. The identity is
+        // the one the table is keyed with -- under IdOnly a copy at another destination is the same message.
+        // This is a NOT EXISTS against the handled partition, which the status literal prunes to, probed by the
+        // leading id column of its primary key.
+        var identity = matchesIncomingById
+            ? "handled.id = incoming.id"
+            : $"handled.id = incoming.id and handled.{DatabaseConstants.ReceivedAt} = incoming.{DatabaseConstants.ReceivedAt}";
+
+        return insert +
+               $" as incoming({DatabaseConstants.IncomingFields}) " +
+               $"where not exists (select 1 from {table} handled where {identity} " +
+               $"and handled.{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}')";
+    }
+
+    // Under inbox partitioning the batched insert above refuses an identity the handled partition holds, so every
+    // inbox insert -- one envelope or many -- goes through it and reads a short row count as the duplicate
+    protected override bool incomingInsertRefusesHandled => Durability.EnableInboxPartitioning;
 
     private string batchedOutgoingSql()
     {

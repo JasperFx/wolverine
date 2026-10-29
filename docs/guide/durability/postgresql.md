@@ -176,17 +176,17 @@ alone, so such a pair is resolved across listening endpoints rather than within 
 weakened uniqueness that keeps deduplication claims in their own table; see
 [Idempotency](./idempotency).
 
-The `Incoming`/`Handled` pair is weakened the same way, and it never reaches the poller. A
-message retained after handling by `KeepAfterMessageHandling` -- the setting whose purpose is to absorb
-a broker redelivery -- sits in the `handled` partition, where it no longer blocks an insert of the same
-identity as `Incoming`. On a durable listening endpoint duplicate detection is that insert failing, so a
-redelivery arriving inside that retention window is stored and handled again rather than discarded --
-and then cannot be marked handled at all, because that too is a cross-partition move onto the key the
-retained row still holds. The redelivery is left sitting in the `incoming` partition owned by the node
-that processed it. Neither pair raises `DuplicateIncomingEnvelopeException`, which is
-the only path to `MaximumBrokerRedeliveries` -- that setting dead-letters a delivery the inbox rejected as
-a duplicate and the listener could not settle, rather than bounding duplicate execution, so it bounds
-neither pair.
+A message retained after handling by `KeepAfterMessageHandling` -- the setting whose purpose is to absorb
+a broker redelivery -- sits in the `handled` partition, where the primary key no longer blocks an insert of
+the same identity. The inbox insert checks the `handled` partition itself, so a redelivery arriving inside
+that retention window is still discarded as a duplicate, with the same `DuplicateIncomingEnvelopeException`
+an unpartitioned inbox raises. The one gap left is timing: a redelivery stored at the very moment the first
+copy is being marked handled can still slip in beside it and run a second time, which an unpartitioned
+inbox would refuse. That copy is cleaned up when it is marked handled in turn.
+
+The `Incoming`/`Scheduled` pair does not raise `DuplicateIncomingEnvelopeException`, which is the only path
+to `MaximumBrokerRedeliveries` -- that setting dead-letters a delivery the inbox rejected as a duplicate and
+the listener could not settle, rather than bounding duplicate execution, so it does not bound that pair.
 :::
 
 ## Connection Stability for Leader Election

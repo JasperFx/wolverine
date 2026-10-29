@@ -24,10 +24,12 @@ namespace PostgresqlTests.Bugs;
 // the incoming partition already held, and the resulting 23505 rolled back the whole polling transaction --
 // wedging every other due scheduled message, forever.
 //
-// The two _is_accepted_by_the_partitioned_key tests characterize duplicate states this fix does not close.
-// They pin one mechanism only: Inbox.StoreIncomingAsync is a plain insert whose sole dedup is the
-// per-partition unique constraint. Eager idempotency (MessageContext.AssertEagerIdempotencyAsync ->
-// Inbox.ExistsAsync) is a separate path with no status predicate, and it is not exercised here.
+// redelivery_while_scheduled_for_retry_is_accepted_by_the_partitioned_key characterizes a duplicate state
+// this fix does not close: Inbox.StoreIncomingAsync does not refuse an identity that sits in the scheduled
+// partition, and the poller reconciles the pair instead. An identity in the handled partition is refused by the
+// insert itself -- see a_redelivery_alongside_a_handled_row_is_refused. Eager idempotency
+// (MessageContext.AssertEagerIdempotencyAsync -> Inbox.ExistsAsync) is a separate path with no status predicate,
+// and it is not exercised here.
 //
 // The patched promotion statement carries two predicates and only the identity match is pinned on its own:
 // a_scheduled_sibling_at_another_destination_is_left_alone fails when the match is widened to the id alone.
@@ -113,8 +115,13 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         (await statusesForAsync(envelope.Id)).ShouldBe(["Incoming", "Scheduled"]);
     }
 
+    /// <summary>
+    /// The partitioned key does not reject the redelivery -- the handled row sits in another partition -- so the
+    /// insert has to. Stored, the redelivery was handled a second time inside the KeepAfterMessageHandling window
+    /// that exists to absorb it.
+    /// </summary>
     [Fact]
-    public async Task redelivery_alongside_a_handled_row_is_accepted_by_the_partitioned_key()
+    public async Task a_redelivery_alongside_a_handled_row_is_refused()
     {
         var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Incoming;
@@ -127,14 +134,15 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         redelivered.Destination = redeliveryDestinationFor(envelope);
         redelivered.Status = EnvelopeStatus.Incoming;
 
-        await thePersistence.Inbox.StoreIncomingAsync(redelivered);
+        await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(() =>
+            thePersistence.Inbox.StoreIncomingAsync(redelivered));
 
         var counts = await thePersistence.Admin.FetchCountsAsync();
 
-        counts.Handled.ShouldBe(1, "Guard: the handled row is still there, so the insert above was a genuine same-identity redelivery.");
-        counts.Incoming.ShouldBe(1, "The partitioned key does not reject the redelivery: the handled row sits in another partition.");
+        counts.Handled.ShouldBe(1, "The handled row is what refused the redelivery, and it stays.");
+        counts.Incoming.ShouldBe(0, "The redelivery is refused, not stored beside the handled row.");
 
-        (await statusesForAsync(envelope.Id)).ShouldBe(["Handled", "Incoming"]);
+        (await statusesForAsync(envelope.Id)).ShouldBe(["Handled"]);
     }
 
     /// <summary>
@@ -158,7 +166,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         redelivered.Destination = redeliveryDestinationFor(envelope);
         redelivered.Status = EnvelopeStatus.Incoming;
 
-        await thePersistence.Inbox.StoreIncomingAsync(redelivered);
+        await storeBesideTheHandledRowAsync(redelivered);
 
         // Guard: the pair the partitioned key permits, which is the state this statement has to survive.
         (await statusesForAsync(envelope.Id)).ShouldBe(["Handled", "Incoming"]);
@@ -188,7 +196,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         redelivered.Destination = redeliveryDestinationFor(envelope);
         redelivered.Status = EnvelopeStatus.Incoming;
 
-        await thePersistence.Inbox.StoreIncomingAsync(redelivered);
+        await storeBesideTheHandledRowAsync(redelivered);
 
         await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync([redelivered]);
 
@@ -217,7 +225,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         redelivered.Destination = redeliveryDestinationFor(envelope);
         redelivered.Status = EnvelopeStatus.Incoming;
 
-        await thePersistence.Inbox.StoreIncomingAsync(redelivered);
+        await storeBesideTheHandledRowAsync(redelivered);
 
         // Guard: the pair the partitioned key permits
         (await statusesForAsync(envelope.Id)).ShouldBe(["Handled", "Incoming"]);
@@ -254,7 +262,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         retry.Id = handled.Id;
         retry.Destination = redeliveryDestinationFor(handled);
 
-        await thePersistence.Inbox.StoreIncomingAsync(retry);
+        await storeBesideTheHandledRowAsync(retry);
 
         // Guard: the pair the partitioned key permits, which is the state this statement has to survive.
         (await statusesForAsync(handled.Id)).ShouldBe(["Handled", "Incoming"]);
@@ -282,7 +290,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         retry.Id = handled.Id;
         retry.Destination = redeliveryDestinationFor(handled);
 
-        await thePersistence.Inbox.StoreIncomingAsync(retry);
+        await storeBesideTheHandledRowAsync(retry);
         await thePersistence.Inbox.RescheduleExistingEnvelopeForRetryAsync(retry);
 
         (await statusesForAsync(handled.Id)).ShouldBe(["Handled", "Scheduled"]);
@@ -431,7 +439,7 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         scheduled.Id = handled.Id;
         scheduled.Destination = redeliveryDestinationFor(handled);
 
-        await thePersistence.Inbox.StoreIncomingAsync(scheduled);
+        await storeBesideTheHandledRowAsync(scheduled);
 
         // GH-4216: this used to be a raw-SQL helper, because ScheduleExecutionAsync could not build this pair
         // under IdAndDestination -- it matched the identity with no status predicate, so under partitioning it
@@ -472,6 +480,25 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         value.ShouldNotBeNull("The row under test must still exist.");
 
         return (int)value;
+    }
+
+    /// <summary>
+    /// Writes an Incoming copy beside a retained Handled row with the plain, unguarded insert. The store refuses that
+    /// insert itself (see a_redelivery_alongside_a_handled_row_is_refused), but the pair is still reachable: rows
+    /// written before it refused them, or a redelivery stored while the first copy's mark-as-handled was still
+    /// committing -- the partitioned key lets it in once the incoming row has moved out, before the handled row is
+    /// visible. The statements under test here are what clean that pair up.
+    /// </summary>
+    protected async Task storeBesideTheHandledRowAsync(Envelope envelope)
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var database = (IMessageDatabase)thePersistence;
+
+        await using var command = DatabasePersistence.BuildIncomingStorageCommand([envelope], database);
+        await using var conn = await database.DataSource.OpenConnectionAsync(cancellation);
+        command.Connection = conn;
+
+        await command.ExecuteNonQueryAsync(cancellation);
     }
 
     protected async Task<List<string>> statusesForAsync(Guid id)
