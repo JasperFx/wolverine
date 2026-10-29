@@ -291,13 +291,25 @@ With `UseTransactionScopedDurabilityPassLock`, Wolverine opens a transaction on 
 is done, even if a step fails. Ending the transaction releases the lock on the same server connection that took it. The
 pass steps still use their own connections, just like before.
 
+If you leave the session-level lock on behind a transaction-mode pooler, Wolverine logs a warning whenever releasing
+the lock finds that the server connection it reached doesn't hold it, and that warning points at this setting.
+
 ::: warning
 The lock connection sits idle in an open transaction for as long as the pass runs, which is why this is off by default.
 Marten's async daemon treats any session with an open transaction older than an event sequence gap as a possible
-reserver of that gap, so asynchronous projections can wait while a pass is running. Only use this option if you don't
-run Marten's async daemon against the same database, or if that wait is acceptable to you. Also make sure the server's
-`idle_in_transaction_session_timeout` and PgBouncer's `idle_transaction_timeout`, if you set either one, are longer
-than a pass, or the transaction is ended and the lock released early. Only the PostgreSQL message store honors this setting today.
+reserver of that gap, so asynchronous projections can't get past a gap that was first seen while a pass is running.
+That includes a gap the daemon only discovers during the pass, so a custom `IDurabilityPassStep` that waits for
+asynchronous projections to catch up will wait on its own pass until the pass runs out of time. Wolverine logs a warning
+the first time a pass runs extension steps under this lock. Only use this option if you don't run Marten's async daemon
+against the same database, or if that wait is acceptable to you.
+
+Wolverine turns off the server's `idle_in_transaction_session_timeout` for the lock transaction alone, with `SET LOCAL`.
+It can't do the same for PgBouncer's `idle_transaction_timeout`, so if you set that one, make it longer than a pass. If
+the lock transaction is ended early anyway, the pass reports an error when it releases the lock, because another pass
+may have run at the same time.
+
+Only the PostgreSQL message store honors this setting today. Any other store keeps its usual lock, and the pass logs a
+warning that the setting is ignored.
 :::
 
 ::: warning

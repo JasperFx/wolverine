@@ -26,6 +26,10 @@ internal class DurabilityPassRunner
     // guard at all for a store that has no database lock of its own
     private readonly ConcurrentDictionary<Uri, SemaphoreSlim> _gates = new();
 
+    // The stores already warned about DurabilitySettings.UseTransactionScopedDurabilityPassLock, so each warning is
+    // written once per process rather than on every pass
+    private readonly ConcurrentDictionary<Uri, bool> _lockWarnings = new();
+
     internal DurabilityPassRunner(IWolverineRuntime runtime)
     {
         _runtime = runtime;
@@ -92,6 +96,8 @@ internal class DurabilityPassRunner
             {
                 steps.AddRange(extensionSteps);
             }
+
+            warnAboutTheTransactionScopedLockOnce(store, ReferenceEquals(store, main) ? extensionSteps : []);
 
             if (store is not IMessageStoreWithDurabilityPass && steps.Count == 0)
             {
@@ -239,6 +245,32 @@ internal class DurabilityPassRunner
             _logger.LogError(e, "Durability pass step {Step} failed against message store {Store}", step.Name, store.Uri);
             return new DurabilityPassStepReport(step.Name, DurabilityPassStepStatus.Failed, total, calls,
                 stopwatch.Elapsed, e);
+        }
+    }
+
+    private void warnAboutTheTransactionScopedLockOnce(IMessageStore store,
+        IReadOnlyList<IDurabilityPassStep> extensionSteps)
+    {
+        if (!_runtime.DurabilitySettings.UseTransactionScopedDurabilityPassLock) return;
+        if (store is not IMessageStoreWithDurabilityPass passStore) return;
+        if (!_lockWarnings.TryAdd(store.Uri, true)) return;
+
+        if (!passStore.SupportsTransactionScopedDurabilityPassLock)
+        {
+            _logger.LogWarning(
+                "DurabilitySettings.UseTransactionScopedDurabilityPassLock is on, but message store {Store} does not support a transaction-scoped durability pass lock and takes its usual lock instead. Only the PostgreSQL message store honors this setting",
+                store.Uri);
+            return;
+        }
+
+        if (extensionSteps.Count > 0)
+        {
+            // GH-5279. Marten's gap detection counts the lock's open transaction as a possible reserver of any
+            // sequence gap first seen after the pass started, so a step that waits for projections to catch up can
+            // wait on its own pass until the pass runs out of time
+            _logger.LogWarning(
+                "The durability pass steps {Steps} run against message store {Store} while its transaction-scoped durability pass lock holds an open transaction. A step that waits for Marten's asynchronous projections to catch up cannot get past an event sequence gap while that transaction is open, and will wait until the pass runs out of time",
+                string.Join(", ", extensionSteps.Select(x => x.Name)), store.Uri);
         }
     }
 

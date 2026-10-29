@@ -39,6 +39,12 @@ public interface IMessageStoreWithDurabilityPass : IMessageStore
     Task<IAsyncDisposable?> TryAcquireDurabilityPassLockAsync(CancellationToken token);
 
     /// <summary>
+    ///     Whether this store honors <see cref="DurabilitySettings.UseTransactionScopedDurabilityPassLock" />.
+    ///     A store that does not keeps taking its usual lock, and the pass warns that the setting is ignored
+    /// </summary>
+    bool SupportsTransactionScopedDurabilityPassLock => false;
+
+    /// <summary>
     ///     The steps this store runs in every durability pass, in order
     /// </summary>
     IReadOnlyList<IDurabilityPassStep> BuildDurabilityPassSteps(IWolverineRuntime runtime);
