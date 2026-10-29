@@ -29,25 +29,35 @@ internal class LlmCalloutChainPolicy : IHandlerPolicy
     {
         foreach (var chain in chains.Where(x => x.MessageType == typeof(LlmCallout)))
         {
-            // Both of these are terminal on purpose. A prompt the model cannot answer in the requested
-            // shape produces the identical unusable answer on every attempt, and a callout that blows the
-            // budget blows it again on every attempt -- retrying either one is the runaway spend and the
-            // pointless bill that the dead letter queue exists to stop.
-            chain.OnException<LlmBudgetExceededException>().MoveToErrorQueue();
-            chain.OnException<LlmCalloutException>().MoveToErrorQueue();
+            ApplyRules(chain, _options);
+            _options.ApplyChainConfiguration(chain);
+        }
+    }
 
-            if (_options.RetryCooldowns.Any())
-            {
-                chain.OnException<Exception>().RetryWithCooldown(_options.RetryCooldowns);
-            }
+    /// <summary>
+    /// The callout chain's rules, shared by the generated chain (through this policy) and the pre-built
+    /// <see cref="LlmCalloutMessageHandler" /> that Static mode uses, which no handler policy reaches.
+    /// </summary>
+    internal static void ApplyRules(HandlerChain chain, LlmCalloutOptions options)
+    {
+        // Both of these are terminal on purpose. A prompt the model cannot answer in the requested
+        // shape produces the identical unusable answer on every attempt, and a callout that blows the
+        // budget blows it again on every attempt -- retrying either one is the runaway spend and the
+        // pointless bill that the dead letter queue exists to stop.
+        chain.OnException<LlmBudgetExceededException>().MoveToErrorQueue();
+        chain.OnException<LlmCalloutException>().MoveToErrorQueue();
 
-            if (_options.DeduplicateCallouts)
-            {
-                // Required = false because a mixed stream is the normal case: only the republish prone
-                // sources -- a projection's RaiseSideEffects, say -- have a natural logical key, and
-                // refusing every unkeyed callout would break the ordinary handler pattern outright.
-                chain.Deduplication = new DeduplicationRequirement { Required = false };
-            }
+        if (options.RetryCooldowns.Any())
+        {
+            chain.OnException<Exception>().RetryWithCooldown(options.RetryCooldowns);
+        }
+
+        if (options.DeduplicateCallouts)
+        {
+            // Required = false because a mixed stream is the normal case: only the republish prone
+            // sources -- a projection's RaiseSideEffects, say -- have a natural logical key, and
+            // refusing every unkeyed callout would break the ordinary handler pattern outright.
+            chain.Deduplication = new DeduplicationRequirement { Required = false };
         }
     }
 }
