@@ -1474,6 +1474,92 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task query_scheduled_messages_carries_each_envelopes_saga_id()
+    {
+        var timeout = ObjectMother.Envelope();
+        timeout.Status = EnvelopeStatus.Scheduled;
+        timeout.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10);
+        timeout.SagaId = "saga-1";
+
+        var unrelated = ObjectMother.Envelope();
+        unrelated.Status = EnvelopeStatus.Scheduled;
+        unrelated.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(11);
+        unrelated.SagaId = null;
+
+        await thePersistence.Inbox.StoreIncomingAsync([timeout, unrelated]);
+
+        var results = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery(), CancellationToken.None);
+
+        results.Messages.Single(x => x.Id == timeout.Id).SagaId.ShouldBe("saga-1");
+        results.Messages.Single(x => x.Id == unrelated.Id).SagaId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task query_scheduled_messages_by_saga_id_pages_only_the_sagas_messages()
+    {
+        // The saga's three timeouts are interleaved by execution time with five other scheduled
+        // messages, so a page over the raw rows would hold the wrong mix
+        var list = new List<Envelope>();
+        for (var i = 0; i < 8; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Scheduled;
+            envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10 + i);
+            envelope.SagaId = i % 3 == 0 ? "saga-1" : "saga-2";
+            list.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list);
+
+        var sagaTimeouts = list.Where(x => x.SagaId == "saga-1").Select(x => x.Id).ToArray();
+
+        var page1 = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery { SagaId = "saga-1", PageSize = 2 }, CancellationToken.None);
+
+        page1.TotalCount.ShouldBe(3);
+        page1.Messages.Select(x => x.Id).ShouldBe(sagaTimeouts.Take(2));
+        page1.Messages.ShouldAllBe(x => x.SagaId == "saga-1");
+
+        var page2 = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery { SagaId = "saga-1", PageSize = 2, PageNumber = 2 }, CancellationToken.None);
+
+        page2.TotalCount.ShouldBe(3);
+        page2.Messages.Select(x => x.Id).ShouldBe(sagaTimeouts.Skip(2));
+    }
+
+    [Fact]
+    public async Task cancel_scheduled_messages_by_saga_id()
+    {
+        var list = new List<Envelope>();
+        for (var i = 0; i < 5; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            envelope.Status = EnvelopeStatus.Scheduled;
+            envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(10 + i);
+            envelope.SagaId = i < 2 ? "saga-1" : "saga-2";
+            list.Add(envelope);
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list);
+
+        await thePersistence.ScheduledMessages.CancelAsync(
+            new ScheduledMessageQuery { SagaId = "saga-1" }, CancellationToken.None);
+
+        (await thePersistence.Admin.FetchCountsAsync()).Scheduled.ShouldBe(3);
+
+        // A saga with nothing scheduled cancels nothing, rather than falling through to an unfiltered cancel
+        await thePersistence.ScheduledMessages.CancelAsync(
+            new ScheduledMessageQuery { SagaId = "no-such-saga" }, CancellationToken.None);
+
+        var remaining = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery(), CancellationToken.None);
+
+        remaining.TotalCount.ShouldBe(3);
+        remaining.Messages.ShouldAllBe(x => x.SagaId == "saga-2");
+    }
+
+    [Fact]
     public async Task cancel_scheduled_message_by_id()
     {
         var list = new List<Envelope>();
