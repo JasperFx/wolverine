@@ -41,14 +41,15 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
         // already serial by default (Endpoint.MessageBatchMaxDegreeOfParallelism is 1).
         //
         // GetDataAsync lets IAsyncMessageSerializer implementations (schema registry, encryption)
-        // serialize without blocking; plain serializers fall through to the synchronous Write.
+        // serialize without blocking; plain serializers fall through to the synchronous Write. The check
+        // is MessagePayloadSize rather than Data because reading Data serializes synchronously.
         _serializing = batching.PushUpstream<Envelope>(1, async (e, _) =>
         {
             try
             {
-                if (e.Data == null && e.Serializer != null)
+                if (e.MessagePayloadSize == null)
                 {
-                    await e.GetDataAsync();
+                    await e.GetDataAsync().ConfigureAwait(false);
                 }
             }
             catch (Exception? ex)
@@ -114,9 +115,9 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
             throw new InlineSendFailedException($"The sender to {Destination} is latched", null);
         }
 
-        if (envelope.Data == null && envelope.Serializer != null)
+        if (envelope.MessagePayloadSize == null)
         {
-            envelope.Data = envelope.Serializer.Write(envelope);
+            await envelope.GetDataAsync().ConfigureAwait(false);
         }
 
         var callback = new InlineSendCallback();
@@ -146,9 +147,9 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
         {
             try
             {
-                if (envelope.Data == null && envelope.Serializer != null)
+                if (envelope.MessagePayloadSize == null)
                 {
-                    envelope.Data = envelope.Serializer.Write(envelope);
+                    await envelope.GetDataAsync().ConfigureAwait(false);
                 }
 
                 ready.Add(envelope);

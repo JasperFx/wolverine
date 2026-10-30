@@ -16,12 +16,12 @@ namespace Wolverine.Kafka.Serialization;
 /// <see cref="IMessageSerializer"/> / <see cref="IAsyncMessageSerializer"/> plumbing live here.
 /// </para>
 /// <para>
-/// The async paths await schema registration/lookup against the registry. The synchronous
-/// fallbacks share the same serde instances, so they only block on first contact with a message
-/// type or schema id that no async call has prepared yet; after that the schema is cached and
-/// they complete synchronously. The sync fallbacks exist because parts of Wolverine (durable
-/// outbox persistence, reply deserialization) still use the synchronous
-/// <see cref="IMessageSerializer"/> contract.
+/// The async paths await schema registration/lookup against the registry. Wolverine's send and
+/// outbox paths serialize through them before anything reads <see cref="Envelope.Data"/>, and
+/// receiving deserializes through them. The synchronous fallbacks share the same serde instances
+/// and remain for callers of the synchronous <see cref="IMessageSerializer"/> contract (reading
+/// dead letters, for example); they only block on first contact with a message type or schema id
+/// that no async call has prepared yet.
 /// </para>
 /// </summary>
 public abstract class SchemaRegistrySerializer : IAsyncMessageSerializer

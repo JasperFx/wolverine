@@ -164,6 +164,13 @@ public partial class Envelope : IHasTenantId
         {
             return _data;
         }
+
+        // A pooled payload is already serialized, so materialize it exactly as reading Data would
+        if (_pooledBody != null)
+        {
+            return Data;
+        }
+
         assertMessage();
 
         if(Serializer is IAsyncMessageSerializer asyncMessaeSerializer)
