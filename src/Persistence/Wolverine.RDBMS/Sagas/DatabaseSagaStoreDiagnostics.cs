@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
+using JasperFx.Documents;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Persistence.Sagas;
@@ -96,35 +97,62 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
 
     public async Task<IReadOnlyList<SagaInstanceState>> ListSagaInstancesAsync(string sagaTypeName, int count, CancellationToken ct)
     {
-        if (!sagaIndex().TryGetValue(sagaTypeName, out var definition))
+        if (!sagaIndex().ContainsKey(sagaTypeName) || count <= 0)
             return Array.Empty<SagaInstanceState>();
 
-        var clamped = count <= 0 ? 0 : Math.Min(count, 1000);
-        if (clamped == 0) return Array.Empty<SagaInstanceState>();
+        // Ordered by id (the QuerySagasAsync default) so the sample is repeatable.
+        var result = await QuerySagasAsync(sagaTypeName, new DocumentQueryOptions(1, count), ct).ConfigureAwait(false);
+        return result.Instances;
+    }
+
+    /// <summary>
+    /// The lightweight tables hold the saga as an opaque JSON body with no <c>IQueryable</c> over it, so
+    /// only paging, a total count and ordering by id are answered; a filter or an ordering is refused.
+    /// </summary>
+    public SagaQueryCapabilities GetQueryCapabilities(string sagaTypeName)
+        => sagaIndex().ContainsKey(sagaTypeName)
+            ? SagaQueryCapabilities.PagingOnly(
+                "Lightweight saga storage keeps the saga as an opaque JSON body, so it can page and count and order by identity, but cannot filter or order on saga members. Use a storage with a queryable saga model (Marten, EF Core, RavenDB) for that.")
+            : SagaQueryCapabilities.None;
+
+    public async Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options, CancellationToken ct)
+    {
+        var (pageNumber, pageSize) = SagaQueryCriteria.Page(options);
+        SagaQueryCriteria.RefuseCriteria(options, GetQueryCapabilities(sagaTypeName));
+        if (!sagaIndex().TryGetValue(sagaTypeName, out var definition))
+            return SagaQueryResult.Empty(pageNumber, pageSize);
 
         var conn = _database.DataSource.CreateConnection();
         await conn.OpenAsync(ct).ConfigureAwait(false);
         try
         {
-            var sql = renderTopNQuery(conn, definition, clamped);
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = sql;
+            var table = qualifyTableName(definition.TableName);
+
+            long total;
+            await using (var countCmd = conn.CreateCommand())
+            {
+                countCmd.CommandText = $"select count(*) from {table}";
+                total = Convert.ToInt64(await countCmd.ExecuteScalarAsync(ct).ConfigureAwait(false));
+            }
 
             var list = new List<SagaInstanceState>();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = renderPageQuery(conn, table, (pageNumber - 1) * pageSize, pageSize);
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
             {
-                var id = await reader.IsDBNullAsync(0) ? string.Empty : reader.GetValue(0)!;
+                var id = await reader.IsDBNullAsync(0, ct).ConfigureAwait(false) ? string.Empty : reader.GetValue(0)!;
                 var body = readBody(reader, 1);
                 list.Add(buildInstance(definition, id, body));
             }
-            return list;
+
+            return new SagaQueryResult(list, total, pageNumber, pageSize);
         }
         catch (DbException e) when (isMissingTableException(e))
         {
             // Same contract as ReadSagaAsync: a declared-but-never-persisted
             // saga has no table yet, which reads as "no instances" (GH-3887).
-            return Array.Empty<SagaInstanceState>();
+            return SagaQueryResult.Empty(pageNumber, pageSize);
         }
         finally
         {
@@ -192,30 +220,23 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
     }
 
     /// <summary>
-    /// Render a portable "top-N rows" SELECT for the dialect this
-    /// connection speaks. SQL Server uses <c>SELECT TOP N</c>,
-    /// Oracle uses <c>FETCH FIRST N ROWS ONLY</c>, and the rest
-    /// (Postgres / MySQL / SQLite) use <c>LIMIT N</c>. Detected from
-    /// the connection's CLR type to keep this provider Wolverine-side
-    /// without a circular reference into the dialect packages.
+    /// Render a page of rows ordered by id for the dialect this connection speaks. SQL Server and Oracle
+    /// use <c>OFFSET .. FETCH</c>, the rest (Postgres / MySQL / SQLite) use <c>LIMIT .. OFFSET</c>.
+    /// Detected from the connection's CLR type to keep this provider Wolverine-side without a circular
+    /// reference into the dialect packages.
     /// </summary>
-    private string renderTopNQuery(DbConnection conn, SagaTableDefinition definition, int count)
+    private static string renderPageQuery(DbConnection conn, string table, int offset, int count)
     {
         var connTypeName = conn.GetType().FullName ?? string.Empty;
-        var idCol = DatabaseConstants.Id;
-        var bodyCol = DatabaseConstants.Body;
-        var table = qualifyTableName(definition.TableName);
+        var select = $"select {DatabaseConstants.Id}, {DatabaseConstants.Body} from {table} order by {DatabaseConstants.Id}";
 
-        if (connTypeName.Contains("SqlClient", StringComparison.OrdinalIgnoreCase))
+        if (connTypeName.Contains("SqlClient", StringComparison.OrdinalIgnoreCase) ||
+            connTypeName.StartsWith("Oracle.", StringComparison.OrdinalIgnoreCase))
         {
-            return $"select top {count} {idCol}, {bodyCol} from {table}";
+            return $"{select} offset {offset} rows fetch next {count} rows only";
         }
-        if (connTypeName.StartsWith("Oracle.", StringComparison.OrdinalIgnoreCase))
-        {
-            return $"select {idCol}, {bodyCol} from {table} fetch first {count} rows only";
-        }
-        // Postgres (Npgsql), MySQL (MySqlConnector), SQLite - all LIMIT
-        return $"select {idCol}, {bodyCol} from {table} limit {count}";
+
+        return $"{select} limit {count} offset {offset}";
     }
 
     private SagaDescriptor buildDescriptor(SagaTableDefinition definition)

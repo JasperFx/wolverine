@@ -1,4 +1,5 @@
 using JasperFx.Descriptors;
+using JasperFx.Documents;
 using Wolverine.Configuration.Capabilities;
 
 namespace Wolverine.Persistence.Sagas;
@@ -64,6 +65,29 @@ internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, IDi
         return routes.TryGetValue(sagaTypeName, out var child)
             ? await child.ListSagaInstancesAsync(sagaTypeName, count, ct).ConfigureAwait(false)
             : Array.Empty<SagaInstanceState>();
+    }
+
+    public SagaQueryCapabilities GetQueryCapabilities(string sagaTypeName)
+    {
+        // Routes are built asynchronously from each child's catalog; the catalogs are synchronous in
+        // practice, so ask each child directly and take the first that owns the type.
+        foreach (var child in _children)
+        {
+            var capabilities = child.GetQueryCapabilities(sagaTypeName);
+            if (capabilities.CanQuery) return capabilities;
+        }
+
+        return SagaQueryCapabilities.None;
+    }
+
+    public async Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options, CancellationToken ct)
+    {
+        var routes = await ensureRoutesAsync(ct).ConfigureAwait(false);
+        if (routes.TryGetValue(sagaTypeName, out var child))
+            return await child.QuerySagasAsync(sagaTypeName, options, ct).ConfigureAwait(false);
+
+        var (pageNumber, pageSize) = SagaQueryCriteria.Page(options);
+        return SagaQueryResult.Empty(pageNumber, pageSize);
     }
 
     private async Task<Dictionary<string, ISagaStoreDiagnostics>> ensureRoutesAsync(CancellationToken ct)

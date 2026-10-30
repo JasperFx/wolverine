@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx.Documents;
 using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -114,6 +115,58 @@ public class efcore_saga_store_diagnostics_tests : IAsyncLifetime
 
         instances.Count.ShouldBeGreaterThanOrEqualTo(3);
         instances.ShouldAllBe(i => i.SagaTypeName == typeof(GuidBasicWorkflow).FullName);
+    }
+
+    [Fact]
+    public async Task query_sagas_filters_orders_pages_and_counts()
+    {
+        var tag = Guid.NewGuid().ToString("N");
+        foreach (var n in new[] { "b", "c", "a", "d" })
+        {
+            await _host.InvokeMessageAndWaitAsync(new GuidStart { Id = Guid.NewGuid(), Name = $"{tag}-{n}" });
+        }
+
+        await _host.InvokeMessageAndWaitAsync(new GuidStart { Id = Guid.NewGuid(), Name = "someone-else" });
+
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        diagnostics.GetQueryCapabilities(typeof(GuidBasicWorkflow).FullName!).CanFilter.ShouldBeTrue();
+
+        var result = await diagnostics.QuerySagasAsync(typeof(GuidBasicWorkflow).FullName!,
+            new DocumentQueryOptions(2, 3)
+            {
+                Where = "Name.StartsWith(@0)",
+                Arguments = [tag],
+                OrderBy = "Name desc"
+            }, CancellationToken.None);
+
+        result.TotalCount.ShouldBe(4);
+        result.Instances.Select(i => i.State.GetProperty("Name").GetString()).ShouldBe([$"{tag}-a"]);
+    }
+
+    [Fact]
+    public async Task query_sagas_refuses_a_where_that_does_not_parse()
+    {
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        await Should.ThrowAsync<DocumentCriteriaNotSupportedException>(() => diagnostics.QuerySagasAsync(
+            typeof(GuidBasicWorkflow).FullName!,
+            new DocumentQueryOptions(1, 10) { Where = "NoSuchMember = 1" }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task list_saga_instances_is_ordered_by_identity()
+    {
+        for (var i = 0; i < 4; i++)
+        {
+            await _host.InvokeMessageAndWaitAsync(new GuidStart { Id = Guid.NewGuid(), Name = "ordered" });
+        }
+
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        var instances = await diagnostics.ListSagaInstancesAsync(
+            typeof(GuidBasicWorkflow).FullName!, 50, CancellationToken.None);
+
+        var ids = instances.Select(i => (Guid)i.Identity).ToList();
+        // SQL Server compares a uniqueidentifier by its own byte order, which SqlGuid reproduces
+        ids.ShouldBe(ids.OrderBy(x => new System.Data.SqlTypes.SqlGuid(x)).ToList());
     }
 
     [Fact]
