@@ -66,7 +66,7 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
     {
         if (HasDisposed) return [];
 
-        var builder = new DbCommandBuilder(new SqlCommand());
+        var builder = new SqlServerDbCommandBuilder();
         builder.Append("select top (");
         builder.AppendParameter(limit);
         builder.Append($") {DatabaseConstants.OutgoingFields} from {SchemaName}.{DatabaseConstants.OutgoingTable}");
@@ -89,7 +89,7 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
     public Task<int> CountStaleOutgoingAsync(DateTimeOffset? staleBefore, Guid[] excluded,
         CancellationToken token)
     {
-        var builder = new DbCommandBuilder(new SqlCommand());
+        var builder = new SqlServerDbCommandBuilder();
         builder.Append($"select count(*) from {SchemaName}.{DatabaseConstants.OutgoingTable}");
         writeStaleOutgoingPredicate(builder, staleBefore, excluded);
 
@@ -101,7 +101,7 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
         // The timestamp column only exists when OutboxStaleTime is set
         if (HasDisposed || envelopes.Count == 0 || !Durability.OutboxStaleTime.HasValue) return;
 
-        var builder = new DbCommandBuilder(new SqlCommand());
+        var builder = new SqlServerDbCommandBuilder();
         builder.Append(
             $"update {SchemaName}.{DatabaseConstants.OutgoingTable} set {DatabaseConstants.Timestamp} = GETUTCDATE() where {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} and {DatabaseConstants.Id} in (");
         for (var i = 0; i < envelopes.Count; i++)
@@ -137,7 +137,7 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
     public Task<IReadOnlyList<Envelope>> LoadDueScheduledAsync(DateTimeOffset now, Guid[] excluded, int limit,
         CancellationToken token)
     {
-        var builder = new DbCommandBuilder(new SqlCommand());
+        var builder = new SqlServerDbCommandBuilder();
         builder.Append("select top (");
         builder.AppendParameter(limit);
         builder.Append($") {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable}");
@@ -149,7 +149,7 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
 
     public Task<int> CountDueScheduledAsync(DateTimeOffset now, Guid[] excluded, CancellationToken token)
     {
-        var builder = new DbCommandBuilder(new SqlCommand());
+        var builder = new SqlServerDbCommandBuilder();
         builder.Append($"select count(*) from {SchemaName}.{DatabaseConstants.IncomingTable}");
         writeDueScheduledPredicate(builder, now, excluded);
 
@@ -159,7 +159,7 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
     public Task<IReadOnlyList<Envelope>> LoadRecoverableIncomingAsync(DateTimeOffset? staleBefore, Guid[] excluded,
         int limit, CancellationToken token)
     {
-        var builder = new DbCommandBuilder(new SqlCommand());
+        var builder = new SqlServerDbCommandBuilder();
         builder.Append("select top (");
         builder.AppendParameter(limit);
         builder.Append($") {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable}");
@@ -171,7 +171,7 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
     public Task<int> CountRecoverableIncomingAsync(DateTimeOffset? staleBefore, Guid[] excluded,
         CancellationToken token)
     {
-        var builder = new DbCommandBuilder(new SqlCommand());
+        var builder = new SqlServerDbCommandBuilder();
         builder.Append($"select count(*) from {SchemaName}.{DatabaseConstants.IncomingTable}");
         writeRecoverableIncomingPredicate(builder, staleBefore, excluded);
 

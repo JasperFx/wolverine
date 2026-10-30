@@ -93,7 +93,7 @@ public abstract partial class MessageDatabase<T>
             .With("time", envelope.ScheduledTime!.Value)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
-            .With("uri", envelope.Destination!.ToString())
+            .With("uri", envelope.Destination!.ToString(), AddressParameterType)
             .ExecuteNonQueryAsync(_cancellation).ConfigureAwait(false);
 
         if (rowsAffected == 0)
@@ -128,7 +128,7 @@ public abstract partial class MessageDatabase<T>
             .With("time", envelope.ScheduledTime!.Value)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
-            .With("uri", envelope.Destination!.ToString())
+            .With("uri", envelope.Destination!.ToString(), AddressParameterType)
             .ExecuteNonQueryAsync(_cancellation);
 
         if (rowsAffected == 0)
@@ -191,7 +191,7 @@ public abstract partial class MessageDatabase<T>
         var command = CreateCommand(_handledRowExistsSql).With("id", envelope.Id);
         if (Durability.MessageIdentity != MessageIdentity.IdOnly)
         {
-            command = command.With("uri", envelope.Destination!.ToString());
+            command = command.With("uri", envelope.Destination!.ToString(), AddressParameterType);
         }
 
         var count = await command.ExecuteScalarAsync(cancellation);

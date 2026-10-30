@@ -31,7 +31,7 @@ public abstract partial class MessageDatabase<T>
             builder.Append($" where {DatabaseConstants.Id} = ");
             builder.AppendParameter(envelope.Id);
             builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
-            builder.AppendParameter(envelope.Destination!.ToString());
+            builder.AppendParameter(envelope.Destination!.ToString(), AddressParameterType);
             builder.Append(";");
         }
 
@@ -65,7 +65,7 @@ public abstract partial class MessageDatabase<T>
             cmd.Transaction = tx;
             cmd.With("owner", ownerId)
                 .With("id", envelope.Id)
-                .With("destination", envelope.Destination!.ToString());
+                .With("destination", envelope.Destination!.ToString(), AddressParameterType);
 
             if (await cmd.ExecuteNonQueryAsync(_cancellation) > 0)
             {
@@ -130,7 +130,7 @@ public abstract partial class MessageDatabase<T>
         builder.Append($"delete from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} WHERE id = ");
         builder.AppendParameter(envelope.Id);
         builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
-        builder.AppendParameter(envelope.Destination!.ToString());
+        builder.AppendParameter(envelope.Destination!.ToString(), AddressParameterType);
         builder.Append(';');
 
         await executeCommandBatch(builder, _cancellation);
@@ -157,7 +157,7 @@ public abstract partial class MessageDatabase<T>
             builder.Append($"delete from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} WHERE id = ");
             builder.AppendParameter(envelope.Id);
             builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
-            builder.AppendParameter(envelope.Destination!.ToString());
+            builder.AppendParameter(envelope.Destination!.ToString(), AddressParameterType);
             builder.Append(';');
 
             DatabasePersistence.ConfigureDeadLetterCommands(Durability, envelope, exception, builder, this);
@@ -298,7 +298,7 @@ public abstract partial class MessageDatabase<T>
         return CreateCommand(_markEnvelopeAsHandledById)
             .With("id", envelope.Id)
             .With("keepUntil", keepUntil)
-            .With("uri", envelope.Destination!.ToString())
+            .With("uri", envelope.Destination!.ToString(), AddressParameterType)
             .ExecuteNonQueryAsync(_cancellation);
     }
 
@@ -318,7 +318,7 @@ public abstract partial class MessageDatabase<T>
         await using var cmd = conn.CreateCommand(_markEnvelopeAsHandledById)
             .With("id", envelope.Id)
             .With("keepUntil", keepUntil)
-            .With("uri", envelope.Destination!.ToString());
+            .With("uri", envelope.Destination!.ToString(), AddressParameterType);
         cmd.Transaction = tx;
 
         await cmd.ExecuteNonQueryAsync(cancellation);
@@ -347,7 +347,7 @@ public abstract partial class MessageDatabase<T>
                 builder.Append($"delete from {table} where id = ");
                 builder.AppendParameter(envelope.Id);
                 builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
-                builder.AppendParameter(uri);
+                builder.AppendParameter(uri, AddressParameterType);
                 builder.Append(
                     $" and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}' and exists (select 1 from {table} h where h.id = ");
                 builder.AppendParameter(envelope.Id);
@@ -357,7 +357,7 @@ public abstract partial class MessageDatabase<T>
                 if (Durability.MessageIdentity != MessageIdentity.IdOnly)
                 {
                     builder.Append($" and h.{DatabaseConstants.ReceivedAt} = ");
-                    builder.AppendParameter(uri);
+                    builder.AppendParameter(uri, AddressParameterType);
                 }
 
                 builder.Append($" and h.{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}');");
@@ -368,7 +368,7 @@ public abstract partial class MessageDatabase<T>
             builder.Append(" and ");
             builder.Append(DatabaseConstants.ReceivedAt);
             builder.Append( " = ");
-            builder.AppendParameter(uri);
+            builder.AppendParameter(uri, AddressParameterType);
 
             if (partitioned)
             {
@@ -403,7 +403,7 @@ public abstract partial class MessageDatabase<T>
         return CreateCommand(_incrementIncomingEnvelopeAttempts)
             .With("attempts", envelope.Attempts)
             .With("id", envelope.Id)
-            .With("uri", envelope.Destination!.ToString())
+            .With("uri", envelope.Destination!.ToString(), AddressParameterType)
             .ExecuteNonQueryAsync(_cancellation);
     }
 
