@@ -1,4 +1,5 @@
 using Dekaf.Consumer;
+using Dekaf.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -23,11 +24,9 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     // start while the broker is down; each failed attempt degrades the connection state and the
     // receive loop backs off and retries.
     private static readonly TimeSpan _initializeTimeout = TimeSpan.FromSeconds(10);
-    private bool _initialized;
+    private volatile bool _initialized;
+    private volatile bool _initializeFailed;
 
-    // GH-3454: degrade-only connection state derived from consume exceptions; a successful
-    // consume clears back to Unknown. Never Connected — see KafkaConnectionStateTracker.
-    private readonly KafkaConnectionStateTracker _connectionState;
     private readonly KafkaTopic _endpoint;
     private readonly IKafkaConsumer<string, byte[]> _consumer;
     private CancellationTokenSource _cancellation = new();
@@ -59,8 +58,7 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     public KafkaListener(KafkaTopic topic, KafkaConsumerOptions config,
         IKafkaConsumer<string, byte[]> consumer, string[] topicNames, IReceiver receiver,
-        ILogger<KafkaListener> logger, TimeSpan drainTimeout, KafkaTransport? tenantTransport = null,
-        KafkaConnectionStateTracker? connectionState = null)
+        ILogger<KafkaListener> logger, TimeSpan drainTimeout, KafkaTransport? tenantTransport = null)
     {
         _endpoint = topic;
         _logger = logger;
@@ -68,8 +66,6 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         _tenantTransport = tenantTransport;
         Address = topic.Uri;
         _consumer = consumer;
-
-        _connectionState = connectionState ?? new KafkaConnectionStateTracker();
 
         _messageTypeName = topic.MessageType?.ToMessageTypeName();
 
@@ -92,8 +88,7 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     // One consume-and-process iteration. ConsumeOneAsync waits up to the poll timeout for a record; a
     // null result means a quiet topic, so just loop. An OperationCanceledException ends the loop; any
-    // other consume error updates the connection state and flows to BackgroundReceiveLoop's
-    // log -> backoff -> continue. A processing error AFTER a successful consume is a poison pill —
+    // other consume error flows to BackgroundReceiveLoop's log -> backoff -> continue. A processing error AFTER a successful consume is a poison pill —
     // advance past its offset and continue, exactly as before.
     //
     // GH-3490: durable endpoints additionally drain whatever records the consumer has already
@@ -116,26 +111,16 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
                 // shutting down — let the loop stop
                 throw;
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                // Broker unreachable (or slow): degrade the connection state and let the receive
-                // loop back off and retry, so the host stays up
-                _connectionState.ApplyException(e);
+                // Broker unreachable (or slow): report it and let the receive loop back off and retry, so the
+                // host stays up
+                _initializeFailed = true;
                 throw;
             }
         }
 
-        ConsumeResult<string, byte[]>? maybe;
-        try
-        {
-            maybe = await _consumer.ConsumeOneAsync(_pollTimeout, token);
-        }
-        catch (Exception e) when (e is not OperationCanceledException)
-        {
-            _connectionState.ApplyException(e);
-            throw;
-        }
-
+        var maybe = await _consumer.ConsumeOneAsync(_pollTimeout, token);
         if (maybe == null)
         {
             // Poll timeout on a quiet topic; nothing to do this iteration
@@ -143,7 +128,6 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         }
 
         var result = maybe.Value;
-        _connectionState.MarkSuccessfulConsume();
 
         try
         {
@@ -277,7 +261,22 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     public ReceiveLoopStatus ReceiveLoopStatus => _loop.ReceiveLoopStatus;
     public DateTimeOffset? LastReceiveLoopActivityAt => _loop.LastReceiveLoopActivityAt;
 
-    public TransportConnectionState ConnectionState => _connectionState.ConnectionState;
+    // GH-3454: the consumer's own broker connection status. Before it first connects there is none, so a failed
+    // initialization reports Disconnected.
+    public TransportConnectionState ConnectionState
+    {
+        get
+        {
+            if (!_initialized)
+            {
+                return _initializeFailed ? TransportConnectionState.Disconnected : TransportConnectionState.Unknown;
+            }
+
+            return _consumer is IKafkaClientStatusProvider status
+                ? KafkaConnectionState.From(status.GetStatus())
+                : TransportConnectionState.Unknown;
+        }
+    }
 
     public async ValueTask CompleteAsync(Envelope envelope)
     {

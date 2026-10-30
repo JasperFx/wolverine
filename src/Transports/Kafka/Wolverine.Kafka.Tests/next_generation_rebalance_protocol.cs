@@ -48,11 +48,10 @@ public class next_generation_rebalance_protocol
         var description = await admin.DescribeConsumerGroupsAsync(["kip848-e2e"]);
         description.ConsumerGroupDescriptions.Single().GroupType.ShouldBe(ConsumerGroupType.Consumer);
 
-        // GH-3454 parity: the degrade-only connection-state heuristic behaves identically under the new
-        // protocol — a healthy listener rests at Unknown and never synthesizes Connected
+        // GH-3454 parity: a healthy listener reports its live broker connections under the new protocol too
         var snapshot = host.GetRuntime().Endpoints.CollectEndpointHealth()
             .Single(s => s.Direction == EndpointDirection.Listening && s.Uri.Scheme == "kafka");
-        snapshot.ConnectionState.ShouldBe(TransportConnectionState.Unknown);
+        snapshot.ConnectionState.ShouldBe(TransportConnectionState.Connected);
     }
 
     [Fact]
