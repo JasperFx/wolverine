@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JasperFx.Core;
 using Microsoft.Extensions.AI;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Transports.Local;
 
 namespace Wolverine.AI;
@@ -12,6 +13,7 @@ namespace Wolverine.AI;
 public class LlmCalloutOptions
 {
     private readonly List<Action<LocalQueueConfiguration>> _queueConfigurations = new();
+    private readonly List<Action<HandlerChain>> _chainConfigurations = new();
 
     /// <summary>
     /// How many callouts may be in flight at once on the callout queue. This is the back pressure knob
@@ -130,6 +132,26 @@ public class LlmCalloutOptions
     internal void ApplyQueueConfiguration(LocalQueueConfiguration queue)
     {
         foreach (var configure in _queueConfigurations) configure(queue);
+    }
+
+    /// <summary>
+    /// Further configuration of the <see cref="LlmCallout" /> handler chain, most usefully its error handling. Applied
+    /// after Wolverine.AI's own rules, in every <c>TypeLoadMode</c>.
+    /// </summary>
+    /// <remarks>
+    /// Prefer this to an <c>IHandlerPolicy</c> for the callout chain: under <c>TypeLoadMode.Static</c> the callout
+    /// handler is a pre-built <c>MessageHandler</c> rather than a generated chain, and Wolverine does not apply handler
+    /// policies to those.
+    /// </remarks>
+    public LlmCalloutOptions ConfigureChain(Action<HandlerChain> configure)
+    {
+        _chainConfigurations.Add(configure);
+        return this;
+    }
+
+    internal void ApplyChainConfiguration(HandlerChain chain)
+    {
+        foreach (var configure in _chainConfigurations) configure(chain);
     }
 }
 

@@ -354,54 +354,65 @@ registered `IChatClient` honoring its cancellation token, though every HTTP base
 
 The defaults are opinionated, and eventually you'll want something else. The awkward bit is that the `LlmCallout`
 handler ships inside `WolverineFx.AI` rather than in your assemblies, so there's no handler class of yours to hang
-a `Configure(HandlerChain)` method on. Use an `IHandlerPolicy` instead, which is how Wolverine.AI applies its own
-rules in the first place:
+a `Configure(HandlerChain)` method on. Use `LlmCalloutOptions.ConfigureChain()` instead:
 
 <!-- snippet: sample_llm_callout_error_handling -->
 <a id='snippet-sample_llm_callout_error_handling'></a>
 ```cs
-// The LlmCallout handler ships inside WolverineFx.AI, so you cannot drop a Configure(HandlerChain)
-// method onto it the way you would with one of your own handlers. An IHandlerPolicy reaches the same
-// chain, and it is exactly how Wolverine.AI applies its own defaults.
-public class CalloutErrorPolicy : IHandlerPolicy
-{
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
-    {
-        foreach (var chain in chains.Where(x => x.MessageType == typeof(LlmCallout)))
-        {
-            // A provider rate limit is worth waiting out rather than hammering.
-            chain.OnException<HttpRequestException>()
-                .RetryWithCooldown(5.Seconds(), 30.Seconds(), 2.Minutes());
-
-            // A callout that timed out may well have cost you a completion you never saw. Give it one
-            // more attempt, then get it out of the queue rather than paying for it a third time.
-            chain.OnException<TaskCanceledException>()
-                .RetryOnce()
-                .Then.MoveToErrorQueue();
-        }
-    }
-}
-
+// The LlmCallout handler ships inside WolverineFx.AI, so you cannot drop a Configure(HandlerChain) method onto it the
+// way you would with one of your own handlers. ConfigureChain reaches the callout chain instead, after Wolverine.AI's
+// own rules, and it does so in every code generation mode.
 public static class CalloutErrorHandling
 {
     public static void Configure(WolverineOptions opts)
     {
-        // Opt out of the built in cooldown schedule so your rules are the whole story. Leave this
-        // alone and both sets apply, with Wolverine.AI's defaults added first.
-        opts.AddLlmCallouts(ai => ai.RetryCooldowns = []);
+        opts.AddLlmCallouts(ai =>
+        {
+            // Opt out of the built in cooldown schedule so your rules are the whole story. Leave this
+            // alone and both sets apply, with Wolverine.AI's defaults added first.
+            ai.RetryCooldowns = [];
 
-        opts.Policies.Add(new CalloutErrorPolicy());
+            ai.ConfigureChain(chain =>
+            {
+                // A provider rate limit is worth waiting out rather than hammering.
+                chain.OnException<HttpRequestException>()
+                    .RetryWithCooldown(5.Seconds(), 30.Seconds(), 2.Minutes());
+
+                // A callout that timed out may well have cost you a completion you never saw. Give it one
+                // more attempt, then get it out of the queue rather than paying for it a third time.
+                chain.OnException<TaskCanceledException>()
+                    .RetryOnce()
+                    .Then.MoveToErrorQueue();
+            });
+        });
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L205-L241' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_error_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L205-L236' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_callout_error_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+An `IHandlerPolicy` reaches the callout chain too, but only when Wolverine generates it. Under
+`TypeLoadMode.Static` it doesn't, for the reason in the next section, so prefer `ConfigureChain()`.
 
 ::: warning
 Setting `RetryCooldowns` to an empty array is what opts you out of the built in schedule. If you leave it alone,
 both sets of rules apply and Wolverine.AI's are added first, which is usually not what you meant when you sat down
 to write your own.
 :::
+
+### Static Code Generation
+
+Under `TypeLoadMode.Static` every discovered handler chain needs a pre-generated type, and the callout chain only has
+one if `codegen write` ran with `AddLlmCallouts()` configured. That holds for your own application, but not for a
+library that ships its own pre-generated code, where the host is the one that adds AI. So in Static mode Wolverine.AI
+runs callouts on a pre-built handler that needs no generated code, whatever your codegen contains. It applies the
+budget, Wolverine.AI's error handling and your `ConfigureChain()` rules, and publishes the answer exactly as the
+generated chain does.
+
+Two differences follow from there being no generated chain. An `IHandlerPolicy` does not reach it, and
+`DeduplicateCallouts` is refused at startup, because deduplication is woven into generated code. The decision is made
+from `TypeLoadMode` once your own configuration has run, so set Static mode in your Wolverine configuration rather than
+afterwards.
 
 The answer message is the easy case, since that handler is yours. Configure it the ordinary way:
 
@@ -430,7 +441,7 @@ public static class OutageSummaryHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L243-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_response_error_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.AI.Tests/Samples.cs#L238-L262' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_llm_response_error_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Keeping those two separate is deliberate. If your own downstream work throws -- the ticketing system is down, say

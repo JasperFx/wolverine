@@ -1,6 +1,7 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using JasperFx.CodeGeneration;
 using Wolverine.AI.Internals;
 
 namespace Wolverine.AI;
@@ -52,9 +53,34 @@ public static class WolverineAiExtensions
         options.Services.AddSingleton<ILlmBudgetLedger>(new LlmBudgetLedger(ai.Budget));
         options.Services.TryAddSingleton<ILlmCalloutExecutor, LlmCalloutExecutor>();
 
-        // The handler lives in WolverineFx.AI rather than in the application's own assemblies, so
-        // conventional discovery will never see it.
-        options.Discovery.IncludeType(typeof(LlmCalloutHandler));
+        // CritterWatch#1524 — which handler runs a callout depends on the code generation mode, decided once the
+        // application's own configuration has had its say. Static mode needs a pre-generated type for every discovered
+        // chain, which a library shipping its own codegen without AI cannot have; it gets the pre-built handler instead.
+        options.ConfigureLazily(o =>
+        {
+            if (o.CodeGeneration.TypeLoadMode == TypeLoadMode.Static)
+            {
+                if (ai.DeduplicateCallouts)
+                {
+                    throw new InvalidOperationException(
+                        $"{nameof(LlmCalloutOptions.DeduplicateCallouts)} is not supported under TypeLoadMode.Static: " +
+                        "deduplication is woven into the generated handler chain, and Static mode runs callouts on a " +
+                        "pre-built handler with no generated code.");
+                }
+
+                o.AddMessageHandler(new LlmCalloutMessageHandler(ai));
+
+                // Local routing conventions follow discovered chains, so a pre-built handler is routed explicitly, to
+                // the same queue the [LocalQueue] attribute names for the generated one.
+                o.PublishMessage<LlmCallout>().ToLocalQueue(LlmCallout.QueueName);
+            }
+            else
+            {
+                // The handler lives in WolverineFx.AI rather than in the application's own assemblies, so
+                // conventional discovery will never see it.
+                o.Discovery.IncludeType(typeof(LlmCalloutHandler));
+            }
+        });
 
         var queue = options.LocalQueue(LlmCallout.QueueName)
             .MaximumParallelMessages(ai.MaximumParallelCallouts);

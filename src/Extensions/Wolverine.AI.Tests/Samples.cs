@@ -204,37 +204,32 @@ public static class ResponseQueueConfiguration
 
 #region sample_llm_callout_error_handling
 
-// The LlmCallout handler ships inside WolverineFx.AI, so you cannot drop a Configure(HandlerChain)
-// method onto it the way you would with one of your own handlers. An IHandlerPolicy reaches the same
-// chain, and it is exactly how Wolverine.AI applies its own defaults.
-public class CalloutErrorPolicy : IHandlerPolicy
-{
-    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
-    {
-        foreach (var chain in chains.Where(x => x.MessageType == typeof(LlmCallout)))
-        {
-            // A provider rate limit is worth waiting out rather than hammering.
-            chain.OnException<HttpRequestException>()
-                .RetryWithCooldown(5.Seconds(), 30.Seconds(), 2.Minutes());
-
-            // A callout that timed out may well have cost you a completion you never saw. Give it one
-            // more attempt, then get it out of the queue rather than paying for it a third time.
-            chain.OnException<TaskCanceledException>()
-                .RetryOnce()
-                .Then.MoveToErrorQueue();
-        }
-    }
-}
-
+// The LlmCallout handler ships inside WolverineFx.AI, so you cannot drop a Configure(HandlerChain) method onto it the
+// way you would with one of your own handlers. ConfigureChain reaches the callout chain instead, after Wolverine.AI's
+// own rules, and it does so in every code generation mode.
 public static class CalloutErrorHandling
 {
     public static void Configure(WolverineOptions opts)
     {
-        // Opt out of the built in cooldown schedule so your rules are the whole story. Leave this
-        // alone and both sets apply, with Wolverine.AI's defaults added first.
-        opts.AddLlmCallouts(ai => ai.RetryCooldowns = []);
+        opts.AddLlmCallouts(ai =>
+        {
+            // Opt out of the built in cooldown schedule so your rules are the whole story. Leave this
+            // alone and both sets apply, with Wolverine.AI's defaults added first.
+            ai.RetryCooldowns = [];
 
-        opts.Policies.Add(new CalloutErrorPolicy());
+            ai.ConfigureChain(chain =>
+            {
+                // A provider rate limit is worth waiting out rather than hammering.
+                chain.OnException<HttpRequestException>()
+                    .RetryWithCooldown(5.Seconds(), 30.Seconds(), 2.Minutes());
+
+                // A callout that timed out may well have cost you a completion you never saw. Give it one
+                // more attempt, then get it out of the queue rather than paying for it a third time.
+                chain.OnException<TaskCanceledException>()
+                    .RetryOnce()
+                    .Then.MoveToErrorQueue();
+            });
+        });
     }
 }
 
