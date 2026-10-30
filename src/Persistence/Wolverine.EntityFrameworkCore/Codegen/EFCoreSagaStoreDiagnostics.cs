@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
+using JasperFx.Documents;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration.Capabilities;
@@ -117,11 +118,27 @@ internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics
 
     public async Task<IReadOnlyList<SagaInstanceState>> ListSagaInstancesAsync(string sagaTypeName, int count, CancellationToken ct)
     {
-        if (!sagaIndex().TryGetValue(sagaTypeName, out var pair))
+        if (!sagaIndex().ContainsKey(sagaTypeName) || count <= 0)
             return Array.Empty<SagaInstanceState>();
 
-        var clamped = count <= 0 ? 0 : Math.Min(count, 1000);
-        if (clamped == 0) return Array.Empty<SagaInstanceState>();
+        // Ordered by the primary key (the QuerySagasAsync default) so the sample is repeatable.
+        var result = await QuerySagasAsync(sagaTypeName, new DocumentQueryOptions(1, count), ct).ConfigureAwait(false);
+        return result.Instances;
+    }
+
+    public SagaQueryCapabilities GetQueryCapabilities(string sagaTypeName)
+        => sagaIndex().ContainsKey(sagaTypeName)
+            ? DocumentQueryCriteria.IsAvailable
+                ? SagaQueryCapabilities.Full
+                : SagaQueryCapabilities.PagingOnly("Saga filters and orderings need runtime code generation, which is unavailable in a Native AOT process.")
+            : SagaQueryCapabilities.None;
+
+    public async Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options, CancellationToken ct)
+    {
+        var (pageNumber, pageSize) = SagaQueryCriteria.Page(options);
+        SagaQueryCriteria.RefuseCriteria(options, GetQueryCapabilities(sagaTypeName));
+        if (!sagaIndex().TryGetValue(sagaTypeName, out var pair))
+            return SagaQueryResult.Empty(pageNumber, pageSize);
 
         using var scope = _services.CreateScope();
         var dbContext = (DbContext)scope.ServiceProvider.GetRequiredService(pair.dbContextType);
@@ -130,22 +147,35 @@ internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics
             .GetMethod(nameof(querySagasAsync), BindingFlags.Instance | BindingFlags.NonPublic)!
             .MakeGenericMethod(pair.sagaType);
 
-        var task = (Task<IReadOnlyList<SagaInstanceState>>)helper
-            .Invoke(this, [dbContext, pair.sagaType, clamped, ct])!;
+        var task = (Task<SagaQueryResult>)helper
+            .Invoke(this, [dbContext, pair.sagaType, options, pageNumber, pageSize, ct])!;
         return await task.ConfigureAwait(false);
     }
 
-    private async Task<IReadOnlyList<SagaInstanceState>> querySagasAsync<TSaga>(
-        DbContext dbContext, Type sagaType, int count, CancellationToken ct) where TSaga : class
+    private async Task<SagaQueryResult> querySagasAsync<TSaga>(
+        DbContext dbContext, Type sagaType, DocumentQueryOptions options, int pageNumber, int pageSize,
+        CancellationToken ct) where TSaga : class
     {
-        var sagas = await dbContext.Set<TSaga>().AsNoTracking().Take(count).ToListAsync(ct).ConfigureAwait(false);
-        var list = new List<SagaInstanceState>(sagas.Count);
-        foreach (var saga in sagas)
+        var keyName = dbContext.Model.FindEntityType(sagaType)?.FindPrimaryKey()?.Properties[0].Name ?? "Id";
+        var queryable = SagaQueryCriteria.Apply(options, dbContext.Set<TSaga>().AsNoTracking(), keyName);
+        try
         {
-            var id = extractIdentity(dbContext, saga, sagaType) ?? Guid.Empty;
-            list.Add(buildInstance(sagaType, id, saga));
+            var total = await queryable.CountAsync(ct).ConfigureAwait(false);
+            var sagas = await queryable.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync(ct)
+                .ConfigureAwait(false);
+            var list = new List<SagaInstanceState>(sagas.Count);
+            foreach (var saga in sagas)
+            {
+                var id = extractIdentity(dbContext, saga, sagaType) ?? Guid.Empty;
+                list.Add(buildInstance(sagaType, id, saga));
+            }
+
+            return new SagaQueryResult(list, total, pageNumber, pageSize);
         }
-        return list;
+        catch (Exception e) when (DocumentQueryCriteria.IsTranslationFailure(e))
+        {
+            throw options.Untranslatable(e);
+        }
     }
 
     private SagaDescriptor buildDescriptor(Type sagaType)

@@ -1,5 +1,6 @@
 using IntegrationTests;
 using JasperFx;
+using JasperFx.Documents;
 using JasperFx.Resources;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
@@ -106,6 +107,86 @@ public class marten_saga_store_diagnostics_tests : PostgresqlContext, IAsyncLife
 
         instances.Count.ShouldBeGreaterThanOrEqualTo(3);
         instances.ShouldAllBe(i => i.SagaTypeName == typeof(DiagSaga).FullName);
+    }
+
+    [Fact]
+    public void marten_can_filter_and_order_sagas()
+    {
+        var capabilities = _host.GetRuntime().SagaStorage.GetQueryCapabilities(typeof(DiagSaga).FullName!);
+
+        capabilities.CanQuery.ShouldBeTrue();
+        capabilities.CanFilter.ShouldBeTrue();
+        capabilities.CanOrder.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task query_sagas_filters_orders_pages_and_counts()
+    {
+        var tag = Guid.NewGuid().ToString("N");
+        foreach (var n in new[] { "b", "c", "a", "d" })
+        {
+            await _host.InvokeMessageAndWaitAsync(new StartDiagSaga(Guid.NewGuid(), $"{tag}-{n}"));
+        }
+
+        await _host.InvokeMessageAndWaitAsync(new StartDiagSaga(Guid.NewGuid(), "someone-else"));
+
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        var result = await diagnostics.QuerySagasAsync(typeof(DiagSaga).FullName!,
+            new DocumentQueryOptions(2, 3)
+            {
+                Where = "Note.StartsWith(@0)",
+                Arguments = [tag],
+                OrderBy = "Note desc"
+            }, CancellationToken.None);
+
+        result.TotalCount.ShouldBe(4);
+        result.PageNumber.ShouldBe(2);
+        result.PageSize.ShouldBe(3);
+        result.Instances.Select(i => i.State.GetProperty("Note").GetString())
+            .ShouldBe([$"{tag}-a"]);
+    }
+
+    [Fact]
+    public async Task query_sagas_refuses_a_where_that_does_not_parse()
+    {
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        await Should.ThrowAsync<DocumentCriteriaNotSupportedException>(() => diagnostics.QuerySagasAsync(
+            typeof(DiagSaga).FullName!,
+            new DocumentQueryOptions(1, 10) { Where = "NoSuchMember = 1" }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task query_sagas_refuses_criteria_that_mean_nothing_for_a_saga()
+    {
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        await Should.ThrowAsync<DocumentCriteriaNotSupportedException>(() => diagnostics.QuerySagasAsync(
+            typeof(DiagSaga).FullName!,
+            new DocumentQueryOptions(1, 10) { CorrelationId = "x" }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task query_sagas_clamps_the_page_size()
+    {
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        var result = await diagnostics.QuerySagasAsync(typeof(DiagSaga).FullName!,
+            new DocumentQueryOptions(1, 100_000), CancellationToken.None);
+
+        result.PageSize.ShouldBe(SagaQueryCriteria.MaxPageSize);
+    }
+
+    [Fact]
+    public async Task list_saga_instances_is_ordered_by_identity()
+    {
+        for (var i = 0; i < 4; i++)
+        {
+            await _host.InvokeMessageAndWaitAsync(new StartDiagSaga(Guid.NewGuid(), "ordered"));
+        }
+
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        var instances = await diagnostics.ListSagaInstancesAsync(typeof(DiagSaga).FullName!, 50, CancellationToken.None);
+
+        var ids = instances.Select(i => (Guid)i.Identity).ToList();
+        ids.ShouldBe(ids.OrderBy(x => x).ToList());
     }
 
     [Fact]

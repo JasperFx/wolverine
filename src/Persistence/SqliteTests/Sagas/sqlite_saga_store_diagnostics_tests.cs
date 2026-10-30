@@ -1,3 +1,4 @@
+using JasperFx.Documents;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -82,6 +83,72 @@ public class sqlite_saga_store_diagnostics_tests : SqliteContext, IAsyncLifetime
 
         instances.Count.ShouldBeGreaterThanOrEqualTo(2);
         instances.ShouldAllBe(i => i.SagaTypeName == typeof(SqliteDiagSaga).FullName);
+    }
+
+    [Fact]
+    public void lightweight_storage_can_page_but_not_filter_or_order()
+    {
+        var capabilities = _host.GetRuntime().SagaStorage.GetQueryCapabilities(typeof(SqliteDiagSaga).FullName!);
+
+        capabilities.CanQuery.ShouldBeTrue();
+        capabilities.CanFilter.ShouldBeFalse();
+        capabilities.CanOrder.ShouldBeFalse();
+        capabilities.Reason.ShouldNotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task query_sagas_pages_in_identity_order_with_a_total_count()
+    {
+        foreach (var id in new[] { "q-c", "q-a", "q-e", "q-b", "q-d" })
+        {
+            await _host.InvokeMessageAndWaitAsync(new StartSqliteDiagSaga(id, id));
+        }
+
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        var second = await diagnostics.QuerySagasAsync(typeof(SqliteDiagSaga).FullName!,
+            new DocumentQueryOptions(2, 2), CancellationToken.None);
+
+        second.TotalCount.ShouldBe(5);
+        second.PageNumber.ShouldBe(2);
+        second.PageSize.ShouldBe(2);
+        second.Instances.Select(i => i.Identity.ToString()).ShouldBe(["q-c", "q-d"]);
+    }
+
+    [Fact]
+    public async Task query_sagas_refuses_a_filter_rather_than_returning_an_unfiltered_page()
+    {
+        await _host.InvokeMessageAndWaitAsync(new StartSqliteDiagSaga(Guid.NewGuid().ToString("N"), "one"));
+
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        await Should.ThrowAsync<DocumentCriteriaNotSupportedException>(() => diagnostics.QuerySagasAsync(
+            typeof(SqliteDiagSaga).FullName!,
+            new DocumentQueryOptions(1, 10) { Where = "Note = \"one\"" }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task query_sagas_refuses_an_ordering_by_a_saga_member()
+    {
+        await _host.InvokeMessageAndWaitAsync(new StartSqliteDiagSaga(Guid.NewGuid().ToString("N"), "one"));
+
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        await Should.ThrowAsync<DocumentCriteriaNotSupportedException>(() => diagnostics.QuerySagasAsync(
+            typeof(SqliteDiagSaga).FullName!,
+            new DocumentQueryOptions(1, 10) { OrderBy = "Note" }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task list_saga_instances_is_ordered_by_identity()
+    {
+        foreach (var id in new[] { "l-c", "l-a", "l-b" })
+        {
+            await _host.InvokeMessageAndWaitAsync(new StartSqliteDiagSaga(id, id));
+        }
+
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        var instances = await diagnostics.ListSagaInstancesAsync(
+            typeof(SqliteDiagSaga).FullName!, 10, CancellationToken.None);
+
+        instances.Select(i => i.Identity.ToString()).ShouldBe(["l-a", "l-b", "l-c"]);
     }
 
     [Fact]
