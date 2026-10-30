@@ -134,6 +134,12 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
 
     public Task MarkProcessingFailureAsync(OutgoingMessageBatch outgoing, Exception? exception)
     {
+        if (isShutdownCancellation(exception))
+        {
+            logInterruptedByShutdown(outgoing);
+            return Task.CompletedTask;
+        }
+
         _logger.LogError(exception,
             "Failure trying to send a message batch to {Destination}", outgoing.Destination);
         _logger.OutgoingBatchFailed(outgoing, exception);
@@ -493,7 +499,43 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
         }
 
         var batch = new OutgoingMessageBatch(outgoing.Destination, new[] { outgoing });
+        if (isShutdownCancellation(exception))
+        {
+            logInterruptedByShutdown(batch);
+            return Task.CompletedTask;
+        }
+
         _logger.OutgoingBatchFailed(batch, exception);
         return markFailedAsync(batch, exception);
+    }
+
+    /// <summary>
+    ///     GH-5286. A transport that hands the runtime's own cancellation token to its broker client, like Azure
+    ///     Service Bus, sees an in-flight send cancelled by an orderly shutdown. That is not a transport failure:
+    ///     it must not be logged as an error, count toward the circuit breaker, or go through the sending failure
+    ///     policies. A cancellation that arrives while the runtime is still running is a real failure, and takes
+    ///     the normal path
+    /// </summary>
+    private bool isShutdownCancellation(Exception? exception)
+    {
+        return exception is OperationCanceledException && _settings.Cancellation.IsCancellationRequested;
+    }
+
+    private void logInterruptedByShutdown(OutgoingMessageBatch batch)
+    {
+        if (IsDurable)
+        {
+            // The envelopes were never accepted by the broker, so their outbox rows stay behind for the
+            // durability agent to recover after a restart
+            _logger.LogInformation(
+                "Sending {Count} message(s) to {Destination} was interrupted by the application shutting down. They remain in the outbox and will be recovered",
+                batch.Messages.Count, batch.Destination);
+        }
+        else
+        {
+            _logger.LogWarning(
+                "Sending {Count} message(s) to {Destination} was interrupted by the application shutting down. They were not sent",
+                batch.Messages.Count, batch.Destination);
+        }
     }
 }
