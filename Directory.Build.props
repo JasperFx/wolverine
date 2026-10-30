@@ -32,7 +32,7 @@
         <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902</WarningsNotAsErrors>
         <ImplicitUsings>true</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>6.59.0</Version>
+        <Version>6.59.1</Version>
         <!-- WolverineFx.Bobcat's package version, declared ONCE (GH-5222). Wolverine.Bobcat.csproj packs as it,
              and WolverineFx.Bobcat.EventModel stamps it as WolverineFxBobcatVersion assembly metadata: the
              WolverineFx.Bobcat a spec project written by write-specs pins by default. EventModel used to default
