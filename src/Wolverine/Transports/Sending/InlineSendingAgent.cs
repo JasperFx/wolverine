@@ -7,6 +7,7 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime;
+using Wolverine.Util;
 
 namespace Wolverine.Transports.Sending;
 
@@ -57,14 +58,7 @@ public class InlineSendingAgent : ISendingAgent, IAsyncDisposable
     {
         (_sending as IDisposable)?.Dispose();
 
-        if (Sender is IAsyncDisposable ad)
-        {
-            await ad.DisposeAsync().ConfigureAwait(false);
-        }
-        else if (Sender is IDisposable d)
-        {
-            d.SafeDispose();
-        }
+        await Sender.MaybeDisposeAsync().ConfigureAwait(false);
     }
 
     public Uri Destination => Sender.Destination;

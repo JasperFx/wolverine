@@ -119,12 +119,8 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             catch (Exception e)
             {
                 // Broker unreachable (or slow): degrade the connection state and let the receive
-                // loop back off and retry — the host stays up, matching the transport's historic
-                // start-then-reconnect behavior
-                _connectionState.ApplyException(
-                    e is OperationCanceledException
-                        ? new TimeoutException($"Kafka consumer initialization did not complete within {_initializeTimeout}")
-                        : e);
+                // loop back off and retry, so the host stays up
+                _connectionState.ApplyException(e);
                 throw;
             }
         }
@@ -134,11 +130,7 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         {
             maybe = await _consumer.ConsumeOneAsync(_pollTimeout, token);
         }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception e)
+        catch (Exception e) when (e is not OperationCanceledException)
         {
             _connectionState.ApplyException(e);
             throw;
@@ -372,9 +364,6 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         // Broker-per-tenant (GH-3303): a tenant listener must DLQ onto its own cluster, not the shared one.
         var transport = _tenantTransport ?? _endpoint.Parent;
         var dlqTopicName = transport.DeadLetterQueueTopicName;
-        var producerConfig = _tenantTransport != null
-            ? _tenantTransport.ProducerConfig
-            : _endpoint.GetEffectiveProducerConfig();
 
         try
         {
@@ -383,11 +372,9 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
             var record = await _endpoint.EnvelopeMapper!.CreateMessage(envelope);
 
-            await using (var producer = await transport.CreateProducerAsync(producerConfig))
-            {
-                await producer.ProduceAsync(record.ToProducerMessage(dlqTopicName), CancellationToken.None);
-                await producer.FlushAsync(CancellationToken.None);
-            }
+            // ProduceAsync completes on the broker's ack, so the record is durable once it returns
+            var producer = await _endpoint.Parent.RecordProducerFor(_endpoint, transport).GetAsync();
+            await producer.ProduceAsync(record.ToProducerMessage(dlqTopicName), CancellationToken.None);
 
             _logger.LogInformation(
                 "Moved envelope {EnvelopeId} to dead letter queue topic {DlqTopic}. Exception: {ExceptionType}: {ExceptionMessage}",

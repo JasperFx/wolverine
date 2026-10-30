@@ -1,5 +1,6 @@
 using ImTools;
 using JasperFx.Core;
+using Wolverine.Util;
 
 namespace Wolverine.Transports.Sending;
 
@@ -166,25 +167,11 @@ public class TenantedSender : ISender, IAsyncDisposable, IConditionalNativeSched
 
     public async ValueTask DisposeAsync()
     {
-        if (_defaultSender is IAsyncDisposable ad)
-        {
-            await ad.DisposeAsync();
-        }
-        else if (_defaultSender is IDisposable defaultDisposable)
-        {
-            defaultDisposable.SafeDispose();
-        }
+        await _defaultSender.MaybeDisposeAsync();
 
         foreach (var entry in _senders.Enumerate())
         {
-            if (entry.Value is IAsyncDisposable ad2)
-            {
-                await ad2.DisposeAsync();
-            }
-            else if (entry.Value is IDisposable tenantDisposable)
-            {
-                tenantDisposable.SafeDispose();
-            }
+            await entry.Value.MaybeDisposeAsync();
         }
     }
 }

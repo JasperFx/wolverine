@@ -54,8 +54,7 @@ internal sealed class KafkaReplay
         config.EnableAutoCommit = false;
         config.EnableAutoOffsetStore = false;
 
-        var consumer = _transport.CreateConsumer(config);
-        await using var _ = consumer;
+        await using var consumer = _transport.CreateConsumer(config);
         await consumer.InitializeAsync(token);
 
         var partitions = await ResolvePartitions(request);
@@ -79,71 +78,65 @@ internal sealed class KafkaReplay
         _logger.LogInformation("Starting Kafka replay of topic {Topic} across {Count} partition(s)",
             request.Topic, remaining.Count);
 
-        try
+        // Disposing the consumer closes it. With no group there is nothing to commit, so the live group's offsets
+        // are untouched.
+        while (remaining.Count > 0 && !token.IsCancellationRequested)
         {
-            while (remaining.Count > 0 && !token.IsCancellationRequested)
+            ConsumeResult<string, byte[]>? maybe;
+            try
             {
-                ConsumeResult<string, byte[]>? maybe;
-                try
-                {
-                    maybe = await consumer.ConsumeOneAsync(_pollTimeout, token);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-
-                if (maybe == null)
-                {
-                    continue;
-                }
-
-                var result = maybe.Value;
-                var tp = new TopicPartition(result.Topic, result.Partition);
-                if (!remaining.Contains(tp))
-                {
-                    continue;
-                }
-
-                if (result.Offset >= ends[tp])
-                {
-                    // Reached this partition's end boundary; stop pulling from it.
-                    remaining.Remove(tp);
-                    consumer.Partitions.Pause([tp]);
-                    continue;
-                }
-
-                var envelope = mapper.CreateEnvelope(result);
-                envelope.TopicName = result.Topic;
-                envelope.Offset = result.Offset;
-                envelope.PartitionId = result.Partition;
-                envelope.MessageType ??= messageTypeName;
-
-                // The live receivers stamp Destination when they accept an envelope, and the pipeline relies
-                // on it: the executor logs it after every handler run and dead-lettering keys the inbox row
-                // on it. Without it each replayed record threw a NullReferenceException after its handler
-                // succeeded, and one whose handler failed could not be dead-lettered.
-                //
-                // Envelope.MarkReceived stamps the *listener's* Address, which for a topic consumed through
-                // ListenToKafkaTopics(...) is the group endpoint's Uri rather than the topic's -- so this has
-                // to follow that endpoint, or the dead letter row, the metrics tag and the endpoint the
-                // pipeline resolves from Destination all name something the live path never names.
-                envelope.Destination ??= liveEndpoint.Uri;
-
-                await pipeline.InvokeAsync(envelope, callback);
-                replayed++;
-
-                if (result.Offset + 1 >= ends[tp])
-                {
-                    remaining.Remove(tp);
-                    consumer.Partitions.Pause([tp]);
-                }
+                maybe = await consumer.ConsumeOneAsync(_pollTimeout, token);
             }
-        }
-        finally
-        {
-            // Close without committing — the live group's offsets are untouched.
-            await consumer.CloseAsync(CancellationToken.None);
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+
+            if (maybe == null)
+            {
+                continue;
+            }
+
+            var result = maybe.Value;
+            var tp = new TopicPartition(result.Topic, result.Partition);
+            if (!remaining.Contains(tp))
+            {
+                continue;
+            }
+
+            if (result.Offset >= ends[tp])
+            {
+                // Reached this partition's end boundary; stop pulling from it.
+                remaining.Remove(tp);
+                consumer.Partitions.Pause([tp]);
+                continue;
+            }
+
+            var envelope = mapper.CreateEnvelope(result);
+            envelope.TopicName = result.Topic;
+            envelope.Offset = result.Offset;
+            envelope.PartitionId = result.Partition;
+            envelope.MessageType ??= messageTypeName;
+
+            // The live receivers stamp Destination when they accept an envelope, and the pipeline relies
+            // on it: the executor logs it after every handler run and dead-lettering keys the inbox row
+            // on it. Without it each replayed record threw a NullReferenceException after its handler
+            // succeeded, and one whose handler failed could not be dead-lettered.
+            //
+            // Envelope.MarkReceived stamps the *listener's* Address, which for a topic consumed through
+            // ListenToKafkaTopics(...) is the group endpoint's Uri rather than the topic's -- so this has
+            // to follow that endpoint, or the dead letter row, the metrics tag and the endpoint the
+            // pipeline resolves from Destination all name something the live path never names.
+            envelope.Destination ??= liveEndpoint.Uri;
+
+            await pipeline.InvokeAsync(envelope, callback);
+            replayed++;
+
+            if (result.Offset + 1 >= ends[tp])
+            {
+                remaining.Remove(tp);
+                consumer.Partitions.Pause([tp]);
+            }
         }
 
         _logger.LogInformation("Finished Kafka replay of topic {Topic}: {Count} record(s) replayed",
@@ -177,11 +170,11 @@ internal sealed class KafkaReplay
         using var timeout = new CancellationTokenSource(_metadataTimeout);
 
         var described = await admin.DescribeTopicsAsync([request.Topic], timeout.Token);
-        if (!described.TryGetValue(request.Topic, out var topicDescription)
-            || topicDescription.ErrorCode != ErrorCode.None)
+        var found = described.TryGetValue(request.Topic, out var topicDescription);
+        if (!found || topicDescription!.ErrorCode != ErrorCode.None)
         {
             throw new InvalidOperationException(
-                $"Unable to read metadata for Kafka topic '{request.Topic}': {(described.TryGetValue(request.Topic, out var d) ? d.ErrorCode.ToString() : "not found")}");
+                $"Unable to read metadata for Kafka topic '{request.Topic}': {(found ? topicDescription!.ErrorCode.ToString() : "not found")}");
         }
 
         var ids = topicDescription.Partitions.Select(x => x.PartitionIndex);

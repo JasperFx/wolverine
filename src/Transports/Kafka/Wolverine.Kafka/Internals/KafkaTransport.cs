@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Dekaf;
 using Dekaf.Admin;
 using Dekaf.Consumer;
@@ -33,6 +34,11 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
     // owns their lifetime and drains them when the runtime disposes its transports.
     private readonly object _ownedSenderLock = new();
     private readonly List<IAsyncDisposable> _ownedSenders = new();
+
+    // Dead letter and retry-tier moves produce one record at a time, so they share a producer per topic and
+    // producing cluster instead of connecting one per record
+    private readonly ConcurrentDictionary<(KafkaTransport Producing, string Topic), LazyKafkaProducer>
+        _recordProducers = new();
 
     [IgnoreDescription]
     public Cache<string, KafkaTopic> Topics { get; }
@@ -379,18 +385,30 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
         return sender;
     }
 
+    /// <summary>
+    /// The shared producer for one-off produces on behalf of <paramref name="topic" /> to the cluster of
+    /// <paramref name="producingTransport" />, which is this transport or one of its tenants' (GH-3303). Owned by
+    /// this transport, because tenant transports are never disposed.
+    /// </summary>
+    internal LazyKafkaProducer RecordProducerFor(KafkaTopic topic, KafkaTransport producingTransport)
+    {
+        return _recordProducers.GetOrAdd((producingTransport, topic.TopicName),
+            static (key, topic) => LazyKafkaProducer.For(topic, key.Producing), topic);
+    }
+
     public async ValueTask DisposeAsync()
     {
-        IAsyncDisposable[] senders;
+        List<IAsyncDisposable> owned;
         lock (_ownedSenderLock)
         {
-            senders = _ownedSenders.ToArray();
+            owned = [.._ownedSenders];
             _ownedSenders.Clear();
         }
 
-        foreach (var sender in senders)
-        {
-            await sender.DisposeAsync();
-        }
+        owned.AddRange(_recordProducers.Values);
+        _recordProducers.Clear();
+
+        // Each drain is bounded, and they are independent
+        await Task.WhenAll(owned.Select(x => x.DisposeAsync().AsTask()));
     }
 }

@@ -146,40 +146,27 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     }
 
     /// <summary>
-    /// Gets the effective consumer options for this topic, ensuring BootstrapServers, GroupId, and the
-    /// security/SASL settings (SecurityProtocol, SaslMechanism, SaslUsername, SaslPassword) are
-    /// inherited from parent if not set
+    /// Gets the effective consumer options for this topic, inheriting the parent's connection settings and
+    /// GroupId where the topic does not set them
     /// </summary>
     internal KafkaConsumerOptions GetEffectiveConsumerConfig()
     {
         if (ConsumerConfig != null)
         {
-            ConsumerConfig.BootstrapServers ??= Parent.ConsumerConfig.BootstrapServers;
+            ConsumerConfig.InheritClientDefaultsFrom(Parent.ConsumerConfig);
             ConsumerConfig.GroupId ??= Parent.ConsumerConfig.GroupId;
-            ConsumerConfig.SecurityProtocol ??= Parent.ConsumerConfig.SecurityProtocol;
-            ConsumerConfig.SaslMechanism ??= Parent.ConsumerConfig.SaslMechanism;
-            ConsumerConfig.SaslUsername ??= Parent.ConsumerConfig.SaslUsername;
-            ConsumerConfig.SaslPassword ??= Parent.ConsumerConfig.SaslPassword;
         }
 
         return ConsumerConfig ?? Parent.ConsumerConfig;
     }
 
     /// <summary>
-    /// Gets the effective producer options for this topic, ensuring BootstrapServers and the
-    /// security/SASL settings (SecurityProtocol, SaslMechanism, SaslUsername, SaslPassword) are
-    /// inherited from parent if not set
+    /// Gets the effective producer options for this topic, inheriting the parent's connection settings where
+    /// the topic does not set them
     /// </summary>
     internal KafkaProducerOptions GetEffectiveProducerConfig()
     {
-        if (ProducerConfig != null)
-        {
-            ProducerConfig.BootstrapServers ??= Parent.ProducerConfig.BootstrapServers;
-            ProducerConfig.SecurityProtocol ??= Parent.ProducerConfig.SecurityProtocol;
-            ProducerConfig.SaslMechanism ??= Parent.ProducerConfig.SaslMechanism;
-            ProducerConfig.SaslUsername ??= Parent.ProducerConfig.SaslUsername;
-            ProducerConfig.SaslPassword ??= Parent.ProducerConfig.SaslPassword;
-        }
+        ProducerConfig?.InheritClientDefaultsFrom(Parent.ProducerConfig);
 
         return ProducerConfig ?? Parent.ProducerConfig;
     }
@@ -193,7 +180,12 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         return EnvelopeMapper ??= BuildMapper(runtime);
     }
 
-    public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
+    /// <summary>
+    /// The Kafka topics this endpoint's listener subscribes to
+    /// </summary>
+    protected virtual string[] listenedTopicNames => [TopicName];
+
+    public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
 
@@ -206,13 +198,11 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         // stored offsets.
         KafkaOffsetCommitter.ApplyTo(config, CommitMode);
 
-        // GH-3454: consume exceptions feed the tracker, which the listener surfaces through
-        // IReportConnectionState
-        var tracker = new KafkaConnectionStateTracker();
+        var topicNames = listenedTopicNames;
         var listener = new KafkaListener(this, config,
-            Parent.CreateConsumer(config), [TopicName], receiver,
+            Parent.CreateConsumer(config), topicNames, receiver,
             runtime.LoggerFactory.CreateLogger<KafkaListener>(),
-            runtime.DurabilitySettings.DrainTimeout, connectionState: tracker);
+            runtime.DurabilitySettings.DrainTimeout);
 
         // Broker-per-tenant (GH-3303): the shared listener consumes the default cluster. Each tenant runs its
         // own listener on its own cluster, stamping the tenant id onto inbound envelopes via TenantIdRule.
@@ -227,18 +217,17 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             {
                 var tenantConfig = cloneConsumerConfigForTenant(config, tenant);
                 var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
-                var tenantTracker = new KafkaConnectionStateTracker();
                 var tenantListener = new KafkaListener(this, tenantConfig,
-                    tenant.Transport.CreateConsumer(tenantConfig), [TopicName], tenantReceiver,
+                    tenant.Transport.CreateConsumer(tenantConfig), topicNames, tenantReceiver,
                     runtime.LoggerFactory.CreateLogger<KafkaListener>(), runtime.DurabilitySettings.DrainTimeout,
-                    tenant.Transport, tenantTracker);
+                    tenant.Transport);
                 compound.Inner.Add(tenantListener);
             }
 
-            return compound;
+            return ValueTask.FromResult<IListener>(compound);
         }
 
-        return listener;
+        return ValueTask.FromResult<IListener>(listener);
     }
 
     /// <summary>

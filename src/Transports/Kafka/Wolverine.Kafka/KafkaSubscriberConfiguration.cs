@@ -93,9 +93,10 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
     }
 
     /// <summary>
-    /// Opt this topic's producer into the idempotent producer (<c>enable.idempotence = true</c>, which
+    /// Pin this topic's producer to the idempotent producer (<c>enable.idempotence = true</c>, which
     /// implies <c>acks=all</c> and bounded in-flight requests) so producer-side retries can't write
-    /// duplicates to the broker. Opt-in; producer→broker de-duplication only (not transactional
+    /// duplicates to the broker. Dekaf producers are idempotent by default, so this only matters when
+    /// other configuration turns idempotence off. Producer→broker de-duplication only (not transactional
     /// exactly-once). See GH-3149. Call after <see cref="ConfigureProducer"/> if you also use that.
     /// </summary>
     public KafkaSubscriberConfiguration UseIdempotentProducer()

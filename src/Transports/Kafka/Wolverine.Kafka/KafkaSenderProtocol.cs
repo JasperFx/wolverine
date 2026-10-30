@@ -10,12 +10,7 @@ namespace Wolverine.Kafka;
 public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
 {
     private readonly KafkaTopic _topic;
-    // Dekaf producers are built and initialized asynchronously, but sender protocols are constructed
-    // on synchronous paths, so the producer is created lazily on first send.
-    private readonly KafkaTransport _producerTransport;
-    private readonly KafkaProducerOptions _config;
-    private readonly SemaphoreSlim _producerLock = new(1, 1);
-    private IKafkaProducer<string, byte[]>? _producer;
+    private readonly LazyKafkaProducer _producer;
 
     /// <summary>
     ///     Where an envelope the mapper throws on is logged with the original exception
@@ -28,29 +23,11 @@ public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
     }
 
     // Broker-per-tenant (GH-3303): batch over an explicit transport (a tenant's child transport pointed at its
-    // own cluster) rather than always the topic's parent. When it *is* the parent, behaves exactly as before.
+    // own cluster) rather than always the topic's parent
     internal KafkaSenderProtocol(KafkaTopic topic, KafkaTransport producerTransport)
     {
         _topic = topic;
-        _config = ReferenceEquals(producerTransport, topic.Parent)
-            ? topic.GetEffectiveProducerConfig()
-            : producerTransport.ProducerConfig;
-        _producerTransport = producerTransport;
-    }
-
-    private async ValueTask<IKafkaProducer<string, byte[]>> producerAsync()
-    {
-        if (_producer != null) return _producer;
-
-        await _producerLock.WaitAsync();
-        try
-        {
-            return _producer ??= await _producerTransport.CreateProducerAsync(_config);
-        }
-        finally
-        {
-            _producerLock.Release();
-        }
+        _producer = LazyKafkaProducer.For(topic, producerTransport);
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
@@ -100,7 +77,7 @@ public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
         // Phase 2 — produce the lot; ProduceAllAsync completes when every record is acked.
         try
         {
-            var producer = await producerAsync();
+            var producer = await _producer.GetAsync();
             await producer.ProduceAllAsync(messages, CancellationToken.None);
         }
         catch (Exception ex)
@@ -114,26 +91,8 @@ public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
         await callback.MarkSuccessfulAsync(batch);
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        var producer = _producer;
-        _producerLock.Dispose();
-        if (producer == null)
-        {
-            return;
-        }
-
-        // Bounded drain for anything still queued in the producer before tearing it down.
-        // DisposeAsync flushes pending records.
-        try
-        {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            await producer.FlushAsync(timeout.Token);
-            await producer.DisposeAsync();
-        }
-        catch (Exception)
-        {
-            // already gone or the drain timed out, nothing more to do
-        }
+        return _producer.DisposeAsync();
     }
 }

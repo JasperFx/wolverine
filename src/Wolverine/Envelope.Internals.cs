@@ -518,9 +518,18 @@ public partial class Envelope
     ///     later synchronous read of <see cref="Data" />, like the one every message store does when it writes the
     ///     envelope, finds the bytes in place instead of blocking on the async serializer
     /// </summary>
-    internal async ValueTask SerializeAheadAsync()
+    internal ValueTask SerializeAheadAsync()
     {
-        if (Serializer is IAsyncMessageSerializer && MessagePayloadSize == null && _message != null)
+        return Serializer is IAsyncMessageSerializer && _message != null ? EnsureDataAsync() : ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    ///     Serializes the message unless the bytes already exist, awaiting an <see cref="IAsyncMessageSerializer" />
+    ///     where reading <see cref="Data" /> would block on it
+    /// </summary>
+    internal async ValueTask EnsureDataAsync()
+    {
+        if (MessagePayloadSize == null)
         {
             await GetDataAsync().ConfigureAwait(false);
         }

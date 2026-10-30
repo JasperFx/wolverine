@@ -38,49 +38,7 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
 
     public override bool AutoStartSendingAgent() => false;
 
-    public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
-    {
-        EnvelopeMapper ??= BuildMapper(runtime);
-
-        var config = GetEffectiveConsumerConfig();
-
-        ApplyHotTailConfig(config, runtime);
-
-        // Wire the Kafka client for the configured commit strategy (GH-3150).
-        KafkaOffsetCommitter.ApplyTo(config, CommitMode);
-
-        // GH-3454: consume exceptions feed the tracker, which the listener surfaces through
-        // IReportConnectionState
-        var tracker = new KafkaConnectionStateTracker();
-        var listener = new KafkaListener(this, config,
-            Parent.CreateConsumer(config), TopicNames, receiver,
-            runtime.LoggerFactory.CreateLogger<KafkaListener>(),
-            runtime.DurabilitySettings.DrainTimeout, connectionState: tracker);
-
-        // Broker-per-tenant (GH-3303): mirror the single-topic listener treatment — a shared listener on the
-        // default cluster plus one per-tenant listener on each tenant cluster, stamping the tenant id inbound.
-        if (Parent.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
-        {
-            var compound = new CompoundListener(Uri);
-            compound.Inner.Add(listener);
-
-            foreach (var tenant in Parent.Tenants)
-            {
-                var tenantConfig = cloneConsumerConfigForTenant(config, tenant);
-                var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
-                var tenantTracker = new KafkaConnectionStateTracker();
-                var tenantListener = new KafkaListener(this, tenantConfig,
-                    tenant.Transport.CreateConsumer(tenantConfig), TopicNames, tenantReceiver,
-                    runtime.LoggerFactory.CreateLogger<KafkaListener>(),
-                    runtime.DurabilitySettings.DrainTimeout, tenant.Transport, tenantTracker);
-                compound.Inner.Add(tenantListener);
-            }
-
-            return compound;
-        }
-
-        return listener;
-    }
+    protected override string[] listenedTopicNames => TopicNames;
 
     // GH-4510. The same structural answer the Azure Service Bus subscription now gives: a sticky handler
     // binding must not make a listen-only endpoint a local send target, or building its sender takes host
@@ -90,20 +48,6 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         throw new NotSupportedException("KafkaTopicGroup is a listen-only endpoint. Use KafkaTopic for publishing.");
-    }
-
-    public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
-    {
-        if (NativeDeadLetterQueueEnabled)
-        {
-            var dlqTopic = Parent.Topics[Parent.DeadLetterQueueTopicName];
-            dlqTopic.EnvelopeMapper ??= dlqTopic.BuildMapper(runtime);
-            deadLetterSender = Parent.TrackOwnedSender(new InlineKafkaSender(dlqTopic, fixedDestination: true));
-            return true;
-        }
-
-        deadLetterSender = default;
-        return false;
     }
 
     // Re-implement IBrokerEndpoint for multi-topic support

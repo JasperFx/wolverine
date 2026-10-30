@@ -177,7 +177,6 @@ public partial class Envelope : IHasTenantId
         {
             try
             {
-                releasePooledBody();
                 _data = await asyncMessaeSerializer.WriteAsync(this);
             }
             catch (Exception e)

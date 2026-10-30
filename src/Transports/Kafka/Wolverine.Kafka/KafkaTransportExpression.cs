@@ -148,10 +148,11 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
-    /// Opt every Kafka producer on this node into the idempotent producer
+    /// Pin every Kafka producer on this node to the idempotent producer
     /// (<c>enable.idempotence = true</c>, which implies <c>acks=all</c> and bounded in-flight requests),
-    /// so producer-side retries can't write duplicates to the broker. Opt-in; slight throughput cost.
-    /// This is producer→broker de-duplication only — it is not transactional exactly-once. See GH-3149.
+    /// so producer-side retries can't write duplicates to the broker. Dekaf producers are idempotent by
+    /// default, so this only matters when other configuration turns idempotence off.
+    /// This is producer→broker de-duplication only, not transactional exactly-once. See GH-3149.
     /// </summary>
     public KafkaTransportExpression UseIdempotentProducer()
     {

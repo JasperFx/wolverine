@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using Dekaf;
 using Dekaf.Consumer;
-using Dekaf.Errors;
 using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Kafka.Internals;
@@ -151,7 +150,7 @@ internal sealed class KafkaOffsetCommitter
         var tp = new TopicPartition(topic, partition);
 
         List<TopicPartitionOffset>? toCommit = null;
-        List<TopicPartitionOffset>? toStore = null;
+        TopicPartitionOffset? toStore = null;
         lock (_lock)
         {
             var watermark = WatermarkFor(tp);
@@ -170,7 +169,7 @@ internal sealed class KafkaOffsetCommitter
                 case Strategy.Store:
                     if (watermark.TryTakeCommittable(out var store))
                     {
-                        toStore = [new TopicPartitionOffset(topic, partition, store)];
+                        toStore = new TopicPartitionOffset(topic, partition, store);
                     }
 
                     break;
@@ -193,9 +192,9 @@ internal sealed class KafkaOffsetCommitter
             await CommitOffsets(toCommit);
         }
 
-        if (toStore is { Count: > 0 })
+        if (toStore is { } stored)
         {
-            StoreOffsets(toStore);
+            storeOffset(stored);
         }
     }
 
@@ -238,42 +237,26 @@ internal sealed class KafkaOffsetCommitter
     }
 
     /// <summary>
-    /// Flush any pending offsets. Called on graceful shutdown so a clean stop doesn't lose progress
-    /// (GH-3150 acceptance #4).
+    /// Commit any pending batch offsets. Called on graceful shutdown so a clean stop doesn't lose progress
+    /// (GH-3150 acceptance #4). Stored offsets need no flush here: closing the consumer commits them.
     /// </summary>
     public async ValueTask FlushAsync()
     {
-        switch (_strategy)
+        if (_strategy != Strategy.Batch)
         {
-            case Strategy.Batch:
-                List<TopicPartitionOffset> pending;
-                lock (_lock)
-                {
-                    pending = PendingWatermarkOffsets();
-                    _sinceLastCommit = 0;
-                }
+            return;
+        }
 
-                if (pending.Count > 0)
-                {
-                    await CommitOffsets(pending);
-                }
+        List<TopicPartitionOffset> pending;
+        lock (_lock)
+        {
+            pending = PendingWatermarkOffsets();
+            _sinceLastCommit = 0;
+        }
 
-                break;
-
-            case Strategy.Store:
-                // Force the stored offsets to be committed synchronously rather than waiting for the
-                // next background flush (CloseAsync also does this, but be explicit and resilient).
-                // A commit with nothing stored is a no-op in Dekaf, not an error.
-                try
-                {
-                    await _consumer.CommitAsync(CancellationToken.None);
-                }
-                catch (Exception e)
-                {
-                    _logger.LogDebug(e, "Error flushing stored Kafka offsets on shutdown");
-                }
-
-                break;
+        if (pending.Count > 0)
+        {
+            await CommitOffsets(pending);
         }
     }
 
@@ -289,18 +272,15 @@ internal sealed class KafkaOffsetCommitter
         }
     }
 
-    private void StoreOffsets(List<TopicPartitionOffset> offsets)
+    private void storeOffset(TopicPartitionOffset offset)
     {
         try
         {
-            foreach (var tpo in offsets)
-            {
-                _consumer.StoreOffset(tpo);
-            }
+            _consumer.StoreOffset(offset);
         }
         catch (Exception e)
         {
-            _logger.LogWarning(e, "Error storing Kafka offsets {Offsets}", offsets);
+            _logger.LogWarning(e, "Error storing Kafka offset {Offset}", offset);
         }
     }
 

@@ -25,10 +25,11 @@ public class KafkaConnectionStateTracker : IReportConnectionState
                 _connectionState = TransportConnectionState.Disconnected;
                 return;
 
-            // Broker-level transport trouble the client retries under the covers. Never allowed to
-            // downgrade Disconnected — only a successful consume clears it
+            // Broker-level transport trouble the client retries under the covers, or an initialization that
+            // ran out of time. Never allowed to downgrade Disconnected — only a successful consume clears it
             case KafkaTimeoutException:
             case TimeoutException:
+            case OperationCanceledException:
             case KafkaException { IsRetriable: true }:
                 if (_connectionState != TransportConnectionState.Disconnected)
                 {

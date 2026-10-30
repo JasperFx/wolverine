@@ -110,9 +110,9 @@ internal static class KafkaOptionsMapper
             builder.WithClientId(options.ClientId);
         }
 
-        if (options.EnableIdempotence == true)
+        if (options.EnableIdempotence.HasValue)
         {
-            builder.WithIdempotence(true);
+            builder.WithIdempotence(options.EnableIdempotence.Value);
         }
 
         if (options.Acks.HasValue)

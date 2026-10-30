@@ -112,8 +112,8 @@ public class KafkaConsumerOptions : KafkaClientOptions
 public class KafkaProducerOptions : KafkaClientOptions
 {
     /// <summary>
-    /// Enable the idempotent producer (implies acks=all and bounded in-flight requests) so
-    /// producer-side retries can't write duplicates to the broker
+    /// The idempotent producer (implies acks=all and bounded in-flight requests) keeps producer-side
+    /// retries from writing duplicates to the broker. Unset leaves Dekaf's default, which is enabled
     /// </summary>
     public bool? EnableIdempotence { get; set; }
 
@@ -126,15 +126,6 @@ public class KafkaProducerOptions : KafkaClientOptions
     {
         return (KafkaProducerOptions)MemberwiseClone();
     }
-
-    internal void InheritDefaultsFrom(KafkaProducerOptions parent)
-    {
-        InheritClientDefaultsFrom(parent);
-        EnableIdempotence ??= parent.EnableIdempotence;
-        Acks ??= parent.Acks;
-        Linger ??= parent.Linger;
-        BatchSize ??= parent.BatchSize;
-    }
 }
 
 public class KafkaAdminClientOptions : KafkaClientOptions
@@ -142,10 +133,5 @@ public class KafkaAdminClientOptions : KafkaClientOptions
     public KafkaAdminClientOptions Clone()
     {
         return (KafkaAdminClientOptions)MemberwiseClone();
-    }
-
-    internal void InheritDefaultsFrom(KafkaAdminClientOptions parent)
-    {
-        InheritClientDefaultsFrom(parent);
     }
 }

@@ -348,28 +348,13 @@ internal class DurableSendingAgent : SendingAgent
     }
 
     // The store reads Envelope.Data synchronously, so an async serializer finishes first. Inside the retried
-    // write, so a transient serializer failure (an unreachable schema registry) gets the same retries as before
-    private Task serializeAndStoreOutgoingAsync(Envelope envelope)
+    // write, so a transient serializer failure (an unreachable schema registry) is retried like the write
+    private async Task serializeAndStoreOutgoingAsync(Envelope envelope)
     {
-        var serializing = envelope.SerializeAheadAsync();
-        if (!serializing.IsCompletedSuccessfully)
-        {
-            return serializeThenStoreOutgoingAsync(envelope, serializing);
-        }
+        await envelope.SerializeAheadAsync().ConfigureAwait(false);
 
-        return writeOutgoingRowAsync(envelope);
-    }
-
-    private async Task serializeThenStoreOutgoingAsync(Envelope envelope, ValueTask serializing)
-    {
-        await serializing.ConfigureAwait(false);
-        await writeOutgoingRowAsync(envelope).ConfigureAwait(false);
-    }
-
-    private Task writeOutgoingRowAsync(Envelope envelope)
-    {
-        return _storeCoalescer != null
+        await (_storeCoalescer != null
             ? _storeCoalescer.StoreAsync(envelope)
-            : _outbox.StoreOutgoingAsync(envelope, _settings.OutgoingOwnerId);
+            : _outbox.StoreOutgoingAsync(envelope, _settings.OutgoingOwnerId)).ConfigureAwait(false);
     }
 }

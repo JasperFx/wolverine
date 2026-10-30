@@ -1,5 +1,6 @@
 using System.Text;
 using Dekaf.Consumer;
+using Wolverine.Kafka.Internals;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Util;
@@ -58,8 +59,8 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         // the raw-JSON mapper would stamp the user's message type on it, and the four-byte
         // ping body would blow up the JSON deserializer with "0x01 is an invalid start of a
         // value." See https://github.com/JasperFx/wolverine/issues/2838.
-        if (TryReadHeader(incoming, EnvelopeConstants.MessageTypeKey, out var incomingMessageType)
-            && incomingMessageType == Envelope.PingMessageType)
+        if (incoming.TryGetLastHeaderValue(EnvelopeConstants.MessageTypeKey, skipNullValues: false,
+                out var incomingMessageType) && incomingMessageType == Envelope.PingMessageType)
         {
             envelope.MessageType = Envelope.PingMessageType;
             envelope.Data = incoming.Value;
@@ -97,22 +98,5 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
             // valid after the consumer advances
             envelope.Headers.TryAdd(header.Key, header.IsValueNull ? null : header.GetValueAsString());
         }
-    }
-
-    private static bool TryReadHeader(ConsumeResult<string, byte[]> incoming, string key, out string? value)
-    {
-        // Match Confluent's TryGetLastBytes semantics: the last occurrence of a repeated key wins
-        var headers = incoming.Headers;
-        for (var i = headers.Count - 1; i >= 0; i--)
-        {
-            if (headers[i].Key == key)
-            {
-                value = headers[i].IsValueNull ? null : headers[i].GetValueAsString();
-                return true;
-            }
-        }
-
-        value = null;
-        return false;
     }
 }

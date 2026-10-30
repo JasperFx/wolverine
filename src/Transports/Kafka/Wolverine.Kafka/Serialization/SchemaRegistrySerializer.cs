@@ -1,7 +1,7 @@
 using System.Buffers;
-using System.Collections.Concurrent;
 using System.Reflection;
 using Dekaf.Serialization;
+using ImTools;
 using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Kafka.Serialization;
@@ -26,8 +26,13 @@ namespace Wolverine.Kafka.Serialization;
 /// </summary>
 public abstract class SchemaRegistrySerializer : IAsyncMessageSerializer
 {
-    private readonly ConcurrentDictionary<Type, ITypedSerializer> _serializerCache = new();
-    private readonly ConcurrentDictionary<Type, ITypedDeserializer> _deserializerCache = new();
+    // Larger write buffers are not kept for reuse, so one big message does not pin its buffer to the thread
+    private const int MaxRetainedBufferSize = 1024 * 1024;
+
+    [ThreadStatic] private static ArrayBufferWriter<byte>? _writeBuffer;
+
+    private ImHashMap<Type, ITypedSerializer> _serializers = ImHashMap<Type, ITypedSerializer>.Empty;
+    private ImHashMap<Type, ITypedDeserializer> _deserializers = ImHashMap<Type, ITypedDeserializer>.Empty;
 
     private readonly MethodInfo _buildSerializerMethod;
     private readonly MethodInfo _buildDeserializerMethod;
@@ -96,14 +101,20 @@ public abstract class SchemaRegistrySerializer : IAsyncMessageSerializer
 
     private ITypedSerializer serializerFor(Type messageType)
     {
-        return _serializerCache.GetOrAdd(messageType, type =>
-            (ITypedSerializer)_buildSerializerMethod.MakeGenericMethod(type).Invoke(this, null)!);
+        if (_serializers.TryFind(messageType, out var serializer)) return serializer;
+
+        serializer = (ITypedSerializer)_buildSerializerMethod.MakeGenericMethod(messageType).Invoke(this, null)!;
+        _serializers = _serializers.AddOrUpdate(messageType, serializer);
+        return serializer;
     }
 
     private ITypedDeserializer deserializerFor(Type messageType)
     {
-        return _deserializerCache.GetOrAdd(messageType, type =>
-            (ITypedDeserializer)_buildDeserializerMethod.MakeGenericMethod(type).Invoke(this, null)!);
+        if (_deserializers.TryFind(messageType, out var deserializer)) return deserializer;
+
+        deserializer = (ITypedDeserializer)_buildDeserializerMethod.MakeGenericMethod(messageType).Invoke(this, null)!;
+        _deserializers = _deserializers.AddOrUpdate(messageType, deserializer);
+        return deserializer;
     }
 
     private ITypedSerializer buildSerializer<T>() where T : class
@@ -114,6 +125,21 @@ public abstract class SchemaRegistrySerializer : IAsyncMessageSerializer
     private ITypedDeserializer buildDeserializer<T>() where T : class
     {
         return new TypedDeserializer<T>(CreateTypedDeserializer<T>());
+    }
+
+    // Only the synchronous fallbacks block, and only until the schema for a message type or schema id is cached
+    private static void waitFor(ValueTask prepare)
+    {
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
+        if (prepare.IsCompletedSuccessfully)
+        {
+            prepare.GetAwaiter().GetResult();
+        }
+        else
+        {
+            prepare.AsTask().GetAwaiter().GetResult();
+        }
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
     }
 
     private static SerializationContext contextFor(string? topicName)
@@ -155,17 +181,7 @@ public abstract class SchemaRegistrySerializer : IAsyncMessageSerializer
             {
                 // Schema registration/lookup is cached, so this completes synchronously for any
                 // type a previous sync or async call has already prepared
-                var prepare = _preparer.PrepareAsync((T)message, context, CancellationToken.None);
-#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-                if (prepare.IsCompletedSuccessfully)
-                {
-                    prepare.GetAwaiter().GetResult();
-                }
-                else
-                {
-                    prepare.AsTask().GetAwaiter().GetResult();
-                }
-#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
+                waitFor(_preparer.PrepareAsync((T)message, context, CancellationToken.None));
             }
 
             return write((T)message, context);
@@ -184,9 +200,19 @@ public abstract class SchemaRegistrySerializer : IAsyncMessageSerializer
 
         private byte[] write(T message, SerializationContext context)
         {
-            var buffer = new ArrayBufferWriter<byte>();
+            var buffer = _writeBuffer ?? new ArrayBufferWriter<byte>();
+            _writeBuffer = null;
+            buffer.ResetWrittenCount();
+
             _serializer.Serialize(message, ref buffer, context);
-            return buffer.WrittenSpan.ToArray();
+            var bytes = buffer.WrittenSpan.ToArray();
+
+            if (buffer.Capacity <= MaxRetainedBufferSize)
+            {
+                _writeBuffer = buffer;
+            }
+
+            return bytes;
         }
     }
 
@@ -214,17 +240,7 @@ public abstract class SchemaRegistrySerializer : IAsyncMessageSerializer
                 }
 
                 // First sight of this schema id requires a registry fetch
-                var prepare = _preparer.PrepareAsync(memory, context, CancellationToken.None);
-#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-                if (prepare.IsCompletedSuccessfully)
-                {
-                    prepare.GetAwaiter().GetResult();
-                }
-                else
-                {
-                    prepare.AsTask().GetAwaiter().GetResult();
-                }
-#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
+                waitFor(_preparer.PrepareAsync(memory, context, CancellationToken.None));
             }
 
             return _deserializer.Deserialize(memory, context)!;

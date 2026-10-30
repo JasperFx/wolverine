@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Util;
 
 namespace Wolverine.Transports.Sending;
 
@@ -40,17 +41,13 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
         // Environment.ProcessorCount and lost the guarantee along the way. Everything downstream is
         // already serial by default (Endpoint.MessageBatchMaxDegreeOfParallelism is 1).
         //
-        // GetDataAsync lets IAsyncMessageSerializer implementations (schema registry, encryption)
-        // serialize without blocking; plain serializers fall through to the synchronous Write. The check
-        // is MessagePayloadSize rather than Data because reading Data serializes synchronously.
+        // EnsureDataAsync lets IAsyncMessageSerializer implementations (schema registry, encryption)
+        // serialize without blocking; plain serializers fall through to the synchronous Write.
         _serializing = batching.PushUpstream<Envelope>(1, async (e, _) =>
         {
             try
             {
-                if (e.MessagePayloadSize == null)
-                {
-                    await e.GetDataAsync().ConfigureAwait(false);
-                }
+                await e.EnsureDataAsync().ConfigureAwait(false);
             }
             catch (Exception? ex)
             {
@@ -115,10 +112,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
             throw new InlineSendFailedException($"The sender to {Destination} is latched", null);
         }
 
-        if (envelope.MessagePayloadSize == null)
-        {
-            await envelope.GetDataAsync().ConfigureAwait(false);
-        }
+        await envelope.EnsureDataAsync().ConfigureAwait(false);
 
         var callback = new InlineSendCallback();
         await _protocol.SendBatchAsync(callback, new OutgoingMessageBatch(Destination, [envelope]))
@@ -147,10 +141,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
         {
             try
             {
-                if (envelope.MessagePayloadSize == null)
-                {
-                    await envelope.GetDataAsync().ConfigureAwait(false);
-                }
+                await envelope.EnsureDataAsync().ConfigureAwait(false);
 
                 ready.Add(envelope);
             }
@@ -194,14 +185,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
 
     public async ValueTask DisposeAsync()
     {
-        if (_protocol is IAsyncDisposable ad)
-        {
-            await ad.DisposeAsync().ConfigureAwait(false);
-        }
-        else if (_protocol is IDisposable d)
-        {
-            d.SafeDispose();
-        }
+        await _protocol.MaybeDisposeAsync().ConfigureAwait(false);
 
         _serializing.Complete();
         await _serializing.DisposeAsync().ConfigureAwait(false);

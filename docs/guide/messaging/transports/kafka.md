@@ -546,7 +546,8 @@ does **not** get this protection today. See [Deduplicating CloudEvents](/tutoria
 
 ### Idempotent producer
 
-Opt into the idempotent producer so producer-side retries can't write duplicates to the broker:
+Dekaf producers are idempotent by default, so producer-side retries can't write duplicates to the broker.
+To pin that on explicitly, for example over configuration that sets `EnableIdempotence = false`:
 
 ```csharp
 opts.UseKafka(connectionString).UseIdempotentProducer();       // node-wide
@@ -555,8 +556,8 @@ opts.PublishMessage<T>().ToKafkaTopic("t").UseIdempotentProducer();  // per topi
 
 This sets `EnableIdempotence = true` on the producer options (which implies acks from all in-sync replicas
 and bounded in-flight requests). It is
-**producer→broker** de-duplication only — it does not make consume-process-produce atomic, and it has a
-slight throughput cost. Opt-in; the default is unchanged.
+**producer→broker** de-duplication only — it does not make consume-process-produce atomic. Set
+`EnableIdempotence = false` through `ConfigureProducers(...)` to turn it off.
 
 ### `read_committed` isolation
 

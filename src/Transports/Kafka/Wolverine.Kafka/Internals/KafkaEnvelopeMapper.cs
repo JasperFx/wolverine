@@ -25,21 +25,9 @@ public class KafkaEnvelopeMapper : EnvelopeMapper<ConsumeResult<string, byte[]>,
 
     protected override bool tryReadIncomingHeader(ConsumeResult<string, byte[]> incoming, string key, out string value)
     {
-        // Last occurrence of a repeated key wins, matching Confluent's TryGetLastBytes semantics.
-        // GetValueAsString copies out of the consumer's pooled buffer, so the value stays valid
-        // after the consumer advances.
-        var headers = incoming.Headers;
-        for (var i = headers.Count - 1; i >= 0; i--)
-        {
-            if (headers[i].Key == key && !headers[i].IsValueNull)
-            {
-                value = headers[i].GetValueAsString()!;
-                return true;
-            }
-        }
-
-        value = default!;
-        return false;
+        var found = incoming.TryGetLastHeaderValue(key, skipNullValues: true, out var headerValue);
+        value = headerValue!;
+        return found;
     }
 
     protected override void writeIncomingHeaders(ConsumeResult<string, byte[]> incoming, Envelope envelope)
