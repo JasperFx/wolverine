@@ -40,6 +40,9 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
     private readonly ConcurrentDictionary<(KafkaTransport Producing, string Topic), LazyKafkaProducer>
         _recordProducers = new();
 
+    // The producers and consumers running against this cluster, which the health check reads
+    private readonly ConcurrentDictionary<IKafkaClientHealthSource, byte> _clients = new();
+
     [IgnoreDescription]
     public Cache<string, KafkaTopic> Topics { get; }
 
@@ -359,11 +362,19 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
     /// retries so a host still starts (and keeps retrying) when the broker is unreachable; one-shot
     /// consumers (replay) call InitializeAsync themselves.
     /// </summary>
-    internal IKafkaConsumer<string, byte[]> CreateConsumer(KafkaConsumerOptions? config)
+    internal IKafkaConsumer<string, byte[]> CreateConsumer(KafkaConsumerOptions? config,
+        IRebalanceListener? rebalanceListener = null)
     {
         var consumerBuilder = DekafClient.CreateConsumer<string, byte[]>()
             .ApplyOptions(config ?? ConsumerConfig);
         ConfigureConsumerBuilders(consumerBuilder);
+
+        // Added rather than set, so a listener from ConfigureConsumerBuilders keeps working
+        if (rebalanceListener != null)
+        {
+            consumerBuilder.AddRebalanceListener(rebalanceListener);
+        }
+
         return consumerBuilder.Build();
     }
 
@@ -374,6 +385,12 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
         ConfigureAdminClientBuilders(adminClientBuilder);
         return adminClientBuilder.Build();
     }
+
+    internal ICollection<IKafkaClientHealthSource> Clients => _clients.Keys;
+
+    internal void TrackClient(IKafkaClientHealthSource client) => _clients.TryAdd(client, 0);
+
+    internal void ForgetClient(IKafkaClientHealthSource client) => _clients.TryRemove(client, out _);
 
     internal InlineKafkaSender TrackOwnedSender(InlineKafkaSender sender)
     {

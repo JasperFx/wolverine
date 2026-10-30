@@ -255,4 +255,85 @@ public class kafka_offset_committer
             list.Any(x => x.Partition == 0 && x.Offset == 51) &&
             list.Any(x => x.Partition == 1 && x.Offset == 201)), Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task revocation_commits_finished_batch_offsets_of_the_revoked_partitions_only()
+    {
+        var committer = committerFor(CommitMode.BatchCount, batchCount: 1000);
+
+        await committer.Complete("t", 1, 7);
+        await committer.Complete("t", 1, 8);
+        await committer.Complete("t", 2, 3);
+
+        await committer.PartitionsRevokedAsync([new TopicPartition("t", 1)]);
+
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+                list.Single().Partition == 1 && list.Single().Offset == 9),
+            Arg.Any<CancellationToken>());
+
+        theConsumer.ClearReceivedCalls();
+
+        // The revoked partition is no longer tracked, so the shutdown flush only has partition 2 left
+        await committer.FlushAsync();
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+                list.Single().Partition == 2 && list.Single().Offset == 4),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task a_completion_after_revocation_is_not_committed()
+    {
+        var committer = committerFor(CommitMode.PerMessage);
+
+        committer.Track("t", 1, 5);
+        await committer.PartitionsRevokedAsync([new TopicPartition("t", 1)]);
+        await committer.Complete("t", 1, 5);
+
+        await theConsumer.DidNotReceive()
+            .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task a_reassigned_partition_commits_again()
+    {
+        var committer = committerFor(CommitMode.PerMessage);
+        var partition = new TopicPartition("t", 1);
+
+        await committer.PartitionsRevokedAsync([partition]);
+        committer.PartitionsAssigned([partition]);
+
+        committer.Track("t", 1, 20);
+        await committer.Complete("t", 1, 20);
+
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset == 21), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task lost_partitions_are_dropped_without_a_commit()
+    {
+        var committer = committerFor(CommitMode.BatchCount, batchCount: 1000);
+
+        await committer.Complete("t", 1, 7);
+        committer.PartitionsLost([new TopicPartition("t", 1)]);
+        await committer.FlushAsync();
+        await committer.Complete("t", 1, 8);
+
+        await theConsumer.DidNotReceive()
+            .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task store_strategy_leaves_the_revocation_commit_to_dekaf()
+    {
+        var committer = committerFor(CommitMode.StoreThenAutoFlush);
+
+        committer.Track("t", 1, 5);
+        committer.Track("t", 1, 6);
+        await committer.Complete("t", 1, 6);
+        await committer.PartitionsRevokedAsync([new TopicPartition("t", 1)]);
+
+        await theConsumer.DidNotReceive()
+            .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
+    }
 }

@@ -14,7 +14,7 @@ namespace Wolverine.Kafka.Internals;
 /// subscription is just one consumer over one or more topic names.
 /// </summary>
 public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveLoopHealth,
-    IReportConnectionState
+    IReportConnectionState, IKafkaClientHealthSource
 {
     // How long a single poll waits for a record before the consume loop just loops again. Short enough
     // to keep the receive loop's heartbeat fresh and observe cancellation promptly.
@@ -59,6 +59,15 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     public KafkaListener(KafkaTopic topic, KafkaConsumerOptions config,
         IKafkaConsumer<string, byte[]> consumer, string[] topicNames, IReceiver receiver,
         ILogger<KafkaListener> logger, TimeSpan drainTimeout, KafkaTransport? tenantTransport = null)
+        : this(topic, config, consumer, topicNames, receiver, logger, drainTimeout, tenantTransport, null)
+    {
+    }
+
+    // rebalance is the relay the consumer was built with, so revocations reach this listener's committer
+    internal KafkaListener(KafkaTopic topic, KafkaConsumerOptions config,
+        IKafkaConsumer<string, byte[]> consumer, string[] topicNames, IReceiver receiver,
+        ILogger<KafkaListener> logger, TimeSpan drainTimeout, KafkaTransport? tenantTransport,
+        KafkaRebalanceRelay? rebalance)
     {
         _endpoint = topic;
         _logger = logger;
@@ -80,11 +89,20 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         _stopping = _cancellation.Token;
         _committer = new KafkaOffsetCommitter(consumer, config, topic.CommitMode, topic.CommitBatchCount,
             topic.CommitBatchInterval, logger);
+        if (rebalance != null)
+        {
+            rebalance.Committer = _committer;
+        }
 
         _consumer.Subscribe(topicNames);
         _loop = new BackgroundReceiveLoop(Address, logger, consumeOnceAsync, _cancellation.Token);
         _loop.Start();
+
+        // Registered with the transport of the cluster it consumes, for the health check
+        clusterTransport.TrackClient(this);
     }
+
+    private KafkaTransport clusterTransport => _tenantTransport ?? _endpoint.Parent;
 
     // One consume-and-process iteration. ConsumeOneAsync waits up to the poll timeout for a record; a
     // null result means a quiet topic, so just loop. An OperationCanceledException ends the loop; any
@@ -272,10 +290,37 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
                 return _initializeFailed ? TransportConnectionState.Disconnected : TransportConnectionState.Unknown;
             }
 
-            return _consumer is IKafkaClientStatusProvider status
-                ? KafkaConnectionState.From(status.GetStatus())
-                : TransportConnectionState.Unknown;
+            var status = ((IKafkaClientHealthSource)this).Status;
+            return status == null ? TransportConnectionState.Unknown : KafkaConnectionState.From(status);
         }
+    }
+
+    KafkaClientStatus? IKafkaClientHealthSource.Status =>
+        _initialized ? (_consumer as IKafkaClientStatusProvider)?.GetStatus() : null;
+
+    bool IKafkaClientHealthSource.FailedToConnect => !_initialized && _initializeFailed;
+
+    /// <summary>
+    /// Records waiting on the broker across this consumer's assigned partitions, as of its latest fetches. Null
+    /// until the lag of at least one partition is known.
+    /// </summary>
+    internal long? CurrentLag()
+    {
+        if (!_initialized || _consumer is not IConsumerLag lag)
+        {
+            return null;
+        }
+
+        long? total = null;
+        foreach (var partition in _consumer.Assignment)
+        {
+            if (lag.GetCurrentLag(partition) is { } partitionLag)
+            {
+                total = (total ?? 0) + partitionLag;
+            }
+        }
+
+        return total;
     }
 
     public async ValueTask CompleteAsync(Envelope envelope)
@@ -294,6 +339,7 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     public async ValueTask DisposeAsync()
     {
+        clusterTransport.ForgetClient(this);
         await StopAsync();
         await _loop.DisposeAsync();
         _cancellation.Dispose();
@@ -361,7 +407,7 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
         // Broker-per-tenant (GH-3303): a tenant listener must DLQ onto its own cluster, not the shared one.
-        var transport = _tenantTransport ?? _endpoint.Parent;
+        var transport = clusterTransport;
         var dlqTopicName = transport.DeadLetterQueueTopicName;
 
         try

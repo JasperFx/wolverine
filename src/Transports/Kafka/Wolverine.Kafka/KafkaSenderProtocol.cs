@@ -34,13 +34,12 @@ public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
     {
         // wolverine#3076 — hand the whole batch to the producer at once so its internal batching
         // window (linger, batch size, compression) has a population to coalesce, instead of one
-        // broker round-trip per message. ProduceAllAsync is Dekaf's sanctioned fan-out API (its
-        // ProduceAsync ValueTasks must not be collected and awaited later).
+        // broker round-trip per message.
         //
-        // Batch semantics for the produce stay all-or-nothing: ProduceAllAsync reports one aggregate
-        // failure rather than a per-record outcome, so if every send acks, MarkSuccessfulAsync; if any
-        // fails, MarkProcessingFailureAsync (the durable outbox layer will retry the batch, idempotency on
-        // the receive side dedupes).
+        // If every record acks, MarkSuccessfulAsync for the batch. If any fails, the acked records are
+        // reported successful and only the rest failed. Failing the whole batch would send the acked records
+        // again on retry, and a record that can never succeed (one over message.max.bytes) would duplicate
+        // its siblings on every durability pass.
 
         // Phase 1 — map every envelope to a producer message. GH-5055: an envelope the mapper throws on
         // can never be sent, so only that one is reported as a serialization failure, which dead letters
@@ -74,21 +73,48 @@ public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
             batch = new OutgoingMessageBatch(batch.Destination, prepared);
         }
 
-        // Phase 2 — produce the lot; ProduceAllAsync completes when every record is acked.
+        // Phase 2 — produce the lot and learn how each record fared
+        Exception?[] failures;
         try
         {
             var producer = await _producer.GetAsync();
-            await producer.ProduceAllAsync(messages, CancellationToken.None);
+            failures = await KafkaBatchDelivery.ProduceAsync(producer, messages);
         }
         catch (Exception ex)
         {
-            // The caller's failure recovery path treats the batch atomically anyway, so the first
-            // cause is enough context.
+            // No producer, so nothing was sent
             await callback.MarkProcessingFailureAsync(batch, ex);
             return;
         }
 
-        await callback.MarkSuccessfulAsync(batch);
+        List<Envelope>? succeeded = null;
+        List<Envelope>? failed = null;
+        Exception? firstFailure = null;
+        for (var i = 0; i < failures.Length; i++)
+        {
+            if (failures[i] is { } failure)
+            {
+                (failed ??= []).Add(prepared[i]);
+                firstFailure ??= failure;
+            }
+            else
+            {
+                (succeeded ??= []).Add(prepared[i]);
+            }
+        }
+
+        if (failed == null)
+        {
+            await callback.MarkSuccessfulAsync(batch);
+            return;
+        }
+
+        if (succeeded != null)
+        {
+            await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, succeeded));
+        }
+
+        await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, failed), firstFailure);
     }
 
     public ValueTask DisposeAsync()

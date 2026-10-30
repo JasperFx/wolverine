@@ -199,10 +199,11 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         KafkaOffsetCommitter.ApplyTo(config, CommitMode);
 
         var topicNames = listenedTopicNames;
+        var rebalance = new KafkaRebalanceRelay();
         var listener = new KafkaListener(this, config,
-            Parent.CreateConsumer(config), topicNames, receiver,
+            Parent.CreateConsumer(config, rebalance), topicNames, receiver,
             runtime.LoggerFactory.CreateLogger<KafkaListener>(),
-            runtime.DurabilitySettings.DrainTimeout);
+            runtime.DurabilitySettings.DrainTimeout, null, rebalance);
 
         // Broker-per-tenant (GH-3303): the shared listener consumes the default cluster. Each tenant runs its
         // own listener on its own cluster, stamping the tenant id onto inbound envelopes via TenantIdRule.
@@ -217,10 +218,11 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             {
                 var tenantConfig = cloneConsumerConfigForTenant(config, tenant);
                 var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
+                var tenantRebalance = new KafkaRebalanceRelay();
                 var tenantListener = new KafkaListener(this, tenantConfig,
-                    tenant.Transport.CreateConsumer(tenantConfig), topicNames, tenantReceiver,
+                    tenant.Transport.CreateConsumer(tenantConfig, tenantRebalance), topicNames, tenantReceiver,
                     runtime.LoggerFactory.CreateLogger<KafkaListener>(), runtime.DurabilitySettings.DrainTimeout,
-                    tenant.Transport);
+                    tenant.Transport, tenantRebalance);
                 compound.Inner.Add(tenantListener);
             }
 

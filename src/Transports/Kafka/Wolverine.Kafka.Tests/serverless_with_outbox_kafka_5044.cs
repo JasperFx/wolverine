@@ -42,9 +42,10 @@ public class serverless_with_outbox_kafka_5044 : IAsyncLifetime
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, Schema);
 
-                // Short delivery timeout so a failure does not hang for the producer's default
+                // Short delivery timeout so a failure does not hang for the producer's default. Dekaf requires the
+                // delivery timeout to cover the request timeout plus linger, so the request timeout comes down too
                 opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision()
-                    .ConfigureProducerBuilders(b => b.WithDeliveryTimeout(10.Seconds()));
+                    .ConfigureProducerBuilders(b => b.WithRequestTimeout(5.Seconds()).WithDeliveryTimeout(10.Seconds()));
 
                 opts.PublishMessage<Serverless5044KafkaMessage>().ToKafkaTopic(_topic).UseDurableOutbox();
                 opts.Services.AddResourceSetupOnStartup();

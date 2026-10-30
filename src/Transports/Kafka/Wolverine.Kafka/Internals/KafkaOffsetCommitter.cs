@@ -45,6 +45,10 @@ internal sealed class KafkaOffsetCommitter
 
     private readonly object _lock = new();
     private readonly Dictionary<TopicPartition, OffsetWatermark> _watermarks = new();
+
+    // Partitions taken away by a rebalance. A completion that lands after the revocation is not committed: the
+    // partition's new owner reads from the committed position, and a late commit could move it.
+    private readonly HashSet<TopicPartition> _revoked = new();
     private int _sinceLastCommit;
     private long _lastCommitTimestamp;
 
@@ -153,6 +157,11 @@ internal sealed class KafkaOffsetCommitter
         TopicPartitionOffset? toStore = null;
         lock (_lock)
         {
+            if (_revoked.Contains(tp))
+            {
+                return;
+            }
+
             var watermark = WatermarkFor(tp);
             watermark.Complete(offset);
 
@@ -195,6 +204,69 @@ internal sealed class KafkaOffsetCommitter
         if (toStore is { } stored)
         {
             storeOffset(stored);
+        }
+    }
+
+    /// <summary>
+    /// The consumer group assigned these partitions to this consumer, so completions on them count again.
+    /// </summary>
+    public void PartitionsAssigned(IEnumerable<TopicPartition> partitions)
+    {
+        lock (_lock)
+        {
+            foreach (var tp in partitions)
+            {
+                _revoked.Remove(tp);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The consumer group is taking these partitions away. Commits what has finished on them while this consumer
+    /// still owns them, so the next owner does not process it again, then stops tracking them.
+    /// </summary>
+    public async ValueTask PartitionsRevokedAsync(IEnumerable<TopicPartition> partitions)
+    {
+        if (_strategy == Strategy.Automatic)
+        {
+            return;
+        }
+
+        List<TopicPartitionOffset>? toCommit = null;
+        lock (_lock)
+        {
+            foreach (var tp in partitions)
+            {
+                // Dekaf commits stored offsets itself before this callback runs, so Store has nothing to add
+                if (_watermarks.Remove(tp, out var watermark) && _strategy != Strategy.Store &&
+                    watermark.TryTakeCommittable(out var nextOffset))
+                {
+                    (toCommit ??= []).Add(new TopicPartitionOffset(tp.Topic, tp.Partition, nextOffset));
+                }
+
+                _revoked.Add(tp);
+            }
+        }
+
+        if (toCommit != null)
+        {
+            await CommitOffsets(toCommit);
+        }
+    }
+
+    /// <summary>
+    /// The consumer lost these partitions without a revocation (its group membership expired), so a commit would be
+    /// rejected. Stops tracking them.
+    /// </summary>
+    public void PartitionsLost(IEnumerable<TopicPartition> partitions)
+    {
+        lock (_lock)
+        {
+            foreach (var tp in partitions)
+            {
+                _watermarks.Remove(tp);
+                _revoked.Add(tp);
+            }
         }
     }
 
