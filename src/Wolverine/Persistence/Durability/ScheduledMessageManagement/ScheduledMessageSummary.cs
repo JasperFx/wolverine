@@ -14,4 +14,11 @@ public class ScheduledMessageSummary
     /// scheduled without a tenant, or when the stored body cannot be read.
     /// </summary>
     public string? TenantId { get; set; }
+
+    /// <summary>
+    /// The saga the message was scheduled by, read from the stored envelope: a saga's cascaded
+    /// timeouts carry its id. Null for a message scheduled outside a saga, or when the stored body
+    /// cannot be read.
+    /// </summary>
+    public string? SagaId { get; set; }
 }

@@ -1,6 +1,6 @@
+using JasperFx.Core;
 using Wolverine.Oracle.Util;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
-using Wolverine.Runtime.Serialization;
 using Wolverine.RDBMS;
 
 namespace Wolverine.Oracle;
@@ -11,6 +11,11 @@ internal partial class OracleMessageStore
 
     async Task<ScheduledMessageResults> IScheduledMessages.QueryAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        if (query.SagaId.IsNotEmpty())
+        {
+            return await ScheduledMessageSagaFilter.QueryAsync(this, query, token);
+        }
+
         var builder = ToOracleCommandBuilder();
 
         builder.Append(
@@ -57,10 +62,10 @@ internal partial class OracleMessageStore
                 summary.Destination = await reader.GetFieldValueAsync<string>(3, token);
             }
 
-            // The body is read only for its tenant id, which the incoming table has no column for.
+            // The body is read only for its tenant and saga ids, which the incoming table has no columns for.
             if (!await reader.IsDBNullAsync(6, token))
             {
-                summary.TenantId = EnvelopeSerializer.TryReadTenantId(await reader.GetFieldValueAsync<byte[]>(6, token));
+                summary.ReadEnvelopeIdentity(await reader.GetFieldValueAsync<byte[]>(6, token));
             }
 
             results.Messages.Add(summary);
@@ -79,6 +84,13 @@ internal partial class OracleMessageStore
 
     async Task IScheduledMessages.CancelAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        if (query.SagaId.IsNotEmpty())
+        {
+            var bySagaIds = await ScheduledMessageSagaFilter.ResolveCancellationAsync(this, query, token);
+            if (bySagaIds == null) return;
+            query = bySagaIds;
+        }
+
         var builder = ToOracleCommandBuilder();
 
         builder.Append(

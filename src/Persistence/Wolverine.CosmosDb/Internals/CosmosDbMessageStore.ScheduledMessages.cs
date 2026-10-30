@@ -2,7 +2,6 @@ using System.Net;
 using JasperFx.Core;
 using Microsoft.Azure.Cosmos;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
-using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.CosmosDb.Internals;
 
@@ -12,6 +11,11 @@ public partial class CosmosDbMessageStore : IScheduledMessages
 
     async Task<ScheduledMessageResults> IScheduledMessages.QueryAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        if (query.SagaId.IsNotEmpty())
+        {
+            return await ScheduledMessageSagaFilter.QueryAsync(this, query, token);
+        }
+
         var conditions = new List<string> { "c.docType = @docType", "c.status = @status" };
 
         if (query.MessageIds.Length > 0)
@@ -50,9 +54,14 @@ public partial class CosmosDbMessageStore : IScheduledMessages
 
         // Data query
         if (query.PageNumber <= 0) query.PageNumber = 1;
-        var offset = (query.PageNumber - 1) * query.PageSize;
         var dataQueryText =
-            $"SELECT * FROM c WHERE {string.Join(" AND ", conditions)} ORDER BY c.executionTime OFFSET {offset} LIMIT {query.PageSize}";
+            $"SELECT * FROM c WHERE {string.Join(" AND ", conditions)} ORDER BY c.executionTime";
+
+        // A page size of zero or less reads every match, which the saga id filter relies on
+        if (query.PageSize > 0)
+        {
+            dataQueryText += $" OFFSET {(query.PageNumber - 1) * query.PageSize} LIMIT {query.PageSize}";
+        }
         var dataQuery = BuildScheduledQuery(dataQueryText, query);
 
         var messages = new List<IncomingMessage>();
@@ -70,20 +79,32 @@ public partial class CosmosDbMessageStore : IScheduledMessages
             PageNumber = query.PageNumber,
             TotalCount = totalCount,
             DatabaseUri = Uri,
-            Messages = messages.Select(m => new ScheduledMessageSummary
+            Messages = messages.Select(m =>
             {
-                Id = m.EnvelopeId,
-                MessageType = m.MessageType,
-                ScheduledTime = m.ExecutionTime,
-                Destination = m.ReceivedAt,
-                Attempts = m.Attempts,
-                TenantId = EnvelopeSerializer.TryReadTenantId(m.Body)
+                var summary = new ScheduledMessageSummary
+                {
+                    Id = m.EnvelopeId,
+                    MessageType = m.MessageType,
+                    ScheduledTime = m.ExecutionTime,
+                    Destination = m.ReceivedAt,
+                    Attempts = m.Attempts
+                };
+
+                summary.ReadEnvelopeIdentity(m.Body);
+                return summary;
             }).ToList()
         };
     }
 
     async Task IScheduledMessages.CancelAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        if (query.SagaId.IsNotEmpty())
+        {
+            var bySagaIds = await ScheduledMessageSagaFilter.ResolveCancellationAsync(this, query, token);
+            if (bySagaIds == null) return;
+            query = bySagaIds;
+        }
+
         if (query.MessageIds.Length > 0)
         {
             foreach (var messageId in query.MessageIds)

@@ -1,6 +1,6 @@
+using JasperFx.Core;
 using Weasel.Core;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
-using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.RDBMS;
 
@@ -10,12 +10,17 @@ public abstract partial class MessageDatabase<T>
 
     public async Task<ScheduledMessageResults> QueryAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        if (query.SagaId.IsNotEmpty())
+        {
+            return await ScheduledMessageSagaFilter.QueryAsync(this, query, token);
+        }
+
         var builder = ToCommandBuilder();
 
         var topSelect = toTopClause(query);
 
         // Columns: 0=id, 1=message_type, 2=execution_time, 3=received_at, 4=attempts, 5=total_rows, 6=body
-        // The body is read only for its tenant id, which the incoming table has no column for.
+        // The body is read only for its tenant and saga ids, which the incoming table has no columns for.
         builder.Append(
             $"select{topSelect} {DatabaseConstants.Id}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.ReceivedAt}, {DatabaseConstants.Attempts}, count(*) OVER() as total_rows, {DatabaseConstants.Body} from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
 
@@ -62,7 +67,7 @@ public abstract partial class MessageDatabase<T>
 
             if (!await reader.IsDBNullAsync(6, token))
             {
-                summary.TenantId = EnvelopeSerializer.TryReadTenantId(await reader.GetFieldValueAsync<byte[]>(6, token));
+                summary.ReadEnvelopeIdentity(await reader.GetFieldValueAsync<byte[]>(6, token));
             }
 
             results.Messages.Add(summary);
@@ -81,6 +86,13 @@ public abstract partial class MessageDatabase<T>
 
     public async Task CancelAsync(ScheduledMessageQuery query, CancellationToken token)
     {
+        if (query.SagaId.IsNotEmpty())
+        {
+            var bySagaIds = await ScheduledMessageSagaFilter.ResolveCancellationAsync(this, query, token);
+            if (bySagaIds == null) return;
+            query = bySagaIds;
+        }
+
         var builder = ToCommandBuilder();
 
         builder.Append(

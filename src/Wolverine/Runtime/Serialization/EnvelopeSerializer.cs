@@ -278,15 +278,25 @@ public static class EnvelopeSerializer
     /// </summary>
     public static string? TryReadTenantId(byte[]? body)
     {
-        if (body == null || body.Length == 0) return null;
+        return TryReadTenantAndSagaId(body).TenantId;
+    }
+
+    /// <summary>
+    /// The tenant and saga ids carried by a stored envelope body, both null when the body is empty or
+    /// cannot be read. The scheduled-message listings read both from one deserialization.
+    /// </summary>
+    public static (string? TenantId, string? SagaId) TryReadTenantAndSagaId(byte[]? body)
+    {
+        if (body == null || body.Length == 0) return (null, null);
 
         try
         {
-            return Deserialize(body).TenantId;
+            var envelope = Deserialize(body);
+            return (envelope.TenantId, envelope.SagaId);
         }
         catch (Exception)
         {
-            return null;
+            return (null, null);
         }
     }
 
