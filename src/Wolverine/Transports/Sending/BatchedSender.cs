@@ -39,16 +39,17 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
         // defaults to 1) before the switch from TPL Dataflow to Channels; the rewrite raised it to
         // Environment.ProcessorCount and lost the guarantee along the way. Everything downstream is
         // already serial by default (Endpoint.MessageBatchMaxDegreeOfParallelism is 1).
-        _serializing = batching.PushUpstream<Envelope>(1, e =>
+        //
+        // GetDataAsync lets IAsyncMessageSerializer implementations (schema registry, encryption)
+        // serialize without blocking; plain serializers fall through to the synchronous Write.
+        _serializing = batching.PushUpstream<Envelope>(1, async (e, _) =>
         {
             try
             {
                 if (e.Data == null && e.Serializer != null)
                 {
-                    e.Data = e.Serializer.Write(e);
+                    await e.GetDataAsync();
                 }
-
-                return e;
             }
             catch (Exception? ex)
             {

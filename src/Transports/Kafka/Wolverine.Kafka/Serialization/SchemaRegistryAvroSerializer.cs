@@ -1,4 +1,3 @@
-using System.Buffers;
 using Dekaf.SchemaRegistry;
 using Dekaf.SchemaRegistry.Avro;
 using Dekaf.Serialization;
@@ -23,68 +22,15 @@ public sealed class SchemaRegistryAvroSerializer : SchemaRegistrySerializer
 
     public override string ContentType => "application/avro";
 
-    protected override Func<object, string?, byte[]> CreateTypedSerializer<T>()
+    protected override ISerializer<T> CreateTypedSerializer<T>()
     {
-        var serializer = new AvroSchemaRegistrySerializer<T>(_schemaRegistry,
+        return new AvroSchemaRegistrySerializer<T>(_schemaRegistry,
             _serializerConfig ?? new AvroSerializerConfig(), ownsClient: false);
-
-        return (message, topicName) =>
-        {
-            var context = new SerializationContext
-            {
-                Component = SerializationComponent.Value,
-                Topic = topicName ?? string.Empty
-            };
-
-            // Schema registration/lookup is asynchronous but cached, so this completes synchronously
-            // on every call after the first per message type. Only the first-contact registry round
-            // trip blocks, forced by Wolverine's synchronous IMessageSerializer contract.
-            var prepare = serializer.PrepareAsync((T)message, context, CancellationToken.None);
-#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-            if (prepare.IsCompletedSuccessfully)
-            {
-                prepare.GetAwaiter().GetResult();
-            }
-            else
-            {
-                prepare.AsTask().GetAwaiter().GetResult();
-            }
-#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
-
-            var buffer = new ArrayBufferWriter<byte>();
-            serializer.Serialize((T)message, ref buffer, context);
-            return buffer.WrittenSpan.ToArray();
-        };
     }
 
-    protected override Func<byte[], string?, object> CreateTypedDeserializer<T>()
+    protected override IDeserializer<T> CreateTypedDeserializer<T>()
     {
-        var deserializer = new AvroSchemaRegistryDeserializer<T>(_schemaRegistry,
+        return new AvroSchemaRegistryDeserializer<T>(_schemaRegistry,
             new AvroDeserializerConfig(), ownsClient: false);
-
-        return (data, topicName) =>
-        {
-            var context = new SerializationContext
-            {
-                Component = SerializationComponent.Value,
-                Topic = topicName ?? string.Empty
-            };
-
-            var memory = new ReadOnlyMemory<byte>(data);
-
-            // Schema resolution against the registry is asynchronous on first use per schema id
-            if (((IAsyncDeserializerPreparer<T>)deserializer).TryDeserialize(memory, context, out var value))
-            {
-                return value!;
-            }
-
-#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-            ((IAsyncDeserializerPreparer<T>)deserializer)
-                .PrepareAsync(memory, context, CancellationToken.None)
-                .AsTask().GetAwaiter().GetResult();
-#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
-
-            return deserializer.Deserialize(memory, context)!;
-        };
     }
 }

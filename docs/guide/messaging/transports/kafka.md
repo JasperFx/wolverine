@@ -802,10 +802,11 @@ opts.ListenToKafkaTopic("orders-avro")
 
 ### How It Works
 
-Both serializers extend the `SchemaRegistrySerializer` base class which implements Wolverine's `IMessageSerializer`
-interface. Internally, each serializer creates and caches a typed serializer per message type on first use,
-and delegates all schema registration and lookup to the Dekaf Schema Registry client
-(`Dekaf.SchemaRegistry.ISchemaRegistryClient`).
+Both serializers extend the `SchemaRegistrySerializer` base class which implements Wolverine's
+`IAsyncMessageSerializer` interface, so schema registration and lookup against the registry are awaited on
+Wolverine's normal send and receive paths rather than blocking a thread. Internally, each serializer creates
+and caches a typed serializer per message type on first use, and delegates all schema registration and lookup
+to the Dekaf Schema Registry client (`Dekaf.SchemaRegistry.ISchemaRegistryClient`).
 
 The serialized bytes use the standard [Confluent wire format](https://docs.confluent.io/platform/current/schema-registry/fundamentals/serdes-develop/index.html#wire-format):
 a magic byte (`0x00`), followed by a 4-byte big-endian schema ID, followed by the payload. This makes your
