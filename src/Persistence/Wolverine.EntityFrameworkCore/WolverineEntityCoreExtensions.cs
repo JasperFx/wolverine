@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
+using JasperFx.Documents;
 using JasperFx.Events;
 using JasperFx.MultiTenancy;
 using JasperFx.Resources;
@@ -101,6 +102,7 @@ public static class WolverineEntityCoreExtensions
         // CritterWatch (#102): per-tenant snapshot, masked to server / database
         // / tenantId only — never the raw connection string.
         services.AddSingleton<IDbContextUsageSource, TenantedDbContextUsageSource<T>>();
+        services.AddSingleton<IDocumentStoreDiagnostics, DbContextDocumentStoreDiagnostics<T>>();
 
         if (autoCreate != AutoCreate.None)
         {
@@ -214,6 +216,7 @@ public static class WolverineEntityCoreExtensions
         // CritterWatch (#102): single-database snapshot, same masked descriptor
         // shape as the tenanted variants
         services.AddSingleton<IDbContextUsageSource, TenantedDbContextUsageSource<T>>();
+        services.AddSingleton<IDocumentStoreDiagnostics, DbContextDocumentStoreDiagnostics<T>>();
 
         if (autoCreate != AutoCreate.None)
         {
@@ -273,6 +276,7 @@ public static class WolverineEntityCoreExtensions
         // CritterWatch (#102): per-tenant snapshot via DbDataSource shares the
         // same masked descriptor shape as the connection-string variant.
         services.AddSingleton<IDbContextUsageSource, TenantedDbContextUsageSource<T>>();
+        services.AddSingleton<IDocumentStoreDiagnostics, DbContextDocumentStoreDiagnostics<T>>();
 
         if (autoCreate != AutoCreate.None)
         {
@@ -321,6 +325,7 @@ public static class WolverineEntityCoreExtensions
         // CritterWatch (#102): expose this DbContext to the descriptor pipeline
         // so the Storage tab can render its model + Wolverine integration shape.
         services.AddSingleton<IDbContextUsageSource, DbContextUsageSource<T>>();
+        services.AddSingleton<IDocumentStoreDiagnostics, DbContextDocumentStoreDiagnostics<T>>();
 
         return services;
     }
