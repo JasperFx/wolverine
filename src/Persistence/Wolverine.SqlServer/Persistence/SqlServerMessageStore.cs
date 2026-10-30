@@ -485,14 +485,17 @@ group by o.name, ps.index_id, i.name";
     public override Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
         return CreateCommand(_findAtLargeEnvelopesSql)
-            .With("address", listenerAddress.ToString())
+            .With("address", listenerAddress.ToString(), AddressParameterType)
             .With("limit", limit)
             .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r));
     }
 
+    // GH-5292. received_at and destination are varchar(250)
+    protected override DbType AddressParameterType => DbType.AnsiString;
+
     public override DbCommandBuilder ToCommandBuilder()
     {
-        return new DbCommandBuilder(new SqlCommand());
+        return new SqlServerDbCommandBuilder();
     }
 
     public override async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
@@ -517,7 +520,7 @@ group by o.name, ps.index_id, i.name";
             var count = await conn
                 .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = @id and {DatabaseConstants.ReceivedAt} = @destination")
                 .With("id", envelope.Id)
-                .With("destination", envelope.Destination!.ToString())
+                .With("destination", envelope.Destination!.ToString(), AddressParameterType)
                 .ExecuteScalarAsync(cancellation);
 
             return ((int)count) > 0;
@@ -678,7 +681,7 @@ group by o.name, ps.index_id, i.name";
             var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
             if (await tx.TryGetGlobalTxLock(_scheduledLockId, cancellationToken))
             {
-                var builder = new DbCommandBuilder(conn);
+                var builder = new SqlServerDbCommandBuilder(conn);
                 WriteLoadScheduledEnvelopeSql(builder, DateTimeOffset.UtcNow);
                 await using var cmd = builder.Compile();
                 cmd.Connection = conn;

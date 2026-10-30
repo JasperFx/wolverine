@@ -41,7 +41,7 @@ public abstract partial class MessageDatabase<T>
     public async Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
     {
         return await _dataSource.CreateCommand(_outgoingEnvelopeSql)
-            .With("destination", destination.ToString())
+            .With("destination", destination.ToString(), AddressParameterType)
             .FetchListAsync(r => DatabasePersistence.ReadOutgoingAsync(r, _cancellation), _cancellation);
     }
 

@@ -250,6 +250,14 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     /// </summary>
     protected virtual string? DeduplicationClaimConflictClause => null;
 
+    /// <summary>
+    /// GH-5292. How an envelope address -- <c>received_at</c> on the inbox, <c>destination</c> on the outbox -- is
+    /// bound when a statement filters on it. SQL Server stores addresses as varchar, and an nvarchar parameter makes
+    /// it convert the column rather than the parameter under a SQL collation, so the recovery page loads scan
+    /// instead of seeking on their filtered address indexes
+    /// </summary>
+    protected virtual DbType AddressParameterType => DbType.String;
+
     /// <inheritdoc />
     public IDeduplicationStore Deduplication { get; private set; } = NullDeduplicationStore.Instance;
 
@@ -570,7 +578,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             .CreateCommand(
                 $"update {QuotedTableNameFor(DatabaseConstants.IncomingTable)} set owner_id = 0 where owner_id = @owner and owner_id <> 0 and {DatabaseConstants.ReceivedAt} = @uri")
             .With("owner", ownerId)
-            .With("uri", receivedAt.ToString())
+            .With("uri", receivedAt.ToString(), AddressParameterType)
             .ExecuteNonQueryAsync(_cancellation);
 
         if (impacted == 0) return;
