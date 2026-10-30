@@ -30,11 +30,6 @@ public enum KafkaUsage
 
 public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
 {
-    // Dead letter senders are handed to receivers that never dispose them, so the transport
-    // owns their lifetime and drains them when the runtime disposes its transports.
-    private readonly object _ownedSenderLock = new();
-    private readonly List<IAsyncDisposable> _ownedSenders = new();
-
     // Dead letter and retry-tier moves produce one record at a time, so they share a producer per topic and
     // producing cluster instead of connecting one per record
     private readonly ConcurrentDictionary<(KafkaTransport Producing, string Topic), LazyKafkaProducer>
@@ -392,16 +387,6 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
 
     internal void ForgetClient(IKafkaClientHealthSource client) => _clients.TryRemove(client, out _);
 
-    internal InlineKafkaSender TrackOwnedSender(InlineKafkaSender sender)
-    {
-        lock (_ownedSenderLock)
-        {
-            _ownedSenders.Add(sender);
-        }
-
-        return sender;
-    }
-
     /// <summary>
     /// The shared producer for one-off produces on behalf of <paramref name="topic" /> to the cluster of
     /// <paramref name="producingTransport" />, which is this transport or one of its tenants' (GH-3303). Owned by
@@ -415,14 +400,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        List<IAsyncDisposable> owned;
-        lock (_ownedSenderLock)
-        {
-            owned = [.._ownedSenders];
-            _ownedSenders.Clear();
-        }
-
-        owned.AddRange(_recordProducers.Values);
+        var owned = _recordProducers.Values.ToArray();
         _recordProducers.Clear();
 
         // Each drain is bounded, and they are independent

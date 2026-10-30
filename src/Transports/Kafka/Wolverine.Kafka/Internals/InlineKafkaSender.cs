@@ -7,6 +7,7 @@ public class InlineKafkaSender : ISender, IAsyncDisposable
     private readonly KafkaTopic _topic;
     private readonly LazyKafkaProducer _producer;
     private readonly bool _fixedDestination;
+    private readonly bool _ownsProducer;
 
     public InlineKafkaSender(KafkaTopic topic, bool fixedDestination = false)
         : this(topic, topic.Parent, fixedDestination)
@@ -21,6 +22,17 @@ public class InlineKafkaSender : ISender, IAsyncDisposable
         _fixedDestination = fixedDestination;
         Destination = topic.Uri;
         _producer = LazyKafkaProducer.For(topic, producerTransport);
+        _ownsProducer = true;
+    }
+
+    // Always produces to the topic's own name over a producer the transport owns, so disposing this sender
+    // leaves the producer open
+    internal InlineKafkaSender(KafkaTopic topic, LazyKafkaProducer sharedProducer)
+    {
+        _topic = topic;
+        _fixedDestination = true;
+        Destination = topic.Uri;
+        _producer = sharedProducer;
     }
 
     public KafkaProducerOptions Config => _producer.Config;
@@ -55,6 +67,6 @@ public class InlineKafkaSender : ISender, IAsyncDisposable
 
     public ValueTask DisposeAsync()
     {
-        return _producer.DisposeAsync();
+        return _ownsProducer ? _producer.DisposeAsync() : ValueTask.CompletedTask;
     }
 }
