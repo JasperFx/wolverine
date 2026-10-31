@@ -45,7 +45,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         {
             opts.UseKafka(KafkaContainerFixture.ConnectionString).ConfigureConsumers(x =>
             {
-                x.EnableAutoCommit = false;
+                x.OffsetCommitMode = OffsetCommitMode.Manual;
                 x.AutoOffsetReset = AutoOffsetReset.Earliest;
             });
 

@@ -51,7 +51,7 @@ internal sealed class KafkaReplay
         var config = _transport.ConsumerConfig.Clone();
         config.GroupId = null;
         config.GroupInstanceId = null;
-        config.EnableAutoCommit = false;
+        config.OffsetCommitMode = OffsetCommitMode.Manual;
         config.EnableAutoOffsetStore = false;
 
         await using var consumer = _transport.CreateConsumer(config);

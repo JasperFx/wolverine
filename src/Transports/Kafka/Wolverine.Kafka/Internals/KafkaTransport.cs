@@ -157,9 +157,14 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
         }
 
         ProducerConfig.AssertAcksAllowed("the Kafka transport");
+        ProducerConfig.AssertSaslSupported("the Kafka transport");
+        ConsumerConfig.AssertSaslSupported("the Kafka transport");
+        AdminClientConfig.AssertSaslSupported("the Kafka transport");
         foreach (var topic in Topics)
         {
             topic.ProducerConfig?.AssertAcksAllowed(topic.Uri.ToString());
+            topic.ProducerConfig?.AssertSaslSupported(topic.Uri.ToString());
+            topic.ConsumerConfig?.AssertSaslSupported(topic.Uri.ToString());
         }
 
         var needsDlqTopic = false;

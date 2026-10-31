@@ -9,7 +9,7 @@ namespace Wolverine.Kafka.Internals;
 /// <summary>
 /// Encapsulates the offset-commit strategy for a single Kafka consumer (GH-3150). Commits the
 /// *specific* TopicPartitionOffset of each completed message (never the consumer's global position)
-/// and respects the user's EnableAutoCommit/EnableAutoOffsetStore configuration.
+/// and respects the user's OffsetCommitMode/EnableAutoOffsetStore configuration.
 ///
 /// All three manual strategies (PerMessage, Store, Batch) route through a per-partition
 /// <see cref="OffsetWatermark"/> so that under concurrent, out-of-order handler completion the
@@ -80,12 +80,12 @@ internal sealed class KafkaOffsetCommitter
 
     /// <summary>
     /// Determine the effective commit behavior by reconciling the requested <see cref="CommitMode"/>
-    /// with the consumer configuration. An explicit <c>EnableAutoCommit=true</c> always suppresses
+    /// with the consumer configuration. An explicit <c>OffsetCommitMode.Auto</c> always suppresses
     /// Wolverine's manual commits (GH-3150 acceptance #1).
     /// </summary>
     internal static Strategy ResolveStrategy(KafkaConsumerOptions config, CommitMode mode)
     {
-        if (config.EnableAutoCommit == true)
+        if (config.OffsetCommitMode == OffsetCommitMode.Auto)
         {
             // The user (or StoreThenAutoFlush wiring) turned on Kafka's background committer. If offset
             // storage is manual we still store each completed offset; otherwise stay fully hands-off.
@@ -97,7 +97,7 @@ internal sealed class KafkaOffsetCommitter
             CommitMode.PerMessage => Strategy.PerMessage,
             CommitMode.BatchCount => Strategy.Batch,
             CommitMode.BatchInterval => Strategy.Batch,
-            // StoreThenAutoFlush requires EnableAutoCommit=true to flush; if that wasn't wired the
+            // StoreThenAutoFlush requires OffsetCommitMode.Auto to flush; if that wasn't wired the
             // stored offsets would never flush, so fall back to per-message commits rather than silently
             // never committing.
             _ => Strategy.PerMessage
@@ -106,11 +106,11 @@ internal sealed class KafkaOffsetCommitter
 
     /// <summary>
     /// Mutate <paramref name="config"/> so the Kafka client is wired for the requested mode. Called
-    /// once at listener-build time. Leaves an explicit user EnableAutoCommit choice untouched.
+    /// once at listener-build time. Leaves an explicit user OffsetCommitMode.Auto choice untouched.
     /// </summary>
     internal static void ApplyTo(KafkaConsumerOptions config, CommitMode mode)
     {
-        if (config.EnableAutoCommit == true)
+        if (config.OffsetCommitMode == OffsetCommitMode.Auto)
         {
             return; // respect the user's explicit auto-commit choice
         }
@@ -118,14 +118,14 @@ internal sealed class KafkaOffsetCommitter
         switch (mode)
         {
             case CommitMode.StoreThenAutoFlush:
-                config.EnableAutoCommit = true;
+                config.OffsetCommitMode = OffsetCommitMode.Auto;
                 config.EnableAutoOffsetStore = false;
                 break;
 
             case CommitMode.PerMessage:
             case CommitMode.BatchCount:
             case CommitMode.BatchInterval:
-                config.EnableAutoCommit = false;
+                config.OffsetCommitMode = OffsetCommitMode.Manual;
                 break;
         }
     }

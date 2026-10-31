@@ -248,7 +248,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// <summary>
     /// For an ephemeral hot-tail listener (GH-3146), assign a unique per-process consumer group so every
     /// node receives all messages and never replays, and disable Wolverine-managed commits (the
-    /// position is throwaway). Setting EnableAutoCommit=true makes the commit strategy hands-off.
+    /// position is throwaway). Setting OffsetCommitMode.Auto makes the commit strategy hands-off.
     /// </summary>
     private protected void ApplyHotTailConfig(KafkaConsumerOptions config, IWolverineRuntime runtime)
     {
@@ -258,7 +258,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         }
 
         config.GroupId = $"{runtime.Options.ServiceName}-hot-tail-{Guid.NewGuid():N}";
-        config.EnableAutoCommit = true;
+        config.OffsetCommitMode = Dekaf.Consumer.OffsetCommitMode.Auto;
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)

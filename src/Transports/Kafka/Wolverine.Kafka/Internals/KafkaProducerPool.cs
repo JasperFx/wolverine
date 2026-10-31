@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Dekaf.Producer;
+using Dekaf.Security.Sasl;
 
 namespace Wolverine.Kafka.Internals;
 
@@ -35,8 +36,8 @@ internal sealed class KafkaProducerPool : IAsyncDisposable
     private readonly record struct Key(
         string? BootstrapServers,
         string? ClientId,
-        KafkaSecurityProtocol? SecurityProtocol,
-        KafkaSaslMechanism? SaslMechanism,
+        bool? UseTls,
+        SaslMechanism? SaslMechanism,
         string? SaslUsername,
         string? SaslPassword,
         bool? EnableIdempotence,
@@ -45,7 +46,7 @@ internal sealed class KafkaProducerPool : IAsyncDisposable
         int? BatchSize)
     {
         public static Key Of(KafkaProducerOptions options) => new(options.BootstrapServers, options.ClientId,
-            options.SecurityProtocol, options.SaslMechanism, options.SaslUsername, options.SaslPassword,
+            options.UseTls, options.SaslMechanism, options.SaslUsername, options.SaslPassword,
             options.EnableIdempotence, options.Acks, options.Linger, options.BatchSize);
     }
 }

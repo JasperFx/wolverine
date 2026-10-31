@@ -1,29 +1,15 @@
 using Dekaf.Consumer;
 using Dekaf.Producer;
+using Dekaf.Security.Sasl;
 using IsolationLevel = Dekaf.Protocol.Messages.IsolationLevel;
 
 namespace Wolverine.Kafka;
 
-public enum KafkaSecurityProtocol
-{
-    Plaintext,
-    Ssl,
-    SaslPlaintext,
-    SaslSsl
-}
-
-public enum KafkaSaslMechanism
-{
-    Plain,
-    ScramSha256,
-    ScramSha512
-}
-
 /// <summary>
 /// Wolverine-owned, mutable connection settings shared by Kafka producers, consumers, and admin
-/// clients. Translated onto the Dekaf client builders when clients are created; anything beyond this
-/// curated surface is reachable through the ConfigureProducerBuilders / ConfigureConsumerBuilders /
-/// ConfigureAdminClientBuilders escape hatches.
+/// clients. Names and types follow Dekaf's client options. Translated onto the Dekaf client builders
+/// when clients are created; anything beyond this curated surface is reachable through the
+/// ConfigureProducerBuilders / ConfigureConsumerBuilders / ConfigureAdminClientBuilders escape hatches.
 /// </summary>
 public abstract class KafkaClientOptions
 {
@@ -34,16 +20,39 @@ public abstract class KafkaClientOptions
 
     public string? ClientId { get; set; }
 
-    public KafkaSecurityProtocol? SecurityProtocol { get; set; }
-    public KafkaSaslMechanism? SaslMechanism { get; set; }
+    /// <summary>
+    /// Connect over TLS with the default certificate validation. Custom certificates and mutual TLS are
+    /// configured on the client builders
+    /// </summary>
+    public bool? UseTls { get; set; }
+
+    /// <summary>
+    /// The SASL mechanism, authenticating with <see cref="SaslUsername" /> and <see cref="SaslPassword" />.
+    /// Only <see cref="Dekaf.Security.Sasl.SaslMechanism.Plain" />, <see cref="Dekaf.Security.Sasl.SaslMechanism.ScramSha256" />
+    /// and <see cref="Dekaf.Security.Sasl.SaslMechanism.ScramSha512" /> are configured from these options; the others
+    /// need settings of their own on the client builders
+    /// </summary>
+    public SaslMechanism? SaslMechanism { get; set; }
+
     public string? SaslUsername { get; set; }
     public string? SaslPassword { get; set; }
+
+    // GSSAPI, OAuth bearer and AWS MSK IAM need more than a username and password
+    internal void AssertSaslSupported(string owner)
+    {
+        if (SaslMechanism is Dekaf.Security.Sasl.SaslMechanism.Gssapi or Dekaf.Security.Sasl.SaslMechanism.OAuthBearer
+            or Dekaf.Security.Sasl.SaslMechanism.AwsMskIam)
+        {
+            throw new InvalidOperationException(
+                $"The Kafka options for {owner} set SaslMechanism = {SaslMechanism}, which needs settings beyond a username and password. Leave SaslMechanism unset and configure it on the client builders instead, e.g. ConfigureConsumerBuilders(b => b.WithGssapi(...)), WithOAuthBearer(...) or WithAwsMskIam(...)");
+        }
+    }
 
     internal void InheritClientDefaultsFrom(KafkaClientOptions parent)
     {
         BootstrapServers ??= parent.BootstrapServers;
         ClientId ??= parent.ClientId;
-        SecurityProtocol ??= parent.SecurityProtocol;
+        UseTls ??= parent.UseTls;
         SaslMechanism ??= parent.SaslMechanism;
         SaslUsername ??= parent.SaslUsername;
         SaslPassword ??= parent.SaslPassword;
@@ -60,15 +69,23 @@ public class KafkaConsumerOptions : KafkaClientOptions
     public string? GroupInstanceId { get; set; }
 
     /// <summary>
-    /// Where a consumer group with no committed offset begins reading
+    /// Where a consumer group with no committed offset begins reading. <see cref="Dekaf.Consumer.AutoOffsetReset.ByDuration" />
+    /// also needs <see cref="AutoOffsetResetDuration" />
     /// </summary>
     public AutoOffsetReset? AutoOffsetReset { get; set; }
 
     /// <summary>
-    /// When false, Wolverine commits offsets itself; when true, the client's background committer
-    /// flushes offsets on its own cadence
+    /// How far back a consumer group with no committed offset begins reading, when <see cref="AutoOffsetReset" />
+    /// is <see cref="Dekaf.Consumer.AutoOffsetReset.ByDuration" />
     /// </summary>
-    public bool? EnableAutoCommit { get; set; }
+    public TimeSpan? AutoOffsetResetDuration { get; set; }
+
+    /// <summary>
+    /// <see cref="Dekaf.Consumer.OffsetCommitMode.Manual" /> leaves commits to Wolverine;
+    /// <see cref="Dekaf.Consumer.OffsetCommitMode.Auto" /> lets the client's background committer flush offsets on its
+    /// own cadence. Unset, the listener's <see cref="CommitMode" /> chooses
+    /// </summary>
+    public OffsetCommitMode? OffsetCommitMode { get; set; }
 
     /// <summary>
     /// When false, only offsets explicitly stored after successful processing are eligible for the
@@ -97,7 +114,8 @@ public class KafkaConsumerOptions : KafkaClientOptions
         GroupId ??= parent.GroupId;
         GroupInstanceId ??= parent.GroupInstanceId;
         AutoOffsetReset ??= parent.AutoOffsetReset;
-        EnableAutoCommit ??= parent.EnableAutoCommit;
+        AutoOffsetResetDuration ??= parent.AutoOffsetResetDuration;
+        OffsetCommitMode ??= parent.OffsetCommitMode;
         EnableAutoOffsetStore ??= parent.EnableAutoOffsetStore;
         AutoCommitInterval ??= parent.AutoCommitInterval;
         IsolationLevel ??= parent.IsolationLevel;

@@ -1,6 +1,7 @@
 using Dekaf;
 using Dekaf.Admin;
 using Dekaf.Consumer;
+using Dekaf.Security.Sasl;
 using JasperFx.Core;
 
 namespace Wolverine.Kafka.Internals;
@@ -31,7 +32,12 @@ internal static class KafkaOptionsMapper
             builder.WithClientId(options.ClientId);
         }
 
-        if (options.AutoOffsetReset.HasValue)
+        if (options.AutoOffsetReset == AutoOffsetReset.ByDuration)
+        {
+            builder.WithAutoOffsetResetByDuration(options.AutoOffsetResetDuration ?? throw new InvalidOperationException(
+                "AutoOffsetReset.ByDuration needs AutoOffsetResetDuration to say how far back to begin reading"));
+        }
+        else if (options.AutoOffsetReset.HasValue)
         {
             builder.WithAutoOffsetReset(options.AutoOffsetReset.Value);
         }
@@ -66,16 +72,16 @@ internal static class KafkaOptionsMapper
             builder.WithHeartbeatInterval(options.HeartbeatInterval.Value);
         }
 
-        // Commit knobs. EnableAutoCommit=false means Wolverine commits offsets itself; anything else
+        // Commit knobs. OffsetCommitMode.Manual means Wolverine commits offsets itself; anything else
         // leaves the background committer on (the Kafka client default). EnableAutoOffsetStore=false
         // limits the background committer to explicitly stored offsets. When storage is hands-off,
         // OffsetStoreTiming.AfterProcessing makes an offset committable only once the listener asks for
         // the next record. Inline listeners, and durable listeners receiving one record at a time, wait for
         // the handler or the inbox before that, so a crash redelivers their in-flight record instead of
         // losing it. A durable micro-batch asks for its later records before the batch reaches the inbox.
-        if (options.EnableAutoCommit == false)
+        if (options.OffsetCommitMode.HasValue)
         {
-            builder.WithOffsetCommitMode(OffsetCommitMode.Manual);
+            builder.WithOffsetCommitMode(options.OffsetCommitMode.Value);
         }
 
         if (options.EnableAutoOffsetStore == false)
@@ -169,28 +175,30 @@ internal static class KafkaOptionsMapper
     private static void applySecurity(KafkaClientOptions options, Action useTls,
         Action<string, string> saslPlain, Action<string, string> saslScram256, Action<string, string> saslScram512)
     {
-        if (options.SecurityProtocol is KafkaSecurityProtocol.Ssl or KafkaSecurityProtocol.SaslSsl)
+        if (options.UseTls == true)
         {
             useTls();
         }
 
-        if (options.SaslMechanism == null)
+        if (options.SaslMechanism is null or SaslMechanism.None)
         {
             return;
         }
+
+        options.AssertSaslSupported("this Kafka client");
 
         var username = options.SaslUsername ?? string.Empty;
         var password = options.SaslPassword ?? string.Empty;
 
         switch (options.SaslMechanism)
         {
-            case KafkaSaslMechanism.Plain:
+            case SaslMechanism.Plain:
                 saslPlain(username, password);
                 break;
-            case KafkaSaslMechanism.ScramSha256:
+            case SaslMechanism.ScramSha256:
                 saslScram256(username, password);
                 break;
-            case KafkaSaslMechanism.ScramSha512:
+            case SaslMechanism.ScramSha512:
                 saslScram512(username, password);
                 break;
         }

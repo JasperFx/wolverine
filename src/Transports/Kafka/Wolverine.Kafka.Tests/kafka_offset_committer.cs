@@ -92,7 +92,7 @@ public class kafka_offset_committer
         var config = new KafkaConsumerOptions();
         KafkaOffsetCommitter.ApplyTo(config, CommitMode.StoreThenAutoFlush);
 
-        config.EnableAutoCommit.ShouldBe(true);
+        config.OffsetCommitMode.ShouldBe(OffsetCommitMode.Auto);
         config.EnableAutoOffsetStore.ShouldBe(false);
     }
 
@@ -101,31 +101,31 @@ public class kafka_offset_committer
     {
         var config = new KafkaConsumerOptions();
         KafkaOffsetCommitter.ApplyTo(config, CommitMode.PerMessage);
-        config.EnableAutoCommit.ShouldBe(false);
+        config.OffsetCommitMode.ShouldBe(OffsetCommitMode.Manual);
     }
 
     [Fact]
     public void apply_to_respects_explicit_user_autocommit()
     {
-        var config = new KafkaConsumerOptions { EnableAutoCommit = true };
+        var config = new KafkaConsumerOptions { OffsetCommitMode = OffsetCommitMode.Auto };
         KafkaOffsetCommitter.ApplyTo(config, CommitMode.PerMessage);
         // user's choice is untouched
-        config.EnableAutoCommit.ShouldBe(true);
+        config.OffsetCommitMode.ShouldBe(OffsetCommitMode.Auto);
     }
 
     [Fact]
     public void resolve_strategy_matrix()
     {
-        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { EnableAutoCommit = true },
+        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { OffsetCommitMode = OffsetCommitMode.Auto },
             CommitMode.StoreThenAutoFlush).ShouldBe(KafkaOffsetCommitter.Strategy.Automatic);
 
-        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { EnableAutoCommit = true, EnableAutoOffsetStore = false },
+        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { OffsetCommitMode = OffsetCommitMode.Auto, EnableAutoOffsetStore = false },
             CommitMode.StoreThenAutoFlush).ShouldBe(KafkaOffsetCommitter.Strategy.Store);
 
-        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { EnableAutoCommit = false },
+        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { OffsetCommitMode = OffsetCommitMode.Manual },
             CommitMode.PerMessage).ShouldBe(KafkaOffsetCommitter.Strategy.PerMessage);
 
-        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { EnableAutoCommit = false },
+        KafkaOffsetCommitter.ResolveStrategy(new KafkaConsumerOptions { OffsetCommitMode = OffsetCommitMode.Manual },
             CommitMode.BatchCount).ShouldBe(KafkaOffsetCommitter.Strategy.Batch);
     }
 
@@ -158,7 +158,7 @@ public class kafka_offset_committer
     [Fact]
     public async Task automatic_mode_neither_stores_nor_commits()
     {
-        var committer = committerFor(CommitMode.StoreThenAutoFlush, new KafkaConsumerOptions { EnableAutoCommit = true });
+        var committer = committerFor(CommitMode.StoreThenAutoFlush, new KafkaConsumerOptions { OffsetCommitMode = OffsetCommitMode.Auto });
         committer.ResolvedStrategy.ShouldBe(KafkaOffsetCommitter.Strategy.Automatic);
 
         await completeAndPassAsync(committer, "topic-a", 0, 5);

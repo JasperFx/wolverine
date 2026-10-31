@@ -7,14 +7,14 @@ effectively an inline "Retry"
 
 ## Installing
 
-To use [Kafka](https://www.confluent.io/what-is-apache-kafka/) as a messaging transport with Wolverine, first install the `WolverineFx.Kafka` library via nuget to your project. Behind the scenes, this package uses the [Dekaf client library](https://thomhurst.github.io/Dekaf/) — a pure C# Kafka client with no native librdkafka dependency — for accessing Kafka brokers. Because Dekaf is fully managed .NET, the transport is also friendly to Native AOT deployments.
+To use [Kafka](https://www.confluent.io/what-is-apache-kafka/) as a messaging transport with Wolverine, first install the `WolverineFx.Kafka` library via nuget to your project. Behind the scenes, this package uses the [Dekaf client library](https://thomhurst.github.io/Dekaf/) - a pure C# Kafka client with no native librdkafka dependency - for accessing Kafka brokers. Because Dekaf is fully managed .NET, the transport is also friendly to Native AOT deployments.
 
 ```bash
 dotnet add package WolverineFx.Kafka
 ```
 
 ::: warning Kafka 4.0+ broker required
-The Dekaf client speaks only the [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) consumer-group protocol, so the Kafka transport requires a **Kafka 4.0 or later** broker. Wolverine's own docker-compose broker (`confluentinc/confluent-local:8.0.x`) satisfies this. Against an older broker the consumers cannot join their groups.
+The Dekaf client speaks only the [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) consumer-group protocol, so the Kafka transport requires a **Kafka 4.0 or later** broker.
 :::
 
 ## Aspire Integration
@@ -205,15 +205,8 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L15-L144' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The `ConfigureClient()` / `ConfigureConsumers()` / `ConfigureProducers()` methods work against Wolverine-owned
-option classes in the `Wolverine.Kafka` namespace — `KafkaClientOptions`, `KafkaConsumerOptions`, and
-`KafkaProducerOptions` (plus `KafkaAdminClientOptions` for `AutoProvision(...)`). The shared `KafkaClientOptions`
-base covers connectivity and security (`BootstrapServers`, `ClientId`, `SecurityProtocol`, `SaslMechanism`,
-`SaslUsername`, `SaslPassword`), consumer options cover the group and fetch settings (`GroupId`,
-`GroupInstanceId`, `AutoOffsetReset`, `EnableAutoCommit`, `EnableAutoOffsetStore`, `AutoCommitInterval`,
-`IsolationLevel`, `MaxPollRecords`, `FetchMaxBytes`, `MaxPartitionFetchBytes`, `SessionTimeout`,
-`HeartbeatInterval`), and producer options cover delivery behavior (`EnableIdempotence`, `Acks`, `Linger`,
-`BatchSize`). Anything beyond these curated options is reachable through `ConfigureConsumerBuilders()` /
+The `ConfigureClient()` / `ConfigureConsumers()` / `ConfigureProducers()` methods work against Wolverine-owned option types.
+Anything beyond these curated options is reachable through `ConfigureConsumerBuilders()` /
 `ConfigureProducerBuilders()` / `ConfigureAdminClientBuilders()`, which hand you Dekaf's fluent
 `ConsumerBuilder<string, byte[]>` / `ProducerBuilder<string, byte[]>` / `AdminClientBuilder` directly.
 
@@ -235,7 +228,7 @@ globally), Wolverine overrides the following consumer setting before building th
 
 | Consumer Setting | Durable (`UseDurableInbox`) | Non-Durable (`BufferedInMemory` / `Inline`) |
 |---|---|---|
-| `EnableAutoCommit` | `false` | `true` (Kafka default) |
+| `OffsetCommitMode` | `Manual` | `Auto` (Kafka default) |
 | `EnableAutoOffsetStore` | `true` (Kafka default) | `true` (Kafka default) |
 
 In **durable mode**, Wolverine disables Kafka's automatic offset *commit* so that offsets are only committed
@@ -288,7 +281,7 @@ opts.ListenToKafkaTopic("bulk2")
     .CommitOffsetsAfterInterval(TimeSpan.FromSeconds(2));
 ```
 
-If you explicitly set `EnableAutoCommit = true` via `ConfigureConsumer`, Wolverine suppresses its own manual
+If you explicitly set `OffsetCommitMode = OffsetCommitMode.Auto` via `ConfigureConsumer`, Wolverine suppresses its own manual
 commits and leaves offset management entirely to the Kafka client. Pending/stored offsets are flushed on a
 graceful shutdown so progress is not lost.
 
@@ -341,7 +334,7 @@ opts.ListenToKafkaTopic("events")
     .ProcessInline()
     .ConfigureConsumer(config =>
     {
-        config.EnableAutoCommit = false;
+        config.OffsetCommitMode = OffsetCommitMode.Manual;
         config.AutoOffsetReset = AutoOffsetReset.Earliest;
     });
 ```
