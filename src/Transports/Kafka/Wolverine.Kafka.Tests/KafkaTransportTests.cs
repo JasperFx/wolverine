@@ -365,7 +365,7 @@ public class KafkaListenerConfigurationTests
         effective.AutoOffsetReset.ShouldBe(AutoOffsetReset.Earliest);
     }
 
-    // The methods below (BeginAtEarliest/BeginAtLatest/UseReadCommitted/UseCooperativeStickyAssignment/
+    // The methods below (BeginAtEarliest/BeginAtLatest/UseReadCommitted/
     // UseStaticMembership/TailFromLatest) all build a fresh per-topic ConsumerConfig containing only the
     // one property they set, the same as BeginAtEarliest() did for GroupId before it was fixed above.
     // GetEffectiveConsumerConfig() previously only backfilled BootstrapServers/GroupId from the parent,

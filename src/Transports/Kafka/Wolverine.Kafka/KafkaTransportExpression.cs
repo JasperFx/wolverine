@@ -81,27 +81,6 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
-    /// No-op retained for source compatibility. The Dekaf client speaks only the KIP-848 consumer
-    /// protocol, where rebalances are broker-driven and incremental by design — cooperative-sticky
-    /// client-side assignment no longer applies.
-    /// </summary>
-    [Obsolete("Rebalances are always incremental under the KIP-848 consumer protocol; this call has no effect and will be removed in a future version")]
-    public KafkaTransportExpression UseCooperativeStickyAssignment()
-    {
-        return this;
-    }
-
-    /// <summary>
-    /// No-op retained for source compatibility. The Dekaf client always uses the KIP-848
-    /// next-generation consumer rebalance protocol (which requires a Kafka 4.0+ broker).
-    /// </summary>
-    [Obsolete("The KIP-848 consumer protocol is always on; this call has no effect and will be removed in a future version")]
-    public KafkaTransportExpression UseNextGenerationRebalanceProtocol()
-    {
-        return this;
-    }
-
-    /// <summary>
     /// Enable Kafka static group membership (<c>group.instance.id</c>) so rolling restarts/deploys of the
     /// same node don't trigger partition churn. The id is resolved from <paramref name="instanceId"/> if
     /// supplied, otherwise from <c>POD_NAME</c>, then <c>HOSTNAME</c>, then the machine name. The id MUST

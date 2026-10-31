@@ -255,7 +255,7 @@ message, never the consumer's global position) in these situations:
 - **On dead letter queue routing** -- When a message exhausts all retries and is moved to the native dead letter
   queue topic, its offset is advanced after the DLQ produce succeeds.
 
-### Commit Strategy <Badge type="tip" text="6.8" />
+### Commit Strategy
 
 How and when those offsets are flushed to the broker is controlled by `CommitMode`. The default,
 `StoreThenAutoFlush`, is the idiomatic high-throughput Kafka model: each processed offset is *stored*
@@ -342,7 +342,7 @@ opts.ListenToKafkaTopic("events")
 You can always override any consumer setting per-topic using `ConfigureConsumer()`. Note that this
 **completely replaces** the parent-level consumer configuration -- it is not combinatorial.
 
-## Scaling Out / Concurrency <Badge type="tip" text="6.8" />
+## Scaling Out / Concurrency
 
 The Kafka-native way to scale out message processing is to **run more nodes in the same consumer group**.
 Kafka's own group coordinator assigns the topic's partitions across the live consumers in the group and
@@ -382,23 +382,7 @@ Wolverine logs the resolved `group.instance.id` at startup so you can verify per
 if no stable value could be resolved. Avoid a single hard-coded literal applied to every node.
 :::
 
-### Rebalance Protocol (KIP-848)
-
-The Kafka transport is **KIP-848-only**: the Dekaf client speaks only the
-[next-generation consumer rebalance protocol](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol),
-which requires a **Kafka 4.0+ broker** (it is GA and enabled by default on 4.0+). Under KIP-848 the group
-coordinator computes assignments server side and reconciles members one partition at a time over the
-heartbeat — rebalances are always **broker-driven and incremental**, with no stop-the-world
-JoinGroup/SyncGroup barrier and no client-side assignor to choose. The server-side assignor is chosen with
-the broker/group config `group.remote.assignor` (`uniform` by default, or `range`).
-
-Because incremental, cooperative-style rebalancing is inherent to the protocol, the older opt-ins
-`UseCooperativeStickyAssignment()` and `UseNextGenerationRebalanceProtocol()` are now marked `[Obsolete]`
-and are **no-ops** — calling them is harmless, but they configure nothing and can simply be deleted.
-Static membership (`UseStaticMembership(...)` / `group.instance.id`) is unchanged, fully supported under
-KIP-848, and remains the right tool for churn-free rolling restarts.
-
-### By-Key Concurrency Within a Partition <Badge type="tip" text="6.8" />
+### By-Key Concurrency Within a Partition 
 
 This is the **second** concurrency lever, not the first.
 
@@ -424,7 +408,7 @@ out-of-order completion** — if key A (offset 5) is still running when key B (o
 owns both, so a crash or rebalance can't lose A. Pairs naturally with KIP-848's incremental rebalancing
 (above), which keeps a rebalance from disrupting unaffected partitions.
 
-### Cold Start vs. Live Tail <Badge type="tip" text="6.8" />
+### Cold Start vs. Live Tail 
 
 `auto.offset.reset` controls where a consumer **starts** when its group has **no committed offset** for a
 partition — i.e. a cold start. Once the group has committed an offset, it resumes from there and this
@@ -465,7 +449,7 @@ A few things to know:
 - Reach for `TailFromLatest()` when you want **all** nodes to process each message; use a normal
   shared-group listener (the default) when you want each message processed **once** across the cluster.
 
-## Replaying a Topic <Badge type="tip" text="6.8" />
+## Replaying a Topic 
 
 When you need to **reprocess** a window of a topic's history — error recovery, rebuilding downstream
 state, replaying after a bug fix — Wolverine offers a **bounded, one-shot replay** that reads a range of a
@@ -508,7 +492,7 @@ have stamped: the topic's own Uri, or that of a `ListenToKafkaTopics(...)` group
 Replay reads forward to the end boundary and stops cleanly. It is a discrete operation — for *live* seek of
 a running listener, or a CritterWatch control-pane, see the follow-up issues.
 
-## Idempotency & Exactly-Once with Kafka <Badge type="tip" text="6.8" />
+## Idempotency & Exactly-Once with Kafka
 
 Kafka delivery is **at-least-once** by default: a consumer can see a message more than once (after a
 rebalance, a crash before the offset is committed, or a [replay](#replaying-a-topic)). There are two very
@@ -590,15 +574,6 @@ don't use the durable inbox, and always when using [retry topics](#) or [replay]
 writes idempotent (upserts keyed by a business id, conditional updates, dedupe tables), so reprocessing the
 same message is harmless.
 
-### Non-goal: a transactional read-process-write EOS engine
-
-Wolverine does **not** implement a Kafka transactional read-process-write engine (`transactional.id` +
-`Begin/Commit/AbortTransaction` + `SendOffsetsToTransaction` to make consume→transform→produce→commit-offset
-atomic inside Kafka). That mode bypasses both the durable inbox and Wolverine's commit strategy, and only
-adds value for **DB-free Kafka→Kafka** pipelines — which are better served by Kafka Streams. Wolverine stays
-in the message-bus + database-outbox lane; if you need pure in-Kafka transactional exactly-once, reach for
-Kafka Streams.
-
 ## Publishing by Partition Key
 
 To publish messages with Kafka using a designated [partition key](https://developer.confluent.io/courses/apache-kafka/partitions/), use the
@@ -615,7 +590,7 @@ public static ValueTask publish_by_partition_key(IMessageBus bus)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/when_publishing_and_receiving_by_partition_key.cs#L14-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_kafka_by_partition_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-## Propagating GroupId to PartitionKey <Badge type="tip" text="5.17" />
+## Propagating GroupId to PartitionKey
 
 By default, Wolverine stamps the Kafka consumer's configured `GroupId` onto the `GroupId` property of every incoming
 envelope. If your handler produces cascaded messages that should land on the same partition, you can enable automatic
@@ -742,7 +717,7 @@ depend on that promotion, register a custom mapper with `UseInterop((runtime, en
 `ReceiveRawJson()` to keep that behavior as an explicit opt-in.
 :::
 
-## Confluent Schema Registry Serializers <Badge type="tip" text="5.27" />
+## Confluent Schema Registry Serializers
 
 When you need to interoperate with other Kafka clients that use the [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/index.html)
 wire format, Wolverine provides built-in serializers for both **JSON Schema** and **Avro** that integrate directly with
@@ -832,7 +807,7 @@ the Schema Registry wire format does not embed the .NET type name. Wolverine mus
 which is handled automatically when you configure typed listeners.
 :::
 
-## Instrumentation & Diagnostics <Badge type="tip" text="3.13" />
+## Instrumentation & Diagnostics 
 
 When receiving messages through Kafka and Wolverine, there are some useful elements of Kafka metadata
 on the Wolverine `Envelope` you can use for instrumentation or diagnostics as shown in this sample middleware:
@@ -854,7 +829,7 @@ public static class KafkaInstrumentation
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L232-L244' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
+## Connecting to Multiple Brokers 
 
 Wolverine supports interacting with multiple Kafka brokers within one application like this:
 
@@ -888,7 +863,7 @@ using var host = await Host.CreateDefaultBuilder()
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Kafka broker is the name that you supply
 for the broker. So in the example above, you might see `Uri` values for `emea://colors` or `americas://red`.
 
-## Multi-Tenancy with a Broker per Tenant <Badge type="tip" text="6.9" />
+## Multi-Tenancy with a Broker per Tenant
 
 Named brokers (above) are a *static* topology: you pin specific endpoints to a specific broker by name at
 configuration time. **Broker-per-tenant** is different — it is *runtime* routing. You declare one shared topic
@@ -978,7 +953,7 @@ Per-tenant [non-blocking retry topics](#non-blocking-retry-topics) and [topic re
 to the default cluster only; they are not currently fanned out per tenant.
 :::
 
-## Non-Blocking Retry Topics <Badge type="tip" text="6.8" />
+## Non-Blocking Retry Topics
 
 For pure-Kafka apps that can't lean on a database, Wolverine offers **Spring/Uber-style non-blocking retry
 topics**. On a matching failure the message is produced to a **tiered fixed-delay retry topic**, the source
@@ -1069,7 +1044,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 The DLQ topic is shared across all listeners on the same Kafka transport that have native DLQ enabled. When `AutoProvision` is enabled, the DLQ topic will be automatically created.
 
-## Multi-Topic Listening <Badge type="tip" text="5.18" />
+## Multi-Topic Listening
 
 By default, each call to `ListenToKafkaTopic()` creates a separate Kafka consumer. If you have many topics that share
 the same logical workload, this can lead to excessive consumer group rebalances and slower startup times.
@@ -1115,7 +1090,7 @@ opts.ListenToKafkaTopics("orders", "invoices")
     .EnableNativeDeadLetterQueue();
 ```
 
-### Topic Creation Options <Badge type="tip" text="5.27" />
+### Topic Creation Options 
 
 You can control how Wolverine creates topics for a multi-topic listener group. The `Specification()` method lets you
 set partition count, replication factor, and other topic properties uniformly or per-topic:
@@ -1172,7 +1147,7 @@ Use individual `ListenToKafkaTopic()` calls when:
 - Topics need different processing modes (inline vs buffered vs durable)
 - You want independent scaling or error handling per topic
 
-## Externally-Owned Topics <Badge type="tip" text="6.7" />
+## Externally-Owned Topics 
 
 Some topics on the Kafka cluster may be owned by an external system where your service only has consume or produce ACLs — not `CreateTopics` or `DeleteTopics`. With `AutoProvision()` enabled, Wolverine attempts to create every declared topic at startup, which fails with `Authorization failed` on topics you don't own. Likewise, `dotnet run -- resources teardown` would attempt to delete those topics.
 
