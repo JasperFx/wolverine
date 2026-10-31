@@ -667,6 +667,27 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public abstract IDatabaseSagaSchema<TId, TSaga> SagaSchemaFor<TSaga, TId>() where TSaga : Saga;
 
+    private ImHashMap<Type, SagaTableDefinition> _sagaDefinitions = ImHashMap<Type, SagaTableDefinition>.Empty;
+
+    /// <summary>
+    ///     GH-5298. Remember the saga registrations (<c>AddSagaType</c>) so every path that builds a saga
+    ///     schema uses the registered table name rather than the convention name.
+    /// </summary>
+    protected void RegisterSagaDefinition(SagaTableDefinition definition)
+    {
+        _sagaDefinitions = _sagaDefinitions.AddOrUpdate(definition.SagaType, definition);
+    }
+
+    /// <summary>
+    ///     The registered definition for a saga type, or the convention-named one if it was not registered.
+    /// </summary>
+    protected SagaTableDefinition SagaDefinitionFor(Type sagaType)
+    {
+        return _sagaDefinitions.TryFind(sagaType, out var definition)
+            ? definition
+            : new SagaTableDefinition(sagaType, null);
+    }
+
     /// <summary>
     ///     GH-4805. Keyed by (saga type, identity type) rather than saga type alone: the per-store
     ///     <c>_sagaStorage</c> caches key on the saga type and then re-check the cast, which silently
@@ -716,10 +737,10 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
             return (IDatabaseSagaSchema<TId, TSaga>)cached;
         }
 
-        // Same shape the per-store SagaSchemaFor overrides build, so a saga's table is identical whichever
-        // path reached it. The table NAME is part of SagaTableDefinition, so this must stay in sync with
-        // them -- it is deliberately the same two arguments.
-        var schema = factory(new SagaTableDefinition(typeof(TSaga), null), _settings);
+        // The table NAME is part of SagaTableDefinition, so a saga registered with AddSagaType<T>(tableName)
+        // must reach its registered definition here too, or this path silently uses the convention name
+        // (GH-5298). Falls back to the convention for a saga that was never registered.
+        var schema = factory(SagaDefinitionFor(typeof(TSaga)), _settings);
 
         // Plain assignment, not CompareExchange: a race here builds one extra schema object and the loser
         // is discarded, which is exactly how the per-store caches already behave.

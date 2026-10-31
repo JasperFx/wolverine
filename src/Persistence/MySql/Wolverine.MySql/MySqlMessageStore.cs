@@ -92,6 +92,7 @@ internal partial class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISa
 
         foreach (var sagaTableDefinition in sagaTypes)
         {
+            RegisterSagaDefinition(sagaTableDefinition);
             var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition,
                 _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType()!);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
@@ -712,7 +713,7 @@ internal partial class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISa
             }
         }
 
-        var definition = new SagaTableDefinition(typeof(T), null);
+        var definition = SagaDefinitionFor(typeof(T));
         var storage = new DatabaseSagaSchema<T, TId>(definition, _settings);
         _sagaStorage = _sagaStorage.AddOrUpdate(typeof(T), storage);
 
