@@ -22,6 +22,70 @@ public class kafka_offset_committer
             interval ?? TimeSpan.FromSeconds(5), NullLogger.Instance);
     }
 
+    // A handler finishing a record, then the consume loop's next pass
+    private static async Task completeAndPassAsync(KafkaOffsetCommitter committer, string topic, int partition,
+        long offset)
+    {
+        committer.Complete(topic, partition, offset);
+        await committer.CommitCompletedAsync();
+    }
+
+    [Fact]
+    public async Task a_completion_is_only_committed_by_the_loop_pass()
+    {
+        var committer = committerFor(CommitMode.PerMessage);
+
+        committer.Complete("t", 0, 9);
+        await theConsumer.DidNotReceive()
+            .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
+
+        await committer.CommitCompletedAsync();
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset == 10), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task one_pass_commits_every_partition_in_one_call()
+    {
+        var committer = committerFor(CommitMode.PerMessage);
+
+        committer.Complete("t", 0, 9);
+        committer.Complete("t", 1, 4);
+        await committer.CommitCompletedAsync();
+
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Count() == 2), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task a_revocation_commits_completions_the_loop_has_not_applied_yet()
+    {
+        var committer = committerFor(CommitMode.PerMessage);
+
+        committer.Track("t", 1, 5);
+        committer.Complete("t", 1, 5);
+        await committer.PartitionsRevokedAsync([new TopicPartition("t", 1)]);
+
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset == 6), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task batch_interval_commits_on_a_quiet_pass_once_the_interval_passes()
+    {
+        var committer = committerFor(CommitMode.BatchInterval, interval: TimeSpan.FromSeconds(1));
+
+        await completeAndPassAsync(committer, "t", 0, 7);
+        await theConsumer.DidNotReceive()
+            .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
+
+        await Task.Delay(1200, TestContext.Current.CancellationToken);
+        await committer.CommitCompletedAsync();
+
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset == 8), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public void apply_to_store_then_auto_flush_sets_autocommit_and_disables_offset_store()
     {
@@ -70,7 +134,7 @@ public class kafka_offset_committer
     {
         var committer = committerFor(CommitMode.StoreThenAutoFlush);
 
-        await committer.Complete("topic-a", 2, 41);
+        await completeAndPassAsync(committer, "topic-a", 2, 41);
 
         // Kafka convention: committed/stored offset is last-processed + 1
         theConsumer.Received(1).StoreOffset(
@@ -84,7 +148,7 @@ public class kafka_offset_committer
     {
         var committer = committerFor(CommitMode.PerMessage);
 
-        await committer.Complete("topic-a", 0, 9);
+        await completeAndPassAsync(committer, "topic-a", 0, 9);
 
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
                 list.Single().Topic == "topic-a" && list.Single().Partition == 0 && list.Single().Offset == 10),
@@ -97,7 +161,7 @@ public class kafka_offset_committer
         var committer = committerFor(CommitMode.StoreThenAutoFlush, new KafkaConsumerOptions { EnableAutoCommit = true });
         committer.ResolvedStrategy.ShouldBe(KafkaOffsetCommitter.Strategy.Automatic);
 
-        await committer.Complete("topic-a", 0, 5);
+        await completeAndPassAsync(committer, "topic-a", 0, 5);
 
         theConsumer.DidNotReceive().StoreOffset(Arg.Any<TopicPartitionOffset>());
         await theConsumer.DidNotReceive()
@@ -109,12 +173,12 @@ public class kafka_offset_committer
     {
         var committer = committerFor(CommitMode.BatchCount, batchCount: 3);
 
-        await committer.Complete("t", 0, 100);
-        await committer.Complete("t", 0, 101);
+        await completeAndPassAsync(committer, "t", 0, 100);
+        await completeAndPassAsync(committer, "t", 0, 101);
         await theConsumer.DidNotReceive()
             .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
 
-        await committer.Complete("t", 0, 102); // hits batch size 3
+        await completeAndPassAsync(committer, "t", 0, 102); // hits batch size 3
 
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
             list.Single().Offset == 103), Arg.Any<CancellationToken>()); // watermark = last contiguous (102) + 1
@@ -132,9 +196,9 @@ public class kafka_offset_committer
         committer.Track("t", 0, 103);
 
         // Out-of-order completion: 100, 102, 103 — 101 is still in flight.
-        await committer.Complete("t", 0, 100);
-        await committer.Complete("t", 0, 102);
-        await committer.Complete("t", 0, 103); // threshold reached, but 101 is still in flight
+        await completeAndPassAsync(committer, "t", 0, 100);
+        await completeAndPassAsync(committer, "t", 0, 102);
+        await completeAndPassAsync(committer, "t", 0, 103); // threshold reached, but 101 is still in flight
 
         // The committed position may only advance to the lowest in-flight offset (101), never past it.
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
@@ -143,7 +207,7 @@ public class kafka_offset_committer
         theConsumer.ClearReceivedCalls();
 
         // Now 101 completes -> nothing in flight -> the position jumps to the high-water 103 + 1 = 104.
-        await committer.Complete("t", 0, 101);
+        await completeAndPassAsync(committer, "t", 0, 101);
         await committer.FlushAsync();
 
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
@@ -161,19 +225,19 @@ public class kafka_offset_committer
         committer.Track("t", 0, 2);
 
         // 2 finishes while 0 and 1 are still in flight -> nothing may be committed yet.
-        await committer.Complete("t", 0, 2);
+        await completeAndPassAsync(committer, "t", 0, 2);
         await theConsumer.DidNotReceive()
             .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
 
         // 0 finishes -> safe to resume from the next in-flight offset (1).
-        await committer.Complete("t", 0, 0);
+        await completeAndPassAsync(committer, "t", 0, 0);
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
             list.Single().Offset == 1), Arg.Any<CancellationToken>());
 
         theConsumer.ClearReceivedCalls();
 
         // 1 finishes -> nothing in flight -> resume past the highest delivered (2 + 1 = 3).
-        await committer.Complete("t", 0, 1);
+        await completeAndPassAsync(committer, "t", 0, 1);
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
             list.Single().Offset == 3), Arg.Any<CancellationToken>());
     }
@@ -189,17 +253,17 @@ public class kafka_offset_committer
         committer.Track("t", 0, 2);
 
         // 2 finishes while 0 and 1 are still in flight -> nothing may be stored yet.
-        await committer.Complete("t", 0, 2);
+        await completeAndPassAsync(committer, "t", 0, 2);
         theConsumer.DidNotReceive().StoreOffset(Arg.Any<TopicPartitionOffset>());
 
         // 0 finishes -> safe to store the next in-flight offset (1).
-        await committer.Complete("t", 0, 0);
+        await completeAndPassAsync(committer, "t", 0, 0);
         theConsumer.Received(1).StoreOffset(Arg.Is<TopicPartitionOffset>(t => t.Offset == 1));
 
         theConsumer.ClearReceivedCalls();
 
         // 1 finishes -> nothing in flight -> store past the highest delivered (2 + 1 = 3).
-        await committer.Complete("t", 0, 1);
+        await completeAndPassAsync(committer, "t", 0, 1);
         theConsumer.Received(1).StoreOffset(Arg.Is<TopicPartitionOffset>(t => t.Offset == 3));
     }
 
@@ -213,14 +277,14 @@ public class kafka_offset_committer
         committer.Track("t", 0, 0);
         committer.Track("t", 0, 3);
 
-        await committer.Complete("t", 0, 0);
+        await completeAndPassAsync(committer, "t", 0, 0);
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
                 list.Single().Offset == 3),
             Arg.Any<CancellationToken>()); // resume from the next in-flight delivered offset
 
         theConsumer.ClearReceivedCalls();
 
-        await committer.Complete("t", 0, 3);
+        await completeAndPassAsync(committer, "t", 0, 3);
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
             list.Single().Offset == 4), Arg.Any<CancellationToken>()); // high-water + 1, gaps skipped
     }
@@ -230,8 +294,8 @@ public class kafka_offset_committer
     {
         var committer = committerFor(CommitMode.BatchCount, batchCount: 1000);
 
-        await committer.Complete("t", 1, 7);
-        await committer.Complete("t", 1, 8);
+        await completeAndPassAsync(committer, "t", 1, 7);
+        await completeAndPassAsync(committer, "t", 1, 8);
         await theConsumer.DidNotReceive()
             .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
 
@@ -247,8 +311,8 @@ public class kafka_offset_committer
     {
         var committer = committerFor(CommitMode.BatchCount, batchCount: 1000);
 
-        await committer.Complete("t", 0, 50);
-        await committer.Complete("t", 1, 200);
+        await completeAndPassAsync(committer, "t", 0, 50);
+        await completeAndPassAsync(committer, "t", 1, 200);
         await committer.FlushAsync();
 
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
@@ -261,9 +325,9 @@ public class kafka_offset_committer
     {
         var committer = committerFor(CommitMode.BatchCount, batchCount: 1000);
 
-        await committer.Complete("t", 1, 7);
-        await committer.Complete("t", 1, 8);
-        await committer.Complete("t", 2, 3);
+        await completeAndPassAsync(committer, "t", 1, 7);
+        await completeAndPassAsync(committer, "t", 1, 8);
+        await completeAndPassAsync(committer, "t", 2, 3);
 
         await committer.PartitionsRevokedAsync([new TopicPartition("t", 1)]);
 
@@ -287,7 +351,7 @@ public class kafka_offset_committer
 
         committer.Track("t", 1, 5);
         await committer.PartitionsRevokedAsync([new TopicPartition("t", 1)]);
-        await committer.Complete("t", 1, 5);
+        await completeAndPassAsync(committer, "t", 1, 5);
 
         await theConsumer.DidNotReceive()
             .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
@@ -302,7 +366,7 @@ public class kafka_offset_committer
         await committer.PartitionsRevokedAsync([partition]);
 
         committer.Track("t", 1, 20);
-        await committer.Complete("t", 1, 20);
+        await completeAndPassAsync(committer, "t", 1, 20);
 
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
             list.Single().Offset == 21), Arg.Any<CancellationToken>());
@@ -319,12 +383,12 @@ public class kafka_offset_committer
 
         // The partition comes back and 100 is delivered again, then a handler from before the revocation finishes 110
         committer.Track("t", 1, 100);
-        await committer.Complete("t", 1, 110);
+        await completeAndPassAsync(committer, "t", 1, 110);
 
         await theConsumer.DidNotReceive()
             .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
 
-        await committer.Complete("t", 1, 100);
+        await completeAndPassAsync(committer, "t", 1, 100);
 
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
             list.Single().Offset == 101), Arg.Any<CancellationToken>());
@@ -335,10 +399,10 @@ public class kafka_offset_committer
     {
         var committer = committerFor(CommitMode.BatchCount, batchCount: 1000);
 
-        await committer.Complete("t", 1, 7);
+        await completeAndPassAsync(committer, "t", 1, 7);
         committer.PartitionsLost([new TopicPartition("t", 1)]);
         await committer.FlushAsync();
-        await committer.Complete("t", 1, 8);
+        await completeAndPassAsync(committer, "t", 1, 8);
 
         await theConsumer.DidNotReceive()
             .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
@@ -351,7 +415,7 @@ public class kafka_offset_committer
 
         committer.Track("t", 1, 5);
         committer.Track("t", 1, 6);
-        await committer.Complete("t", 1, 6);
+        await completeAndPassAsync(committer, "t", 1, 6);
         await committer.PartitionsRevokedAsync([new TopicPartition("t", 1)]);
 
         await theConsumer.DidNotReceive()

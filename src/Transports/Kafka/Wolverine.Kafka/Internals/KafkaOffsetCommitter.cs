@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Dekaf;
 using Dekaf.Consumer;
@@ -14,10 +15,14 @@ namespace Wolverine.Kafka.Internals;
 /// <see cref="OffsetWatermark"/> so that under concurrent, out-of-order handler completion the
 /// committed/stored position can never move past an offset that is still in flight (GH-3161). The
 /// watermark is seeded by <see cref="Track"/> at consume time (offsets arrive in order per partition)
-/// and advanced by <see cref="Complete"/> as each message finishes; the committable position is the
-/// lowest still-in-flight delivered offset, or the high-water consumed offset + 1 when nothing is in
-/// flight — which also tolerates the offset gaps a compacted or transactional (read_committed) topic
-/// produces.
+/// and advanced as each message finishes; the committable position is the lowest still-in-flight
+/// delivered offset, or the high-water consumed offset + 1 when nothing is in flight, which also
+/// tolerates the offset gaps a compacted or transactional (read_committed) topic produces.
+///
+/// Handlers only queue their completions through <see cref="Complete"/>. The consume loop applies them and
+/// commits or stores offsets in <see cref="CommitCompletedAsync"/>, so handler threads never call the consumer.
+/// Revocations arrive on Dekaf's rebalance task; they apply the queue themselves and share one commit gate with
+/// the loop, so an offset is never taken by one and committed after the other has handed the partition off.
 /// </summary>
 internal sealed class KafkaOffsetCommitter
 {
@@ -29,7 +34,7 @@ internal sealed class KafkaOffsetCommitter
         /// Store each completed offset; Kafka's background committer flushes it.
         Store,
 
-        /// Synchronously commit each completed offset.
+        /// Commit completed offsets on every pass of the consume loop.
         PerMessage,
 
         /// Commit the contiguous watermark after N messages / T elapsed.
@@ -42,6 +47,12 @@ internal sealed class KafkaOffsetCommitter
     private readonly int _batchCount;
     private readonly TimeSpan _batchInterval;
     private readonly Strategy _strategy;
+
+    // Completed offsets, queued by handler threads until the loop or a revocation applies them
+    private readonly ConcurrentQueue<TopicPartitionOffset> _completed = new();
+
+    // Held from taking a committable offset until its commit or store returns
+    private readonly SemaphoreSlim _commitGate = new(1, 1);
 
     private readonly object _lock = new();
     private readonly Dictionary<TopicPartition, OffsetWatermark> _watermarks = new();
@@ -136,77 +147,43 @@ internal sealed class KafkaOffsetCommitter
         lock (_lock)
         {
             _revoked.Remove(tp);
-            WatermarkFor(tp).Track(offset);
+            watermarkFor(tp).Track(offset);
         }
     }
 
     /// <summary>
-    /// Record successful processing of a message at the given coordinates and commit/store as the
-    /// strategy dictates. The committed offset is the lowest still-in-flight delivered offset (or the
-    /// high-water consumed offset + 1 when nothing is in flight) — the next offset to resume from, per
-    /// Kafka convention — so out-of-order completion never advances the position past in-flight work.
+    /// Record that the message at these coordinates finished. Safe from any thread: the offset is committed or
+    /// stored by the next <see cref="CommitCompletedAsync"/> or revocation.
     /// </summary>
-    public async ValueTask Complete(string topic, int partition, long offset)
+    public void Complete(string topic, int partition, long offset)
     {
-        if (_strategy == Strategy.Automatic)
+        if (_strategy != Strategy.Automatic)
         {
-            return;
+            _completed.Enqueue(new TopicPartitionOffset(topic, partition, offset));
+        }
+    }
+
+    /// <summary>
+    /// Applies the queued completions and commits or stores what the strategy calls for. Called by the consume loop
+    /// before each consume, so only the loop thread commits during normal operation.
+    /// </summary>
+    public ValueTask CommitCompletedAsync()
+    {
+        if (_strategy == Strategy.Automatic || (_completed.IsEmpty && !batchIntervalElapsed()))
+        {
+            return ValueTask.CompletedTask;
         }
 
-        var tp = new TopicPartition(topic, partition);
+        return commitCompletedAsync(force: false);
+    }
 
-        List<TopicPartitionOffset>? toCommit = null;
-        TopicPartitionOffset? toStore = null;
-        lock (_lock)
-        {
-            if (_revoked.Contains(tp))
-            {
-                return;
-            }
-
-            var watermark = WatermarkFor(tp);
-            watermark.Complete(offset);
-
-            switch (_strategy)
-            {
-                case Strategy.PerMessage:
-                    if (watermark.TryTakeCommittable(out var perMessage))
-                    {
-                        toCommit = [new TopicPartitionOffset(topic, partition, perMessage)];
-                    }
-
-                    break;
-
-                case Strategy.Store:
-                    if (watermark.TryTakeCommittable(out var store))
-                    {
-                        toStore = new TopicPartitionOffset(topic, partition, store);
-                    }
-
-                    break;
-
-                case Strategy.Batch:
-                    _sinceLastCommit++;
-                    if (ShouldCommitBatch())
-                    {
-                        toCommit = PendingWatermarkOffsets();
-                        _sinceLastCommit = 0;
-                        _lastCommitTimestamp = Stopwatch.GetTimestamp();
-                    }
-
-                    break;
-            }
-        }
-
-        if (toCommit is { Count: > 0 })
-        {
-            await CommitOffsets(toCommit);
-        }
-
-        if (toStore is { } stored)
-        {
-            storeOffset(stored);
-        }
+    /// <summary>
+    /// Commit or store everything completed so far. Called on graceful shutdown, after the consume loop has stopped
+    /// and before the consumer closes, so a clean stop doesn't lose progress (GH-3150 acceptance #4).
+    /// </summary>
+    public ValueTask FlushAsync()
+    {
+        return _strategy == Strategy.Automatic ? ValueTask.CompletedTask : commitCompletedAsync(force: true);
     }
 
     /// <summary>
@@ -220,25 +197,35 @@ internal sealed class KafkaOffsetCommitter
             return;
         }
 
-        List<TopicPartitionOffset>? toCommit = null;
-        lock (_lock)
+        await _commitGate.WaitAsync();
+        try
         {
-            foreach (var tp in partitions)
+            List<TopicPartitionOffset>? toCommit = null;
+            lock (_lock)
             {
-                // Dekaf commits stored offsets itself before this callback runs, so Store has nothing to add
-                if (_watermarks.Remove(tp, out var watermark) && _strategy != Strategy.Store &&
-                    watermark.TryTakeCommittable(out var nextOffset))
-                {
-                    (toCommit ??= []).Add(new TopicPartitionOffset(tp.Topic, tp.Partition, nextOffset));
-                }
+                applyCompleted();
 
-                _revoked.Add(tp);
+                foreach (var tp in partitions)
+                {
+                    // Dekaf has already committed the stored offsets, so a Store watermark only has what finished
+                    // since its last store
+                    if (_watermarks.Remove(tp, out var watermark) && watermark.TryTakeCommittable(out var nextOffset))
+                    {
+                        (toCommit ??= []).Add(new TopicPartitionOffset(tp.Topic, tp.Partition, nextOffset));
+                    }
+
+                    _revoked.Add(tp);
+                }
+            }
+
+            if (toCommit != null)
+            {
+                await commitOffsetsAsync(toCommit);
             }
         }
-
-        if (toCommit != null)
+        finally
         {
-            await CommitOffsets(toCommit);
+            _commitGate.Release();
         }
     }
 
@@ -258,7 +245,61 @@ internal sealed class KafkaOffsetCommitter
         }
     }
 
-    private OffsetWatermark WatermarkFor(TopicPartition tp)
+    private async ValueTask commitCompletedAsync(bool force)
+    {
+        await _commitGate.WaitAsync();
+        try
+        {
+            List<TopicPartitionOffset>? taken = null;
+            lock (_lock)
+            {
+                applyCompleted();
+
+                if (_strategy != Strategy.Batch || force || shouldCommitBatch())
+                {
+                    taken = takeCommittable();
+                    _sinceLastCommit = 0;
+                    _lastCommitTimestamp = Stopwatch.GetTimestamp();
+                }
+            }
+
+            if (taken is not { Count: > 0 })
+            {
+                return;
+            }
+
+            if (_strategy == Strategy.Store)
+            {
+                foreach (var offset in taken) storeOffset(offset);
+            }
+            else
+            {
+                await commitOffsetsAsync(taken);
+            }
+        }
+        finally
+        {
+            _commitGate.Release();
+        }
+    }
+
+    // Called under _lock
+    private void applyCompleted()
+    {
+        while (_completed.TryDequeue(out var completed))
+        {
+            var tp = new TopicPartition(completed.Topic, completed.Partition);
+            if (_revoked.Contains(tp))
+            {
+                continue;
+            }
+
+            watermarkFor(tp).Complete(completed.Offset);
+            _sinceLastCommit++;
+        }
+    }
+
+    private OffsetWatermark watermarkFor(TopicPartition tp)
     {
         if (!_watermarks.TryGetValue(tp, out var watermark))
         {
@@ -269,20 +310,25 @@ internal sealed class KafkaOffsetCommitter
         return watermark;
     }
 
-    private bool ShouldCommitBatch()
+    private bool shouldCommitBatch()
     {
         if (_mode == CommitMode.BatchCount)
         {
             return _sinceLastCommit >= _batchCount;
         }
 
-        // BatchInterval: commit once at least the interval has elapsed since the last commit. (Any
-        // residual is flushed on shutdown, so an idle partition never strands progress permanently.)
-        var elapsed = Stopwatch.GetElapsedTime(_lastCommitTimestamp);
-        return elapsed >= _batchInterval;
+        // BatchInterval: commit once at least the interval has elapsed since the last commit
+        return Stopwatch.GetElapsedTime(_lastCommitTimestamp) >= _batchInterval;
     }
 
-    private List<TopicPartitionOffset> PendingWatermarkOffsets()
+    // Lets the loop commit a BatchInterval watermark once the interval passes, even with no new completions
+    private bool batchIntervalElapsed()
+    {
+        return _strategy == Strategy.Batch && _mode != CommitMode.BatchCount && Volatile.Read(ref _sinceLastCommit) > 0
+               && Stopwatch.GetElapsedTime(Volatile.Read(ref _lastCommitTimestamp)) >= _batchInterval;
+    }
+
+    private List<TopicPartitionOffset> takeCommittable()
     {
         var list = new List<TopicPartitionOffset>();
         foreach (var (tp, watermark) in _watermarks)
@@ -296,31 +342,7 @@ internal sealed class KafkaOffsetCommitter
         return list;
     }
 
-    /// <summary>
-    /// Commit any pending batch offsets. Called on graceful shutdown so a clean stop doesn't lose progress
-    /// (GH-3150 acceptance #4). Stored offsets need no flush here: closing the consumer commits them.
-    /// </summary>
-    public async ValueTask FlushAsync()
-    {
-        if (_strategy != Strategy.Batch)
-        {
-            return;
-        }
-
-        List<TopicPartitionOffset> pending;
-        lock (_lock)
-        {
-            pending = PendingWatermarkOffsets();
-            _sinceLastCommit = 0;
-        }
-
-        if (pending.Count > 0)
-        {
-            await CommitOffsets(pending);
-        }
-    }
-
-    private async ValueTask CommitOffsets(List<TopicPartitionOffset> offsets)
+    private async ValueTask commitOffsetsAsync(List<TopicPartitionOffset> offsets)
     {
         try
         {

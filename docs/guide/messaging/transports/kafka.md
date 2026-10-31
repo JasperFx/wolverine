@@ -271,7 +271,7 @@ opts.ListenToKafkaTopic("orders")
     .CommitOffsets(CommitMode.StoreThenAutoFlush);
 
 opts.ListenToKafkaTopic("strict")
-    // Synchronously commit each message as it completes (strict at-least-once, lowest throughput)
+    // Commit finished messages on every consume pass (strict at-least-once, lowest throughput)
     .CommitOffsets(CommitMode.PerMessage);
 
 opts.ListenToKafkaTopic("bulk")
@@ -287,6 +287,12 @@ If you explicitly set `EnableAutoCommit = true` via `ConfigureConsumer`, Wolveri
 commits and leaves offset management entirely to the Kafka client. Pending/stored offsets are flushed on a
 graceful shutdown so progress is not lost.
 
+In that mode a record's offset becomes committable once the listener asks for the next record (Dekaf's
+`OffsetStoreTiming.AfterProcessing`). An inline listener, or a durable listener receiving one record at a time
+(`MaximumMessagesToReceive(1)`), only asks after the handler or the inbox has the record, so a crash redelivers
+it. A buffered listener asks as soon as it has queued the record, and a durable micro-batch asks for its later
+records before the batch reaches the inbox, so a crash can still lose what they hold.
+
 ::: tip In-flight–safe under concurrency
 All three manual commit strategies (`StoreThenAutoFlush`, `PerMessage`, and the batch modes) route through a
 per-partition watermark, so when a listener processes messages concurrently (the default buffered mode runs
@@ -295,6 +301,10 @@ committed/stored position **never advances past a message that is still in fligh
 no assumption that offsets are contiguous, so it behaves correctly on compacted topics and on transactional
 topics read with `read_committed`, where the broker hands out offset gaps. As always, the strongest
 crash-safety still comes from the durable inbox (see _Idempotency &amp; Exactly-Once_ below).
+
+Handlers never commit or store offsets themselves. They queue each finished offset, and the listener's consume
+loop commits or stores them before it next polls (at least once a second), so a `PerMessage` commit lands
+shortly after the message finishes rather than before its handler returns.
 :::
 
 ### Recommended Configuration by Use Case
@@ -1342,8 +1352,8 @@ transport, and the factors behind them.
 
 The default `CommitMode.StoreThenAutoFlush` stores offsets non-blockingly and lets the client's
 auto-committer flush them in the background — keep it unless you have a specific reason.
-`CommitMode.PerMessage` performs a synchronous broker round trip per message and is by far the
-slowest option; use it only where its stronger guarantee is genuinely required.
+`CommitMode.PerMessage` makes the consume loop wait on a broker commit whenever a message finished and is by
+far the slowest option; use it only where its stronger guarantee is genuinely required.
 
 ### Back pressure
 

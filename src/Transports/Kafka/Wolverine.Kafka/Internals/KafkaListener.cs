@@ -138,6 +138,9 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             }
         }
 
+        // Commits what handlers finished since the last pass, here on the loop that owns the consumer
+        await _committer.CommitCompletedAsync();
+
         var maybe = await _consumer.ConsumeOneAsync(_pollTimeout, token);
         if (maybe == null)
         {
@@ -170,7 +173,7 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         catch (Exception e)
         {
             // Might be a poison pill message; advance past its specific offset so we don't get stuck re-consuming it.
-            await _committer.Complete(result.Topic, result.Partition, result.Offset);
+            _committer.Complete(result.Topic, result.Partition, result.Offset);
             _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
         }
 
@@ -217,7 +220,7 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             catch (Exception e)
             {
                 // Poison pill mid-batch: advance past its offset, keep the rest of the batch.
-                await _committer.Complete(current.Topic, current.Partition, current.Offset);
+                _committer.Complete(current.Topic, current.Partition, current.Offset);
                 _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
             }
 
@@ -323,12 +326,14 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         return total;
     }
 
-    public async ValueTask CompleteAsync(Envelope envelope)
+    public ValueTask CompleteAsync(Envelope envelope)
     {
         if (envelope.TopicName != null && envelope.PartitionId.HasValue)
         {
-            await _committer.Complete(envelope.TopicName, envelope.PartitionId.Value, envelope.Offset);
+            _committer.Complete(envelope.TopicName, envelope.PartitionId.Value, envelope.Offset);
         }
+
+        return ValueTask.CompletedTask;
     }
 
     public ValueTask DeferAsync(Envelope envelope)
@@ -428,7 +433,7 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             // Advance past the failed message's specific offset now that it's safely in the DLQ.
             if (envelope.TopicName != null && envelope.PartitionId.HasValue)
             {
-                await _committer.Complete(envelope.TopicName, envelope.PartitionId.Value, envelope.Offset);
+                _committer.Complete(envelope.TopicName, envelope.PartitionId.Value, envelope.Offset);
             }
         }
         catch (Exception ex)

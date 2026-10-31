@@ -69,9 +69,10 @@ internal static class KafkaOptionsMapper
         // Commit knobs. EnableAutoCommit=false means Wolverine commits offsets itself; anything else
         // leaves the background committer on (the Kafka client default). EnableAutoOffsetStore=false
         // limits the background committer to explicitly stored offsets. When storage is hands-off,
-        // OffsetStoreTiming.OnDelivery replicates the store-on-delivery semantics the transport has
-        // always had: an offset becomes committable as soon as its record is handed to the
-        // application, not when the next record is requested.
+        // OffsetStoreTiming.AfterProcessing makes an offset committable only once the listener asks for
+        // the next record. Inline listeners, and durable listeners receiving one record at a time, wait for
+        // the handler or the inbox before that, so a crash redelivers their in-flight record instead of
+        // losing it. A durable micro-batch asks for its later records before the batch reaches the inbox.
         if (options.EnableAutoCommit == false)
         {
             builder.WithOffsetCommitMode(OffsetCommitMode.Manual);
@@ -83,7 +84,7 @@ internal static class KafkaOptionsMapper
         }
         else
         {
-            builder.WithOffsetStoreTiming(OffsetStoreTiming.OnDelivery);
+            builder.WithOffsetStoreTiming(OffsetStoreTiming.AfterProcessing);
         }
 
         if (options.AutoCommitInterval.HasValue)
