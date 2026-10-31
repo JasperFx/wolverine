@@ -7,7 +7,10 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Kafka;
 
-public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
+/// <summary>
+/// Sends batches over the shared producer of the topic's cluster, which its <see cref="KafkaProducerPool" /> disposes
+/// </summary>
+public class KafkaSenderProtocol : ISenderProtocol
 {
     private readonly KafkaTopic _topic;
     private readonly LazyKafkaProducer _producer;
@@ -27,12 +30,12 @@ public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
     internal KafkaSenderProtocol(KafkaTopic topic, KafkaTransport producerTransport)
     {
         _topic = topic;
-        _producer = LazyKafkaProducer.For(topic, producerTransport);
+        _producer = producerTransport.ProducerFor(topic);
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
-        // wolverine#3076 — hand the whole batch to the producer at once so its internal batching
+        // wolverine#3076: hand the whole batch to the producer at once so its internal batching
         // window (linger, batch size, compression) has a population to coalesce, instead of one
         // broker round-trip per message.
         //
@@ -41,7 +44,7 @@ public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
         // again on retry, and a record that can never succeed (one over message.max.bytes) would duplicate
         // its siblings on every durability pass.
 
-        // Phase 1 — map every envelope to a producer message. GH-5055: an envelope the mapper throws on
+        // Phase 1: map every envelope to a producer message. GH-5055: an envelope the mapper throws on
         // can never be sent, so only that one is reported as a serialization failure, which dead letters
         // it. Reporting the whole batch took every envelope that mapped fine down with it
         var prepared = new List<Envelope>(batch.Messages.Count);
@@ -73,7 +76,7 @@ public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
             batch = new OutgoingMessageBatch(batch.Destination, prepared);
         }
 
-        // Phase 2 — produce the lot and learn how each record fared
+        // Phase 2: produce the lot and learn how each record fared
         Exception?[] failures;
         try
         {
@@ -115,10 +118,5 @@ public class KafkaSenderProtocol : ISenderProtocol, IAsyncDisposable
         }
 
         await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, failed), firstFailure);
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        return _producer.DisposeAsync();
     }
 }

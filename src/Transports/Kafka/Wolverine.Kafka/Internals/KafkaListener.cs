@@ -423,7 +423,7 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             var record = await _endpoint.EnvelopeMapper!.CreateMessage(envelope);
 
             // ProduceAsync completes on the broker's ack, so the record is durable once it returns
-            var producer = await _endpoint.Parent.RecordProducerFor(_endpoint, transport).GetAsync();
+            var producer = await transport.ProducerFor(_endpoint).GetAsync();
             await producer.ProduceAsync(record.ToProducerMessage(dlqTopicName), CancellationToken.None);
 
             _logger.LogInformation(

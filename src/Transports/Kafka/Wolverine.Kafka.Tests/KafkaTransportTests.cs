@@ -151,6 +151,48 @@ public class KafkaTransportTests
     }
 
     [Fact]
+    public void topics_with_the_same_producer_options_share_one_producer()
+    {
+        var transport = new KafkaTransport { ProducerConfig = { BootstrapServers = "localhost:9092" } };
+
+        var one = transport.ProducerFor(transport.Topics["one"]);
+        transport.ProducerFor(transport.Topics["two"]).ShouldBeSameAs(one);
+        transport.ProducerFor(transport.Topics[transport.DeadLetterQueueTopicName]).ShouldBeSameAs(one);
+        transport.Producers.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public void a_topic_with_its_own_producer_options_gets_its_own_producer()
+    {
+        var transport = new KafkaTransport { ProducerConfig = { BootstrapServers = "localhost:9092" } };
+        var lingering = transport.Topics["lingering"];
+        lingering.ProducerConfig = new KafkaProducerOptions { Linger = TimeSpan.FromMilliseconds(50) };
+
+        transport.ProducerFor(lingering).ShouldNotBeSameAs(transport.ProducerFor(transport.Topics["plain"]));
+
+        // It still inherits the cluster's connection settings
+        transport.ProducerFor(lingering).Config.BootstrapServers.ShouldBe("localhost:9092");
+    }
+
+    [Fact]
+    public async Task disposing_the_transport_disposes_its_tenants_producers()
+    {
+        var transport = new KafkaTransport { ProducerConfig = { BootstrapServers = "localhost:9092" } };
+        var tenant = new KafkaTenant("red");
+        tenant.Transport.ProducerConfig = new KafkaProducerOptions { BootstrapServers = "localhost:9093" };
+        transport.Tenants[tenant.TenantId] = tenant;
+
+        var topic = transport.Topics["one"];
+        var tenantProducer = tenant.Transport.ProducerFor(topic);
+        tenantProducer.ShouldNotBeSameAs(transport.ProducerFor(topic));
+        tenantProducer.Config.BootstrapServers.ShouldBe("localhost:9093");
+
+        await transport.DisposeAsync();
+
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await tenantProducer.GetAsync());
+    }
+
+    [Fact]
     public void acks_all_is_allowed_with_idempotence()
     {
         new KafkaProducerOptions { Acks = Acks.All }.AssertAcksAllowed("test");

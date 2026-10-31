@@ -95,7 +95,7 @@ internal sealed class MoveToKafkaRetryTopicContinuation : UserDefinedContinuatio
         try
         {
             // ProduceAsync completes on the broker's ack, so the record is durable once it returns
-            var producer = await transport.RecordProducerFor(retryTopic, transport).GetAsync();
+            var producer = await transport.ProducerFor(retryTopic).GetAsync();
             await producer.ProduceAsync(record.ToProducerMessage(retryTopicName), CancellationToken.None);
 
             // Commit the *source* offset so the partition advances past this message.

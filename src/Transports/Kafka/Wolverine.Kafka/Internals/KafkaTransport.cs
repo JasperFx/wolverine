@@ -30,11 +30,6 @@ public enum KafkaUsage
 
 public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
 {
-    // Dead letter and retry-tier moves produce one record at a time, so they share a producer per topic and
-    // producing cluster instead of connecting one per record
-    private readonly ConcurrentDictionary<(KafkaTransport Producing, string Topic), LazyKafkaProducer>
-        _recordProducers = new();
-
     // The producers and consumers running against this cluster, which the health check reads
     private readonly ConcurrentDictionary<IKafkaClientHealthSource, byte> _clients = new();
 
@@ -85,6 +80,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
     public KafkaTransport(string protocol) : base(protocol, "Kafka Topics", ["kafka"])
     {
         Topics = new Cache<string, KafkaTopic>(topicName => new KafkaTopic(this, topicName, EndpointRole.Application));
+        Producers = new KafkaProducerPool(this);
     }
 
     /// <summary>
@@ -394,22 +390,23 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
     internal void ForgetClient(IKafkaClientHealthSource client) => _clients.TryRemove(client, out _);
 
     /// <summary>
-    /// The shared producer for one-off produces on behalf of <paramref name="topic" /> to the cluster of
-    /// <paramref name="producingTransport" />, which is this transport or one of its tenants' (GH-3303). Owned by
-    /// this transport, because tenant transports are never disposed.
+    /// The shared producer for <paramref name="topic" /> on this cluster. On the topic's own transport it honors the
+    /// topic-level producer overrides; a tenant's transport (GH-3303) uses that cluster's options.
     /// </summary>
-    internal LazyKafkaProducer RecordProducerFor(KafkaTopic topic, KafkaTransport producingTransport)
+    internal LazyKafkaProducer ProducerFor(KafkaTopic topic)
     {
-        return _recordProducers.GetOrAdd((producingTransport, topic.TopicName),
-            static (key, topic) => LazyKafkaProducer.For(topic, key.Producing), topic);
+        var options = ReferenceEquals(this, topic.Parent) ? topic.GetEffectiveProducerConfig() : ProducerConfig;
+        return Producers.For(options);
     }
+
+    /// <summary>
+    /// The producers for this cluster, owned and disposed by this transport
+    /// </summary>
+    internal KafkaProducerPool Producers { get; }
 
     public async ValueTask DisposeAsync()
     {
-        var owned = _recordProducers.Values.ToArray();
-        _recordProducers.Clear();
-
-        // Each drain is bounded, and they are independent
-        await Task.WhenAll(owned.Select(x => x.DisposeAsync().AsTask()));
+        // Tenant transports are not registered with the runtime, so the parent disposes their producers too
+        await Task.WhenAll(Tenants.Select(x => x.Transport.DisposeAsync().AsTask()).Append(Producers.DisposeAsync().AsTask()));
     }
 }

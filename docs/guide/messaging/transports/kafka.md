@@ -217,6 +217,11 @@ base covers connectivity and security (`BootstrapServers`, `ClientId`, `Security
 `ConfigureProducerBuilders()` / `ConfigureAdminClientBuilders()`, which hand you Dekaf's fluent
 `ConsumerBuilder<string, byte[]>` / `ProducerBuilder<string, byte[]>` / `AdminClientBuilder` directly.
 
+Wolverine builds one producer per cluster for each distinct set of producer options. Every topic without its own
+producer options, the dead letter topic and the retry-tier topics share that producer, and a topic configured with
+`ConfigureProducer(...)` gets a producer of its own only when its options differ. Broker-per-tenant clusters each
+get their own producers.
+
 ## Listener Consumer Settings <Badge type="tip" text="5.16" />
 
 When building a Kafka listener, Wolverine configures the underlying `KafkaConsumerOptions` differently

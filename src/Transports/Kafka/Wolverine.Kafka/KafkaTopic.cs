@@ -298,7 +298,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         {
             var dlqTopic = Parent.Topics[Parent.DeadLetterQueueTopicName];
             dlqTopic.EnvelopeMapper ??= dlqTopic.BuildMapper(runtime);
-            deadLetterSender = new InlineKafkaSender(dlqTopic, Parent.RecordProducerFor(dlqTopic, Parent));
+            deadLetterSender = new InlineKafkaSender(dlqTopic, fixedDestination: true);
             return true;
         }
 

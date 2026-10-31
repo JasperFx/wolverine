@@ -4,8 +4,9 @@ using Dekaf.Producer;
 namespace Wolverine.Kafka.Internals;
 
 /// <summary>
-/// A Dekaf producer built on first use and kept until disposal. Dekaf producers are built and initialized
-/// asynchronously, but the senders that own one are constructed on synchronous paths.
+/// A Dekaf producer built on first use and kept until its <see cref="KafkaProducerPool" /> is disposed. Dekaf
+/// producers are built and initialized asynchronously, but the senders that borrow one are constructed on
+/// synchronous paths.
 /// </summary>
 internal sealed class LazyKafkaProducer : IAsyncDisposable, IKafkaClientHealthSource
 {
@@ -20,19 +21,6 @@ internal sealed class LazyKafkaProducer : IAsyncDisposable, IKafkaClientHealthSo
         _transport = transport;
         Config = config;
         transport.TrackClient(this);
-    }
-
-    /// <summary>
-    /// A producer for <paramref name="topic" /> on <paramref name="transport" />. On the topic's own transport it
-    /// honors the topic-level producer overrides; a tenant's transport (GH-3303) uses that cluster's options.
-    /// </summary>
-    public static LazyKafkaProducer For(KafkaTopic topic, KafkaTransport transport)
-    {
-        var config = ReferenceEquals(transport, topic.Parent)
-            ? topic.GetEffectiveProducerConfig()
-            : transport.ProducerConfig;
-
-        return new LazyKafkaProducer(transport, config);
     }
 
     public KafkaProducerOptions Config { get; }
