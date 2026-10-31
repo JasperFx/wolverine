@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+using Dekaf.Producer;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine.Kafka.Internals;
@@ -7,10 +7,13 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Kafka;
 
-public class KafkaSenderProtocol : ISenderProtocol, IDisposable
+/// <summary>
+/// Sends batches over the shared producer of the topic's cluster, which its <see cref="KafkaProducerPool" /> disposes
+/// </summary>
+public class KafkaSenderProtocol : ISenderProtocol
 {
     private readonly KafkaTopic _topic;
-    private readonly IProducer<string, byte[]> _producer;
+    private readonly LazyKafkaProducer _producer;
 
     /// <summary>
     ///     Where an envelope the mapper throws on is logged with the original exception
@@ -23,43 +26,37 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
     }
 
     // Broker-per-tenant (GH-3303): batch over an explicit transport (a tenant's child transport pointed at its
-    // own cluster) rather than always the topic's parent. When it *is* the parent, behaves exactly as before.
+    // own cluster) rather than always the topic's parent
     internal KafkaSenderProtocol(KafkaTopic topic, KafkaTransport producerTransport)
     {
         _topic = topic;
-        var config = ReferenceEquals(producerTransport, topic.Parent)
-            ? topic.GetEffectiveProducerConfig()
-            : producerTransport.ProducerConfig;
-        _producer = producerTransport.CreateProducer(config);
+        _producer = producerTransport.ProducerFor(topic);
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
-        // wolverine#3076 — fire every produce call before awaiting any of them
-        // so the Confluent producer's internal batching window (linger.ms,
-        // batch.size, compression) actually has a population to coalesce.
-        // The previous implementation awaited each ProduceAsync inline, which
-        // forced a broker round-trip per message and capped throughput at the
-        // network RTT — under a durable outbox driving 100k+ messages the
-        // serialized awaits dwarfed the on-broker work the producer settings
-        // were tuned for.
+        // wolverine#3076: hand the whole batch to the producer at once so its internal batching
+        // window (linger, batch size, compression) has a population to coalesce, instead of one
+        // broker round-trip per message.
         //
-        // If every send acks, MarkSuccessfulAsync for the batch. If any fails,
-        // the acked records are reported successful and only the rest failed,
-        // each as its own OutgoingMessageBatch, the way the SQS sender does.
+        // If every record acks, MarkSuccessfulAsync for the batch. If any fails, the acked records are
+        // reported successful and only the rest failed. Failing the whole batch would send the acked records
+        // again on retry, and a record that can never succeed (one over message.max.bytes) would duplicate
+        // its siblings on every durability pass.
 
-        // Phase 1 — map every envelope to a Confluent Message<>. GH-5055: an
-        // envelope the mapper throws on can never be sent, so only that one is
-        // reported as a serialization failure, which dead letters it. Reporting
-        // the whole batch took every envelope that mapped fine down with it
-        var prepared = new List<(Envelope envelope, Message<string, byte[]> message)>(batch.Messages.Count);
+        // Phase 1: map every envelope to a producer message. GH-5055: an envelope the mapper throws on
+        // can never be sent, so only that one is reported as a serialization failure, which dead letters
+        // it. Reporting the whole batch took every envelope that mapped fine down with it
+        var prepared = new List<Envelope>(batch.Messages.Count);
+        var messages = new List<ProducerMessage<string, byte[]>>(batch.Messages.Count);
         List<Envelope>? unmappable = null;
         foreach (var envelope in batch.Messages)
         {
             try
             {
-                var message = await _topic.EnvelopeMapper!.CreateMessage(envelope);
-                prepared.Add((envelope, message));
+                var record = await _topic.EnvelopeMapper!.CreateMessage(envelope);
+                messages.Add(record.ToProducerMessage(envelope.TopicName ?? _topic.TopicName));
+                prepared.Add(envelope);
             }
             catch (Exception e)
             {
@@ -76,51 +73,50 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
 
             if (prepared.Count == 0) return;
 
-            batch = new OutgoingMessageBatch(batch.Destination, prepared.Select(x => x.envelope).ToList());
+            batch = new OutgoingMessageBatch(batch.Destination, prepared);
         }
 
-        // Phase 2 — enqueue every produce without awaiting so the Confluent
-        // producer can fill its internal accumulator before any broker round-
-        // trip starts. ProduceAsync returns a Task that completes on broker
-        // ack; capturing them up front and awaiting Task.WhenAll lets the
-        // producer batch the underlying ProduceRequest across the lot of
-        // them rather than fanning one network call per message.
-        var produceTasks = new List<Task<DeliveryResult<string, byte[]>>>(prepared.Count);
-        foreach (var (envelope, message) in prepared)
-        {
-            produceTasks.Add(_producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message));
-        }
-
+        // Phase 2: produce the lot and learn how each record fared
+        Exception?[] failures;
         try
         {
-            await Task.WhenAll(produceTasks);
+            var producer = await _producer.GetAsync();
+            failures = await KafkaBatchDelivery.ProduceAsync(producer, messages);
         }
         catch (Exception ex)
         {
-            // Each record is acked on its own, so report the ones the broker did ack as sent. Failing the whole
-            // batch would send those again on retry, and a record that can never succeed (one over
-            // message.max.bytes) would duplicate its siblings on every retry
-            var succeeded = new List<Envelope>();
-            var failed = new List<Envelope>();
-            for (var i = 0; i < prepared.Count; i++)
-            {
-                (produceTasks[i].IsCompletedSuccessfully ? succeeded : failed).Add(prepared[i].envelope);
-            }
-
-            if (succeeded.Count > 0)
-            {
-                await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, succeeded));
-            }
-
-            await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, failed), ex);
+            // No producer, so nothing was sent
+            await callback.MarkProcessingFailureAsync(batch, ex);
             return;
         }
 
-        await callback.MarkSuccessfulAsync(batch);
-    }
+        List<Envelope>? succeeded = null;
+        List<Envelope>? failed = null;
+        Exception? firstFailure = null;
+        for (var i = 0; i < failures.Length; i++)
+        {
+            if (failures[i] is { } failure)
+            {
+                (failed ??= []).Add(prepared[i]);
+                firstFailure ??= failure;
+            }
+            else
+            {
+                (succeeded ??= []).Add(prepared[i]);
+            }
+        }
 
-    public void Dispose()
-    {
-        _producer.Dispose();
+        if (failed == null)
+        {
+            await callback.MarkSuccessfulAsync(batch);
+            return;
+        }
+
+        if (succeeded != null)
+        {
+            await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, succeeded));
+        }
+
+        await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, failed), firstFailure);
     }
 }

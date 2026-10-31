@@ -1,15 +1,17 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using JasperFx.Blocks;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime;
+using Wolverine.Util;
 
 namespace Wolverine.Transports.Sending;
 
-public class InlineSendingAgent : ISendingAgent, IDisposable
+public class InlineSendingAgent : ISendingAgent, IAsyncDisposable
 {
     private readonly ILogger _logger;
     private readonly IMessageTracker _messageLogger;
@@ -52,9 +54,11 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
 
     public ISender Sender { get; }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         (_sending as IDisposable)?.Dispose();
+
+        await Sender.MaybeDisposeAsync().ConfigureAwait(false);
     }
 
     public Uri Destination => Sender.Destination;

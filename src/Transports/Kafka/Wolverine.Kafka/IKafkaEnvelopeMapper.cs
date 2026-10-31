@@ -1,12 +1,13 @@
 using System.Text;
-using Confluent.Kafka;
+using Dekaf.Consumer;
+using Wolverine.Kafka.Internals;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Util;
 
 namespace Wolverine.Kafka;
 
-public interface IKafkaEnvelopeMapper : IEnvelopeMapper<Message<string, byte[]>, Message<string, byte[]>>;
+public interface IKafkaEnvelopeMapper : IEnvelopeMapper<ConsumeResult<string, byte[]>, OutgoingKafkaRecord>;
 
 /// <summary>
 /// Option to publish or receive raw JSON from or to Kafka topics
@@ -22,7 +23,7 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         _messageTypeName = topic.MessageType?.ToMessageTypeName();
     }
 
-    public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
+    public void MapEnvelopeToOutgoing(Envelope envelope, OutgoingKafkaRecord outgoing)
     {
         outgoing.Key = envelope.GroupId!;
 
@@ -32,7 +33,6 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         // though this mapper strips all other Wolverine metadata off the record.
         if (envelope.MessageType == Envelope.PingMessageType)
         {
-            outgoing.Headers ??= new Headers();
             outgoing.Headers.Add(EnvelopeConstants.MessageTypeKey, Encoding.UTF8.GetBytes(Envelope.PingMessageType));
             outgoing.Value = envelope.Data ?? [];
             return;
@@ -51,7 +51,7 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         }
     }
 
-    public void MapIncomingToEnvelope(Envelope envelope, Message<string, byte[]> incoming)
+    public void MapIncomingToEnvelope(Envelope envelope, ConsumeResult<string, byte[]> incoming)
     {
         // Honor Wolverine's own infrastructure messages (currently just ping) even when this
         // listener is configured for raw JSON. InlineKafkaSender.PingAsync produces a
@@ -59,8 +59,9 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         // the raw-JSON mapper would stamp the user's message type on it, and the four-byte
         // ping body would blow up the JSON deserializer with "0x01 is an invalid start of a
         // value." See https://github.com/JasperFx/wolverine/issues/2838.
-        if (TryReadHeader(incoming, EnvelopeConstants.MessageTypeKey, out var incomingMessageType)
-            && incomingMessageType == Envelope.PingMessageType)
+        var headers = incoming.Headers;
+        if (headers.TryGetLastHeaderValue(EnvelopeConstants.MessageTypeKey, skipNullValues: false,
+                out var incomingMessageType) && incomingMessageType == Envelope.PingMessageType)
         {
             envelope.MessageType = Envelope.PingMessageType;
             envelope.Data = incoming.Value;
@@ -82,39 +83,21 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
             envelope.ContentType = _topic.DefaultSerializer.ContentType;
         }
 
-        if (incoming.Timestamp.Type is TimestampType.CreateTime or TimestampType.LogAppendTime)
+        if (incoming.TimestampType is TimestampType.CreateTime or TimestampType.LogAppendTime)
         {
             envelope.SentAt = incoming.Timestamp.UtcDateTime;
         }
 
-        if (incoming.Headers is null)
-        {
-            return;
-        }
-
-        foreach (var header in incoming.Headers)
+        foreach (var header in headers)
         {
             if (EnvelopeSerializer.ReservedHeaderKeys.Contains(header.Key))
             {
                 continue;
             }
 
-            if (TryReadHeader(incoming, header.Key, out var headerValue))
-            {
-                envelope.Headers.TryAdd(header.Key, headerValue);
-            }
+            // GetValueAsString copies out of the consumer's pooled buffer, so the value stays
+            // valid after the consumer advances
+            envelope.Headers.TryAdd(header.Key, header.IsValueNull ? null : header.GetValueAsString());
         }
-    }
-
-    private static bool TryReadHeader(Message<string, byte[]> incoming, string key, out string? value)
-    {
-        if (incoming.Headers != null && incoming.Headers.TryGetLastBytes(key, out var bytes))
-        {
-            value = bytes is null ? null : Encoding.UTF8.GetString(bytes);
-            return true;
-        }
-
-        value = null;
-        return false;
     }
 }

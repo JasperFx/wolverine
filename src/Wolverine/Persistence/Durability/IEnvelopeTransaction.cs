@@ -18,6 +18,26 @@ public static class EnvelopeTransactionExtensions
 {
     public static Task PersistAsync(this IEnvelopeTransaction transaction, Envelope envelope)
     {
+        var serializing = envelope.SerializeAheadAsync();
+        if (!serializing.IsCompletedSuccessfully)
+        {
+            return serializeThenPersistAsync(transaction, envelope, serializing);
+        }
+
+        return persist(transaction, envelope);
+    }
+
+    // The store reads Envelope.Data synchronously when it writes the row, so an async serializer has to have
+    // finished before it gets there
+    private static async Task serializeThenPersistAsync(IEnvelopeTransaction transaction, Envelope envelope,
+        ValueTask serializing)
+    {
+        await serializing.ConfigureAwait(false);
+        await persist(transaction, envelope).ConfigureAwait(false);
+    }
+
+    private static Task persist(IEnvelopeTransaction transaction, Envelope envelope)
+    {
         if (envelope.Destination!.Scheme == TransportConstants.Local)
         {
             return transaction.PersistIncomingAsync(envelope);

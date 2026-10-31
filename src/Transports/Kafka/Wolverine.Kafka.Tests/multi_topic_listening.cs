@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;

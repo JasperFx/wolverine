@@ -1,4 +1,6 @@
-using Confluent.Kafka;
+using Dekaf.Security.Sasl;
+using Dekaf.Consumer;
+using IsolationLevel = Dekaf.Protocol.Messages.IsolationLevel;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
@@ -51,14 +53,14 @@ public class kafka_eos_building_blocks
     }
 
     [Fact]
-    public void subscriber_idempotent_producer_inherits_sasl_ssl_settings_from_parent_transport()
+    public void subscriber_idempotent_producer_inherits_tls_and_sasl_settings_from_parent_transport()
     {
         // UseIdempotentProducer() builds a fresh per-topic ProducerConfig containing only
         // EnableIdempotence, the same pattern as the per-topic ConsumerConfig builders above.
         // GetEffectiveProducerConfig() previously only backfilled BootstrapServers from the parent,
-        // silently dropping SecurityProtocol/SaslMechanism/SaslUsername/SaslPassword.
+        // silently dropping UseTls/SaslMechanism/SaslUsername/SaslPassword.
         var transport = new KafkaTransport();
-        transport.ProducerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        transport.ProducerConfig.UseTls = true;
         transport.ProducerConfig.SaslMechanism = SaslMechanism.Plain;
         transport.ProducerConfig.SaslUsername = "api-key";
         transport.ProducerConfig.SaslPassword = "api-secret";
@@ -69,7 +71,7 @@ public class kafka_eos_building_blocks
         ((IDelayedEndpointConfiguration)config).Apply();
 
         var effective = topic.GetEffectiveProducerConfig();
-        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.UseTls.ShouldBe(true);
         effective.SaslMechanism.ShouldBe(SaslMechanism.Plain);
         effective.SaslUsername.ShouldBe("api-key");
         effective.SaslPassword.ShouldBe("api-secret");

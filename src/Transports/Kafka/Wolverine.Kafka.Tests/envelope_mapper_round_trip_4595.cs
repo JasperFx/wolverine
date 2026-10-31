@@ -1,4 +1,3 @@
-using Confluent.Kafka;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
@@ -34,18 +33,22 @@ public class envelope_mapper_round_trip_4595
 
     private Envelope receive(Envelope outgoing)
     {
+        var record = mapOutgoing(outgoing);
+        var incoming = TestRecords.Incoming("round-trip-4595", record.Key, record.Value,
+            record.Headers.Select(h =>
+                new KeyValuePair<string, byte[]?>(h.Key, h.IsValueNull ? null : h.GetValueAsArray())));
+
         var received = new Envelope();
-        theMapper.MapIncomingToEnvelope(received, mapOutgoing(outgoing));
+        theMapper.MapIncomingToEnvelope(received, incoming);
 
         return received;
     }
 
-    private Message<string, byte[]> mapOutgoing(Envelope envelope)
+    private OutgoingKafkaRecord mapOutgoing(Envelope envelope)
     {
-        // the sender always hands the mapper a message with its header list already created
-        var message = new Message<string, byte[]> { Headers = new Headers() };
-        theMapper.MapEnvelopeToOutgoing(envelope, message);
+        var record = new OutgoingKafkaRecord();
+        theMapper.MapEnvelopeToOutgoing(envelope, record);
 
-        return message;
+        return record;
     }
 }

@@ -343,10 +343,18 @@ internal class DurableSendingAgent : SendingAgent
     // makes its "a store that throws still reports no send" comment true.
     private Task storeOutgoingAsync(Envelope envelope)
     {
-        return DurableWriteRetry.ExecuteAsync(
-            () => _storeCoalescer != null
-                ? _storeCoalescer.StoreAsync(envelope)
-                : _outbox.StoreOutgoingAsync(envelope, _settings.OutgoingOwnerId),
+        return DurableWriteRetry.ExecuteAsync(() => serializeAndStoreOutgoingAsync(envelope),
             envelope, _logger, _settings.Cancellation);
+    }
+
+    // The store reads Envelope.Data synchronously, so an async serializer finishes first. Inside the retried
+    // write, so a transient serializer failure (an unreachable schema registry) is retried like the write
+    private async Task serializeAndStoreOutgoingAsync(Envelope envelope)
+    {
+        await envelope.SerializeAheadAsync().ConfigureAwait(false);
+
+        await (_storeCoalescer != null
+            ? _storeCoalescer.StoreAsync(envelope)
+            : _outbox.StoreOutgoingAsync(envelope, _settings.OutgoingOwnerId)).ConfigureAwait(false);
     }
 }

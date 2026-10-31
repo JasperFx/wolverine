@@ -1,5 +1,6 @@
-using Confluent.Kafka;
-using Confluent.Kafka.Admin;
+using Dekaf.Security.Sasl;
+using Dekaf.Consumer;
+using Dekaf.Producer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -25,7 +26,7 @@ public class KafkaTopicGroupConfigurationTests
             .Specification(spec => spec.NumPartitions = 12);
         ((IDelayedEndpointConfiguration)config).Apply();
 
-        var capturedSpec = new TopicSpecification { Name = "topic-a" };
+        var capturedSpec = new KafkaTopicSpecification { Name = "topic-a" };
         group.SpecificationConfig.ShouldNotBeNull();
         group.SpecificationConfig!("topic-a", capturedSpec);
         capturedSpec.NumPartitions.ShouldBe(12);
@@ -41,11 +42,11 @@ public class KafkaTopicGroupConfigurationTests
 
         group.SpecificationConfig.ShouldNotBeNull();
 
-        var specA = new TopicSpecification { Name = "topic-a" };
+        var specA = new KafkaTopicSpecification { Name = "topic-a" };
         group.SpecificationConfig!("topic-a", specA);
         specA.NumPartitions.ShouldBe(6);
 
-        var specB = new TopicSpecification { Name = "topic-b" };
+        var specB = new KafkaTopicSpecification { Name = "topic-b" };
         group.SpecificationConfig!("topic-b", specB);
         specB.NumPartitions.ShouldBe(24);
     }
@@ -54,7 +55,7 @@ public class KafkaTopicGroupConfigurationTests
     public void topic_creation_sets_func_on_group()
     {
         var group = BuildGroup("topic-a", "topic-b");
-        Func<Confluent.Kafka.IAdminClient, string, Task> func = (_, _) => Task.CompletedTask;
+        Func<Dekaf.Admin.IAdminClient, string, Task> func = (_, _) => Task.CompletedTask;
 
         var config = new KafkaTopicGroupListenerConfiguration(group)
             .TopicCreation(func);
@@ -70,7 +71,7 @@ public class KafkaTopicGroupConfigurationTests
         var group = BuildGroup("topic-a");
         Should.Throw<ArgumentNullException>(() =>
             new KafkaTopicGroupListenerConfiguration(group)
-                .Specification((Action<TopicSpecification>)null!));
+                .Specification((Action<KafkaTopicSpecification>)null!));
     }
 
     [Fact]
@@ -79,7 +80,7 @@ public class KafkaTopicGroupConfigurationTests
         var group = BuildGroup("topic-a");
         Should.Throw<ArgumentNullException>(() =>
             new KafkaTopicGroupListenerConfiguration(group)
-                .Specification((Action<string, TopicSpecification>)null!));
+                .Specification((Action<string, KafkaTopicSpecification>)null!));
     }
 
     [Fact]
@@ -125,6 +126,123 @@ public class KafkaTransportTests
     public void produce_and_consume_by_default()
     {
         new KafkaTransport().Usage.ShouldBe(KafkaUsage.ProduceAndConsume);
+    }
+
+    [Theory]
+    [InlineData(Acks.None)]
+    [InlineData(Acks.Leader)]
+    public void acks_below_all_need_idempotence_turned_off(Acks acks)
+    {
+        Should.Throw<InvalidOperationException>(() =>
+            new KafkaProducerOptions { Acks = acks }.AssertAcksAllowed("test"));
+
+        new KafkaProducerOptions { Acks = acks, EnableIdempotence = false }.AssertAcksAllowed("test");
+    }
+
+    [Fact]
+    public async Task a_disposed_lazy_producer_refuses_to_build_another()
+    {
+        var transport = new KafkaTransport();
+        var producer = new LazyKafkaProducer(transport, transport.ProducerConfig);
+
+        await producer.DisposeAsync();
+        await producer.DisposeAsync();
+
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await producer.GetAsync());
+    }
+
+    [Fact]
+    public void topics_with_the_same_producer_options_share_one_producer()
+    {
+        var transport = new KafkaTransport { ProducerConfig = { BootstrapServers = "localhost:9092" } };
+
+        var one = transport.ProducerFor(transport.Topics["one"]);
+        transport.ProducerFor(transport.Topics["two"]).ShouldBeSameAs(one);
+        transport.ProducerFor(transport.Topics[transport.DeadLetterQueueTopicName]).ShouldBeSameAs(one);
+        transport.Producers.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public void a_topic_with_its_own_producer_options_gets_its_own_producer()
+    {
+        var transport = new KafkaTransport { ProducerConfig = { BootstrapServers = "localhost:9092" } };
+        var lingering = transport.Topics["lingering"];
+        lingering.ProducerConfig = new KafkaProducerOptions { Linger = TimeSpan.FromMilliseconds(50) };
+
+        transport.ProducerFor(lingering).ShouldNotBeSameAs(transport.ProducerFor(transport.Topics["plain"]));
+
+        // It still inherits the cluster's connection settings
+        transport.ProducerFor(lingering).Config.BootstrapServers.ShouldBe("localhost:9092");
+    }
+
+    [Fact]
+    public async Task disposing_the_transport_disposes_its_tenants_producers()
+    {
+        var transport = new KafkaTransport { ProducerConfig = { BootstrapServers = "localhost:9092" } };
+        var tenant = new KafkaTenant("red");
+        tenant.Transport.ProducerConfig = new KafkaProducerOptions { BootstrapServers = "localhost:9093" };
+        transport.Tenants[tenant.TenantId] = tenant;
+
+        var topic = transport.Topics["one"];
+        var tenantProducer = tenant.Transport.ProducerFor(topic);
+        tenantProducer.ShouldNotBeSameAs(transport.ProducerFor(topic));
+        tenantProducer.Config.BootstrapServers.ShouldBe("localhost:9093");
+
+        await transport.DisposeAsync();
+
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await tenantProducer.GetAsync());
+    }
+
+    [Fact]
+    public void acks_all_is_allowed_with_idempotence()
+    {
+        new KafkaProducerOptions { Acks = Acks.All }.AssertAcksAllowed("test");
+    }
+
+    [Theory]
+    [InlineData(SaslMechanism.Gssapi)]
+    [InlineData(SaslMechanism.OAuthBearer)]
+    [InlineData(SaslMechanism.AwsMskIam)]
+    public void sasl_mechanisms_that_need_more_than_a_password_are_refused(SaslMechanism mechanism)
+    {
+        Should.Throw<InvalidOperationException>(() =>
+            new KafkaConsumerOptions { SaslMechanism = mechanism }.AssertSaslSupported("test"));
+    }
+
+    [Theory]
+    [InlineData(SaslMechanism.None)]
+    [InlineData(SaslMechanism.Plain)]
+    [InlineData(SaslMechanism.ScramSha256)]
+    [InlineData(SaslMechanism.ScramSha512)]
+    public void password_sasl_mechanisms_are_allowed(SaslMechanism mechanism)
+    {
+        new KafkaConsumerOptions { SaslMechanism = mechanism }.AssertSaslSupported("test");
+    }
+
+    [Fact]
+    public void by_duration_offset_reset_needs_a_duration()
+    {
+        var options = new KafkaConsumerOptions { BootstrapServers = "localhost:9092", AutoOffsetReset = AutoOffsetReset.ByDuration };
+
+        Should.Throw<InvalidOperationException>(() => Dekaf.Kafka.CreateConsumer<string, byte[]>().ApplyOptions(options));
+
+        options.AutoOffsetResetDuration = TimeSpan.FromHours(1);
+        Dekaf.Kafka.CreateConsumer<string, byte[]>().ApplyOptions(options);
+    }
+
+    [Fact]
+    public void topic_consumer_options_inherit_the_offset_reset_duration()
+    {
+        var transport = new KafkaTransport();
+        transport.ConsumerConfig.AutoOffsetResetDuration = TimeSpan.FromHours(1);
+        transport.ConsumerConfig.OffsetCommitMode = OffsetCommitMode.Manual;
+
+        var topic = transport.Topics["one"];
+        topic.ConsumerConfig = new KafkaConsumerOptions();
+        topic.ConsumerConfig.InheritDefaultsFrom(transport.ConsumerConfig);
+
+        topic.ConsumerConfig.AutoOffsetResetDuration.ShouldBe(TimeSpan.FromHours(1));
+        topic.ConsumerConfig.OffsetCommitMode.ShouldBe(OffsetCommitMode.Manual);
     }
 }
 
@@ -247,19 +365,19 @@ public class KafkaListenerConfigurationTests
         effective.AutoOffsetReset.ShouldBe(AutoOffsetReset.Earliest);
     }
 
-    // The methods below (BeginAtEarliest/BeginAtLatest/UseReadCommitted/UseCooperativeStickyAssignment/
+    // The methods below (BeginAtEarliest/BeginAtLatest/UseReadCommitted/
     // UseStaticMembership/TailFromLatest) all build a fresh per-topic ConsumerConfig containing only the
     // one property they set, the same as BeginAtEarliest() did for GroupId before it was fixed above.
     // GetEffectiveConsumerConfig() previously only backfilled BootstrapServers/GroupId from the parent,
-    // silently dropping SecurityProtocol/SaslMechanism/SaslUsername/SaslPassword -- a listener using any
+    // silently dropping UseTls/SaslMechanism/SaslUsername/SaslPassword -- a listener using any
     // of these methods without a subsequent ExtendConsumerConfiguration() call would connect to a
     // SASL_SSL broker without credentials and be disconnected during the initial handshake.
 
     [Fact]
-    public void begin_at_earliest_inherits_sasl_ssl_settings_from_parent_transport()
+    public void begin_at_earliest_inherits_tls_and_sasl_settings_from_parent_transport()
     {
         var topic = BuildTopic();
-        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        topic.Parent.ConsumerConfig.UseTls = true;
         topic.Parent.ConsumerConfig.SaslMechanism = SaslMechanism.Plain;
         topic.Parent.ConsumerConfig.SaslUsername = "api-key";
         topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
@@ -269,17 +387,17 @@ public class KafkaListenerConfigurationTests
         ((IDelayedEndpointConfiguration)config).Apply();
 
         var effective = topic.GetEffectiveConsumerConfig();
-        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.UseTls.ShouldBe(true);
         effective.SaslMechanism.ShouldBe(SaslMechanism.Plain);
         effective.SaslUsername.ShouldBe("api-key");
         effective.SaslPassword.ShouldBe("api-secret");
     }
 
     [Fact]
-    public void begin_at_latest_inherits_sasl_ssl_settings_from_parent_transport()
+    public void begin_at_latest_inherits_tls_and_sasl_settings_from_parent_transport()
     {
         var topic = BuildTopic();
-        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        topic.Parent.ConsumerConfig.UseTls = true;
         topic.Parent.ConsumerConfig.SaslMechanism = SaslMechanism.Plain;
         topic.Parent.ConsumerConfig.SaslUsername = "api-key";
         topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
@@ -289,17 +407,17 @@ public class KafkaListenerConfigurationTests
         ((IDelayedEndpointConfiguration)config).Apply();
 
         var effective = topic.GetEffectiveConsumerConfig();
-        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.UseTls.ShouldBe(true);
         effective.SaslMechanism.ShouldBe(SaslMechanism.Plain);
         effective.SaslUsername.ShouldBe("api-key");
         effective.SaslPassword.ShouldBe("api-secret");
     }
 
     [Fact]
-    public void use_read_committed_inherits_sasl_ssl_settings_from_parent_transport()
+    public void use_read_committed_inherits_tls_and_sasl_settings_from_parent_transport()
     {
         var topic = BuildTopic();
-        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        topic.Parent.ConsumerConfig.UseTls = true;
         topic.Parent.ConsumerConfig.SaslUsername = "api-key";
         topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
 
@@ -308,34 +426,16 @@ public class KafkaListenerConfigurationTests
         ((IDelayedEndpointConfiguration)config).Apply();
 
         var effective = topic.GetEffectiveConsumerConfig();
-        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.UseTls.ShouldBe(true);
         effective.SaslUsername.ShouldBe("api-key");
         effective.SaslPassword.ShouldBe("api-secret");
     }
 
     [Fact]
-    public void use_cooperative_sticky_assignment_inherits_sasl_ssl_settings_from_parent_transport()
+    public void use_static_membership_inherits_tls_and_sasl_settings_from_parent_transport()
     {
         var topic = BuildTopic();
-        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
-        topic.Parent.ConsumerConfig.SaslUsername = "api-key";
-        topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
-
-        var config = new KafkaListenerConfiguration(topic)
-            .UseCooperativeStickyAssignment();
-        ((IDelayedEndpointConfiguration)config).Apply();
-
-        var effective = topic.GetEffectiveConsumerConfig();
-        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
-        effective.SaslUsername.ShouldBe("api-key");
-        effective.SaslPassword.ShouldBe("api-secret");
-    }
-
-    [Fact]
-    public void use_static_membership_inherits_sasl_ssl_settings_from_parent_transport()
-    {
-        var topic = BuildTopic();
-        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        topic.Parent.ConsumerConfig.UseTls = true;
         topic.Parent.ConsumerConfig.SaslUsername = "api-key";
         topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
 
@@ -344,16 +444,16 @@ public class KafkaListenerConfigurationTests
         ((IDelayedEndpointConfiguration)config).Apply();
 
         var effective = topic.GetEffectiveConsumerConfig();
-        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.UseTls.ShouldBe(true);
         effective.SaslUsername.ShouldBe("api-key");
         effective.SaslPassword.ShouldBe("api-secret");
     }
 
     [Fact]
-    public void tail_from_latest_inherits_sasl_ssl_settings_from_parent_transport()
+    public void tail_from_latest_inherits_tls_and_sasl_settings_from_parent_transport()
     {
         var topic = BuildTopic();
-        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        topic.Parent.ConsumerConfig.UseTls = true;
         topic.Parent.ConsumerConfig.SaslUsername = "api-key";
         topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
 
@@ -362,7 +462,7 @@ public class KafkaListenerConfigurationTests
         ((IDelayedEndpointConfiguration)config).Apply();
 
         var effective = topic.GetEffectiveConsumerConfig();
-        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.UseTls.ShouldBe(true);
         effective.SaslUsername.ShouldBe("api-key");
         effective.SaslPassword.ShouldBe("api-secret");
     }

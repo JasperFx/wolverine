@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Microsoft.Extensions.Hosting;

@@ -42,7 +42,7 @@ public class duplicate_message_handling_with_postgres_inbox : IAsyncLifetime
             {
                 opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
-                    .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
+                    .ConfigureConsumers(c => c.AutoOffsetReset = Dekaf.Consumer.AutoOffsetReset.Earliest);
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "kafka_dup_test");
 
                 opts.ListenToKafkaTopic(_topicName).UseDurableInbox();
@@ -65,7 +65,7 @@ public class duplicate_message_handling_with_postgres_inbox : IAsyncLifetime
         var freshId = Guid.NewGuid();
 
         var transport = _host.GetRuntime().Options.Transports.GetOrCreate<KafkaTransport>();
-        var producerBuilder = new ProducerBuilder<string, byte[]>(transport.ProducerConfig);
+        var producerBuilder = new ProducerBuilder<string, byte[]>(new ProducerConfig { BootstrapServers = transport.ProducerConfig.BootstrapServers });
         using var producer = producerBuilder.Build();
 
         await ProduceAsync(producer, _topicName, fixedId, new DupTestMessage("first"));

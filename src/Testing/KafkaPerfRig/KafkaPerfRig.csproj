@@ -12,6 +12,12 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- NativeTwin.cs deliberately stays on raw Confluent.Kafka as the cross-library
+             comparison anchor now that Wolverine.Kafka itself runs on Dekaf -->
+        <PackageReference Include="Confluent.Kafka" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\..\Transports\Kafka\Wolverine.Kafka\Wolverine.Kafka.csproj" />
         <ProjectReference Include="..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
         <ProjectReference Include="..\..\Transports\NATS\Wolverine.Nats\Wolverine.Nats.csproj" />

@@ -71,7 +71,7 @@ public class Bug_2537_autoprovision_creates_missing_topics : IAsyncLifetime
                     .AutoProvision()
                     .ConfigureConsumers(c =>
                     {
-                        c.AutoOffsetReset = AutoOffsetReset.Earliest;
+                        c.AutoOffsetReset = Dekaf.Consumer.AutoOffsetReset.Earliest;
                         c.GroupId = $"bug2537-{Guid.NewGuid():N}";
                     });
 

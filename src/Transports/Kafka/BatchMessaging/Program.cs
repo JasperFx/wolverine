@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using JasperFx;
 using Wolverine;
 using Wolverine.Kafka;

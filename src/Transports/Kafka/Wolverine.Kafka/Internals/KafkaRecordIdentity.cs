@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
-using Confluent.Kafka;
 
 namespace Wolverine.Kafka.Internals;
 
@@ -63,7 +62,7 @@ internal sealed class KafkaRecordIdentity
     /// cluster for a broker-per-tenant listener, and null for the listener on the transport's own cluster.
     /// </summary>
     internal static KafkaRecordIdentity For(KafkaTransport transport, KafkaTransport? tenantTransport,
-        ConsumerConfig config)
+        KafkaConsumerOptions config)
     {
         string? tenantId = null;
         if (tenantTransport != null)

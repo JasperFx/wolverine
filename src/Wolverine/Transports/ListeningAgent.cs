@@ -77,7 +77,7 @@ public interface IListeningAgent : IListenerCircuit
     bool ReceiverHasFaulted => false;
 }
 
-public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
+public class ListeningAgent : IAsyncDisposable, IListeningAgent
 {
     private readonly BackPressureAgent? _backPressureAgent;
     private readonly CircuitBreaker? _circuitBreaker;
@@ -151,22 +151,11 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         {
             await _circuitBreaker.DisposeAsync();
         }
-        
+
+        _semaphore.Dispose();
+
         Listener = null;
         _receiver = null;
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-        _disposed = true;
-
-        _receiver?.Dispose();
-        _circuitBreaker?.SafeDisposeSynchronously();
-        _backPressureAgent?.SafeDispose();
-        stopInboxRecovery();
-        _semaphore.Dispose();
     }
 
     // CritterWatch#942 — the receive block's own depth PLUS the members this listener has fed into

@@ -1,5 +1,4 @@
-using System.Text;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,8 +22,8 @@ public static class KafkaTransportExtensions
     /// <param name="configureProducers">Optional extra configuration for all producers</param>
     /// <returns></returns>
     public static KafkaTransportExpression UseKafkaUsingNamedConnection(this WolverineOptions options,
-        string connectionStringName, Action<ConsumerConfig>? configureConsumers = null,
-        Action<ProducerConfig>? configureProducers = null)
+        string connectionStringName, Action<KafkaConsumerOptions>? configureConsumers = null,
+        Action<KafkaProducerOptions>? configureProducers = null)
     {
         // Automatic failure acks do not work with Kafka serialization failures
         options.EnableAutomaticFailureAcks = false;
@@ -253,9 +252,9 @@ public static class KafkaTransportExtensions
         return new KafkaSubscriberConfiguration(topic);
     }
 
-    internal static Envelope CreateEnvelope(this IKafkaEnvelopeMapper mapper, string topicName, Message<string, byte[]> message)
+    internal static Envelope CreateEnvelope(this IKafkaEnvelopeMapper mapper, ConsumeResult<string, byte[]> result)
     {
-        return mapper.createEnvelope(topicName, message, out _);
+        return mapper.createEnvelope(result, out _);
     }
 
     /// <summary>
@@ -266,33 +265,31 @@ public static class KafkaTransportExtensions
     internal static Envelope CreateEnvelope(this IKafkaEnvelopeMapper mapper, ConsumeResult<string, byte[]> result,
         KafkaRecordIdentity? identity)
     {
-        var envelope = mapper.createEnvelope(result.Topic, result.Message, out var mapperAssignedId);
+        var envelope = mapper.createEnvelope(result, out var mapperAssignedId);
 
         if (identity != null && !mapperAssignedId)
         {
-            envelope.Id = identity.IdFor(result.Topic, result.Partition.Value, result.Offset.Value);
+            envelope.Id = identity.IdFor(result.Topic, result.Partition, result.Offset);
         }
 
         return envelope;
     }
 
-    private static Envelope createEnvelope(this IKafkaEnvelopeMapper mapper, string topicName,
-        Message<string, byte[]> message, out bool mapperAssignedId)
+    private static Envelope createEnvelope(this IKafkaEnvelopeMapper mapper, ConsumeResult<string, byte[]> result,
+        out bool mapperAssignedId)
     {
         var envelope = new Envelope
         {
-            PartitionKey = message.Key,
-            Data = message.Value,
-            TopicName = topicName
+            PartitionKey = result.Key,
+            Data = result.Value,
+            TopicName = result.Topic
         };
 
         // A fresh envelope's id is a new IdGenerator() value nobody else has seen, so the id still being that
         // value after mapping means neither the id header nor a custom mapper supplied one
         var provisionalId = envelope.Id;
 
-        message.Headers ??= new Headers(); // prevent NRE
-
-        mapper.MapIncomingToEnvelope(envelope, message);
+        mapper.MapIncomingToEnvelope(envelope, result);
 
         // KafkaEnvelopeMapper maps a missing or unreadable id header to Guid.Empty instead, which the durable
         // receiver replaces with a fresh IdGenerator() value just before the inbox insert. Neither is an id.
@@ -301,29 +298,27 @@ public static class KafkaTransportExtensions
         return envelope;
     }
 
-    internal static async ValueTask<Message<string, byte[]>> CreateMessage(this IKafkaEnvelopeMapper mapper, Envelope envelope)
+    internal static async ValueTask<OutgoingKafkaRecord> CreateMessage(this IKafkaEnvelopeMapper mapper, Envelope envelope)
     {
         if (envelope.Message is KafkaTombstone tombstone)
         {
-            return new Message<string, byte[]>
+            return new OutgoingKafkaRecord
             {
                 Key = tombstone.Key,
-                Value = null!,
-                Headers = new Headers()
+                Value = null
             };
         }
 
         var data = await envelope.GetDataAsync();
-        var message = new Message<string, byte[]>
+        var record = new OutgoingKafkaRecord
         {
             Key = !string.IsNullOrEmpty(envelope.PartitionKey) ? envelope.PartitionKey : envelope.Id.ToString(),
-            Value = data!,
-            Headers = new Headers()
+            Value = data!
         };
 
-        mapper.MapEnvelopeToOutgoing(envelope, message);
+        mapper.MapEnvelopeToOutgoing(envelope, record);
 
-        return message;
+        return record;
     }
 
     /// <summary>
