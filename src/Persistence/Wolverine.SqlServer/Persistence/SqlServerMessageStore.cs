@@ -98,6 +98,7 @@ public partial class SqlServerMessageStore : MessageDatabase<SqlConnection>, ICo
 
         foreach (var sagaTableDefinition in sagaTypes)
         {
+            RegisterSagaDefinition(sagaTableDefinition);
             var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.IdMember.GetMemberType()!, sagaTableDefinition.SagaType);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
@@ -969,7 +970,7 @@ group by o.name, ps.index_id, i.name";
             }
         }
         
-        var definition = new SagaTableDefinition(typeof(TSaga), null);
+        var definition = SagaDefinitionFor(typeof(TSaga));
         var storage = new DatabaseSagaSchema<TId, TSaga>(definition, _settings);
         _sagaStorage = _sagaStorage.AddOrUpdate(typeof(TSaga), storage);
         
