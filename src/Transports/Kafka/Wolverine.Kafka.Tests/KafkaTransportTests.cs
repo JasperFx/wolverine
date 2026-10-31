@@ -1,4 +1,5 @@
 using Dekaf.Consumer;
+using Dekaf.Producer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -124,6 +125,35 @@ public class KafkaTransportTests
     public void produce_and_consume_by_default()
     {
         new KafkaTransport().Usage.ShouldBe(KafkaUsage.ProduceAndConsume);
+    }
+
+    [Theory]
+    [InlineData(Acks.None)]
+    [InlineData(Acks.Leader)]
+    public void acks_below_all_need_idempotence_turned_off(Acks acks)
+    {
+        Should.Throw<InvalidOperationException>(() =>
+            new KafkaProducerOptions { Acks = acks }.AssertAcksAllowed("test"));
+
+        new KafkaProducerOptions { Acks = acks, EnableIdempotence = false }.AssertAcksAllowed("test");
+    }
+
+    [Fact]
+    public async Task a_disposed_lazy_producer_refuses_to_build_another()
+    {
+        var transport = new KafkaTransport();
+        var producer = new LazyKafkaProducer(transport, transport.ProducerConfig);
+
+        await producer.DisposeAsync();
+        await producer.DisposeAsync();
+
+        await Should.ThrowAsync<ObjectDisposedException>(async () => await producer.GetAsync());
+    }
+
+    [Fact]
+    public void acks_all_is_allowed_with_idempotence()
+    {
+        new KafkaProducerOptions { Acks = Acks.All }.AssertAcksAllowed("test");
     }
 }
 

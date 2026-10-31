@@ -300,13 +300,34 @@ public class kafka_offset_committer
         var partition = new TopicPartition("t", 1);
 
         await committer.PartitionsRevokedAsync([partition]);
-        committer.PartitionsAssigned([partition]);
 
         committer.Track("t", 1, 20);
         await committer.Complete("t", 1, 20);
 
         await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
             list.Single().Offset == 21), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task a_late_completion_cannot_move_a_reassigned_partition_past_redelivered_records()
+    {
+        var committer = committerFor(CommitMode.PerMessage);
+        var partition = new TopicPartition("t", 1);
+
+        for (var offset = 100; offset <= 110; offset++) committer.Track("t", 1, offset);
+        await committer.PartitionsRevokedAsync([partition]);
+
+        // The partition comes back and 100 is delivered again, then a handler from before the revocation finishes 110
+        committer.Track("t", 1, 100);
+        await committer.Complete("t", 1, 110);
+
+        await theConsumer.DidNotReceive()
+            .CommitAsync(Arg.Any<IEnumerable<TopicPartitionOffset>>(), Arg.Any<CancellationToken>());
+
+        await committer.Complete("t", 1, 100);
+
+        await theConsumer.Received(1).CommitAsync(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset == 101), Arg.Any<CancellationToken>());
     }
 
     [Fact]

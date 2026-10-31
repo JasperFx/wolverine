@@ -14,7 +14,7 @@ internal sealed class KafkaRebalanceRelay : IRebalanceListener
     public ValueTask OnPartitionsAssignedAsync(IEnumerable<TopicPartition> partitions,
         CancellationToken cancellationToken)
     {
-        Committer?.PartitionsAssigned(partitions);
+        // The committer counts a partition as owned again once one of its records is delivered
         return ValueTask.CompletedTask;
     }
 

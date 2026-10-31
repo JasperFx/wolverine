@@ -559,6 +559,10 @@ and bounded in-flight requests). It is
 **producer→broker** de-duplication only — it does not make consume-process-produce atomic. Set
 `EnableIdempotence = false` through `ConfigureProducers(...)` to turn it off.
 
+An idempotent producer always waits for acks from every in-sync replica, so `Acks` values other than
+`Acks.All` need `EnableIdempotence = false` as well. Wolverine refuses to start when a producer sets
+`Acks.None` or `Acks.Leader` without turning idempotence off.
+
 ### `read_committed` isolation
 
 When you consume a topic that is written by Kafka transactions, set the consumer to skip records from

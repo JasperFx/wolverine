@@ -160,6 +160,12 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
             AdminClientConfig.BootstrapServers = namedConnection.BootstrapServers;
         }
 
+        ProducerConfig.AssertAcksAllowed("the Kafka transport");
+        foreach (var topic in Topics)
+        {
+            topic.ProducerConfig?.AssertAcksAllowed(topic.Uri.ToString());
+        }
+
         var needsDlqTopic = false;
         foreach (var endpoint in Topics)
         {

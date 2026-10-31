@@ -46,8 +46,9 @@ internal sealed class KafkaOffsetCommitter
     private readonly object _lock = new();
     private readonly Dictionary<TopicPartition, OffsetWatermark> _watermarks = new();
 
-    // Partitions taken away by a rebalance. A completion that lands after the revocation is not committed: the
-    // partition's new owner reads from the committed position, and a late commit could move it.
+    // Partitions taken away by a rebalance, until this consumer is delivered one of their records again. A completion
+    // that lands in between is not committed: the partition's new owner reads from the committed position, and a
+    // late commit could move it.
     private readonly HashSet<TopicPartition> _revoked = new();
     private int _sinceLastCommit;
     private long _lastCommitTimestamp;
@@ -134,6 +135,7 @@ internal sealed class KafkaOffsetCommitter
         var tp = new TopicPartition(topic, partition);
         lock (_lock)
         {
+            _revoked.Remove(tp);
             WatermarkFor(tp).Track(offset);
         }
     }
@@ -204,20 +206,6 @@ internal sealed class KafkaOffsetCommitter
         if (toStore is { } stored)
         {
             storeOffset(stored);
-        }
-    }
-
-    /// <summary>
-    /// The consumer group assigned these partitions to this consumer, so completions on them count again.
-    /// </summary>
-    public void PartitionsAssigned(IEnumerable<TopicPartition> partitions)
-    {
-        lock (_lock)
-        {
-            foreach (var tp in partitions)
-            {
-                _revoked.Remove(tp);
-            }
         }
     }
 
@@ -375,18 +363,25 @@ internal sealed class KafkaOffsetCommitter
         private readonly SortedSet<long> _inflight = new(); // delivered but not yet completed
         private long _highWater = -1; // highest delivered offset seen, or -1 before anything is seen
         private bool _seen;
+        private bool _tracked; // whether any offset has been delivered through Track
         private long _lastCommittable = -1; // last next-offset reported, to keep the position monotonic
 
         public void Track(long offset)
         {
+            _tracked = true;
             _inflight.Add(offset);
             Observe(offset);
         }
 
         public void Complete(long offset)
         {
-            _inflight.Remove(offset);
-            // Tolerate a Complete without a prior Track (defensive) by still advancing the high water mark.
+            // Once records are tracked, a completion of an offset this watermark never delivered comes from before a
+            // rebalance handed the partition back, and must not move the position past records delivered since
+            if (!_inflight.Remove(offset) && _tracked)
+            {
+                return;
+            }
+
             Observe(offset);
         }
 

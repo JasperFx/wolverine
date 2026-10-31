@@ -13,6 +13,7 @@ internal sealed class LazyKafkaProducer : IAsyncDisposable, IKafkaClientHealthSo
     private readonly SemaphoreSlim _lock = new(1, 1);
     private volatile IKafkaProducer<string, byte[]>? _producer;
     private volatile bool _failedToConnect;
+    private bool _disposed;
 
     public LazyKafkaProducer(KafkaTransport transport, KafkaProducerOptions config)
     {
@@ -47,6 +48,8 @@ internal sealed class LazyKafkaProducer : IAsyncDisposable, IKafkaClientHealthSo
         await _lock.WaitAsync();
         try
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+
             if (_producer == null)
             {
                 try
@@ -73,8 +76,21 @@ internal sealed class LazyKafkaProducer : IAsyncDisposable, IKafkaClientHealthSo
     {
         _transport.ForgetClient(this);
 
-        var producer = _producer;
-        _lock.Dispose();
+        // Waits out a producer still being built, so it is disposed too. Callers that queue up after this see the
+        // disposed flag rather than building another
+        IKafkaProducer<string, byte[]>? producer;
+        await _lock.WaitAsync();
+        try
+        {
+            if (_disposed) return;
+            _disposed = true;
+            producer = _producer;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
         if (producer == null)
         {
             return;

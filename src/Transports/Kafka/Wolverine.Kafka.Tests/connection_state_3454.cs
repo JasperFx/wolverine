@@ -56,6 +56,53 @@ public class connection_state_3454
             .ShouldBe(TransportConnectionState.Reconnecting);
     }
 
+    private static KafkaClientStatus idleStatus(DateTimeOffset? lastSuccess, DateTimeOffset? lastError)
+    {
+        return new KafkaClientStatus
+        {
+            CapturedAtUtc = DateTimeOffset.UtcNow,
+            Role = KafkaClientRole.Producer,
+            Brokers =
+            [
+                new BrokerConnectionStatus
+                {
+                    BrokerId = 0,
+                    Host = "localhost",
+                    Port = 9092,
+                    State = BrokerConnectionState.Disconnected,
+                    ConnectionCount = 0,
+                    ConnectedConnectionCount = 0,
+                    PendingRequestCount = 0,
+                    LastSuccessfulRequestAtUtc = lastSuccess,
+                    LastErrorAtUtc = lastError
+                }
+            ]
+        };
+    }
+
+    [Fact]
+    public void a_broker_whose_connections_were_closed_for_being_idle_means_connected()
+    {
+        var now = DateTimeOffset.UtcNow;
+        KafkaConnectionState.From(idleStatus(now.AddMinutes(-10), now.AddHours(-1)))
+            .ShouldBe(TransportConnectionState.Connected);
+    }
+
+    [Fact]
+    public void a_broker_that_failed_after_its_last_success_means_reconnecting()
+    {
+        var now = DateTimeOffset.UtcNow;
+        KafkaConnectionState.From(idleStatus(now.AddMinutes(-10), now.AddMinutes(-1)))
+            .ShouldBe(TransportConnectionState.Reconnecting);
+    }
+
+    [Fact]
+    public void a_broker_never_reached_means_reconnecting()
+    {
+        KafkaConnectionState.From(idleStatus(null, DateTimeOffset.UtcNow))
+            .ShouldBe(TransportConnectionState.Reconnecting);
+    }
+
     [Fact]
     public void a_stopped_client_means_disconnected()
     {

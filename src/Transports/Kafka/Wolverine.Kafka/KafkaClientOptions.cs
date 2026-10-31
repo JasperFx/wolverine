@@ -117,7 +117,22 @@ public class KafkaProducerOptions : KafkaClientOptions
     /// </summary>
     public bool? EnableIdempotence { get; set; }
 
+    /// <summary>
+    /// Anything other than <see cref="Dekaf.Producer.Acks.All" /> needs <see cref="EnableIdempotence" /> set to false,
+    /// since an idempotent producer waits for every in-sync replica
+    /// </summary>
     public Acks? Acks { get; set; }
+
+    // Dekaf refuses to build an idempotent producer with Acks.None and quietly raises other acks to All. Producers
+    // are built on first send, so this fails at startup rather than on every send
+    internal void AssertAcksAllowed(string owner)
+    {
+        if (Acks is { } acks && acks != Dekaf.Producer.Acks.All && EnableIdempotence != false)
+        {
+            throw new InvalidOperationException(
+                $"The Kafka producer options for {owner} set Acks = {acks}, which an idempotent producer cannot use. Dekaf producers are idempotent by default, so also set EnableIdempotence = false, or use Acks.All");
+        }
+    }
 
     public TimeSpan? Linger { get; set; }
     public int? BatchSize { get; set; }
