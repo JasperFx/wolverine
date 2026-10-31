@@ -13,6 +13,13 @@ public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : 
         _scrapers = scrapers.ToArray();
         DbContext = dbContext;
 
+        // GH-5295: bind the store this DbContext is enrolled in *before* the transaction looks up its
+        // message database, so the envelope is written to, and later deleted from, the same store
+        if (runtime.Stores.HasAncillaryStoreFor(typeof(T)))
+        {
+            OverrideStorage(runtime.Stores.FindAncillaryStore(typeof(T)));
+        }
+
         Transaction = new EfCoreEnvelopeTransaction(dbContext, this);
     }
 
@@ -62,6 +69,13 @@ public class DbContextOutbox : MessageContext, IDbContextOutbox
     public void Enroll(DbContext dbContext)
     {
         ActiveContext = dbContext;
+
+        // GH-5295: see DbContextOutbox<T>. The DbContext type is only known here.
+        var dbContextType = dbContext.GetType();
+        if (Runtime.Stores.HasAncillaryStoreFor(dbContextType))
+        {
+            OverrideStorage(Runtime.Stores.FindAncillaryStore(dbContextType));
+        }
 
         Transaction = new EfCoreEnvelopeTransaction(dbContext, this);
     }
