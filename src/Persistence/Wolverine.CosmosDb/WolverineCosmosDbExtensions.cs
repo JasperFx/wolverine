@@ -60,6 +60,12 @@ public static class WolverineCosmosDbExtensions
         // where the client is resolvable and the saga types are known.
         options.Services.AddSingleton<IHostedService, CosmosDbSagaSerializationValidator>();
 
+        // CritterWatch / saga-explorer diagnostic surface over the same container the sagas are written to
+        options.Services.AddSingleton<ISagaStoreDiagnostics>(sp =>
+            new CosmosDbSagaStoreDiagnostics(
+                sp.GetRequiredService<Wolverine.Runtime.IWolverineRuntime>(),
+                sp.GetRequiredService<Container>()));
+
         options.CodeGeneration.InsertFirstPersistenceStrategy<CosmosDbPersistenceFrameProvider>();
         options.CodeGeneration.ReferenceAssembly(typeof(WolverineCosmosDbExtensions).Assembly);
         return options;
