@@ -18,6 +18,10 @@ public class KafkaEnvelopeMapper : EnvelopeMapper<ConsumeResult<string, byte[]>,
     // property (GH-3490).
     protected override bool preferCopiedIncomingHeaders => true;
 
+    // Every header is copied, so a reserved header missing from the copy is not on the record. Reading the record's
+    // headers again would copy all of them out of the consumer's pooled buffer once more.
+    protected override bool incomingHeaderCopyIsComplete => true;
+
     protected override void writeOutgoingHeader(OutgoingKafkaRecord outgoing, string key, string value)
     {
         outgoing.Headers.Add(key, Encoding.UTF8.GetBytes(value));

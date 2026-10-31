@@ -1,4 +1,5 @@
 using Dekaf.Consumer;
+using Dekaf.Serialization;
 
 namespace Wolverine.Kafka.Internals;
 
@@ -12,7 +13,16 @@ internal static class KafkaHeaderExtensions
     public static bool TryGetLastHeaderValue(this ConsumeResult<string, byte[]> incoming, string key,
         bool skipNullValues, out string? value)
     {
-        var headers = incoming.Headers;
+        return incoming.Headers.TryGetLastHeaderValue(key, skipNullValues, out value);
+    }
+
+    /// <summary>
+    /// Reads the header named <paramref name="key" /> from headers already read off a record. Every read of
+    /// <c>ConsumeResult.Headers</c> copies all of the record's headers, so read them once and look up from that.
+    /// </summary>
+    public static bool TryGetLastHeaderValue(this IReadOnlyList<Header> headers, string key, bool skipNullValues,
+        out string? value)
+    {
         for (var i = headers.Count - 1; i >= 0; i--)
         {
             var header = headers[i];

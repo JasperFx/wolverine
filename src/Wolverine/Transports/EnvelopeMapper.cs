@@ -327,13 +327,26 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
     private delegate bool ReadHeader(Envelope env, TIncoming incoming, string key, out string? value);
 
+    /// <summary>
+    /// When true alongside <see cref="preferCopiedIncomingHeaders"/>, <see cref="writeIncomingHeaders"/> copies
+    /// every incoming header, the last occurrence of a repeated key winning. A key missing from the copy is then
+    /// missing from the transport message, so the readers skip the <see cref="tryReadIncomingHeader"/> scan; only a
+    /// key copied with a null value is still read from the message.
+    /// </summary>
+    protected virtual bool incomingHeaderCopyIsComplete => false;
+
     private bool tryReadCopiedOrIncomingHeader(Envelope env, TIncoming incoming, string key, out string? value)
     {
         // HasHeaders first: this probe runs once per reserved property (~20x) per incoming
         // message, and must not be the thing that forces the lazy dictionary into existence
-        if (env.HasHeaders && env.Headers.TryGetValue(key, out value) && value != null)
+        if (env.HasHeaders && env.Headers.TryGetValue(key, out value))
         {
-            return true;
+            if (value != null) return true;
+        }
+        else if (incomingHeaderCopyIsComplete)
+        {
+            value = null;
+            return false;
         }
 
         return tryReadIncomingHeader(incoming, key, out value);

@@ -59,7 +59,8 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         // the raw-JSON mapper would stamp the user's message type on it, and the four-byte
         // ping body would blow up the JSON deserializer with "0x01 is an invalid start of a
         // value." See https://github.com/JasperFx/wolverine/issues/2838.
-        if (incoming.TryGetLastHeaderValue(EnvelopeConstants.MessageTypeKey, skipNullValues: false,
+        var headers = incoming.Headers;
+        if (headers.TryGetLastHeaderValue(EnvelopeConstants.MessageTypeKey, skipNullValues: false,
                 out var incomingMessageType) && incomingMessageType == Envelope.PingMessageType)
         {
             envelope.MessageType = Envelope.PingMessageType;
@@ -87,7 +88,7 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
             envelope.SentAt = incoming.Timestamp.UtcDateTime;
         }
 
-        foreach (var header in incoming.Headers)
+        foreach (var header in headers)
         {
             if (EnvelopeSerializer.ReservedHeaderKeys.Contains(header.Key))
             {

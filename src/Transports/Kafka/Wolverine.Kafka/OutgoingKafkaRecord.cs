@@ -14,7 +14,8 @@ public class OutgoingKafkaRecord
 
     public byte[]? Value { get; set; }
 
-    public Headers Headers { get; } = new();
+    // Room for Wolverine's reserved headers, so the list does not regrow while the mapper writes them
+    public Headers Headers { get; } = new(16);
 
     public DateTimeOffset? Timestamp { get; set; }
 
