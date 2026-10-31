@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+using Dekaf;
 using Dekaf.Consumer;
 using Dekaf.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -56,6 +58,13 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     // redelivery of it as the duplicate it is. Null for an endpoint without an inbox to deduplicate against.
     private readonly KafkaRecordIdentity? _recordIdentity;
 
+    // Retry-tier topics gate on per-record produce timestamps, and batching only helps inbox-backed endpoints, so
+    // everything else hands the receiver one record at a time
+    private readonly bool _receivesBatches;
+
+    // Retry-tier partitions paused until their head record is due. Only the consume loop touches it
+    private readonly Dictionary<TopicPartition, DateTime> _pausedUntil = new();
+
     public KafkaListener(KafkaTopic topic, KafkaConsumerOptions config,
         IKafkaConsumer<string, byte[]> consumer, string[] topicNames, IReceiver receiver,
         ILogger<KafkaListener> logger, TimeSpan drainTimeout, KafkaTransport? tenantTransport = null)
@@ -84,6 +93,9 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             ? KafkaRecordIdentity.For(topic.Parent, tenantTransport, config)
             : null;
 
+        _receivesBatches = topic.Mode == EndpointMode.Durable && topic.MaximumMessagesToReceive > 1 &&
+                           topic.RetryTierDelay == null;
+
         Config = config;
         _receiver = receiver;
         _stopping = _cancellation.Token;
@@ -104,15 +116,16 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     private KafkaTransport clusterTransport => _tenantTransport ?? _endpoint.Parent;
 
-    // One consume-and-process iteration. ConsumeOneAsync waits up to the poll timeout for a record; a
-    // null result means a quiet topic, so just loop. An OperationCanceledException ends the loop; any
-    // other consume error flows to BackgroundReceiveLoop's log -> backoff -> continue. A processing error AFTER a successful consume is a poison pill —
-    // advance past its offset and continue, exactly as before.
+    // One consume-and-dispatch pass. ConsumeOneAsync waits up to the poll timeout for a record; a null result means
+    // a quiet topic, so just loop. An OperationCanceledException from shutdown ends the loop; any other consume
+    // error flows to BackgroundReceiveLoop's log, backoff and retry.
     //
-    // GH-3490: durable endpoints additionally drain whatever records the consumer has already
-    // fetched (up to MaximumMessagesToReceive) and hand them to the receiver as one array, so
-    // the durable inbox persists them with a single batched insert instead of gating the
-    // consume loop on one INSERT round trip per record.
+    // Every record goes through tryBuild: tracked so no commit passes it, then mapped. A record that can't be mapped
+    // is a poison pill and is completed so its partition moves on.
+    //
+    // GH-3490: durable endpoints additionally drain whatever records the consumer has already fetched (up to
+    // MaximumMessagesToReceive) and hand them to the receiver as one array, so the durable inbox persists them with
+    // a single batched insert instead of gating the consume loop on one INSERT round trip per record.
     private async Task<bool> consumeOnceAsync(CancellationToken token)
     {
         if (!_initialized)
@@ -126,7 +139,7 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
-                // shutting down — let the loop stop
+                // shutting down, let the loop stop
                 throw;
             }
             catch (Exception)
@@ -140,117 +153,179 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
         // Commits what handlers finished since the last pass, here on the loop that owns the consumer
         await _committer.CommitCompletedAsync();
+        resumeDuePartitions();
 
-        var maybe = await _consumer.ConsumeOneAsync(_pollTimeout, token);
+        var maybe = await _consumer.ConsumeOneAsync(pollTimeout(), token);
         if (maybe == null)
         {
             // Poll timeout on a quiet topic; nothing to do this iteration
             return true;
         }
 
-        var result = maybe.Value;
+        var record = maybe.Value;
+        if (_endpoint.RetryTierDelay is { } retryDelay && deferUntilDue(record, retryDelay))
+        {
+            return true;
+        }
 
-        try
+        if (!_receivesBatches)
         {
-            // Retry-tier topics gate on per-record produce timestamps and durable batching only
-            // helps inbox-backed endpoints, so everything else keeps strict one-at-a-time consumption.
-            if (_endpoint.Mode == EndpointMode.Durable
-                && _endpoint.MaximumMessagesToReceive > 1
-                && _endpoint.RetryTierDelay == null)
+            if (tryBuild(record) is { } envelope)
             {
-                await consumeManyAsync(result);
+                await dispatchAsync(envelope, token);
             }
-            else
+
+            return true;
+        }
+
+        var envelopes = new List<Envelope>(Math.Min(_endpoint.MaximumMessagesToReceive, 32));
+        Exception? consumeFailure = null;
+        while (true)
+        {
+            if (tryBuild(record) is { } envelope)
             {
-                await consumeSingleAsync(result, token);
+                envelopes.Add(envelope);
+                if (envelopes.Count >= _endpoint.MaximumMessagesToReceive) break;
             }
+
+            // Zero-timeout poll: only drains records the consumer already holds locally, never waits on the broker,
+            // so a quiet topic still processes each record immediately
+            ConsumeResult<string, byte[]>? next;
+            try
+            {
+                next = await _consumer.ConsumeOneAsync(TimeSpan.Zero, CancellationToken.None);
+            }
+            catch (Exception e)
+            {
+                // The records already taken are tracked, so they are dispatched before the failure reaches the loop
+                consumeFailure = e;
+                break;
+            }
+
+            if (next == null) break;
+            record = next.Value;
         }
-        catch (OperationCanceledException)
+
+        await dispatchAsync(envelopes, token);
+
+        if (consumeFailure != null)
         {
-            // shutting down mid-process — let the loop stop
-            throw;
-        }
-        catch (Exception e)
-        {
-            // Might be a poison pill message; advance past its specific offset so we don't get stuck re-consuming it.
-            _committer.Complete(result.Topic, result.Partition, result.Offset);
-            _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
+            ExceptionDispatchInfo.Throw(consumeFailure);
         }
 
         return true;
     }
 
-    private async Task consumeSingleAsync(ConsumeResult<string, byte[]> result, CancellationToken token)
+    // Tracks the record so no commit passes it, then maps it. Null for a poison pill, which is completed instead.
+    private Envelope? tryBuild(ConsumeResult<string, byte[]> record)
     {
-        // Seed the offset watermark in consume (in-order) order so out-of-order handler completion can never
-        // commit past this still-in-flight offset (GH-3161).
-        _committer.Track(result.Topic, result.Partition, result.Offset);
+        _committer.Track(record.Topic, record.Partition, record.Offset);
 
-        // Non-blocking retry-tier topic (GH-3148): wait out the fixed delay relative to when the record was
-        // produced before reprocessing. Records in a tier are time-ordered, so the head record gates the rest.
-        if (_endpoint.RetryTierDelay is { } retryDelay)
+        try
         {
-            var due = result.Timestamp.UtcDateTime + retryDelay;
-            var wait = due - DateTime.UtcNow;
-            if (wait > TimeSpan.Zero)
-            {
-                await Task.Delay(wait, token);
-            }
+            return buildEnvelope(record);
         }
-
-        var envelope = buildEnvelope(result);
-        await _receiver.ReceivedAsync(this, envelope);
+        catch (Exception e)
+        {
+            _committer.Complete(record.Topic, record.Partition, record.Offset);
+            _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
+            return null;
+        }
     }
 
-    private async Task consumeManyAsync(ConsumeResult<string, byte[]> first)
+    private async Task dispatchAsync(Envelope envelope, CancellationToken token)
     {
-        var envelopes = new List<Envelope>(Math.Min(_endpoint.MaximumMessagesToReceive, 32));
-        var current = first;
-
-        while (true)
+        try
         {
-            // Track in consume order BEFORE dispatch so the watermark can never commit past an
-            // in-flight record (GH-3161), poison pills included.
-            _committer.Track(current.Topic, current.Partition, current.Offset);
-
-            try
-            {
-                envelopes.Add(buildEnvelope(current));
-            }
-            catch (Exception e)
-            {
-                // Poison pill mid-batch: advance past its offset, keep the rest of the batch.
-                _committer.Complete(current.Topic, current.Partition, current.Offset);
-                _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
-            }
-
-            if (envelopes.Count >= _endpoint.MaximumMessagesToReceive)
-            {
-                break;
-            }
-
-            // Zero-timeout poll: only drains records the consumer already holds locally — never
-            // waits on the broker, so a quiet topic still processes each record immediately.
-            var next = await _consumer.ConsumeOneAsync(TimeSpan.Zero, CancellationToken.None);
-            if (next == null)
-            {
-                break;
-            }
-
-            current = next.Value;
+            await _receiver.ReceivedAsync(this, envelope);
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            completeUndelivered(envelope);
+            _logger.LogError(e, "The receiver for {Uri} rejected envelope {EnvelopeId}, so its record is skipped",
+                Address, envelope.Id);
+        }
+    }
 
+    private async Task dispatchAsync(List<Envelope> envelopes, CancellationToken token)
+    {
         switch (envelopes.Count)
         {
             case 0:
                 return;
             case 1:
-                await _receiver.ReceivedAsync(this, envelopes[0]);
-                return;
-            default:
-                await _receiver.ReceivedAsync(this, envelopes.ToArray());
+                await dispatchAsync(envelopes[0], token);
                 return;
         }
+
+        try
+        {
+            await _receiver.ReceivedAsync(this, envelopes.ToArray());
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            foreach (var envelope in envelopes) completeUndelivered(envelope);
+            _logger.LogError(e, "The receiver for {Uri} rejected a batch of {Count} envelopes, so their records are skipped",
+                Address, envelopes.Count);
+        }
+    }
+
+    // A record the receiver never took is completed like a poison pill, so its partition is not held at it forever
+    private void completeUndelivered(Envelope envelope)
+    {
+        _committer.Complete(envelope.TopicName!, envelope.PartitionId!.Value, envelope.Offset);
+    }
+
+    // Non-blocking retry-tier topic (GH-3148): a record is due its fixed delay after it was produced. Records in a
+    // tier are time-ordered, so one that is not due yet holds back its own partition only: the partition is paused and
+    // rewound to the record, which is delivered again once resumeDuePartitions lets the partition go.
+    private bool deferUntilDue(ConsumeResult<string, byte[]> record, TimeSpan retryDelay)
+    {
+        var due = record.Timestamp.UtcDateTime + retryDelay;
+        if (due <= DateTime.UtcNow)
+        {
+            return false;
+        }
+
+        var partition = new TopicPartition(record.Topic, record.Partition);
+        _consumer.Partitions.Pause(partition);
+        _consumer.Positions.Seek(new TopicPartitionOffset(record.Topic, record.Partition, record.Offset));
+        _pausedUntil[partition] = due;
+        return true;
+    }
+
+    private void resumeDuePartitions()
+    {
+        if (_pausedUntil.Count == 0) return;
+
+        var now = DateTime.UtcNow;
+        List<TopicPartition>? due = null;
+        foreach (var (partition, until) in _pausedUntil)
+        {
+            if (until <= now) (due ??= []).Add(partition);
+        }
+
+        if (due == null) return;
+
+        foreach (var partition in due) _pausedUntil.Remove(partition);
+        _consumer.Partitions.Resume(due.ToArray());
+    }
+
+    // Wakes the loop when the next paused retry-tier partition is due rather than up to a poll timeout later
+    private TimeSpan pollTimeout()
+    {
+        if (_pausedUntil.Count == 0) return _pollTimeout;
+
+        var next = _pausedUntil.Values.Min() - DateTime.UtcNow;
+        return next <= TimeSpan.Zero ? TimeSpan.Zero : next < _pollTimeout ? next : _pollTimeout;
     }
 
     private Envelope buildEnvelope(ConsumeResult<string, byte[]> result)
