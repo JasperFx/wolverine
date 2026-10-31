@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using JasperFx.Documents;
 using JasperFx.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,6 +60,8 @@ public static class UntrackedDbContextDiscovery
         {
             var sourceType = typeof(DbContextUsageSource<>).MakeGenericType(dbContextType);
             services.AddSingleton(typeof(IDbContextUsageSource), sourceType);
+            services.AddSingleton(typeof(IDocumentStoreDiagnostics),
+                typeof(DbContextDocumentStoreDiagnostics<>).MakeGenericType(dbContextType));
             alreadyCovered.Add(dbContextType);
         }
     }
