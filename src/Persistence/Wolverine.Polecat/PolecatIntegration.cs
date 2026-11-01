@@ -213,6 +213,10 @@ internal class PolecatOverrides : IConfigurePolecat
         // the Marten side at MartenIntegration.cs:153. See wolverine#2774.
         options.Events.MessageOutbox = new PolecatToWolverineOutbox(services);
 
+        // A session the application opened itself and then enrolled in IPolecatOutbox can't be given a listener
+        // of its own, so the store carries this one for it
+        options.Listeners.Add(new FlushEnrolledOutboxOnCommit());
+
         // GH-3290 (Polecat parity with the Marten side): when Wolverine manages the event
         // subscription distribution, it replaces Polecat's own daemon/coordinator hosting
         // outright, but the store's only knowledge of the daemon state is

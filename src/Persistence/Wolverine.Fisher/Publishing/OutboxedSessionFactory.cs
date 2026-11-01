@@ -203,8 +203,9 @@ public class OutboxedSessionFactory
         var transaction = new FisherEnvelopeTransaction(session, context);
         context.EnlistInOutbox(transaction);
 
-        // Now register the transaction participant for flushing outgoing messages
-        session.AddTransactionParticipant(new FlushOutgoingMessagesParticipant(context, transaction.Store));
+        // The FlushOutgoingMessagesOnCommit listener from buildSessionOptions marks the envelope and flushes;
+        // this only makes sure a save with nothing else in it gets that far
+        session.AddTransactionParticipant(new KeepSaveChangesRunning());
     }
 
     /// <summary>Build new instances of IDocumentSession on demand</summary>

@@ -93,13 +93,17 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
 }
 
 /// <summary>
-/// Fisher ITransactionParticipant that flushes outgoing messages after commit.
-/// Used by FisherOutbox when listeners can't be added post-construction.
+/// Fisher ITransactionParticipant that does the work of <see cref="FlushOutgoingMessagesOnCommit" /> for a session
+/// that was already open when FisherOutbox.Enroll saw it, because Fisher takes a session's listeners only when the
+/// session is opened. Enroll adds this instead of the listener, so only one of the two ever runs for a session.
 /// </summary>
 internal class FlushOutgoingMessagesParticipant : ITransactionParticipant
 {
     private readonly MessageContext _context;
     private readonly SqliteMessageStore _messageStore;
+
+    // See FlushOutgoingMessagesOnCommit._queuedHandledUpdate
+    private bool _queuedHandledUpdate;
 
     public FlushOutgoingMessagesParticipant(MessageContext context, SqliteMessageStore messageStore)
     {
@@ -109,6 +113,8 @@ internal class FlushOutgoingMessagesParticipant : ITransactionParticipant
 
     public async Task BeforeCommitAsync(SqliteConnection connection, SqliteTransaction transaction, CancellationToken token)
     {
+        _queuedHandledUpdate = false;
+
         // Mark incoming as handled if needed
         // F13: see FlushOutgoingMessagesOnCommit
         if (_context.Envelope?.Destination != null && _context.Envelope.WasPersistedInInbox && !_context.HasRescheduledEnvelope)
@@ -133,14 +139,31 @@ internal class FlushOutgoingMessagesParticipant : ITransactionParticipant
             cmd.Parameters.AddWithValue("@uri", _context.Envelope.Destination!.ToString());
             await cmd.ExecuteNonQueryAsync(token);
 
-            // Deliberately do NOT flip _context.Envelope.Status to Handled here: this
-            // runs inside BeforeCommitAsync, before the transaction commits, and
-            // ITransactionParticipant exposes no after-commit hook to defer to. Setting
-            // it pre-commit left a stale flag on rollback that made DurableReceiver skip
-            // the real mark-handled UPDATE, stranding the row as 'Incoming'. The
-            // (idempotent) UPDATE via DurableReceiver._markAsHandled covers the success
-            // path instead.
+            _queuedHandledUpdate = true;
         }
+    }
+
+    public Task AfterCommitAsync(CancellationToken token)
+    {
+        if (_queuedHandledUpdate && _context.Envelope != null)
+        {
+            _context.Envelope.Status = EnvelopeStatus.Handled;
+        }
+
+        return _context.FlushOutgoingMessagesAsync();
+    }
+}
+
+/// <summary>
+/// Writes nothing. SaveChangesAsync returns before it reaches any listener when the session has no work and no
+/// participant, and a buffered message queues no work, so this is what carries a save holding nothing else as far
+/// as <see cref="FlushOutgoingMessagesOnCommit" />.
+/// </summary>
+internal class KeepSaveChangesRunning : ITransactionParticipant
+{
+    public Task BeforeCommitAsync(SqliteConnection connection, SqliteTransaction transaction, CancellationToken token)
+    {
+        return Task.CompletedTask;
     }
 }
 
