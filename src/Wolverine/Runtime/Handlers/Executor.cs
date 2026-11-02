@@ -57,6 +57,9 @@ internal class Executor : IExecutor
     private readonly IMessageTracker _tracker;
     private readonly IWolverineRuntime? _runtime;
 
+    // GH-5311. Tracking.RecordExceptionsOnSpans
+    private readonly bool _recordExceptions;
+
     /// <summary>
     ///     The tracker this executor reports to. Exposed for tests asserting which traffic is
     ///     metrics-silent (CritterWatch GH-907).
@@ -65,14 +68,16 @@ internal class Executor : IExecutor
 
     public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler,
         FailureRuleCollection rules, TimeSpan timeout)
-        : this(contextPool, runtime.LoggerFactory.CreateLogger(handler.MessageType), handler, runtime.MessageTracking, rules, timeout)
+        : this(contextPool, runtime.LoggerFactory.CreateLogger(handler.MessageType), handler, runtime.MessageTracking, rules, timeout,
+            runtime.Options.Tracking.RecordExceptionsOnSpans)
     {
         _runtime = runtime;
     }
 
     public Executor(ObjectPool<MessageContext> contextPool, ILogger logger, IMessageHandler handler,
-        IMessageTracker tracker, FailureRuleCollection rules, TimeSpan timeout)
+        IMessageTracker tracker, FailureRuleCollection rules, TimeSpan timeout, bool recordExceptions = true)
     {
+        _recordExceptions = recordExceptions;
         _contextPool = contextPool;
         Handler = handler;
         _tracker = tracker;
@@ -159,6 +164,7 @@ internal class Executor : IExecutor
         catch (Exception e)
         {
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            activity.RecordException(e, _recordExceptions);
             _tracker.ExecutionFinished(envelope, e);
             throw;
         }
@@ -269,7 +275,9 @@ internal class Executor : IExecutor
 
             await context.ClearAllAsync().ConfigureAwait(false);
 
-            Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            var current = Activity.Current;
+            current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            current.RecordException(e, _recordExceptions);
             return _rules.DetermineExecutionContinuation(e, envelope);
         }
         finally
@@ -301,6 +309,10 @@ internal class Executor : IExecutor
         catch (Exception e)
         {
             _logger.Log(Handler.FailureLogLevel, e, "Invocation of {Message} failed!", context.Envelope.Message);
+
+            // GH-5311. An inline retry reuses this span for its next attempt, so the failure is recorded
+            // now; a rethrow reaches the caller's catch with the same exception, which is not recorded twice
+            Activity.Current.RecordException(e, _recordExceptions);
 
             var retry = _rules.TryFindInlineContinuation(e, context.Envelope);
             if (retry == null)
@@ -359,6 +371,7 @@ internal class Executor : IExecutor
         catch (Exception e)
         {
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            activity.RecordException(e, _recordExceptions);
             _tracker.ExecutionFinished(envelope, e);
             _contextPool.Return(context);
             throw;
@@ -393,6 +406,7 @@ internal class Executor : IExecutor
                 catch (Exception e)
                 {
                     activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+                    activity.RecordException(e, _recordExceptions);
                     _tracker.ExecutionFinished(envelope, e);
                     throw;
                 }
@@ -409,7 +423,7 @@ internal class Executor : IExecutor
     internal Executor WrapWithMessageTracking(IMessageSuccessTracker tracker)
     {
         return new Executor(_contextPool, _logger, new CircuitBreakerWrappedMessageHandler(Handler, tracker), _tracker,
-            _rules, _timeout);
+            _rules, _timeout, _recordExceptions);
     }
 
     public static IExecutor Build(IWolverineRuntime runtime, ObjectPool<MessageContext> contextPool,
@@ -453,9 +467,11 @@ internal class Executor : IExecutor
 
         if (runtime.Options.InvokeTracing == InvokeTracingMode.Full)
         {
-            return new TracingExecutor(contextPool, logger, handler, tracker, rules, timeoutSpan);
+            return new TracingExecutor(contextPool, logger, handler, tracker, rules, timeoutSpan,
+                runtime.Options.Tracking.RecordExceptionsOnSpans);
         }
 
-        return new Executor(contextPool, logger, handler, tracker, rules, timeoutSpan);
+        return new Executor(contextPool, logger, handler, tracker, rules, timeoutSpan,
+            runtime.Options.Tracking.RecordExceptionsOnSpans);
     }
 }

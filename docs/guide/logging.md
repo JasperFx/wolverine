@@ -857,6 +857,26 @@ Compare the two and the design pattern is concrete: each opt-in flag adds a spec
 
 If you want to inspect what your own handlers look like, set `WolverineOptions.CodeGeneration.SourceCodeWritingEnabled = true` and dump the generated code (or call `host.Services.GetRequiredService<HandlerGraph>().ChainFor<MyMessage>()!.SourceCode`); the same `tracking_diagnostics_opt_in` test suite in the Wolverine repo writes the generated source to xUnit output for every flag combination, so the contract is regression-tested rather than just illustrated here.
 
+## Exceptions on Spans
+
+When a handler throws, Wolverine marks that attempt's span with the `Error` status and records the standard
+OpenTelemetry `exception` event on the same span, with `exception.type`, `exception.message` and
+`exception.stacktrace`. Every attempt gets its own event, so a message that is retried and then succeeds still
+shows why the earlier attempts failed, and so does a message that is discarded. Each exception is recorded once
+per span. Nothing is recorded when no listener is collecting the span.
+
+Exception messages can contain application data, and this sends them to every trace exporter you have
+configured. To keep only the exception type name in the span status, turn it off:
+
+```cs
+builder.UseWolverine(opts =>
+{
+    opts.Tracking.RecordExceptionsOnSpans = false;
+});
+```
+
+The setting also covers the `wolverine.deserialize` span described above.
+
 ## Handler Type Tagging
 
 Wolverine automatically tags Open Telemetry activity spans with the handler type name during message processing. This provides per-handler tracing visibility in observability backends like Jaeger, Zipkin, or Honeycomb without any additional configuration.

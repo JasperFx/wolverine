@@ -232,6 +232,7 @@ internal class DurabilityPassInboxExecutor : IHandlerPipeline
                 envelope.Id, envelope.MessageType, envelope.Destination);
             _runtime.MessageTracking.MessageFailed(envelope, e);
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            activity.RecordException(e, _runtime.Options.Tracking.RecordExceptionsOnSpans);
             channel.Fail();
         }
         finally

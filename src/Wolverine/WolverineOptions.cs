@@ -208,8 +208,9 @@ public class MetricsOptions
 /// Opt-in tracking and tracing diagnostics. Each of the boolean flags controls a
 /// separate slice of structured tracing surface — handler-execution events / tags,
 /// the deserialization span, and outbox-flush events around
-/// <c>FlushOutgoingMessages</c>. All default to <c>false</c>; users opt into the
-/// extra emission only when they want to pay for it.
+/// <c>FlushOutgoingMessages</c>. All of those default to <c>false</c>; users opt into the
+/// extra emission only when they want to pay for it. <see cref="RecordExceptionsOnSpans"/> is
+/// the exception: it defaults to <c>true</c> and is an opt-out.
 /// </summary>
 public class TrackingOptions
 {
@@ -261,6 +262,17 @@ public class TrackingOptions
     /// when profiling a transactional handler. Default is <c>false</c>.
     /// </summary>
     public bool OutboxDiagnosticsEnabled { get; set; }
+
+    /// <summary>
+    /// When enabled, a failed handler attempt records the OpenTelemetry <c>exception</c>
+    /// <see cref="System.Diagnostics.ActivityEvent"/> (<c>exception.type</c>,
+    /// <c>exception.message</c> and <c>exception.stacktrace</c>) on the attempt's span, in addition
+    /// to the <c>Error</c> status. Exception messages can carry application data, and this sends
+    /// them to every trace exporter, so set this to <c>false</c> to keep only the exception's type
+    /// name in the span status. Nothing is recorded when no listener samples the span.
+    /// Default is <c>true</c>.
+    /// </summary>
+    public bool RecordExceptionsOnSpans { get; set; } = true;
 
     internal Wolverine.Tracking.TrackingIgnoreRules IgnoreRules { get; } = new();
 
