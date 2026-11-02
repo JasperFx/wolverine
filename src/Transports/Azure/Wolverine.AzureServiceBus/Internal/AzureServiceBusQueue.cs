@@ -287,10 +287,35 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
     // Buffered/durable queues move failures to the managed dead letter queue; inline queues use the
     // native $DeadLetterQueue sub-queue. Either way it's a native broker destination unless dead
     // lettering was explicitly disabled (DeadLetterQueueName set to null), which falls back to
-    // Wolverine's durable storage.
-    public override DeadLetterStorageMode DeadLetterStorage => DeadLetterQueueName.IsNotEmpty()
-        ? DeadLetterStorageMode.Native
-        : DeadLetterStorageMode.Durable;
+    // Wolverine's durable storage. EnableDeadLetterQueueRecovery() promotes it to NativeWithRecovery
+    // when the recovery listener drains the destination this queue actually dead-letters to (GH-5313).
+    public override DeadLetterStorageMode DeadLetterStorage
+    {
+        get
+        {
+            var deadLetterQueueName = DeadLetterQueueName;
+            if (deadLetterQueueName.IsEmpty())
+            {
+                return DeadLetterStorageMode.Durable;
+            }
+
+            return isDrainedByDeadLetterRecovery(deadLetterQueueName!)
+                ? DeadLetterStorageMode.NativeWithRecovery
+                : DeadLetterStorageMode.Native;
+        }
+    }
+
+    // Same sources as AzureServiceBusDeadLetterQueueListener.resolveSources(): only listening queues are
+    // drained, an inline queue's dead letters are in its own $DeadLetterQueue sub-queue (source name =
+    // the queue name), and a buffered or durable queue's are in its managed dead letter queue.
+    private bool isDrainedByDeadLetterRecovery(string deadLetterQueueName)
+    {
+        var recovery = Parent.DeadLetterQueueRecovery;
+        if (recovery == null || !IsListener) return false;
+
+        var sourceName = Mode == EndpointMode.Inline ? QueueName : deadLetterQueueName;
+        return recovery.Drains(Parent, sourceName);
+    }
     
     // NServiceBus interop: NSB writes the .NET assembly-qualified type name
     // to the message header; NServiceBusInterop.ResolveMessageType turns that

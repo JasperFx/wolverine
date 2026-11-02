@@ -145,6 +145,14 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
     public bool DisableDeadLetterQueues { get; set; }
 
     /// <summary>
+    /// The dead letter recovery settings when <c>EnableDeadLetterQueueRecovery()</c> is on, otherwise
+    /// null. Queues read it to report
+    /// <see cref="Wolverine.Configuration.DeadLetterStorageMode.NativeWithRecovery"/> when the recovery
+    /// listener drains their dead letter queue.
+    /// </summary>
+    public AmazonSqsDeadLetterQueueRecoverySettings? DeadLetterQueueRecovery { get; internal set; }
+
+    /// <summary>
     /// Transport-wide default dead-letter-queue name. Every <see cref="AmazonSqsQueue"/>
     /// that hasn't had an explicit per-listener override applied
     /// (via <c>ConfigureDeadLetterQueue</c> or <c>DisableDeadLetterQueueing</c>) reads

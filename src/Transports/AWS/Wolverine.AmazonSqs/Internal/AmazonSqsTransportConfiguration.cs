@@ -207,10 +207,12 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
 
         if (existing != null)
         {
+            Transport.DeadLetterQueueRecovery = existing;
             return existing;
         }
 
         var settings = new AmazonSqsDeadLetterQueueRecoverySettings();
+        Transport.DeadLetterQueueRecovery = settings;
         Options.Services.AddSingleton(settings);
         Options.Services.AddSingleton(Transport);
         Options.Services.AddHostedService<SqsDeadLetterQueueListener>();
