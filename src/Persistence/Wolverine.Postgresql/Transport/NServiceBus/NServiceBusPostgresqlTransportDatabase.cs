@@ -70,7 +70,9 @@ public class NServiceBusPostgresqlTransportDatabase : DatabaseBase<NpgsqlConnect
 
     public override IFeatureSchema[] BuildFeatureSchemas()
     {
+        // GH-5342: an externally owned queue's table is not Wolverine's to migrate
         return _transport.Queues
+            .Where(queue => !queue.IsExternallyOwned)
             .Select(queue => (IFeatureSchema)new NServiceBusPostgresqlQueueFeatureSchema(queue, Migrator))
             .ToArray();
     }

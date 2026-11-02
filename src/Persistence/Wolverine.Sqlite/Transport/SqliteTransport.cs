@@ -39,7 +39,9 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
 
         foreach (var store in stores)
         {
-            foreach (var queue in Queues)
+            // GH-5342: an externally owned queue's tables are not part of the message store's
+            // schema, so a migration or RebuildAllEnvelopeStorageAsync() never creates them
+            foreach (var queue in Queues.Where(x => !x.IsExternallyOwned))
             {
                 store.AddTable(queue.QueueTable);
                 store.AddTable(queue.ScheduledTable);

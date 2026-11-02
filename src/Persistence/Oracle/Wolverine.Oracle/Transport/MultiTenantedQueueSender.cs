@@ -69,7 +69,7 @@ internal class MultiTenantedQueueSender : IOracleQueueSender, IAsyncDisposable
                 sender = new OracleQueueSender(_queue, oracleDataSource, database.Name);
                 _byDatabase = _byDatabase.AddOrUpdate(database.Name, sender);
 
-                if (_queue.Parent.AutoProvision)
+                if (_queue.Parent.ShouldAutoProvision(_queue))
                 {
                     await _queue.EnsureSchemaExists(database.Name, oracleDataSource);
                 }

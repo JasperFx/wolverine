@@ -268,6 +268,32 @@ Wolverine has an internal control queue (`dbcontrol`) used for internal operatio
 This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.
 :::
 
+### Externally Owned Queues <Badge type="tip" text="6.62" />
+
+Sometimes a queue's tables belong to another application, the one that reads from it or the one that created it,
+and with `AutoProvision()` on, Wolverine would otherwise create them, or drop them in `resources teardown`. Mark
+those queues `ExternallyOwned()` so Wolverine sends to and listens to them without ever creating, migrating or dropping
+their tables, while it still provisions the queues you do own:
+
+<!-- snippet: sample_mysql_queue_is_externally_owned -->
+<a id='snippet-sample_mysql_queue_is_externally_owned'></a>
+```cs
+// The "orders" queue tables belong to another application. Wolverine
+// reads from and sends to the queue, but never creates, migrates or
+// drops its tables, even with AutoProvision() on
+opts.ListenToMySqlQueue("orders").ExternallyOwned();
+
+opts.PublishMessage<ExternallyOwnedQueueMessage>()
+    .ToMySqlQueue("orders")
+    .ExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MySql/MySqlTests/Transport/externally_owned_queues_5342.cs#L104-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mysql_queue_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The queue tables are also left out of the message store's own schema, so neither a migration nor `RebuildAllEnvelopeStorageAsync()` builds them. `resources check` still checks that an externally owned queue's tables exist. See
+[Externally Owned Broker Objects](/guide/messaging/transports/externally-owned) for how this works across every
+transport.
+
 ### Deterministic Queue Ordering
 
 The queue tables store the time a message was enqueued in a `timestamp` column, and the listeners pull and hand over

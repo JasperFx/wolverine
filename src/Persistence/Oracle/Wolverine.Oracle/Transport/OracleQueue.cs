@@ -71,7 +71,7 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, ISto
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(runtime.LoggerFactory.CreateLogger<OracleQueue>());
         }
@@ -116,7 +116,7 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, ISto
             return;
         }
 
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(logger);
         }
@@ -219,6 +219,9 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, ISto
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         await forEveryDatabase(async (source, _) =>
         {
             // Retry to handle ORA-00054 (resource busy) when a listener is still polling
@@ -244,6 +247,9 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, ISto
 
     public async ValueTask SetupAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         // Deliberately bypasses the _checkedDatabases memo. SetupAsync is the explicit
         // "make sure these tables exist right now" call - resource setup, and
         // IHost.ClearAllWolverineStorageAsync() - so it has to re-apply against a database

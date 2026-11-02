@@ -63,7 +63,10 @@ public class SqlServerTransportDatabase : DatabaseBase<SqlConnection>
 
     public override IFeatureSchema[] BuildFeatureSchemas()
     {
-        return _transport.Queues.Select(queue => (IFeatureSchema)new SqlServerQueueFeatureSchema(queue, Migrator)).ToArray();
+        // GH-5342: an externally owned queue's tables are not Wolverine's to migrate
+        return _transport.Queues
+            .Where(queue => !queue.IsExternallyOwned)
+            .Select(queue => (IFeatureSchema)new SqlServerQueueFeatureSchema(queue, Migrator)).ToArray();
     }
 }
 

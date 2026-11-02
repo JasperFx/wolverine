@@ -70,7 +70,7 @@ internal class MultiTenantedQueueSender : ISqliteQueueSender, IAsyncDisposable
                 sender = new SqliteQueueSender(_queue, sqliteStore.DataSource, database.Name);
                 _byDatabase = _byDatabase.AddOrUpdate(database.Name, sender);
 
-                if (_queue.Parent.AutoProvision)
+                if (_queue.Parent.ShouldAutoProvision(_queue))
                 {
                     await _queue.EnsureSchemaExists(database.Name, sqliteStore.DataSource);
                 }

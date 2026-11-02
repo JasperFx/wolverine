@@ -367,6 +367,32 @@ transport already uses the equivalent clustered layout (it must match the NServi
 so no opt-in is needed there.
 :::
 
+### Externally Owned Queues <Badge type="tip" text="6.62" />
+
+Sometimes a queue's tables belong to another application, the one that reads from it or the one that created it,
+and with `AutoProvision()` on, Wolverine would otherwise create them, or drop them in `resources teardown`. Mark
+those queues `ExternallyOwned()` so Wolverine sends to and listens to them without ever creating, migrating or dropping
+their tables, while it still provisions the queues you do own:
+
+<!-- snippet: sample_sqlserver_queue_is_externally_owned -->
+<a id='snippet-sample_sqlserver_queue_is_externally_owned'></a>
+```cs
+// The "orders" queue tables belong to another application. Wolverine
+// reads from and sends to the queue, but never creates, migrates or
+// drops its tables, even with AutoProvision() on
+opts.ListenToSqlServerQueue("orders").ExternallyOwned();
+
+opts.PublishMessage<ExternallyOwnedQueueMessage>()
+    .ToSqlServerQueue("orders")
+    .ExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/externally_owned_queues_5342.cs#L102-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlserver_queue_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The queue tables are also left out of the Weasel feature schemas the transport registers, so neither `db-apply` nor a migration builds them. `resources check` still checks that an externally owned queue's tables exist. See
+[Externally Owned Broker Objects](/guide/messaging/transports/externally-owned) for how this works across every
+transport.
+
 ### Deterministic Queue Ordering
 
 With the default table layout, the Sql Server queue listeners dequeue by the `timestamp` column, a
@@ -632,6 +658,27 @@ implemented interfaces so an NServiceBus handler registered against a shared int
 The `Body` written by NServiceBus' JSON serializer begins with a UTF-8 byte order mark. Wolverine strips it on
 receive so the payload deserializes cleanly with either the default `System.Text.Json` or a Newtonsoft serializer.
 :::
+
+### Queue Tables NServiceBus Owns <Badge type="tip" text="6.62" />
+
+If you turn `autoProvision` on so that Wolverine creates the queue tables it owns, mark the queues NServiceBus owns
+`ExternallyOwned()`. Wolverine then never creates, migrates or drops those tables, in `resources setup`,
+`resources teardown` or `db-apply`, and the tables keep whatever shape NServiceBus gave them:
+
+<!-- snippet: sample_nservicebus_sql_server_queue_is_externally_owned -->
+<a id='snippet-sample_nservicebus_sql_server_queue_is_externally_owned'></a>
+```cs
+// The NServiceBus endpoint owns this queue table. Even with
+// autoProvision: true for the interop transport, Wolverine never
+// creates, migrates or drops it
+opts.PublishMessage<NsbInteropPing>()
+    .ToNServiceBusSqlServerQueue(_queue)
+    .ExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/NServiceBus/nservicebus_sql_server_queue_externally_owned_5342.cs#L49-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_sql_server_queue_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`autoProvision` stays off by default, so with it off nothing changes.
 
 ### Multi-Tenancy
 

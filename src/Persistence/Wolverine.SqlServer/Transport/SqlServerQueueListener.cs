@@ -107,7 +107,7 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
 
     public async Task StartAsync()
     {
-        if (_queue.Parent.AutoProvision)
+        if (_queue.Parent.ShouldAutoProvision(_queue))
         {
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _connectionString);
         }

@@ -106,7 +106,7 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(runtime.LoggerFactory.CreateLogger<NServiceBusSqlServerQueue>());
         }
@@ -123,7 +123,7 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
 
     public override async ValueTask InitializeAsync(ILogger logger)
     {
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(logger);
         }
@@ -153,6 +153,9 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
 
     public async ValueTask SetupAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
         await conn.OpenAsync();
         try
@@ -167,6 +170,9 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
         await conn.OpenAsync();
         try
