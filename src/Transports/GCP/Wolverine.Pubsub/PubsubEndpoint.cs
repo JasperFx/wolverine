@@ -304,8 +304,8 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
         {
-            throw new ExternallyOwnedTopicNotFoundException(topicName.ToString(),
-                SubscriptionNameFor(clients.ProjectId).ToString());
+            throw new ExternallyOwnedObjectNotFoundException(topicName.ToString(),
+                $"Unable to create the Google Cloud Platform Pub/Sub subscription '{SubscriptionNameFor(clients.ProjectId)}' because its topic '{topicName}' does not exist. The topic is marked as externally owned, so Wolverine will not create it. It has to be created by whoever owns it first.");
         }
     }
 

@@ -329,7 +329,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             if (response == null && IsExternallyOwned)
             {
                 // GH-5342: AutoProvision() would not have helped, so don't suggest it
-                throw new InvalidOperationException(
+                throw new ExternallyOwnedObjectNotFoundException(TopicName,
                     $"Could not find the Amazon SNS topic '{TopicName}'. It is marked as externally owned, so Wolverine never creates it: the system that owns it has to create it before this application starts. If the topic does exist, check the region and credentials passed to UseAmazonSnsTransport() -- a topic in another account or region is invisible to this client.");
             }
 

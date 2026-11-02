@@ -6,6 +6,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Xunit;
+using Wolverine.Transports;
 
 namespace Wolverine.Pubsub.Tests;
 
@@ -137,9 +138,9 @@ public class externally_owned_topics_5342 : IAsyncLifetime
             using var host = await builder.StartAsync(TestContext.Current.CancellationToken);
         });
 
-        var notFound = findInChain<ExternallyOwnedTopicNotFoundException>(ex);
+        var notFound = findInChain<ExternallyOwnedObjectNotFoundException>(ex);
         notFound.ShouldNotBeNull();
-        notFound.TopicName.ShouldBe(new TopicName(ProjectId, payments).ToString());
+        notFound.ObjectName.ShouldBe(new TopicName(ProjectId, payments).ToString());
         notFound.Message.ShouldContain(payments);
 
         (await topicExistsAsync(payments)).ShouldBeFalse();

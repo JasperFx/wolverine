@@ -13,6 +13,7 @@ using Wolverine.AmazonSns.Internal;
 using Wolverine.AmazonSqs;
 using Wolverine.Tracking;
 using Xunit;
+using Wolverine.Transports;
 
 namespace Wolverine.AmazonSns.Tests;
 
@@ -126,7 +127,8 @@ public class externally_owned_topics_5342 : IAsyncLifetime
         var ex = await Should.ThrowAsync<WolverineSnsTransportException>(async () =>
             await topic.InitializeAsync(NullLogger.Instance));
 
-        var inner = ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+        var inner = ex.InnerException.ShouldBeOfType<ExternallyOwnedObjectNotFoundException>();
+        inner.ObjectName.ShouldBe("payments");
         inner.Message.ShouldContain("'payments'");
         inner.Message.ShouldContain("externally owned");
 

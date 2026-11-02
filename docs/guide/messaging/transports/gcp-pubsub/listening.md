@@ -68,7 +68,7 @@ With the topic externally owned, Wolverine:
 
 * never creates or deletes the topic, regardless of `AutoProvision()`
 * still creates the subscription, and deletes it in `resources teardown`
-* fails creating the subscription with an `ExternallyOwnedTopicNotFoundException` that names the topic if the topic
+* fails creating the subscription with an `ExternallyOwnedObjectNotFoundException` that names the topic if the topic
   doesn't exist yet, rather than with a bare `NotFound`. At startup that failure is retried like any other broker
   failure, until `BrokerInitializationTimeout` runs out, so a topic created by its owner in the meantime is picked up
 

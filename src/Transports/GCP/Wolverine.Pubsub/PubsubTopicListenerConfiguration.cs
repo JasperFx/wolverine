@@ -1,6 +1,7 @@
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Pubsub.Internal;
+using Wolverine.Transports;
 
 namespace Wolverine.Pubsub;
 
@@ -72,7 +73,7 @@ public class PubsubTopicListenerConfiguration : InteroperableListenerConfigurati
     ///     Mark the topic this listener reads from as owned by another system, typically the service that
     ///     publishes to it. Wolverine will not create or delete the topic, even when <c>AutoProvision()</c> is on,
     ///     but still creates this listener's subscription on it. If the topic does not exist yet, provisioning the
-    ///     subscription fails with an <see cref="ExternallyOwnedTopicNotFoundException" /> that names it. GH-5342.
+    ///     subscription fails with an <see cref="ExternallyOwnedObjectNotFoundException" /> that names it. GH-5342.
     /// </summary>
     /// <returns></returns>
     public PubsubTopicListenerConfiguration TopicIsExternallyOwned()

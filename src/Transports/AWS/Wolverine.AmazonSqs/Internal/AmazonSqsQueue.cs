@@ -644,7 +644,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         catch (Amazon.SQS.Model.QueueDoesNotExistException e) when (IsExternallyOwned)
         {
             // GH-5342: AutoProvision() would not have helped, so say who has to create it
-            throw new WolverineSqsTransportException(
+            throw new ExternallyOwnedObjectNotFoundException(QueueName,
                 $"Could not find the Amazon SQS queue '{QueueName}'. It is marked as externally owned, so Wolverine never creates it: the system that owns it has to create it before this application starts. If the queue does exist, check the region and credentials passed to UseAmazonSqsTransport().",
                 e);
         }

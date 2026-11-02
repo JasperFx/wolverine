@@ -120,7 +120,8 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
             // the subscription create fails with a bare MessagingEntityNotFound that names nothing
             if (Topic.IsExternallyOwned && !(await client.TopicExistsAsync(Topic.TopicName)).Value)
             {
-                throw new ExternallyOwnedTopicNotFoundException(Topic.TopicName, SubscriptionName);
+                throw new ExternallyOwnedObjectNotFoundException(Topic.TopicName,
+                    $"Unable to create the Azure Service Bus subscription '{SubscriptionName}' because its topic '{Topic.TopicName}' does not exist. The topic is marked as externally owned, so Wolverine will not create it. It has to be created by whoever owns it first.");
             }
 
             var exists = await client.SubscriptionExistsAsync(Topic.TopicName, SubscriptionName);

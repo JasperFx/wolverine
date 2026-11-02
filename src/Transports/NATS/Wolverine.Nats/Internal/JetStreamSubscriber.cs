@@ -292,7 +292,7 @@ internal class JetStreamSubscriber : INatsSubscriber
         catch (NatsJSApiException e) when (e.Error.Code == 404 && _endpoint.IsExternallyOwned)
         {
             // GH-5342. Another system's consumer: never created here, so name it rather than create it
-            throw new InvalidOperationException(
+            throw new ExternallyOwnedObjectNotFoundException(name,
                 $"JetStream consumer '{name}' does not exist on stream '{stream}'. The endpoint is marked as externally owned, so Wolverine will not create it. It has to be created by whoever owns it first.");
         }
         catch (NatsJSApiException e) when (e.Error.Code == 404)

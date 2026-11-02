@@ -853,7 +853,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             // let the consumer create below fail with a bare "stream not found"
             if (IsStreamExternallyOwned)
             {
-                throw new InvalidOperationException(
+                throw new ExternallyOwnedObjectNotFoundException(StreamName,
                     $"Unable to create the JetStream consumer for subject '{Subject}' because its stream '{StreamName}' does not exist. The stream is marked as externally owned, so Wolverine will not create it. It has to be created by whoever owns it first.");
             }
 

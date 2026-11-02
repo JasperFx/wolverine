@@ -47,7 +47,7 @@ that work, Wolverine tries to build out a queue called `wolverine.response.[Your
 requeues from subscription listening. If your Wolverine application doesn't have permissions to create queues at runtime,
 you may want to build that queue manually or forgo using "Requeue" as an error handling technique.
 
-## Externally Owned Topics, Queues and Subscriptions <Badge type="tip" text="6.61" />
+## Externally Owned Topics, Queues and Subscriptions <Badge type="tip" text="6.62" />
 
 A service that listens to a topic usually doesn't own it. The topic belongs to the service that publishes to it,
 and that service decides how it is created. If your service deploys first with `AutoProvision()` on, Wolverine
@@ -75,7 +75,7 @@ With the topic externally owned, Wolverine:
 
 * never creates or deletes the topic, regardless of `AutoProvision()`
 * still creates the subscription and its rule, and keeps the rule in step with your configuration, as it does today
-* fails provisioning the subscription with an `ExternallyOwnedTopicNotFoundException` that names the topic if the
+* fails provisioning the subscription with an `ExternallyOwnedObjectNotFoundException` that names the topic if the
   topic doesn't exist yet, rather than with a bare `MessagingEntityNotFound`. At startup that failure is retried
   like any other broker failure, until `BrokerInitializationTimeout` runs out, so a topic created by its owner in
   the meantime is picked up

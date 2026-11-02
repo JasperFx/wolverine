@@ -4,6 +4,7 @@ using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Interop.MassTransit;
+using Wolverine.Transports;
 
 namespace Wolverine.AzureServiceBus;
 
@@ -141,7 +142,7 @@ public class AzureServiceBusSubscriptionListenerConfiguration : InteroperableLis
     ///     Mark the topic this subscription reads from as owned by another system, typically the service that
     ///     publishes to it. Wolverine will not create or delete the topic, even when <c>AutoProvision()</c> is on,
     ///     but still creates this subscription and its rule on it. If the topic does not exist yet, provisioning
-    ///     the subscription fails with an <see cref="ExternallyOwnedTopicNotFoundException" /> that names it.
+    ///     the subscription fails with an <see cref="ExternallyOwnedObjectNotFoundException" /> that names it.
     ///     GH-5342.
     /// </summary>
     public AzureServiceBusSubscriptionListenerConfiguration TopicIsExternallyOwned()

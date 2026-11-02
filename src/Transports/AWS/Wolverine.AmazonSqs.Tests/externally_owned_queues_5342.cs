@@ -6,6 +6,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Tracking;
+using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Tests;
 
@@ -140,8 +141,9 @@ public class externally_owned_queues_5342 : IAsyncLifetime
         });
 
         // The error names the queue and says why Wolverine did not create it
-        var notFound = findInChain<WolverineSqsTransportException>(ex);
+        var notFound = findInChain<ExternallyOwnedObjectNotFoundException>(ex);
         notFound.ShouldNotBeNull();
+        notFound.ObjectName.ShouldBe(OwnersBilling);
         notFound.Message.ShouldContain($"'{OwnersBilling}'");
         notFound.Message.ShouldContain("externally owned");
 

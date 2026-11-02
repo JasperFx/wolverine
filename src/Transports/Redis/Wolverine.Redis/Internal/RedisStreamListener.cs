@@ -245,16 +245,27 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
                     if (!exists)
                     {
                         // GH-5342. For an externally owned endpoint, enabling AutoProvision() would not help
-                        throw new InvalidOperationException(_endpoint.IsExternallyOwned
-                            ? $"Redis consumer group '{_endpoint.ConsumerGroup}' for stream '{_endpoint.StreamKey}' (db {_endpoint.DatabaseId}) does not exist. The endpoint is marked as externally owned, so Wolverine will not create it. It has to be created by whoever owns it first."
-                            : $"Redis consumer group '{_endpoint.ConsumerGroup}' for stream '{_endpoint.StreamKey}' (db {_endpoint.DatabaseId}) does not exist, and AutoProvision is disabled. Enable AutoProvision() or run AddResourceSetupOnStartup() to create it.");
+                        if (_endpoint.IsExternallyOwned)
+                        {
+                            throw new ExternallyOwnedObjectNotFoundException(_endpoint.ConsumerGroup,
+                                $"Redis consumer group '{_endpoint.ConsumerGroup}' for stream '{_endpoint.StreamKey}' (db {_endpoint.DatabaseId}) does not exist. The endpoint is marked as externally owned, so Wolverine will not create it. It has to be created by whoever owns it first.");
+                        }
+
+                        throw new InvalidOperationException(
+                            $"Redis consumer group '{_endpoint.ConsumerGroup}' for stream '{_endpoint.StreamKey}' (db {_endpoint.DatabaseId}) does not exist, and AutoProvision is disabled. Enable AutoProvision() or run AddResourceSetupOnStartup() to create it.");
                     }
                 }
                 catch (RedisServerException ex) when (ex.Message.Contains("no such key", StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new InvalidOperationException(_endpoint.IsExternallyOwned
-                        ? $"Redis stream '{_endpoint.StreamKey}' (db {_endpoint.DatabaseId}) does not exist. The endpoint is marked as externally owned, so Wolverine will not create the stream or consumer group '{_endpoint.ConsumerGroup}'. They have to be created by whoever owns them first."
-                        : $"Redis stream '{_endpoint.StreamKey}' (db {_endpoint.DatabaseId}) does not exist, and AutoProvision is disabled. Create the stream and consumer group '{_endpoint.ConsumerGroup}' or enable AutoProvision()/AddResourceSetupOnStartup().", ex);
+                    if (_endpoint.IsExternallyOwned)
+                    {
+                        throw new ExternallyOwnedObjectNotFoundException(_endpoint.StreamKey,
+                            $"Redis stream '{_endpoint.StreamKey}' (db {_endpoint.DatabaseId}) does not exist. The endpoint is marked as externally owned, so Wolverine will not create the stream or consumer group '{_endpoint.ConsumerGroup}'. They have to be created by whoever owns them first.",
+                            ex);
+                    }
+
+                    throw new InvalidOperationException(
+                        $"Redis stream '{_endpoint.StreamKey}' (db {_endpoint.DatabaseId}) does not exist, and AutoProvision is disabled. Create the stream and consumer group '{_endpoint.ConsumerGroup}' or enable AutoProvision()/AddResourceSetupOnStartup().", ex);
                 }
             }
         }

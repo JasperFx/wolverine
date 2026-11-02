@@ -213,7 +213,7 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
                                               ex.Message.Contains("requires the key to exist", StringComparison.OrdinalIgnoreCase))
         {
             // GH-5342. Without MKSTREAM, Redis refuses to create a group on a stream that is not there yet
-            throw new InvalidOperationException(
+            throw new ExternallyOwnedObjectNotFoundException(StreamKey,
                 $"Unable to create the Redis consumer group '{ConsumerGroup}' because its stream '{StreamKey}' (db {DatabaseId}) does not exist. The stream is marked as externally owned, so Wolverine will not create it. It has to be created by whoever owns it first.",
                 ex);
         }
