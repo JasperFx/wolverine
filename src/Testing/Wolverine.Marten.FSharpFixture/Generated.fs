@@ -21,9 +21,9 @@ type CreateProductCommandHandler1629670092(outboxedSessionFactory: Wolverine.Mar
             // The actual message body
             let createProductCommand = context.Envelope.Message :?> WolverineMartenFSharpSample.CreateProductCommand
 
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("message.handler", "WolverineMartenFSharpSample.CreateProductHandler") |> ignore
-                System.Diagnostics.Activity.Current.SetTag("handler.type", "WolverineMartenFSharpSample.CreateProductHandler") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenFSharpSample.CreateProductHandler") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenFSharpSample.CreateProductHandler") |> ignore
             
             // The actual message execution
             let outgoing1 = WolverineMartenFSharpSample.CreateProductHandler.Handle(createProductCommand, documentSession)

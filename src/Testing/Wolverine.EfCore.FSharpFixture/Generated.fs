@@ -34,9 +34,9 @@ type CreateItemCommandHandler670389475(serviceScopeFactory: Microsoft.Extensions
                 let! _ = itemsDbContext.Database.BeginTransactionAsync(cancellation)
                 ()
             try
-                if not (isNull System.Diagnostics.Activity.Current) then
-                    System.Diagnostics.Activity.Current.SetTag("message.handler", "WolverineFSharpSample.CreateItemHandler") |> ignore
-                    System.Diagnostics.Activity.Current.SetTag("handler.type", "WolverineFSharpSample.CreateItemHandler") |> ignore
+                if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                    (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineFSharpSample.CreateItemHandler") |> ignore
+                    (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineFSharpSample.CreateItemHandler") |> ignore
                 
                 // The actual message execution
                 let outgoing1 = WolverineFSharpSample.CreateItemHandler.Handle(createItemCommand, itemsDbContext)
@@ -52,7 +52,7 @@ type CreateItemCommandHandler670389475(serviceScopeFactory: Microsoft.Extensions
                 // Commit the EF Core transaction before writing the response (GH-2917). The outbox flush follows in its own frame (GH-4742)
                 do! efCoreEnvelopeTransaction.CommitAsync(cancellation, false)
                 // GH-2917/GH-4742: flush the outbox after the commit and before the response is written
-                do! context.FlushOutgoingMessagesAsync()
+                do! Wolverine.EntityFrameworkCore.EfCoreOutboxFlushing.FlushOutgoingMessagesAsync(context)
             with ex ->
                 do! efCoreEnvelopeTransaction.RollbackAsync()
                 System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw()

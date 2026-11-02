@@ -12,8 +12,8 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var aotSmokeMessage = (AotSmokeMessage)context.Envelope.Message;
 
-            System.Diagnostics.Activity.Current?.SetTag("message.handler", "AotSmokeHandler");
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotSmokeHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("message.handler", "AotSmokeHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("handler.type", "AotSmokeHandler");
             var aotSmokeHandler = new AotSmokeHandler();
             
             // The actual message execution

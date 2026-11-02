@@ -29,7 +29,7 @@ namespace Internal.Generated.WolverineHandlers
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotMartenEndpoints");
+            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "AotMartenEndpoints");
             string id_rawValue = (string?)httpContext.GetRouteValue("id");
             System.Guid id = default;
 

@@ -11,13 +11,13 @@ open Wolverine.Runtime.Handlers
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type BehaviouralPingHandler1244766258() =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
-    override this.HandleAsync(_context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         // The actual message body
-        let behaviouralPing = _context.Envelope.Message :?> WolverineBehaviouralFSharpApp.BehaviouralPing
+        let behaviouralPing = context.Envelope.Message :?> WolverineBehaviouralFSharpApp.BehaviouralPing
 
-        if not (isNull System.Diagnostics.Activity.Current) then
-            System.Diagnostics.Activity.Current.SetTag("message.handler", "WolverineBehaviouralFSharpApp.BehaviouralPingHandler") |> ignore
-            System.Diagnostics.Activity.Current.SetTag("handler.type", "WolverineBehaviouralFSharpApp.BehaviouralPingHandler") |> ignore
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineBehaviouralFSharpApp.BehaviouralPingHandler") |> ignore
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineBehaviouralFSharpApp.BehaviouralPingHandler") |> ignore
         
         // The actual message execution
         WolverineBehaviouralFSharpApp.BehaviouralPingHandler.Handle(behaviouralPing)
