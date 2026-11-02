@@ -12,8 +12,8 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var aotPublishPing = (AotPublishPing)context.Envelope.Message;
 
-            System.Diagnostics.Activity.Current?.SetTag("message.handler", "AotPublishPingHandler");
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotPublishPingHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("message.handler", "AotPublishPingHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("handler.type", "AotPublishPingHandler");
             
             // The actual message execution
             AotPublishPingHandler.Handle(aotPublishPing);

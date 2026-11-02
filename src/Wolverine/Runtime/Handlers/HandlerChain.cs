@@ -286,6 +286,14 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
 
         handleMethod.DerivedVariables.Add(envelopeVariable);
+
+        // GH-5310: the frames that tag the message's span (handler type, saga and stream ids, audited
+        // members) write to the span the executor started for this envelope, not to Activity.Current,
+        // which Marten's marten.connection (TrackConnections) takes over once a session is built.
+        var contextArgument = handleMethod.Arguments.First(x => x.VariableType == typeof(MessageContext));
+        handleMethod.DerivedVariables.Add(new MessageActivityVariable(contextArgument,
+            context =>
+                $"{typeof(WolverineTracing).FullNameInCode()}.{nameof(WolverineTracing.MessageActivity)}({context}.{nameof(MessageContext.Envelope)})"));
     }
 
     public override bool TryInferMessageIdentity(out PropertyInfo? property)

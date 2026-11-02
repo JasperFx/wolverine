@@ -22,8 +22,8 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var recordAotPing = (RecordAotPing)context.Envelope.Message;
 
-            System.Diagnostics.Activity.Current?.SetTag("message.handler", "AotMartenHandler");
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotMartenHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("message.handler", "AotMartenHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("handler.type", "AotMartenHandler");
             
             // The actual message execution
             var outgoing1 = AotMartenHandler.Handle(recordAotPing);

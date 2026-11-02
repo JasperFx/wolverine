@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Logging;
 using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Sagas;
@@ -19,6 +20,7 @@ internal class SetSagaIdFromSagaFrame : SyncFrame
     private readonly MemberInfo _sagaIdMember;
     private readonly Type? _sagaType;
     private Variable? _context;
+    private MessageActivityVariable? _activity;
     private Variable _message = null!;
 
     public SetSagaIdFromSagaFrame(Type messageType, MemberInfo sagaIdMember, Type? sagaType = null)
@@ -35,15 +37,21 @@ internal class SetSagaIdFromSagaFrame : SyncFrame
 
         _context = chain.FindVariable(typeof(MessageContext));
         yield return _context;
+
+        // GH-5310: the message's own span, not Activity.Current -- which a persistence integration
+        // (Marten's TrackConnections) may have moved by now.
+        _activity = MessageActivityVariable.TryFind(chain);
+        foreach (var variable in MessageActivityVariable.Uses(_activity)) yield return variable;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        var activity = MessageActivityVariable.UsageFor(_activity);
         writer.Write($"{_context!.Usage}.{nameof(MessageContext.SetSagaId)}({_message.Usage}.{_sagaIdMember.Name});");
-        writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaId}\", {_message.Usage}.{_sagaIdMember.Name}.ToString());");
+        writer.WriteLine($"{activity}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaId}\", {_message.Usage}.{_sagaIdMember.Name}.ToString());");
         if (_sagaType != null)
         {
-            writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaType}\", \"{_sagaType.FullName}\");");
+            writer.WriteLine($"{activity}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaType}\", \"{_sagaType.FullName}\");");
         }
         Next?.GenerateCode(method, writer);
     }
@@ -53,7 +61,7 @@ internal class SetSagaIdFromSagaFrame : SyncFrame
         var member = $"{_message.Usage}.{_sagaIdMember.Name}";
         writer.Write($"{_context!.Usage}.{nameof(MessageContext.SetSagaId)}({member})");
 
-        var current = $"{typeof(Activity).FSharpName()}.{nameof(Activity.Current)}";
+        var current = MessageActivityVariable.FSharpUsageFor(_activity);
         writer.Write($"BLOCK:if not (isNull {current}) then");
         writer.Write($"{current}.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaId}\", {member}.ToString()) |> ignore");
         if (_sagaType != null)

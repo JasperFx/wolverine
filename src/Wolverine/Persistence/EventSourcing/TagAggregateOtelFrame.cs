@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Logging;
 using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.EventSourcing;
@@ -20,6 +21,7 @@ internal class TagAggregateOtelFrame : SyncFrame
 {
     private readonly Type _aggregateType;
     private readonly Variable _aggregateId;
+    private MessageActivityVariable? _activity;
 
     public TagAggregateOtelFrame(Type aggregateType, Variable aggregateId)
     {
@@ -28,21 +30,31 @@ internal class TagAggregateOtelFrame : SyncFrame
         uses.Add(aggregateId);
     }
 
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        // GH-5310: the message's own span, not Activity.Current -- which is marten.connection by the
+        // time the stream has been fetched when Marten's TrackConnections is on.
+        _activity = MessageActivityVariable.TryFind(chain);
+        foreach (var variable in MessageActivityVariable.Uses(_activity)) yield return variable;
+    }
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamId}\", {_aggregateId.Usage});");
-        writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamType}\", \"{_aggregateType.FullName}\");");
+        var activity = MessageActivityVariable.UsageFor(_activity);
+        writer.WriteLine($"{activity}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamId}\", {_aggregateId.Usage});");
+        writer.WriteLine($"{activity}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamType}\", \"{_aggregateType.FullName}\");");
         Next?.GenerateCode(method, writer);
     }
 
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
-        // F# has no null-conditional operator; guard Activity.Current explicitly. SetTag returns the
+        // F# has no null-conditional operator; guard the activity explicitly. SetTag returns the
         // Activity for chaining, so pipe the result to ignore.
+        var activity = MessageActivityVariable.FSharpUsageFor(_activity);
         writer.WriteLine(
-            $"if not (isNull {typeof(Activity).FSharpName()}.{nameof(Activity.Current)}) then {typeof(Activity).FSharpName()}.{nameof(Activity.Current)}.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamId}\", {_aggregateId.FSharpUsage}.ToString()) |> ignore");
+            $"if not (isNull {activity}) then {activity}.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamId}\", {_aggregateId.FSharpUsage}.ToString()) |> ignore");
         writer.WriteLine(
-            $"if not (isNull {typeof(Activity).FSharpName()}.{nameof(Activity.Current)}) then {typeof(Activity).FSharpName()}.{nameof(Activity.Current)}.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamType}\", \"{_aggregateType.FullName}\") |> ignore");
+            $"if not (isNull {activity}) then {activity}.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamType}\", \"{_aggregateType.FullName}\") |> ignore");
         Next?.GenerateFSharpCode(method, writer);
     }
 }

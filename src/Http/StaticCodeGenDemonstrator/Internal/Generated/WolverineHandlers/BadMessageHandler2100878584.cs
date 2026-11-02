@@ -12,8 +12,8 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var badMessage = (BadMessage)context.Envelope.Message;
 
-            System.Diagnostics.Activity.Current?.SetTag("message.handler", "BadMessageHandler");
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "BadMessageHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("message.handler", "BadMessageHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("handler.type", "BadMessageHandler");
             
             // The actual message execution
             BadMessageHandler.Handle(badMessage);

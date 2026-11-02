@@ -67,6 +67,18 @@ public abstract partial class HttpHandler
         };
     }
 
+    /// <summary>
+    /// GH-5310. The span the generated endpoint code tags with the handler type, saga id, stream id and audited
+    /// members: ASP.NET Core's activity for the request, otherwise <see cref="Activity.Current"/>. Reading
+    /// <see cref="Activity.Current"/> alone is not enough, because a persistence integration can make its own
+    /// activity current part way through an endpoint (Marten's <c>marten.connection</c> with
+    /// <c>TrackConnections</c> on). Public only because generated code calls it.
+    /// </summary>
+    public static Activity? RequestActivity(HttpContext httpContext)
+    {
+        return httpContext.Features.Get<IHttpActivityFeature>()?.Activity ?? Activity.Current;
+    }
+
     public async ValueTask<string?> TryDetectTenantId(HttpContext httpContext)
     {
         var tenantId = await _options.TryDetectTenantId(httpContext);

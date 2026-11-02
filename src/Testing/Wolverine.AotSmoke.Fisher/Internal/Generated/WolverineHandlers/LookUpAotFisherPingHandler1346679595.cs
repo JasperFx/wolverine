@@ -12,8 +12,8 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var lookUpAotFisherPing = (LookUpAotFisherPing)context.Envelope.Message;
 
-            System.Diagnostics.Activity.Current?.SetTag("message.handler", "AotFisherLookupHandler");
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotFisherLookupHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("message.handler", "AotFisherLookupHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("handler.type", "AotFisherLookupHandler");
             
             // The actual message execution
             var outgoing1 = AotFisherLookupHandler.Handle(lookUpAotFisherPing);

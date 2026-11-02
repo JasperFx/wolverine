@@ -20,9 +20,9 @@ type CheckThingHandler649476295(loggerForMessage: Microsoft.Extensions.Logging.I
         let checkThing = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.CheckThing
 
         Wolverine.Runtime.WolverineTracing.ApplyExecutionDiagnosticTags(System.Diagnostics.Activity.Current, context.Envelope)
-        if not (isNull System.Diagnostics.Activity.Current) then
-            System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.CheckThingHandler") |> ignore
-            System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.CheckThingHandler") |> ignore
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "Wolverine.Core.FSharpContracts.CheckThingHandler") |> ignore
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "Wolverine.Core.FSharpContracts.CheckThingHandler") |> ignore
         let checkThingHandler = Wolverine.Core.FSharpContracts.CheckThingHandler()
         let requirementResult = checkThingHandler.Before(checkThing)
         // Check RequirementResult and abort if Branch == Stop
@@ -48,11 +48,11 @@ type CreateNameHandler1923366998(loggerForMessage: Microsoft.Extensions.Logging.
 
             Wolverine.Runtime.WolverineTracing.ApplyExecutionDiagnosticTags(System.Diagnostics.Activity.Current, context.Envelope)
             // Application-specific Open Telemetry auditing
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("name", createName.Name) |> ignore
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.NameHandler") |> ignore
-                System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.NameHandler") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("name", createName.Name) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "Wolverine.Core.FSharpContracts.NameHandler") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "Wolverine.Core.FSharpContracts.NameHandler") |> ignore
             let nameHandler = Wolverine.Core.FSharpContracts.NameHandler()
             let stringValueIEnumerable = nameHandler.Validate(createName)
             // Check for any simple validation messages and abort if any exist
@@ -78,9 +78,9 @@ type GateHandler1696712162() =
         let gate = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.Gate
 
         Wolverine.Runtime.WolverineTracing.ApplyExecutionDiagnosticTags(System.Diagnostics.Activity.Current, context.Envelope)
-        if not (isNull System.Diagnostics.Activity.Current) then
-            System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.GateHandler") |> ignore
-            System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.GateHandler") |> ignore
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "Wolverine.Core.FSharpContracts.GateHandler") |> ignore
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "Wolverine.Core.FSharpContracts.GateHandler") |> ignore
         let gateHandler = Wolverine.Core.FSharpContracts.GateHandler()
         let result_of_Before = gateHandler.Before(gate)
         // Evaluate whether or not the execution should stop based on the HandlerContinuation value
@@ -104,11 +104,11 @@ type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence
         let incrementCount = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.IncrementCount
 
         // Application-specific Open Telemetry auditing
-        if not (isNull System.Diagnostics.Activity.Current) then
-            System.Diagnostics.Activity.Current.SetTag("Id", incrementCount.Id) |> ignore
-        if not (isNull System.Diagnostics.Activity.Current) then
-            System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
-            System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("Id", incrementCount.Id) |> ignore
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
         let sagaId = if isNull incrementCount.Id then context.Envelope.SagaId else incrementCount.Id
         if System.String.IsNullOrEmpty(sagaId) then
             raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope, typeof<Wolverine.Core.FSharpContracts.CountingSaga>, "Id"))
@@ -117,9 +117,9 @@ type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence
             raise (Wolverine.Persistence.Sagas.UnknownSagaException(typeof<Wolverine.Core.FSharpContracts.CountingSaga>, sagaId))
         else
             context.SetSagaId(sagaId)
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("wolverine.saga.id", sagaId.ToString()) |> ignore
-                System.Diagnostics.Activity.Current.SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.id", sagaId.ToString()) |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
             
             // The actual message execution
             countingSaga.Handle(incrementCount)
@@ -142,19 +142,19 @@ type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sa
         let startCount = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.StartCount
 
         // Application-specific Open Telemetry auditing
-        if not (isNull System.Diagnostics.Activity.Current) then
-            System.Diagnostics.Activity.Current.SetTag("Id", startCount.Id) |> ignore
-        if not (isNull System.Diagnostics.Activity.Current) then
-            System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
-            System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("Id", startCount.Id) |> ignore
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
         
         // The actual message execution
         let outgoing1 = Wolverine.Core.FSharpContracts.CountingSaga.Start(startCount)
 
         context.SetSagaId(startCount.Id)
-        if not (isNull System.Diagnostics.Activity.Current) then
-            System.Diagnostics.Activity.Current.SetTag("wolverine.saga.id", startCount.Id.ToString()) |> ignore
-            System.Diagnostics.Activity.Current.SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.id", startCount.Id.ToString()) |> ignore
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
         if not (outgoing1.IsCompleted()) then
             _inMemorySagaPersistor.Store<Wolverine.Core.FSharpContracts.CountingSaga>(outgoing1)
         // No unit of work
@@ -171,9 +171,9 @@ type TickHandler1778389912() =
         let tickMiddleware = Wolverine.Core.FSharpContracts.TickMiddleware()
         tickMiddleware.Before()
         try
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.TickHandler") |> ignore
-                System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.TickHandler") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "Wolverine.Core.FSharpContracts.TickHandler") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "Wolverine.Core.FSharpContracts.TickHandler") |> ignore
             let tickHandler = Wolverine.Core.FSharpContracts.TickHandler()
             
             // The actual message execution

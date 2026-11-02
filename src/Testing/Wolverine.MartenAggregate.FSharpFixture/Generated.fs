@@ -23,15 +23,15 @@ type IncrementCounterHandler805386214(outboxedSessionFactory: Wolverine.Marten.P
             // Building the Marten session
             use documentSession = _outboxedSessionFactory.OpenSession(context)
             // Application-specific Open Telemetry auditing
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("counter.id", incrementCounter.CounterId) |> ignore
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("message.handler", "WolverineMartenAggregateFSharpSample.IncrementHandler") |> ignore
-                System.Diagnostics.Activity.Current.SetTag("handler.type", "WolverineMartenAggregateFSharpSample.IncrementHandler") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("counter.id", incrementCounter.CounterId) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenAggregateFSharpSample.IncrementHandler") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenAggregateFSharpSample.IncrementHandler") |> ignore
             // Loading Marten aggregate as part of the aggregate handler workflow
             let! eventStreamOfCounter = documentSession.Events.FetchForWriting<WolverineMartenAggregateFSharpSample.Counter>(counter_Id, cancellation)
-            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("wolverine.stream.id", counter_Id.ToString()) |> ignore
-            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("wolverine.stream.type", "WolverineMartenAggregateFSharpSample.Counter") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.id", counter_Id.ToString()) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.type", "WolverineMartenAggregateFSharpSample.Counter") |> ignore
             
             // The actual message execution
             let outgoing1 = WolverineMartenAggregateFSharpSample.IncrementHandler.Handle(incrementCounter, eventStreamOfCounter.Aggregate)

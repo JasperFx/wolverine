@@ -12,8 +12,8 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var message3 = (Wolverine.ComplianceTests.Compliance.Message3)context.Envelope.Message;
 
-            System.Diagnostics.Activity.Current?.SetTag("message.handler", "ConsoleApp.MessageHandler");
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "ConsoleApp.MessageHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("message.handler", "ConsoleApp.MessageHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("handler.type", "ConsoleApp.MessageHandler");
             var messageHandler = new ConsoleApp.MessageHandler();
             
             // The actual message execution

@@ -13,9 +13,9 @@ namespace Internal.Generated.WolverineHandlers
             var startAotSaga = (StartAotSaga)context.Envelope.Message;
 
             // Application-specific Open Telemetry auditing
-            System.Diagnostics.Activity.Current?.SetTag("Id", startAotSaga.Id);
-            System.Diagnostics.Activity.Current?.SetTag("message.handler", "AotSaga");
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotSaga");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("Id", startAotSaga.Id);
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("message.handler", "AotSaga");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("handler.type", "AotSaga");
             await using var sagaStorageOfGuidAndAotSaga = await Wolverine.RDBMS.Sagas.RelationalSagaStorage.EnrollAndFetchSagaStorage<System.Guid, AotSaga>(context, static (definition, settings) => new Wolverine.Sqlite.Internals.DatabaseSagaSchema<AotSaga, System.Guid>(definition, settings));
             var sagaStorageOfGuidAndAotSaga_Slim = sagaStorageOfGuidAndAotSaga;
             
@@ -23,8 +23,8 @@ namespace Internal.Generated.WolverineHandlers
             var outgoing1 = AotSaga.Start(startAotSaga);
 
             context.SetSagaId(startAotSaga.Id);
-            System.Diagnostics.Activity.Current?.SetTag("wolverine.saga.id", startAotSaga.Id.ToString());
-            System.Diagnostics.Activity.Current?.SetTag("wolverine.saga.type", "AotSaga");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("wolverine.saga.id", startAotSaga.Id.ToString());
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("wolverine.saga.type", "AotSaga");
             if (!outgoing1.IsCompleted())
             {
                 await sagaStorageOfGuidAndAotSaga_Slim.InsertAsync(outgoing1, cancellation);

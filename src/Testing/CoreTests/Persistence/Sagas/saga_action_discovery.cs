@@ -43,7 +43,7 @@ public class saga_action_discovery : IntegrationContext
         var handler = Handlers.HandlerFor<SagaMessage2>();
 
         var handlerChain = chainFor<SagaMessage2>();
-        handlerChain.SourceCode!.ShouldContain("System.Diagnostics.Activity.Current?.SetTag(\"Id\", sagaMessage2.Id);");
+        handlerChain.SourceCode!.ShouldContain("Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag(\"Id\", sagaMessage2.Id);");
 
         handlerChain.AuditedMembers.Single().MemberName
             .ShouldBe(nameof(SagaMessage2.Id));
@@ -56,7 +56,7 @@ public class saga_action_discovery : IntegrationContext
         var handler = Handlers.HandlerFor<SagaMessage1>();
 
         var handlerChain = chainFor<SagaMessage1>();
-        handlerChain.SourceCode!.ShouldContain("System.Diagnostics.Activity.Current?.SetTag(\"id\", sagaMessage1.Id);");
+        handlerChain.SourceCode!.ShouldContain("Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag(\"id\", sagaMessage1.Id);");
         
         handlerChain.AuditedMembers.Single().MemberName
             .ShouldBe("StreamId");

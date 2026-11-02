@@ -476,6 +476,14 @@ public partial class Envelope
         };
     }
 
+    /// <summary>
+    /// GH-5310. The span <see cref="WolverineTracing.StartExecuting"/> started for the current execution of this
+    /// envelope. The generated handler tags this span (handler type, saga and stream ids, audited members) through
+    /// <see cref="WolverineTracing.MessageActivity"/> rather than <see cref="Activity.Current"/>, which a
+    /// persistence integration may have moved onto its own span by the time those frames run.
+    /// </summary>
+    internal Activity? ExecutingActivity;
+
     internal void WriteTags(Activity activity)
     {
         activity.MaybeSetTag(WolverineTracing.MessagingSystem, Destination?.Scheme); // This needs to vary

@@ -82,6 +82,13 @@ public partial class HttpChain
                 handleMethod.Sources.Add(new RequestServicesVariableSource(serviceType));
             }
 
+            // GH-5310: the frames that tag the span (handler type, saga and stream ids, audited members)
+            // write to the request's span, not to Activity.Current, which a persistence span such as
+            // Marten's marten.connection (TrackConnections) takes over once a session is built.
+            var httpContextArgument = handleMethod.Arguments.First(x => x.VariableType == typeof(HttpContext));
+            handleMethod.DerivedVariables.Add(new MessageActivityVariable(httpContextArgument,
+                httpContext => $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.RequestActivity)}({httpContext})"));
+
             handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules));
         }
     }

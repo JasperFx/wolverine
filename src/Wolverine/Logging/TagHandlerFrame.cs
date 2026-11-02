@@ -2,6 +2,7 @@ using System.Diagnostics;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
@@ -53,20 +54,30 @@ internal class TagHandlerPolicy : IHandlerPolicy
 internal class TagHandlerFrame : SyncFrame
 {
     private readonly string _handlerTypeName;
+    private MessageActivityVariable? _activity;
 
     public TagHandlerFrame(string handlerTypeName)
     {
         _handlerTypeName = handlerTypeName;
     }
 
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        // GH-5310: tag the message's own span rather than whatever Activity.Current has become by now
+        // (marten.connection once a Marten session has been built).
+        _activity = MessageActivityVariable.TryFind(chain);
+        foreach (var variable in MessageActivityVariable.Uses(_activity)) yield return variable;
+    }
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         if (_handlerTypeName.IsNotEmpty())
         {
+            var activity = MessageActivityVariable.UsageFor(_activity);
             writer.WriteLine(
-                $"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.MessageHandler}\", \"{_handlerTypeName}\");");
+                $"{activity}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.MessageHandler}\", \"{_handlerTypeName}\");");
             writer.WriteLine(
-                $"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.HandlerType}\", \"{_handlerTypeName}\");");
+                $"{activity}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.HandlerType}\", \"{_handlerTypeName}\");");
         }
 
         Next?.GenerateCode(method, writer);
@@ -77,8 +88,8 @@ internal class TagHandlerFrame : SyncFrame
         if (_handlerTypeName.IsNotEmpty())
         {
             // F# has no null-conditional operator, and SetTag returns the Activity (which must be
-            // discarded), so guard Activity.Current explicitly and pipe each call to `ignore`.
-            var current = $"{typeof(Activity).FSharpName()}.{nameof(Activity.Current)}";
+            // discarded), so guard the activity explicitly and pipe each call to `ignore`.
+            var current = MessageActivityVariable.FSharpUsageFor(_activity);
 
             writer.Write($"BLOCK:if not (isNull {current}) then");
             writer.Write(

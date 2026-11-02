@@ -22,8 +22,8 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var recordAotPolecatPing = (RecordAotPolecatPing)context.Envelope.Message;
 
-            System.Diagnostics.Activity.Current?.SetTag("message.handler", "AotPolecatHandler");
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotPolecatHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("message.handler", "AotPolecatHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("handler.type", "AotPolecatHandler");
             
             // The actual message execution
             var outgoing1 = AotPolecatHandler.Handle(recordAotPolecatPing);

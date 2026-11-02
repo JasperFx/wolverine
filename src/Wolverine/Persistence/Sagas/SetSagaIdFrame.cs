@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
+using Wolverine.Logging;
 using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Sagas;
@@ -18,6 +19,7 @@ internal class SetSagaIdFrame : SyncFrame
     private readonly Variable _sagaId;
     private readonly Type? _sagaType;
     private Variable? _context;
+    private MessageActivityVariable? _activity;
 
     public SetSagaIdFrame(Variable sagaId, Type? sagaType = null)
     {
@@ -30,15 +32,21 @@ internal class SetSagaIdFrame : SyncFrame
     {
         _context = chain.FindVariable(typeof(MessageContext));
         yield return _context;
+
+        // GH-5310: the message's own span, not Activity.Current -- which a persistence integration
+        // (Marten's TrackConnections) has moved by the time the saga is loaded.
+        _activity = MessageActivityVariable.TryFind(chain);
+        foreach (var variable in MessageActivityVariable.Uses(_activity)) yield return variable;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
+        var activity = MessageActivityVariable.UsageFor(_activity);
         writer.Write($"{_context!.Usage}.{nameof(MessageContext.SetSagaId)}({_sagaId.Usage});");
-        writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaId}\", {_sagaId.Usage}.ToString());");
+        writer.WriteLine($"{activity}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaId}\", {_sagaId.Usage}.ToString());");
         if (_sagaType != null)
         {
-            writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaType}\", \"{_sagaType.FullName}\");");
+            writer.WriteLine($"{activity}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaType}\", \"{_sagaType.FullName}\");");
         }
         Next?.GenerateCode(method, writer);
     }
@@ -49,7 +57,7 @@ internal class SetSagaIdFrame : SyncFrame
         writer.Write($"{_context!.Usage}.{nameof(MessageContext.SetSagaId)}({sagaId})");
 
         // F# has no null-conditional `?.`, and SetTag returns the Activity; guard once and pipe to ignore.
-        var current = $"{typeof(Activity).FSharpName()}.{nameof(Activity.Current)}";
+        var current = MessageActivityVariable.FSharpUsageFor(_activity);
         writer.Write($"BLOCK:if not (isNull {current}) then");
         writer.Write($"{current}.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaId}\", {sagaId}.ToString()) |> ignore");
         if (_sagaType != null)
