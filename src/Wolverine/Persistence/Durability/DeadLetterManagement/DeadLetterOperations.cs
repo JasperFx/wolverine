@@ -100,6 +100,24 @@ public enum DeadLetterMessageMatch
 }
 
 /// <summary>
+/// Which timestamp <see cref="DeadLetterEnvelopeQuery.Range"/> is applied to
+/// </summary>
+public enum DeadLetterTimeField
+{
+    /// <summary>
+    /// When the producer sent the message. The default. For a message read again from a broker topic this can be
+    /// long before the failure
+    /// </summary>
+    SentAt,
+
+    /// <summary>
+    /// When the message was moved to the dead letter storage, refreshed after a failed replay. A dead letter
+    /// recorded before failure fingerprinting has no failure time and falls back to its sent time
+    /// </summary>
+    FailedAt
+}
+
+/// <summary>
 /// Which dead letters a query selects by their archived state
 /// </summary>
 public enum DeadLetterArchiveFilter
