@@ -7,9 +7,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # NuGet trusted publishing: NuGet/login trades this run's GitHub OIDC token for a short-lived
+    # API key, under a trusted publishing policy on nuget.org owned by `jeremydmiller` that names this
+    # repository and THIS workflow file (publish_nugets.yml). Renaming the file breaks the policy until
+    # it is edited on nuget.org to match. Naming any permission drops the rest to none, so the
+    # checkout's contents: read is declared too.
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
       - uses: actions/checkout@v6
-          
+
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
@@ -19,8 +28,16 @@ jobs:
         run: ./build.sh pack
         shell: bash
 
+      - name: NuGet login
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: jeremydmiller
+
       - name: Publish to NuGet
         run: |
-          find . -name '*.nupkg' -exec dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k ${{secrets.NUGET_API_KEY}} --skip-duplicate \;
-          # find . -name '*.snupkg' -exec dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k ${{secrets.NUGET_API_KEY}} \;
+          find . -name '*.nupkg' -exec dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY" --skip-duplicate \;
+          # find . -name '*.snupkg' -exec dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY" \;
+        env:
+          NUGET_API_KEY: ${{ steps.nuget_login.outputs.NUGET_API_KEY }}
         shell: bash
