@@ -634,6 +634,16 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// </summary>
     public bool IsUsedForReplies { get; set; }
 
+    /// <summary>
+    ///     When <c>true</c>, the broker object behind this endpoint (a queue, topic, exchange, stream or table)
+    ///     belongs to some other system. Wolverine never creates it at startup or in <c>resources setup</c>, and
+    ///     never deletes it in <c>resources teardown</c>, even when <c>AutoProvision()</c> is on for the
+    ///     transport, while it keeps provisioning the objects the application does own. <c>resources check</c>
+    ///     still checks that it exists. Only meaningful for broker endpoints; local queues ignore it. Default is
+    ///     <c>false</c>. GH-3062, GH-3064, GH-5342.
+    /// </summary>
+    public bool IsExternallyOwned { get; set; }
+
     [IgnoreDescription]
     public IList<IEnvelopeRule> OutgoingRules { get; } = new List<IEnvelopeRule>();
     
@@ -726,6 +736,11 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         if (Mode == EndpointMode.BufferedInMemory)
         {
             dict.Add(nameof(MaximumEnvelopeRetryStorage), MaximumEnvelopeRetryStorage);
+        }
+
+        if (IsExternallyOwned)
+        {
+            dict.Add(nameof(IsExternallyOwned), true);
         }
 
         if (ShouldEnforceBackPressure())

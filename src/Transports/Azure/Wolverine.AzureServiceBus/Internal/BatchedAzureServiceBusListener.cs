@@ -415,7 +415,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
     /// </summary>
     private async Task tryRedeclareAsync()
     {
-        if (!_endpoint.Parent.AutoProvision) return;
+        if (!_endpoint.Parent.ShouldAutoProvision(_endpoint)) return;
 
         try
         {

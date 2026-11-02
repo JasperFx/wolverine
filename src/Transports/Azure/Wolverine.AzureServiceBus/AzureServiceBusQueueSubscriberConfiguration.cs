@@ -16,6 +16,17 @@ public class AzureServiceBusQueueSubscriberConfiguration : InteroperableSubscrib
     }
 
     /// <summary>
+    ///     Mark this queue as owned by another system. Wolverine will not create the queue at startup or in
+    ///     <c>resources setup</c>, or delete it in <c>resources teardown</c>, even when <c>AutoProvision()</c> is on.
+    ///     <c>resources check</c> still checks that it exists. GH-5342.
+    /// </summary>
+    public AzureServiceBusQueueSubscriberConfiguration ExternallyOwned()
+    {
+        add(e => e.IsExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
     ///     Configure the underlying Azure Service Bus queue. This is only applicable when
     ///     Wolverine is creating the queues
     /// </summary>

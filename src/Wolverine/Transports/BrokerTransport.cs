@@ -65,6 +65,17 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     public bool AutoProvision { get; set; }
 
     /// <summary>
+    ///     Should Wolverine declare the broker object behind this endpoint as it starts? True when
+    ///     <see cref="AutoProvision" /> is on and the endpoint is not <see cref="Endpoint.IsExternallyOwned" />.
+    ///     Every transport's startup provisioning should ask this rather than read <see cref="AutoProvision" />
+    ///     alone. GH-5342.
+    /// </summary>
+    public bool ShouldAutoProvision(Endpoint endpoint)
+    {
+        return AutoProvision && !endpoint.IsExternallyOwned;
+    }
+
+    /// <summary>
     ///     Should Wolverine attempt to purge all messages out of existing or discovered queues
     ///     on application start up? This can be useful for testing, and occasionally for ephemeral
     ///     messages

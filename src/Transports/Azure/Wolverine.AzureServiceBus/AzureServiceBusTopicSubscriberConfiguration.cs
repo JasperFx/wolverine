@@ -14,6 +14,17 @@ public class AzureServiceBusTopicSubscriberConfiguration : InteroperableSubscrib
     }
 
     /// <summary>
+    ///     Mark this topic as owned by another system. Wolverine will not create the topic at startup or in
+    ///     <c>resources setup</c>, or delete it in <c>resources teardown</c>, even when <c>AutoProvision()</c> is on.
+    ///     <c>resources check</c> still checks that it exists. GH-5342.
+    /// </summary>
+    public AzureServiceBusTopicSubscriberConfiguration ExternallyOwned()
+    {
+        add(e => e.IsExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
     ///     Configure the underlying Azure Service Bus Topic. This is only applicable when
     ///     Wolverine is creating the Topics
     /// </summary>

@@ -248,6 +248,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'SignalR', link: '/guide/messaging/transports/signalr'},
                                 {text: 'Redis', link: '/guide/messaging/transports/redis'},
                                 {text: 'External Database Tables', link: '/guide/messaging/transports/external-tables'},
+                                {text: 'Externally Owned Broker Objects', link: '/guide/messaging/transports/externally-owned'},
                                 {text: 'Salesforce Pub/Sub (community)', link: 'https://github.com/meyc-v1/wolverinefxcontrib-salesforcepubsub'}
                             ]
                         },

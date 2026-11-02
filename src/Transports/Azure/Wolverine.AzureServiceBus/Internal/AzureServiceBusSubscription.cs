@@ -97,6 +97,9 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     public override ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return ValueTask.CompletedTask;
+
         return new ValueTask(Parent.WithManagementClientAsync(client =>
             client.DeleteSubscriptionAsync(Topic.TopicName, SubscriptionName)));
     }
@@ -108,8 +111,18 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     internal async ValueTask SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         try
         {
+            // GH-5342. Wolverine will not create a topic it does not own, so say which one is missing. Otherwise
+            // the subscription create fails with a bare MessagingEntityNotFound that names nothing
+            if (Topic.IsExternallyOwned && !(await client.TopicExistsAsync(Topic.TopicName)).Value)
+            {
+                throw new ExternallyOwnedTopicNotFoundException(Topic.TopicName, SubscriptionName);
+            }
+
             var exists = await client.SubscriptionExistsAsync(Topic.TopicName, SubscriptionName);
             if (!exists)
             {
@@ -269,7 +282,7 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     internal async ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(client, logger);
         }

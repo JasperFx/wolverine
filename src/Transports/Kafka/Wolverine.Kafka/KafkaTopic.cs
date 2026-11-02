@@ -131,15 +131,6 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// </summary>
     public bool StampConsumerGroupIdOnEnvelope { get; set; } = true;
 
-    /// <summary>
-    /// When true, Wolverine will not attempt to create or delete this topic
-    /// during transport startup or resource teardown, even when AutoProvision
-    /// is enabled on the parent transport. Use this for topics owned by an
-    /// external system where the calling identity lacks CreateTopics or
-    /// DeleteTopics ACLs. Default is false.
-    /// </summary>
-    public bool IsExternallyOwned { get; set; }
-
     public static string TopicNameForUri(Uri uri)
     {
         return uri.Segments.Last().Trim('/');

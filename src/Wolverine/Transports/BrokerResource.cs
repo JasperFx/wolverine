@@ -93,7 +93,8 @@ public class BrokerResource : IStatefulResource
     {
         await _transport.ConnectAsync(_runtime);
 
-        foreach (var endpoint in _transport.Endpoints().OfType<IBrokerEndpoint>())
+        // GH-5342. An externally owned object belongs to another system, so tearing it down is not ours to do
+        foreach (var endpoint in _transport.Endpoints().OfType<IBrokerEndpoint>().Where(x => !isExternallyOwned(x)))
         {
             try
             {
@@ -118,7 +119,8 @@ public class BrokerResource : IStatefulResource
         // tearing down what you can is the useful outcome there.
         var failures = new List<Exception>();
 
-        foreach (var endpoint in _transport.Endpoints().OfType<IBrokerEndpoint>())
+        // GH-5342. Nor is creating one. Check above still covers it: the application still needs it to exist
+        foreach (var endpoint in _transport.Endpoints().OfType<IBrokerEndpoint>().Where(x => !isExternallyOwned(x)))
         {
             try
             {
@@ -190,6 +192,11 @@ public class BrokerResource : IStatefulResource
         }
 
         return table;
+    }
+
+    private static bool isExternallyOwned(IBrokerEndpoint endpoint)
+    {
+        return endpoint is Endpoint { IsExternallyOwned: true };
     }
 
     public string Type => TransportConstants.WolverineTransport;

@@ -1210,6 +1210,8 @@ opts.ListenToKafkaTopic("our-orders");
 
 The flag is per-endpoint, so externally-owned and owned topics can coexist in the same `AutoProvision()` configuration. It applies symmetrically to both `SetupAsync` (startup, `resources setup`) and `TeardownAsync` (`resources teardown`).
 
+See [Externally Owned Broker Objects](/guide/messaging/transports/externally-owned) for how this works across every transport.
+
 `ExternallyOwned()` and the [Topic Creation Options](#topic-creation-options) above are the two ends of a single spectrum: use `Specification()` / `TopicCreation()` to customize how Wolverine creates topics you *do* own, and `ExternallyOwned()` to bow out entirely for topics you don't. They compose freely — you can mix all three on listeners in the same host.
 
 ::: tip

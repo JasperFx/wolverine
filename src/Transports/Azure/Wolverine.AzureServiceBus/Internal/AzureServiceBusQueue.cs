@@ -54,11 +54,17 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
 
     public override async ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         await Parent.WithManagementClientAsync(c => c.DeleteQueueAsync(QueueName));
     }
 
     public override async ValueTask SetupAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         await Parent.WithManagementClientAsync(async client =>
         {
             var exists = await client.QueueExistsAsync(QueueName);
@@ -203,7 +209,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
             return;
         }
 
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(logger);
         }

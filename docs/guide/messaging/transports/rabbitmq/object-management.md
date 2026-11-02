@@ -183,6 +183,8 @@ When an endpoint is marked `ExternallyOwned()`, Wolverine will:
 
 This applies to queue listeners, queue subscribers, and exchange subscribers alike.
 
+See [Externally Owned Broker Objects](/guide/messaging/transports/externally-owned) for how this works across every transport.
+
 ::: tip
 `ExternallyOwned()` is distinct from `DeclarePassive`. A `DeclarePassive` exchange still makes a
 *passive* declaration against the broker at startup to verify that the resource already exists

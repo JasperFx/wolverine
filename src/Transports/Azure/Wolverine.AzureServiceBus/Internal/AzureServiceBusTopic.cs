@@ -66,6 +66,9 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
     public override ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342. Another system's topic, and every other subscriber's with it
+        if (IsExternallyOwned) return ValueTask.CompletedTask;
+
         return new ValueTask(Parent.WithManagementClientAsync(client => client.DeleteTopicAsync(TopicName)));
     }
 
@@ -79,6 +82,10 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
     internal async Task SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
+        // GH-5342. Creating it here would fix its partitioning, duplicate detection and the rest at our defaults
+        // rather than its owner's, and some of those can never be changed once the topic exists
+        if (IsExternallyOwned) return;
+
         var exists = await client.TopicExistsAsync(TopicName, CancellationToken.None);
         if (!exists)
         {
@@ -109,7 +116,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
     internal ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             return new ValueTask(SetupAsync(client, logger));
         }

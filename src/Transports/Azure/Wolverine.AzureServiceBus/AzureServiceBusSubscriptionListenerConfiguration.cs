@@ -138,6 +138,31 @@ public class AzureServiceBusSubscriptionListenerConfiguration : InteroperableLis
     }
 
     /// <summary>
+    ///     Mark the topic this subscription reads from as owned by another system, typically the service that
+    ///     publishes to it. Wolverine will not create or delete the topic, even when <c>AutoProvision()</c> is on,
+    ///     but still creates this subscription and its rule on it. If the topic does not exist yet, provisioning
+    ///     the subscription fails with an <see cref="ExternallyOwnedTopicNotFoundException" /> that names it.
+    ///     GH-5342.
+    /// </summary>
+    public AzureServiceBusSubscriptionListenerConfiguration TopicIsExternallyOwned()
+    {
+        add(e => e.Topic.IsExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
+    ///     Mark this subscription itself as owned by another system. Wolverine will not create, change or delete
+    ///     the subscription or its rules, even when <c>AutoProvision()</c> is on, and only listens to it. Use
+    ///     <see cref="TopicIsExternallyOwned" /> instead when Wolverine should still provision the subscription.
+    ///     GH-5342.
+    /// </summary>
+    public AzureServiceBusSubscriptionListenerConfiguration ExternallyOwned()
+    {
+        add(e => e.IsExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
     ///     Configure the underlying Azure Service Bus Subscription. This is only applicable when
     ///     Wolverine is creating the Subscriptions
     /// </summary>
