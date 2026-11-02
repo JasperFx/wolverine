@@ -357,6 +357,25 @@ public static class WolverineTracing
         }
     }
 
+    // GH-5311. Holds the exception last recorded on an activity, so the several catch blocks one
+    // failure can pass through (executor, pipeline, receiver) add the "exception" event only once.
+    private const string RecordedExceptionProperty = "wolverine.recorded_exception";
+
+    /// <summary>
+    /// GH-5311. Records the OpenTelemetry <c>exception</c> event (exception.type, exception.message,
+    /// exception.stacktrace) on <paramref name="activity"/>, unless <paramref name="enabled"/> is false,
+    /// no listener asked for the activity's data, or this exception is already recorded on it
+    /// </summary>
+    internal static void RecordException(this Activity? activity, Exception exception, bool enabled)
+    {
+        if (!enabled || activity is not { IsAllDataRequested: true }) return;
+
+        if (ReferenceEquals(activity.GetCustomProperty(RecordedExceptionProperty), exception)) return;
+
+        activity.SetCustomProperty(RecordedExceptionProperty, exception);
+        activity.AddException(exception);
+    }
+
     internal static void MaybeSetTag<T>(this Activity activity, string tagName, T? value)
     {
         if (value != null)

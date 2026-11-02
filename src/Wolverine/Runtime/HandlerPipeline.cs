@@ -130,7 +130,8 @@ public class HandlerPipeline : IHandlerPipeline
                 // failure in the recovery path itself (e.g. an OutOfMemoryException re-thrown by the
                 // allocating CompleteAsync / logging calls) can never escape InvokeAsync, fault the
                 // receiver loop, and silently stop the listener. See GH-3111.
-                await RecoverFromFailedProcessingAsync(channel, envelope, e, Logger, _runtime.Logger, activity)
+                await RecoverFromFailedProcessingAsync(channel, envelope, e, Logger, _runtime.Logger, activity,
+                        _runtime.Options.Tracking.RecordExceptionsOnSpans)
                     .ConfigureAwait(false);
             }
             finally
@@ -160,7 +161,8 @@ public class HandlerPipeline : IHandlerPipeline
         Exception exception,
         IMessageTracker tracker,
         ILogger logger,
-        Activity? activity)
+        Activity? activity,
+        bool recordException = true)
     {
         try
         {
@@ -182,6 +184,7 @@ public class HandlerPipeline : IHandlerPipeline
             tracker.MessageFailed(envelope, exception);
 
             activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
+            activity.RecordException(exception, recordException);
         }
         catch (Exception recoveryFailure)
         {
@@ -290,9 +293,10 @@ public class HandlerPipeline : IHandlerPipeline
             // OTLP exporters see exception.type / exception.message / exception.stacktrace
             // for the malformed or incompatible payload, instead of only the generic
             // "Serialization Failure" status the parent activity is later stamped with.
-            // AddException is a no-op when activity is null (span not started because
-            // DeserializationSpanEnabled is off), so the opt-in cost stays trivial.
-            activity?.AddException(e);
+            // Nothing is recorded when activity is null (span not started because
+            // DeserializationSpanEnabled is off), so the opt-in cost stays trivial, and
+            // Tracking.RecordExceptionsOnSpans = false suppresses it (GH-5311).
+            activity.RecordException(e, _runtime.Options.Tracking.RecordExceptionsOnSpans);
 
             return new MoveToErrorQueue(e);
         }
@@ -441,6 +445,7 @@ public class HandlerPipeline : IHandlerPipeline
             // that will not compile, a sticky-handler misconfiguration -- and none of them will ever
             // succeed on a retry, so the dead letter queue is where the envelope belongs.
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            activity.RecordException(e, _runtime.Options.Tracking.RecordExceptionsOnSpans);
             return new MoveToErrorQueue(e);
         }
 
