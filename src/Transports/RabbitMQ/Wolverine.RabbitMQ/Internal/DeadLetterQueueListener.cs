@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMQ.Client.Exceptions;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -49,31 +50,41 @@ public class DeadLetterQueueListener : BackgroundService
 
         try
         {
-            _connection = await _transport.CreateConnectionAsync();
-            _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
+            var connection = await _transport.CreateConnectionAsync();
+            _connection = connection;
+            var channel = await connection.CreateChannelAsync(cancellationToken: stoppingToken);
+            _channel = channel;
 
             // Prefetch 10 messages at a time to avoid overwhelming the database
-            await _channel.BasicQosAsync(0, 10, false, stoppingToken);
+            await channel.BasicQosAsync(0, 10, false, stoppingToken);
 
-            var consumer = new AsyncEventingBasicConsumer(_channel);
+            var consumer = new AsyncEventingBasicConsumer(channel);
             consumer.ReceivedAsync += async (_, args) =>
             {
                 try
                 {
                     await processDeadLetterAsync(args, stoppingToken);
-                    await _channel.BasicAckAsync(args.DeliveryTag, false, stoppingToken);
+                    await channel.BasicAckAsync(args.DeliveryTag, false, stoppingToken);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Failed to process dead letter message from RabbitMQ DLQ");
-                    // Requeue the message so we don't lose it
-                    await _channel.BasicNackAsync(args.DeliveryTag, false, true, stoppingToken);
+
+                    try
+                    {
+                        // Requeue the message so we don't lose it
+                        await channel.BasicNackAsync(args.DeliveryTag, false, true, stoppingToken);
+                    }
+                    catch (Exception nackFailure) when (isShutdownException(nackFailure))
+                    {
+                        // The channel closed underneath us, and RabbitMQ requeues anything left unacked anyway
+                    }
                 }
             };
 
             foreach (var queueName in queueNames)
             {
-                await _channel.BasicConsumeAsync(queueName, false, consumer, stoppingToken);
+                await channel.BasicConsumeAsync(queueName, false, consumer, stoppingToken);
                 _logger.LogInformation(
                     "Dead letter queue listener started on queue '{QueueName}'. Messages will be recovered to database storage.",
                     queueName);
@@ -89,6 +100,11 @@ public class DeadLetterQueueListener : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Dead letter queue listener failed");
+        }
+        finally
+        {
+            // Picks up whatever a stop that ran while this was still connecting could not see yet
+            await closeAsync(CancellationToken.None);
         }
     }
 
@@ -224,24 +240,84 @@ public class DeadLetterQueueListener : BackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        // Cleared as they are disposed, so a second stop of the host is a no-op rather than an ObjectDisposedException
-        if (_channel is not null)
-        {
-            var channel = _channel;
-            _channel = null;
-            await channel.CloseAsync(cancellationToken);
-            channel.Dispose();
-        }
-
-        if (_connection is not null)
-        {
-            var connection = _connection;
-            _connection = null;
-            await connection.CloseAsync(cancellationToken);
-            connection.Dispose();
-        }
+        // GH-5314. A host can be stopped twice at the same time, e.g. WebApplicationFactory's teardown racing
+        // RunJasperFxCommands, so this is idempotent, safe to call concurrently, and never throws
+        await closeAsync(cancellationToken);
 
         await base.StopAsync(cancellationToken);
+    }
+
+    private async Task closeAsync(CancellationToken cancellationToken)
+    {
+        // Both fields are claimed before any await, so a concurrent caller finds nothing left to close and
+        // can never close the connection underneath a channel close that is still in flight
+        var channel = Interlocked.Exchange(ref _channel, null);
+        var connection = Interlocked.Exchange(ref _connection, null);
+
+        if (channel is not null)
+        {
+            try
+            {
+                if (channel.IsOpen)
+                {
+                    await channel.CloseAsync(cancellationToken);
+                }
+            }
+            catch (Exception e)
+            {
+                logCloseFailure(e, "channel");
+            }
+
+            disposeQuietly(channel, "channel");
+        }
+
+        if (connection is not null)
+        {
+            try
+            {
+                if (connection.IsOpen)
+                {
+                    await connection.CloseAsync(cancellationToken);
+                }
+            }
+            catch (Exception e)
+            {
+                logCloseFailure(e, "connection");
+            }
+
+            disposeQuietly(connection, "connection");
+        }
+    }
+
+    private void disposeQuietly(IDisposable disposable, string what)
+    {
+        try
+        {
+            disposable.Dispose();
+        }
+        catch (Exception e)
+        {
+            logCloseFailure(e, what);
+        }
+    }
+
+    private void logCloseFailure(Exception e, string what)
+    {
+        if (isShutdownException(e))
+        {
+            // Already closed by the broker, by the connection, or by another stop: nothing left to do
+            _logger.LogDebug(e, "The RabbitMQ dead letter queue listener's {What} was already closed while stopping", what);
+        }
+        else
+        {
+            _logger.LogWarning(e, "Error closing the RabbitMQ dead letter queue listener's {What} while stopping", what);
+        }
+    }
+
+    private static bool isShutdownException(Exception e)
+    {
+        // AlreadyClosedException is an OperationInterruptedException
+        return e is OperationInterruptedException or ObjectDisposedException or OperationCanceledException;
     }
 }
 
