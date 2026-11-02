@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Microsoft.Data.SqlClient;
 using Polecat;
 using Polecat.Services;
@@ -93,54 +94,49 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
 }
 
 /// <summary>
-/// Polecat ITransactionParticipant that flushes outgoing messages after commit.
-/// Used by PolecatOutbox when listeners can't be added post-construction.
+/// Runs <see cref="FlushOutgoingMessagesOnCommit" /> for a session that was already open when it was enrolled in
+/// the outbox. Polecat takes a session's listeners only when the session is opened, and its
+/// ITransactionParticipant has no after-commit hook, so PolecatOutbox.Enroll has nothing of its own to attach to.
+/// Every store integrated with Wolverine carries one of these instead, and it does nothing for any other session.
 /// </summary>
-internal class FlushOutgoingMessagesParticipant : ITransactionParticipant
+/// <remarks>
+/// Weakly keyed, so an enrolled session is collected as it would have been. JasperFx 3's AddSaveListener lets
+/// Enroll add the listener to the session itself, as Wolverine.Marten does, and this goes away.
+/// </remarks>
+internal class FlushEnrolledOutboxOnCommit : IDocumentSessionListener
 {
-    private readonly MessageContext _context;
-    private readonly SqlServerMessageStore _messageStore;
+    private static readonly ConditionalWeakTable<IDocumentSession, FlushOutgoingMessagesOnCommit> _enrolled = new();
 
-    public FlushOutgoingMessagesParticipant(MessageContext context, SqlServerMessageStore messageStore)
+    public static void Enroll(IDocumentSession session, FlushOutgoingMessagesOnCommit listener)
     {
-        _context = context;
-        _messageStore = messageStore;
+        _enrolled.AddOrUpdate(session, listener);
     }
 
-    public async Task BeforeCommitAsync(SqlConnection connection, SqlTransaction transaction, CancellationToken token)
+    public Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token)
     {
-        // Mark incoming as handled if needed
-        // F13: see FlushOutgoingMessagesOnCommit
-        if (_context.Envelope?.Destination != null && _context.Envelope.WasPersistedInInbox && !_context.HasRescheduledEnvelope)
-        {
-            // GH-5045: see FlushOutgoingMessagesOnCommit
-            if (!_context.Envelope.InboxRowIsIn(_messageStore, _context.Runtime.Storage))
-            {
-                return;
-            }
+        return _enrolled.TryGetValue(session, out var listener)
+            ? listener.BeforeSaveChangesAsync(session, token)
+            : Task.CompletedTask;
+    }
 
-            var keepUntil = DateTimeOffset.UtcNow.Add(_context.Runtime.Options.Durability.KeepAfterMessageHandling);
+    public Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
+    {
+        return _enrolled.TryGetValue(session, out var listener)
+            ? listener.AfterCommitAsync(session, commit, token)
+            : Task.CompletedTask;
+    }
+}
 
-            // GH-4705: same statement the store runs itself, so it matches id AND received_at.
-            var markHandled =
-                _messageStore.BuildMarkIncomingAsHandled(_context.Envelope, keepUntil, "@id", "@uri", "@keepUntil");
-
-            await using var cmd = connection.CreateCommand();
-            cmd.Transaction = transaction;
-            cmd.CommandText = markHandled.Sql;
-            cmd.Parameters.AddWithValue("@keepUntil", keepUntil);
-            cmd.Parameters.AddWithValue("@id", _context.Envelope.Id);
-            cmd.Parameters.AddWithValue("@uri", _context.Envelope.Destination!.ToString());
-            await cmd.ExecuteNonQueryAsync(token);
-
-            // Deliberately do NOT flip _context.Envelope.Status to Handled here: this
-            // runs inside BeforeCommitAsync, before the transaction commits, and
-            // ITransactionParticipant exposes no after-commit hook to defer to. Setting
-            // it pre-commit left a stale flag on rollback that made DurableReceiver skip
-            // the real mark-handled UPDATE, stranding the row as 'Incoming'. The
-            // (idempotent) UPDATE via DurableReceiver._markAsHandled covers the success
-            // path instead.
-        }
+/// <summary>
+/// Writes nothing. SaveChangesAsync returns before it reaches any listener when the session has no work and no
+/// participant, and a buffered message queues no work, so this is what carries a save holding nothing else as far
+/// as <see cref="FlushOutgoingMessagesOnCommit" />.
+/// </summary>
+internal class KeepSaveChangesRunning : ITransactionParticipant
+{
+    public Task BeforeCommitAsync(SqlConnection connection, SqlTransaction transaction, CancellationToken token)
+    {
+        return Task.CompletedTask;
     }
 }
 

@@ -33,9 +33,11 @@ public class PolecatOutbox : MessageContext, IPolecatOutbox
         var polecatEnvelopeTransaction = new PolecatEnvelopeTransaction(session, this);
         Transaction = polecatEnvelopeTransaction;
 
-        // Polecat requires listeners on SessionOptions before session creation,
-        // so we use ITransactionParticipant for the outbox flush
-        session.AddTransactionParticipant(new FlushOutgoingMessagesParticipant(this, polecatEnvelopeTransaction.Store));
+        // Polecat requires listeners on SessionOptions before session creation, and this session is already
+        // open, so the store's FlushEnrolledOutboxOnCommit runs this listener for it
+        FlushEnrolledOutboxOnCommit.Enroll(session,
+            new FlushOutgoingMessagesOnCommit(this, polecatEnvelopeTransaction.Store));
+        session.AddTransactionParticipant(new KeepSaveChangesRunning());
     }
 
     public IDocumentSession? Session { get; private set; }

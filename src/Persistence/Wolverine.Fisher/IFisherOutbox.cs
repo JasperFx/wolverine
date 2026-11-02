@@ -34,7 +34,7 @@ public class FisherOutbox : MessageContext, IFisherOutbox
         Transaction = fisherEnvelopeTransaction;
 
         // Fisher requires listeners on SessionOptions before session creation,
-        // so we use ITransactionParticipant for the outbox flush
+        // so we use ITransactionParticipant for the outbox flush, which runs after the commit
         session.AddTransactionParticipant(new FlushOutgoingMessagesParticipant(this, fisherEnvelopeTransaction.Store));
     }
 

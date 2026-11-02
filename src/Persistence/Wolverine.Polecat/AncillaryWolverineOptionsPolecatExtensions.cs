@@ -346,6 +346,9 @@ internal class PolecatOverrides<T> : IConfigurePolecat<T> where T : IDocumentSto
         // messages.
         options.Events.MessageOutbox = new PolecatToWolverineOutbox(services);
 
+        // See PolecatOverrides
+        options.Listeners.Add(new FlushEnrolledOutboxOnCommit());
+
         // GH-3290: mirror the primary store (PolecatOverrides) — the ancillary managed
         // distribution flag lives on the main PolecatIntegration (see the
         // IProjectionCoordinator<T> factory registration above), so defer to it here too.
