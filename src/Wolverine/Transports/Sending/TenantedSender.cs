@@ -1,5 +1,6 @@
 using ImTools;
 using JasperFx.Core;
+using Wolverine.Util;
 
 namespace Wolverine.Transports.Sending;
 
@@ -58,7 +59,7 @@ internal class InvalidTenantSender : ISender
 /// which explicitly calls MarkSuccessfulAsync after a successful send.
 /// See https://github.com/JasperFx/wolverine/issues/2361
 /// </summary>
-public class TenantedSender : ISender, IDisposable, IAsyncDisposable, IConditionalNativeScheduling
+public class TenantedSender : ISender, IAsyncDisposable, IConditionalNativeScheduling
 {
     public TenantedIdBehavior TenantedIdBehavior { get; }
     private readonly ISender _defaultSender = null!;
@@ -164,35 +165,13 @@ public class TenantedSender : ISender, IDisposable, IAsyncDisposable, ICondition
         return _defaultSender;
     }
 
-    public void Dispose()
-    {
-        if (_defaultSender is IDisposable defaultDisposable)
-        {
-            defaultDisposable.SafeDispose();
-        }
-
-        foreach (var entry in _senders.Enumerate())
-        {
-            if (entry.Value is IDisposable tenantDisposable)
-            {
-                tenantDisposable.SafeDispose();
-            }
-        }
-    }
-
     public async ValueTask DisposeAsync()
     {
-        if (_defaultSender is IAsyncDisposable ad)
-        {
-            await ad.DisposeAsync();
-        }
+        await _defaultSender.MaybeDisposeAsync();
 
         foreach (var entry in _senders.Enumerate())
         {
-            if (entry.Value is IAsyncDisposable ad2)
-            {
-                await ad2.DisposeAsync();
-            }
+            await entry.Value.MaybeDisposeAsync();
         }
     }
 }

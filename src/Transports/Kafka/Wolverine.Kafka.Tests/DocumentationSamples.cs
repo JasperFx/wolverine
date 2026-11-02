@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using JasperFx.Resources;
@@ -77,14 +77,14 @@ public class DocumentationSamples
                         // You do have full access to the IAdminClient to do
                         // whatever you need to do
 
-                        await client.CreateTopicsAsync([topic.Specification]);
+                        await client.CreateTopicsAsync([topic.Specification.ToNewTopic()],
+                            new Dekaf.Admin.CreateTopicsOptions(), CancellationToken.None);
                     })
-                    
+
                     // Override the producer configuration for just this topic
                     .ConfigureProducer(config =>
                     {
                         config.BatchSize = 100;
-                        config.EnableGaplessGuarantee = true;
                         config.EnableIdempotence = true;
                     });
 
@@ -252,15 +252,15 @@ public class OurKafkaJsonMapper<TMessage> : IKafkaEnvelopeMapper
     // Wolverine needs to know the 
     private readonly string _messageTypeName = typeof(TMessage).ToMessageTypeName();
 
-    // Map the Wolverine Envelope structure to the outgoing Kafka structure
-    public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
+    // Map the Wolverine Envelope structure to the outgoing Kafka record
+    public void MapEnvelopeToOutgoing(Envelope envelope, OutgoingKafkaRecord outgoing)
     {
         // We'll come back to this later...
         throw new NotSupportedException();
     }
 
-    // Map the incoming message from Kafka to the incoming Wolverine envelope
-    public void MapIncomingToEnvelope(Envelope envelope, Message<string, byte[]> incoming)
+    // Map the incoming record from Kafka to the incoming Wolverine envelope
+    public void MapIncomingToEnvelope(Envelope envelope, ConsumeResult<string, byte[]> incoming)
     {
         // We're making an assumption here that only one type of message
         // is coming in on this particular Kafka topic, so we're telling

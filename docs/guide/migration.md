@@ -1,5 +1,72 @@
 # Migration Guide
 
+## Key Changes in 7.0
+
+::: warning
+7.0 is in development. Items below describe the changes made so far, and the released 7.0 may add to or refine this
+list.
+:::
+
+### At a glance: settings & APIs that changed in 7.0
+
+| Setting / API | 6.x | 7.0 | Migration action |
+|---|---|---|---|
+| `WolverineFx.Kafka` client library | Confluent.Kafka (librdkafka) | **Dekaf** (pure C#, KIP-848-only) *(BREAKING for custom config, mappers, schema-registry serializers; requires Kafka 4.0+)* | Swap Confluent config types for [Wolverine's Kafka option classes](#kafka-transport-now-runs-on-dekaf-breaking); wire format is unchanged |
+| `UseCooperativeStickyAssignment()`, `UseNextGenerationRebalanceProtocol()` | rebalance opt-ins | **removed** *(BREAKING)* | Delete the calls; KIP-848 rebalances are always incremental |
+| `KafkaProducerOptions.Acks` below `All` | accepted (librdkafka producers were not idempotent by default) | **startup fails** unless `EnableIdempotence = false` *(BREAKING)* | Set `EnableIdempotence = false` alongside the acks, or use `Acks.All`; see [Kafka behaviour changes](#kafka-behaviour-changes) |
+| `CommitMode.PerMessage` | committed before the handler's completion returned | committed on the listener's next consume pass, at most about a second later, one commit per pass | None |
+| `OffsetCommitMode.Auto` offset storage | stored when the record is delivered | stored once the listener asks for the next record (`AfterProcessing`) | None; inline listeners and one-at-a-time durable listeners now redeliver after a crash instead of losing the record |
+| Kafka client option names | Confluent's (`SecurityProtocol`, `EnableAutoCommit`, `*Ms` integers) | Dekaf's (`UseTls`, `OffsetCommitMode`, `TimeSpan`s) *(BREAKING)* | Rename the properties; see [the mapping](#kafka-transport-now-runs-on-dekaf-breaking) |
+| Kafka producers | one per sending topic, plus dead letter and retry producers, again per tenant | one per cluster for each distinct set of producer options | None; give a topic its own options with `ConfigureProducer(...)` to keep it on its own producer |
+| `InlineKafkaSender`, `KafkaSenderProtocol` | `IAsyncDisposable` | not disposable *(BREAKING)* | Drop any `DisposeAsync()` calls; the transport disposes the producers |
+| Async serializers on the send path | `IMessageSerializer.Write` called synchronously | `IAsyncMessageSerializer.WriteAsync` awaited, at publish time for durable messages | None; see [async serializers](#async-serializers-are-awaited-when-sending) |
+| `BackgroundReceiveLoop.UsesBlockingIteration` | opt-in dedicated thread for blocking iterations | **removed** *(BREAKING)* | Make the iteration async; see [transport author changes](#disposal-and-receive-loop-changes-for-transport-authors-breaking) |
+| `BatchedSender`, `InlineSendingAgent`, `ListeningAgent` | `IDisposable` | `IAsyncDisposable` only *(BREAKING)* | Call `await DisposeAsync()` |
+| `ISenderRequiresCallback` | extends `IDisposable` | does not *(BREAKING)* | Implement disposal on the sender itself if it needs it |
+
+### Kafka transport now runs on Dekaf (BREAKING)
+
+`WolverineFx.Kafka` replaced the Confluent.Kafka client library with [Dekaf](https://thomhurst.github.io/Dekaf/), a pure C# Kafka client with no native librdkafka dependency that is friendly to Native AOT. The transport's fluent configuration API, commit modes, dead letter queue, retry topics, replay, multi-tenancy, and multi-topic listening all keep their shape (see [Kafka behaviour changes](#kafka-behaviour-changes) for what runs differently), but there are several visible changes:
+
+- **Kafka 4.0+ broker required.** Dekaf speaks only the [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) consumer-group protocol, so consumers cannot join their groups on older brokers.
+- **Wolverine-owned option classes replace the Confluent config objects.** `ConfigureConsumers()`, `ConfigureProducers()`, `ConfigureClient()`, and `AutoProvision(...)` keep their shapes, but now hand you `KafkaConsumerOptions`, `KafkaProducerOptions`, `KafkaClientOptions`, and `KafkaAdminClientOptions` from the `Wolverine.Kafka` namespace instead of Confluent's `ConsumerConfig` / `ProducerConfig` / `ClientConfig` / `AdminClientConfig`. The curated properties cover connectivity, SASL/SSL, group and fetch settings, and producer delivery settings; anything beyond them is reachable via `ConfigureConsumerBuilders()` / `ConfigureProducerBuilders()` / `ConfigureAdminClientBuilders()`, which expose Dekaf's fluent builders. Their names and types follow Dekaf's rather than Confluent's:
+  - `SecurityProtocol = SecurityProtocol.Ssl` becomes `UseTls = true`; `SaslSsl` is `UseTls = true` plus a `SaslMechanism`, and `SaslPlaintext` is a `SaslMechanism` alone.
+  - `SaslMechanism` is Dekaf's `Dekaf.Security.Sasl.SaslMechanism`. `Plain`, `ScramSha256` and `ScramSha512` are configured from these options; `Gssapi`, `OAuthBearer` and `AwsMskIam` stop the host from starting, and are configured on the builders with `WithGssapi(...)`, `WithOAuthBearer(...)` or `WithAwsMskIam(...)`.
+  - `EnableAutoCommit = true` / `false` becomes `OffsetCommitMode = OffsetCommitMode.Auto` / `OffsetCommitMode.Manual`.
+  - Millisecond integers become `TimeSpan`s named after Dekaf's builder methods: `AutoCommitIntervalMs` is `AutoCommitInterval`, `SessionTimeoutMs` is `SessionTimeout`, `HeartbeatIntervalMs` is `HeartbeatInterval`, and `LingerMs` is `Linger`.
+  - `AutoOffsetReset`, `IsolationLevel` and `Acks` are Dekaf's enums. `AutoOffsetReset.ByDuration` takes its window from `AutoOffsetResetDuration`.
+
+  `TopicSpecification` becomes Wolverine's `KafkaTopicSpecification` (with `ToNewTopic()` for hand-off to Dekaf's admin API), and `TopicCreation(...)` callbacks receive `Dekaf.Admin.IAdminClient`.
+- **Custom envelope mappers change signature.** `IKafkaEnvelopeMapper` is now `IEnvelopeMapper<Dekaf.Consumer.ConsumeResult<string, byte[]>, OutgoingKafkaRecord>` — incoming records are Dekaf's `ConsumeResult`, outgoing records are Wolverine's mutable `OutgoingKafkaRecord` (`Key`, `Value` where null means a tombstone, `Headers`, `Timestamp`, `Partition`).
+- **Schema registry serializer constructors changed.** `SchemaRegistryAvroSerializer` and `SchemaRegistryJsonSerializer` now build on the Dekaf.SchemaRegistry packages: constructors take a `Dekaf.SchemaRegistry.ISchemaRegistryClient` (`new SchemaRegistryClient(new SchemaRegistryConfig { Url = "..." })`) plus optional `AvroSerializerConfig` / `JsonSchemaSerializerConfig` (and optional `JsonSerializerOptions` for JSON) instead of the Confluent.SchemaRegistry.Serdes types. The wire format is still the Confluent framing, so records interoperate with Confluent serdes on the other side.
+- **Rebalance opt-ins removed.** `UseCooperativeStickyAssignment()` and `UseNextGenerationRebalanceProtocol()` are gone from both the transport and listener configuration. Under KIP-848 rebalances are always broker-driven and incremental, so there is nothing to opt into. Delete the calls. `UseStaticMembership(...)` is unchanged and fully supported.
+- **Full wire interop.** The transport remains wire-compatible with applications using Confluent.Kafka or any other Kafka client: keys, values, headers, timestamps, and tombstones all round-trip.
+
+See the [Kafka transport docs](/guide/messaging/transports/kafka) for the full configuration surface.
+
+### Kafka behaviour changes
+
+- **Producers are idempotent by default, and acks are checked at startup.** Dekaf producers are idempotent unless `EnableIdempotence = false`, and an idempotent producer always waits for every in-sync replica. A producer configured with `Acks.None` or `Acks.Leader` and idempotence left on now stops the host from starting with an explanation, rather than failing every send (`Acks.None`) or being silently raised to `Acks.All` (`Acks.Leader`).
+- **Offsets are committed by the listener's consume loop.** Handlers queue each finished offset, and the loop commits or stores them before it next polls, at least once a second. `CommitMode.PerMessage` therefore commits shortly after a message finishes rather than before its completion returns, and a pass commits every partition that advanced in one call. `BatchInterval` now commits as soon as its interval passes, instead of waiting for the next message to finish. When partitions are revoked, the offsets finished on them are committed before they are handed to another consumer.
+- **`OffsetCommitMode.Auto` stores offsets after processing.** The offset of a record becomes committable once the listener asks for the next record, instead of when the record is delivered. Inline listeners, and durable listeners receiving one record at a time, now redeliver their in-flight record after a crash instead of losing it. Buffered listeners and durable micro-batches ask for the next record before processing finishes, so they behave as before.
+- **A retry-tier record that is not due yet only holds back its own partition.** The listener pauses that partition and rewinds it to the record until the record's delay has passed, rather than waiting inside the consume loop, so the other partitions the consumer owns keep flowing.
+- **Producers are shared per cluster.** Every topic without its own producer options, the dead letter topic and the retry-tier topics share one producer per cluster, and each broker-per-tenant cluster gets its own. Topics that share a producer share its send buffer, so a topic that fills it can slow sends to the others; give a topic its own options with `ConfigureProducer(...)` to keep it separate. Producers are flushed and disposed with the transport, not with each sender.
+- **Health checks read the live Kafka clients.** The transport health check reports from the connection status of the running consumers and producers: Unhealthy when none has a live broker connection, Degraded when some have none or a producer's send buffer is full. It only falls back to an admin-client probe before any client has connected. Endpoint health reports consumer lag as the broker queue depth.
+
+### Async serializers are awaited when sending
+
+Wolverine now awaits `IAsyncMessageSerializer.WriteAsync` (the schema registry serializers, encryption, claim checks) when it batches outgoing messages, rather than calling the synchronous `Write`. For a durable message the serialization runs when the message is published, before it is written to the outbox, so the outbox write does not block on an async serializer. A serializer failure, such as an unreachable schema registry, now fails the handler that published the message and goes through its error policies, rather than surfacing later when the outbox is flushed.
+
+### Disposal and receive loop changes for transport authors (BREAKING)
+
+These only affect code that builds custom transports or drives Wolverine's sending and listening agents directly:
+
+- `BatchedSender`, `InlineSendingAgent` and `ListeningAgent` are `IAsyncDisposable` only; replace `Dispose()` calls with `await DisposeAsync()`. Wolverine now also disposes senders and sender protocols that are only `IAsyncDisposable`.
+- `ISenderRequiresCallback` no longer extends `IDisposable`.
+- `BackgroundReceiveLoop.UsesBlockingIteration` is removed. Kafka was its only user, and its consumer is now async. A transport whose client only offers a blocking receive should run that receive on its own thread rather than inside the loop's iteration.
+
+---
+
 ## Key Changes in 6.0
 
 ::: warning

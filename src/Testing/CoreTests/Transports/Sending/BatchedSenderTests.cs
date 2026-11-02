@@ -101,7 +101,7 @@ public class BatchedSenderTests
             });
 
         var callback = Substitute.For<ISenderCallback>();
-        using var sender = new BatchedSender(endpoint, protocol, CancellationToken.None, NullLogger.Instance);
+        await using var sender = new BatchedSender(endpoint, protocol, CancellationToken.None, NullLogger.Instance);
         sender.RegisterCallback(callback);
 
         var sw = Stopwatch.StartNew();
@@ -130,7 +130,7 @@ public class BatchedSenderTests
         protocol.SendBatchAsync(Arg.Any<ISenderCallback>(), Arg.Any<OutgoingMessageBatch>())
             .Returns(_ => gate.Task);
 
-        using var sender = new BatchedSender(endpoint, protocol, CancellationToken.None, NullLogger.Instance);
+        await using var sender = new BatchedSender(endpoint, protocol, CancellationToken.None, NullLogger.Instance);
         sender.RegisterCallback(Substitute.For<ISenderCallback>());
 
         sender.QueuedCount.ShouldBe(0);
@@ -161,6 +161,30 @@ public class BatchedSenderTests
         new TcpEndpoint(2257).MessageBatchTimeout.ShouldBe(250.Milliseconds());
     }
 
+    [Fact]
+    public async Task dispose_async_prefers_async_disposal_of_the_protocol()
+    {
+        var protocol = Substitute.For<ISenderProtocol, IAsyncDisposable>();
+        var sender = new BatchedSender(new TcpEndpoint(2259), protocol, CancellationToken.None,
+            NullLogger.Instance);
+
+        await sender.DisposeAsync();
+
+        await ((IAsyncDisposable)protocol).Received().DisposeAsync();
+    }
+
+    [Fact]
+    public async Task dispose_async_falls_back_to_sync_disposal_of_the_protocol()
+    {
+        var protocol = Substitute.For<ISenderProtocol, IDisposable>();
+        var sender = new BatchedSender(new TcpEndpoint(2260), protocol, CancellationToken.None,
+            NullLogger.Instance);
+
+        await sender.DisposeAsync();
+
+        ((IDisposable)protocol).Received().Dispose();
+    }
+
     // GH-3825: the serializing stage upstream of the batching block ran at
     // Environment.ProcessorCount, so envelopes reached the outgoing batch in
     // serialization-completion order instead of enqueue order. That silently broke the FIFO
@@ -188,7 +212,7 @@ public class BatchedSenderTests
                 return Task.CompletedTask;
             });
 
-        using var sender = new BatchedSender(endpoint, protocol, CancellationToken.None, NullLogger.Instance);
+        await using var sender = new BatchedSender(endpoint, protocol, CancellationToken.None, NullLogger.Instance);
         sender.RegisterCallback(Substitute.For<ISenderCallback>());
 
         // Descending delays: under any parallelism the last envelope serializes first
