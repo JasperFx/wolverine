@@ -383,6 +383,15 @@ This is the standalone equivalent of the `PauseThenCatchUpOnMartenDaemonActivity
 shown above, for suites that are not driving the work through `TrackActivity()`. It covers every
 locally reachable daemon, including per-(database, tenant) shards.
 
+Both forms start by pausing the async daemon, and on JasperFx.Events versions before
+[jasperfx#1100](https://github.com/JasperFx/jasperfx/pull/1100) that pause has a floor. Stopping the daemon
+stops its high water agent, and the agent's poll loop only noticed the stop once its current wait ran out.
+That wait is `FastPollingTime` (250ms by default) right after events were appended and `SlowPollingTime`
+(1 second by default) once the daemon has caught up, so every call can carry up to that much extra time,
+and more of it after a quiet spell. That time is spent in the pause, not in the catch-up, so a slow call
+does not mean your projections were slow to catch up. The fix is in JasperFx.Events, and the floor goes away
+once your application is on a version that includes it (see [GH-5318](https://github.com/JasperFx/wolverine/issues/5318)).
+
 ::: warning
 Do **not** hand-roll this by pausing the coordinator and then calling `IProjectionDaemon.CatchUpAsync()` on
 each daemon. That introduces a *second* writer of each projection's progression row alongside the shard's
