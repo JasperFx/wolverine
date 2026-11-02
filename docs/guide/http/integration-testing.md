@@ -348,6 +348,15 @@ var allRecords = tracked.AllRecordsInOrder();
 var exceptions = tracked.AllExceptions();
 ```
 
+`FindSingleTrackedMessageOfType<T>()` throws if it finds no message of type `T` or more than one. It
+counts envelopes, not message values, so a handler that publishes two equal `record` messages fails the
+check. A single publish counts once even though it leaves sent, received and executed records behind.
+A single publish that Wolverine routes to more than one destination also counts once, because every
+envelope carries the same message.
+
+To check how many times a message went out, use `tracked.Sent.SingleMessage<T>()` instead. It counts
+every sent envelope, so it throws if the message went to two destinations.
+
 ## When You Don't Need Message Tracking
 
 Not every HTTP test needs the overhead of tracked sessions. For simple endpoints that don't publish messages or trigger async work, use Alba directly:
