@@ -591,6 +591,60 @@ By default the transport normalizes `/` separators in subjects to NATS `.` token
 default). Set `nats.NormalizeSubjects = false` if you need to use literal subjects that contain `/`.
 :::
 
+### Externally Owned Streams and Consumers <Badge type="tip" text="6.62" />
+
+A service that reads from a JetStream stream often doesn't own it. The stream belongs to the service that publishes
+to it, and that service decides its subjects, retention and limits. Use `StreamIsExternallyOwned()` to have
+Wolverine create your listener's durable consumer in `resources setup`, but never the stream:
+
+<!-- snippet: sample_nats_stream_is_externally_owned -->
+<a id='snippet-sample_nats_stream_is_externally_owned'></a>
+```cs
+opts.ListenToNatsSubject($"{subject}.orders")
+    .UseJetStream(stream, "shipping")
+
+    // The stream belongs to the service that publishes to it. Wolverine
+    // creates the "shipping" consumer on that stream, but never creates
+    // the stream itself
+    .StreamIsExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/NATS/Wolverine.Nats.Tests/externally_owned_streams_5342.cs#L48-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nats_stream_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+If the stream doesn't exist yet, `resources setup` fails with an error that names it and says it is externally
+owned. `resources teardown` deletes the consumer, as it always has, and never the stream.
+
+When the durable consumer belongs to the other service too, mark the whole endpoint `ExternallyOwned()`. The
+listener then uses the named consumer exactly as it finds it: it never creates it, never brings its settings in line
+with Wolverine's (whatever `Provisioning()` says), and `resources teardown` leaves it alone. A missing consumer
+fails the listener's start with an error naming the consumer and its stream:
+
+<!-- snippet: sample_nats_endpoint_is_externally_owned -->
+<a id='snippet-sample_nats_endpoint_is_externally_owned'></a>
+```cs
+// The stream and the "billing" consumer both belong to another service.
+// Wolverine reads through the consumer exactly as it finds it, and never
+// creates, updates or deletes either of them
+opts.ListenToNatsSubject($"{subject}.invoices")
+    .UseJetStream(stream, "billing")
+    .ExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/NATS/Wolverine.Nats.Tests/externally_owned_streams_5342.cs#L117-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nats_endpoint_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`ExternallyOwned()` is on publishing endpoints as well, for a stream this service only publishes to:
+`resources setup` then never creates it.
+
+::: warning Don't declare a stream you don't own
+A stream declared with `DefineStream()` and friends is one the application owns, and Wolverine provisions it at
+startup and in `resources setup` according to `Provisioning()`, whichever endpoints use it. Leave externally
+owned streams undeclared.
+:::
+
+Ephemeral consumers, on a JetStream listener with no consumer name, are created by the listener in every case.
+They are not durable state on the server. See [Externally Owned Broker Objects](/guide/messaging/transports/externally-owned)
+for how this works across the transports.
+
 ## Publishing Messages
 
 ### To a Specific Subject

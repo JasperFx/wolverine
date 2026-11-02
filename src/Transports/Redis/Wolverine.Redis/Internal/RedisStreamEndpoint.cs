@@ -185,6 +185,40 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
     /// </summary>
     public StartFrom StartFrom { get; set; } = StartFrom.NewMessages;
 
+    /// <summary>
+    /// GH-5342. When true, the stream belongs to another system: Wolverine still creates this endpoint's consumer
+    /// group on it, but never creates the stream itself (no <c>MKSTREAM</c>). A missing stream fails with an error
+    /// that names it. <see cref="Endpoint.IsExternallyOwned" /> leaves the consumer group alone as well.
+    /// </summary>
+    public bool IsStreamExternallyOwned { get; set; }
+
+    /// <summary>
+    /// Create this endpoint's consumer group, and the stream with it unless the stream is externally owned. An
+    /// existing group is left as it is.
+    /// </summary>
+    internal async Task CreateConsumerGroupAsync(IDatabase database)
+    {
+        var startPosition = StartFrom == StartFrom.Beginning ? "0-0" : "$";
+
+        try
+        {
+            await database.StreamCreateConsumerGroupAsync(StreamKey, ConsumerGroup, startPosition,
+                createStream: !IsStreamExternallyOwned);
+        }
+        catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
+        {
+            // already exists
+        }
+        catch (RedisServerException ex) when (IsStreamExternallyOwned &&
+                                              ex.Message.Contains("requires the key to exist", StringComparison.OrdinalIgnoreCase))
+        {
+            // GH-5342. Without MKSTREAM, Redis refuses to create a group on a stream that is not there yet
+            throw new InvalidOperationException(
+                $"Unable to create the Redis consumer group '{ConsumerGroup}' because its stream '{StreamKey}' (db {DatabaseId}) does not exist. The stream is marked as externally owned, so Wolverine will not create it. It has to be created by whoever owns it first.",
+                ex);
+        }
+    }
+
     private static (string streamKey, int databaseId) ParseStreamKeyAndDatabase(Uri uri)
     {
         // Only support the new format: redis://stream/{dbId}/{streamKey}
@@ -288,24 +322,17 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
         {
             var db = _transport.GetDatabase(database: DatabaseId);
 
-            if (_transport.AutoProvision)
+            if (_transport.ShouldAutoProvision(this))
             {
                 // Ensure group exists with appropriate starting position
                 if (!string.IsNullOrEmpty(ConsumerGroup) && IsListener)
                 {
-                    try
-                    {
-                        var startPosition = StartFrom == StartFrom.Beginning ? "0-0" : "$";
-                        await db.StreamCreateConsumerGroupAsync(StreamKey, ConsumerGroup, startPosition, true);
-                    }
-                    catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
-                    {
-                        // already exists
-                    }
+                    await CreateConsumerGroupAsync(db);
                 }
             }
 
-            if (PurgeOnStartup || _transport.AutoPurgeAllQueues)
+            // GH-5342. Purging a Redis stream deletes its key, which for another system's stream deletes the stream
+            if ((PurgeOnStartup || _transport.AutoPurgeAllQueues) && !IsExternallyOwned)
             {
                 // Trim entire stream
                 try { await PurgeAsync(logger); } catch { /* ignore */ }
@@ -369,6 +396,12 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342. Another system's consumer group
+        if (IsExternallyOwned)
+        {
+            return;
+        }
+
         if (Role == EndpointRole.System)
         {
             return; // Don't tear down system endpoints
@@ -445,6 +478,12 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
     
     public async ValueTask SetupAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned)
+        {
+            return;
+        }
+
         try
         {
             var database = _transport.GetDatabase(database: DatabaseId);
@@ -452,25 +491,16 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
             // Create consumer group if specified and this is a listener
             if (!string.IsNullOrEmpty(ConsumerGroup) && IsListener)
             {
-                try
-                {
-                    var startPosition = StartFrom == StartFrom.Beginning ? "0-0" : "$";
-                    var positionDescription = StartFrom == StartFrom.Beginning ? "beginning" : "end";
-                    
-                    logger.LogDebug("Creating consumer group {ConsumerGroup} for Redis stream {StreamKey} starting from {Position}", 
-                        ConsumerGroup, StreamKey, positionDescription);
-                    
-                    await database.StreamCreateConsumerGroupAsync(StreamKey, ConsumerGroup, startPosition, true);
-                    
-                    logger.LogInformation("Created consumer group {ConsumerGroup} for Redis stream {StreamKey} starting from {Position}", 
-                        ConsumerGroup, StreamKey, positionDescription);
-                }
-                catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
-                {
-                    // Group already exists, which is fine
-                    logger.LogDebug("Consumer group {ConsumerGroup} already exists for stream {StreamKey}", 
-                        ConsumerGroup, StreamKey);
-                }
+                var positionDescription = StartFrom == StartFrom.Beginning ? "beginning" : "end";
+
+                logger.LogDebug("Creating consumer group {ConsumerGroup} for Redis stream {StreamKey} starting from {Position}",
+                    ConsumerGroup, StreamKey, positionDescription);
+
+                // An existing group is left as it is
+                await CreateConsumerGroupAsync(database);
+
+                logger.LogInformation("Ensured consumer group {ConsumerGroup} for Redis stream {StreamKey} starting from {Position}",
+                    ConsumerGroup, StreamKey, positionDescription);
             }
         }
         catch (Exception ex)

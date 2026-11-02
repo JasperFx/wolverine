@@ -38,6 +38,13 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
     /// </summary>
     internal bool IsSubscriptionPerNode;
 
+    /// <summary>
+    ///     GH-5342. When true, the topic belongs to another system: Wolverine never creates or deletes it, even with
+    ///     <c>AutoProvision()</c> on, but still creates this endpoint's subscription on it. Use
+    ///     <see cref="Endpoint.IsExternallyOwned" /> to leave the subscription alone as well.
+    /// </summary>
+    public bool IsTopicExternallyOwned { get; set; }
+
     public PubsubServerOptions Server = new();
 
     internal PubsubTransport Transport => _transport;
@@ -135,6 +142,9 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     public async ValueTask SetupAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         if (_transport.PublisherApiClient is null)
         {
             throw new WolverinePubsubTransportNotConnectedException();
@@ -212,25 +222,13 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
         var topicName = TopicNameFor(clients.ProjectId);
 
-        try
+        if (IsTopicExternallyOwned)
         {
-            await clients.PublisherApiClient.CreateTopicAsync(new Topic
-            {
-                TopicName = topicName,
-                MessageRetentionDuration = Server.Topic.Options.MessageRetentionDuration
-            });
+            await verifyExternallyOwnedTopicAsync(clients, topicName);
         }
-        catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+        else
         {
-            logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub topic \"{Topic}\" already exists", Uri,
-                topicName);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub topic \"{Topic}\"",
-                Uri, topicName);
-
-            throw;
+            await createTopicAsync(logger, clients, topicName);
         }
 
         if (!IsListener && !IsDeadLetter)
@@ -286,6 +284,50 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
             logger.LogError(ex,
                 "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"",
                 Uri, subscriptionName, topicName);
+
+            throw;
+        }
+    }
+
+    // GH-5342. Wolverine will not create a topic it does not own, so say which one is missing. Otherwise the
+    // subscription create fails with a bare NotFound that names nothing
+    private async Task verifyExternallyOwnedTopicAsync(PubsubClientSet clients, TopicName topicName)
+    {
+        if (!IsListener && !IsDeadLetter)
+        {
+            return;
+        }
+
+        try
+        {
+            await clients.PublisherApiClient!.GetTopicAsync(topicName);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+        {
+            throw new ExternallyOwnedTopicNotFoundException(topicName.ToString(),
+                SubscriptionNameFor(clients.ProjectId).ToString());
+        }
+    }
+
+    private async Task createTopicAsync(ILogger logger, PubsubClientSet clients, TopicName topicName)
+    {
+        try
+        {
+            await clients.PublisherApiClient!.CreateTopicAsync(new Topic
+            {
+                TopicName = topicName,
+                MessageRetentionDuration = Server.Topic.Options.MessageRetentionDuration
+            });
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+        {
+            logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub topic \"{Topic}\" already exists", Uri,
+                topicName);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub topic \"{Topic}\"",
+                Uri, topicName);
 
             throw;
         }
@@ -371,12 +413,16 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
     {
         if (IsExistingSubscription) { return; }
 
+        // GH-5342
+        if (IsExternallyOwned) { return; }
+
         if (_transport.SubscriberApiClient is not null && IsListener)
         {
             await _transport.SubscriberApiClient.DeleteSubscriptionAsync(Server.Subscription.Name);
         }
 
-        if (_transport.PublisherApiClient is not null)
+        // GH-5342. Another system's topic, and every other subscriber's with it
+        if (_transport.PublisherApiClient is not null && !IsTopicExternallyOwned)
         {
             await _transport.PublisherApiClient.DeleteTopicAsync(Server.Topic.Name);
         }
@@ -395,7 +441,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
         try
         {
-            if (_transport.AutoProvision)
+            if (_transport.ShouldAutoProvision(this))
             {
                 await SetupAsync(logger);
             }

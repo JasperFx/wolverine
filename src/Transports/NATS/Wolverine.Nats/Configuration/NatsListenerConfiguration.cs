@@ -56,6 +56,32 @@ public class NatsListenerConfiguration
     }
 
     /// <summary>
+    /// GH-5342. Mark the JetStream stream this listener reads from as owned by another system, typically the
+    /// service that publishes to it. Wolverine will not create it in <c>resources setup</c>, but still creates this
+    /// listener's durable consumer on it. If the stream does not exist yet, setup fails with an error that names
+    /// it. Do not also declare the stream with <c>DefineStream()</c>: a declared stream is one the application
+    /// owns, and Wolverine provisions it.
+    /// </summary>
+    public NatsListenerConfiguration StreamIsExternallyOwned()
+    {
+        add(e => e.IsStreamExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
+    /// GH-5342. Mark this endpoint's JetStream stream and durable consumer as owned by another system. Wolverine
+    /// will not create the stream in <c>resources setup</c> or delete the consumer in <c>resources teardown</c>,
+    /// and the listener uses the named consumer exactly as it finds it, without creating or updating it.
+    /// <c>resources check</c> still checks that the stream exists. Use <see cref="StreamIsExternallyOwned" />
+    /// instead when Wolverine should still create the consumer.
+    /// </summary>
+    public NatsListenerConfiguration ExternallyOwned()
+    {
+        add(e => e.IsExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
     /// GH-4053. Override the JetStream consumer's <c>AckWait</c> for this listener -- how long the server waits
     /// for an unacknowledged delivery before redelivering it. Defaults to the transport-wide
     /// <c>JetStreamDefaults.AckWait</c> (30 seconds).

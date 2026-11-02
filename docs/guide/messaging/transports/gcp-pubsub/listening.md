@@ -43,6 +43,59 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L64-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_pubsub_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Externally Owned Topics and Subscriptions <Badge type="tip" text="6.62" />
+
+A service that listens to a topic usually doesn't own it. The topic belongs to the service that publishes to it,
+and that service decides how it is created. If your service deploys first with `AutoProvision()` on, Wolverine
+would create the topic with its own settings instead.
+
+Use `TopicIsExternallyOwned()` to have Wolverine create your listener's subscription, but never the topic:
+
+<!-- snippet: sample_pubsub_topic_is_externally_owned -->
+<a id='snippet-sample_pubsub_topic_is_externally_owned'></a>
+```cs
+opts.ListenToPubsubTopic(orders)
+
+    // The topic belongs to the service that publishes to it. Wolverine
+    // creates this listener's subscription on that topic, but never
+    // creates or deletes the topic itself
+    .TopicIsExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/externally_owned_topics_5342.cs#L98-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_topic_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With the topic externally owned, Wolverine:
+
+* never creates or deletes the topic, regardless of `AutoProvision()`
+* still creates the subscription, and deletes it in `resources teardown`
+* fails creating the subscription with an `ExternallyOwnedTopicNotFoundException` that names the topic if the topic
+  doesn't exist yet, rather than with a bare `NotFound`. At startup that failure is retried like any other broker
+  failure, until `BrokerInitializationTimeout` runs out, so a topic created by its owner in the meantime is picked up
+
+A Wolverine Pub/Sub endpoint is a topic and, when it listens, a subscription on it. `ExternallyOwned()` marks both
+as owned elsewhere: Wolverine only publishes to the topic or reads from the subscription, and never creates or
+deletes either of them. `resources check` still checks that they exist.
+
+<!-- snippet: sample_pubsub_topics_and_subscriptions_are_externally_owned -->
+<a id='snippet-sample_pubsub_topics_and_subscriptions_are_externally_owned'></a>
+```cs
+// A topic another service owns and this one only publishes to
+opts.PublishMessage<PubsubAuditEntryRecorded>()
+    .ToPubsubTopic(audit)
+    .ExternallyOwned();
+
+// A topic and subscription another service owns, which this one only reads from
+opts.ListenToPubsubTopic(inbox)
+    .ExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/externally_owned_topics_5342.cs#L175-L186' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_topics_and_subscriptions_are_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Because the listener and the publisher for the same topic share one endpoint, `ExternallyOwned()` on either of them
+applies to both. `ListenToPubsubSubscription()`, for an existing subscription, already never creates or deletes
+anything. See [Externally Owned Broker Objects](/guide/messaging/transports/externally-owned) for how this works
+across the transports.
+
 ## Subscriptions across multiple nodes
 
 When several nodes of the same application listen to a Pub/Sub topic, Wolverine has all of them share **one**

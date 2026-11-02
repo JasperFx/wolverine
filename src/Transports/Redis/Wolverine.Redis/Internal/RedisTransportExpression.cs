@@ -219,6 +219,31 @@ public class RedisListenerConfiguration : ListenerConfiguration<RedisListenerCon
         _endpoint!.NativeDeadLetterQueueEnabled = false;
         return this;
     }
+
+    /// <summary>
+    /// GH-5342. Mark the stream this listener reads from as owned by another system, typically the service that
+    /// publishes to it. Wolverine still creates this listener's consumer group on it, but never creates the
+    /// stream itself, even when <c>AutoProvision()</c> is on. If the stream does not exist yet, creating the group
+    /// fails with an error that names it.
+    /// </summary>
+    public RedisListenerConfiguration StreamIsExternallyOwned()
+    {
+        add(e => e.IsStreamExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
+    /// GH-5342. Mark this endpoint's stream and consumer group as owned by another system. Wolverine will not
+    /// create, recreate or delete the consumer group or the stream, even when <c>AutoProvision()</c> is on, and
+    /// never purges the stream on startup, because purging a Redis stream deletes its key. The listener fails to
+    /// start, naming what is missing, until both exist. <c>resources check</c> still covers the endpoint. Use
+    /// <see cref="StreamIsExternallyOwned" /> instead when Wolverine should still create the consumer group.
+    /// </summary>
+    public RedisListenerConfiguration ExternallyOwned()
+    {
+        add(e => e.IsExternallyOwned = true);
+        return this;
+    }
 }
 
 public class RedisSubscriberConfiguration : SubscriberConfiguration<RedisSubscriberConfiguration, RedisStreamEndpoint>
@@ -251,6 +276,18 @@ public class RedisSubscriberConfiguration : SubscriberConfiguration<RedisSubscri
     public RedisSubscriberConfiguration BlockTimeout(TimeSpan timeout)
     {
         _endpoint!.BlockTimeoutMilliseconds = (int)timeout.TotalMilliseconds;
+        return this;
+    }
+
+    /// <summary>
+    /// GH-5342. Mark this endpoint's stream as owned by another system. Wolverine will not touch it in
+    /// <c>resources setup</c> or <c>resources teardown</c>, and never purges it on startup, because purging a
+    /// Redis stream deletes its key. Publishing still works as Redis always does: <c>XADD</c> creates a stream that
+    /// does not exist yet.
+    /// </summary>
+    public RedisSubscriberConfiguration ExternallyOwned()
+    {
+        add(e => e.IsExternallyOwned = true);
         return this;
     }
 }
