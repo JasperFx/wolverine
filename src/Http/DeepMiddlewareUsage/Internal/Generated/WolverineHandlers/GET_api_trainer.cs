@@ -29,7 +29,7 @@ namespace Internal.Generated.WolverineHandlers
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "DeepMiddlewareUsage.TrainerGet");
+            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "DeepMiddlewareUsage.TrainerGet").SetTag("http.route", "/api/trainer").SetTag("http.request.method", "GET");
             (var userId, var problemDetails1) = DeepMiddlewareUsage.UserIdMiddleWare.Load(httpContext.User, httpContext);
             // Evaluate whether the processing should stop if there are any problems
             if (!(ReferenceEquals(problemDetails1, Wolverine.Http.WolverineContinue.NoProblems)))

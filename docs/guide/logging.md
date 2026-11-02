@@ -891,9 +891,17 @@ handler.type = "MyApp.Handlers.OrderPlacedHandler"
 message.handler = "MyApp.Handlers.OrderPlacedHandler"
 ```
 
+A Wolverine.HTTP endpoint also tags the request span with the OpenTelemetry semantic convention tags
+`http.route` (the route pattern) and `http.request.method`, so a host without the ASP.NET Core
+instrumentation can still tell two endpoints of the same class apart. These are the same names and values
+the ASP.NET Core instrumentation sets, so a host that has it sees no difference. Both are string literals in
+the generated code as well.
+
 Example activity tags for an HTTP endpoint:
 ```
 handler.type = "MyApp.Endpoints.OrderEndpoint"
+http.route = "/orders/{id}/notes"
+http.request.method = "POST"
 ```
 
 ## Message Correlation
