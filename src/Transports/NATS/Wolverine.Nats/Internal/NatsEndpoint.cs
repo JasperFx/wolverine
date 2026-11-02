@@ -38,6 +38,14 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     public override string BrokerRole => UseJetStream ? "stream" : "subject";
 
     public string Subject { get; }
+
+    /// <summary>
+    /// GH-5342. When true, the JetStream stream belongs to another system: <c>resources setup</c> never creates it,
+    /// but still creates this endpoint's durable consumer on it. <see cref="Endpoint.IsExternallyOwned" /> leaves
+    /// the consumer alone as well.
+    /// </summary>
+    public bool IsStreamExternallyOwned { get; set; }
+
     [IgnoreDescription]
     public object? NatsSerializer { get; set; }
     public Dictionary<string, string> CustomHeaders { get; set; } = new();
@@ -763,6 +771,12 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342. Another system's consumer
+        if (IsExternallyOwned)
+        {
+            return;
+        }
+
         _connection ??= _transport.Connection;
 
         if (_connection == null || _connection.ConnectionState != NatsConnectionState.Open)
@@ -801,6 +815,12 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
 
     public async ValueTask SetupAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned)
+        {
+            return;
+        }
+
         _connection ??= _transport.Connection;
 
         if (_connection == null || _connection.ConnectionState != NatsConnectionState.Open)
@@ -829,6 +849,14 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         }
         catch (NatsJSApiException e) when (e.Error.Code == 404)
         {
+            // GH-5342. Wolverine will not create a stream it does not own, so say which one is missing rather than
+            // let the consumer create below fail with a bare "stream not found"
+            if (IsStreamExternallyOwned)
+            {
+                throw new InvalidOperationException(
+                    $"Unable to create the JetStream consumer for subject '{Subject}' because its stream '{StreamName}' does not exist. The stream is marked as externally owned, so Wolverine will not create it. It has to be created by whoever owns it first.");
+            }
+
             // Only a missing stream is created. Any other failure -- no JetStream answering for the domain,
             // missing permissions, a timeout -- propagates instead of being taken for "not found"
             var subjects = StreamSubjects();

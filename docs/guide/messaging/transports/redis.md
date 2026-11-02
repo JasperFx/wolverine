@@ -505,6 +505,62 @@ numbers, so Redis-compatible servers that carry their own versioning — Valkey,
 offerings — are judged on what they actually support.
 :::
 
+## Externally Owned Streams and Consumer Groups <Badge type="tip" text="6.62" />
+
+A service that reads from a Redis stream often doesn't own it. The stream belongs to the service that publishes to
+it. Use `StreamIsExternallyOwned()` to have Wolverine create your listener's consumer group on that stream, but
+never the stream itself:
+
+<!-- snippet: sample_redis_stream_is_externally_owned -->
+<a id='snippet-sample_redis_stream_is_externally_owned'></a>
+```cs
+opts.ListenToRedisStream(orders, "shipping")
+
+    // The stream belongs to the service that publishes to it. Wolverine
+    // creates the "shipping" consumer group on that stream, but never
+    // creates the stream itself
+    .StreamIsExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/externally_owned_streams_5342.cs#L57-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_redis_stream_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Wolverine normally creates a consumer group with `XGROUP CREATE ... MKSTREAM`, which creates the stream as well if
+it is missing. With the stream externally owned it leaves off `MKSTREAM`, so a missing stream fails with an error that
+names it and says it is externally owned, instead of quietly appearing as an empty stream the publisher never wrote to.
+
+When the consumer group belongs to the other service too, mark the whole endpoint `ExternallyOwned()`:
+
+<!-- snippet: sample_redis_endpoint_is_externally_owned -->
+<a id='snippet-sample_redis_endpoint_is_externally_owned'></a>
+```cs
+// The stream and the "billing" consumer group belong to another service.
+// Wolverine reads through the group, but never creates, deletes or purges
+// either of them
+opts.ListenToRedisStream(billing, "billing")
+    .ExternallyOwned();
+
+// A stream another service owns and this one only publishes to
+opts.PublishMessage<RedisAuditEntryRecorded>()
+    .ToRedisStream(audit)
+    .ExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/externally_owned_streams_5342.cs#L120-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_redis_endpoint_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+For an externally owned endpoint, Wolverine:
+
+* never creates, recreates or deletes the consumer group, regardless of `AutoProvision()`. A missing stream or group
+  fails the listener's start with an error that names it, and a group that goes missing while the application runs is
+  reported as a missing entity on the endpoint's health, as it is with `AutoProvision()` off, rather than recreated
+* never purges the stream, even with `AutoPurgeOnStartup()`. Purging a Redis stream deletes its key, which for another
+  service's stream would delete the stream outright
+* still covers the endpoint in `resources check`
+
+Publishing is unchanged. `XADD` creates a stream that doesn't exist yet, as Redis always does, so an externally
+owned stream you publish to is created by the first message if its owner hasn't created it. See
+[Externally Owned Broker Objects](/guide/messaging/transports/externally-owned) for how this works across the
+transports.
+
 ## Scheduled Messaging <Badge type="tip" text="5.10" />
 
 The Redis transport supports native Redis message scheduling for delayed or scheduled delivery. There's no configuration

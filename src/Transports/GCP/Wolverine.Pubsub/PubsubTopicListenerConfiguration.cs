@@ -69,6 +69,34 @@ public class PubsubTopicListenerConfiguration : InteroperableListenerConfigurati
     }
 
     /// <summary>
+    ///     Mark the topic this listener reads from as owned by another system, typically the service that
+    ///     publishes to it. Wolverine will not create or delete the topic, even when <c>AutoProvision()</c> is on,
+    ///     but still creates this listener's subscription on it. If the topic does not exist yet, provisioning the
+    ///     subscription fails with an <see cref="ExternallyOwnedTopicNotFoundException" /> that names it. GH-5342.
+    /// </summary>
+    /// <returns></returns>
+    public PubsubTopicListenerConfiguration TopicIsExternallyOwned()
+    {
+        add(e => e.IsTopicExternallyOwned = true);
+
+        return this;
+    }
+
+    /// <summary>
+    ///     Mark this endpoint's topic and subscription as owned by another system. Wolverine will not create or
+    ///     delete either of them, even when <c>AutoProvision()</c> is on, and only listens to the subscription.
+    ///     <c>resources check</c> still checks that they exist. Use <see cref="TopicIsExternallyOwned" /> instead
+    ///     when Wolverine should still create the subscription. GH-5342.
+    /// </summary>
+    /// <returns></returns>
+    public PubsubTopicListenerConfiguration ExternallyOwned()
+    {
+        add(e => e.IsExternallyOwned = true);
+
+        return this;
+    }
+
+    /// <summary>
     ///     Configure the underlying Google Cloud Platform Pub/Sub subscriber.
     /// </summary>
     /// <param name="configure"></param>
