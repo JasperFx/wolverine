@@ -74,8 +74,10 @@ public class envelope_parameter_types_5292 : IAsyncLifetime
         parameters[2].SqlDbType.ShouldBe(SqlDbType.NVarChar);
         parameters[3].SqlDbType.ShouldBe(SqlDbType.UniqueIdentifier);
 
-        // Not date, which would drop the time of day
-        parameters[4].SqlDbType.ShouldBe(SqlDbType.DateTime);
+        // Not date, which would drop the time of day. Weasel 9.48.0 (weasel#758/#759) types a DateTime as
+        // datetime2 itself. Every envelope time column is datetimeoffset, which outranks datetime2 just as it
+        // outranks datetime, so the parameter is the side that converts and no column is converted either way
+        parameters[4].SqlDbType.ShouldBe(SqlDbType.DateTime2);
 
         // A null has nothing to infer from, so it keeps the type it was given
         parameters[5].SqlDbType.ShouldBe(SqlDbType.UniqueIdentifier);
