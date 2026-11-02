@@ -6,6 +6,7 @@ using Raven.Client.Documents.Session;
 using Raven.Client.Exceptions;
 using Raven.Client.Exceptions.Documents.Session;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 
 namespace Wolverine.RavenDb.Internals;
@@ -28,6 +29,7 @@ public partial class RavenDbMessageStore : IMessageInbox
                     this.Status = $status;
                     this.Attempts = $attempts;
                     this.OwnerId = 0;
+                    this.Body = $body;
                 }}
             }}";
 
@@ -41,7 +43,11 @@ public partial class RavenDbMessageStore : IMessageInbox
                 {"attempts", envelope.Attempts},
                 {"status", EnvelopeStatus.Scheduled},
                 {"handled", EnvelopeStatus.Handled},
-                {"time", envelope.ScheduledTime}
+                {"time", envelope.ScheduledTime},
+
+                // GH-5312: the body is the serialized envelope, headers included. A retry changes the headers --
+                // the failed attempt's activity id (GH-4398) rides in one -- so it is rewritten with the rest
+                {"body", EnvelopeSerializer.Serialize(envelope)}
             }
         });
         

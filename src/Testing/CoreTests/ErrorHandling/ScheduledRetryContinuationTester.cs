@@ -63,12 +63,17 @@ public class ScheduledRetryContinuationTester
         var lifecycle = Substitute.For<IEnvelopeLifecycle>();
         lifecycle.Envelope.Returns(envelope);
 
+        // GH-5312: the header has to be on the envelope by the time it is rescheduled, because rescheduling is
+        // what persists it. Read it inside the call rather than afterwards
+        string? previousAtReschedule = null;
+        lifecycle.When(x => x.ReScheduleAsync(Arg.Any<DateTimeOffset>())).Do(_ =>
+            envelope.TryGetHeader(EnvelopeConstants.PreviousAttemptActivityIdKey, out previousAtReschedule));
+
         using var activity = new Activity("process").Start();
 
         await continuation.ExecuteAsync(lifecycle, new MockWolverineRuntime(), DateTimeOffset.UtcNow, activity);
 
-        envelope.TryGetHeader(EnvelopeConstants.PreviousAttemptActivityIdKey, out var previous).ShouldBeTrue();
-        previous.ShouldBe(activity.Id);
+        previousAtReschedule.ShouldBe(activity.Id);
     }
 
     [Fact]

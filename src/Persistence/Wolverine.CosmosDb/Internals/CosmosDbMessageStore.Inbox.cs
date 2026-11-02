@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.Azure.Cosmos;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 
 namespace Wolverine.CosmosDb.Internals;
@@ -26,6 +27,10 @@ public partial class CosmosDbMessageStore : IMessageInbox
         message.Status = EnvelopeStatus.Scheduled;
         message.Attempts = envelope.Attempts;
         message.OwnerId = 0;
+
+        // GH-5312: the body is the serialized envelope, headers included. A retry changes the headers -- the
+        // failed attempt's activity id (GH-4398) rides in one -- so it is rewritten with the rest
+        message.Body = EnvelopeSerializer.Serialize(envelope);
         await replaceIncomingAsync(message, partitionKey);
     }
 

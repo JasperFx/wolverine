@@ -160,11 +160,14 @@ internal partial class OracleMessageStore
             await using var cmd = conn.CreateCommand(
                 $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
                 $"{DatabaseConstants.ExecutionTime} = :time, {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}', " +
-                $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+                $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode}, " +
+                $"{DatabaseConstants.Body} = :body " +
                 $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri AND {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'");
             cmd.With("id", envelope.Id);
             cmd.Parameters.Add(new OracleParameter("time", OracleDbType.TimeStampTZ) { Value = envelope.ScheduledTime!.Value });
             cmd.With("attempts", envelope.Attempts);
+            // GH-5312: rewrite the stored envelope so the headers the retry changed (the GH-4398 link) survive
+            cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = EnvelopeSerializer.Serialize(envelope) });
             cmd.With("uri", envelope.Destination?.ToString() ?? string.Empty);
             rowsAffected = await cmd.ExecuteNonQueryAsync(_cancellation);
             await conn.CloseAsync();
@@ -191,11 +194,14 @@ internal partial class OracleMessageStore
         await using var cmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
             $"{DatabaseConstants.ExecutionTime} = :time, {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}', " +
-            $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+            $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode}, " +
+            $"{DatabaseConstants.Body} = :body " +
             $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri AND {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'");
         cmd.With("id", envelope.Id);
         cmd.Parameters.Add(new OracleParameter("time", OracleDbType.TimeStampTZ) { Value = envelope.ScheduledTime!.Value });
         cmd.With("attempts", envelope.Attempts);
+        // GH-5312: rewrite the stored envelope so the headers the retry changed (the GH-4398 link) survive
+        cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = EnvelopeSerializer.Serialize(envelope) });
         cmd.With("uri", envelope.Destination?.ToString() ?? string.Empty);
         var rowsAffected = await cmd.ExecuteNonQueryAsync(_cancellation);
         await conn.CloseAsync();

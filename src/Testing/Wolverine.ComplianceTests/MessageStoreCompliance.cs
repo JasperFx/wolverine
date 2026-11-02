@@ -780,6 +780,51 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         stored.Single(x => x.Id == envelope.Id).Status.ShouldBe(EnvelopeStatus.Scheduled);
     }
 
+    /// <summary>
+    /// GH-5312. A retry changes the envelope's headers after it was stored -- the failed attempt's activity id
+    /// (GH-4398) rides in one -- and the scheduled row is what the next attempt is read back from. Rescheduling only
+    /// moved the execution time, status, attempts and owner, so the header was lost.
+    /// </summary>
+    [Fact]
+    public async Task rescheduling_for_retry_keeps_headers_added_after_the_row_was_stored()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        envelope.Headers[EnvelopeConstants.PreviousAttemptActivityIdKey] = "00-previous-attempt";
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(5);
+        envelope.Attempts = 2;
+        await thePersistence.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
+
+        var stored = (await thePersistence.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
+        stored.Status.ShouldBe(EnvelopeStatus.Scheduled);
+        stored.Headers[EnvelopeConstants.PreviousAttemptActivityIdKey].ShouldBe("00-previous-attempt");
+    }
+
+    /// <summary>
+    /// GH-5312. The same for the durable receiver's own reschedule, which is the path a scheduled retry on a durable
+    /// listener takes.
+    /// </summary>
+    [Fact]
+    public async Task scheduling_execution_keeps_headers_added_after_the_row_was_stored()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+
+        envelope.Headers[EnvelopeConstants.PreviousAttemptActivityIdKey] = "00-previous-attempt";
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(5);
+        envelope.Attempts = 2;
+        await thePersistence.Inbox.ScheduleExecutionAsync(envelope);
+
+        var stored = (await thePersistence.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
+        stored.Status.ShouldBe(EnvelopeStatus.Scheduled);
+        stored.Headers[EnvelopeConstants.PreviousAttemptActivityIdKey].ShouldBe("00-previous-attempt");
+    }
+
     [Fact]
     public async Task discard_and_reassign_outgoing()
     {
