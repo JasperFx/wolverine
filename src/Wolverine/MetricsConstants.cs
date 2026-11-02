@@ -53,6 +53,10 @@ public class MetricsConstants
     // operator-defined and finite. The occurrence INSTANT is deliberately not here; it is a trace
     // tag only, because one series per firing is unbounded.
     public const string ScheduleNameKey = "schedule.name";
+
+    // GH-5320. Occurrences of a SkipWhileRunning() recurring schedule that came due while the previous
+    // occurrence was still being handled, and so were skipped. Tagged with ScheduleNameKey.
+    public const string RecurringOccurrencesSkipped = "wolverine-recurring-occurrences-skipped";
     public const string DatabaseKey = "database";
     public const string ServerKey = "server";
 }

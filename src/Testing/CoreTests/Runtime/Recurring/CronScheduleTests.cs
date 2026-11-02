@@ -92,12 +92,22 @@ public class CronScheduleTests
     }
 
     [Fact]
-    public void an_unsatisfiably_fast_cadence_is_refused()
+    public void every_second_is_the_fastest_cadence()
     {
-        // Every second can never be honoured through the durable path (the poller replays on a 5s
-        // cadence), so it is refused at the line that wrote it rather than delivered late forever.
-        Should.Throw<ArgumentException>(() => new CronSchedule("* * * * * *"))
-            .Message.ShouldContain("cannot be honoured");
+        // GH-5320. A cron has no field finer than a second, and one second is the floor. Anything under
+        // five seconds runs on a timer agent (see recurring_timer_schedules)
+        CronSchedule.MinimumCadence.ShouldBe(TimeSpan.FromSeconds(1));
+        CronSchedule.MinimumScheduledMessagesCadence.ShouldBe(TimeSpan.FromSeconds(5));
+
+        new CronSchedule("* * * * * *").MinimumGapOverAWeek().ShouldBe(TimeSpan.FromSeconds(1));
+        new CronSchedule("*/2 * * * * *").MinimumGapOverAWeek().ShouldBe(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public void a_sub_second_expression_is_refused()
+    {
+        // There is no sub-second cron grammar to accept: a seventh field is refused as invalid
+        Should.Throw<ArgumentException>(() => new CronSchedule("* * * * * * *"));
     }
 
     [Fact]
@@ -107,7 +117,8 @@ public class CronScheduleTests
         schedule.Expression.ShouldBe("0 9 * * *");
 
         CronSchedule.TryParse("nope", null, out _).ShouldBeFalse();
-        CronSchedule.TryParse("* * * * * *", null, out _).ShouldBeFalse();
+        CronSchedule.TryParse("* * * * * *", null, out _).ShouldBeTrue();
+        CronSchedule.TryParse("* * * * * * *", null, out _).ShouldBeFalse();
     }
 
     [Fact]

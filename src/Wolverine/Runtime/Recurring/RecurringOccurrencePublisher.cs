@@ -50,6 +50,65 @@ internal class RecurringOccurrencePublisher
         return PublishAsync(message, requestedAt, message.ManualDeduplicationIdFor(requestedAt), null);
     }
 
+    /// <summary>
+    /// GH-5320. A cron occurrence of a <see cref="RecurringOverlapPolicy.SkipWhileRunning" /> schedule:
+    /// invoked rather than published, with the semantics of <c>IMessageBus.InvokeAsync()</c>, so the
+    /// returned task completes only when the occurrence has been handled (inline with a local handler,
+    /// or acknowledged by the single remote endpoint it routes to). Carries the same deduplication id,
+    /// headers and per-occurrence activity as a published occurrence.
+    /// </summary>
+    public async Task InvokeOccurrenceAsync(RecurringMessage message, DateTimeOffset occurrence,
+        CancellationToken cancellation)
+    {
+        var body = message.Creator(occurrence) ?? throw new InvalidOperationException(
+            $"The creator for recurring message '{message.Name}' returned null");
+
+        _logger.LogDebug("Invoking an occurrence of recurring message '{Name}' for {Occurrence}",
+            message.Name, occurrence);
+
+        var options = buildOptions(message, occurrence, message.DeduplicationIdFor(occurrence), null,
+            out var occurrenceHeader);
+
+        // Same GH-4647 reasoning as PublishAsync: the activity is started before the bus is built
+        using var activity = startOccurrenceActivity(message, occurrenceHeader);
+
+        var bus = new MessageBus(_runtime);
+        await bus.InvokeAsync(body, options, cancellation);
+    }
+
+    private static DeliveryOptions buildOptions(RecurringMessage message, DateTimeOffset occurrence,
+        string deduplicationId, DateTimeOffset? scheduledTime, out string occurrenceHeader)
+    {
+        var options = new DeliveryOptions
+        {
+            ScheduledTime = scheduledTime,
+            DeduplicationId = deduplicationId
+        };
+        options.Headers[RecurringMessage.HeaderKey] = message.Name;
+
+        // GH-4445. ScheduledTime is cleared by the scheduled machinery at fire time, so without this
+        // the handler cannot tell which firing it is serving except by string-parsing the dedup id,
+        // which exists for deduplication and not for attribution. Normalized to UTC and written
+        // round-trippable ("O") so it parses back to the same instant everywhere.
+        occurrenceHeader = occurrence.ToUniversalTime().ToString("O");
+        options.Headers[RecurringMessage.OccurrenceHeaderKey] = occurrenceHeader;
+        return options;
+    }
+
+    // GH-4647. Each occurrence is published inside its own short-lived activity, so the
+    // envelope's ParentId (stamped from Activity.Current) and the bus's correlation id
+    // (its root id, taken in the MessageBus constructor) point at a bounded root of this
+    // occurrence's own -- never at whatever was ambient on the loop. Started before the bus is
+    // built, on purpose, for that second reason. Carries the same schedule identity the
+    // handler's execution span reads off the headers, so the two join up in a trace.
+    private static Activity? startOccurrenceActivity(RecurringMessage message, string occurrenceHeader)
+    {
+        var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.RecurringOccurrence);
+        activity?.SetTag(WolverineTracing.ScheduleName, message.Name);
+        activity?.SetTag(WolverineTracing.ScheduleOccurrence, occurrenceHeader);
+        return activity;
+    }
+
     public async Task<Envelope[]> PublishAsync(RecurringMessage message, DateTimeOffset occurrence,
         string deduplicationId, DateTimeOffset? scheduledTime)
     {
@@ -62,29 +121,9 @@ internal class RecurringOccurrencePublisher
                 : "Scheduling occurrence of recurring message '{Name}' for {Occurrence}",
             message.Name, occurrence);
 
-        var options = new DeliveryOptions
-        {
-            ScheduledTime = scheduledTime,
-            DeduplicationId = deduplicationId
-        };
-        options.Headers[RecurringMessage.HeaderKey] = message.Name;
+        var options = buildOptions(message, occurrence, deduplicationId, scheduledTime, out var occurrenceHeader);
 
-        // GH-4445. ScheduledTime is cleared by the scheduled machinery at fire time, so without this
-        // the handler cannot tell which firing it is serving except by string-parsing the dedup id,
-        // which exists for deduplication and not for attribution. Normalized to UTC and written
-        // round-trippable ("O") so it parses back to the same instant everywhere.
-        var occurrenceHeader = occurrence.ToUniversalTime().ToString("O");
-        options.Headers[RecurringMessage.OccurrenceHeaderKey] = occurrenceHeader;
-
-        // GH-4647. Each occurrence is published inside its own short-lived activity, so the
-        // envelope's ParentId (stamped from Activity.Current below) and the bus's correlation id
-        // (its root id, taken in the MessageBus constructor) point at a bounded root of this
-        // occurrence's own -- never at whatever was ambient on the loop. Started before the bus is
-        // built, on purpose, for that second reason. Carries the same schedule identity the
-        // handler's execution span reads off the headers, so the two join up in a trace.
-        using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.RecurringOccurrence);
-        activity?.SetTag(WolverineTracing.ScheduleName, message.Name);
-        activity?.SetTag(WolverineTracing.ScheduleOccurrence, occurrenceHeader);
+        using var activity = startOccurrenceActivity(message, occurrenceHeader);
 
         // The routed-then-persisted spelling of IMessageBus.PublishAsync, taken apart only
         // because the public path never surfaces the envelopes (GH-4180's own analysis) and the

@@ -145,8 +145,12 @@ opts.Schedules.ScheduleRecurring("fast-scheduled", "*/30 * * * * *", _ => new Ti
 <!-- endSnippet -->
 
 Setting `TimerThreshold` to `TimeSpan.Zero` keeps every schedule on the scheduled-message path
-unless it opts in with `UseTimer()`. The 5 second minimum cadence applies to both paths. Schedules
-at or above the threshold behave exactly as they always have.
+unless it opts in with `UseTimer()`. Schedules at or above the threshold behave exactly as they
+always have.
+
+A schedule can fire as often as **every second** <Badge type="tip" text="6.61" />. Anything faster
+than every 5 seconds always runs on a timer agent, whatever `TimerThreshold` says, because the
+scheduled-job poller cannot honour it. `UseScheduledMessages()` on such a schedule throws.
 
 <!-- snippet: sample_short_cadence_recurring_schedule -->
 <a id='snippet-sample_short_cadence_recurring_schedule'></a>
@@ -179,6 +183,59 @@ opts.Schedules.ScheduleRecurring(ScheduleName, "*/5 * * * * *",
 * **Moving to the timer path cleans up after itself.** The scheduled-path agent no longer schedules
   a timer schedule, and cancels the leftover pre-scheduled occurrence an earlier release may have
   left in the inbox.
+* **Each occurrence comes from the cron, not from "now + interval".** A timer that wakes late fires
+  the late occurrence once and still waits for the next one the cron computes, so a one second
+  schedule does not drift.
+* **Every occurrence still gets a deduplication row.** The id is unique per second, so a one second
+  schedule writes about 86,400 rows a day, each kept for `DurabilitySettings.DeduplicationWindow`
+  (24 hours by default).
+
+### Skipping an occurrence while the previous one runs <Badge type="tip" text="6.61" />
+
+By default every occurrence is published as it comes due, whether or not the previous one is
+done. For a fast schedule calling something slow, like an external API polled every second, that
+means overlapping runs. `SkipWhileRunning()` stops that:
+
+<!-- snippet: sample_recurring_every_second_skip_while_running -->
+<a id='snippet-sample_recurring_every_second_skip_while_running'></a>
+```cs
+// Every second. Anything under 5 seconds always runs on a timer agent.
+// SkipWhileRunning() skips any occurrence that comes due while the
+// previous one is still being handled
+opts.Schedules.ScheduleRecurring("poll-inventory", "* * * * * *",
+        occurrence => new PollInventory(occurrence))
+    .SkipWhileRunning();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Recurring/recurring_every_second_and_skip_while_running.cs#L68-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_recurring_every_second_skip_while_running' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+An occurrence that comes due while the previous one is still running is skipped, not queued, and
+never back-filled. The schedule picks up again with the first occurrence after the running one
+finishes. Each skip is logged at debug level, the resume is logged at information level with the
+number skipped, and skips are counted on the `wolverine-recurring-occurrences-skipped` counter,
+tagged with `schedule.name`.
+
+To know when an occurrence is finished, the timer agent **invokes** it and waits for it, with the
+same semantics as `IMessageBus.InvokeAsync()`, instead of publishing it. Know what that means
+before you turn it on:
+
+* With a local handler, the occurrence runs inline on the node that owns the schedule's timer
+  agent. There is only one of those agents per schedule in the cluster, so the occurrences do not
+  overlap anywhere in the cluster. The exception is the brief window while the agent moves between
+  nodes.
+* With no local handler, the occurrence goes to the one endpoint it routes to by request/reply, and
+  the agent waits for the acknowledgement for at most `opts.DefaultRemoteInvocationTimeout`
+  (5 seconds by default). After that, the next occurrence can start even if the remote handler is
+  still running.
+* The occurrence does not go to any other subscribers, and it does not go through a local queue.
+  There is no inbox row, no queue-level error policy and no dead letter queue. A failed occurrence
+  is logged and the next one runs on schedule.
+* A handler that never returns stops the schedule until it does.
+* The schedule always runs on a timer agent, even with a daily cron. `UseScheduledMessages()` and
+  `SkipWhileRunning()` refuse each other at configuration time, because a pre-scheduled occurrence
+  fires from the scheduled-job poller with nothing waiting on the previous one.
+* `IRecurringScheduleControl.TriggerAsync` still publishes its manual occurrence, and the overlap
+  check does not cover it.
 
 ### Durability modes
 
@@ -202,10 +259,10 @@ correctly: a schedule inside a spring-forward gap fires at the adjusted instant,
 repeat fires once.
 
 An invalid expression throws at the registration call site — a bad schedule is a programming
-error, and it should fail at the line that wrote it. So does a cadence faster than every 5
-seconds: durable scheduled messages replay on `DurabilitySettings.ScheduledJobPollingTime`
-(5 seconds by default), so a faster schedule cannot be honoured and is refused as unsatisfiable
-rather than accepted and delivered late.
+error, and it should fail at the line that wrote it. The fastest cadence is every second
+(`* * * * * *`), which is as fine as cron goes. A schedule faster than every 5 seconds always runs
+on a [timer agent](#short-cadences-timer-agents), because durable scheduled messages replay on
+`DurabilitySettings.ScheduledJobPollingTime` (5 seconds by default) and would deliver it late.
 
 ## Durable tracking: record and verify
 
