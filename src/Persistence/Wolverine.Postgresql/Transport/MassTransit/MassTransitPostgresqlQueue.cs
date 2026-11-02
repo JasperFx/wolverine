@@ -87,7 +87,7 @@ public class MassTransitPostgresqlQueue : Endpoint, IBrokerQueue, IMassTransitIn
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(runtime.LoggerFactory.CreateLogger<MassTransitPostgresqlQueue>());
         }
@@ -104,7 +104,7 @@ public class MassTransitPostgresqlQueue : Endpoint, IBrokerQueue, IMassTransitIn
 
     public override async ValueTask InitializeAsync(ILogger logger)
     {
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(logger);
         }
@@ -131,6 +131,9 @@ public class MassTransitPostgresqlQueue : Endpoint, IBrokerQueue, IMassTransitIn
 
     public async ValueTask SetupAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         await using var conn = await Parent.Store.NpgsqlDataSource.OpenConnectionAsync();
         try
         {
@@ -147,6 +150,9 @@ public class MassTransitPostgresqlQueue : Endpoint, IBrokerQueue, IMassTransitIn
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         // MassTransit owns the schema and its queue lifecycle; the minimal teardown is a purge.
         await PurgeAsync(logger);
     }

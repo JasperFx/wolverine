@@ -64,6 +64,22 @@ public class NServiceBusSqlServerListenerConfiguration
         });
         return this;
     }
+
+    /// <summary>
+    ///     Mark this queue as owned by another system. Wolverine will not create, migrate or drop its queue and
+    ///     scheduled message tables at startup, in <c>resources setup</c> or <c>resources teardown</c>, or as part
+    ///     of the message store's schema, even when <c>AutoProvision()</c> is on. <c>resources check</c> still
+    ///     checks it. GH-5342.
+    /// </summary>
+    public NServiceBusSqlServerListenerConfiguration ExternallyOwned()
+    {
+        // Set at once as well as when the endpoint compiles: the queue tables are registered with the
+        // message store's schema early in startup, before any endpoint is compiled
+        if (_endpoint != null) _endpoint.IsExternallyOwned = true;
+
+        add(e => e.IsExternallyOwned = true);
+        return this;
+    }
 }
 
 public class NServiceBusSqlServerSubscriberConfiguration
@@ -93,6 +109,22 @@ public class NServiceBusSqlServerSubscriberConfiguration
     public NServiceBusSqlServerSubscriberConfiguration MapTenantIdToHeader(string headerName = "tenant_id")
     {
         add(e => e.TenantHeader = headerName);
+        return this;
+    }
+
+    /// <summary>
+    ///     Mark this queue as owned by another system. Wolverine will not create, migrate or drop its queue and
+    ///     scheduled message tables at startup, in <c>resources setup</c> or <c>resources teardown</c>, or as part
+    ///     of the message store's schema, even when <c>AutoProvision()</c> is on. <c>resources check</c> still
+    ///     checks it. GH-5342.
+    /// </summary>
+    public NServiceBusSqlServerSubscriberConfiguration ExternallyOwned()
+    {
+        // Set at once as well as when the endpoint compiles: the queue tables are registered with the
+        // message store's schema early in startup, before any endpoint is compiled
+        if (_endpoint != null) _endpoint.IsExternallyOwned = true;
+
+        add(e => e.IsExternallyOwned = true);
         return this;
     }
 }

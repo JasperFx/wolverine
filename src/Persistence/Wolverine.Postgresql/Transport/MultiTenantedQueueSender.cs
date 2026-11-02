@@ -75,7 +75,7 @@ internal class MultiTenantedQueueSender : IPostgresqlQueueSender, IAsyncDisposab
                 sender = new PostgresqlQueueSender(_queue, npgsqlDataSource, database.Name, _logger);
                 _byDatabase = _byDatabase.AddOrUpdate(database.Name, sender);
 
-                if (_queue.Parent.AutoProvision)
+                if (_queue.Parent.ShouldAutoProvision(_queue))
                 {
                     await _queue.EnsureSchemaExists(database.Name, npgsqlDataSource);
                 }

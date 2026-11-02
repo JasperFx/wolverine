@@ -637,7 +637,7 @@ AND {DatabaseConstants.KeepUntil} <= UTC_TIMESTAMP(6)")
 
     public async Task StartAsync()
     {
-        if (_queue.Parent.AutoProvision)
+        if (_queue.Parent.ShouldAutoProvision(_queue))
         {
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _dataSource);
         }

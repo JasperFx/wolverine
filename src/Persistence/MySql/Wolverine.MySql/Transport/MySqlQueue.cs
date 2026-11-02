@@ -116,7 +116,7 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(runtime.LoggerFactory.CreateLogger<MySqlQueue>());
         }
@@ -167,7 +167,7 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
             return;
         }
 
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(logger);
         }
@@ -272,6 +272,9 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         await forEveryDatabase(async (source, _) =>
         {
             await using var conn = await source.OpenConnectionAsync();
@@ -285,6 +288,9 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
 
     public async ValueTask SetupAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         // Deliberately bypasses the _checkedDatabases memo. SetupAsync is the explicit
         // "make sure these tables exist right now" call - resource setup, and
         // IHost.ClearAllWolverineStorageAsync() - so it has to re-apply against a database

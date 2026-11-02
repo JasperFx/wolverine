@@ -72,7 +72,7 @@ internal class MultiTenantedQueueSender : IMySqlQueueSender, IAsyncDisposable
                 sender = new MySqlQueueSender(_queue, mySqlDataSource, database.Name);
                 _byDatabase = _byDatabase.AddOrUpdate(database.Name, sender);
 
-                if (_queue.Parent.AutoProvision)
+                if (_queue.Parent.ShouldAutoProvision(_queue))
                 {
                     await _queue.EnsureSchemaExists(database.Name, mySqlDataSource);
                 }

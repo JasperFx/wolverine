@@ -68,7 +68,9 @@ public class NServiceBusSqlServerTransportDatabase : DatabaseBase<SqlConnection>
 
     public override IFeatureSchema[] BuildFeatureSchemas()
     {
+        // GH-5342: an externally owned queue's table is not Wolverine's to migrate
         return _transport.Queues
+            .Where(queue => !queue.IsExternallyOwned)
             .Select(queue => (IFeatureSchema)new NServiceBusSqlServerQueueFeatureSchema(queue, Migrator))
             .ToArray();
     }

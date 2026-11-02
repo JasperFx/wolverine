@@ -107,7 +107,9 @@ public class MySqlTransport : BrokerTransport<MySqlQueue>
         // Configure queues with the store
         AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None;
 
-        foreach (var queue in Queues)
+        // GH-5342: an externally owned queue's tables are not part of the message store's
+        // schema, so a migration or RebuildAllEnvelopeStorageAsync() never creates them
+        foreach (var queue in Queues.Where(x => !x.IsExternallyOwned))
         {
             // GH-3859: on a multi-tenanted host the queue tables live in each database rather than in
             // one transport-wide schema, and SetupAsync()/EnsureSchemaExists() provision them per data

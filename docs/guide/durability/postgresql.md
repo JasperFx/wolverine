@@ -482,6 +482,32 @@ and a real need for low latency on those queues -- think of request/reply style 
 running through a PostgreSQL queue. If you're running a lot of tenant databases, are tight on database connections,
 or your queues are busy all the time anyway, leave this off and tune `PollingInterval()` instead.
 
+### Externally Owned Queues <Badge type="tip" text="6.62" />
+
+Sometimes a queue's tables belong to another application, the one that reads from it or the one that created it,
+and with `AutoProvision()` on, Wolverine would otherwise create them, or drop them in `resources teardown`. Mark
+those queues `ExternallyOwned()` so Wolverine sends to and listens to them without ever creating, migrating or dropping
+their tables, while it still provisions the queues you do own:
+
+<!-- snippet: sample_postgresql_queue_is_externally_owned -->
+<a id='snippet-sample_postgresql_queue_is_externally_owned'></a>
+```cs
+// The "orders" queue tables belong to another application. Wolverine
+// reads from and sends to the queue, but never creates, migrates or
+// drops its tables, even with AutoProvision() on
+opts.ListenToPostgresqlQueue("orders").ExternallyOwned();
+
+opts.PublishMessage<ExternallyOwnedQueueMessage>()
+    .ToPostgresqlQueue("orders")
+    .ExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/externally_owned_queues_5342.cs#L94-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_postgresql_queue_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The queue tables are also left out of the message store's own schema, so neither a migration nor `RebuildAllEnvelopeStorageAsync()` builds them. `resources check` still checks that an externally owned queue's tables exist. See
+[Externally Owned Broker Objects](/guide/messaging/transports/externally-owned) for how this works across every
+transport.
+
 ### Deterministic Queue Ordering
 
 PostgreSQL's `now()` returns the same timestamp for every row written in one transaction. By default,
@@ -646,6 +672,27 @@ shows the complete bidirectional setup inline — the shared message contracts, 
 a handler — all of which applies here apart from swapping the `*SqlServer*` configuration calls for the `*Postgresql*`
 ones shown above. See the [interop tutorial](/tutorials/interop) for the bigger picture.
 
+### Queue Tables NServiceBus Owns <Badge type="tip" text="6.62" />
+
+If you turn `autoProvision` on so that Wolverine creates the queue tables it owns, mark the queues NServiceBus owns
+`ExternallyOwned()`. Wolverine then never creates, migrates or drops those tables, in `resources setup`,
+`resources teardown` or `db-apply`, and the tables keep whatever shape NServiceBus gave them:
+
+<!-- snippet: sample_nservicebus_postgresql_queue_is_externally_owned -->
+<a id='snippet-sample_nservicebus_postgresql_queue_is_externally_owned'></a>
+```cs
+// The NServiceBus endpoint owns this queue table. Even with
+// autoProvision: true for the interop transport, Wolverine never
+// creates, migrates or drops it
+opts.PublishMessage<NsbInteropPing>()
+    .ToNServiceBusPostgresqlQueue(_queue)
+    .ExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/NServiceBus/nservicebus_postgresql_queue_externally_owned_5342.cs#L49-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_postgresql_queue_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`autoProvision` stays off by default, so with it off nothing changes.
+
 ## MassTransit Interoperability <Badge type="tip" text="6.0" />
 
 Wolverine can also interoperate with a [MassTransit](https://masstransit.io) application that uses the
@@ -683,6 +730,10 @@ Wolverine writes the bare message JSON into the `body` column and the envelope f
 emitting the MassTransit `urn:message:{Namespace}:{TypeName}` message type. Incoming messages are leased through
 `fetch_messages` and acked/nacked with the `(message_delivery_id, lock_id)` pair MassTransit hands back. Message
 types are resolved against the assemblies you register with `RegisterInteropMessageAssembly`.
+
+With `autoProvision: true`, a MassTransit queue Wolverine listens to can be marked `ExternallyOwned()` too
+<Badge type="tip" text="6.62" />. Wolverine then never calls `create_queue_v2` for it, and `resources teardown`
+leaves its messages in place.
 
 ## Multi-Tenancy
 

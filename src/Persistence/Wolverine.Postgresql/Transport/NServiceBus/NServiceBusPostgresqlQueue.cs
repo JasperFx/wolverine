@@ -102,7 +102,7 @@ public class NServiceBusPostgresqlQueue : Endpoint, IBrokerQueue
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(runtime.LoggerFactory.CreateLogger<NServiceBusPostgresqlQueue>());
         }
@@ -119,7 +119,7 @@ public class NServiceBusPostgresqlQueue : Endpoint, IBrokerQueue
 
     public override async ValueTask InitializeAsync(ILogger logger)
     {
-        if (Parent.AutoProvision)
+        if (Parent.ShouldAutoProvision(this))
         {
             await SetupAsync(logger);
         }
@@ -148,6 +148,9 @@ public class NServiceBusPostgresqlQueue : Endpoint, IBrokerQueue
 
     public async ValueTask SetupAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         await using var conn = await Parent.Store.NpgsqlDataSource.OpenConnectionAsync();
         try
         {
@@ -161,6 +164,9 @@ public class NServiceBusPostgresqlQueue : Endpoint, IBrokerQueue
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342
+        if (IsExternallyOwned) return;
+
         await using var conn = await Parent.Store.NpgsqlDataSource.OpenConnectionAsync();
         try
         {
