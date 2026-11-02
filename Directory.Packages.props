@@ -115,7 +115,11 @@
     <PackageVersion Include="MQTTnet.Extensions.ManagedClient" Version="4.3.7.1207" />
     <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
     <PackageVersion Include="MQTTnet.Server" Version="5.2.0.1603" />
-    <PackageVersion Include="MySqlConnector" Version="2.4.0" />
+    <!-- 2.6.1, not 2.4.0, and this is REQUIRED rather than tidy: Weasel.MySql 9.48.0 declares
+         MySqlConnector >= 2.6.1, so at 2.4.0 the restore fails with NU1605, a package downgrade
+         promoted to an error. Weasel took it for GHSA-473q-m89c-ghf8 (weasel#767), so the advisory
+         closes for WolverineFx.MySql here too. -->
+    <PackageVersion Include="MySqlConnector" Version="2.6.1" />
     <PackageVersion Include="NATS.Net" Version="2.8.2" />
     <!-- The cron EXPRESSION PARSER behind opts.Schedules (recurring messages). A parser, not a
          scheduling engine — Wolverine's own scheduled-message machinery is the engine. MIT, zero
@@ -236,13 +240,61 @@
          rest of the migration with it. A schema name carrying uppercase broke identically. Inert for
          a lower-case unquoted schema, where relname and the rendering name the same table. Nothing
          public added, removed or changed. -->
-    <PackageVersion Include="Weasel.Core" Version="9.47.1" />
-    <PackageVersion Include="Weasel.EntityFrameworkCore" Version="9.47.1" />
-    <PackageVersion Include="Weasel.MySql" Version="9.47.1" />
-    <PackageVersion Include="Weasel.Oracle" Version="9.47.1" />
-    <PackageVersion Include="Weasel.Postgresql" Version="9.47.1" />
-    <PackageVersion Include="Weasel.SqlServer" Version="9.47.1" />
-    <PackageVersion Include="Weasel.Sqlite" Version="9.47.1" />
+    <!-- Weasel 9.48.0 (from 9.47.1). ADOPTED as-is, no Wolverine code changes. Wolverine pins all
+
+         The JasperFx floor: Weasel.Core 9.48.0 declares JasperFx >= 2.98.0 and Weasel.Storage
+         declares JasperFx.Events >= 2.98.0, both read from the published nuspec. Already satisfied
+         here, because the JasperFx 2.98.0 bump landed on its own ahead of this one; at 2.97.0 the
+         restore fails outright with NU1605, a package downgrade promoted to an error, rather than
+         resolving quietly upward.
+         eight packages, so it has the widest surface of the four consumers, but most of this release
+         lands on paths Wolverine does not take.
+
+         weasel#758/#759: the parameter-type catch-all. A private helper in five providers ended in
+         `?? <catch-all>`, which can never return null, so every fall-through branch after the first
+         was dead code. On SQL Server the catch-all went out as sql_variant, which outranks every
+         ordinary type in data type precedence, so comparing one against a column converted THE COLUMN
+         once per row. Wolverine does not call ToParameterType itself; it hands
+         SqlServerProvider.Instance and PostgresqlProvider.Instance to the Weasel base classes, so
+         what it gets is the corrected resolution underneath. Worth knowing: on SQL Server, Guid was
+         already mapped, but short, byte, float, char, DateOnly and TimeOnly were not, and DateTime
+         resolved to SqlDbType.Date, which dropped the time of day on a bound value. Both are fixed,
+         and the generated datetime COLUMN type is unchanged, so no envelope table produces a schema
+         diff.
+
+         weasel#766: sp_getapplock was told its wait through @LockTimeout but ran under the
+         connection's CommandTimeout, 30 seconds by default, so a requested wait of 30s or more
+         silently had no effect and at exactly 30s a busy lock threw a raw SqlException instead of
+         returning a failed AttainLockResult. Latent rather than live for Wolverine as it stands:
+         SqlServerMessageStore.DurabilityPass passes lockTimeoutMs 0, and the other SQL Server call
+         sites take the 1000ms default, so none of them was anywhere near the cap. It matters if
+         SharedLockExtensions.DefaultLockTimeoutMilliseconds is ever raised past 30 seconds, which
+         before this release would have had no effect.
+
+         weasel#763: DateOnly and TimeOnly now map on MySQL (Date / Time, verified by round trip) and
+         are REFUSED on Oracle, where ODP.NET has no conversion for either CLR type against any
+         OracleDbType. Wolverine.MySql and Wolverine.Oracle bind neither type, so this is inert here;
+         it is a new NotSupportedException on a path that previously sent a culture-dependent string.
+
+         weasel#761: an enum parameter resolves by EnumStorage now, defaulting to the integer type,
+         and arrays defer to the driver on SQL Server, SQLite, MySQL and Oracle instead of binding as
+         a character type. PostgreSQL and Firebird keep Integer for an int-backed enum. Nothing in
+         Wolverine routes an enum or an array through the provider seam.
+
+         INERT: weasel#762 (SQL Server string Unicode precedence, documentation only), weasel#764 and
+         weasel#765 (SQL Server and PostgreSQL partitioning; Wolverine partitions nothing).
+
+         MySqlConnector moves to 2.6.1 as part of this, and not optionally: Weasel.MySql 9.48.0
+         declares a floor of 2.6.1, so the restore fails with NU1605 at the 2.4.0 this repo pinned.
+         Weasel took it for GHSA-473q-m89c-ghf8 (weasel#767), so that advisory closes for
+         WolverineFx.MySql here too. -->
+    <PackageVersion Include="Weasel.Core" Version="9.48.0" />
+    <PackageVersion Include="Weasel.EntityFrameworkCore" Version="9.48.0" />
+    <PackageVersion Include="Weasel.MySql" Version="9.48.0" />
+    <PackageVersion Include="Weasel.Oracle" Version="9.48.0" />
+    <PackageVersion Include="Weasel.Postgresql" Version="9.48.0" />
+    <PackageVersion Include="Weasel.SqlServer" Version="9.48.0" />
+    <PackageVersion Include="Weasel.Sqlite" Version="9.48.0" />
     <!-- The eighth Weasel package, and the only one nothing referenced directly. Marten, Polecat and
          Fisher each request the Weasel.Storage matching their own Weasel line, which trails the
          version pinned for the seven siblings — so before this pin the solution ran Weasel.Storage
@@ -250,7 +302,7 @@
          siblings whenever that line moves. Wolverine.Marten/.Polecat/.Fisher/.ClaimCheck.Marten
          reference it directly so the pin actually wins; without transitive pinning a PackageVersion
          on its own would be inert here, since nothing else references it. -->
-    <PackageVersion Include="Weasel.Storage" Version="9.47.1" />
+    <PackageVersion Include="Weasel.Storage" Version="9.48.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <!-- xUnit v3. Test projects use xunit.v3 and must set <OutputType>Exe</OutputType>.
          Shared/base-class libraries that are referenced by test projects (notably
