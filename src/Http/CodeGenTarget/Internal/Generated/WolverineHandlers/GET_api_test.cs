@@ -20,7 +20,7 @@ namespace Internal.Generated.WolverineHandlers
 
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "ExampleHandler");
+            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "ExampleHandler").SetTag("http.route", "/api/test").SetTag("http.request.method", "GET");
             
             // The actual HTTP request handler execution
             var result_of_Handle = ExampleHandler.Handle();

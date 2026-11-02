@@ -29,7 +29,7 @@ namespace Internal.Generated.WolverineHandlers
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
             // Building the Fisher session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "AotFisherEndpoints");
+            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "AotFisherEndpoints").SetTag("http.route", "/aot/orders/{id}").SetTag("http.request.method", "POST");
             string id_rawValue = (string?)httpContext.GetRouteValue("id");
             System.Guid id = default;
 
