@@ -392,6 +392,58 @@ try to process the projection") and `23505: duplicate key value violates unique 
 that already own those shards and waits for non-stale data, so there is only ever one writer.
 :::
 
+### Catching up every Marten store at once <Badge type="tip" text="6.61" />
+
+With ancillary stores, the helpers above take one store at a time, so a test helper has to know every
+store type. `PauseThenCatchUpOnAllMartenDaemonActivityAsync()` catches up the main store and every
+ancillary store that was integrated with `IntegrateWithWolverine()`, one store after another:
+
+<!-- snippet: sample_pause_then_catch_up_on_all_marten_daemon_activity -->
+<a id='snippet-sample_pause_then_catch_up_on_all_marten_daemon_activity'></a>
+```cs
+// Catches up the main Marten store and every ancillary store
+// integrated with Wolverine, without naming the ancillary store types
+await _host.PauseThenCatchUpOnAllMartenDaemonActivityAsync(
+    cancellation: TestContext.Current.CancellationToken);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/TestHelpers/catch_up_on_all_marten_stores.cs#L97-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pause_then_catch_up_on_all_marten_daemon_activity' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The tracked session version is `PauseThenCatchUpOnAllMartenDaemonActivity()`:
+
+<!-- snippet: sample_tracked_session_pause_then_catch_up_on_all_marten_daemon_activity -->
+<a id='snippet-sample_tracked_session_pause_then_catch_up_on_all_marten_daemon_activity'></a>
+```cs
+await _host.TrackActivity()
+    .Timeout(30.Seconds())
+    .PauseThenCatchUpOnAllMartenDaemonActivity()
+    .ExecuteAndWaitAsync(async Task (IMessageContext _) =>
+    {
+        await using var main = _host.DocumentStore().LightweightSession();
+        main.Events.StartStream<LetterCounts>(mainId, "AAB".ToLetterEvents());
+        await main.SaveChangesAsync();
+
+        await using var first = _host.DocumentStore<ILetterStore>().LightweightSession();
+        first.Events.StartStream<LetterCounts>(firstId, "ABBB".ToLetterEvents());
+        await first.SaveChangesAsync();
+
+        await using var second = _host.DocumentStore<ISecondLetterStore>().LightweightSession();
+        second.Events.StartStream<LetterCounts>(secondId, "CCD".ToLetterEvents());
+        await second.SaveChangesAsync();
+    });
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/TestHelpers/catch_up_on_all_marten_stores.cs#L146-L166' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tracked_session_pause_then_catch_up_on_all_marten_daemon_activity' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Both take the same `CatchUpMode` as the single-store helpers. A few differences from calling those
+one store at a time:
+
+- A store, or a tenant database, with no events at all is skipped. The single-store helpers wait out
+  their timeout and throw in that case.
+- The standalone version applies `timeout` to each store, not to the whole call.
+- An ancillary store added with `AddMartenStore<T>()` but never integrated with `IntegrateWithWolverine()`
+  is not included. Use `PauseThenCatchUpOnMartenDaemonActivityAsync<T>()` for that store.
+
 The samples shown above inlcude `Sent` message records, but there are more properties available in the `TrackedSession` object.
 In accordance with the `MessageEventType` enum, you can access these properties on the `TrackedSession` object:
 

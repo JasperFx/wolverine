@@ -172,6 +172,12 @@ public static class AncillaryWolverineOptionsMartenExtensions
         
         expression.Services.AddSingleton<OutboxedSessionFactory<T>>();
 
+        // GH-5317: lets PauseThenCatchUpOnAllMartenDaemonActivity() find this store's coordinator without
+        // knowing T. TryAddEnumerable dedupes on the implementation type, so calling IntegrateWithWolverine()
+        // twice for the same store still registers it once.
+        expression.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<MartenStoreDaemonControl, AncillaryMartenStoreDaemonControl<T>>());
+
         return expression;
     }
 
