@@ -186,12 +186,20 @@ public partial class RavenDbMessageStore : IDeadLetters
 
         if (query.Range.From.HasValue)
         {
-            queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.SentAt >= query.Range.From.Value);
+            var from = query.Range.From.Value;
+            queryable = query.RangeOn == DeadLetterTimeField.FailedAt
+                ? (IRavenQueryable<DeadLetterMessage>)queryable.Where(x =>
+                    x.FailedAt >= from || (!(x.FailedAt > ArchivedAfter) && x.SentAt >= from))
+                : (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.SentAt >= from);
         }
 
         if (query.Range.To.HasValue)
         {
-            queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.SentAt <= query.Range.To.Value);
+            var to = query.Range.To.Value;
+            queryable = query.RangeOn == DeadLetterTimeField.FailedAt
+                ? (IRavenQueryable<DeadLetterMessage>)queryable.Where(x =>
+                    x.FailedAt <= to || (!(x.FailedAt > ArchivedAfter) && x.SentAt <= to))
+                : (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.SentAt <= to);
         }
 
         if (query.ExceptionType.IsNotEmpty())
@@ -387,15 +395,25 @@ update
         var conditions = new List<string>();
         var parameters = new Parameters();
 
+        var failedAtRange = query.RangeOn == DeadLetterTimeField.FailedAt;
+
+        // A document stored before FailedAt existed has no such field, and null equality does not match a missing
+        // field, so "no failure time" is "not after the minimum date", as for ArchivedAt
+        parameters["failedAfter"] = ArchivedAfter;
+
         if (query.Range.From.HasValue)
         {
-            conditions.Add("m.SentAt >= $from");
+            conditions.Add(failedAtRange
+                ? "(m.FailedAt >= $from OR (true AND NOT m.FailedAt > $failedAfter AND m.SentAt >= $from))"
+                : "m.SentAt >= $from");
             parameters["from"] = query.Range.From.Value;
         }
 
         if (query.Range.To.HasValue)
         {
-            conditions.Add("m.SentAt <= $to");
+            conditions.Add(failedAtRange
+                ? "(m.FailedAt <= $to OR (true AND NOT m.FailedAt > $failedAfter AND m.SentAt <= $to))"
+                : "m.SentAt <= $to");
             parameters["to"] = query.Range.To.Value;
         }
 

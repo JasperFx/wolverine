@@ -404,8 +404,12 @@ public partial class CosmosDbMessageStore : IDeadLetters
     {
         var conditions = new List<string> { "c.docType = @docType" };
 
-        if (query.Range?.From.HasValue == true) conditions.Add("c.sentAt >= @from");
-        if (query.Range?.To.HasValue == true) conditions.Add("c.sentAt <= @to");
+        var rangeField = query.RangeOn == DeadLetterTimeField.FailedAt
+            ? "(IS_DEFINED(c.failedAt) AND NOT IS_NULL(c.failedAt) ? c.failedAt : c.sentAt)"
+            : "c.sentAt";
+
+        if (query.Range?.From.HasValue == true) conditions.Add($"{rangeField} >= @from");
+        if (query.Range?.To.HasValue == true) conditions.Add($"{rangeField} <= @to");
         if (query.ExceptionType.IsNotEmpty()) conditions.Add("c.exceptionType = @exceptionType");
 
         if (query.ExceptionMessage.IsNotEmpty())

@@ -206,6 +206,7 @@ applies the same criteria:
 | `Archived` | `Exclude` archived dead letters (the default), `Only` archived dead letters, or `Any` <Badge type="tip" text="6.54" /> |
 | `TenantId` | Scope the query to one tenant. Dead letters are stored per database, so for a multi-tenanted message store this routes the query to the tenant's database <Badge type="tip" text="6.54" /> |
 | `MessageType`, `ExceptionType`, `ReceivedAt`, `Replayable`, `Range` | Exact match filters on the stored columns |
+| `RangeOn` | Which timestamp `Range` filters on. `DeadLetterTimeField.SentAt` (the default) is when the producer sent the message, which can be days old for a message read again from a broker topic. `DeadLetterTimeField.FailedAt` is when it was dead lettered, refreshed after a failed replay, and falls back to the sent time for dead letters recorded before failure fingerprinting |
 | `MessageIds` | Only these dead letters |
 | `Headers` | Only dead letters carrying these header values. This is applied in memory after the other criteria |
 

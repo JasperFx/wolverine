@@ -115,6 +115,22 @@ public abstract class DeadLetterFailureGroupCompliance : IAsyncLifetime
     }
 
     /// <summary>
+    /// Simulate dead letters recorded before the failure time was kept
+    /// </summary>
+    protected virtual async Task clearFailedAtAsync()
+    {
+        var database = (IMessageDatabase)thePersistence;
+        var builder = database.ToCommandBuilder();
+        builder.Append(
+            $"update {database.TableNameFor(DatabaseConstants.DeadLetterTable)} set {DatabaseConstants.FailedAt} = null");
+
+        await using var conn = await database.DataSource.OpenConnectionAsync();
+        await using var cmd = builder.Compile();
+        cmd.Connection = conn;
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// What the durability agent does on every recovery pass: move replayable dead letters to the inbox
     /// </summary>
     protected virtual Task moveReplayableDeadLettersAsync()
@@ -471,6 +487,75 @@ public abstract class DeadLetterFailureGroupCompliance : IAsyncLifetime
         var other = (await theDeadLetters.DeadLetterEnvelopeByIdAsync(bystander.Id))!;
         other.ReplayCount.ShouldBe(0);
         other.LastReplayedAt.ShouldBeNull();
+    }
+
+    // Dead letters sent ten days ago and failed just now, like messages read again from the start of a topic
+    private async Task oldMessagesThatFailedJustNow(int count)
+    {
+        theGenerator.StartingTime = DateTimeOffset.UtcNow.AddDays(-10);
+        await deadLetters(count, i => Failures.CardDeclined(i.ToString()));
+    }
+
+    private static DeadLetterEnvelopeQuery lastDay(DeadLetterTimeField rangeOn) =>
+        new(new TimeRange(DateTimeOffset.UtcNow.AddDays(-1), null)) { RangeOn = rangeOn };
+
+    [Fact]
+    public async Task range_filters_on_the_failure_time_when_asked_to()
+    {
+        await oldMessagesThatFailedJustNow(3);
+
+        (await all(lastDay(DeadLetterTimeField.SentAt))).ShouldBeEmpty();
+        (await all(lastDay(DeadLetterTimeField.FailedAt))).Count.ShouldBe(3);
+
+        // The upper bound applies to the failure time too
+        var longAgo = new DeadLetterEnvelopeQuery(new TimeRange(null, DateTimeOffset.UtcNow.AddDays(-1)))
+            { RangeOn = DeadLetterTimeField.FailedAt };
+        (await all(longAgo)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task replay_honors_the_range_field()
+    {
+        if (!supports(DeadLetterCapabilities.OperationCounts)) return;
+
+        await oldMessagesThatFailedJustNow(3);
+
+        (await theDeadLetters.ReplayMatchingAsync(lastDay(DeadLetterTimeField.SentAt), CancellationToken.None))
+            .Affected.ShouldBe(0);
+        (await theDeadLetters.ReplayMatchingAsync(lastDay(DeadLetterTimeField.FailedAt), CancellationToken.None))
+            .Affected.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task discard_honors_the_range_field()
+    {
+        if (!supports(DeadLetterCapabilities.OperationCounts)) return;
+
+        await oldMessagesThatFailedJustNow(3);
+
+        (await theDeadLetters.DiscardMatchingAsync(lastDay(DeadLetterTimeField.SentAt), CancellationToken.None))
+            .Affected.ShouldBe(0);
+        (await all()).Count.ShouldBe(3);
+
+        (await theDeadLetters.DiscardMatchingAsync(lastDay(DeadLetterTimeField.FailedAt), CancellationToken.None))
+            .Affected.ShouldBe(3);
+        (await all()).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task a_dead_letter_without_a_failure_time_falls_back_to_the_sent_time()
+    {
+        // One sent recently, one sent long ago, neither with a failure time
+        theGenerator.StartingTime = DateTimeOffset.UtcNow.AddHours(-2);
+        await deadLetter(Failures.CardDeclined("recent"));
+        theGenerator.StartingTime = DateTimeOffset.UtcNow.AddDays(-10);
+        await deadLetter(Failures.CardDeclined("old"));
+
+        await clearFailedAtAsync();
+
+        var found = await all(lastDay(DeadLetterTimeField.FailedAt));
+        found.Count.ShouldBe(1);
+        found[0].ExceptionMessage.ShouldContain("recent");
     }
 }
 
