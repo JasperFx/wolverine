@@ -448,7 +448,7 @@ public class ServiceCapabilities : OptionsDescription
     private static void readSagas(IWolverineRuntime runtime, ServiceCapabilities capabilities)
     {
         var sagaTypes = SagaDescriptorBuilder.CollectSagaChains(runtime.Options.HandlerGraph)
-            .Where(c => c.Handlers.Any(h => h.HandlerType.CanBeCastTo<Saga>()))
+            .Where(c => c.SagaHandlerCalls().Length != 0) // GH-5331: Handlers is empty once the chain compiles
             .Select(c => c.SagaType)
             .Distinct()
             .OrderBy(t => t.FullNameInCode())

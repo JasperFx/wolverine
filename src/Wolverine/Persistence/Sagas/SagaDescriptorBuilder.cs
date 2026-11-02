@@ -38,8 +38,7 @@ internal static class SagaDescriptorBuilder
         };
 
         var chainsForSaga = CollectSagaChains(graph)
-            .Where(c => c.SagaType == sagaType
-                        && c.Handlers.Any(h => h.HandlerType.CanBeCastTo<Saga>()))
+            .Where(c => c.SagaType == sagaType && c.SagaHandlerCalls().Length != 0)
             .OrderBy(c => c.MessageType.FullNameInCode())
             .ToArray();
 
@@ -83,8 +82,8 @@ internal static class SagaDescriptorBuilder
     /// </summary>
     public static SagaRole? ClassifyRole(SagaChain chain)
     {
-        var methodNames = chain.Handlers
-            .Where(h => h.HandlerType.CanBeCastTo<Saga>())
+        // GH-5331: not chain.Handlers, which DetermineFrames clears once the chain compiles
+        var methodNames = chain.SagaHandlerCalls()
             .Select(h => h.Method.Name)
             .Select(n => n.EndsWith("Async") ? n[..^"Async".Length] : n)
             .ToHashSet();
