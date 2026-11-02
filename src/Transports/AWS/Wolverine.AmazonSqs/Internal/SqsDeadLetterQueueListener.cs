@@ -16,6 +16,24 @@ namespace Wolverine.AmazonSqs.Internal;
 public class AmazonSqsDeadLetterQueueRecoverySettings
 {
     public List<string> QueueNames { get; } = new();
+
+    /// <summary>
+    /// Does the recovery listener drain the dead letter queue of this listening queue? The single rule
+    /// shared by the listener when it picks its queues and by <see cref="AmazonSqsQueue"/> when it
+    /// reports <see cref="Wolverine.Configuration.DeadLetterStorageMode.NativeWithRecovery"/> (GH-5313):
+    /// with no <see cref="QueueNames"/> the dead letter queue of every listening queue is drained,
+    /// otherwise only the named dead letter queues.
+    /// </summary>
+    internal bool Drains(AmazonSqsQueue listeningQueue)
+    {
+        var deadLetterQueueName = listeningQueue.DeadLetterQueueName;
+        if (deadLetterQueueName.IsEmpty()) return false;
+
+        if (QueueNames.Count == 0) return listeningQueue.IsListener;
+
+        var sanitized = AmazonSqsTransport.SanitizeSqsName(deadLetterQueueName!);
+        return QueueNames.Any(x => AmazonSqsTransport.SanitizeSqsName(x) == sanitized);
+    }
 }
 
 /// <summary>
@@ -88,7 +106,7 @@ public class SqsDeadLetterQueueListener : BackgroundService
         }
 
         return _transport.Queues
-            .Where(x => x.IsListener)
+            .Where(x => _settings.Drains(x))
             .Select(x => x.DeadLetterQueueName)
             .Where(x => x.IsNotEmpty())
             .Distinct()

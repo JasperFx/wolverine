@@ -55,7 +55,13 @@ Every endpoint declares its effective destination through a single transport-agn
 |-------|---------|
 | `Durable` | Dead letters go to Wolverine's durable store (`wolverine_dead_letters`) — queryable and replayable through `IDeadLetters`. |
 | `Native` | Dead letters go to a native broker dead letter queue and are **not** bridged into durable storage. |
-| `NativeWithRecovery` | Dead letters go to a native broker dead letter queue **and** are bridged back into durable storage via [`EnableDeadLetterQueueRecovery()`](/guide/messaging/transports/rabbitmq/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage). |
+| `NativeWithRecovery` | Dead letters go to a native broker dead letter queue **and** are bridged back into durable storage via `EnableDeadLetterQueueRecovery()` ([RabbitMQ](/guide/messaging/transports/rabbitmq/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage), [Amazon SQS](/guide/messaging/transports/sqs/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage), [Azure Service Bus](/guide/messaging/transports/azureservicebus/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage)). |
+
+For Amazon SQS and Azure Service Bus, an endpoint reports `NativeWithRecovery` only when the recovery
+listener actually drains it: a listening endpoint when recovery was enabled with no names, or one whose
+dead letter destination is among the names given to `EnableDeadLetterQueueRecovery(...)`. For Azure Service
+Bus that destination is the queue's own `$DeadLetterQueue` sub-queue for an inline queue or a subscription,
+and the managed dead letter queue (`wolverine-dead-letter-queue` by default) for a buffered or durable queue.
 
 It is exposed two ways:
 

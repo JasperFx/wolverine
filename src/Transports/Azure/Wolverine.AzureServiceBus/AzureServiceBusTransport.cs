@@ -151,6 +151,14 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         return $"{SanitizeIdentifier(SystemQueuePrefix!)}{IdentifierDelimiter}{name}";
     }
 
+    /// <summary>
+    /// The dead letter recovery settings when <c>EnableDeadLetterQueueRecovery()</c> is on, otherwise
+    /// null. Queues and subscriptions read it to report
+    /// <see cref="Wolverine.Configuration.DeadLetterStorageMode.NativeWithRecovery"/> when the recovery
+    /// listener drains their dead letters.
+    /// </summary>
+    public AzureServiceBusDeadLetterQueueRecoverySettings? DeadLetterQueueRecovery { get; internal set; }
+
     private string? _defaultDeadLetterQueueName;
 
     /// <summary>
