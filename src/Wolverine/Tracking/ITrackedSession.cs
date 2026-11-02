@@ -114,7 +114,9 @@ public interface ITrackedSession
     /// <summary>
     ///     Finds a message of type T that was either sent, received,
     ///     or executed during this session. This will throw an exception
-    ///     if there is more than one message
+    ///     if there is more than one message. Messages are counted by envelope,
+    ///     so publishing two equal messages counts as two, while one message
+    ///     routed to several destinations counts as one
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
@@ -122,7 +124,9 @@ public interface ITrackedSession
 
     /// <summary>
     ///     Find the single tracked message of type T for the given EventType. Will throw an exception
-    ///     if there were more than one instance of this type
+    ///     if there were more than one instance of this type. Messages are counted by envelope,
+    ///     so publishing two equal messages counts as two, while one message
+    ///     routed to several destinations counts as one
     /// </summary>
     /// <param name="eventType"></param>
     /// <typeparam name="T"></typeparam>
