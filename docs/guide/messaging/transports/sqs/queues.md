@@ -40,6 +40,52 @@ opts.UseAmazonSqsTransport()
     .AutoPurgeOnStartup();
 ```
 
+## Externally Owned Queues <Badge type="tip" text="6.62" />
+
+`AutoProvision()` is all or nothing for the queues Wolverine knows about. When a queue belongs to another service,
+you don't want your service creating it first with Wolverine's default `CreateQueueRequest`, re-creating it after
+its owner deletes it, or deleting it in `resources teardown`. Mark that queue with `ExternallyOwned()` and Wolverine
+leaves its lifecycle to its owner, while still provisioning the queues you do own:
+
+<!-- snippet: sample_sqs_queue_is_externally_owned -->
+<a id='snippet-sample_sqs_queue_is_externally_owned'></a>
+```cs
+// The queue belongs to another service. Wolverine reads from it, but
+// never creates, re-creates or deletes it, even with AutoProvision() on
+opts.ListenToSqsQueue("gh5342-owners-inbox")
+    .ExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/externally_owned_queues_5342.cs#L53-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_queue_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The same works for a queue you only send to:
+
+<!-- snippet: sample_sqs_publish_to_externally_owned_queue -->
+<a id='snippet-sample_sqs_publish_to_externally_owned_queue'></a>
+```cs
+// A queue another service owns and this one only sends to
+opts.PublishMessage<InvoiceRequested>()
+    .ToSqsQueue("gh5342-owners-billing")
+    .ExternallyOwned();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/externally_owned_queues_5342.cs#L94-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_publish_to_externally_owned_queue' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+For an externally owned queue, Wolverine:
+
+* never creates the queue at startup or in `resources setup`, regardless of `AutoProvision()`
+* never re-creates it when a listener finds it missing, as it otherwise would for a queue it provisioned
+* never deletes it in `resources teardown`
+* never creates it on a tenant's account when you use a broker per tenant
+* fails at startup with an error that names the queue and says it is externally owned if the queue doesn't exist,
+  rather than with the SDK's bare "The specified queue does not exist"
+
+`resources check` still checks that externally owned queues exist. A dead letter queue is its own queue, so a
+listener on an externally owned queue still provisions Wolverine's dead letter queue unless you call
+`DisableDeadLetterQueueing()` or point it at a queue that is marked `ExternallyOwned()` as well. See
+[Externally Owned Broker Objects](/guide/messaging/transports/externally-owned) for how this works across every
+transport.
+
 ## Configuring Queue Attributes
 
 Each `AmazonSqsQueue` endpoint exposes a `Configuration` property that is the actual

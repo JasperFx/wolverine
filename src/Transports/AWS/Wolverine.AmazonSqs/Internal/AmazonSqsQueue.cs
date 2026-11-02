@@ -350,6 +350,9 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342: never delete a queue another system owns
+        if (IsExternallyOwned) return;
+
         var client = _parent.Client!;
 
         if (QueueUrl.IsEmpty())
@@ -368,6 +371,9 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
 
     public ValueTask SetupAsync(ILogger logger)
     {
+        // GH-5342: never create a queue another system owns
+        if (IsExternallyOwned) return ValueTask.CompletedTask;
+
         return new ValueTask(SetupAsync(_parent.Client!));
     }
 
@@ -617,7 +623,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
 
         try
         {
-            if (_parent.AutoProvision)
+            if (_parent.ShouldAutoProvision(this))
             {
                 await SetupAsync(client);
                 logger.LogInformation("Tried to create Amazon SQS queue {Name} if missing", QueueUrl);
@@ -634,6 +640,13 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
                 await PurgeAsync(logger);
                 logger.LogInformation("Purging Amazon SQS queue {Name}", QueueUrl);
             }
+        }
+        catch (Amazon.SQS.Model.QueueDoesNotExistException e) when (IsExternallyOwned)
+        {
+            // GH-5342: AutoProvision() would not have helped, so say who has to create it
+            throw new WolverineSqsTransportException(
+                $"Could not find the Amazon SQS queue '{QueueName}'. It is marked as externally owned, so Wolverine never creates it: the system that owns it has to create it before this application starts. If the queue does exist, check the region and credentials passed to UseAmazonSqsTransport().",
+                e);
         }
         catch (Exception e)
         {
@@ -796,6 +809,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         sibling.EndpointName = EndpointName;
         sibling.IsListener = IsListener;
         sibling.Role = Role;
+        sibling.IsExternallyOwned = IsExternallyOwned;
         sibling.EnableFairQueueMessageGroups = EnableFairQueueMessageGroups;
         sibling.VisibilityTimeout = VisibilityTimeout;
         sibling.WaitTimeSeconds = WaitTimeSeconds;

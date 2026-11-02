@@ -147,12 +147,12 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             // startup, so the application knows how to declare it; nothing simply re-ran that afterwards.
             IsEntityMissing = e => e is QueueDoesNotExistException,
 
-            // Gated on AutoProvision: re-creating a queue the application never created is not Wolverine's
-            // call. Without it the loop still reports EntityMissing and backs off, which is the visibility
+            // Gated on AutoProvision, and never for an externally owned queue (GH-5342): re-creating a queue the
+            // application never created is not Wolverine's call. Without it the loop still reports EntityMissing and backs off, which is the visibility
             // half of the fix.
             // SetupAsync re-creates the queue AND reassigns QueueUrl, so the next poll uses the new one --
             // which matters because a recreated queue is a different entity even when the name is identical.
-            RedeclareAsync = _transport.AutoProvision
+            RedeclareAsync = _transport.ShouldAutoProvision(_queue)
                 ? _ => _queue.SetupAsync(_transport.Client!)
                 : null
         };

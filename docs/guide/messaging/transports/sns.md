@@ -392,6 +392,44 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L190-L237' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sns_topic_subscriptions_creation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Externally Owned Topics <Badge type="tip" text="6.62" />
+
+A service that subscribes to a topic usually doesn't own it. The topic belongs to the service that publishes to it,
+and that service decides how it is created. With `AutoProvision()` on, Wolverine would otherwise create the topic
+with its own default `CreateTopicRequest`, and delete it in `resources teardown`. Mark the topic with
+`ExternallyOwned()` and Wolverine leaves it alone, while still subscribing your own queues to it:
+
+<!-- snippet: sample_sns_topic_is_externally_owned -->
+<a id='snippet-sample_sns_topic_is_externally_owned'></a>
+```cs
+opts.PublishMessage<OrderShipped>()
+    .ToSnsTopic("gh5342-owners-orders")
+
+    // The topic belongs to the service that owns orders. Wolverine never
+    // creates, changes or deletes it, but it still subscribes this
+    // application's own queue to it
+    .ExternallyOwned()
+    .SubscribeSqsQueue("gh5342-shipping");
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/externally_owned_topics_5342.cs#L68-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sns_topic_is_externally_owned' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+For an externally owned topic, Wolverine:
+
+* never creates the topic at startup or in `resources setup`, regardless of `AutoProvision()`
+* never deletes it in `resources teardown`, and doesn't unsubscribe anything from it there either
+* still creates the SQS subscriptions you declare with `SubscribeSqsQueue()` when `AutoProvision()` is on, because
+  those subscriptions belong to your application, not to the topic's owner
+* fails at startup with an error that names the topic and says it is externally owned if the topic doesn't exist
+
+Because `resources teardown` leaves an externally owned topic completely alone, the subscriptions your application
+made on it stay behind after a teardown. Remove them out of band if that matters to you.
+
+`resources check` still checks that externally owned topics exist. The SQS queue on the other end of a subscription
+is configured on the SQS transport, so mark it `ExternallyOwned()` there if it belongs to another service too. See
+[Externally Owned Broker Objects](/guide/messaging/transports/externally-owned) for how this works across every
+transport.
+
 ## Interoperability
 
 ::: tip

@@ -103,6 +103,9 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
     public async ValueTask TeardownAsync(ILogger logger)
     {
+        // GH-5342: never delete a topic another system owns, or anyone's subscriptions on it
+        if (IsExternallyOwned) return;
+
         var client = Parent.SnsClient!;
 
         if (TopicArn.IsEmpty())
@@ -123,6 +126,9 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 
     public ValueTask SetupAsync(ILogger logger)
     {
+        // GH-5342: never create a topic another system owns
+        if (IsExternallyOwned) return ValueTask.CompletedTask;
+
         return new ValueTask(setupAsync(Parent.SnsClient!));
     }
     
@@ -238,6 +244,7 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         sibling.Mode = Mode;
         sibling.EndpointName = EndpointName;
         sibling.Role = Role;
+        sibling.IsExternallyOwned = IsExternallyOwned;
 
         // Share the interop mapper strategy so tenant traffic serializes identically to the shared account.
         sibling.Mapper = Mapper;
@@ -278,15 +285,18 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
                 throw new InvalidOperationException(AmazonSnsTransport.NotInitializedMessage(Uri));
             }
 
-            if (Parent.AutoProvision)
+            if (Parent.ShouldAutoProvision(this))
             {
                 await setupAsync(client);
                 logger.LogInformation("Tried to create Amazon SNS topic {Name} if missing", TopicName);
-                
-                if (TopicSubscriptions.Any()) await createTopicSubscriptionsAsync(client);
             }
-            
+
             await loadTopicArnIfEmptyAsync(client);
+
+            // GH-5342: the SQS subscriptions declared on a topic belong to this application even when the topic
+            // itself is externally owned, so they follow AutoProvision alone
+            if (Parent.AutoProvision && TopicSubscriptions.Any()) await createTopicSubscriptionsAsync(client);
+
             await loadTopicSubscriptionsAsync(client);
         }
         catch (Exception e)
@@ -315,6 +325,13 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         if (TopicArn.IsEmpty())
         {
             var response = await client.FindTopicAsync(TopicName);
+
+            if (response == null && IsExternallyOwned)
+            {
+                // GH-5342: AutoProvision() would not have helped, so don't suggest it
+                throw new InvalidOperationException(
+                    $"Could not find the Amazon SNS topic '{TopicName}'. It is marked as externally owned, so Wolverine never creates it: the system that owns it has to create it before this application starts. If the topic does exist, check the region and credentials passed to UseAmazonSnsTransport() -- a topic in another account or region is invisible to this client.");
+            }
 
             if (response == null)
             {

@@ -17,6 +17,18 @@ public class AmazonSnsSubscriberConfiguration : SubscriberConfiguration<AmazonSn
     }
 
     /// <summary>
+    ///     Mark this topic as owned by another system. Wolverine will not create the topic at startup or in
+    ///     <c>resources setup</c>, or delete it in <c>resources teardown</c>, even when <c>AutoProvision()</c> is on.
+    ///     <c>resources check</c> still checks that it exists. SQS subscriptions you declare on the topic with
+    ///     <c>SubscribeSqsQueue()</c> are still yours, so <c>AutoProvision()</c> still subscribes them. GH-5342.
+    /// </summary>
+    public AmazonSnsSubscriberConfiguration ExternallyOwned()
+    {
+        add(e => e.IsExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
     ///     Configure how the topic should be created within SNS
     /// </summary>
     /// <param name="configure"></param>

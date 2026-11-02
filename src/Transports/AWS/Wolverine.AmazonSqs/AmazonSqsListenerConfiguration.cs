@@ -26,6 +26,18 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
     }
 
     /// <summary>
+    ///     Mark this queue as owned by another system. Wolverine will not create the queue at startup or in
+    ///     <c>resources setup</c>, re-create it after the listener finds it missing, or delete it in
+    ///     <c>resources teardown</c>, even when <c>AutoProvision()</c> is on. <c>resources check</c> still checks
+    ///     that it exists. GH-5342.
+    /// </summary>
+    public AmazonSqsListenerConfiguration ExternallyOwned()
+    {
+        add(e => e.IsExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
     ///     Completely disable all SQS dead letter queueing for just this queue
     /// </summary>
     /// <returns></returns>

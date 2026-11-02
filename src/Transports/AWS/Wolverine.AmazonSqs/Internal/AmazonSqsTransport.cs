@@ -390,7 +390,7 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
         var logger = runtime.LoggerFactory.CreateLogger<AmazonSqsTransport>();
 
         var applicationQueues = Queues
-            .Where(x => x.Role == EndpointRole.Application)
+            .Where(x => x.Role == EndpointRole.Application && !x.IsExternallyOwned)
             .ToArray();
 
         foreach (var tenant in Tenants)
