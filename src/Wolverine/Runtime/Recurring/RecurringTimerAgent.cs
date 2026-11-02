@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using JasperFx;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
@@ -30,12 +31,20 @@ namespace Wolverine.Runtime.Recurring;
 /// most every <see cref="PauseCheckInterval" />. That covers a schedule paused while it still ran on
 /// the scheduled-message path, before a release moved it to a timer.
 /// </para>
+///
+/// <para>
+/// GH-5320. Occurrences are always computed from the cron, strictly after the occurrence just handled
+/// and "now", never as "now + interval", so a one second schedule does not drift however late the
+/// timer wakes. For a <see cref="RecurringOverlapPolicy.SkipWhileRunning" /> schedule the agent invokes
+/// each occurrence in the background and skips any occurrence that comes due before it finishes.
+/// </para>
 /// </summary>
 internal class RecurringTimerAgent : IAgent
 {
     private readonly IWolverineRuntime _runtime;
     private readonly ILogger _logger;
     private readonly RecurringOccurrencePublisher _publisher;
+    private readonly Counter<int>? _skippedCounter;
 
     private CancellationTokenSource? _cancellation;
     private Task? _loop;
@@ -43,11 +52,19 @@ internal class RecurringTimerAgent : IAgent
     /// <summary>Total occurrences this agent instance has published. A test seam only.</summary>
     internal int OccurrencesPublished;
 
-    public RecurringTimerAgent(RecurringMessage message, IWolverineRuntime runtime, ILogger logger)
+    /// <summary>
+    /// GH-5320. Total occurrences this agent instance skipped because the previous one was still
+    /// running. A test seam only; the metric is <see cref="MetricsConstants.RecurringOccurrencesSkipped" />.
+    /// </summary>
+    internal int OccurrencesSkipped;
+
+    public RecurringTimerAgent(RecurringMessage message, IWolverineRuntime runtime, ILogger logger,
+        Counter<int>? skippedCounter = null)
     {
         Message = message;
         _runtime = runtime;
         _logger = logger;
+        _skippedCounter = skippedCounter;
         _publisher = new RecurringOccurrencePublisher(runtime, logger);
         Uri = RecurringTimerAgentFamily.UriFor(message.Name);
     }
@@ -143,6 +160,30 @@ internal class RecurringTimerAgent : IAgent
 
         var state = new LoopState();
 
+        try
+        {
+            await loopAsync(state, cancellation);
+        }
+        finally
+        {
+            // GH-5320. The invocation in flight shares the agent's cancellation token, so it is
+            // already being told to stop. Give it the same bounded wait StopAsync gives the loop.
+            if (state.Running is { IsCompleted: false } running)
+            {
+                try
+                {
+                    await running.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+                }
+                catch (Exception)
+                {
+                    // Already logged inside the invocation, or a timeout on shutdown
+                }
+            }
+        }
+    }
+
+    private async Task loopAsync(LoopState state, CancellationToken cancellation)
+    {
         while (!cancellation.IsCancellationRequested)
         {
             TimeSpan delay;
@@ -178,6 +219,15 @@ internal class RecurringTimerAgent : IAgent
         public DateTimeOffset? Pending;
         public DateTimeOffset? NextPauseCheck;
         public bool PausedOnRow;
+
+        /// <summary>
+        /// GH-5320. The occurrence currently being invoked for a
+        /// <see cref="RecurringOverlapPolicy.SkipWhileRunning" /> schedule. Null otherwise.
+        /// </summary>
+        public Task? Running;
+
+        /// <summary>GH-5320. Occurrences skipped since the last one that ran, for the resume log.</summary>
+        public int SkippedInARow;
     }
 
     /// <summary>
@@ -217,30 +267,50 @@ internal class RecurringTimerAgent : IAgent
             return wait > PauseCheckInterval ? PauseCheckInterval : wait;
         }
 
-        try
+        if (Message.OverlapPolicy == RecurringOverlapPolicy.SkipWhileRunning)
         {
-            var outgoing = await _publisher.PublishOccurrenceAsync(Message, pending, null);
-            if (outgoing.Length > 0)
+            runOrSkip(state, pending, cancellation);
+        }
+        else
+        {
+            try
             {
-                Interlocked.Increment(ref OccurrencesPublished);
+                var outgoing = await _publisher.PublishOccurrenceAsync(Message, pending, null);
+                if (outgoing.Length > 0)
+                {
+                    Interlocked.Increment(ref OccurrencesPublished);
+                }
+            }
+            catch (Exception e)
+            {
+                var retry = retryOrSkipFailedPublish(e, pending);
+                if (retry != null) return retry;
             }
         }
-        catch (Exception e)
-        {
-            var following = Message.Schedule.NextOccurrence(pending);
-            if (following != null && following.Value > TimeProvider.GetUtcNow())
-            {
-                _logger.LogError(e,
-                    "Failed to publish the occurrence of recurring message '{Name}' for {Occurrence}; retrying",
-                    Message.Name, pending);
-                return RetryInterval;
-            }
 
+        return scheduleFollowing(state, pending);
+    }
+
+    // The retry wait, or null to skip the failed occurrence and move on to the next one
+    private TimeSpan? retryOrSkipFailedPublish(Exception e, DateTimeOffset pending)
+    {
+        var following = Message.Schedule.NextOccurrence(pending);
+        if (following != null && following.Value > TimeProvider.GetUtcNow())
+        {
             _logger.LogError(e,
-                "Failed to publish the occurrence of recurring message '{Name}' for {Occurrence}; skipping it",
+                "Failed to publish the occurrence of recurring message '{Name}' for {Occurrence}; retrying",
                 Message.Name, pending);
+            return RetryInterval;
         }
 
+        _logger.LogError(e,
+            "Failed to publish the occurrence of recurring message '{Name}' for {Occurrence}; skipping it",
+            Message.Name, pending);
+        return null;
+    }
+
+    private TimeSpan? scheduleFollowing(LoopState state, DateTimeOffset pending)
+    {
         // Strictly after both the occurrence just handled and now: a late wake-up publishes the one
         // due occurrence and skips anything else it slept through, never back-filling.
         var after = TimeProvider.GetUtcNow();
@@ -252,6 +322,60 @@ internal class RecurringTimerAgent : IAgent
         var untilNext = state.Pending.Value - TimeProvider.GetUtcNow();
         if (untilNext < TimeSpan.Zero) untilNext = TimeSpan.Zero;
         return untilNext > PauseCheckInterval ? PauseCheckInterval : untilNext;
+    }
+
+    /// <summary>
+    /// GH-5320. Start invoking the due occurrence in the background, or skip it when the previous
+    /// invocation has not finished. Never awaited here, so the loop keeps its cadence (and keeps
+    /// counting skips) however long the handler takes.
+    /// </summary>
+    private void runOrSkip(LoopState state, DateTimeOffset occurrence, CancellationToken cancellation)
+    {
+        if (state.Running is { IsCompleted: false })
+        {
+            state.SkippedInARow++;
+            Interlocked.Increment(ref OccurrencesSkipped);
+            _skippedCounter?.Add(1, new KeyValuePair<string, object?>(MetricsConstants.ScheduleNameKey, Message.Name));
+
+            _logger.LogDebug(
+                "Skipping the occurrence of recurring message '{Name}' for {Occurrence}; the previous occurrence is still running",
+                Message.Name, occurrence);
+            return;
+        }
+
+        if (state.SkippedInARow > 0)
+        {
+            _logger.LogInformation(
+                "Recurring message '{Name}' skipped {Count} occurrence(s) while the previous one was running, and resumes with {Occurrence}",
+                Message.Name, state.SkippedInARow, occurrence);
+            state.SkippedInARow = 0;
+        }
+
+        Interlocked.Increment(ref OccurrencesPublished);
+
+        // Same GH-4647 reason as the loop itself: the invocation must not inherit an ambient activity
+        using (ExecutionContext.SuppressFlow())
+        {
+            state.Running = Task.Run(() => invokeAsync(occurrence, cancellation), CancellationToken.None);
+        }
+    }
+
+    private async Task invokeAsync(DateTimeOffset occurrence, CancellationToken cancellation)
+    {
+        try
+        {
+            await _publisher.InvokeOccurrenceAsync(Message, occurrence, cancellation);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            // The agent is stopping
+        }
+        catch (Exception e)
+        {
+            // Never retried: the next occurrence runs on schedule, like a missed one
+            _logger.LogError(e, "The occurrence of recurring message '{Name}' for {Occurrence} failed",
+                Message.Name, occurrence);
+        }
     }
 
     private async Task<bool> isPausedOnTheRowAsync(CancellationToken cancellation)
