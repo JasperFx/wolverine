@@ -121,6 +121,62 @@ public static class TestingExtensions
         });
     }
 
+    /// <summary>
+    /// Force any Marten projection or subscriptions normally running asynchronously
+    /// to "catch up" immediately after running the main execution for the main Marten
+    /// store and every ancillary Marten store integrated with Wolverine. Equivalent to
+    /// calling <see cref="PauseThenCatchUpOnMartenDaemonActivity(TrackedSessionConfiguration,CatchUpMode)"/>
+    /// and then <see cref="PauseThenCatchUpOnMartenDaemonActivity{T}"/> once per ancillary store,
+    /// without needing to know the ancillary store types. A store (or tenant database) with no events
+    /// at all is skipped instead of timing out
+    /// </summary>
+    /// <param name="configuration"></param>
+    /// <param name="mode"></param>
+    /// <returns></returns>
+    public static TrackedSessionConfiguration PauseThenCatchUpOnAllMartenDaemonActivity(
+        this TrackedSessionConfiguration configuration, CatchUpMode mode = CatchUpMode.AndResumeNormally)
+    {
+        configuration.BeforeExecution(async (runtime, cancellation) =>
+        {
+            foreach (var store in MartenStoreDaemonControl.All(runtime.Services))
+            {
+                var coordinator = store.FindCoordinator(runtime.Services);
+                if (coordinator == null) continue;
+
+                var envelope = new Envelope
+                {
+                    MessageType = store.PauseMessageType
+                };
+
+                runtime.MessageTracking.ExecutionStarted(envelope);
+
+                await coordinator.PauseAsync();
+
+                runtime.MessageTracking.ExecutionFinished(envelope);
+            }
+        });
+
+        return configuration.AddStage(async (runtime, _, cancellation) =>
+        {
+            foreach (var store in MartenStoreDaemonControl.All(runtime.Services))
+            {
+                var coordinator = store.FindCoordinator(runtime.Services);
+                if (coordinator == null) continue;
+
+                var envelope = new Envelope
+                {
+                    MessageType = store.CatchUpMessageType
+                };
+
+                var documentStore = store.FindStore(runtime.Services);
+
+                await catchUpThroughCoordinatorAsync(runtime, envelope, coordinator,
+                    () => waitForNonStaleSkippingEmptyDatabasesAsync(documentStore, CatchUpTimeout), mode,
+                    store.Description, cancellation);
+            }
+        });
+    }
+
     private static readonly TimeSpan CatchUpTimeout = TimeSpan.FromSeconds(60);
 
     /// <summary>
@@ -197,6 +253,65 @@ public static class TestingExtensions
         return resumeAndWaitForNonStaleAsync(coordinator,
             t => services.DocumentStore<T>().WaitForNonStaleProjectionDataAsync(t),
             mode, timeout ?? CatchUpTimeout, $"the ancillary Marten store {typeof(T).NameInCode()}", cancellation);
+    }
+
+    /// <summary>
+    /// Force every Marten projection and subscription running asynchronously in the main Marten store and in
+    /// every ancillary Marten store integrated with Wolverine to catch up to the current high water mark, then
+    /// restore the daemons to the state named by <paramref name="mode"/>. Equivalent to calling
+    /// <see cref="PauseThenCatchUpOnMartenDaemonActivityAsync(IHost,CatchUpMode,TimeSpan?,CancellationToken)"/>
+    /// and then <see cref="PauseThenCatchUpOnMartenDaemonActivityAsync{T}(IHost,CatchUpMode,TimeSpan?,CancellationToken)"/>
+    /// once per ancillary store, without needing to know the ancillary store types. The stores are caught up
+    /// one at a time, and <paramref name="timeout"/> applies to each store. Unlike the single-store helpers, a
+    /// store (or tenant database) with no events at all is skipped instead of timing out.
+    /// </summary>
+    /// <param name="host"></param>
+    /// <param name="mode">Whether to leave the daemons running afterwards (the default) or re-pause them</param>
+    /// <param name="timeout">How long to allow for catch-up of each store. Defaults to 60 seconds.</param>
+    /// <param name="cancellation"></param>
+    public static Task PauseThenCatchUpOnAllMartenDaemonActivityAsync(this IHost host,
+        CatchUpMode mode = CatchUpMode.AndResumeNormally, TimeSpan? timeout = null,
+        CancellationToken cancellation = default)
+    {
+        return host.Services.PauseThenCatchUpOnAllMartenDaemonActivityAsync(mode, timeout, cancellation);
+    }
+
+    /// <summary>
+    /// Force every Marten projection and subscription running asynchronously in the main Marten store and in
+    /// every ancillary Marten store integrated with Wolverine to catch up to the current high water mark, then
+    /// restore the daemons to the state named by <paramref name="mode"/>. See the <c>IHost</c> overload.
+    /// </summary>
+    public static async Task PauseThenCatchUpOnAllMartenDaemonActivityAsync(this IServiceProvider services,
+        CatchUpMode mode = CatchUpMode.AndResumeNormally, TimeSpan? timeout = null,
+        CancellationToken cancellation = default)
+    {
+        foreach (var store in MartenStoreDaemonControl.All(services))
+        {
+            var coordinator = store.FindCoordinator(services);
+            if (coordinator == null) continue;
+
+            var documentStore = store.FindStore(services);
+
+            await resumeAndWaitForNonStaleAsync(coordinator,
+                t => waitForNonStaleSkippingEmptyDatabasesAsync(documentStore, t),
+                mode, timeout ?? CatchUpTimeout, store.Description, cancellation).ConfigureAwait(false);
+        }
+    }
+
+    // GH-5317: the "all stores" helpers run against stores the caller never named, and a test usually
+    // appends events to only some of them. Marten's WaitForNonStaleProjectionDataAsync() waits out its whole
+    // timeout and then throws on a database with no events at all, so a database with no events is skipped:
+    // it has nothing to catch up.
+    private static async Task waitForNonStaleSkippingEmptyDatabasesAsync(IDocumentStore store, TimeSpan timeout)
+    {
+        var databases = await store.Storage.AllDatabases().ConfigureAwait(false);
+        foreach (var database in databases)
+        {
+            var statistics = await database.FetchEventStoreStatistics().ConfigureAwait(false);
+            if (statistics.EventCount == 0) continue;
+
+            await database.WaitForNonStaleProjectionDataAsync(timeout).ConfigureAwait(false);
+        }
     }
 
     // The whole of "force catch-up" under a Wolverine-managed coordinator: make sure the agents that own the
