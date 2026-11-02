@@ -6,6 +6,8 @@ using JasperFx.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.EntityFrameworkCore.Codegen;
@@ -248,12 +250,16 @@ internal static class DbContextUsageFactory
         usage.WolverineMigrations = ProbeWolverineMigrations(services);
         usage.OutboxIntegration = ProbeOutboxIntegration(services, usage.WolverineEnabled);
 
+        // The model's create operations are diffed once per snapshot and filtered per entity. GH-5339
+        var createOperations = BuildCreateOperations(dbContext);
+
         // Per-entity descriptors and saga roll-up. EF Core entity types are
         // walked once; saga types lift into both the per-entity IsSaga flag
         // AND the top-level SagaTypes list for direct cross-link from the UI.
         foreach (var entityType in model.GetEntityTypes().OrderBy(e => e.ClrType.FullNameInCode()))
         {
             var entityDescriptor = BuildEntityDescriptor(entityType);
+            entityDescriptor.Ddl = BuildDdl(dbContext, createOperations, entityDescriptor);
             usage.Entities.Add(entityDescriptor);
 
             if (entityDescriptor.IsSaga)
@@ -274,6 +280,58 @@ internal static class DbContextUsageFactory
         ApplyPerEntityScraperOptionValues(services, usage);
 
         return usage;
+    }
+
+    // The same pair of services RelationalDatabaseCreator.GenerateCreateScript() uses, read from the model
+    // alone, so no connection is opened. Null for a non-relational provider, which has no migration services
+    private static IReadOnlyList<MigrationOperation>? BuildCreateOperations(DbContext dbContext)
+    {
+        try
+        {
+            if (!dbContext.Database.IsRelational()) return null;
+
+            var model = dbContext.GetService<IDesignTimeModel>().Model;
+            return dbContext.GetService<IMigrationsModelDiffer>()
+                .GetDifferences(null, model.GetRelationalModel());
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // One entity's script must never cost the rest of the snapshot, so any failure leaves it empty. A
+    // view-mapped entity has no CreateTableOperation, so its script stays empty too
+    private static string BuildDdl(DbContext dbContext, IReadOnlyList<MigrationOperation>? operations,
+        EntityDescriptor descriptor)
+    {
+        if (operations == null || descriptor.IsView) return "";
+
+        try
+        {
+            var table = descriptor.TableName;
+            var schema = string.IsNullOrEmpty(descriptor.Schema) ? null : descriptor.Schema;
+
+            bool forTable(MigrationOperation op) => op switch
+            {
+                CreateTableOperation t => t.Name == table && t.Schema == schema,
+                CreateIndexOperation i => i.Table == table && i.Schema == schema,
+                AddForeignKeyOperation f => f.Table == table && f.Schema == schema,
+                _ => false
+            };
+
+            var forThisTable = operations.Where(forTable).ToList();
+            if (!forThisTable.OfType<CreateTableOperation>().Any()) return "";
+
+            var model = dbContext.GetService<IDesignTimeModel>().Model;
+            var commands = dbContext.GetService<IMigrationsSqlGenerator>().Generate(forThisTable, model);
+
+            return string.Join(Environment.NewLine, commands.Select(x => x.CommandText.Trim()));
+        }
+        catch
+        {
+            return "";
+        }
     }
 
     private static EntityDescriptor BuildEntityDescriptor(IEntityType entityType)
