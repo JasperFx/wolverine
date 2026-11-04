@@ -538,8 +538,8 @@ Likewise, if there are no `Exclude()` calls, the circuit breaker will not throw 
 exceptions. Also note that **it probably makes no sense to define both `Include()` and `Exclude()`
 rules**.
 
-A breaker's failure counts last as long as its host, which matters when tests share a host: see
-[circuit breakers and error policies in tests](/guide/testing#circuit-breakers-and-error-policies-in-tests).
+A breaker's failure counts belong to its host, not to one test. They expire after `TrackingPeriod`, and a pause resets them.
+When tests share a host, see [circuit breakers and error policies in tests](/guide/testing#circuit-breakers-and-error-policies-in-tests).
 
 ## Custom Actions for InvokeAsync() <Badge type="tip" text="3.13" />
 

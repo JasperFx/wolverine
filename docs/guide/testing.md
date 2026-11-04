@@ -1285,8 +1285,8 @@ shared test fixture base class without breaking your storeless tests.
 ## Circuit Breakers and Error Policies in Tests
 
 A [circuit breaker](/guide/handlers/error-handling#circuit-breaker) belongs to its listener, so its failure counts
-last as long as the host. A failure stays counted for the breaker's `TrackingPeriod` (10 minutes by default), and a
-pause clears the counts. When tests share a host, failures that one test scripts on purpose count toward the next
+belong to the host, not to one test. A failure stays counted for the breaker's `TrackingPeriod` (10 minutes by
+default), and a pause clears the counts. When tests share a host, failures that one test scripts on purpose count toward the next
 test's breaker. The breaker can then pause the queue part way through a test that did nothing wrong. A pause from
 an error policy such as `AndPauseProcessing()` carries over the same way.
 
