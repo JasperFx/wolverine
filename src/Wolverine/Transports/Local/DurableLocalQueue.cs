@@ -28,9 +28,14 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     private Restarter? _restarter;
 
     // F6. What reached this queue while it was paused -- a batch carrier assembled while its batch queue was paused,
-    // above all -- held here until the queue resumes. Guarded by _receiverLock, together with the swap of _receiver.
+    // above all -- held here until the queue resumes. Guarded by _receiverLock, together with the swap of _receiver,
+    // the paused flags and _restarter, so a pause and a start each change all of them at once.
     private readonly object _receiverLock = new();
     private List<Envelope>? _heldWhilePaused;
+
+    // Serializes StartAsync against itself. Only StartAsync takes it, so a pause raised from a handler still running
+    // in the drain a start is waiting for can never wait on it.
+    private readonly SemaphoreSlim _startLock = new(1, 1);
 
     // L1. The drain of the receiver a pause took away, when that pause did not wait for it. The restart waits for it
     // so the old receiver's release can never hand back rows the new receiver has already taken.
@@ -132,15 +137,15 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     private async ValueTask pauseCoreAsync(TimeSpan pauseTime, bool waitForDrain)
     {
-        Latched = true;
-        // GH-3832 — remember that this latch is a timed pause so Status reports Paused rather than
-        // the TooBusy that a back-pressure latch reports. This one is released by the Restarter
-        // installed at the end of this method; TooBusy is released by the queue draining.
-        _paused = true;
-
         DurableReceiver? receiver;
         lock (_receiverLock)
         {
+            Latched = true;
+            // GH-3832 — remember that this latch is a timed pause so Status reports Paused rather than
+            // the TooBusy that a back-pressure latch reports. This one is released by the Restarter
+            // installed at the end of this method; TooBusy is released by the queue draining.
+            _paused = true;
+
             receiver = _receiver;
             _receiver = null;
         }
@@ -164,15 +169,22 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
         CircuitBreaker?.Reset();
 
-        _runtime.Tracker.Publish(
-            new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Paused));
+        lock (_receiverLock)
+        {
+            // A start since this pause took the receiver has resumed the queue, so this pause no longer applies
+            if (!_paused) return;
+
+            // A second pause while paused -- a sibling handler failing the same way -- restarts the clock instead of
+            // leaving two restarters behind. Installed before Paused is published: a subscriber that resumes the
+            // queue on that event has to find this Restarter to dispose, or it fires later on an accepting queue.
+            _restarter?.Dispose();
+            _restarter = new Restarter(this, pauseTime);
+
+            _runtime.Tracker.Publish(
+                new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Paused));
+        }
 
         _logger.LogInformation("Pausing message listening at {Uri}", Endpoint.Uri);
-
-        // A second pause while paused -- a sibling handler failing the same way -- restarts the clock instead of
-        // leaving two restarters behind
-        _restarter?.Dispose();
-        _restarter = new Restarter(this, pauseTime);
     }
 
     private Task drainPausedReceiverAsync(DurableReceiver receiver)
@@ -215,6 +227,33 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public async ValueTask StartAsync()
     {
+        if (((IListenerCircuit)this).Status == ListeningStatus.Accepting)
+        {
+            return;
+        }
+
+        // Reached from the pause's Restarter, from a global partition slot coming back, and from anything that
+        // resumes the queue on its Paused event, so two starts can overlap. Unserialized, each built a receiver and
+        // the later one replaced the earlier, which was never disposed. Same re-check under the lock as
+        // ListeningAgent.StartAsync (GH-5217).
+        await _startLock.WaitAsync();
+        try
+        {
+            if (((IListenerCircuit)this).Status == ListeningStatus.Accepting)
+            {
+                return;
+            }
+
+            await startAsync();
+        }
+        finally
+        {
+            _startLock.Release();
+        }
+    }
+
+    private async ValueTask startAsync()
+    {
         // L1. A pause that did not wait for its drain leaves it here. The drain ends in a release of every row this
         // node owns at this address, so it has to be over before a new receiver starts taking rows at the same one.
         // It cannot throw, and once the handlers running at pause time finish it is quick.
@@ -241,14 +280,15 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             _receiver = receiver;
             held = _heldWhilePaused;
             _heldWhilePaused = null;
-        }
 
-        Latched = false;
-        _paused = false;
-        _runtime.Tracker.Publish(new ListenerState(receiver.Uri, Endpoint.EndpointName,
-            ListeningStatus.Accepting));
-        _restarter?.Dispose();
-        _restarter = null;
+            Latched = false;
+            _paused = false;
+            _restarter?.Dispose();
+            _restarter = null;
+
+            _runtime.Tracker.Publish(new ListenerState(receiver.Uri, Endpoint.EndpointName,
+                ListeningStatus.Accepting));
+        }
 
         if (held != null)
         {
@@ -289,7 +329,13 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     {
         _receiver?.SafeDispose();
         CircuitBreaker?.SafeDisposeSynchronously();
-        _receiver?.SafeDispose();
+
+        // A pending Restarter would otherwise start the queue again after its host has gone
+        lock (_receiverLock)
+        {
+            _restarter?.SafeDispose();
+            _restarter = null;
+        }
     }
 
     ValueTask IReceiver.ReceivedAsync(IListener listener, Envelope[] messages)
