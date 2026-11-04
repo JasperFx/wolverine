@@ -1282,6 +1282,42 @@ tables registered on the message store — SQL Server's rate-limit table, for ex
 It is safe to call on a host with no message store and no database-backed queues, so you can put it in a
 shared test fixture base class without breaking your storeless tests.
 
+## Circuit Breakers and Error Policies in Tests
+
+A [circuit breaker](/guide/handlers/error-handling#circuit-breaker) belongs to its listener, so its failure counts
+last as long as the host. A failure stays counted for the breaker's `TrackingPeriod` (10 minutes by default), and a
+pause clears the counts. When tests share a host, failures that one test scripts on purpose count toward the next
+test's breaker. The breaker can then pause the queue part way through a test that did nothing wrong. A pause from
+an error policy such as `AndPauseProcessing()` carries over the same way.
+
+::: tip
+Give each test that trips a breaker, or relies on one not tripping, a host of its own, with a short `PauseTime` and
+`TrackingPeriod`. Wolverine's own circuit breaker tests do this: see `CircuitBreakerIntegrationContext` in
+[src/Transports/RabbitMQ/CircuitBreakingTests](https://github.com/JasperFx/wolverine/tree/main/src/Transports/RabbitMQ/CircuitBreakingTests).
+:::
+
+To assert on a trip or a resume, wait on `IWolverineRuntime.Tracker` for the listener's status rather than sleeping
+for the `PauseTime`. In this sample every `ProcessOrder` fails. A breaker doesn't trip until it has seen
+`MinimumThreshold` messages (10 by default), so the test sends that many:
+
+```cs
+// Start waiting before the messages go out, so a trip that happens
+// quickly is not missed
+var tripped = runtime.Tracker.WaitForListenerStatusAsync(
+    queueUri, ListeningStatus.Paused, 30.Seconds());
+
+for (var i = 0; i < 10; i++)
+{
+    await host.MessageBus().PublishAsync(new ProcessOrder(i));
+}
+
+await tripped;
+```
+
+`WaitForListenerStatusAsync()` also takes an endpoint name. It completes at once if the last status the tracker
+recorded for that listener already matches. The tracker records a change slightly after the listener makes it, so
+that status can trail the listener's own.
+
 ## Running Wolverine in "Solo" Mode <Badge type="tip" text="3.0" />
 
 Wolverine's [leadership election](/guide/durability/leadership-and-troubleshooting.html#troubleshooting-and-leadership-election) process is necessary for distributing several background tasks in real life production,
