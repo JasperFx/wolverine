@@ -10,6 +10,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.Headers;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
@@ -503,14 +504,20 @@ public abstract partial class HttpHandler
     /// <summary>
     /// GH-4742. Called once the endpoint has run, after any commit on claim-and-release and just before it when the
     /// claim is written inside the transaction: the response about to be written, for the claim to store, as
-    /// <see cref="WriteJsonAsync{T}" /> will write it, with the status and <c>Location</c> already set.
-    /// Unless that response is a failure (400 and up), the work is done and the claim is kept from here on. Null
-    /// records nothing.
+    /// <see cref="WriteJsonAsync{T}" /> will write it, with the status and <c>Location</c> already set; an
+    /// <see cref="IResult" /> is described from the result, before it executes. Unless that response is a failure
+    /// (400 and up), the work is done and the claim is kept from here on. Null records nothing.
     /// </summary>
     public DeduplicatedResponse? CompleteDeduplicatedRequest<T>(HttpContext context, string? deduplicationId,
         T? resource, int missingResourceStatusCode)
     {
         if (string.IsNullOrWhiteSpace(deduplicationId)) return null;
+
+        // By the declared type, which picked the response writer: an IResult returned as object is written as JSON
+        if (typeof(IResult).IsAssignableFrom(typeof(T)) && resource is IResult result)
+        {
+            return completeDeduplicatedResult(context, deduplicationId, result);
+        }
 
         var status = resource is null ? missingResourceStatusCode : context.Response.StatusCode;
         if (status >= 400) return null;
@@ -532,6 +539,93 @@ public abstract partial class HttpHandler
                 "Failed to serialize the response for deduplicated id '{DeduplicationId}' to store it", deduplicationId);
             return null;
         }
+    }
+
+    private static readonly HashSet<Type> _replayableResults =
+    [
+        typeof(Ok), typeof(Ok<>), typeof(Created), typeof(Created<>), typeof(Accepted), typeof(Accepted<>),
+        typeof(NoContent), typeof(StatusCodeHttpResult), typeof(EmptyHttpResult)
+    ];
+
+    private static readonly HashSet<Type> _resultUnions =
+        [typeof(Results<,>), typeof(Results<,,>), typeof(Results<,,,>), typeof(Results<,,,,>), typeof(Results<,,,,,>)];
+
+    private static bool isReplayableResult(Type type)
+        => _replayableResults.Contains(type.IsGenericType ? type.GetGenericTypeDefinition() : type);
+
+    private static bool isResultUnion(Type type)
+        => type.IsGenericType && _resultUnions.Contains(type.GetGenericTypeDefinition());
+
+    internal static bool CanReplayResultOf(Type resultType)
+    {
+        if (isResultUnion(resultType))
+        {
+            return resultType.GetGenericArguments().Any(CanReplayResultOf);
+        }
+
+        if (resultType.IsInterface)
+        {
+            var definition = resultType.IsGenericType ? resultType.GetGenericTypeDefinition() : resultType;
+            return _replayableResults.Any(replayable => replayable.GetInterfaces().Any(implemented =>
+                (implemented.IsGenericType ? implemented.GetGenericTypeDefinition() : implemented) == definition));
+        }
+
+        return isReplayableResult(resultType);
+    }
+
+    private static DeduplicatedResponse? completeDeduplicatedResult(HttpContext context, string deduplicationId,
+        IResult result)
+    {
+        // Only ASP.NET Core's unions are known to write exactly what the arm they hold writes
+        while (isResultUnion(result.GetType()) && result is INestedHttpResult nested) result = nested.Result;
+
+        var status = (result as IStatusCodeHttpResult)?.StatusCode ?? context.Response.StatusCode;
+        if (status >= 400 || result is ChallengeHttpResult or ForbidHttpResult) return null;
+
+        context.Items[_deduplicatedWorkDone] = true;
+
+        var type = result.GetType();
+
+        if (!isReplayableResult(type))
+        {
+            context.RequestServices.GetService<ILogger<DeduplicatedResponses>>()?.LogError(
+                "The {ResultType} answering deduplicated id '{DeduplicationId}' is not stored, because it writes more than a status, a JSON body and a Location",
+                type.FullNameInCode(), deduplicationId);
+            return null;
+        }
+
+        try
+        {
+            // Created.ExecuteAsync sets the header only when Location is not empty.
+            var location = type.GetProperty(nameof(Created.Location))?.GetValue(result) as string;
+            if (string.IsNullOrEmpty(location)) location = context.Response.Headers.Location.ToString();
+
+            return new DeduplicatedResponse(status,
+                result is IValueHttpResult { Value: { } value } ? serializeAsResultWrites(context, type, value) : null,
+                string.IsNullOrEmpty(location) ? null : location);
+        }
+        catch (Exception e)
+        {
+            context.RequestServices.GetService<ILogger<DeduplicatedResponses>>()?.LogError(e,
+                "Failed to serialize the response for deduplicated id '{DeduplicationId}' to store it", deduplicationId);
+            return null;
+        }
+    }
+
+    // As ASP.NET Core's HttpResultsHelper.WriteResultAsJsonAsync writes Ok<T>, Created<T> and Accepted<T>: with its own
+    // JsonOptions, as the declared TValue unless the runtime type differs and TValue has no known polymorphism.
+    private static string serializeAsResultWrites(HttpContext context, Type resultType, object value)
+    {
+        var options = (context.RequestServices.GetService<IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>>()?.Value
+                       ?? new Microsoft.AspNetCore.Http.Json.JsonOptions()).SerializerOptions;
+
+        var declared = resultType.GetGenericArguments()[0];
+        var typeInfo = options.GetTypeInfo(declared);
+
+        return value.GetType() == declared || declared.IsSealed || declared.IsValueType ||
+               typeInfo.PolymorphismOptions != null
+            ? JsonSerializer.Serialize(value, typeInfo)
+            : JsonSerializer.Serialize<object>(value, options);
     }
 
     /// <summary>GH-4742. Has the endpoint's work been done, so its claim must be kept?</summary>
