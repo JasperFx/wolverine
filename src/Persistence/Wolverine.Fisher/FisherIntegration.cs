@@ -234,6 +234,9 @@ internal class FisherOverrides : IConfigureFisher
         // the Marten side at MartenIntegration.cs:153. See wolverine#2774.
         options.Events.MessageOutbox = new FisherToWolverineOutbox(services);
 
+        // GH-5390: a tracked session hears events committed through sessions Wolverine did not open too
+        options.Listeners.Add(new RecordEventsCommittedOutsideAMessage(services));
+
         // The Marten and Polecat twins nudge DaemonSettings.AsyncMode to ExternallyManaged when
         // Wolverine takes over hosting the daemon. Fisher has no such setting: AddAsyncDaemon() registers
         // its hosted daemon or nothing, so under UseWolverineManagedEventSubscriptionDistribution (GH-5094)
