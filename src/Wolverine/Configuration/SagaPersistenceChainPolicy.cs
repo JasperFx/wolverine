@@ -17,7 +17,11 @@ internal class SagaPersistenceChainPolicy : IChainPolicy
 
         foreach (var chain in chains)
         {
-            var returnedSagas = chain.ReturnVariablesOfType<Saga>();
+            var returnedSagas = chain.HandlerCalls()
+                .Where(call => !call.Method.HasAttribute<SagaIsResponseOnlyAttribute>() &&
+                               !call.HandlerType.HasAttribute<SagaIsResponseOnlyAttribute>())
+                .SelectMany(call => call.Creates)
+                .Where(x => x.VariableType.CanBeCastTo<Saga>());
             foreach (var saga in returnedSagas)
             {
                 if (!attachSagaPersistenceFrame(container, providers, saga, chain))
