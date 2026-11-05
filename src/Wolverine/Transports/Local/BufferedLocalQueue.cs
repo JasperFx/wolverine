@@ -26,6 +26,9 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
         Endpoint = endpoint;
     }
 
+    // No ListeningAgent owns a local queue, so nothing else would ever replace a faulted block here
+    protected override bool RebuildsFaultedBlock => true;
+
     public ListeningStatus Status => ListeningStatus.Accepting;
     public Endpoint Endpoint { get; }
 

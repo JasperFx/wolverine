@@ -302,15 +302,81 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     private DurableReceiver? receiverOrHold(Envelope envelope)
     {
         var receiver = _receiver;
-        if (receiver != null) return receiver;
+        if (receiver is { HasFaulted: false }) return receiver;
 
         lock (_receiverLock)
         {
+            if (_receiver is { HasFaulted: true } faulted && !Latched)
+            {
+                replaceFaultedReceiver(faulted);
+            }
+
             if (_receiver != null) return _receiver;
 
             (_heldWhilePaused ??= []).Add(envelope);
             return null;
         }
+    }
+
+    /// <summary>
+    /// GH-5358. No ListeningAgent owns a local queue, so nothing else would ever replace a receiver whose block faulted
+    /// terminally (jasperfx#506), and every message sent here afterwards would throw for the life of the process. Taken
+    /// out the way a pause takes a receiver out: latched, so what is published meanwhile is stored for recovery rather
+    /// than held against rows the drain is about to release, and drained, which hands the faulted receiver's rows back
+    /// for recovery to run again. The rows are durable, so unlike a buffered queue nothing is lost. Called under
+    /// <see cref="_receiverLock" />.
+    /// </summary>
+    private void replaceFaultedReceiver(DurableReceiver faulted)
+    {
+        _receiver = null;
+        Latched = true;
+
+        _logger.LogWarning(
+            "The durable local queue at {Uri} faulted and is being rebuilt. Its {Count} envelope(s) still owned by this node are being released for recovery",
+            Uri, faulted.QueueCount);
+
+        faulted.Latch();
+
+        // startAsync waits for this before the new receiver can claim a row at the same address (L1). Disposed
+        // asynchronously, as ListeningAgent disposes a faulted receiver: the sync Dispose skips DisposeAsync's work.
+        _pausedDrain = Task.Run(async () =>
+        {
+            try
+            {
+                await faulted.DrainAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to drain in flight messages for {Uri}", Destination);
+            }
+
+            try
+            {
+                await faulted.DisposeAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogInformation(e, "Error disposing the faulted receiver for {Uri}", Uri);
+            }
+        });
+
+        _ = Task.Run(async () =>
+        {
+            await _startLock.WaitAsync();
+            try
+            {
+                // A pause since then owns the restart, through its Restarter
+                if (_receiver == null && !_paused) await startAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Unable to rebuild the faulted durable local queue at {Uri}", Uri);
+            }
+            finally
+            {
+                _startLock.Release();
+            }
+        });
     }
 
     private bool _paused;

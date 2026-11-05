@@ -24,7 +24,9 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private readonly IWolverineRuntime _runtime;
     private readonly ILogger _logger;
     private readonly RetryBlock<Envelope>? _moveToErrors;
-    private readonly IBlock<Envelope> _receivingBlock;
+    private readonly int _boundedCapacity;
+    private readonly object _receivingBlockLock = new();
+    private volatile IBlock<Envelope> _receivingBlock;
     private readonly InMemoryScheduledJobProcessor _scheduler;
     private readonly DurabilitySettings _settings;
 
@@ -78,27 +80,8 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             (env, _) => env.Listener is { } l ? l.CompleteAsync(env).AsTask() : Task.CompletedTask, runtime.Logger,
             runtime.Cancellation);
 
-        if (endpoint.GroupShardingSlotNumber == null)
-        {
-            _receivingBlock = new Block<Envelope>(endpoint.MaxDegreeOfParallelism, boundedCapacity, executeAsync);
-        }
-        else
-        {
-            var sharded = new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber,
-                runtime.Options.MessagePartitioning, boundedCapacity, executeAsync,
-                // GH-3899: message types exempted from partitioned processing run at the
-                // endpoint's normal parallelism instead of a sequential GroupId slot
-                endpoint.MaxDegreeOfParallelism);
-            sharded.OnError = onBlockError;
-            _receivingBlock = sharded.DeserializeFirst(pipeline, runtime, this);
-        }
-
-        // Route block-level failures (an exception escaping the execution machinery itself, or the
-        // block faulting terminally per jasperfx#506) through real logging. The JasperFx default sink
-        // is stderr, which reads as a silent stall in any structured-logging deployment — and a
-        // faulted block freezes QueueCount, which permanently latches a back-pressured listener
-        // (GH CritterWatch#922).
-        _receivingBlock.OnError = onBlockError;
+        _boundedCapacity = boundedCapacity;
+        _receivingBlock = buildReceivingBlock();
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {
@@ -110,10 +93,77 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
     }
 
-    /// <summary>CritterWatch#942 — set when the receiving block faults terminally (jasperfx#506).</summary>
-    public bool HasFaulted { get; private set; }
+    private IBlock<Envelope> buildReceivingBlock()
+    {
+        IBlock<Envelope>? block = null;
+        if (_endpoint.GroupShardingSlotNumber == null)
+        {
+            block = new Block<Envelope>(_endpoint.MaxDegreeOfParallelism, _boundedCapacity, executeAsync);
+        }
+        else
+        {
+            var sharded = new ShardedExecutionBlock((int)_endpoint.GroupShardingSlotNumber,
+                _runtime.Options.MessagePartitioning, _boundedCapacity, executeAsync,
+                // GH-3899: message types exempted from partitioned processing run at the
+                // endpoint's normal parallelism instead of a sequential GroupId slot
+                _endpoint.MaxDegreeOfParallelism);
+            sharded.OnError = (envelope, ex) => onBlockError(block!, envelope, ex);
+            block = sharded.DeserializeFirst(Pipeline, _runtime, this);
+        }
 
-    private void onBlockError(Envelope? envelope, Exception ex)
+        // Route block-level failures (an exception escaping the execution machinery itself, or the
+        // block faulting terminally per jasperfx#506) through real logging. The JasperFx default sink
+        // is stderr, which reads as a silent stall in any structured-logging deployment — and a
+        // faulted block freezes QueueCount, which permanently latches a back-pressured listener
+        // (GH CritterWatch#922).
+        block.OnError = (envelope, ex) => onBlockError(block!, envelope, ex);
+
+        return block;
+    }
+
+    /// <summary>
+    /// Whether this receiver replaces a terminally faulted receiving block by itself on the next enqueue.
+    /// A receiver behind a listener is rebuilt as a whole by its ListeningAgent instead.
+    /// </summary>
+    protected virtual bool RebuildsFaultedBlock => false;
+
+    // Set on the faulting block's own thread and read without a lock on every enqueue, so a volatile field: an
+    // enqueue right after the fault has to see it, or it posts to the dead block (GH-5358)
+    private volatile bool _hasFaulted;
+
+    /// <summary>CritterWatch#942 — set when the receiving block faults terminally (jasperfx#506).</summary>
+    public bool HasFaulted
+    {
+        get => _hasFaulted;
+        private set => _hasFaulted = value;
+    }
+
+    private IBlock<Envelope> currentBlock()
+    {
+        if (!HasFaulted || !RebuildsFaultedBlock || _drained) return _receivingBlock;
+
+        lock (_receivingBlockLock)
+        {
+            if (!HasFaulted || _drained) return _receivingBlock;
+
+            // Whatever the faulted block still held is lost, as it would be in a crash; the queue is in-memory.
+            // A faulted block's Count freezes at what it held, so it is the number of envelopes lost.
+            var faulted = _receivingBlock;
+            var lost = faulted.Count;
+            _receivingBlock = buildReceivingBlock();
+            HasFaulted = false;
+
+            _ = faulted.DisposeAsync().AsTask().ContinueWith(_ => { }, TaskScheduler.Default);
+
+            _logger.LogWarning(
+                "The faulted local worker queue for {Uri} was replaced with a new one. {Lost} envelope(s) still buffered in the faulted queue were lost and will not be executed",
+                Uri, lost);
+
+            return _receivingBlock;
+        }
+    }
+
+    private void onBlockError(IBlock<Envelope> block, Envelope? envelope, Exception ex)
     {
         // A terminal block fault (jasperfx#506) reports with a null item. Record the fault FIRST —
         // the flag is what lets ListeningAgent/BackPressureAgent rebuild this receiver — and only
@@ -121,6 +171,9 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         // (CritterWatch#942), the logging call itself can throw.
         if (envelope == null)
         {
+            // A block that was already replaced must not mark its replacement as faulted
+            if (!ReferenceEquals(block, _receivingBlock)) return;
+
             HasFaulted = true;
             try
             {
@@ -348,7 +401,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
 
         var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
-        _receivingBlock.Post(envelope);
+        currentBlock().Post(envelope);
         activity?.Stop();
     }
 
@@ -360,7 +413,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
 
         var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
-        await _receivingBlock.PostAsync(envelope).ConfigureAwait(false);
+        await currentBlock().PostAsync(envelope).ConfigureAwait(false);
         activity?.Stop();
     }
 

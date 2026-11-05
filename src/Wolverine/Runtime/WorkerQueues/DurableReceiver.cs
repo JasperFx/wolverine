@@ -662,8 +662,15 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public Uri Uri { get; set; }
 
+    // Set on the faulting block's own thread and read by DurableLocalQueue on every enqueue (GH-5358)
+    private volatile bool _hasFaulted;
+
     /// <summary>CritterWatch#942 — set when the execution block faults terminally (jasperfx#506).</summary>
-    public bool HasFaulted { get; private set; }
+    public bool HasFaulted
+    {
+        get => _hasFaulted;
+        private set => _hasFaulted = value;
+    }
 
     public int QueueCount => (int)_receiver.Count;
 
@@ -948,7 +955,13 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     /// batch that has not finished with them, or simply live and receiving? Used by another receiver at the same
     /// address before it hands that address's rows back. See <see cref="DurableReceiverRegistry" />.
     /// </summary>
-    internal bool HoldsWork => _receiver.Count > 0 || _custody.BatchMemberCount > 0 || (_activated && !_draining);
+    /// <remarks>
+    /// GH-5358. A faulted block's Count freezes at what it held when it faulted, and nothing will ever run those
+    /// envelopes, so it is no measure of work. Counted anyway, a replaced faulted receiver would read as holding
+    /// work for as long as it lived and turn every later blanket release at its address into a release by id.
+    /// </remarks>
+    internal bool HoldsWork => (!HasFaulted && _receiver.Count > 0) || _custody.BatchMemberCount > 0 ||
+                               (_activated && !_draining);
 
     /// <summary>
     /// Drained, and nothing left that another receiver needs to know about
