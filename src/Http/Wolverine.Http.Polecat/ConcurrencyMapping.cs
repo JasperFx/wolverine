@@ -18,9 +18,9 @@ namespace Wolverine.Http.Polecat;
 /// </summary>
 public static class PolecatStreamLockedMiddleware
 {
-    public static ProblemDetails OnException(StreamLockedException ex)
+    public static ProblemDetails OnException(StreamLockedException ex, WolverineHttpOptions options)
     {
-        return ConflictMapping.ToProblemDetails(ex);
+        return ConflictMapping.ToProblemDetails(ex, options);
     }
 }
 
@@ -39,12 +39,16 @@ public static class PolecatWolverineHttpOptionsExtensions
     /// <param name="filter">
     /// Which chains the mapping applies to. Defaults to the transactional chains.
     /// </param>
+    /// <param name="toProblemDetails">
+    /// Optional factory that builds the ProblemDetails returned for the exception, replacing the default
+    /// (which puts the exception message in <c>Detail</c>). A null <c>Status</c> is filled in as 409.
+    /// </param>
     public static void MapPolecatConcurrencyFailuresToConflict(this WolverineHttpOptions options,
-        Func<HttpChain, bool>? filter = null)
+        Func<HttpChain, bool>? filter = null, Func<Exception, ProblemDetails>? toProblemDetails = null)
     {
         filter ??= ConflictMapping.IsTransactional;
 
-        options.MapConcurrencyFailuresToConflict(filter);
+        options.MapConcurrencyFailuresToConflict(filter, toProblemDetails);
         options.AddMiddleware(typeof(PolecatStreamLockedMiddleware), filter);
     }
 }

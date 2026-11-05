@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http.Runtime;
 
 namespace Wolverine.Http.Marten;
@@ -27,12 +28,16 @@ public static class WolverineHttpOptionsExtensions
     /// Which chains the mapping applies to. Defaults to the transactional chains -- the only ones that commit
     /// a unit of work, and so the only ones that can raise a commit-time concurrency failure.
     /// </param>
+    /// <param name="toProblemDetails">
+    /// Optional factory that builds the ProblemDetails returned for the exception, replacing the default
+    /// (which puts the exception message in <c>Detail</c>). A null <c>Status</c> is filled in as 409.
+    /// </param>
     public static void MapMartenConcurrencyFailuresToConflict(this WolverineHttpOptions options,
-        Func<HttpChain, bool>? filter = null)
+        Func<HttpChain, bool>? filter = null, Func<Exception, ProblemDetails>? toProblemDetails = null)
     {
         filter ??= ConflictMapping.IsTransactional;
 
-        options.MapConcurrencyFailuresToConflict(filter);
+        options.MapConcurrencyFailuresToConflict(filter, toProblemDetails);
         options.AddMiddleware(typeof(MartenStreamLockedMiddleware), filter);
     }
 

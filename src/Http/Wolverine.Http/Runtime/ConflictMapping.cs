@@ -30,9 +30,9 @@ namespace Wolverine.Http.Runtime;
 /// </summary>
 public static class ConcurrencyExceptionMiddleware
 {
-    public static ProblemDetails OnException(ConcurrencyException ex)
+    public static ProblemDetails OnException(ConcurrencyException ex, WolverineHttpOptions options)
     {
-        return ConflictMapping.ToProblemDetails(ex);
+        return ConflictMapping.ToProblemDetails(ex, options);
     }
 }
 
@@ -43,6 +43,18 @@ public static class ConcurrencyExceptionMiddleware
 public static class ConflictMapping
 {
     public const int ConflictStatusCode = 409;
+
+    /// <summary>
+    /// Shape the conflict response, using the factory registered through
+    /// <see cref="WolverineHttpOptions.ConflictProblemDetailsFactory"/> when there is one and the default
+    /// otherwise.
+    /// </summary>
+    public static ProblemDetails ToProblemDetails(Exception ex, WolverineHttpOptions options)
+    {
+        var problem = options.ConflictProblemDetailsFactory?.Invoke(ex) ?? ToProblemDetails(ex);
+        problem.Status ??= ConflictStatusCode;
+        return problem;
+    }
 
     public static ProblemDetails ToProblemDetails(Exception ex)
     {

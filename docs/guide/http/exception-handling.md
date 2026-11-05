@@ -233,6 +233,22 @@ conflict. It takes the same optional predicate `AddMiddleware` does if you want 
 opts.MapMartenConcurrencyFailuresToConflict(chain => chain.Method.HandlerType == typeof(OrderEndpoints));
 ```
 
+By default `Detail` is the exception message, which carries stream or document ids and CLR type names. Pass a
+factory to shape the whole `ProblemDetails` yourself -- `Detail`, `Type`, extension members:
+
+```csharp
+opts.MapMartenConcurrencyFailuresToConflict(
+    toProblemDetails: ex => new ProblemDetails
+    {
+        Status = 409,
+        Title = "Conflict",
+        Detail = "The resource was modified by another request. Fetch the current version and retry."
+    });
+```
+
+The factory is also accepted by `MapPolecatConcurrencyFailuresToConflict()` and `MapConcurrencyFailuresToConflict()`.
+A `null` `Status` is filled in as 409.
+
 ::: tip Which call do I want?
 | Store | Call |
 | --- | --- |
