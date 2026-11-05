@@ -1077,7 +1077,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             key = att.Name;
         }
 
-        return UseDeclaredDefault(TryFindOrCreateQuerystringValue(parameterType, parameterName!, key), parameter);
+        var variable = TryFindOrCreateQuerystringValue(parameterType, parameterName!, key);
+
+        if (variable is not null)
+        {
+            variable.BoundParameter ??= parameter;
+        }
+
+        return UseDeclaredDefault(variable, parameter);
     }
 
     public HttpElementVariable? TryFindOrCreateQuerystringValue(Type parameterType, string parameterName, string? key = null)

@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
@@ -173,6 +175,40 @@ public static class ComplexQueryStringOnCompoundHandlerEndpoint
 
     [WolverineGet("/shapes/complex-query-on-load")]
     public static string Get(OrderSearchResult result) => result.Description;
+}
+
+// Data annotations on a flattened member describe the query parameter it becomes
+public class AnnotatedSearchQuery
+{
+    [Required]
+    [Length(5, 255)]
+    [Description("The name to search for")]
+    public string Name { get; set; } = null!;
+
+    [Range(1, int.MaxValue)]
+    [DefaultValue(1)]
+    public int PageNumber { get; set; } = 1;
+}
+
+public static class AnnotatedComplexQueryStringEndpoint
+{
+    [WolverineGet("/shapes/complex-query-annotated")]
+    public static string Get([FromQuery] AnnotatedSearchQuery search) => $"{search.Name}:{search.PageNumber}";
+}
+
+public static class AnnotatedSimpleQueryStringEndpoint
+{
+    [WolverineGet("/shapes/query-annotated")]
+    public static string Get([FromQuery] [Required] [MaxLength(10)] string code, [FromQuery] int limit = 100)
+        => $"{code}:{limit}";
+}
+
+public record AnnotatedSearchRecord([Required] [MaxLength(10)] string Code, [Range(1, 100)] int Limit);
+
+public static class AnnotatedComplexQueryStringRecordEndpoint
+{
+    [WolverineGet("/shapes/complex-query-annotated-record")]
+    public static string Get([FromQuery] AnnotatedSearchRecord search) => $"{search.Code}:{search.Limit}";
 }
 
 #endregion

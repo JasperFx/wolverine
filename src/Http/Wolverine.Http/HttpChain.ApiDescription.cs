@@ -430,6 +430,14 @@ public partial class HttpChain
                 ModelMetadata = new EndpointModelMetadata(variableType),
                 Source = BindingSource.Query,
                 DefaultValue = querystringVariable.DeclaredDefaultValue, // GH-5099
+                ParameterDescriptor = querystringVariable.BoundParameter is { } boundParameter
+                    ? new ControllerParameterDescriptor
+                    {
+                        Name = querystringVariable.Name,
+                        ParameterType = variableType,
+                        ParameterInfo = boundParameter
+                    }
+                    : null!,
                 Type = variableType,
                 IsRequired = false
             };

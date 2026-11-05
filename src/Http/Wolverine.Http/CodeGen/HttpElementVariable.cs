@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 
@@ -20,6 +21,12 @@ public class HttpElementVariable : Variable
     /// the value binds and the OpenAPI description advertises
     /// </summary>
     public object? DeclaredDefaultValue { get; internal set; }
+
+    /// <summary>
+    /// The parameter, or the property of a flattened [FromQuery] type, this value was bound for. The OpenAPI
+    /// description hands it to the document generator, which reads its data annotations from it.
+    /// </summary>
+    internal ParameterInfo? BoundParameter { get; set; }
 
     /// <summary>
     /// Re-home this variable to a different creating frame. Used when AsParametersBindingFrame

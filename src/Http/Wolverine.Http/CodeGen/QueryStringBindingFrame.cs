@@ -114,6 +114,11 @@ internal class QueryStringBindingFrame : SyncFrame
                 var queryStringVariable =
                     chain.TryFindOrCreateQuerystringValue(propertyInfo.PropertyType, queryStringName!);
 
+                if (queryStringVariable is not null)
+                {
+                    queryStringVariable.BoundParameter ??= new PropertyAsParameterInfo(propertyInfo);
+                }
+
                 if (queryStringVariable?.Creator is IReadHttpFrame frame)
                 {
                     frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
