@@ -52,7 +52,7 @@ public class acting_through_the_tracked_session(AppointmentsHost app) : Wolverin
     }
 
     [Fact]
-    public async Task events_appended_outside_the_tracked_session_still_count()
+    public async Task events_appended_through_the_stores_own_session_are_heard_by_the_tracked_session()
     {
         var theAppointment = Guid.NewGuid();
         await GivenEvents<Appointment>(theAppointment, scheduled(theAppointment));
@@ -68,13 +68,13 @@ public class acting_through_the_tracked_session(AppointmentsHost app) : Wolverin
 
         recording.GatheredFailures().ShouldBeNull();
 
-        // The tracked session heard nothing, so the act read what the store gained past its high-water mark
-        LastAct.Appended.ShouldBeEmpty();
+        // GH-5385: the tracked session heard the commit of a session Wolverine never opened, with no envelope
+        LastAct.Appended.ShouldHaveSingleItem().Envelope.ShouldBeNull();
         LastAct.NewEvents.Select(x => x.Data).ShouldHaveSingleItem().ShouldBeOfType<AppointmentConfirmed>();
         LastAct.AllNewEvents.Count.ShouldBe(1);
 
-        // Read back from the store, which returns no tags
-        LastAct.EventTagsKnown.ShouldBeFalse();
+        // Heard, not read back from the store, so the events keep their tags
+        LastAct.EventTagsKnown.ShouldBeTrue();
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class acting_through_the_tracked_session(AppointmentsHost app) : Wolverin
     }
 
     [Fact]
-    public async Task the_fallback_is_only_taken_when_the_tracked_session_heard_no_commit_at_all()
+    public async Task a_commit_through_the_stores_own_session_is_the_acts_beside_the_one_through_the_bus()
     {
         var theAppointment = Guid.NewGuid();
         var another = Guid.NewGuid();
@@ -107,8 +107,8 @@ public class acting_through_the_tracked_session(AppointmentsHost app) : Wolverin
             await appendOutsideWolverine(services, another, new AppointmentConfirmed(another, DateTimeOffset.UtcNow));
         });
 
-        // What the tracked session heard is the act's; the store's other appends are never read
-        LastAct.NewEvents.ShouldHaveSingleItem().StreamId.ShouldBe(theAppointment);
+        // GH-5385: both are what the tracked session heard, so both are the act's
+        LastAct.NewEvents.Select(x => x.StreamId).ShouldBe([theAppointment, another], ignoreOrder: true);
         LastAct.EventTagsKnown.ShouldBeTrue();
     }
 

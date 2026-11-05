@@ -170,13 +170,13 @@ public class ancillary_stores(TwoStoreHost app) : WolverineSpec(app.Host), IClas
     }
 
     [Fact]
-    public async Task an_act_outside_the_tracked_session_is_read_back_from_the_store_it_appended_to()
+    public async Task an_act_through_the_ancillary_stores_own_session_is_heard_from_the_store_it_appended_to()
     {
         var theInvoice = Guid.CreateVersion7();
         await GivenEvents<Invoice>(theInvoice, new InvoiceRaised("Initech", 10m));
 
-        // Straight to the ancillary store, through a session Wolverine never opened: the tracked session hears no
-        // commit on it, so that store alone is read back from its high-water mark
+        // Straight to the ancillary store, through a session Wolverine never opened: GH-5385, the tracked session hears
+        // its commit all the same, and says which store it was
         await WhenActing("an invoice is voided by hand", async services =>
         {
             await using var session = services.GetRequiredService<IInvoicingStore>().LightweightSession();
@@ -185,7 +185,7 @@ public class ancillary_stores(TwoStoreHost app) : WolverineSpec(app.Host), IClas
         });
 
         ThenEvents(new InvoiceVoided("duplicate"));
-        LastAct.EventTagsKnown.ShouldBeFalse();
+        LastAct.EventTagsKnown.ShouldBeTrue();
 
         var voided = LastAct.NewEvents.Single();
         LastAct.StoreOf(voided)!.Identity.Name.ShouldBe("iinvoicingstore", StringCompareShould.IgnoreCase);
@@ -205,7 +205,7 @@ public class ancillary_stores(TwoStoreHost app) : WolverineSpec(app.Host), IClas
             await session.SaveChangesAsync();
         });
 
-        // Bobcat's own whole-store step, on the outcome Wolverine's fallback built
+        // Bobcat's own whole-store step, on the outcome the tracked session built
         var failure = Should.Throw<Exception>(() => ThenEvents(new InvoiceVoided("a different reason")));
         failure.Message.ShouldContain("iinvoicingstore", Case.Insensitive);
     }

@@ -3,6 +3,8 @@ using IntegrationTests;
 using JasperFx.Events.Projections;
 using Marten;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Wolverine.Http;
 using Wolverine.Marten;
 
@@ -36,7 +38,20 @@ public sealed class AppHost : IAsyncLifetime
 
         builder.Services.AddWolverineHttp();
 
-        Host = await AlbaHost.For(builder, app => app.MapWolverineEndpoints()).StartAsync();
+        Host = await AlbaHost.For(builder, app =>
+        {
+            app.MapWolverineEndpoints();
+
+            // GH-5385: not a Wolverine endpoint -- a Minimal API (or Razor page, or controller) committing through the
+            // IDocumentSession the container gives it, which Wolverine did not open
+            app.MapPost("/minimal/appointments/{id:guid}/schedule", async (Guid id, IDocumentSession session) =>
+            {
+                session.Events.StartStream<Appointment>(id, new AppointmentScheduled(id, "Minimal"),
+                    new AppointmentConfirmed(id));
+                await session.SaveChangesAsync();
+                return Results.NoContent();
+            });
+        }).StartAsync();
         await Host.CleanAllMartenDataAsync();
     }
 

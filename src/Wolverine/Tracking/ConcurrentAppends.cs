@@ -32,6 +32,9 @@ namespace Wolverine.Tracking;
 public static class ConcurrentAppends
 {
     private static int _armed;
+
+    /// <summary>GH-5385. True while an armed concurrent append runs, in that append's async flow.</summary>
+    internal static readonly AsyncLocal<bool> InsideConcurrentAppend = new();
     private static readonly ConcurrentDictionary<string, Func<CancellationToken, Task>> _byCorrelation = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -65,7 +68,16 @@ public static class ConcurrentAppends
         if (context.CorrelationId is not { } correlationId) return;
         if (!_byCorrelation.TryRemove(correlationId, out var append)) return;
 
-        await append(token).ConfigureAwait(false);
+        // GH-5385: the append is the test's, not the act's -- a store-wide listener must not attribute it to the act
+        InsideConcurrentAppend.Value = true;
+        try
+        {
+            await append(token).ConfigureAwait(false);
+        }
+        finally
+        {
+            InsideConcurrentAppend.Value = false;
+        }
 
         (context.Runtime as WolverineRuntime)?.ActiveSession?.RecordConcurrentAppend(
             new ConcurrentAppendRecord(correlationId, context.Envelope));
