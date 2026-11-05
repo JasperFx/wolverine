@@ -106,7 +106,7 @@ public static class SecondCascadingMiddleware
 
 public class SameTypeRecorder
 {
-    public List<string> Calls { get; } = new();
+    public ActionLog Calls { get; } = new();
 }
 
 public record SameTypeTrigger;
