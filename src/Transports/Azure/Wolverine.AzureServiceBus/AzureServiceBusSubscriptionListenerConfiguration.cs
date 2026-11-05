@@ -150,6 +150,18 @@ public class AzureServiceBusSubscriptionListenerConfiguration : InteroperableLis
     }
 
     /// <summary>
+    ///     Mark the parent topic as owned by another application. Wolverine will never create or delete the
+    ///     topic, regardless of <c>AutoProvision()</c>, but still provisions this subscription and its rule.
+    ///     If the topic does not exist, provisioning fails with an error naming the topic.
+    ///     See https://github.com/JasperFx/wolverine/issues/5342.
+    /// </summary>
+    public AzureServiceBusSubscriptionListenerConfiguration TopicIsExternallyOwned()
+    {
+        add(e => e.Topic.IsExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
     ///     The maximum number of messages to receive in a single batch when listening
     ///     in either buffered or durable modes. The default is 20.
     /// </summary>
