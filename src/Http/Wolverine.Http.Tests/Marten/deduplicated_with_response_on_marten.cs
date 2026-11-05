@@ -963,10 +963,13 @@ public static class MartenDeduplicatedResponseEndpoints
     public static Results<Created<DeduplicatedOrderCreated>, NotFound> PostResult(DeduplicatedOrder request,
         IDocumentSession session)
     {
-        // Either way the work commits; only the Created answer is claimed
-        var created = PostOrder(request, session);
-        if (request.Name.StartsWith(Absent)) return TypedResults.NotFound();
+        if (request.Name.StartsWith(Absent))
+        {
+            _runs.AddOrUpdate(request.Name, 1, (_, count) => count + 1);
+            return TypedResults.NotFound();
+        }
 
+        var created = PostOrder(request, session);
         return TypedResults.Created($"/marten-deduplicated-response/orders/{created.Id}", created);
     }
 

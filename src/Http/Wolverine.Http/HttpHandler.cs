@@ -551,8 +551,8 @@ public abstract partial class HttpHandler
         => _replayableResults.Contains(type.IsGenericType ? type.GetGenericTypeDefinition() : type);
 
     /// <summary>
-    /// Can a declared <paramref name="resultType" /> ever be a result <c>[DeduplicatedWithResponse]</c> can store? An
-    /// interface, or a nested result other than <c>Results&lt;...&gt;</c>, is only known per request.
+    /// Can a declared <paramref name="resultType" /> ever be a stored result? An interface a replayable result
+    /// implements, or a nested result other than <c>Results&lt;...&gt;</c>, is decided per request.
     /// </summary>
     internal static bool CanReplayResultOf(Type resultType)
     {
@@ -561,8 +561,14 @@ public abstract partial class HttpHandler
             return resultType.GetGenericArguments().Any(CanReplayResultOf);
         }
 
-        return resultType.IsInterface || typeof(INestedHttpResult).IsAssignableFrom(resultType) ||
-               isReplayableResult(resultType);
+        if (resultType.IsInterface)
+        {
+            var definition = resultType.IsGenericType ? resultType.GetGenericTypeDefinition() : resultType;
+            return _replayableResults.Any(replayable => replayable.GetInterfaces().Any(implemented =>
+                (implemented.IsGenericType ? implemented.GetGenericTypeDefinition() : implemented) == definition));
+        }
+
+        return typeof(INestedHttpResult).IsAssignableFrom(resultType) || isReplayableResult(resultType);
     }
 
     /// <summary>
@@ -579,13 +585,12 @@ public abstract partial class HttpHandler
 
         context.Items[_deduplicatedWorkDone] = true;
 
-        var logger = context.RequestServices.GetService<ILogger<DeduplicatedResponses>>();
         var type = result.GetType();
 
         if (!isReplayableResult(type))
         {
             // The work is done, so the claim stays: repeats get 409 until it expires rather than running it again.
-            logger?.LogError(
+            context.RequestServices.GetService<ILogger<DeduplicatedResponses>>()?.LogError(
                 "The {ResultType} answering deduplicated id '{DeduplicationId}' is not stored, because it writes more than a status, a JSON body and a Location",
                 type.FullNameInCode(), deduplicationId);
             return null;
@@ -593,8 +598,10 @@ public abstract partial class HttpHandler
 
         try
         {
-            // Created and Accepted, with or without a value; ExecuteAsync sets the header only when it is not empty
+            // Created and Accepted, with or without a value; ExecuteAsync sets the header only when it is not empty.
+            // Any other result leaves whatever Location the endpoint set on the response.
             var location = type.GetProperty(nameof(Created.Location))?.GetValue(result) as string;
+            if (string.IsNullOrEmpty(location)) location = context.Response.Headers.Location.ToString();
 
             return new DeduplicatedResponse(status,
                 result is IValueHttpResult { Value: { } value } ? serializeAsResultWrites(context, type, value) : null,
@@ -602,7 +609,7 @@ public abstract partial class HttpHandler
         }
         catch (Exception e)
         {
-            logger?.LogError(e,
+            context.RequestServices.GetService<ILogger<DeduplicatedResponses>>()?.LogError(e,
                 "Failed to serialize the response for deduplicated id '{DeduplicationId}' to store it", deduplicationId);
             return null;
         }

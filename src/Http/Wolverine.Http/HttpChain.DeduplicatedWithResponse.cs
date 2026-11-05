@@ -98,7 +98,7 @@ public partial class HttpChain
         if (typeof(IResult).IsAssignableFrom(ResourceType) && !HttpHandler.CanReplayResultOf(ResourceType!))
         {
             throw new NotSupportedException(
-                $"{Description} has [DeduplicatedWithResponse], which replays the response as its status, System.Text.Json body and Location, but this endpoint returns {ResourceType!.FullNameInCode()}, which writes its response another way. Return Ok, Created, Accepted or NoContent results, or a resource written as JSON. See GH-4742");
+                $"{Description} has [DeduplicatedWithResponse], which replays the response as its status, System.Text.Json body and Location, but this endpoint returns {ResourceType!.FullNameInCode()}, which writes its response another way. Return Ok, Created, Accepted, NoContent, StatusCode or Empty results, or a resource written as JSON. See GH-4742");
         }
 
         if (BindsFormValues)
@@ -298,8 +298,7 @@ public partial class HttpChain
         // The stored body is System.Text.Json; any other writer would replay different bytes. An IResult is
         // described per request by HttpHandler.CompleteDeduplicatedRequest, which stores only the results it can.
         if (DeduplicatedWithResponse != null && !Postprocessors.OfType<WriteJsonFrame>().Any() &&
-            !Postprocessors.OfType<MethodCall>().Any(x =>
-                x.Method.DeclaringType == typeof(IResult) && x.Method.Name == nameof(IResult.ExecuteAsync)))
+            !typeof(IResult).IsAssignableFrom(ResourceType))
         {
             throw new NotSupportedException(
                 $"{Description} has [DeduplicatedWithResponse], which replays the response as System.Text.Json, but this endpoint writes its response another way. See GH-4742");

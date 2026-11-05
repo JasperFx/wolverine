@@ -390,6 +390,23 @@ public class deduplicated_with_response : IAsyncLifetime
     }
 
     [Fact]
+    public async Task an_accepted_result_is_replayed_with_its_location()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("accepted-result");
+
+        var first = await postAsync(request, key, 202, url: "/deduplicated-response/accepted-result");
+        var repeat = await postAsync(request, key, 202, url: "/deduplicated-response/accepted-result");
+
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        var location = first.Context.Response.Headers.Location.ToString();
+        location.ShouldStartWith("/deduplicated-response/orders/");
+        repeat.Context.Response.Headers.Location.ToString().ShouldBe(location);
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task the_success_arm_of_a_result_union_is_replayed()
     {
         var key = Guid.NewGuid().ToString();
@@ -693,6 +710,14 @@ public static class DeduplicatedResponseEndpoints
     {
         Count(request.Name);
         return TypedResults.NoContent();
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/accepted-result")]
+    public static Accepted<DeduplicatedOrderCreated> PostAcceptedResult(DeduplicatedOrder request)
+    {
+        var created = run(request);
+        return TypedResults.Accepted($"/deduplicated-response/orders/{created.Id}", created);
     }
 
     [DeduplicatedWithResponse(DeduplicationScope.User)]

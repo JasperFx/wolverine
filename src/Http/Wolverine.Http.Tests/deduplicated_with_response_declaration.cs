@@ -54,6 +54,14 @@ public class deduplicated_with_response_declaration
     }
 
     [Fact]
+    public void a_result_interface_no_replayable_result_implements_is_refused_at_startup()
+    {
+        Should.Throw<NotSupportedException>(() =>
+                HttpChain.ChainFor(typeof(ContentInterfaceDeduplicatedResponse), "Post"))
+            .Message.ShouldContain(nameof(ITextResult));
+    }
+
+    [Fact]
     public void a_result_union_with_a_replayable_arm_is_not_refused()
     {
         Should.NotThrow(() => HttpChain.ChainFor(typeof(UnionResultDeduplicatedResponse), "Post"));
@@ -336,7 +344,7 @@ public class deduplicated_with_response_declaration
     }
 }
 
-// The five below are invalid on purpose. Hidden from discovery, so no other host scanning this assembly fails
+// The six below are invalid on purpose. Hidden from discovery, so no other host scanning this assembly fails
 // to start; the tests build their chains directly.
 
 [WolverineIgnore]
@@ -372,6 +380,21 @@ public static class FileResultDeduplicatedResponse
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/declaration/file-result")]
     public static FileContentHttpResult Post(DeduplicatedOrder request) => TypedResults.File([1, 2, 3]);
+}
+
+[WolverineIgnore]
+public static class ContentInterfaceDeduplicatedResponse
+{
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/declaration/content-result")]
+    public static ITextResult Post(DeduplicatedOrder request) => new TextResult(request.Name);
+}
+
+public interface ITextResult : IResult;
+
+public record TextResult(string Text) : ITextResult
+{
+    public Task ExecuteAsync(HttpContext httpContext) => httpContext.Response.WriteAsync(Text);
 }
 
 [WolverineIgnore]
