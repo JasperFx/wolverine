@@ -7,6 +7,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -338,6 +339,101 @@ public class deduplicated_with_response : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_created_result_is_replayed_with_its_status_body_and_location()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("created-result");
+
+        var first = await postAsync(request, key, 201, url: "/deduplicated-response/created-result");
+        var repeat = await postAsync(request, key, 201, url: "/deduplicated-response/created-result");
+
+        var body = await first.ReadAsTextAsync();
+        body.ShouldNotBeNullOrEmpty();
+        (await repeat.ReadAsTextAsync()).ShouldBe(body);
+
+        var location = first.Context.Response.Headers.Location.ToString();
+        location.ShouldStartWith("/deduplicated-response/orders/");
+        repeat.Context.Response.Headers.Location.ToString().ShouldBe(location);
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task an_ok_result_is_replayed_as_its_value_was_written()
+    {
+        // The declared value type is a base record; the result writes the derived one's members, so must the replay
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("ok-result");
+
+        var first = await postAsync(request, key, 200, url: "/deduplicated-response/ok-result");
+        var repeat = await postAsync(request, key, 200, url: "/deduplicated-response/ok-result");
+
+        var body = await first.ReadAsTextAsync();
+        body.ShouldContain("\"detail\"");
+        (await repeat.ReadAsTextAsync()).ShouldBe(body);
+        repeat.Context.Response.ContentType.ShouldBe(first.Context.Response.ContentType);
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_no_content_result_is_replayed_with_no_body()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("no-content-result");
+
+        await postAsync(request, key, 204, url: "/deduplicated-response/no-content-result");
+        var repeat = await postAsync(request, key, 204, url: "/deduplicated-response/no-content-result");
+
+        (await repeat.ReadAsTextAsync()).ShouldBeEmpty();
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task the_success_arm_of_a_result_union_is_replayed()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("union-result");
+
+        var first = await postAsync(request, key, 201, url: "/deduplicated-response/union-result");
+        var repeat = await postAsync(request, key, 201, url: "/deduplicated-response/union-result");
+
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        repeat.Context.Response.Headers.Location.ToString()
+            .ShouldBe(first.Context.Response.Headers.Location.ToString());
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task the_failure_arm_of_a_result_union_releases_the_claim()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder(DeduplicatedResponseEndpoints.Absent);
+
+        await postAsync(request, key, 404, url: "/deduplicated-response/union-result");
+        await postAsync(request, key, 404, url: "/deduplicated-response/union-result");
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task a_result_that_cannot_be_stored_keeps_the_claim_and_refuses_repeats()
+    {
+        // A text result writes text/plain, which a replay cannot reproduce. The work was done, so it is not run
+        // again, and there is no response to answer with
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("text-result");
+
+        var first = await postAsync(request, key, 200, url: "/deduplicated-response/text-result");
+        (await first.ReadAsTextAsync()).ShouldBe(request.Name);
+
+        await postAsync(request, key, 409, url: "/deduplicated-response/text-result");
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task a_replay_does_not_re_send_the_first_requests_cascaded_messages()
     {
         // PostOrder cascades a DeduplicatedOrderPlaced alongside its response. A replay writes the stored
@@ -492,6 +588,7 @@ public static class DeduplicatedResponseEndpoints
     public const string Throw = "throw";
     public const string Missing = "missing";
     public const string Slow = "slow";
+    public const string Absent = "absent";
 
     private static readonly Dictionary<string, int> _runs = new();
     private static TaskCompletionSource _slowArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -573,7 +670,57 @@ public static class DeduplicatedResponseEndpoints
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/deduplicated-response/text")]
     public static string PostText(DeduplicatedOrder request) => request.Name;
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/created-result")]
+    public static Created<DeduplicatedOrderCreated> PostCreatedResult(DeduplicatedOrder request)
+    {
+        var created = run(request);
+        return TypedResults.Created($"/deduplicated-response/orders/{created.Id}", created);
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/ok-result")]
+    public static Ok<DeduplicatedAnswer> PostOkResult(DeduplicatedOrder request)
+    {
+        Count(request.Name);
+        return TypedResults.Ok<DeduplicatedAnswer>(new DetailedDeduplicatedAnswer(request.Name, Guid.NewGuid().ToString()));
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/no-content-result")]
+    public static NoContent PostNoContentResult(DeduplicatedOrder request)
+    {
+        Count(request.Name);
+        return TypedResults.NoContent();
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/union-result")]
+    public static Results<Created<DeduplicatedOrderCreated>, NotFound> PostUnionResult(DeduplicatedOrder request)
+    {
+        if (request.Name == Absent)
+        {
+            Count(request.Name);
+            return TypedResults.NotFound();
+        }
+
+        var created = run(request);
+        return TypedResults.Created($"/deduplicated-response/orders/{created.Id}", created);
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/text-result")]
+    public static IResult PostTextResult(DeduplicatedOrder request)
+    {
+        Count(request.Name);
+        return TypedResults.Text(request.Name);
+    }
 }
+
+public record DeduplicatedAnswer(string Name);
+
+public record DetailedDeduplicatedAnswer(string Name, string Detail) : DeduplicatedAnswer(Name);
 
 // Its own class: the Validate middleware above needs a body.
 public static class MissingResourceDeduplicatedEndpoint

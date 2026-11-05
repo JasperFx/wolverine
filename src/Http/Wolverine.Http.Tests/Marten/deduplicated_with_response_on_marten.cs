@@ -9,6 +9,7 @@ using Marten.Events;
 using Marten.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -402,6 +403,36 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
         (await findClaimAsync(key)).ShouldBeNull();
 
         await postAsync("/marten-deduplicated-response/missing", request, key, 404);
+        MartenDeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task a_result_union_is_claimed_inside_the_commit_and_replayed()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("result-" + key);
+
+        var first = await postAsync("/marten-deduplicated-response/result", request, key, 201);
+        var repeat = await postAsync("/marten-deduplicated-response/result", request, key, 201);
+
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        repeat.Context.Response.Headers.Location.ToString()
+            .ShouldBe(first.Context.Response.Headers.Location.ToString());
+        MartenDeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+
+        sourceFor("/marten-deduplicated-response/result").ShouldNotContain(".TryClaimAsync(");
+    }
+
+    [Fact]
+    public async Task the_failure_arm_of_a_result_union_claims_nothing_and_its_retry_runs()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder(MartenDeduplicatedResponseEndpoints.Absent + key);
+
+        await postAsync("/marten-deduplicated-response/result", request, key, 404);
+        (await findClaimAsync(key)).ShouldBeNull();
+
+        await postAsync("/marten-deduplicated-response/result", request, key, 404);
         MartenDeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(2);
     }
 
@@ -923,6 +954,20 @@ public static class MartenDeduplicatedResponseEndpoints
         // The work commits, but the answer is a 404: nothing is claimed, so a retry runs again
         PostOrder(request, session);
         return null;
+    }
+
+    public const string Absent = "absent-";
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true)]
+    [WolverinePost("/marten-deduplicated-response/result")]
+    public static Results<Created<DeduplicatedOrderCreated>, NotFound> PostResult(DeduplicatedOrder request,
+        IDocumentSession session)
+    {
+        // Either way the work commits; only the Created answer is claimed
+        var created = PostOrder(request, session);
+        if (request.Name.StartsWith(Absent)) return TypedResults.NotFound();
+
+        return TypedResults.Created($"/marten-deduplicated-response/orders/{created.Id}", created);
     }
 
     [DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true, Required = false)]

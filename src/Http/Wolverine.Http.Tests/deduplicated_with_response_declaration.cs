@@ -4,6 +4,7 @@ using JasperFx.Resources;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
@@ -43,6 +44,19 @@ public class deduplicated_with_response_declaration
     {
         Should.Throw<NotSupportedException>(() => HttpChain.ChainFor(typeof(ResourcelessDeduplicatedResponse), "Post"))
             .Message.ShouldContain("returns no resource");
+    }
+
+    [Fact]
+    public void a_result_that_is_never_written_as_json_is_refused_at_startup()
+    {
+        Should.Throw<NotSupportedException>(() => HttpChain.ChainFor(typeof(FileResultDeduplicatedResponse), "Post"))
+            .Message.ShouldContain(nameof(FileContentHttpResult));
+    }
+
+    [Fact]
+    public void a_result_union_with_a_replayable_arm_is_not_refused()
+    {
+        Should.NotThrow(() => HttpChain.ChainFor(typeof(UnionResultDeduplicatedResponse), "Post"));
     }
 
     [Fact]
@@ -322,7 +336,7 @@ public class deduplicated_with_response_declaration
     }
 }
 
-// The four below are invalid on purpose. Hidden from discovery, so no other host scanning this assembly fails
+// The five below are invalid on purpose. Hidden from discovery, so no other host scanning this assembly fails
 // to start; the tests build their chains directly.
 
 [WolverineIgnore]
@@ -353,11 +367,29 @@ public static class ResourcelessDeduplicatedResponse
 }
 
 [WolverineIgnore]
+public static class FileResultDeduplicatedResponse
+{
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/declaration/file-result")]
+    public static FileContentHttpResult Post(DeduplicatedOrder request) => TypedResults.File([1, 2, 3]);
+}
+
+[WolverineIgnore]
 public static class NegativeWindowDeduplicatedResponse
 {
     [DeduplicatedWithResponse(DeduplicationScope.User, WindowInSeconds = -1)]
     [WolverinePost("/declaration/negative-window")]
     public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
+}
+
+// Valid, but hidden from discovery like the ones above: its test only builds the chain.
+[WolverineIgnore]
+public static class UnionResultDeduplicatedResponse
+{
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/declaration/union-result")]
+    public static Results<Created<DeduplicatedOrderCreated>, NotFound> Post(DeduplicatedOrder request)
+        => TypedResults.NotFound();
 }
 
 public static class StorelessDeduplicatedResponse
