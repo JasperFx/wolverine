@@ -269,6 +269,38 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
     }
 
     [Fact]
+    public void header_parameter_annotations_describe_the_parameter()
+    {
+        var tenant = parameterFor("/shapes/header-annotated", "get", "x-tenant");
+        tenant.GetProperty("required").GetBoolean().ShouldBeTrue();
+        tenant.GetProperty("description").GetString().ShouldBe("The tenant");
+    }
+
+    [Fact]
+    public void as_parameters_header_member_annotations_describe_the_parameter()
+    {
+        var code = parameterFor("/shapes/asparameters-header-annotated", "get", "x-code");
+        code.GetProperty("required").GetBoolean().ShouldBeTrue();
+        code.GetProperty("schema").GetProperty("maxLength").GetInt32().ShouldBe(10);
+    }
+
+    [Fact]
+    public void form_parameter_annotations_describe_the_parameter()
+    {
+        var (properties, required) = formSchemaFor("/shapes/form-annotated");
+        properties.GetProperty("name").GetProperty("maxLength").GetInt32().ShouldBe(100);
+        required.ShouldContain("name");
+    }
+
+    [Fact]
+    public void form_type_property_annotations_describe_the_parameters()
+    {
+        var (properties, required) = formSchemaFor("/shapes/form-type-annotated");
+        properties.GetProperty("Title").GetProperty("maxLength").GetInt32().ShouldBe(20);
+        required.ShouldContain("Title");
+    }
+
+    [Fact]
     public void as_parameters_route_and_query_members()
     {
         ParametersFor("/shapes/asparameters/orders/{orderId}", "get")
@@ -439,6 +471,19 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
             return new ParameterShape(x.GetProperty("name").GetString()!, x.GetProperty("in").GetString()!,
                 required, type, format);
         }).ToList();
+    }
+
+    private (JsonElement Properties, List<string> Required) formSchemaFor(string path)
+    {
+        var content = operationFor(path, "post").GetProperty("requestBody").GetProperty("content");
+        var media = content.EnumerateObject().First(x => x.Name.Contains("form")).Value;
+        var schema = resolveSchema(media.GetProperty("schema"));
+
+        var required = schema.TryGetProperty("required", out var r)
+            ? r.EnumerateArray().Select(x => x.GetString()!).ToList()
+            : [];
+
+        return (schema.GetProperty("properties"), required);
     }
 
     private JsonElement parameterFor(string path, string httpMethod, string name)
