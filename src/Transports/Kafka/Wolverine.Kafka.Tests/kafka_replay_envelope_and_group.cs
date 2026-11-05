@@ -107,6 +107,16 @@ public class kafka_replay_envelope_and_group
     }
 
     [Fact]
+    public void replay_uses_a_requested_group_id_verbatim()
+    {
+        var (options, transport) = buildTransport(transportGroupId: "tenant-a");
+        var topic = transport.Topics["orders"];
+
+        KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName, "tenant-a-replay")
+            .ShouldBe("tenant-a-replay");
+    }
+
+    [Fact]
     public void replay_group_takes_the_prefix_of_a_topic_group_subscribing_to_the_topic()
     {
         var (options, transport) = buildTransport(transportGroupId: "tenant-a");

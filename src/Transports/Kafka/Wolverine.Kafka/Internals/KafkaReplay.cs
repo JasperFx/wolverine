@@ -7,10 +7,10 @@ using Wolverine.Util;
 namespace Wolverine.Kafka.Internals;
 
 /// <summary>
-/// Executes a bounded, one-shot Kafka replay (GH-3147): a separate <c>Assign()</c>-based consumer (with a
-/// unique throwaway group id and no commits) seeks to the requested start on each partition, reads
-/// forward to the end boundary, and feeds every record through the normal Wolverine handler pipeline. The
-/// live consumer group's committed offsets are never touched.
+/// Executes a bounded, one-shot Kafka replay (GH-3147): a separate <c>Assign()</c>-based consumer (with
+/// either the requested group id or a unique throwaway group id, and no commits) seeks to the requested
+/// start on each partition, reads forward to the end boundary, and feeds every record through the normal
+/// Wolverine handler pipeline. The live consumer group's committed offsets are never touched.
 /// </summary>
 internal sealed class KafkaReplay
 {
@@ -45,11 +45,11 @@ internal sealed class KafkaReplay
         // actually listens to this topic, which is not always the topic itself.
         var liveEndpoint = LiveListeningEndpointFor(topic, _transport);
 
-        // Throwaway, Assign-only consumer: unique group sharing the live group's prefix, no commits, no
-        // offset store.
+        // Assign-only consumer: use the requested group id when configured, otherwise a unique group sharing the
+        // live group's prefix. It never commits or stores offsets.
         var config = new ConsumerConfig(_transport.ConsumerConfig)
         {
-            GroupId = ReplayGroupIdFor(topic, _transport, _runtime.Options.ServiceName),
+            GroupId = ReplayGroupIdFor(topic, _transport, _runtime.Options.ServiceName, request.GroupId),
             EnableAutoCommit = false,
             EnableAutoOffsetStore = false
         };
@@ -146,12 +146,18 @@ internal sealed class KafkaReplay
     /// the service name. Brokers commonly grant consumer groups by prefix (Confluent Cloud ACLs are the
     /// usual case), and the live group is the one prefix the application is known to hold; the service
     /// name alone defaults to the entry assembly name, which such an ACL refuses with "Group
-    /// authorization failed".
+    /// authorization failed". A requested group id overrides this generated id verbatim.
     ///
     /// <para>A hot-tail listener's group is deliberately not borrowed; see <see cref="liveGroupIdOf" />.</para>
     /// </summary>
-    internal static string ReplayGroupIdFor(KafkaTopic topic, KafkaTransport transport, string serviceName)
+    internal static string ReplayGroupIdFor(KafkaTopic topic, KafkaTransport transport, string serviceName,
+        string? requestedGroupId = null)
     {
+        if (!string.IsNullOrWhiteSpace(requestedGroupId))
+        {
+            return requestedGroupId;
+        }
+
         var liveGroupId = liveGroupIdOf(LiveListeningEndpointFor(topic, transport));
 
         if (string.IsNullOrEmpty(liveGroupId))

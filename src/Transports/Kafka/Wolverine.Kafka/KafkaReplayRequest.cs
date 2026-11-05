@@ -13,6 +13,12 @@ public class KafkaReplayRequest
     /// <summary>The topic to replay.</summary>
     public required string Topic { get; init; }
 
+    /// <summary>
+    /// The consumer group id to use for this replay. Set this when the broker authorizes only specific group ids.
+    /// When omitted, the replay derives a unique id from the topic's live consumer group as before.
+    /// </summary>
+    public string? GroupId { get; init; }
+
     /// <summary>Start the replay at this absolute offset on every partition. Mutually exclusive with <see cref="FromTimestamp"/>.</summary>
     public long? FromOffset { get; init; }
 
