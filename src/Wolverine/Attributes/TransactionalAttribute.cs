@@ -21,7 +21,16 @@ public class TransactionalAttribute : ModifyChainAttribute
     /// </summary>
     public const string TransactionalDbContextTypeKey = "TransactionalDbContextType";
 
+    /// <summary>
+    /// Chain tag key carrying the <see cref="System.Data.IsolationLevel"/> a
+    /// <see cref="TransactionalAttribute"/> asks for. Read by persistence providers that open an
+    /// explicit database transaction (EF Core's Eager mode).
+    /// </summary>
+    public const string IsolationLevelKey = "TransactionIsolationLevel";
+
     private bool _modeExplicitlySet;
+    private bool _isolationLevelExplicitlySet;
+    private System.Data.IsolationLevel _isolationLevel;
 
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
@@ -33,6 +42,11 @@ public class TransactionalAttribute : ModifyChainAttribute
         if (_modeExplicitlySet)
         {
             chain.Tags["TransactionMiddlewareMode"] = Mode;
+        }
+
+        if (_isolationLevelExplicitlySet)
+        {
+            chain.Tags[IsolationLevelKey] = IsolationLevel;
         }
 
         if (DbContextType != null)
@@ -93,6 +107,28 @@ public class TransactionalAttribute : ModifyChainAttribute
     /// <see cref="Modify"/> has been called (e.g. when side effects are processed at startup).
     /// </summary>
     public bool IsModeExplicitlySet => _modeExplicitlySet;
+
+    /// <summary>
+    /// Optionally override the transaction isolation level for just this handler chain. When set, this
+    /// takes precedence over the global default configured with
+    /// <c>UseEntityFrameworkCoreTransactions().WithIsolationLevel(...)</c>. When not set, the global
+    /// default applies, and without one the database provider chooses. Only honored by persistence
+    /// that opens an explicit transaction (EF Core in Eager mode).
+    /// </summary>
+    public System.Data.IsolationLevel IsolationLevel
+    {
+        get => _isolationLevel;
+        set
+        {
+            _isolationLevel = value;
+            _isolationLevelExplicitlySet = true;
+        }
+    }
+
+    /// <summary>
+    /// Returns true if <see cref="IsolationLevel"/> was explicitly set on this attribute instance.
+    /// </summary>
+    public bool IsIsolationLevelExplicitlySet => _isolationLevelExplicitlySet;
 
     /// <summary>
     /// Optionally designate which persistence storage type owns the transaction for this handler

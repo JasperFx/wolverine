@@ -404,6 +404,36 @@ public static void Handle(UpdateItemCommand command, ItemsDbContext db)
 ```
 
 
+## Transaction Isolation Level
+
+In Eager mode Wolverine opens an explicit database transaction, and unless you say otherwise the database
+provider picks its isolation level. To choose one for the whole application, set a global default:
+
+```csharp
+opts.UseEntityFrameworkCoreTransactions()
+    .WithIsolationLevel(System.Data.IsolationLevel.RepeatableRead);
+
+opts.Policies.AutoApplyTransactions();
+```
+
+A single handler can override that default with `[Transactional(IsolationLevel = ...)]`:
+
+```csharp
+[Transactional(IsolationLevel = System.Data.IsolationLevel.Serializable)]
+public static void Handle(ApproveOrder command, OrdersDbContext db)
+{
+    // ...
+}
+```
+
+Some things to know:
+
+* With neither configured, nothing changes: the provider default applies.
+* It applies to regular and multi-tenant DbContexts, including handlers that return storage actions.
+* If a transaction is already open on the DbContext, Wolverine reuses it and does not change its level.
+* Lightweight mode opens no explicit transaction, so there is nothing for the level to apply to.
+* Whether a level is supported is up to the database provider, which will throw if it is not.
+
 ## DbContext Abstractions <Badge type="tip" text="6.2" />
 
 Sometimes the application code wants to depend on an interface that's implemented by a `DbContext`
