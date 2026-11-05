@@ -217,6 +217,9 @@ internal class PolecatOverrides : IConfigurePolecat
         // of its own, so the store carries this one for it
         options.Listeners.Add(new FlushEnrolledOutboxOnCommit());
 
+        // GH-5390: a tracked session hears events committed through sessions Wolverine did not open too
+        options.Listeners.Add(new RecordEventsCommittedOutsideAMessage(services));
+
         // GH-3290 (Polecat parity with the Marten side): when Wolverine manages the event
         // subscription distribution, it replaces Polecat's own daemon/coordinator hosting
         // outright, but the store's only knowledge of the daemon state is

@@ -311,6 +311,9 @@ internal class FisherOverrides<T> : IConfigureFisher<T> where T : IDocumentStore
         // messages.
         options.Events.MessageOutbox = new FisherToWolverineOutbox(services);
 
+        // GH-5390: a tracked session hears events committed through sessions Wolverine did not open too
+        options.Listeners.Add(new RecordEventsCommittedOutsideAMessage(services, typeof(T)));
+
         // No DaemonSettings.AsyncMode nudge, unlike the Marten and Polecat twins: Fisher has no such
         // setting, and the caller's own AddAsyncDaemon() choice for this ancillary store is left alone.
     }

@@ -349,6 +349,9 @@ internal class PolecatOverrides<T> : IConfigurePolecat<T> where T : IDocumentSto
         // See PolecatOverrides
         options.Listeners.Add(new FlushEnrolledOutboxOnCommit());
 
+        // GH-5390: a tracked session hears events committed through sessions Wolverine did not open too
+        options.Listeners.Add(new RecordEventsCommittedOutsideAMessage(services, typeof(T)));
+
         // GH-3290: mirror the primary store (PolecatOverrides) — the ancillary managed
         // distribution flag lives on the main PolecatIntegration (see the
         // IProjectionCoordinator<T> factory registration above), so defer to it here too.

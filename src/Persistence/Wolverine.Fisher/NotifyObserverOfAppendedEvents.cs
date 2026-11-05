@@ -30,8 +30,14 @@ internal class NotifyObserverOfAppendedEvents : IDocumentSessionListener
         _store = store;
     }
 
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IDocumentSession, object> _reporting = new();
+
+    /// <summary>GH-5390. True once this listener has run for the session, i.e. it reports the commit itself.</summary>
+    internal static bool IsReportedByItsOwnListener(IDocumentSession session) => _reporting.TryGetValue(session, out _);
+
     public Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token)
     {
+        _reporting.AddOrUpdate(session, this);
         _pending = session.Events.PendingStreams.ToList();
 
         if (_context.Runtime.Options.Tracking.EnableEventAppendTracking)
