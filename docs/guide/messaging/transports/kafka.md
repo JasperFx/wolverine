@@ -540,6 +540,30 @@ name itself. A replay of such a topic skips that group and falls through to the 
 setting a granted prefix with `ConfigureConsumers(x => x.GroupId = "...")` covers the replay. The hot-tail
 listener itself still names its group after `ServiceName`; that is tracked separately.
 
+If your brokers authorize consumer groups by **literal name only** — no prefixed or wildcard ACLs — a
+generated `{live group}-replay-{guid}` name can never be granted ahead of time. In that case, tell the replay
+exactly which group id to use with `GroupId`, and Wolverine will use that value verbatim:
+
+```csharp
+await host.ReplayKafkaTopicAsync(new KafkaReplayRequest
+{
+    Topic = "orders",
+    FromOffset = 0,
+
+    // Used exactly as given. Leave it null to get the generated name described above
+    GroupId = "orders-service-replay"
+});
+```
+
+or from the command line:
+
+```bash
+dotnet run -- kafka-replay orders --from-offset 0 --group-id orders-service-replay
+```
+
+The replay consumer still only uses `Assign()` and never commits offsets, so a fixed group id does not join
+a consumer group or disturb any committed offsets, and you can reuse the same name for every replay.
+
 Replay reads forward to the end boundary and stops cleanly. It is a discrete operation — for *live* seek of
 a running listener, or a CritterWatch control-pane, see the follow-up issues.
 
