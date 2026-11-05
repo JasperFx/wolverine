@@ -32,6 +32,28 @@ public class TryCatchFinallyFrame : Frame
 
     public void AddCatchBlock(Type exceptionType, Frame[] frames)
     {
+        // C# rejects a second catch clause for the same type (CS0160).
+        var existing = _catchBlocks.FirstOrDefault(x => x.ExceptionType == exceptionType);
+        if (existing != null)
+        {
+            // The merged handlers share one scope, so a variable can't reuse an earlier handler's name (CS0128).
+            var used = existing.Frames.SelectMany(x => x.Creates).Select(x => x.Usage).ToHashSet();
+            foreach (var variable in frames.SelectMany(x => x.Creates).Where(x => !x.VariableType.IsValueTuple()))
+            {
+                var name = variable.Usage;
+                for (var i = 1; used.Contains(name); i++)
+                {
+                    name = $"{variable.Usage}{i}";
+                }
+
+                variable.OverrideName(name);
+                used.Add(name);
+            }
+
+            existing.Frames = [..existing.Frames, ..frames];
+            return;
+        }
+
         _catchBlocks.Add(new CatchBlock(exceptionType, frames));
         SortCatchBlocks();
     }
@@ -212,7 +234,7 @@ public class CatchBlock
     }
 
     public Type ExceptionType { get; }
-    public Frame[] Frames { get; }
+    public Frame[] Frames { get; internal set; }
     public Variable ExceptionVariable { get; }
 
     internal static string DefaultExceptionVariableName(Type exceptionType)
