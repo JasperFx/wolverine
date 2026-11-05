@@ -80,7 +80,7 @@
          family. 5.0.1: jasperfx#1086, AssemblyGenerator shares one Roslyn MetadataReference per
          assembly path across compilations instead of re-reading every referenced PE image into
          native memory for each one. -->
-    <PackageVersion Include="JasperFx.RuntimeCompiler" Version="5.0.1" />
+    <PackageVersion Include="JasperFx.RuntimeCompiler" Version="5.1.0" />
     <PackageVersion Include="JasperFx.SourceGenerator" Version="2.99.0" />
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="16.0.0" />
     <PackageVersion Include="Marten" Version="9.54.1" />

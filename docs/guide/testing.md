@@ -360,6 +360,30 @@ HTTP endpoints compile on their first request in the same way; `WarmUpRoutes = R
 [the HTTP docs](/guide/http/#eager-warmup)) builds them at startup instead. Pre-generated code
 (`TypeLoadMode.Static`) does no compilation at runtime at all.
 
+### Reusing compiled assemblies across hosts
+
+In `Dynamic` mode every host compiles its own generated code as it starts, so a process that starts many hosts of one
+application (a test suite on Alba 9's host pools, say) compiles identical source once per host. Opt in to a
+process-wide cache of the compiled assemblies:
+
+```csharp
+builder.UseWolverine(opts =>
+{
+    // A host whose generated source and referenced assemblies match an
+    // earlier compilation in this process is handed that assembly
+    opts.CodeGeneration.ReuseCompiledAssemblies = true;
+});
+```
+
+It is off by default and only matters when something compiles: `Dynamic` mode, or `Auto` when it falls back to
+compiling. `Static` mode never compiles. The cached assemblies live for the life of the process, as compiled assemblies
+already do.
+
+It helps most when you start many hosts, or compile chains at startup (the warm-up above, or eager HTTP route
+warm-up). JasperFx measured a 585-test suite on three pooled hosts going from 513 compilations to 158, and from about
+17-18 s to 11 s. It barely helps when chains compile lazily per test host, which is the case for Wolverine's own test
+suite: there it measured 2-6% of a run's CPU.
+
 ### Forcing projection catch-up outside a tracked session
 
 Under `UseWolverineManagedEventSubscriptionDistribution` the Marten store runs in
