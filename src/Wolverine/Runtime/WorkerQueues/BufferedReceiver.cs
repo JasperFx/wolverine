@@ -127,8 +127,16 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     /// </summary>
     protected virtual bool RebuildsFaultedBlock => false;
 
+    // Set on the faulting block's own thread and read without a lock on every enqueue, so a volatile field: an
+    // enqueue right after the fault has to see it, or it posts to the dead block (GH-5358)
+    private volatile bool _hasFaulted;
+
     /// <summary>CritterWatch#942 — set when the receiving block faults terminally (jasperfx#506).</summary>
-    public bool HasFaulted { get; private set; }
+    public bool HasFaulted
+    {
+        get => _hasFaulted;
+        private set => _hasFaulted = value;
+    }
 
     private IBlock<Envelope> currentBlock()
     {
@@ -139,13 +147,17 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             if (!HasFaulted || _drained) return _receivingBlock;
 
             // Whatever the faulted block still held is lost, as it would be in a crash; the queue is in-memory.
+            // A faulted block's Count freezes at what it held, so it is the number of envelopes lost.
             var faulted = _receivingBlock;
+            var lost = faulted.Count;
             _receivingBlock = buildReceivingBlock();
             HasFaulted = false;
 
             _ = faulted.DisposeAsync().AsTask().ContinueWith(_ => { }, TaskScheduler.Default);
 
-            _logger.LogWarning("The faulted local worker queue for {Uri} was replaced with a new one", Uri);
+            _logger.LogWarning(
+                "The faulted local worker queue for {Uri} was replaced with a new one. {Lost} envelope(s) still buffered in the faulted queue were lost and will not be executed",
+                Uri, lost);
 
             return _receivingBlock;
         }
