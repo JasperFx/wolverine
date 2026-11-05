@@ -83,4 +83,35 @@ public class marten_concurrency_problem_details(AppFixture fixture) : Integratio
         typeof(global::JasperFx.Events.EventStreamUnexpectedMaxEventIdException)
             .IsAssignableTo(typeof(ConcurrencyException)).ShouldBeTrue();
     }
+
+    [Fact]
+    public async Task several_failed_version_checks_in_one_commit_become_a_409()
+    {
+        var created = await Host.Scenario(x =>
+        {
+            x.Post.Url("/seatnotes/create");
+            x.StatusCodeShouldBeOk();
+        });
+
+        var ids = JsonSerializer.Deserialize<Guid[]>(await created.ReadAsTextAsync())!;
+
+        var result = await Host.Scenario(x =>
+        {
+            x.Post.Json(new SeatNoteIds(ids)).ToUrl("/seatnotes/aggregate-conflict");
+            x.StatusCodeShouldBe(409);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+
+        (await result.ReadAsTextAsync()).ShouldContain("Optimistic concurrency check failed");
+    }
+
+    [Fact]
+    public async Task an_aggregate_with_a_non_concurrency_failure_is_not_mapped_to_409()
+    {
+        await Host.Scenario(x =>
+        {
+            x.Post.Url("/seatnotes/mixed-aggregate");
+            x.StatusCodeShouldBe(500);
+        });
+    }
 }

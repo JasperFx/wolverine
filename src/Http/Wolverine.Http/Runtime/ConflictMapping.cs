@@ -34,6 +34,25 @@ public static class ConcurrencyExceptionMiddleware
     {
         return ConflictMapping.ToProblemDetails(ex);
     }
+
+    /// <summary>
+    /// A commit that fails several version checks at once (Marten's <c>SaveChangesAsync</c> with two
+    /// <c>[UseOptimisticConcurrency]</c> documents, say) throws an <see cref="AggregateException"/> carrying one
+    /// <see cref="ConcurrencyException"/> per failed check. Still a lost race, still the client's to retry.
+    /// </summary>
+    public static ProblemDetails OnException(AggregateException ex)
+    {
+        return ConflictMapping.ToProblemDetails(ex);
+    }
+
+    /// <summary>
+    /// Becomes <c>catch (AggregateException ex) when (...)</c>, so an aggregate with anything other than
+    /// concurrency failures in it is not swallowed here but falls through to the sibling catch clauses.
+    /// </summary>
+    public static bool OnExceptionFilter(AggregateException ex)
+    {
+        return ConflictMapping.IsConflict(ex);
+    }
 }
 
 /// <summary>
@@ -43,6 +62,16 @@ public static class ConcurrencyExceptionMiddleware
 public static class ConflictMapping
 {
     public const int ConflictStatusCode = 409;
+
+    /// <summary>
+    /// True when the aggregate is non-empty and every leaf exception, however deeply nested, is a
+    /// <see cref="ConcurrencyException"/>.
+    /// </summary>
+    public static bool IsConflict(AggregateException ex)
+    {
+        var inner = ex.Flatten().InnerExceptions;
+        return inner.Count > 0 && inner.All(x => x is ConcurrencyException);
+    }
 
     public static ProblemDetails ToProblemDetails(Exception ex)
     {
