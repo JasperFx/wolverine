@@ -71,7 +71,7 @@ public class EnvelopeTables_recovery_index_creation : IAsyncLifetime
         await assertScheduledIndexExistsAsync("env_idx_part");
     }
 
-    // GH-XXXX: the scheduled-message poll's own statement, explained against an inbox that looks like
+    // GH-5346: the scheduled-message poll's own statement, explained against an inbox that looks like
     // a busy one -- mostly retained Handled rows, a small Scheduled slice -- must range-scan the
     // scheduled index in execution_time order rather than scan the whole table and sort it.
     [Fact]

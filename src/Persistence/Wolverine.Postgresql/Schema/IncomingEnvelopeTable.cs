@@ -81,7 +81,7 @@ internal class IncomingEnvelopeTable : Table
             Predicate = $"{DatabaseConstants.Status} = 'Handled'"
         });
 
-        // GH-XXXX: the scheduled-message poll asks `status = 'Scheduled' and execution_time <= now
+        // GH-5346: the scheduled-message poll asks `status = 'Scheduled' and execution_time <= now
         // order by execution_time limit N` every ScheduledJobPollingTime, inside the advisory-lock
         // transaction, and nothing above serves it — a full scan plus a sort of an inbox dominated by
         // retained Handled rows. SQL Server got this index in GH-4318. Partial on the Scheduled slice
