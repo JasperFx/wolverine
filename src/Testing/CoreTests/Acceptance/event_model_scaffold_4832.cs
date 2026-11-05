@@ -373,6 +373,22 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
+    public void an_automation_reacting_to_several_events_is_one_handler_class_with_a_Handle_per_event()
+    {
+        // GH-5361
+        var result = plan(declared(m => m.Automation("NotifyOfNewLead")
+            .On("LeadCaptured").On("LeadContactAdded").On("LeadMessageReceived")
+            .Emits("LeadNotificationSent")));
+
+        result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.UnknownTrigger);
+        var code = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "NotifyOfNewLead.cs")).Code;
+        code.Split("public static class NotifyOfNewLeadHandler").Length.ShouldBe(2);
+        code.ShouldContain("Handle(LeadCaptured leadCaptured)");
+        code.ShouldContain("Handle(LeadContactAdded leadContactAdded)");
+        code.ShouldContain("Handle(LeadMessageReceived leadMessageReceived)");
+    }
+
+    [Fact]
     public void a_view_declared_by_name_gets_apply_methods_for_the_events_it_folds()
     {
         var result = plan(declared(m => m.View("AppointmentsQueue").From<AppointmentConfirmed>()));
