@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
@@ -497,6 +498,12 @@ public class WolverineHttpOptions
     }
 
     /// <summary>
+    /// The factory set by <c>MapConcurrencyFailuresToConflict(toProblemDetails: ...)</c>. Read by the
+    /// conflict middleware at request time; null means the default shape.
+    /// </summary>
+    public Func<Exception, ProblemDetails>? ConflictProblemDetailsFactory { get; set; }
+
+    /// <summary>
     /// GH-4512. Map the Critter Stack's commit-time concurrency failures onto a 409 ProblemDetails response
     /// instead of letting them escape as an unhandled 500, and advertise the 409 in the OpenAPI document.
     ///
@@ -519,9 +526,16 @@ public class WolverineHttpOptions
     /// Which chains the mapping applies to. Defaults to the transactional chains -- the only ones that
     /// commit a unit of work, and so the only ones that can raise a commit-time concurrency failure.
     /// </param>
-    public void MapConcurrencyFailuresToConflict(Func<HttpChain, bool>? filter = null)
+    /// <param name="toProblemDetails">
+    /// Optional factory that builds the ProblemDetails for the exception instead of the default, whose
+    /// <c>Detail</c> is the exception message. Use it to keep type names and ids out of the response, set
+    /// <c>Type</c>, or add extension members. A null <c>Status</c> is filled in as 409.
+    /// </param>
+    public void MapConcurrencyFailuresToConflict(Func<HttpChain, bool>? filter = null,
+        Func<Exception, ProblemDetails>? toProblemDetails = null)
     {
         filter ??= ConflictMapping.IsTransactional;
+        if (toProblemDetails != null) ConflictProblemDetailsFactory = toProblemDetails;
 
         AddMiddleware(typeof(ConcurrencyExceptionMiddleware), filter);
         Policies.Add(new ConflictProblemPolicy(filter));
