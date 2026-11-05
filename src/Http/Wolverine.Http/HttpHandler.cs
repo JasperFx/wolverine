@@ -513,7 +513,11 @@ public abstract partial class HttpHandler
     {
         if (string.IsNullOrWhiteSpace(deduplicationId)) return null;
 
-        if (resource is IResult result) return completeDeduplicatedResult(context, deduplicationId, result);
+        // By the declared type, which picked the response writer: an IResult returned as object is written as JSON
+        if (typeof(IResult).IsAssignableFrom(typeof(T)) && resource is IResult result)
+        {
+            return completeDeduplicatedResult(context, deduplicationId, result);
+        }
 
         var status = resource is null ? missingResourceStatusCode : context.Response.StatusCode;
         if (status >= 400) return null;
@@ -549,9 +553,12 @@ public abstract partial class HttpHandler
     private static bool isReplayableResult(Type type)
         => _replayableResults.Contains(type.IsGenericType ? type.GetGenericTypeDefinition() : type);
 
+    private static bool isResultUnion(Type type)
+        => type.IsGenericType && _resultUnions.Contains(type.GetGenericTypeDefinition());
+
     internal static bool CanReplayResultOf(Type resultType)
     {
-        if (resultType.IsGenericType && _resultUnions.Contains(resultType.GetGenericTypeDefinition()))
+        if (isResultUnion(resultType))
         {
             return resultType.GetGenericArguments().Any(CanReplayResultOf);
         }
@@ -563,13 +570,14 @@ public abstract partial class HttpHandler
                 (implemented.IsGenericType ? implemented.GetGenericTypeDefinition() : implemented) == definition));
         }
 
-        return typeof(INestedHttpResult).IsAssignableFrom(resultType) || isReplayableResult(resultType);
+        return isReplayableResult(resultType);
     }
 
     private static DeduplicatedResponse? completeDeduplicatedResult(HttpContext context, string deduplicationId,
         IResult result)
     {
-        while (result is INestedHttpResult nested) result = nested.Result;
+        // Only ASP.NET Core's unions are known to write exactly what the arm they hold writes
+        while (isResultUnion(result.GetType()) && result is INestedHttpResult nested) result = nested.Result;
 
         var status = (result as IStatusCodeHttpResult)?.StatusCode ?? context.Response.StatusCode;
         if (status >= 400 || result is ChallengeHttpResult or ForbidHttpResult) return null;

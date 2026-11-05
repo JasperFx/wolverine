@@ -376,6 +376,22 @@ public class deduplicated_with_response : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_result_declared_as_object_is_replayed_as_the_json_it_was_written_as()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("object-result");
+
+        var first = await postAsync(request, key, 200, url: "/deduplicated-response/object-result");
+        var repeat = await postAsync(request, key, 200, url: "/deduplicated-response/object-result");
+
+        var body = await first.ReadAsTextAsync();
+        body.ShouldContain("\"location\"");
+        (await repeat.ReadAsTextAsync()).ShouldBe(body);
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task a_no_content_result_is_replayed_with_no_body()
     {
         var key = Guid.NewGuid().ToString();
@@ -699,6 +715,14 @@ public static class DeduplicatedResponseEndpoints
     {
         Count(request.Name);
         return TypedResults.Ok<DeduplicatedAnswer>(new DetailedDeduplicatedAnswer(request.Name, Guid.NewGuid().ToString()));
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/object-result")]
+    public static object PostObjectResult(DeduplicatedOrder request)
+    {
+        var created = run(request);
+        return TypedResults.Created($"/deduplicated-response/orders/{created.Id}", created);
     }
 
     [DeduplicatedWithResponse(DeduplicationScope.User)]

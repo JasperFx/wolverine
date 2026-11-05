@@ -62,6 +62,14 @@ public class deduplicated_with_response_declaration
     }
 
     [Fact]
+    public void a_custom_nested_result_is_refused_at_startup()
+    {
+        Should.Throw<NotSupportedException>(() =>
+                HttpChain.ChainFor(typeof(EnvelopeResultDeduplicatedResponse), "Post"))
+            .Message.ShouldContain(nameof(EnvelopeResult));
+    }
+
+    [Fact]
     public void a_result_union_with_a_replayable_arm_is_not_refused()
     {
         Should.NotThrow(() => HttpChain.ChainFor(typeof(UnionResultDeduplicatedResponse), "Post"));
@@ -395,6 +403,22 @@ public interface ITextResult : IResult;
 public record TextResult(string Text) : ITextResult
 {
     public Task ExecuteAsync(HttpContext httpContext) => httpContext.Response.WriteAsync(Text);
+}
+
+[WolverineIgnore]
+public static class EnvelopeResultDeduplicatedResponse
+{
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/declaration/envelope-result")]
+    public static EnvelopeResult Post(DeduplicatedOrder request)
+        => new(TypedResults.Ok(new DeduplicatedOrderCreated(Guid.NewGuid())));
+}
+
+// Holds an Ok, but writes it inside an envelope, so a replay of the Ok alone would differ
+public record EnvelopeResult(IResult Result) : IResult, INestedHttpResult
+{
+    public Task ExecuteAsync(HttpContext httpContext)
+        => httpContext.Response.WriteAsJsonAsync(new { data = (Result as IValueHttpResult)?.Value });
 }
 
 [WolverineIgnore]
