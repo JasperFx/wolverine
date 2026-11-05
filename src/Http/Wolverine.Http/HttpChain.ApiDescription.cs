@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -424,13 +425,20 @@ public partial class HttpChain
         foreach (var querystringVariable in _querystringVariables)
         {
             var variableType = describedParameterType(querystringVariable.VariableType);
+
+            // A single-value wrapper is described as the value it wraps, so its parameter's attributes and default
+            // would describe the wrong type
+            var boundParameter = querystringVariable.BoundParameter?.ParameterType == variableType
+                ? querystringVariable.BoundParameter
+                : null;
+
             var parameterDescription = new ApiParameterDescription
             {
                 Name = querystringVariable.Name,
                 ModelMetadata = new EndpointModelMetadata(variableType),
                 Source = BindingSource.Query,
                 DefaultValue = querystringVariable.DeclaredDefaultValue, // GH-5099
-                ParameterDescriptor = querystringVariable.BoundParameter is { } boundParameter
+                ParameterDescriptor = boundParameter is not null
                     ? new ControllerParameterDescriptor
                     {
                         Name = querystringVariable.Name,
@@ -439,7 +447,7 @@ public partial class HttpChain
                     }
                     : null!,
                 Type = variableType,
-                IsRequired = false
+                IsRequired = boundParameter?.IsDefined(typeof(RequiredAttribute), true) ?? false
             };
 
             apiDescription.ParameterDescriptions.Add(parameterDescription);

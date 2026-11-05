@@ -203,6 +203,23 @@ public static class AnnotatedSimpleQueryStringEndpoint
         => $"{code}:{limit}";
 }
 
+public class AnnotatedAsParametersQuery
+{
+    [FromQuery]
+    [Required]
+    [MaxLength(10)]
+    public string Code { get; set; } = null!;
+}
+
+public record AnnotatedAsParametersRecord([FromQuery] [Range(1, 100)] int Limit);
+
+public static class AnnotatedAsParametersEndpoint
+{
+    [WolverineGet("/shapes/asparameters-annotated")]
+    public static string Get([AsParameters] AnnotatedAsParametersQuery query,
+        [AsParameters] AnnotatedAsParametersRecord paging) => $"{query.Code}:{paging.Limit}";
+}
+
 public record AnnotatedSearchRecord([Required] [MaxLength(10)] string Code, [Range(1, 100)] int Limit);
 
 public static class AnnotatedComplexQueryStringRecordEndpoint

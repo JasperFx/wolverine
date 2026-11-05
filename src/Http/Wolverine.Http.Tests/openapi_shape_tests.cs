@@ -258,6 +258,17 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
     }
 
     [Fact]
+    public void as_parameters_query_member_annotations_describe_the_parameters()
+    {
+        var code = parameterFor("/shapes/asparameters-annotated", "get", "Code");
+        code.GetProperty("required").GetBoolean().ShouldBeTrue();
+        code.GetProperty("schema").GetProperty("maxLength").GetInt32().ShouldBe(10);
+
+        var limit = parameterFor("/shapes/asparameters-annotated", "get", "Limit");
+        limit.GetProperty("schema").GetProperty("maximum").GetRawText().ShouldBe("100");
+    }
+
+    [Fact]
     public void as_parameters_route_and_query_members()
     {
         ParametersFor("/shapes/asparameters/orders/{orderId}", "get")

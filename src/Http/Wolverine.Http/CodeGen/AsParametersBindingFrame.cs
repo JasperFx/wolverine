@@ -266,9 +266,15 @@ internal class AsParametersBindingFrame : SyncFrame
         if (parameter.TryGetAttribute<FromQueryAttribute>(out var qatt))
         {
             var queryStringName = qatt.Name ?? memberName;
+            var queryVariable = chain.TryFindOrCreateQuerystringValue(memberType, queryStringName!);
+
+            if (queryVariable is not null)
+            {
+                queryVariable.BoundParameter ??= parameter;
+            }
+
             // GH-5099: a constructor parameter's declared default survives a missing value
-            variable = HttpChain.UseDeclaredDefault(
-                chain.TryFindOrCreateQuerystringValue(memberType, queryStringName!), parameter);
+            variable = HttpChain.UseDeclaredDefault(queryVariable, parameter);
 
             return true;
         }
@@ -332,8 +338,14 @@ internal class AsParametersBindingFrame : SyncFrame
         if (propertyInfo.TryGetAttribute<FromQueryAttribute>(out var qatt))
         {
             var queryStringName = qatt.Name ?? memberName;
-            variable =
-                chain.TryFindOrCreateQuerystringValue(memberType, queryStringName!);
+            var queryVariable = chain.TryFindOrCreateQuerystringValue(memberType, queryStringName!);
+
+            if (queryVariable is not null)
+            {
+                queryVariable.BoundParameter ??= new PropertyAsParameterInfo(propertyInfo);
+            }
+
+            variable = queryVariable;
 
             return true;
         }
