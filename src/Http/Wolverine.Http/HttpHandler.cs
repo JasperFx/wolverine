@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
@@ -597,7 +598,7 @@ public abstract partial class HttpHandler
         try
         {
             // Created.ExecuteAsync sets the header only when Location is not empty.
-            var location = type.GetProperty(nameof(Created.Location))?.GetValue(result) as string;
+            var location = readLocation(result, type);
             if (string.IsNullOrEmpty(location)) location = context.Response.Headers.Location.ToString();
 
             return new DeduplicatedResponse(status,
@@ -611,6 +612,43 @@ public abstract partial class HttpHandler
             return null;
         }
     }
+
+    private static ImHashMap<Type, Func<IResult, string?>> _locationReaders =
+        ImHashMap<Type, Func<IResult, string?>>.Empty;
+
+    // ASP.NET Core has no interface for Location, so Created<T> and Accepted<T> get a getter built once per closed type
+    private static string? readLocation(IResult result, Type type)
+    {
+        switch (result)
+        {
+            case Created created: return created.Location;
+            case Accepted accepted: return accepted.Location;
+        }
+
+        if (!type.IsGenericType) return null;
+
+        if (!_locationReaders.TryFind(type, out var reader))
+        {
+            var definition = type.GetGenericTypeDefinition();
+            var name = definition == typeof(Created<>) ? nameof(readCreatedLocation)
+                : definition == typeof(Accepted<>) ? nameof(readAcceptedLocation)
+                : null;
+
+            reader = name == null
+                ? static _ => null
+                : (Func<IResult, string?>)typeof(HttpHandler)
+                    .GetMethod(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+                    .MakeGenericMethod(type.GetGenericArguments()[0])
+                    .CreateDelegate(typeof(Func<IResult, string?>));
+
+            _locationReaders = _locationReaders.AddOrUpdate(type, reader);
+        }
+
+        return reader(result);
+    }
+
+    private static string? readCreatedLocation<T>(IResult result) => ((Created<T>)result).Location;
+    private static string? readAcceptedLocation<T>(IResult result) => ((Accepted<T>)result).Location;
 
     // As ASP.NET Core's HttpResultsHelper.WriteResultAsJsonAsync writes Ok<T>, Created<T> and Accepted<T>: with its own
     // JsonOptions, as the declared TValue unless the runtime type differs and TValue has no known polymorphism.
