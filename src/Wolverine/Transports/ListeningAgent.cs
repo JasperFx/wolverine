@@ -1084,11 +1084,18 @@ internal class RetryOnInlineChannelCallback : IListener
             _runtime.Logger.LogError(e, "Error trying to mark a message as handled in the transactional inbox");
         }
 
+        // GH-5363. A ParallelListener (ListenerCount > 1) forwards Complete/Defer to envelope.Listener, which is
+        // this callback, so forwarding would recurse forever. An envelope recovered from storage has no broker
+        // delivery on a ParallelListener to settle anyway.
+        if (_inner is ParallelListener) return;
+
         await _inner.CompleteAsync(envelope);
     }
 
     public ValueTask DeferAsync(Envelope envelope)
     {
+        if (_inner is ParallelListener) return ValueTask.CompletedTask;
+
         return _inner.DeferAsync(envelope);
     }
 
