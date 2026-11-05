@@ -139,6 +139,14 @@ public static class EventModelReport
         if (slice.CommandType is { } command) facts.Add($"command: {command.Name}");
         if (slice.StartsStream is { } started) facts.Add($"starts: the {started.Name} stream");
 
+        // jasperfx#1115: a slice can declare the decider beside the stream it starts (or the aggregate it
+        // is Against), and JasperFx 2.100 keeps both, so say both rather than only "starts:"
+        if (slice.StartsStream is not null && slice.DeciderModel is { } decider
+            && slice.AggregateDeclaration != AggregateDeclaration.DeciderModel)
+        {
+            facts.Add($"decider: {decider.Name} (DCB)");
+        }
+
         var aggregates = names(slice.AggregateTypes);
         switch (slice.AggregateDeclaration)
         {
