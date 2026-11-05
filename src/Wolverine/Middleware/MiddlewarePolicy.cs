@@ -25,6 +25,13 @@ public class MiddlewarePolicy : IChainPolicy
     public static readonly string[] FinallyMethodNames = ["Finally", "FinallyAsync"];
     public static readonly string[] OnExceptionMethodNames = ["OnException", "OnExceptionAsync"];
 
+    /// <summary>
+    /// A public static bool method with this name and a single exception parameter, declared next to an
+    /// OnException method taking that same exception type, becomes a <c>when (...)</c> filter on the
+    /// generated catch clause.
+    /// </summary>
+    public const string OnExceptionFilterMethodName = "OnExceptionFilter";
+
     private readonly List<Application> _applications = [];
 
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
@@ -155,7 +162,7 @@ public class MiddlewarePolicy : IChainPolicy
 
         var tryCatchFinally = chain.GetOrCreateTryCatchFinallyFrame();
 
-        foreach (var (exceptionType, call) in exceptionHandlers)
+        foreach (var (exceptionType, call, filter) in exceptionHandlers)
         {
             var frames = new List<Frame> { call };
 
@@ -190,7 +197,7 @@ public class MiddlewarePolicy : IChainPolicy
                 }
             }
 
-            tryCatchFinally.AddCatchBlock(exceptionType, frames.ToArray());
+            tryCatchFinally.AddCatchBlock(exceptionType, frames.ToArray(), filter);
         }
     }
 
@@ -221,6 +228,7 @@ public class MiddlewarePolicy : IChainPolicy
         private readonly ConstructorInfo? _constructor;
         private readonly MethodInfo[] _finals;
         private readonly MethodInfo[] _onExceptions;
+        private readonly MethodInfo[] _onExceptionFilters;
 
         // GetConstructors / GetMethods walk over a runtime-resolved middleware
         // type. Middleware is opt-in (registered explicitly via
@@ -263,6 +271,10 @@ public class MiddlewarePolicy : IChainPolicy
             _afterCommits = FilterMethods<WolverineAfterCommitAttribute>(chain, methods, AfterCommitMethodNames).ToArray();
             _finals = FilterMethods<WolverineFinallyAttribute>(chain, methods, FinallyMethodNames).ToArray();
             _onExceptions = FilterMethods<WolverineOnExceptionAttribute>(chain, methods, OnExceptionMethodNames).ToArray();
+            _onExceptionFilters = methods
+                .Where(x => x.IsStatic && x.Name == OnExceptionFilterMethodName && x.ReturnType == typeof(bool) &&
+                            x.GetParameters().Length == 1)
+                .ToArray();
 
             if (_befores.Length == 0 &&
                 _afters.Length == 0 &&
@@ -450,7 +462,7 @@ public class MiddlewarePolicy : IChainPolicy
             }
         }
 
-        public IEnumerable<(Type ExceptionType, MethodCall Call)> BuildOnExceptionCalls(IChain chain, GenerationRules rules)
+        public IEnumerable<(Type ExceptionType, MethodCall Call, MethodInfo? Filter)> BuildOnExceptionCalls(IChain chain, GenerationRules rules)
         {
             if (!Filter(chain)) yield break;
 
@@ -467,7 +479,8 @@ public class MiddlewarePolicy : IChainPolicy
                 var call = new MethodCall(MiddlewareType, method);
                 chain.ApplyParameterMatching(call);
                 DisambiguateOnExceptionReturnValue(call);
-                yield return (exceptionType, call);
+                var filter = _onExceptionFilters.FirstOrDefault(x => x.GetParameters()[0].ParameterType == exceptionType);
+                yield return (exceptionType, call, filter);
             }
         }
 

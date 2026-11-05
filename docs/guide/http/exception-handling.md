@@ -281,6 +281,15 @@ methods are optimistic and throw `EventStreamUnexpectedMaxEventIdException`, whi
 `ConcurrencyException`.
 :::
 
+A commit that fails more than one version check at once -- two `[UseOptimisticConcurrency]` documents in one
+Marten session, say -- throws an `AggregateException` with one `ConcurrencyException` per failed check. The
+mapping covers that too, but only when *every* inner exception is a concurrency failure. It does so with an
+`OnExceptionFilter` method, which you can use yourself: a `public static bool OnExceptionFilter(TException)`
+declared next to an `OnException(TException)` method, on middleware or on a handler type, is generated as a
+`catch (TException ex) when (...)` clause. An exception the filter rejects is not swallowed or rethrown from
+inside the clause; it falls through to the sibling `OnException` clauses (an `OnException(Exception)`, for
+instance), exactly as if the filtered clause were not there.
+
 ## Unknown Tenants as 404 <Badge type="tip" text="6.39" />
 
 There are two different tenancy failures on an HTTP request, and only one of them was handled:

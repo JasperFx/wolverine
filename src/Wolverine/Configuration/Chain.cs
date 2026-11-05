@@ -490,7 +490,12 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                     frames.Add(continuation!);
                 }
 
-                GetOrCreateTryCatchFinallyFrame().AddCatchBlock(exceptionType, frames.ToArray());
+                var filter = handlerType.GetMethods()
+                    .FirstOrDefault(x => x.IsStatic && x.Name == MiddlewarePolicy.OnExceptionFilterMethodName &&
+                                         x.ReturnType == typeof(bool) && x.GetParameters().Length == 1 &&
+                                         x.GetParameters()[0].ParameterType == exceptionType);
+
+                GetOrCreateTryCatchFinallyFrame().AddCatchBlock(exceptionType, frames.ToArray(), filter);
             }
 
             // Discover Finally methods from handler types
