@@ -238,6 +238,9 @@ internal class MartenOverrides : IConfigureMarten
     {
         options.Events.MessageOutbox = new MartenToWolverineOutbox(services, StoreType);
 
+        // GH-5385: a tracked session hears events committed through sessions Wolverine did not open too
+        options.Listeners.Add(new RecordEventsCommittedOutsideAMessage(services));
+
         // GH-3290: when Wolverine manages the event subscription distribution, it replaces
         // Marten's AddAsyncDaemon() registration outright — Marten hosts no coordinator and
         // starts no agents, but the async projections and subscriptions DO run under

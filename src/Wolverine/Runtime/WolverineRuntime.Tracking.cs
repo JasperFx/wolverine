@@ -82,6 +82,24 @@ public sealed partial class WolverineRuntime : IMessageTracker
     }
 
     /// <summary>
+    ///     GH-5385. Record the streams an event-store session committed that Wolverine did not open -- a Razor page's,
+    ///     a Minimal API's or a controller's own injected session -- against the active tracked session, if there is
+    ///     one. No envelope: it is not a message's commit.
+    /// </summary>
+    internal void RecordAppendedEventsOutsideAMessage(IReadOnlyList<StreamAction> streams,
+        JasperFx.Events.EventStoreIdentity? store, string? tenantId)
+    {
+        if (streams.Count == 0 || ActiveSession is null) return;
+        if (Tracking.ConcurrentAppends.InsideConcurrentAppend.Value) return;
+
+        ActiveSession.RecordAppendedEvents(new AppendedEvents(null, _serviceName, streams)
+        {
+            Store = store,
+            TenantId = tenantId
+        });
+    }
+
+    /// <summary>
     ///     GH-4940. Record one Dynamic Consistency Boundary load against the active tracked session, if there is
     ///     one, attributed to the message <paramref name="context" /> was handling.
     /// </summary>

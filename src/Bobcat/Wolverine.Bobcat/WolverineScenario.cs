@@ -561,7 +561,11 @@ public class WolverineScenario : CritterStackScenario
         if (marks.Count == 0) return outcome;
 
         var unheard = marks.Where(mark => !outcome.Appended.Any(commit => heardOn(commit, mark.Store, marks))).ToList();
-        if (unheard.Count == 0) return outcome;
+        if (unheard.Count == 0)
+        {
+            // GH-5385: a session the application opened itself is heard too, so on several stores say which each came from
+            return marks.Count > 1 ? outcome with { StoreByEvent = storeOfHeardEvents(outcome, marks) } : outcome;
+        }
 
         // Read even after a failure: an act can commit and then throw, and what it committed is a fact
         return mergeReadBack(outcome, await readBackSinceAsync(unheard, outcome.Error), marks);
@@ -576,23 +580,30 @@ public class WolverineScenario : CritterStackScenario
         return hasStore() && ReferenceEquals(EventStore, store);
     }
 
+    private Dictionary<IEvent, IEventStore> storeOfHeardEvents(ActOutcome outcome, IReadOnlyList<StoreHighWaterMark> marks)
+    {
+        var map = new Dictionary<IEvent, IEventStore>(ReferenceEqualityComparer.Instance);
+        foreach (var commit in outcome.Appended)
+        {
+            var store = marks.FirstOrDefault(x => heardOn(commit, x.Store, marks))?.Store;
+            if (store is null) continue;
+            foreach (var e in commit.Events) map[e] = store;
+        }
+
+        return map;
+    }
+
     private ActOutcome mergeReadBack(ActOutcome outcome, CritterStackActOutcome readBack, IReadOnlyList<StoreHighWaterMark> marks)
     {
-        if (readBack.AllNewEvents.Count == 0 && readBack.ForeignEvents.Count == 0) return outcome;
+        if (readBack.AllNewEvents.Count == 0 && readBack.ForeignEvents.Count == 0)
+            return marks.Count > 1 ? outcome with { StoreByEvent = storeOfHeardEvents(outcome, marks) } : outcome;
 
         // Which store every event came from, when there was a choice: what the tracked session heard, by the
         // store each commit names, and what was read back, by the store it was read from
         IReadOnlyDictionary<IEvent, IEventStore> byEvent = CritterStackActOutcome.NoStores;
         if (marks.Count > 1)
         {
-            var map = new Dictionary<IEvent, IEventStore>(ReferenceEqualityComparer.Instance);
-            foreach (var commit in outcome.Appended)
-            {
-                var store = marks.FirstOrDefault(x => heardOn(commit, x.Store, marks))?.Store;
-                if (store is null) continue;
-                foreach (var e in commit.Events) map[e] = store;
-            }
-
+            var map = storeOfHeardEvents(outcome, marks);
             foreach (var (e, store) in readBack.StoreByEvent) map[e] = store;
             byEvent = map;
         }
