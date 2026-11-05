@@ -80,5 +80,18 @@ internal class IncomingEnvelopeTable : Table
             Columns = [DatabaseConstants.KeepUntil],
             Predicate = $"{DatabaseConstants.Status} = 'Handled'"
         });
+
+        // GH-XXXX: the scheduled-message poll asks `status = 'Scheduled' and execution_time <= now
+        // order by execution_time limit N` every ScheduledJobPollingTime, inside the advisory-lock
+        // transaction, and nothing above serves it — a full scan plus a sort of an inbox dominated by
+        // retained Handled rows. SQL Server got this index in GH-4318. Partial on the Scheduled slice
+        // so the poll is an index range scan already in execution_time order, and an empty probe when
+        // nothing is due. The durability pass's due-scheduled load and count and the scheduled-message
+        // admin listing filter on the same slice.
+        Indexes.Add(new IndexDefinition(PostgresqlIdentifier.Shorten($"idx_{DatabaseConstants.IncomingTable}_scheduled"))
+        {
+            Columns = [DatabaseConstants.ExecutionTime],
+            Predicate = $"{DatabaseConstants.Status} = 'Scheduled'"
+        });
     }
 }
