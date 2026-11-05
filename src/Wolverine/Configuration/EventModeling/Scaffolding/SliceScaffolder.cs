@@ -122,6 +122,12 @@ public static class ScaffoldNoticeCodes
     ///     non-strong) <c>Id</c>, so it keeps that identity.
     /// </summary>
     public const string ExistingAggregateKeepsIdentity = "existing-aggregate-keeps-identity";
+
+    /// <summary>
+    ///     GH-5360. A slice decides against one stream and starts another (or works against several), and
+    ///     <c>Emits&lt;T&gt;()</c> does not say which stream each event belongs to, so no Apply methods were planned.
+    /// </summary>
+    public const string EmittedEventStreamAmbiguous = "emitted-event-stream-ambiguous";
 }
 
 /// <summary>One line of the scaffold report.</summary>
@@ -1267,15 +1273,38 @@ public static class SliceScaffolder
                 return;
             }
 
-            // The events this slice appends belong to the aggregates it works against
-            foreach (var aggregate in slice.AggregateTypes)
+            // The events this slice appends belong to the aggregates it works against. Emits<T>() carries no
+            // stream, so with more than one stream on the slice an event could belong to any of them: planning
+            // it as an Apply on all of them is a cross product, most of it wrong (GH-5360). Plan none, and say so.
+            var emitTargets = slice.AggregateTypes.ToList();
+            if (slice.StartsStream is { } startedStream &&
+                !emitTargets.Any(x => EventModelSliceDescriptor.SameType(x, startedStream)))
             {
-                stateType(aggregate, slice, isView: false).Events.AddRange(slice.EmittedEvents);
+                emitTargets.Add(startedStream);
             }
 
-            if (slice.StartsStream is { } started)
+            // A slice that only decides against several streams keeps its Applies (GH-4895); it is the slice that
+            // also STARTS a stream of another type whose events cannot be told apart
+            if (emitTargets.Count > 1 && slice.StartsStream is not null && slice.AggregateTypes.Count > 0 &&
+                slice.EmittedEvents.Count > 0)
             {
-                stateType(started, slice, isView: false).Events.AddRange(slice.EmittedEvents);
+                Notices.Add(notice(ScaffoldNoticeCodes.EmittedEventStreamAmbiguous, ScaffoldNoticeKind.Warning, slice.Name,
+                    $"the slice emits {slice.EmittedEvents.Count} event(s) and works against {emitTargets.Count} emitTargets " +
+                    $"({string.Join(", ", emitTargets.Select(x => x.Name))}); Emits<T>() does not say which stream each event " +
+                    "belongs to, so no Apply methods were written for this slice. Add the Apply/Create methods to the " +
+                    "aggregate each event belongs to by hand."));
+            }
+            else
+            {
+                foreach (var aggregate in slice.AggregateTypes)
+                {
+                    stateType(aggregate, slice, isView: false).Events.AddRange(slice.EmittedEvents);
+                }
+
+                if (slice.StartsStream is { } started)
+                {
+                    stateType(started, slice, isView: false).Events.AddRange(slice.EmittedEvents);
+                }
             }
 
             var file = new SliceFile(this, appendTo is null ? namespaceFor(slice) : null);
