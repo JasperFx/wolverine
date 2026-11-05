@@ -174,7 +174,20 @@ public class MiddlewarePolicy : IChainPolicy
                 // Must be the catch-safe frame: CaptureCascadingMessages is a MethodCall whose
                 // FindVariables would expose the dependency on the OnException call's return variable,
                 // making the arranger pre-link the catch frames and collide with TryCatchFinallyFrame.
-                frames.Add(new CaptureCascadingMessagesInCatch(call.ReturnVariable));
+                //
+                // A tuple return has one variable per element and its ReturnVariable's usage is the whole
+                // deconstruction "(var a, var b)", which is not an expression, so cascade each element.
+                if (call.Creates.Count() > 1)
+                {
+                    foreach (var element in call.Creates)
+                    {
+                        frames.Add(new CaptureCascadingMessagesInCatch(element));
+                    }
+                }
+                else
+                {
+                    frames.Add(new CaptureCascadingMessagesInCatch(call.ReturnVariable));
+                }
             }
 
             tryCatchFinally.AddCatchBlock(exceptionType, frames.ToArray());
