@@ -23,10 +23,14 @@ internal class StartDatabaseTransactionForDbContext : AsyncFrame
     private Variable _cancellation = null!;
     private Variable? _context;
 
-    public StartDatabaseTransactionForDbContext(Type dbContextType, IdempotencyStyle idempotencyStyle)
+    private readonly System.Data.IsolationLevel? _isolationLevel;
+
+    public StartDatabaseTransactionForDbContext(Type dbContextType, IdempotencyStyle idempotencyStyle,
+        System.Data.IsolationLevel? isolationLevel = null)
     {
         _dbContextType = dbContextType;
         _idempotencyStyle = idempotencyStyle;
+        _isolationLevel = isolationLevel;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -34,7 +38,7 @@ internal class StartDatabaseTransactionForDbContext : AsyncFrame
         writer.Write("BLOCK:try");
 
         writer.Write($"BLOCK:if ({_dbContext.Usage}.Database.CurrentTransaction == null)");
-        writer.Write($"await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
+        writer.Write($"await {IsolationLevelCode.CSharpBeginTransaction(_dbContext.Usage, _isolationLevel, _cancellation.Usage)}.ConfigureAwait(false);");
         writer.FinishBlock();
 
         // EF Core can only do eager idempotent checks. GH-4128: this is emitted exactly once, and
