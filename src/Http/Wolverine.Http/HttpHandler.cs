@@ -537,7 +537,6 @@ public abstract partial class HttpHandler
         }
     }
 
-    // The results whose whole response is their status, JSON value and Location, so a replay writes the same bytes
     private static readonly HashSet<Type> _replayableResults =
     [
         typeof(Ok), typeof(Ok<>), typeof(Created), typeof(Created<>), typeof(Accepted), typeof(Accepted<>),
@@ -550,10 +549,6 @@ public abstract partial class HttpHandler
     private static bool isReplayableResult(Type type)
         => _replayableResults.Contains(type.IsGenericType ? type.GetGenericTypeDefinition() : type);
 
-    /// <summary>
-    /// Can a declared <paramref name="resultType" /> ever be a stored result? An interface a replayable result
-    /// implements, or a nested result other than <c>Results&lt;...&gt;</c>, is decided per request.
-    /// </summary>
     internal static bool CanReplayResultOf(Type resultType)
     {
         if (resultType.IsGenericType && _resultUnions.Contains(resultType.GetGenericTypeDefinition()))
@@ -571,10 +566,6 @@ public abstract partial class HttpHandler
         return typeof(INestedHttpResult).IsAssignableFrom(resultType) || isReplayableResult(resultType);
     }
 
-    /// <summary>
-    /// An <see cref="IResult" /> has not executed yet, so its response is described from the result, as its
-    /// <c>ExecuteAsync</c> will write it.
-    /// </summary>
     private static DeduplicatedResponse? completeDeduplicatedResult(HttpContext context, string deduplicationId,
         IResult result)
     {
@@ -589,7 +580,6 @@ public abstract partial class HttpHandler
 
         if (!isReplayableResult(type))
         {
-            // The work is done, so the claim stays: repeats get 409 until it expires rather than running it again.
             context.RequestServices.GetService<ILogger<DeduplicatedResponses>>()?.LogError(
                 "The {ResultType} answering deduplicated id '{DeduplicationId}' is not stored, because it writes more than a status, a JSON body and a Location",
                 type.FullNameInCode(), deduplicationId);
@@ -598,8 +588,7 @@ public abstract partial class HttpHandler
 
         try
         {
-            // Created and Accepted, with or without a value; ExecuteAsync sets the header only when it is not empty.
-            // Any other result leaves whatever Location the endpoint set on the response.
+            // Created.ExecuteAsync sets the header only when Location is not empty.
             var location = type.GetProperty(nameof(Created.Location))?.GetValue(result) as string;
             if (string.IsNullOrEmpty(location)) location = context.Response.Headers.Location.ToString();
 

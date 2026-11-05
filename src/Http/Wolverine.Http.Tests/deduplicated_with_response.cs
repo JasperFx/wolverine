@@ -361,7 +361,6 @@ public class deduplicated_with_response : IAsyncLifetime
     [Fact]
     public async Task an_ok_result_is_replayed_as_its_value_was_written()
     {
-        // The declared value type is a base record; the result writes the derived one's members, so must the replay
         var key = Guid.NewGuid().ToString();
         var request = new DeduplicatedOrder("ok-result");
 
@@ -437,8 +436,6 @@ public class deduplicated_with_response : IAsyncLifetime
     [Fact]
     public async Task a_result_that_cannot_be_stored_keeps_the_claim_and_refuses_repeats()
     {
-        // A text result writes text/plain, which a replay cannot reproduce. The work was done, so it is not run
-        // again, and there is no response to answer with
         var key = Guid.NewGuid().ToString();
         var request = new DeduplicatedOrder("text-result");
 

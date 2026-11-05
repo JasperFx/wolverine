@@ -295,8 +295,7 @@ public partial class HttpChain
     /// <summary>Called from DetermineFrames once the response writer is chosen.</summary>
     private void assertDeduplicatedWithResponseIsJson()
     {
-        // The stored body is System.Text.Json; any other writer would replay different bytes. An IResult is
-        // described per request by HttpHandler.CompleteDeduplicatedRequest, which stores only the results it can.
+        // The stored body is System.Text.Json; any other writer would replay different bytes.
         if (DeduplicatedWithResponse != null && !Postprocessors.OfType<WriteJsonFrame>().Any() &&
             !typeof(IResult).IsAssignableFrom(ResourceType))
         {

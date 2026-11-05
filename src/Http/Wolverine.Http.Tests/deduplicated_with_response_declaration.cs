@@ -344,7 +344,7 @@ public class deduplicated_with_response_declaration
     }
 }
 
-// The six below are invalid on purpose. Hidden from discovery, so no other host scanning this assembly fails
+// The ones below are invalid on purpose. Hidden from discovery, so no other host scanning this assembly fails
 // to start; the tests build their chains directly.
 
 [WolverineIgnore]
