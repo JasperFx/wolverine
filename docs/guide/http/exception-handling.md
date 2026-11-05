@@ -207,6 +207,23 @@ app.MapWolverineEndpoints(opts =>
 });
 ```
 
+### More than one middleware catching the same exception type <Badge type="tip" text="6.62" />
+
+It's possible to end up with two middleware types that both have an `OnException` method for the same
+exception type, for example `MapMartenConcurrencyFailuresToConflict()` next to your own
+`ConcurrencyException` middleware. In that case Wolverine puts both `OnException` methods in the same
+`catch` block, in the order the middleware was registered. If the first one writes a response, returns a
+value that ends the request, or rethrows, the later ones never run, just as a `Before` method that stops the
+chain keeps the later middleware from running. The same applies to message handlers.
+
+::: tip
+If there is any doubt about which `OnException` method runs first, or how the catch blocks are ordered by
+exception type, don't depend on the conventions. Write an explicit `try/catch` in your handler or endpoint
+method instead, where the order is right there in your own code. Either way, the generated code is the final
+word on what actually happens. Use `dotnet run -- codegen preview` or `codegen write` to look at the
+`catch` blocks Wolverine generated for that chain. See [Working with Code Generation](/guide/codegen).
+:::
+
 ## Concurrency Conflicts as 409 <Badge type="tip" text="6.39" />
 
 An endpoint using `[WriteAggregate]`, `[Aggregate]`, or any chain that commits a session can lose an
