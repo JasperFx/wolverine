@@ -575,6 +575,17 @@ opts.MessagePartitioning.PublishToShardedPostgresqlQueues("orders", 4, topology 
 });
 ```
 
+`PublishToShardedPostgresqlQueues()` still *listens* to the shard queues on the publishing node. If
+another application consumes the queues, use `PublishOnlyToShardedPostgresqlQueues()` so this node only
+provisions and publishes to them:
+
+```cs
+opts.MessagePartitioning.PublishOnlyToShardedPostgresqlQueues("orders", 4, topology =>
+{
+    topology.MessagesImplementing<IOrderMessage>();
+});
+```
+
 ::: info Long base names
 PostgreSQL truncates identifiers at `NAMEDATALEN` (63 characters by default). Wolverine runs every
 queue table name through Weasel's deterministic shortening helper, so a long sharded base name still

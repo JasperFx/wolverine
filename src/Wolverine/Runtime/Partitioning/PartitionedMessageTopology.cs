@@ -10,6 +10,13 @@ public abstract class PartitionedMessageTopology<TListener, TSubscriber> : Parti
 {
     private PartitionSlots _listeningSlots;
 
+    /// <summary>
+    /// When true, this topology only publishes to its sharded endpoints and never registers a listener
+    /// for them on this node. <see cref="ConfigureListening" /> and <see cref="MaxDegreeOfParallelism" />
+    /// then have no listening effect. Set it in a derived constructor.
+    /// </summary>
+    protected bool PublishOnly { get; set; }
+
     public PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
     {
         if (listeningSlots.HasValue)
@@ -60,6 +67,8 @@ public abstract class PartitionedMessageTopology<TListener, TSubscriber> : Parti
     
     public void ConfigureListening(Action<TListener> configure)
     {
+        if (PublishOnly) return;
+
         foreach (var name in _names)
         {
             var listener = buildListener(_options, name);
