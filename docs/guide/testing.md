@@ -379,6 +379,11 @@ It is off by default and only matters when something compiles: `Dynamic` mode, o
 compiling. `Static` mode never compiles. The cached assemblies live for the life of the process, as compiled assemblies
 already do.
 
+The flag is proven by tests for message handler chains in `Dynamic` and `Auto` modes, for HTTP endpoint chains in
+`Dynamic` and `Auto` modes, and for hosts started after the `codegen test` and `codegen write` commands have run with
+the flag on: in each case, hosts in one process share one compiled assembly per chain and the chains still behave
+correctly.
+
 It helps most when you start many hosts, or compile chains at startup (the warm-up above, or eager HTTP route
 warm-up). JasperFx measured a 585-test suite on three pooled hosts going from 513 compilations to 158, and from about
 17-18 s to 11 s. It barely helps when chains compile lazily per test host, which is the case for Wolverine's own test
