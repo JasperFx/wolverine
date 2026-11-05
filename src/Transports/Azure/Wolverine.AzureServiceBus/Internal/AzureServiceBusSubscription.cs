@@ -110,6 +110,12 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
     {
         try
         {
+            if (Topic.IsExternallyOwned && !(await client.TopicExistsAsync(Topic.TopicName)).Value)
+            {
+                throw new InvalidOperationException(
+                    $"The Azure Service Bus topic '{Topic.TopicName}' is marked as externally owned, so Wolverine will not create it, but it does not exist. Subscription '{SubscriptionName}' cannot be provisioned until the topic's owner creates it.");
+            }
+
             var exists = await client.SubscriptionExistsAsync(Topic.TopicName, SubscriptionName);
             if (!exists)
             {

@@ -214,3 +214,79 @@ public static class PgLetterHandler
     public static void Handle(PgLogC message, Envelope envelope) => Received.Add((message.Id, envelope.Destination));
     public static void Handle(PgLogD message, Envelope envelope) => Received.Add((message.Id, envelope.Destination));
 }
+
+/// <summary>
+/// GH-5088: the publishing application must not listen to the shard queues, so a separate
+/// application can consume them later.
+/// </summary>
+public class publish_only_to_sharded_postgresql_queues : IAsyncLifetime
+{
+    private IHost _host = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        _host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+
+                opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "pletters_pub_only",
+                        transportSchema: "pletters_pub_only_queues")
+                    .AutoProvision()
+                    .AutoPurgeOnStartup();
+
+                // Deliberately no handler for the messages: this node only publishes
+                opts.Discovery.DisableConventionalDiscovery();
+
+                opts.MessagePartitioning.ByMessage<IPgLetterMessage>(x => x.Id.ToString());
+
+                opts.MessagePartitioning.PublishOnlyToShardedPostgresqlQueues("plettersonly", 4, topology =>
+                {
+                    topology.MessagesImplementing<IPgLetterMessage>();
+                    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
+                });
+            }).StartAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _host.StopAsync();
+        _host.Dispose();
+    }
+
+    [Fact]
+    public async Task the_shard_queues_are_not_listened_to()
+    {
+        var runtime = _host.GetRuntime();
+        var queues = runtime.Options.PostgresqlTransport().Queues
+            .Where(x => x.EndpointName.StartsWith("plettersonly")).ToArray();
+
+        queues.Length.ShouldBe(4);
+        queues.ShouldAllBe(x => !x.IsListener);
+    }
+
+    [Fact]
+    public async Task published_messages_stay_in_the_queue_tables_unprocessed()
+    {
+        var bus = _host.MessageBus();
+        for (var i = 0; i < 10; i++)
+        {
+            await bus.PublishAsync(new PgLogA(Guid.NewGuid()));
+        }
+
+        await Task.Delay(2.Seconds(), TestContext.Current.CancellationToken);
+
+        var transport = _host.GetRuntime().Options.PostgresqlTransport();
+        var total = 0L;
+        await using var conn = new Npgsql.NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        foreach (var queue in transport.Queues.Where(x => x.EndpointName.StartsWith("plettersonly")))
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"select count(*) from pletters_pub_only_queues.{queue.QueueTable.Identifier.Name}";
+            total += (long)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;
+        }
+
+        total.ShouldBe(10);
+    }
+}

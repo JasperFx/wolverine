@@ -122,6 +122,12 @@ public static class ScaffoldNoticeCodes
     ///     non-strong) <c>Id</c>, so it keeps that identity.
     /// </summary>
     public const string ExistingAggregateKeepsIdentity = "existing-aggregate-keeps-identity";
+
+    /// <summary>
+    ///     GH-5360. A slice decides against one stream and starts another (or works against several), and
+    ///     <c>Emits&lt;T&gt;()</c> does not say which stream each event belongs to, so no Apply methods were planned.
+    /// </summary>
+    public const string EmittedEventStreamAmbiguous = "emitted-event-stream-ambiguous";
 }
 
 /// <summary>One line of the scaffold report.</summary>
@@ -899,16 +905,20 @@ public static class SliceScaffolder
 
         private void scaffoldAutomation(EventModelSliceDescriptor slice)
         {
-            // An automation reacts to one event, or -- Automation<TCommand>() -- is fired by the job scheduler
-            var trigger = slice.ConsumedEvents.Count == 1 ? slice.ConsumedEvents[0]
-                : slice.ConsumedEvents.Count == 0 ? slice.CommandType : null;
+            // An automation reacts to its events -- one Handle per event on a single handler class -- or,
+            // Automation<TCommand>(), is fired by the job scheduler
+            if (slice.ConsumedEvents.Count > 1)
+            {
+                writeSlice(slice, slice.ConsumedEvents, http: false);
+                return;
+            }
+
+            var trigger = slice.ConsumedEvents.Count == 1 ? slice.ConsumedEvents[0] : slice.CommandType;
 
             if (trigger is null)
             {
                 Notices.Add(notice(ScaffoldNoticeCodes.AutomationTrigger, ScaffoldNoticeKind.UnknownTrigger, slice.Name,
-                    slice.ConsumedEvents.Count > 1
-                        ? $"the automation reacts to {slice.ConsumedEvents.Count} events ({string.Join(", ", slice.ConsumedEvents.Select(x => x.Name))}), and a handler handles one. Split it into one automation per event."
-                        : "trigger Unknown -- the automation declares no event it reacts to. Declare it with .On<T>()."));
+                    "trigger Unknown -- the automation declares no event it reacts to. Declare it with .On<T>()."));
                 return;
             }
 
@@ -1251,13 +1261,18 @@ public static class SliceScaffolder
             => type is not null && (type.GetProperty(name) is not null || type.GetField(name) is not null);
 
         private void writeSlice(EventModelSliceDescriptor slice, TypeDescriptor trigger, bool http, string? note = null)
+            => writeSlice(slice, [trigger], http, note);
+
+        // GH-5361: an automation that reacts to several events is one handler class with a Handle per event
+        private void writeSlice(EventModelSliceDescriptor slice, IReadOnlyList<TypeDescriptor> triggers, bool http, string? note = null)
         {
+            var firstTrigger = triggers[0];
             var identifier = IdentifierFor(slice.Name);
             var className = identifier + (http ? "Endpoint" : "Handler");
 
             // GH-4891: the handler lives in the same file as the command it handles, when that file
             // exists -- one file per slice, the way `bobcat import-event-model` writes them
-            var appendTo = appendTargetFor(slice, trigger);
+            var appendTo = appendTargetFor(slice, firstTrigger);
             var path = appendTo ?? pathFor(slice, identifier);
 
             if (appendTo is null && _options.FileExists(path))
@@ -1267,15 +1282,38 @@ public static class SliceScaffolder
                 return;
             }
 
-            // The events this slice appends belong to the aggregates it works against
-            foreach (var aggregate in slice.AggregateTypes)
+            // The events this slice appends belong to the aggregates it works against. Emits<T>() carries no
+            // stream, so with more than one stream on the slice an event could belong to any of them: planning
+            // it as an Apply on all of them is a cross product, most of it wrong (GH-5360). Plan none, and say so.
+            var emitTargets = slice.AggregateTypes.ToList();
+            if (slice.StartsStream is { } startedStream &&
+                !emitTargets.Any(x => EventModelSliceDescriptor.SameType(x, startedStream)))
             {
-                stateType(aggregate, slice, isView: false).Events.AddRange(slice.EmittedEvents);
+                emitTargets.Add(startedStream);
             }
 
-            if (slice.StartsStream is { } started)
+            // A slice that only decides against several streams keeps its Applies (GH-4895); it is the slice that
+            // also STARTS a stream of another type whose events cannot be told apart
+            if (emitTargets.Count > 1 && slice.StartsStream is not null && slice.AggregateTypes.Count > 0 &&
+                slice.EmittedEvents.Count > 0)
             {
-                stateType(started, slice, isView: false).Events.AddRange(slice.EmittedEvents);
+                Notices.Add(notice(ScaffoldNoticeCodes.EmittedEventStreamAmbiguous, ScaffoldNoticeKind.Warning, slice.Name,
+                    $"the slice emits {slice.EmittedEvents.Count} event(s) and works against {emitTargets.Count} emitTargets " +
+                    $"({string.Join(", ", emitTargets.Select(x => x.Name))}); Emits<T>() does not say which stream each event " +
+                    "belongs to, so no Apply methods were written for this slice. Add the Apply/Create methods to the " +
+                    "aggregate each event belongs to by hand."));
+            }
+            else
+            {
+                foreach (var aggregate in slice.AggregateTypes)
+                {
+                    stateType(aggregate, slice, isView: false).Events.AddRange(slice.EmittedEvents);
+                }
+
+                if (slice.StartsStream is { } started)
+                {
+                    stateType(started, slice, isView: false).Events.AddRange(slice.EmittedEvents);
+                }
             }
 
             var file = new SliceFile(this, appendTo is null ? namespaceFor(slice) : null);
@@ -1289,308 +1327,316 @@ public static class SliceScaffolder
             // aggregate for the typed shapes or for Validate
             var multiStream = aggregates.Count > 1;
             var aggregateType = multiStream ? null : aggregates.FirstOrDefault();
-            var triggerName = file.Use(trigger);
-            // The command is just `command`, whatever its type is called; an event that triggers an
-            // automation keeps its own name
-            var triggerArgument = slice.CommandType is { } sliceCommand && EventModelSliceDescriptor.SameType(sliceCommand, trigger)
-                ? "command"
-                : argumentFor(triggerName);
-
-            var parameters = new List<string> { $"{triggerName} {triggerArgument}" };
-            var shape = new List<string>();
-
-            string? aggregateName = null;
-            string? aggregateArgument = null;
-            if (aggregateType is not null)
-            {
-                file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
-                aggregateName = file.Use(aggregateType);
-                aggregateArgument = argumentFor(aggregateName);
-                parameters.Add($"[WriteModel] {aggregateName} {aggregateArgument}");
-            }
-
-            // GH-4895: a command that decides against several streams takes each as an IEventStream<T>,
-            // found by its own {Aggregate}Id member of the command -- the same [WriteModel(name)] lookup
-            // the multi-stream aggregate handler workflow already uses
-            var streams = new List<(string Argument, string Event)>();
-            if (multiStream)
-            {
-                file.Namespaces.Add("JasperFx.Events");
-                file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
-                var commandType = _options.ResolveType(triggerTypeFor(slice, trigger));
-                foreach (var aggregate in aggregates)
-                {
-                    var name = file.Use(aggregate);
-                    var argument = argumentFor(name) + "Stream";
-                    var idMember = aggregate.Name + "Id";
-                    var hasMember = commandHasMember(commandType, idMember) ||
-                                    (commandType is null && stubHasMember(triggerTypeFor(slice, trigger).Name, idMember));
-                    var source = hasMember ? $"nameof({triggerName}.{idMember})" : $"\"{idMember}\"";
-                    if (!hasMember)
-                    {
-                        shape.Add($"// TODO: {triggerName} needs a {idMember} member identifying the {name} stream");
-                        Notices.Add(notice(ScaffoldNoticeCodes.MissingStreamIdMember, ScaffoldNoticeKind.Warning, slice.Name,
-                            $"the command decides against {aggregates.Count} streams, and {triggerName} has no {idMember} member to identify the {name} one. Add it to the command."));
-                    }
-
-                    parameters.Add($"[WriteModel({source})] IEventStream<{name}> {argument}");
-                    streams.Add((argument, name));
-                }
-            }
-
-            foreach (var read in slice.ReadsFrom)
-            {
-                file.Namespaces.Add("Wolverine.Persistence");
-                var name = file.Use(read);
-                parameters.Add($"[Entity] {name} {argumentFor(name)}");
-            }
-
-            var emitted = slice.EmittedEvents.Select(x => file.Use(x)).ToList();
-
-            var outgoing = slice.PublishedMessages.ToList();
-            if (slice.CommandType is { } command && !EventModelSliceDescriptor.SameType(command, trigger))
-            {
-                // an automation issues its command
-                outgoing.Insert(0, command);
-            }
-
-            // GH-4889: a slice that appends at most one event to the stream it loads, and does nothing
-            // else, says what it emits in its signature -- TEvent? -- so it needs no [Emits]. Returning
-            // null appends nothing (GH-4309).
-            var typedEvent = aggregateType is not null && !multiStream && slice.StartsStream is null && emitted.Count == 1 &&
-                             outgoing.Count == 0 && slice.ReadModelTypes.Count == 0;
-
-            // What the handler returns, in the store-agnostic vocabulary
-            var returns = new List<string>();
-
-            // GH-4865: a DCB slice's Load body, the EventTagQuery its decision reads; null for a TODO
-            string? deciderLoad = null;
-            var isDecider = slice.AggregateDeclaration == AggregateDeclaration.DeciderModel && slice.DeciderModel is not null;
-
-            if (slice.StartsStream is { } stream)
-            {
-                file.Namespaces.Add("Wolverine.Persistence");
-                returns.Add("StartStream");
-                var events = emitted.Count == 0 ? "/* the events that start it */" : string.Join(", ", emitted.Select(x => $"new {x}(...)"));
-
-                // GH-4883: the stream's identity -- Guid, a natural key, or a strong-typed id wrapping either
-                var identity = identityOf(stream);
-                var idType = file.Use(identity);
-                if (identity.Minted)
-                {
-                    // GH-4888: a sequential (version 7) Guid, never Guid.NewGuid() -- a random stream id
-                    // fragments the event store's indexes
-                    shape.Add($"var id = {identity.Mint};");
-                }
-                else
-                {
-                    // A natural key cannot be made up in the handler: the message has to carry it, as {Aggregate}Id or a
-                    // lone Id (what a stub carries when it identifies one stream)
-                    var carrierType = _options.ResolveType(trigger);
-                    bool carries(string candidate) => carrierType is null ? stubHasMember(trigger.Name, candidate) : commandHasMember(carrierType, candidate);
-                    var member = new[] { stream.Name + "Id", "Id" }.FirstOrDefault(carries) ?? stream.Name + "Id";
-                    if (!carries(member))
-                    {
-                        shape.Add($"// TODO: {triggerName} needs a {member} member carrying the {stream.Name}'s natural key");
-                        Notices.Add(notice(ScaffoldNoticeCodes.MissingStreamIdMember, ScaffoldNoticeKind.Warning, slice.Name,
-                            $"the {stream.Name} stream is identified by a natural key ({idType}), which the handler cannot make up, and {triggerName} has no {member} member to carry it. Add it to the message."));
-                    }
-
-                    shape.Add($"var id = {triggerArgument}.{member};");
-                }
-
-                var raw = identity.Raw("id");
-                if (http)
-                {
-                    // GH-4927: an HTTP caller learns the id the endpoint assigned, from a 201 and its Location
-                    returns.Insert(0, $"CreationResponse<{idType}>");
-                    var location = RouteFor(IdentifierFor(stream.Name));
-                    shape.Add($"return (new CreationResponse<{idType}>($\"{location}/{{{raw}}}\", id), Storage.StartStream<{file.Use(stream)}>({raw}, {events}));");
-                }
-                else
-                {
-                    shape.Add($"return Storage.StartStream<{file.Use(stream)}>({raw}, {events});");
-                }
-            }
-            else if (typedEvent)
-            {
-                returns.Add($"{emitted[0]}?");
-                shape.Add($"return new {emitted[0]}(...);   // or null when there is nothing to record");
-                shape.Add($"// If the stream may not exist yet, make the parameter {aggregateName}?");
-                shape.Add("// -- [WriteModel] then does not require it");
-            }
-            else if (emitted.Count > 0 && aggregateType is not null)
-            {
-                file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
-                returns.Add("EventsToAppend");
-                shape.Add($"return new EventsToAppend {{ {string.Join(", ", emitted.Select(x => $"new {x}(...)"))} }};");
-            }
-            else if (multiStream)
-            {
-                // Each event goes onto the stream it belongs to; the generator reads which from the body
-                shape.Add("// Append each event to the stream it belongs to:");
-                foreach (var e in emitted)
-                {
-                    shape.Add($"{streams[0].Argument}.AppendOne(new {e}(...));   // or {string.Join(" / ", streams.Skip(1).Select(x => x.Argument))}");
-                }
-            }
-            else if (slice.AggregateDeclaration == AggregateDeclaration.DeciderModel && slice.DeciderModel is { } model)
-            {
-                // GH-4865: a DCB decider model (jasperfx#994) is a self-aggregate. The handler takes it through
-                // [DcbModel], fetched by the EventTagQuery its Load method returns, and whatever it returns is
-                // appended through that boundary. The decider folds what the slice emits
-                file.Namespaces.Add("JasperFx.Events.Tags");
-                file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
-                var decider = file.Use(model);
-                parameters.Add($"[DcbModel] {decider} {argumentFor(decider)}");
-                stateType(model, slice, isView: false).Events.AddRange(slice.EmittedEvents);
-
-                if (emitted.Count == 1 && outgoing.Count == 0)
-                {
-                    returns.Add(emitted[0]);
-                    shape.Add($"return new {emitted[0]}(...);   // appended through the {decider} boundary");
-                }
-                else if (emitted.Count > 0)
-                {
-                    returns.Add("EventsToAppend");
-                    shape.Add($"return new EventsToAppend {{ {string.Join(", ", emitted.Select(x => $"new {x}(...)"))} }};");
-                }
-
-                // The tags the decision reads are the command's strong-typed ids, each a tag
-                var commandType = _options.ResolveType(triggerTypeFor(slice, trigger));
-                var tags = commandType is not null ? strongTypedIdMembers(commandType)
-                    // GH-4883: a stub command carries the decider model's tag as its Id
-                    : _dcbTags.TryGetValue(slice.Name, out var tag) && stubHasMember(triggerTypeFor(slice, trigger).Name, "Id")
-                        ? [("Id", tag.TypeName)]
-                        : (IReadOnlyList<(string Member, string Type)>)[];
-                deciderLoad = tags.Count == 0
-                    ? null
-                    : $"return EventTagQuery.For({triggerArgument}.{tags[0].Member})" +
-                      string.Concat(tags.Skip(1).Select(x => $".Or({triggerArgument}.{x.Member})")) + ";";
-
-                if (tags.Count == 0)
-                {
-                    Notices.Add(notice(ScaffoldNoticeCodes.DcbWithoutTagMembers, ScaffoldNoticeKind.Warning, slice.Name,
-                        $"the slice decides through the DCB decider model {decider}, but {triggerName} has no strong-typed id member to tag the query with, so its Load method is a TODO. A DCB tag is a strong-typed identifier (GH-4883)."));
-                }
-
-                Notices.Add(notice(ScaffoldNoticeCodes.RegisterDcbTags, ScaffoldNoticeKind.Edit, slice.Name,
-                    $"register each tag type{(tags.Count == 0 ? "" : $" ({string.Join(", ", tags.Select(x => x.Type).Distinct())})")} with the event store, and {decider} as a live single-stream aggregation, so [DcbModel] can fetch it by tags." +
-                    // GH-4883: the registration itself, the same call on Marten, Polecat and Fisher
-                    (tags.Count == 0 ? "" : " In the store's configuration: " +
-                        string.Join(" ", tags.Select(x => x.Type).Distinct().Select(x => $"opts.Events.RegisterTagType<{x}>();")))));
-            }
-            else if (slice.AggregateDeclaration == AggregateDeclaration.DeciderModel)
-            {
-                // A decider model declared by a name no type answers to: nothing to take or fold
-                shape.Add("// TODO: this slice decides through a DCB decider model the scaffold cannot resolve.");
-                Notices.Add(notice(ScaffoldNoticeCodes.DcbModelUnresolved, ScaffoldNoticeKind.Warning, slice.Name,
-                    "the slice declares a DCB decider model the scaffold cannot resolve, so its handler is a TODO."));
-            }
-            else if (slice.AggregateDeclaration == AggregateDeclaration.None && emitted.Count > 0)
-            {
-                // GH-4919: deliberately no aggregate (.NoAggregate()) -- legitimate only for a slice that purely
-                // starts a stream, so the shape is a stream with no aggregate type (GH-4892), and no warning
-                file.Namespaces.Add("Wolverine.Persistence");
-                returns.Add("StartStream");
-                shape.Add("// Declared .NoAggregate(): a stream with no aggregate type");
-                shape.Add("var id = Guid.CreateVersion7();");
-                shape.Add($"return Storage.StartStream(id, {string.Join(", ", emitted.Select(x => $"new {x}(...)"))});");
-            }
-            else if (emitted.Count > 0)
-            {
-                // GH-4895: the model names no aggregate. A stream with no aggregate type (GH-4892) is only
-                // right for a slice that purely starts one, which the model has not said this one does --
-                // so no append to an untyped stream is guessed. The handler says what to declare.
-                var events = string.Join(", ", emitted.Select(x => $"new {x}(...)"));
-                shape.Add("// TODO: the model names no aggregate this command decides against. Declare it on the");
-                shape.Add("// slice -- .Against<T>(), once per stream, or .StartsStream<T>() when the slice starts one --");
-                shape.Add("// and scaffold again. Only a slice that purely starts a stream may do without one:");
-                shape.Add($"//     return Storage.StartStream(Guid.CreateVersion7(), {events});   // and return StartStream");
-                Notices.Add(notice(ScaffoldNoticeCodes.NoAggregate, ScaffoldNoticeKind.Warning, slice.Name,
-                    "the model names no aggregate this command decides against, so its handler is a TODO. Declare .Against<T>() (or .StartsStream<T>() if it only starts a stream) and scaffold again."));
-            }
-
-            if (outgoing.Count > 0)
-            {
-                returns.Add("OutgoingMessages");
-                shape.Add($"return new OutgoingMessages {{ {string.Join(", ", outgoing.Select(x => $"new {file.Use(x)}(...)"))} }};");
-            }
-
-            foreach (var produced in slice.ReadModelTypes)
-            {
-                file.Namespaces.Add("Wolverine.Persistence");
-                var name = file.Use(produced);
-                returns.Add($"IStorageAction<{name}>");
-                shape.Add($"return Storage.Insert(new {name}(...));");
-            }
-
-            var returnType = returns.Count switch
-            {
-                0 => "void",
-                1 => returns[0],
-                _ => $"({string.Join(", ", returns)})"
-            };
-
             writer.WriteLine($"// Scaffolded by `wolverine scaffold` from the declared Event Model slice '{slice.Name}'.");
             writer.WriteLine("// It is yours now: the scaffold never writes to this class again.");
             writer.Write($"BLOCK:public static class {className}");
-
-            if (http)
+            var firstMethod = true;
+            foreach (var trigger in triggers)
             {
-                file.Namespaces.Add("Microsoft.AspNetCore.Mvc");
-                file.Namespaces.Add("Wolverine.Http");
+                if (!firstMethod) writer.BlankLine();
+                firstMethod = false;
 
-                var validateParameters = aggregateArgument is null
-                    ? new List<string> { $"{triggerName} {triggerArgument}" }
-                    : new List<string> { $"{triggerName} {triggerArgument}", $"{aggregateName} {aggregateArgument}" };
+                var triggerName = file.Use(trigger);
+                // The command is just `command`, whatever its type is called; an event that triggers an
+                // automation keeps its own name
+                var triggerArgument = slice.CommandType is { } sliceCommand && EventModelSliceDescriptor.SameType(sliceCommand, trigger)
+                    ? "command"
+                    : argumentFor(triggerName);
 
-                writer.Write(signature("public static ProblemDetails Validate", validateParameters));
-                writer.WriteLine("// TODO: the guards your specifications describe. Return a ProblemDetails to refuse the request.");
-                writer.WriteLine("return WolverineContinue.NoProblems;");
-                writer.FinishBlock();
-                writer.BlankLine();
-            }
+                var parameters = new List<string> { $"{triggerName} {triggerArgument}" };
+                var shape = new List<string>();
 
-            // No [Emits] (GH-4914): a typed return says it, and JasperFx.Events.SourceGenerator reads the
-            // events every other shape constructs in its body into the emitted-events manifest (jasperfx#990)
-
-            if (http)
-            {
-                writer.WriteLine($"[WolverinePost(\"{RouteFor(identifier)}\")]");
-                // A CreationResponse is the response; anything else returned is a side effect
-                if (returns.Count > 0 && !returns[0].StartsWith("CreationResponse", StringComparison.Ordinal))
-                    writer.WriteLine("[EmptyResponse]");
-            }
-
-            if (isDecider)
-            {
-                writer.Write($"BLOCK:public static EventTagQuery Load({triggerName} {triggerArgument})");
-                if (deciderLoad is null)
+                string? aggregateName = null;
+                string? aggregateArgument = null;
+                if (aggregateType is not null)
                 {
-                    writer.WriteLine("// The tags this decision reads -- a DCB tag is a strong-typed identifier:");
-                    writer.WriteLine("//     return EventTagQuery.For(command.SomeId).Or(command.OtherId);");
-                    writer.WriteLine($"throw new NotImplementedException(\"TODO: the tags {slice.Name} reads\");");
-                }
-                else
-                {
-                    writer.WriteLine("// The tags this decision reads; narrow it to the events it needs with .AndEventsOfType<...>()");
-                    writer.WriteLine(deciderLoad);
+                    file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
+                    aggregateName = file.Use(aggregateType);
+                    aggregateArgument = argumentFor(aggregateName);
+                    parameters.Add($"[WriteModel] {aggregateName} {aggregateArgument}");
                 }
 
+                // GH-4895: a command that decides against several streams takes each as an IEventStream<T>,
+                // found by its own {Aggregate}Id member of the command -- the same [WriteModel(name)] lookup
+                // the multi-stream aggregate handler workflow already uses
+                var streams = new List<(string Argument, string Event)>();
+                if (multiStream)
+                {
+                    file.Namespaces.Add("JasperFx.Events");
+                    file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
+                    var commandType = _options.ResolveType(triggerTypeFor(slice, trigger));
+                    foreach (var aggregate in aggregates)
+                    {
+                        var name = file.Use(aggregate);
+                        var argument = argumentFor(name) + "Stream";
+                        var idMember = aggregate.Name + "Id";
+                        var hasMember = commandHasMember(commandType, idMember) ||
+                                        (commandType is null && stubHasMember(triggerTypeFor(slice, trigger).Name, idMember));
+                        var source = hasMember ? $"nameof({triggerName}.{idMember})" : $"\"{idMember}\"";
+                        if (!hasMember)
+                        {
+                            shape.Add($"// TODO: {triggerName} needs a {idMember} member identifying the {name} stream");
+                            Notices.Add(notice(ScaffoldNoticeCodes.MissingStreamIdMember, ScaffoldNoticeKind.Warning, slice.Name,
+                                $"the command decides against {aggregates.Count} streams, and {triggerName} has no {idMember} member to identify the {name} one. Add it to the command."));
+                        }
+
+                        parameters.Add($"[WriteModel({source})] IEventStream<{name}> {argument}");
+                        streams.Add((argument, name));
+                    }
+                }
+
+                foreach (var read in slice.ReadsFrom)
+                {
+                    file.Namespaces.Add("Wolverine.Persistence");
+                    var name = file.Use(read);
+                    parameters.Add($"[Entity] {name} {argumentFor(name)}");
+                }
+
+                var emitted = slice.EmittedEvents.Select(x => file.Use(x)).ToList();
+
+                var outgoing = slice.PublishedMessages.ToList();
+                if (slice.CommandType is { } command && !EventModelSliceDescriptor.SameType(command, trigger))
+                {
+                    // an automation issues its command
+                    outgoing.Insert(0, command);
+                }
+
+                // GH-4889: a slice that appends at most one event to the stream it loads, and does nothing
+                // else, says what it emits in its signature -- TEvent? -- so it needs no [Emits]. Returning
+                // null appends nothing (GH-4309).
+                var typedEvent = aggregateType is not null && !multiStream && slice.StartsStream is null && emitted.Count == 1 &&
+                                 outgoing.Count == 0 && slice.ReadModelTypes.Count == 0;
+
+                // What the handler returns, in the store-agnostic vocabulary
+                var returns = new List<string>();
+
+                // GH-4865: a DCB slice's Load body, the EventTagQuery its decision reads; null for a TODO
+                string? deciderLoad = null;
+                var isDecider = slice.AggregateDeclaration == AggregateDeclaration.DeciderModel && slice.DeciderModel is not null;
+
+                if (slice.StartsStream is { } stream)
+                {
+                    file.Namespaces.Add("Wolverine.Persistence");
+                    returns.Add("StartStream");
+                    var events = emitted.Count == 0 ? "/* the events that start it */" : string.Join(", ", emitted.Select(x => $"new {x}(...)"));
+
+                    // GH-4883: the stream's identity -- Guid, a natural key, or a strong-typed id wrapping either
+                    var identity = identityOf(stream);
+                    var idType = file.Use(identity);
+                    if (identity.Minted)
+                    {
+                        // GH-4888: a sequential (version 7) Guid, never Guid.NewGuid() -- a random stream id
+                        // fragments the event store's indexes
+                        shape.Add($"var id = {identity.Mint};");
+                    }
+                    else
+                    {
+                        // A natural key cannot be made up in the handler: the message has to carry it, as {Aggregate}Id or a
+                        // lone Id (what a stub carries when it identifies one stream)
+                        var carrierType = _options.ResolveType(trigger);
+                        bool carries(string candidate) => carrierType is null ? stubHasMember(trigger.Name, candidate) : commandHasMember(carrierType, candidate);
+                        var member = new[] { stream.Name + "Id", "Id" }.FirstOrDefault(carries) ?? stream.Name + "Id";
+                        if (!carries(member))
+                        {
+                            shape.Add($"// TODO: {triggerName} needs a {member} member carrying the {stream.Name}'s natural key");
+                            Notices.Add(notice(ScaffoldNoticeCodes.MissingStreamIdMember, ScaffoldNoticeKind.Warning, slice.Name,
+                                $"the {stream.Name} stream is identified by a natural key ({idType}), which the handler cannot make up, and {triggerName} has no {member} member to carry it. Add it to the message."));
+                        }
+
+                        shape.Add($"var id = {triggerArgument}.{member};");
+                    }
+
+                    var raw = identity.Raw("id");
+                    if (http)
+                    {
+                        // GH-4927: an HTTP caller learns the id the endpoint assigned, from a 201 and its Location
+                        returns.Insert(0, $"CreationResponse<{idType}>");
+                        var location = RouteFor(IdentifierFor(stream.Name));
+                        shape.Add($"return (new CreationResponse<{idType}>($\"{location}/{{{raw}}}\", id), Storage.StartStream<{file.Use(stream)}>({raw}, {events}));");
+                    }
+                    else
+                    {
+                        shape.Add($"return Storage.StartStream<{file.Use(stream)}>({raw}, {events});");
+                    }
+                }
+                else if (typedEvent)
+                {
+                    returns.Add($"{emitted[0]}?");
+                    shape.Add($"return new {emitted[0]}(...);   // or null when there is nothing to record");
+                    shape.Add($"// If the stream may not exist yet, make the parameter {aggregateName}?");
+                    shape.Add("// -- [WriteModel] then does not require it");
+                }
+                else if (emitted.Count > 0 && aggregateType is not null)
+                {
+                    file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
+                    returns.Add("EventsToAppend");
+                    shape.Add($"return new EventsToAppend {{ {string.Join(", ", emitted.Select(x => $"new {x}(...)"))} }};");
+                }
+                else if (multiStream)
+                {
+                    // Each event goes onto the stream it belongs to; the generator reads which from the body
+                    shape.Add("// Append each event to the stream it belongs to:");
+                    foreach (var e in emitted)
+                    {
+                        shape.Add($"{streams[0].Argument}.AppendOne(new {e}(...));   // or {string.Join(" / ", streams.Skip(1).Select(x => x.Argument))}");
+                    }
+                }
+                else if (slice.AggregateDeclaration == AggregateDeclaration.DeciderModel && slice.DeciderModel is { } model)
+                {
+                    // GH-4865: a DCB decider model (jasperfx#994) is a self-aggregate. The handler takes it through
+                    // [DcbModel], fetched by the EventTagQuery its Load method returns, and whatever it returns is
+                    // appended through that boundary. The decider folds what the slice emits
+                    file.Namespaces.Add("JasperFx.Events.Tags");
+                    file.Namespaces.Add("Wolverine.Persistence.EventSourcing");
+                    var decider = file.Use(model);
+                    parameters.Add($"[DcbModel] {decider} {argumentFor(decider)}");
+                    stateType(model, slice, isView: false).Events.AddRange(slice.EmittedEvents);
+
+                    if (emitted.Count == 1 && outgoing.Count == 0)
+                    {
+                        returns.Add(emitted[0]);
+                        shape.Add($"return new {emitted[0]}(...);   // appended through the {decider} boundary");
+                    }
+                    else if (emitted.Count > 0)
+                    {
+                        returns.Add("EventsToAppend");
+                        shape.Add($"return new EventsToAppend {{ {string.Join(", ", emitted.Select(x => $"new {x}(...)"))} }};");
+                    }
+
+                    // The tags the decision reads are the command's strong-typed ids, each a tag
+                    var commandType = _options.ResolveType(triggerTypeFor(slice, trigger));
+                    var tags = commandType is not null ? strongTypedIdMembers(commandType)
+                        // GH-4883: a stub command carries the decider model's tag as its Id
+                        : _dcbTags.TryGetValue(slice.Name, out var tag) && stubHasMember(triggerTypeFor(slice, trigger).Name, "Id")
+                            ? [("Id", tag.TypeName)]
+                            : (IReadOnlyList<(string Member, string Type)>)[];
+                    deciderLoad = tags.Count == 0
+                        ? null
+                        : $"return EventTagQuery.For({triggerArgument}.{tags[0].Member})" +
+                          string.Concat(tags.Skip(1).Select(x => $".Or({triggerArgument}.{x.Member})")) + ";";
+
+                    if (tags.Count == 0)
+                    {
+                        Notices.Add(notice(ScaffoldNoticeCodes.DcbWithoutTagMembers, ScaffoldNoticeKind.Warning, slice.Name,
+                            $"the slice decides through the DCB decider model {decider}, but {triggerName} has no strong-typed id member to tag the query with, so its Load method is a TODO. A DCB tag is a strong-typed identifier (GH-4883)."));
+                    }
+
+                    Notices.Add(notice(ScaffoldNoticeCodes.RegisterDcbTags, ScaffoldNoticeKind.Edit, slice.Name,
+                        $"register each tag type{(tags.Count == 0 ? "" : $" ({string.Join(", ", tags.Select(x => x.Type).Distinct())})")} with the event store, and {decider} as a live single-stream aggregation, so [DcbModel] can fetch it by tags." +
+                        // GH-4883: the registration itself, the same call on Marten, Polecat and Fisher
+                        (tags.Count == 0 ? "" : " In the store's configuration: " +
+                            string.Join(" ", tags.Select(x => x.Type).Distinct().Select(x => $"opts.Events.RegisterTagType<{x}>();")))));
+                }
+                else if (slice.AggregateDeclaration == AggregateDeclaration.DeciderModel)
+                {
+                    // A decider model declared by a name no type answers to: nothing to take or fold
+                    shape.Add("// TODO: this slice decides through a DCB decider model the scaffold cannot resolve.");
+                    Notices.Add(notice(ScaffoldNoticeCodes.DcbModelUnresolved, ScaffoldNoticeKind.Warning, slice.Name,
+                        "the slice declares a DCB decider model the scaffold cannot resolve, so its handler is a TODO."));
+                }
+                else if (slice.AggregateDeclaration == AggregateDeclaration.None && emitted.Count > 0)
+                {
+                    // GH-4919: deliberately no aggregate (.NoAggregate()) -- legitimate only for a slice that purely
+                    // starts a stream, so the shape is a stream with no aggregate type (GH-4892), and no warning
+                    file.Namespaces.Add("Wolverine.Persistence");
+                    returns.Add("StartStream");
+                    shape.Add("// Declared .NoAggregate(): a stream with no aggregate type");
+                    shape.Add("var id = Guid.CreateVersion7();");
+                    shape.Add($"return Storage.StartStream(id, {string.Join(", ", emitted.Select(x => $"new {x}(...)"))});");
+                }
+                else if (emitted.Count > 0)
+                {
+                    // GH-4895: the model names no aggregate. A stream with no aggregate type (GH-4892) is only
+                    // right for a slice that purely starts one, which the model has not said this one does --
+                    // so no append to an untyped stream is guessed. The handler says what to declare.
+                    var events = string.Join(", ", emitted.Select(x => $"new {x}(...)"));
+                    shape.Add("// TODO: the model names no aggregate this command decides against. Declare it on the");
+                    shape.Add("// slice -- .Against<T>(), once per stream, or .StartsStream<T>() when the slice starts one --");
+                    shape.Add("// and scaffold again. Only a slice that purely starts a stream may do without one:");
+                    shape.Add($"//     return Storage.StartStream(Guid.CreateVersion7(), {events});   // and return StartStream");
+                    Notices.Add(notice(ScaffoldNoticeCodes.NoAggregate, ScaffoldNoticeKind.Warning, slice.Name,
+                        "the model names no aggregate this command decides against, so its handler is a TODO. Declare .Against<T>() (or .StartsStream<T>() if it only starts a stream) and scaffold again."));
+                }
+
+                if (outgoing.Count > 0)
+                {
+                    returns.Add("OutgoingMessages");
+                    shape.Add($"return new OutgoingMessages {{ {string.Join(", ", outgoing.Select(x => $"new {file.Use(x)}(...)"))} }};");
+                }
+
+                foreach (var produced in slice.ReadModelTypes)
+                {
+                    file.Namespaces.Add("Wolverine.Persistence");
+                    var name = file.Use(produced);
+                    returns.Add($"IStorageAction<{name}>");
+                    shape.Add($"return Storage.Insert(new {name}(...));");
+                }
+
+                var returnType = returns.Count switch
+                {
+                    0 => "void",
+                    1 => returns[0],
+                    _ => $"({string.Join(", ", returns)})"
+                };
+
+
+                if (http)
+                {
+                    file.Namespaces.Add("Microsoft.AspNetCore.Mvc");
+                    file.Namespaces.Add("Wolverine.Http");
+
+                    var validateParameters = aggregateArgument is null
+                        ? new List<string> { $"{triggerName} {triggerArgument}" }
+                        : new List<string> { $"{triggerName} {triggerArgument}", $"{aggregateName} {aggregateArgument}" };
+
+                    writer.Write(signature("public static ProblemDetails Validate", validateParameters));
+                    writer.WriteLine("// TODO: the guards your specifications describe. Return a ProblemDetails to refuse the request.");
+                    writer.WriteLine("return WolverineContinue.NoProblems;");
+                    writer.FinishBlock();
+                    writer.BlankLine();
+                }
+
+                // No [Emits] (GH-4914): a typed return says it, and JasperFx.Events.SourceGenerator reads the
+                // events every other shape constructs in its body into the emitted-events manifest (jasperfx#990)
+
+                if (http)
+                {
+                    writer.WriteLine($"[WolverinePost(\"{RouteFor(identifier)}\")]");
+                    // A CreationResponse is the response; anything else returned is a side effect
+                    if (returns.Count > 0 && !returns[0].StartsWith("CreationResponse", StringComparison.Ordinal))
+                        writer.WriteLine("[EmptyResponse]");
+                }
+
+                if (isDecider)
+                {
+                    writer.Write($"BLOCK:public static EventTagQuery Load({triggerName} {triggerArgument})");
+                    if (deciderLoad is null)
+                    {
+                        writer.WriteLine("// The tags this decision reads -- a DCB tag is a strong-typed identifier:");
+                        writer.WriteLine("//     return EventTagQuery.For(command.SomeId).Or(command.OtherId);");
+                        writer.WriteLine($"throw new NotImplementedException(\"TODO: the tags {slice.Name} reads\");");
+                    }
+                    else
+                    {
+                        writer.WriteLine("// The tags this decision reads; narrow it to the events it needs with .AndEventsOfType<...>()");
+                        writer.WriteLine(deciderLoad);
+                    }
+
+                    writer.FinishBlock();
+                    writer.BlankLine();
+                }
+
+                writer.Write(signature($"public static {returnType} {(http ? "Post" : "Handle")}", parameters));
+                writer.WriteLine("// Fill this in and delete the throw -- the shape is:");
+                foreach (var line in shape)
+                {
+                    writer.WriteLine(line.StartsWith("//") ? line : $"//     {line}");
+                }
+
+                writer.WriteLine($"throw new NotImplementedException(\"TODO: {slice.Name}\");");
                 writer.FinishBlock();
-                writer.BlankLine();
             }
 
-            writer.Write(signature($"public static {returnType} {(http ? "Post" : "Handle")}", parameters));
-            writer.WriteLine("// Fill this in and delete the throw -- the shape is:");
-            foreach (var line in shape)
-            {
-                writer.WriteLine(line.StartsWith("//") ? line : $"//     {line}");
-            }
-
-            writer.WriteLine($"throw new NotImplementedException(\"TODO: {slice.Name}\");");
-            writer.FinishBlock();
             writer.FinishBlock();
 
             if (appendTo is not null)
@@ -1599,10 +1645,10 @@ public static class SliceScaffolder
                 {
                     AppendClass = className,
                     Usings = file.Namespaces.ToArray(),
-                    Namespace = namespaceOf(slice, trigger)
+                    Namespace = namespaceOf(slice, firstTrigger)
                 });
                 Notices.Add(notice(ScaffoldNoticeCodes.HandlerAppended, ScaffoldNoticeKind.Wrote, slice.Name,
-                    $"{className} appended to the file that declares {triggerTypeFor(slice, trigger).Name}.{note}", appendTo));
+                    $"{className} appended to the file that declares {triggerTypeFor(slice, firstTrigger).Name}.{note}", appendTo));
                 return;
             }
 

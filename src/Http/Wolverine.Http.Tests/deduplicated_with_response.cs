@@ -2,16 +2,19 @@ using System.Security.Claims;
 using Alba;
 using IntegrationTests;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Shouldly;
+using Wolverine.Http.Resources;
 using Wolverine.Http.Runtime;
 using Wolverine.Postgresql;
 using Wolverine.Tracking;
@@ -54,10 +57,13 @@ public class deduplicated_with_response : IAsyncLifetime
 
         // No tenant id detection, deliberately -- see a_tenant_scope_needs_tenant_detection.
         theHost = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
+        {
+            opts.AddResourceWriterPolicy<CustomAnswerWriterPolicy>();
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a [DeduplicatedWithResponse] test endpoint",
                     type => type != typeof(DeduplicatedResponseEndpoints) && type != typeof(EarlyExitDeduplicatedResponseEndpoint)
-                            && type != typeof(MissingResourceDeduplicatedEndpoint)))));
+                            && type != typeof(MissingResourceDeduplicatedEndpoint)));
+        }));
 
         await ((IHost)theHost).ResetResourceState();
 
@@ -338,6 +344,139 @@ public class deduplicated_with_response : IAsyncLifetime
     }
 
     [Fact]
+    public void a_result_a_custom_writer_policy_writes_is_refused()
+    {
+        var ex = Should.Throw<NotSupportedException>(() => compile("/deduplicated-response/custom-written-result"));
+
+        ex.Message.ShouldContain("System.Text.Json");
+    }
+
+    [Fact]
+    public async Task a_created_result_is_replayed_with_its_status_body_and_location()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("created-result");
+
+        var first = await postAsync(request, key, 201, url: "/deduplicated-response/created-result");
+        var repeat = await postAsync(request, key, 201, url: "/deduplicated-response/created-result");
+
+        var body = await first.ReadAsTextAsync();
+        body.ShouldNotBeNullOrEmpty();
+        (await repeat.ReadAsTextAsync()).ShouldBe(body);
+
+        var location = first.Context.Response.Headers.Location.ToString();
+        location.ShouldStartWith("/deduplicated-response/orders/");
+        repeat.Context.Response.Headers.Location.ToString().ShouldBe(location);
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task an_ok_result_is_replayed_as_its_value_was_written()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("ok-result");
+
+        var first = await postAsync(request, key, 200, url: "/deduplicated-response/ok-result");
+        var repeat = await postAsync(request, key, 200, url: "/deduplicated-response/ok-result");
+
+        var body = await first.ReadAsTextAsync();
+        body.ShouldContain("\"detail\"");
+        (await repeat.ReadAsTextAsync()).ShouldBe(body);
+        repeat.Context.Response.ContentType.ShouldBe(first.Context.Response.ContentType);
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_result_declared_as_object_is_replayed_as_the_json_it_was_written_as()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("object-result");
+
+        var first = await postAsync(request, key, 200, url: "/deduplicated-response/object-result");
+        var repeat = await postAsync(request, key, 200, url: "/deduplicated-response/object-result");
+
+        var body = await first.ReadAsTextAsync();
+        body.ShouldContain("\"location\"");
+        (await repeat.ReadAsTextAsync()).ShouldBe(body);
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_no_content_result_is_replayed_with_no_body()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("no-content-result");
+
+        await postAsync(request, key, 204, url: "/deduplicated-response/no-content-result");
+        var repeat = await postAsync(request, key, 204, url: "/deduplicated-response/no-content-result");
+
+        (await repeat.ReadAsTextAsync()).ShouldBeEmpty();
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task an_accepted_result_is_replayed_with_its_location()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("accepted-result");
+
+        var first = await postAsync(request, key, 202, url: "/deduplicated-response/accepted-result");
+        var repeat = await postAsync(request, key, 202, url: "/deduplicated-response/accepted-result");
+
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        var location = first.Context.Response.Headers.Location.ToString();
+        location.ShouldStartWith("/deduplicated-response/orders/");
+        repeat.Context.Response.Headers.Location.ToString().ShouldBe(location);
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task the_success_arm_of_a_result_union_is_replayed()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("union-result");
+
+        var first = await postAsync(request, key, 201, url: "/deduplicated-response/union-result");
+        var repeat = await postAsync(request, key, 201, url: "/deduplicated-response/union-result");
+
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        repeat.Context.Response.Headers.Location.ToString()
+            .ShouldBe(first.Context.Response.Headers.Location.ToString());
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task the_failure_arm_of_a_result_union_releases_the_claim()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder(DeduplicatedResponseEndpoints.Absent);
+
+        await postAsync(request, key, 404, url: "/deduplicated-response/union-result");
+        await postAsync(request, key, 404, url: "/deduplicated-response/union-result");
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task a_result_that_cannot_be_stored_keeps_the_claim_and_refuses_repeats()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("text-result");
+
+        var first = await postAsync(request, key, 200, url: "/deduplicated-response/text-result");
+        (await first.ReadAsTextAsync()).ShouldBe(request.Name);
+
+        await postAsync(request, key, 409, url: "/deduplicated-response/text-result");
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task a_replay_does_not_re_send_the_first_requests_cascaded_messages()
     {
         // PostOrder cascades a DeduplicatedOrderPlaced alongside its response. A replay writes the stored
@@ -492,6 +631,7 @@ public static class DeduplicatedResponseEndpoints
     public const string Throw = "throw";
     public const string Missing = "missing";
     public const string Slow = "slow";
+    public const string Absent = "absent";
 
     private static readonly Dictionary<string, int> _runs = new();
     private static TaskCompletionSource _slowArrived = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -573,7 +713,97 @@ public static class DeduplicatedResponseEndpoints
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/deduplicated-response/text")]
     public static string PostText(DeduplicatedOrder request) => request.Name;
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/created-result")]
+    public static Created<DeduplicatedOrderCreated> PostCreatedResult(DeduplicatedOrder request)
+    {
+        var created = run(request);
+        return TypedResults.Created($"/deduplicated-response/orders/{created.Id}", created);
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/ok-result")]
+    public static Ok<DeduplicatedAnswer> PostOkResult(DeduplicatedOrder request)
+    {
+        Count(request.Name);
+        return TypedResults.Ok<DeduplicatedAnswer>(new DetailedDeduplicatedAnswer(request.Name, Guid.NewGuid().ToString()));
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/custom-written-result")]
+    public static Ok<CustomWrittenAnswer> PostCustomWrittenResult(DeduplicatedOrder request)
+        => TypedResults.Ok(new CustomWrittenAnswer(request.Name));
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/object-result")]
+    public static object PostObjectResult(DeduplicatedOrder request)
+    {
+        var created = run(request);
+        return TypedResults.Created($"/deduplicated-response/orders/{created.Id}", created);
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/no-content-result")]
+    public static NoContent PostNoContentResult(DeduplicatedOrder request)
+    {
+        Count(request.Name);
+        return TypedResults.NoContent();
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/accepted-result")]
+    public static Accepted<DeduplicatedOrderCreated> PostAcceptedResult(DeduplicatedOrder request)
+    {
+        var created = run(request);
+        return TypedResults.Accepted($"/deduplicated-response/orders/{created.Id}", created);
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/union-result")]
+    public static Results<Created<DeduplicatedOrderCreated>, NotFound> PostUnionResult(DeduplicatedOrder request)
+    {
+        if (request.Name == Absent)
+        {
+            Count(request.Name);
+            return TypedResults.NotFound();
+        }
+
+        var created = run(request);
+        return TypedResults.Created($"/deduplicated-response/orders/{created.Id}", created);
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/text-result")]
+    public static IResult PostTextResult(DeduplicatedOrder request)
+    {
+        Count(request.Name);
+        return TypedResults.Text(request.Name);
+    }
 }
+
+public record DeduplicatedAnswer(string Name);
+
+public record CustomWrittenAnswer(string Name);
+
+// Takes over Ok<CustomWrittenAnswer> ahead of the built-in result writer, writing it as plain text
+public class CustomAnswerWriterPolicy : IResourceWriterPolicy
+{
+    public bool TryApply(HttpChain chain)
+    {
+        if (chain.ResourceType != typeof(Ok<CustomWrittenAnswer>)) return false;
+
+        var call = new MethodCall(typeof(CustomAnswerWriterPolicy), nameof(Write));
+        call.Arguments[0] = chain.ResourceVariable ?? chain.Method.Creates.First();
+        chain.Postprocessors.Add(call);
+        return true;
+    }
+
+    public static Task Write(Ok<CustomWrittenAnswer> result, HttpContext context)
+        => context.Response.WriteAsync(result.Value!.Name);
+}
+
+public record DetailedDeduplicatedAnswer(string Name, string Detail) : DeduplicatedAnswer(Name);
 
 // Its own class: the Validate middleware above needs a body.
 public static class MissingResourceDeduplicatedEndpoint

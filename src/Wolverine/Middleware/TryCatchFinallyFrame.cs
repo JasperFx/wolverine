@@ -54,6 +54,30 @@ public class TryCatchFinallyFrame : Frame
                 nameof(filter));
         }
 
+        // C# rejects a second unfiltered catch clause for the same type (CS0160). Clauses with different
+        // filters stay separate (filtered ones sort ahead of the unfiltered one); only an identical
+        // type + filter pair joins the existing clause.
+        var existing = _catchBlocks.FirstOrDefault(x => x.ExceptionType == exceptionType && Equals(x.Filter, filter));
+        if (existing != null)
+        {
+            // The merged handlers share one scope, so a variable can't reuse an earlier handler's name (CS0128).
+            var used = existing.Frames.SelectMany(x => x.Creates).Select(x => x.Usage).ToHashSet();
+            foreach (var variable in frames.SelectMany(x => x.Creates).Where(x => !x.VariableType.IsValueTuple()))
+            {
+                var name = variable.Usage;
+                for (var i = 1; used.Contains(name); i++)
+                {
+                    name = $"{variable.Usage}{i}";
+                }
+
+                variable.OverrideName(name);
+                used.Add(name);
+            }
+
+            existing.Frames = [..existing.Frames, ..frames];
+            return;
+        }
+
         _catchBlocks.Add(new CatchBlock(exceptionType, frames) { Filter = filter });
         SortCatchBlocks();
     }
@@ -254,7 +278,7 @@ public class CatchBlock
     /// </summary>
     public MethodInfo? Filter { get; init; }
 
-    public Frame[] Frames { get; }
+    public Frame[] Frames { get; internal set; }
     public Variable ExceptionVariable { get; }
 
     internal static string DefaultExceptionVariableName(Type exceptionType)

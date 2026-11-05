@@ -17,8 +17,8 @@ namespace Wolverine.Http.Marten;
 /// </summary>
 public static class MartenStreamLockedMiddleware
 {
-    public static ProblemDetails OnException(StreamLockedException ex)
+    public static ProblemDetails OnException(StreamLockedException ex, WolverineHttpOptions options)
     {
-        return ConflictMapping.ToProblemDetails(ex);
+        return ConflictMapping.ToProblemDetails(ex, options);
     }
 }

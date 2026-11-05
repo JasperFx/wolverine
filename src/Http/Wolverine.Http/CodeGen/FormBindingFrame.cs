@@ -140,6 +140,11 @@ internal class FormBindingFrame : SyncFrame
                 var formValueVariable =
                     chain.TryFindOrCreateFormValue(propertyInfo.PropertyType, propertyInfo.Name, formName);
 
+                if (formValueVariable is not null)
+                {
+                    formValueVariable.BoundParameter ??= new PropertyAsParameterInfo(propertyInfo);
+                }
+
                 if (formValueVariable?.Creator is IReadHttpFrame frame)
                 {
                     frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");

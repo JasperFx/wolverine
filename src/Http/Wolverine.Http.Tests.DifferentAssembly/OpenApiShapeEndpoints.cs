@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
@@ -173,6 +175,92 @@ public static class ComplexQueryStringOnCompoundHandlerEndpoint
 
     [WolverineGet("/shapes/complex-query-on-load")]
     public static string Get(OrderSearchResult result) => result.Description;
+}
+
+// Data annotations on a flattened member describe the query parameter it becomes
+public class AnnotatedSearchQuery
+{
+    [Required]
+    [Length(5, 255)]
+    [Description("The name to search for")]
+    public string Name { get; set; } = null!;
+
+    [Range(1, int.MaxValue)]
+    [DefaultValue(1)]
+    public int PageNumber { get; set; } = 1;
+}
+
+public static class AnnotatedComplexQueryStringEndpoint
+{
+    [WolverineGet("/shapes/complex-query-annotated")]
+    public static string Get([FromQuery] AnnotatedSearchQuery search) => $"{search.Name}:{search.PageNumber}";
+}
+
+public static class AnnotatedSimpleQueryStringEndpoint
+{
+    [WolverineGet("/shapes/query-annotated")]
+    public static string Get([FromQuery] [Required] [MaxLength(10)] string code, [FromQuery] int limit = 100)
+        => $"{code}:{limit}";
+}
+
+public class AnnotatedAsParametersQuery
+{
+    [FromQuery]
+    [Required]
+    [MaxLength(10)]
+    public string Code { get; set; } = null!;
+}
+
+public record AnnotatedAsParametersRecord([FromQuery] [Range(1, 100)] int Limit);
+
+public static class AnnotatedAsParametersEndpoint
+{
+    [WolverineGet("/shapes/asparameters-annotated")]
+    public static string Get([AsParameters] AnnotatedAsParametersQuery query,
+        [AsParameters] AnnotatedAsParametersRecord paging) => $"{query.Code}:{paging.Limit}";
+}
+
+public record AnnotatedSearchRecord([Required] [MaxLength(10)] string Code, [Range(1, 100)] int Limit);
+
+public static class AnnotatedComplexQueryStringRecordEndpoint
+{
+    [WolverineGet("/shapes/complex-query-annotated-record")]
+    public static string Get([FromQuery] AnnotatedSearchRecord search) => $"{search.Code}:{search.Limit}";
+}
+
+public static class AnnotatedHeaderEndpoint
+{
+    [WolverineGet("/shapes/header-annotated")]
+    public static string Get([FromHeader(Name = "x-tenant")] [Required] [Description("The tenant")] string tenant)
+        => tenant;
+}
+
+public record AnnotatedAsParametersHeader([FromHeader(Name = "x-code")] [Required] [MaxLength(10)] string Code);
+
+public static class AnnotatedAsParametersHeaderEndpoint
+{
+    [WolverineGet("/shapes/asparameters-header-annotated")]
+    public static string Get([AsParameters] AnnotatedAsParametersHeader header) => header.Code;
+}
+
+public static class AnnotatedFormEndpoint
+{
+    [WolverinePost("/shapes/form-annotated")]
+    public static string Post([FromForm] [Required] [MaxLength(100)] string name) => name;
+}
+
+public class AnnotatedFormBody
+{
+    [Required]
+    [MaxLength(20)]
+    [Description("The title")]
+    public string Title { get; set; } = null!;
+}
+
+public static class AnnotatedFormTypeEndpoint
+{
+    [WolverinePost("/shapes/form-type-annotated")]
+    public static string Post([FromForm] AnnotatedFormBody body) => body.Title;
 }
 
 #endregion

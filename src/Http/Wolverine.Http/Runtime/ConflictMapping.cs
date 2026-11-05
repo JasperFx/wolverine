@@ -30,9 +30,9 @@ namespace Wolverine.Http.Runtime;
 /// </summary>
 public static class ConcurrencyExceptionMiddleware
 {
-    public static ProblemDetails OnException(ConcurrencyException ex)
+    public static ProblemDetails OnException(ConcurrencyException ex, WolverineHttpOptions options)
     {
-        return ConflictMapping.ToProblemDetails(ex);
+        return ConflictMapping.ToProblemDetails(ex, options);
     }
 
     /// <summary>
@@ -40,9 +40,9 @@ public static class ConcurrencyExceptionMiddleware
     /// <c>[UseOptimisticConcurrency]</c> documents, say) throws an <see cref="AggregateException"/> carrying one
     /// <see cref="ConcurrencyException"/> per failed check. Still a lost race, still the client's to retry.
     /// </summary>
-    public static ProblemDetails OnException(AggregateException ex)
+    public static ProblemDetails OnException(AggregateException ex, WolverineHttpOptions options)
     {
-        return ConflictMapping.ToProblemDetails(ex);
+        return ConflictMapping.ToProblemDetails(ex, options);
     }
 
     /// <summary>
@@ -71,6 +71,18 @@ public static class ConflictMapping
     {
         var inner = ex.Flatten().InnerExceptions;
         return inner.Count > 0 && inner.All(x => x is ConcurrencyException);
+    }
+
+    /// <summary>
+    /// Shape the conflict response, using the factory registered through
+    /// <see cref="WolverineHttpOptions.ConflictProblemDetailsFactory"/> when there is one and the default
+    /// otherwise.
+    /// </summary>
+    public static ProblemDetails ToProblemDetails(Exception ex, WolverineHttpOptions options)
+    {
+        var problem = options.ConflictProblemDetailsFactory?.Invoke(ex) ?? ToProblemDetails(ex);
+        problem.Status ??= ConflictStatusCode;
+        return problem;
     }
 
     public static ProblemDetails ToProblemDetails(Exception ex)

@@ -373,6 +373,22 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
+    public void an_automation_reacting_to_several_events_is_one_handler_class_with_a_Handle_per_event()
+    {
+        // GH-5361
+        var result = plan(declared(m => m.Automation("NotifyOfNewLead")
+            .On("LeadCaptured").On("LeadContactAdded").On("LeadMessageReceived")
+            .Emits("LeadNotificationSent")));
+
+        result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.UnknownTrigger);
+        var code = result.Files.Single(x => x.RelativePath == Path.Combine("Features", "NotifyOfNewLead.cs")).Code;
+        code.Split("public static class NotifyOfNewLeadHandler").Length.ShouldBe(2);
+        code.ShouldContain("Handle(LeadCaptured leadCaptured)");
+        code.ShouldContain("Handle(LeadContactAdded leadContactAdded)");
+        code.ShouldContain("Handle(LeadMessageReceived leadMessageReceived)");
+    }
+
+    [Fact]
     public void a_view_declared_by_name_gets_apply_methods_for_the_events_it_folds()
     {
         var result = plan(declared(m => m.View("AppointmentsQueue").From<AppointmentConfirmed>()));
@@ -600,6 +616,23 @@ public class event_model_scaffold_4832
         // IEventStream<T> erases the event types; the source generator reads AppendOne instead (GH-4914)
         code.ShouldNotContain("[Emits(");
         result.Notices.ShouldNotContain(x => x.Kind == ScaffoldNoticeKind.Warning);
+    }
+
+    [Fact]
+    public void events_of_a_slice_with_several_streams_are_not_planned_as_applies_on_every_stream()
+    {
+        // GH-5360: Emits<T>() has no stream, so deciding against one aggregate and starting another
+        // must not cross-product every event onto every aggregate
+        var result = plan(declared(m => m.Slice("ConvertLead").TriggeredBy(TriggerKind.MessageHandler)
+            .Command<ConfirmAppointmentRequest>().Against<Appointment>().StartsStream<HomeCheck>()
+            .Emits<AppointmentConfirmed>().Emits<AppointmentReminderScheduled>()));
+
+        result.Files.Select(x => x.RelativePath).ShouldNotContain(x => x.Contains("Appointment.cs") || x.Contains("HomeCheck.cs"));
+        var notice = result.Notices.Single(x => x.Code == ScaffoldNoticeCodes.EmittedEventStreamAmbiguous);
+        notice.Kind.ShouldBe(ScaffoldNoticeKind.Warning);
+        notice.Message.ShouldContain("Appointment, HomeCheck");
+        result.Notices.ShouldNotContain(x => x.Code == ScaffoldNoticeCodes.ApplyMethodsAdded
+                                             || x.Code == ScaffoldNoticeCodes.ApplyMethodsByHand);
     }
 
     [Fact]
