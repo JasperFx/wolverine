@@ -25,6 +25,9 @@ public class KafkaReplayInput : NetCoreInput
     [Description("Restrict to these partitions (comma-separated, e.g. 0,1,2)")]
     public string? PartitionsFlag { get; set; }
 
+    [Description("Use this consumer group id verbatim for the replay consumer, for brokers that authorize groups by literal name (omit for a generated id)")]
+    public string? GroupIdFlag { get; set; }
+
     [Description("Target a specific named Kafka broker (omit for the default)")]
     public string? BrokerFlag { get; set; }
 }
@@ -42,16 +45,7 @@ public class KafkaReplayCommand : JasperFxAsyncCommand<KafkaReplayInput>
     {
         using var host = input.BuildHost();
 
-        var request = new KafkaReplayRequest
-        {
-            Topic = input.Topic,
-            FromOffset = input.FromOffsetFlag,
-            FromTimestamp = ParseTimestamp(input.FromTimestampFlag),
-            ToOffset = input.ToOffsetFlag,
-            ToTimestamp = ParseTimestamp(input.ToTimestampFlag),
-            Partitions = input.PartitionsFlag?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(int.Parse).ToArray()
-        };
+        var request = BuildRequest(input);
 
         AnsiConsole.MarkupLine($"Replaying Kafka topic [blue]{input.Topic}[/]...");
         var result = await host.ReplayKafkaTopicAsync(request, input.BrokerFlag);
@@ -60,6 +54,21 @@ public class KafkaReplayCommand : JasperFxAsyncCommand<KafkaReplayInput>
             $"[green]Replayed {result.RecordsReplayed} record(s) across {result.PartitionsReplayed} partition(s).[/]");
 
         return true;
+    }
+
+    internal static KafkaReplayRequest BuildRequest(KafkaReplayInput input)
+    {
+        return new KafkaReplayRequest
+        {
+            Topic = input.Topic,
+            GroupId = input.GroupIdFlag,
+            FromOffset = input.FromOffsetFlag,
+            FromTimestamp = ParseTimestamp(input.FromTimestampFlag),
+            ToOffset = input.ToOffsetFlag,
+            ToTimestamp = ParseTimestamp(input.ToTimestampFlag),
+            Partitions = input.PartitionsFlag?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(int.Parse).ToArray()
+        };
     }
 
     private static DateTimeOffset? ParseTimestamp(string? value)
