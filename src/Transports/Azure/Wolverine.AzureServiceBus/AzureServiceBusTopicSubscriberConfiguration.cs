@@ -26,6 +26,16 @@ public class AzureServiceBusTopicSubscriberConfiguration : InteroperableSubscrib
     }
 
     /// <summary>
+    ///     Mark this topic as owned by another application. Wolverine will never create or delete it,
+    ///     regardless of <c>AutoProvision()</c>. See https://github.com/JasperFx/wolverine/issues/5342.
+    /// </summary>
+    public AzureServiceBusTopicSubscriberConfiguration ExternallyOwned()
+    {
+        add(e => e.IsExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
     /// Utilize custom envelope mapping for Amazon Service Bus interoperability with external non-Wolverine systems
     /// </summary>
     /// <param name="mapper"></param>

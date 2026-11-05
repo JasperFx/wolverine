@@ -36,6 +36,14 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
     public string TopicName { get; }
 
     /// <summary>
+    /// When true, this topic belongs to another application. Wolverine will never create, check-and-create
+    /// or delete it, regardless of <c>AutoProvision()</c> or resource setup, but subscriptions on it are
+    /// still provisioned. If the topic does not exist, provisioning a subscription fails with an error
+    /// naming the topic. See https://github.com/JasperFx/wolverine/issues/5342.
+    /// </summary>
+    public bool IsExternallyOwned { get; set; }
+
+    /// <summary>
     /// Used by OptionsDescription to render references to this topic (for example
     /// from <see cref="AzureServiceBusSubscription.Topic"/>) as just the topic name.
     /// </summary>
@@ -66,6 +74,8 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
     public override ValueTask TeardownAsync(ILogger logger)
     {
+        if (IsExternallyOwned) return ValueTask.CompletedTask;
+
         return new ValueTask(Parent.WithManagementClientAsync(client => client.DeleteTopicAsync(TopicName)));
     }
 
@@ -79,6 +89,8 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
     internal async Task SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
+        if (IsExternallyOwned) return;
+
         var exists = await client.TopicExistsAsync(TopicName, CancellationToken.None);
         if (!exists)
         {
@@ -109,7 +121,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
     internal ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
-        if (Parent.AutoProvision)
+        if (Parent.AutoProvision && !IsExternallyOwned)
         {
             return new ValueTask(SetupAsync(client, logger));
         }
