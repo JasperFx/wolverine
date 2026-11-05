@@ -295,9 +295,11 @@ public partial class HttpChain
     /// <summary>Called from DetermineFrames once the response writer is chosen.</summary>
     private void assertDeduplicatedWithResponseIsJson()
     {
-        // The stored body is System.Text.Json; any other writer would replay different bytes.
+        // The stored body is System.Text.Json; any other writer would replay different bytes. An IResult counts only
+        // when ResultWriterPolicy wrote it: a custom IResourceWriterPolicy runs first and may write it another way.
         if (DeduplicatedWithResponse != null && !Postprocessors.OfType<WriteJsonFrame>().Any() &&
-            !typeof(IResult).IsAssignableFrom(ResourceType))
+            !Postprocessors.OfType<MethodCall>().Any(x =>
+                x.Method.DeclaringType == typeof(IResult) && x.Method.Name == nameof(IResult.ExecuteAsync)))
         {
             throw new NotSupportedException(
                 $"{Description} has [DeduplicatedWithResponse], which replays the response as System.Text.Json, but this endpoint writes its response another way. See GH-4742");

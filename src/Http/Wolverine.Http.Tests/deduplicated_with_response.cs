@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Alba;
 using IntegrationTests;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Resources;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Shouldly;
+using Wolverine.Http.Resources;
 using Wolverine.Http.Runtime;
 using Wolverine.Postgresql;
 using Wolverine.Tracking;
@@ -55,10 +57,13 @@ public class deduplicated_with_response : IAsyncLifetime
 
         // No tenant id detection, deliberately -- see a_tenant_scope_needs_tenant_detection.
         theHost = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
+        {
+            opts.AddResourceWriterPolicy<CustomAnswerWriterPolicy>();
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a [DeduplicatedWithResponse] test endpoint",
                     type => type != typeof(DeduplicatedResponseEndpoints) && type != typeof(EarlyExitDeduplicatedResponseEndpoint)
-                            && type != typeof(MissingResourceDeduplicatedEndpoint)))));
+                            && type != typeof(MissingResourceDeduplicatedEndpoint)));
+        }));
 
         await ((IHost)theHost).ResetResourceState();
 
@@ -334,6 +339,14 @@ public class deduplicated_with_response : IAsyncLifetime
         // Same as a_tenant_scope_needs_tenant_detection: a codegen-time refusal, asserted where it is
         // raised rather than through a request whose surfacing depends on the hosting environment.
         var ex = Should.Throw<NotSupportedException>(() => compile("/deduplicated-response/text"));
+
+        ex.Message.ShouldContain("System.Text.Json");
+    }
+
+    [Fact]
+    public void a_result_a_custom_writer_policy_writes_is_refused()
+    {
+        var ex = Should.Throw<NotSupportedException>(() => compile("/deduplicated-response/custom-written-result"));
 
         ex.Message.ShouldContain("System.Text.Json");
     }
@@ -718,6 +731,11 @@ public static class DeduplicatedResponseEndpoints
     }
 
     [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/deduplicated-response/custom-written-result")]
+    public static Ok<CustomWrittenAnswer> PostCustomWrittenResult(DeduplicatedOrder request)
+        => TypedResults.Ok(new CustomWrittenAnswer(request.Name));
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/deduplicated-response/object-result")]
     public static object PostObjectResult(DeduplicatedOrder request)
     {
@@ -765,6 +783,25 @@ public static class DeduplicatedResponseEndpoints
 }
 
 public record DeduplicatedAnswer(string Name);
+
+public record CustomWrittenAnswer(string Name);
+
+// Takes over Ok<CustomWrittenAnswer> ahead of the built-in result writer, writing it as plain text
+public class CustomAnswerWriterPolicy : IResourceWriterPolicy
+{
+    public bool TryApply(HttpChain chain)
+    {
+        if (chain.ResourceType != typeof(Ok<CustomWrittenAnswer>)) return false;
+
+        var call = new MethodCall(typeof(CustomAnswerWriterPolicy), nameof(Write));
+        call.Arguments[0] = chain.ResourceVariable ?? chain.Method.Creates.First();
+        chain.Postprocessors.Add(call);
+        return true;
+    }
+
+    public static Task Write(Ok<CustomWrittenAnswer> result, HttpContext context)
+        => context.Response.WriteAsync(result.Value!.Name);
+}
 
 public record DetailedDeduplicatedAnswer(string Name, string Detail) : DeduplicatedAnswer(Name);
 
