@@ -505,8 +505,8 @@ public abstract partial class HttpHandler
     /// GH-4742. Called once the endpoint has run, after any commit on claim-and-release and just before it when the
     /// claim is written inside the transaction: the response about to be written, for the claim to store, as
     /// <see cref="WriteJsonAsync{T}" /> will write it, with the status and <c>Location</c> already set; an
-    /// <see cref="IResult" /> is described from the result, before it executes. Unless that response is a failure (400 and up), the work is done and the claim is kept from here on. Null
-    /// records nothing.
+    /// <see cref="IResult" /> is described from the result, before it executes. Unless that response is a failure
+    /// (400 and up), the work is done and the claim is kept from here on. Null records nothing.
     /// </summary>
     public DeduplicatedResponse? CompleteDeduplicatedRequest<T>(HttpContext context, string? deduplicationId,
         T? resource, int missingResourceStatusCode)
