@@ -406,17 +406,11 @@ public partial class HttpChain
     {
         foreach (var headerGroup in _headerVariables.GroupBy(x => x.Name))
         {
-            var variableType = describedParameterType(headerGroup.First().VariableType);
-            var parameterDescription = new ApiParameterDescription
-            {
-                Name = headerGroup.Key,
-                ModelMetadata = new EndpointModelMetadata(variableType),
-                Source = BindingSource.Header,
-                Type = variableType,
-                IsRequired = false
-            };
+            var variable = headerGroup.First();
+            var boundVariable = headerGroup.FirstOrDefault(x => x.BoundParameter is not null) ?? variable;
 
-            apiDescription.ParameterDescriptions.Add(parameterDescription);
+            apiDescription.ParameterDescriptions.Add(
+                describeBoundParameter(headerGroup.Key, boundVariable, BindingSource.Header, variable.VariableType));
         }
     }
 
@@ -424,33 +418,9 @@ public partial class HttpChain
     {
         foreach (var querystringVariable in _querystringVariables)
         {
-            var variableType = describedParameterType(querystringVariable.VariableType);
-
-            // A single-value wrapper is described as the value it wraps, so its parameter's attributes and default
-            // would describe the wrong type
-            var boundParameter = querystringVariable.BoundParameter?.ParameterType == variableType
-                ? querystringVariable.BoundParameter
-                : null;
-
-            var parameterDescription = new ApiParameterDescription
-            {
-                Name = querystringVariable.Name,
-                ModelMetadata = new EndpointModelMetadata(variableType),
-                Source = BindingSource.Query,
-                DefaultValue = querystringVariable.DeclaredDefaultValue, // GH-5099
-                ParameterDescriptor = boundParameter is not null
-                    ? new ControllerParameterDescriptor
-                    {
-                        Name = querystringVariable.Name,
-                        ParameterType = variableType,
-                        ParameterInfo = boundParameter
-                    }
-                    : null!,
-                Type = variableType,
-                IsRequired = boundParameter?.IsDefined(typeof(RequiredAttribute), true) ?? false
-            };
-
-            apiDescription.ParameterDescriptions.Add(parameterDescription);
+            apiDescription.ParameterDescriptions.Add(
+                describeBoundParameter(querystringVariable.Name, querystringVariable, BindingSource.Query,
+                    querystringVariable.VariableType));
         }
     }
 
@@ -458,24 +428,45 @@ public partial class HttpChain
     {
         foreach (var formVariable in _formValueVariables)
         {
-            var variableType = describedParameterType(formVariable.VariableType);
-            var parameterDescription = new ApiParameterDescription
-            {
-                Name = formVariable.Name,
-                ModelMetadata = new EndpointModelMetadata(variableType),
-                Source = BindingSource.Form,
-                DefaultValue = formVariable.DeclaredDefaultValue, // GH-5099
-                ParameterDescriptor = new ParameterDescriptor
-                {
-                    Name = formVariable.Name,
-                    ParameterType = variableType
-                },
-                Type = variableType,
-                IsRequired = false
-            };
-
-            apiDescription.ParameterDescriptions.Add(parameterDescription);
+            apiDescription.ParameterDescriptions.Add(
+                describeBoundParameter(formVariable.Name, formVariable, BindingSource.Form, formVariable.VariableType));
         }
+    }
+
+    /// <summary>
+    /// Describes a query, header or form value, handing the parameter (or property) it was bound for to the
+    /// document generator so it reads that parameter's data annotations.
+    /// </summary>
+    private static ApiParameterDescription describeBoundParameter(string name, Wolverine.Http.CodeGen.HttpElementVariable variable,
+        BindingSource source, Type declaredType)
+    {
+        var variableType = describedParameterType(declaredType);
+
+        // A single-value wrapper is described as the value it wraps, so its parameter's attributes and default
+        // would describe the wrong type
+        var boundParameter = variable.BoundParameter?.ParameterType == variableType
+            ? variable.BoundParameter
+            : null;
+
+        return new ApiParameterDescription
+        {
+            Name = name,
+            ModelMetadata = new EndpointModelMetadata(variableType),
+            Source = source,
+            DefaultValue = variable.DeclaredDefaultValue, // GH-5099
+            ParameterDescriptor = boundParameter is not null
+                ? new ControllerParameterDescriptor
+                {
+                    Name = name,
+                    ParameterType = variableType,
+                    ParameterInfo = boundParameter
+                }
+                : source == BindingSource.Form
+                    ? new ParameterDescriptor { Name = name, ParameterType = variableType }
+                    : null!,
+            Type = variableType,
+            IsRequired = boundParameter?.IsDefined(typeof(RequiredAttribute), true) ?? false
+        };
     }
 
     /// <summary>

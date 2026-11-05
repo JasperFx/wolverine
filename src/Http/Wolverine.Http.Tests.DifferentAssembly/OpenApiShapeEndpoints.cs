@@ -228,6 +228,41 @@ public static class AnnotatedComplexQueryStringRecordEndpoint
     public static string Get([FromQuery] AnnotatedSearchRecord search) => $"{search.Code}:{search.Limit}";
 }
 
+public static class AnnotatedHeaderEndpoint
+{
+    [WolverineGet("/shapes/header-annotated")]
+    public static string Get([FromHeader(Name = "x-tenant")] [Required] [Description("The tenant")] string tenant)
+        => tenant;
+}
+
+public record AnnotatedAsParametersHeader([FromHeader(Name = "x-code")] [Required] [MaxLength(10)] string Code);
+
+public static class AnnotatedAsParametersHeaderEndpoint
+{
+    [WolverineGet("/shapes/asparameters-header-annotated")]
+    public static string Get([AsParameters] AnnotatedAsParametersHeader header) => header.Code;
+}
+
+public static class AnnotatedFormEndpoint
+{
+    [WolverinePost("/shapes/form-annotated")]
+    public static string Post([FromForm] [Required] [MaxLength(100)] string name) => name;
+}
+
+public class AnnotatedFormBody
+{
+    [Required]
+    [MaxLength(20)]
+    [Description("The title")]
+    public string Title { get; set; } = null!;
+}
+
+public static class AnnotatedFormTypeEndpoint
+{
+    [WolverinePost("/shapes/form-type-annotated")]
+    public static string Post([FromForm] AnnotatedFormBody body) => body.Title;
+}
+
 #endregion
 
 #region [AsParameters] shapes

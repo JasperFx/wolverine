@@ -259,7 +259,14 @@ internal class AsParametersBindingFrame : SyncFrame
         {
             _hasForms = true;
             var formName = fatt.Name ?? memberName;
-            variable = HttpChain.UseDeclaredDefault(chain.TryFindOrCreateFormValue(memberType, memberName!, formName), parameter);
+            var formVariable = chain.TryFindOrCreateFormValue(memberType, memberName!, formName);
+
+            if (formVariable is not null)
+            {
+                formVariable.BoundParameter ??= parameter;
+            }
+
+            variable = HttpChain.UseDeclaredDefault(formVariable, parameter);
             return true;
         }
 
@@ -331,7 +338,14 @@ internal class AsParametersBindingFrame : SyncFrame
         {
             _hasForms = true;
             var formName = fatt.Name ?? memberName;
-            variable = chain.TryFindOrCreateFormValue(memberType, memberName!, formName);
+            var formVariable = chain.TryFindOrCreateFormValue(memberType, memberName!, formName);
+
+            if (formVariable is not null)
+            {
+                formVariable.BoundParameter ??= new PropertyAsParameterInfo(propertyInfo);
+            }
+
+            variable = formVariable;
             return true;
         }
 
