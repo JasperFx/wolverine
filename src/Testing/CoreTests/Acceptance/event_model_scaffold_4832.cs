@@ -619,6 +619,23 @@ public class event_model_scaffold_4832
     }
 
     [Fact]
+    public void events_of_a_slice_with_several_streams_are_not_planned_as_applies_on_every_stream()
+    {
+        // GH-5360: Emits<T>() has no stream, so deciding against one aggregate and starting another
+        // must not cross-product every event onto every aggregate
+        var result = plan(declared(m => m.Slice("ConvertLead").TriggeredBy(TriggerKind.MessageHandler)
+            .Command<ConfirmAppointmentRequest>().Against<Appointment>().StartsStream<HomeCheck>()
+            .Emits<AppointmentConfirmed>().Emits<AppointmentReminderScheduled>()));
+
+        result.Files.Select(x => x.RelativePath).ShouldNotContain(x => x.Contains("Appointment.cs") || x.Contains("HomeCheck.cs"));
+        var notice = result.Notices.Single(x => x.Code == ScaffoldNoticeCodes.EmittedEventStreamAmbiguous);
+        notice.Kind.ShouldBe(ScaffoldNoticeKind.Warning);
+        notice.Message.ShouldContain("Appointment, HomeCheck");
+        result.Notices.ShouldNotContain(x => x.Code == ScaffoldNoticeCodes.ApplyMethodsAdded
+                                             || x.Code == ScaffoldNoticeCodes.ApplyMethodsByHand);
+    }
+
+    [Fact]
     public void a_stream_the_command_has_no_id_member_for_is_a_warning()
     {
         var result = plan(declared(m => m.Slice("ConfirmAppointment").TriggeredBy(TriggerKind.MessageHandler)
