@@ -58,8 +58,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         return generation switch
         {
             EnvelopeIdGeneration.GuidV7 => Guid.CreateVersion7,
-            EnvelopeIdGeneration.NewIdSqlServerOrder => MassTransit.NewId.NextGuid,
-            _ => MassTransit.NewId.NextSequentialGuid
+            EnvelopeIdGeneration.NewIdSqlServerOrder => EnvelopeIds.NextGuid,
+            _ => EnvelopeIds.NextSequentialGuid
         };
     }
 

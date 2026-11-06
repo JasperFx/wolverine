@@ -18,7 +18,7 @@ public class store_preferred_envelope_id_generation : IDisposable
 {
     public void Dispose()
     {
-        Envelope.IdGenerator = NewId.NextSequentialGuid;
+        Envelope.IdGenerator = EnvelopeIds.NextSequentialGuid;
     }
 
     private static IMessageStore storePreferring(EnvelopeIdGeneration? preference)
@@ -91,6 +91,6 @@ public class store_preferred_envelope_id_generation : IDisposable
             .StartAsync(TestContext.Current.CancellationToken);
 
         host.GetRuntime().Options.EnvelopeIdGeneration.ShouldBe(EnvelopeIdGeneration.NewId);
-        Envelope.IdGenerator.Method.ShouldBe(typeof(NewId).GetMethod(nameof(NewId.NextSequentialGuid), Type.EmptyTypes));
+        Envelope.IdGenerator.Method.ShouldBe(typeof(EnvelopeIds).GetMethod(nameof(EnvelopeIds.NextSequentialGuid), Type.EmptyTypes));
     }
 }

@@ -14,7 +14,7 @@ public class envelope_id_generation : IDisposable
     public void Dispose()
     {
         // Reset to default after each test
-        Envelope.IdGenerator = NewId.NextSequentialGuid;
+        Envelope.IdGenerator = EnvelopeIds.NextSequentialGuid;
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class envelope_id_generation : IDisposable
     [Fact]
     public void new_id_mode_produces_non_empty_guids()
     {
-        Envelope.IdGenerator = NewId.NextSequentialGuid;
+        Envelope.IdGenerator = EnvelopeIds.NextSequentialGuid;
 
         var envelope = new Envelope();
         envelope.Id.ShouldNotBe(Guid.Empty);
@@ -118,7 +118,7 @@ public class envelope_id_generation : IDisposable
                 #endregion
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        Envelope.IdGenerator.Method.ShouldBe(typeof(NewId).GetMethod(nameof(NewId.NextGuid), Type.EmptyTypes));
+        Envelope.IdGenerator.Method.ShouldBe(typeof(EnvelopeIds).GetMethod(nameof(EnvelopeIds.NextGuid), Type.EmptyTypes));
 
         await host.InvokeMessageAndWaitAsync(new GuidV7TestMessage("sql server"));
         GuidV7TestHandler.LastReceived.ShouldBe("sql server");
@@ -128,7 +128,7 @@ public class envelope_id_generation : IDisposable
     [Fact]
     public void sql_server_order_ids_sort_in_sql_server_order()
     {
-        Envelope.IdGenerator = NewId.NextGuid;
+        Envelope.IdGenerator = EnvelopeIds.NextGuid;
 
         var ids = Enumerable.Range(0, 1000).Select(_ => new SqlGuid(new Envelope().Id)).ToArray();
 
@@ -142,7 +142,7 @@ public class envelope_id_generation : IDisposable
     [Fact]
     public void default_ids_do_not_sort_in_sql_server_order()
     {
-        Envelope.IdGenerator = NewId.NextSequentialGuid;
+        Envelope.IdGenerator = EnvelopeIds.NextSequentialGuid;
 
         var ids = Enumerable.Range(0, 1000).Select(_ => new Envelope().Id).ToArray();
 
@@ -158,6 +158,50 @@ public class envelope_id_generation : IDisposable
             .Count(i => sqlServerOrder[i].CompareTo(sqlServerOrder[i - 1]) < 0);
 
         outOfOrder.ShouldBeGreaterThan(0);
+    }
+
+    // Two processes on one machine share NewId's network identity, and each counts its own sequence from zero
+    // within a tick, so without the process id they draw the very same ids. A fixed tick puts both "processes"
+    // in the same moment.
+    [Fact]
+    public void the_default_ids_differ_between_two_processes_drawing_them_at_the_same_moment()
+    {
+        var tick = new FixedTicks();
+
+        var withoutProcessIds = draw(EnvelopeIds.Create(tick, null))
+            .Intersect(draw(EnvelopeIds.Create(tick, null)));
+        withoutProcessIds.ShouldNotBeEmpty("NewId's own layout collides across processes");
+
+        draw(EnvelopeIds.Create(tick, new FixedProcessId(1001)))
+            .Intersect(draw(EnvelopeIds.Create(tick, new FixedProcessId(1002))))
+            .ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task default_ids_are_unique_across_threads()
+    {
+        var ids = new ConcurrentBag<Guid>();
+        var tasks = Enumerable.Range(0, 10).Select(_ => Task.Run(() =>
+        {
+            for (var i = 0; i < 1000; i++) ids.Add(EnvelopeIds.NextSequentialGuid());
+        }, TestContext.Current.CancellationToken)).ToArray();
+
+        await Task.WhenAll(tasks);
+
+        ids.Distinct().Count().ShouldBe(10_000);
+    }
+
+    private static Guid[] draw(INewIdGenerator generator) =>
+        Enumerable.Range(0, 1000).Select(_ => generator.NextSequentialGuid()).ToArray();
+
+    private class FixedTicks : ITickProvider
+    {
+        public long Ticks { get; } = DateTime.UtcNow.Ticks;
+    }
+
+    private class FixedProcessId(int id) : IProcessIdProvider
+    {
+        public byte[] GetProcessId() => BitConverter.GetBytes(id);
     }
 
     [Fact]

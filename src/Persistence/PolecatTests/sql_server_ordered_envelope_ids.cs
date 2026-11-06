@@ -20,7 +20,7 @@ public class sql_server_ordered_envelope_ids : IDisposable
     public void Dispose()
     {
         // The id generator is static, so put the default back for every other test in this assembly
-        Envelope.IdGenerator = NewId.NextSequentialGuid;
+        Envelope.IdGenerator = EnvelopeIds.NextSequentialGuid;
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class sql_server_ordered_envelope_ids : IDisposable
 
         host.Services.GetRequiredService<WolverineOptions>().EnvelopeIdGeneration
             .ShouldBe(EnvelopeIdGeneration.NewIdSqlServerOrder);
-        Envelope.IdGenerator.Method.ShouldBe(typeof(NewId).GetMethod(nameof(NewId.NextGuid), Type.EmptyTypes));
+        Envelope.IdGenerator.Method.ShouldBe(typeof(EnvelopeIds).GetMethod(nameof(EnvelopeIds.NextGuid), Type.EmptyTypes));
     }
 
     [Fact]
@@ -67,6 +67,6 @@ public class sql_server_ordered_envelope_ids : IDisposable
 
         host.Services.GetRequiredService<WolverineOptions>().EnvelopeIdGeneration
             .ShouldBe(EnvelopeIdGeneration.NewId);
-        Envelope.IdGenerator.Method.ShouldBe(typeof(NewId).GetMethod(nameof(NewId.NextSequentialGuid), Type.EmptyTypes));
+        Envelope.IdGenerator.Method.ShouldBe(typeof(EnvelopeIds).GetMethod(nameof(EnvelopeIds.NextSequentialGuid), Type.EmptyTypes));
     }
 }
