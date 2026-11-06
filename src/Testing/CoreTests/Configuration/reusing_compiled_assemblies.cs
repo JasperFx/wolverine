@@ -19,6 +19,7 @@ public class ReuseCompiledMessageHandler
 }
 
 // GH-5378 / jasperfx#1114
+[Collection(CodegenCommandCollection.Name)]
 public class reusing_compiled_assemblies
 {
     private static Task<IHost> startHost(bool reuse, TypeLoadMode mode = TypeLoadMode.Dynamic,
@@ -103,13 +104,28 @@ public class reusing_compiled_assemblies
             (await buildHost(true, TypeLoadMode.Auto, root).RunJasperFxCommands(["codegen", "write"]))
                 .ShouldBe(0);
 
+            // The codegen command leaves this process-wide flag set, and while it is set every host starts in
+            // MediatorOnly mode -- these two, and every other test's host in this process
+            DynamicCodeBuilder.WithinCodegenCommand = false;
+
             using var one = await startHost(true, TypeLoadMode.Auto, root);
             using var two = await startHost(true, TypeLoadMode.Auto, root);
             compiledHandlerType(one).Assembly.ShouldBeSameAs(compiledHandlerType(two).Assembly);
         }
         finally
         {
+            DynamicCodeBuilder.WithinCodegenCommand = false;
             Directory.Delete(root, true);
         }
     }
+}
+
+/// <summary>
+/// Running a codegen command sets <c>DynamicCodeBuilder.WithinCodegenCommand</c>, a static flag that makes every
+/// host started meanwhile come up in MediatorOnly mode, so nothing may run beside these tests
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public class CodegenCommandCollection
+{
+    public const string Name = "CodegenCommand";
 }
