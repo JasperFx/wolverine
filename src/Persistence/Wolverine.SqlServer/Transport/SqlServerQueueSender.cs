@@ -120,13 +120,21 @@ END CATCH
         await conn.OpenAsync(cancellationToken);
         try
         {
+            // The inbox delete and the scheduled write commit together or not at all. Run as two autocommitted
+            // statements, a scheduled write that failed (a timeout, a deadlock) left the inbox row deleted with
+            // nothing scheduled, and the message lived on only in this node's memory until the retry block tried
+            // again -- a node that died or shut down first lost it. A client-side transaction, rather than
+            // BEGIN TRANSACTION in the batch, so a command timeout's attention rolls it back with the dispose.
+            await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
             await using var cmd = conn.CreateCommand(_deleteFromIncomingAndScheduleSql)
                 .With("id", envelope.Id)
                 .With("body", EnvelopeSerializer.Serialize(envelope))
                 .With("type", envelope.MessageType!)
                 .With("expires", envelope.DeliverBy!)
                 .With("time", envelope.ScheduledTime!);
+            cmd.Transaction = tx;
             await cmd.ExecuteNonQueryAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
         }
         finally
         {

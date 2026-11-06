@@ -62,13 +62,19 @@ internal class OracleQueueSender : IOracleQueueSender
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         try
         {
-            // Delete from incoming, write to scheduled
+            // Delete from incoming, write to scheduled -- in one transaction. Committed one by one, a failed
+            // scheduled write left the inbox row deleted with nothing scheduled
+            await using var tx = (OracleTransaction)await conn.BeginTransactionAsync(cancellationToken);
+
             await using var deleteCmd = conn.CreateCommand(
                 $"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} WHERE id = :id");
+            deleteCmd.Transaction = tx;
             deleteCmd.With("id", envelope.Id);
             await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
 
-            await writeToScheduledTableAsync(envelope, cancellationToken, conn);
+            await writeToScheduledTableAsync(envelope, cancellationToken, conn, tx);
+
+            await tx.CommitAsync(cancellationToken);
         }
         finally
         {

@@ -145,12 +145,17 @@ values (@id, @body, @type, @time)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        await conn.CreateCommand(_deleteFromIncomingAndScheduleSql)
+        // The inbox delete and the scheduled write commit together or not at all: autocommitted one by one, a
+        // failed scheduled write left the inbox row deleted with nothing scheduled
+        await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+        var cmd = conn.CreateCommand(_deleteFromIncomingAndScheduleSql)
             .With("id", $"{envelope.Id:D}")
             .With("body", EnvelopeSerializer.Serialize(envelope))
             .With("type", envelope.MessageType!)
-            .With("time", (envelope.ScheduledTime ?? DateTimeOffset.UtcNow).UtcDateTime.ToString(SqliteDateTimeFormat))
-            .ExecuteNonQueryAsync(cancellationToken);
+            .With("time", (envelope.ScheduledTime ?? DateTimeOffset.UtcNow).UtcDateTime.ToString(SqliteDateTimeFormat));
+        cmd.Transaction = tx;
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
     }
 
     public async ValueTask SendAsync(Envelope envelope)
