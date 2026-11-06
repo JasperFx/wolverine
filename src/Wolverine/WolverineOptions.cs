@@ -109,8 +109,9 @@ public enum EnvelopeIdGeneration
 {
     /// <summary>
     /// Default. Uses MassTransit's NewId algorithm (<c>NewId.NextSequentialGuid()</c>), which builds
-    /// GUIDs from machine identity (MAC/DNS) and a timestamp, laid out so they sort in time order the way
-    /// .NET and PostgreSQL compare GUIDs. SQL Server compares a <c>uniqueidentifier</c> starting from its
+    /// GUIDs from machine identity (MAC/DNS), the process id and a timestamp, laid out so they sort in time
+    /// order the way .NET and PostgreSQL compare GUIDs. Wolverine adds the process id to NewId's own layout
+    /// so that several processes on one machine cannot draw the same ids. SQL Server compares a <c>uniqueidentifier</c> starting from its
     /// last six bytes, so these ids arrive in effectively random order there and fragment SQL Server's
     /// clustered envelope tables; see <see cref="NewIdSqlServerOrder"/>. Can produce duplicates in cloud
     /// environments where multiple instances share network identity (containers, Cloud Run, serverless).

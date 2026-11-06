@@ -471,10 +471,10 @@ public partial class Envelope : IHasTenantId
     public string?[] AcceptedContentTypes { get; set; } = DefaultAcceptedContentTypes;
 
     /// <summary>
-    /// The delegate used to generate unique envelope IDs. Defaults to NewId.NextSequentialGuid.
+    /// The delegate used to generate unique envelope IDs. Defaults to <see cref="EnvelopeIds.NextSequentialGuid"/>.
     /// Set via <see cref="WolverineOptions.EnvelopeIdGeneration"/> at startup.
     /// </summary>
-    internal static Func<Guid> IdGenerator = NewId.NextSequentialGuid;
+    internal static Func<Guid> IdGenerator = EnvelopeIds.NextSequentialGuid;
 
     /// <summary>
     ///     Specific message id for this envelope
