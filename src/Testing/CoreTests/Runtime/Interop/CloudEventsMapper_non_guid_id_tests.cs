@@ -53,7 +53,7 @@ public class CloudEventsMapper_non_guid_id_tests
         var storedId = Guid.NewGuid();
         var envelope = new Envelope
         {
-            Id = storedId, WasPersistedInInbox = true, Data = Encoding.UTF8.GetBytes(GuidIdJson(Guid.NewGuid()))
+            Id = storedId, WasPersistedInInbox = true, Data = Encoding.UTF8.GetBytes(guidIdJson(Guid.NewGuid()))
         };
         _mapper.ReadFromData(typeof(Order), envelope);
 
@@ -64,12 +64,12 @@ public class CloudEventsMapper_non_guid_id_tests
     public void reading_an_envelope_not_held_in_the_inbox_takes_a_guid_cloud_event_id()
     {
         var cloudEventId = Guid.NewGuid();
-        var envelope = new Envelope { Id = Guid.NewGuid(), Data = Encoding.UTF8.GetBytes(GuidIdJson(cloudEventId)) };
+        var envelope = new Envelope { Id = Guid.NewGuid(), Data = Encoding.UTF8.GetBytes(guidIdJson(cloudEventId)) };
         _mapper.ReadFromData(typeof(Order), envelope);
 
         envelope.Id.ShouldBe(cloudEventId);
     }
 
-    private static string GuidIdJson(Guid id) =>
+    private static string guidIdJson(Guid id) =>
         $$"""{ "data": { "orderId": 1 }, "id": "{{id}}", "specversion": "1.0", "type": "some.event", "source": "/repro" }""";
 }
