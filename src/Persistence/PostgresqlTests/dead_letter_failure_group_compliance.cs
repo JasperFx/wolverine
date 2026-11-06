@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
 
 namespace PostgresqlTests;
 
@@ -17,4 +18,8 @@ public class dead_letter_failure_group_compliance : RelationalDeadLetterFailureG
                 opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();
     }
+
+    protected override Task<IAsyncDisposable?> blockDeadLetterHistoryWritesAsync() =>
+        holdLockAsync(
+            $"lock table {((IMessageDatabase)thePersistence).TableNameFor(DatabaseConstants.DeadLetterHistoryTable)} in share mode");
 }
