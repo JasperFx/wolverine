@@ -751,7 +751,14 @@ internal partial class TrackedSession : ITrackedSession
             return _conditions.All(x => x.IsCompleted());
         }
 
-        return _envelopes.All(x => x.IsComplete());
+        // The envelope histories are a snapshot, so a handler can send cascading messages and then finish
+        // while this check runs. Histories are only ever added, so check again until none appeared meanwhile.
+        while (true)
+        {
+            var histories = _envelopes.ToArray();
+            if (!histories.All(x => x.IsComplete())) return false;
+            if (_envelopes.Count == histories.Length) return true;
+        }
     }
 
     public void LogException(Exception exception, string? serviceName, object? correlationId = null)
