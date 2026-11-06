@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.SqlServer;
+using Wolverine.RDBMS;
 
 namespace SqlServerTests.Persistence;
 
@@ -20,4 +21,8 @@ public class dead_letter_failure_group_compliance : RelationalDeadLetterFailureG
                 opts.Durability.DeadLetterQueueExpirationEnabled = true;
             }).StartAsync();
     }
+
+    protected override Task<IAsyncDisposable?> blockDeadLetterHistoryWritesAsync() =>
+        holdLockAsync(
+            $"select count(*) from {((IMessageDatabase)thePersistence).TableNameFor(DatabaseConstants.DeadLetterHistoryTable)} with (tablock, holdlock)");
 }
