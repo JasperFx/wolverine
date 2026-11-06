@@ -114,13 +114,18 @@ ON DUPLICATE KEY UPDATE {DatabaseConstants.Body} = @body, {DatabaseConstants.Mes
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         try
         {
-            await conn.CreateCommand($"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} WHERE id = @id;" + _writeDirectlyToTheScheduledTable)
+            // The inbox delete and the scheduled write commit together or not at all: autocommitted one by one, a
+            // failed scheduled write left the inbox row deleted with nothing scheduled
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+            var cmd = conn.CreateCommand($"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} WHERE id = @id;" + _writeDirectlyToTheScheduledTable)
                 .With("id", envelope.Id)
                 .With("body", EnvelopeSerializer.Serialize(envelope))
                 .With("type", envelope.MessageType)
                 .With("expires", envelope.DeliverBy)
-                .With("time", envelope.ScheduledTime)
-                .ExecuteNonQueryAsync(cancellationToken);
+                .With("time", envelope.ScheduledTime);
+            cmd.Transaction = tx;
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
         }
         finally
         {
