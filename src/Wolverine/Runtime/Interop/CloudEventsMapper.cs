@@ -245,7 +245,12 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
         {
             if (Guid.TryParse(raw, out var id))
             {
-                envelope.Id = id;
+                // An envelope already stored in the durable inbox is found by the id it was stored under, so
+                // reading it must not replace that id with the CloudEvent's
+                if (!(keepExistingId && envelope.WasPersistedInInbox))
+                {
+                    envelope.Id = id;
+                }
             }
             else if (!keepExistingId || envelope.Id == Guid.Empty)
             {
