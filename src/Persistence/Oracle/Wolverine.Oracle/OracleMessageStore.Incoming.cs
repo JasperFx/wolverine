@@ -1,5 +1,6 @@
 using System.Data.Common;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Oracle.ManagedDataAccess.Client;
 using Weasel.Oracle;
 using Wolverine.Oracle.Util;
@@ -227,6 +228,17 @@ internal partial class OracleMessageStore
 
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
+        // GH-5410: never dead-letter work the inbox says is done. A handler transaction can commit on the server
+        // and still fail on the client; the delete below then removed the Handled row that commit had written,
+        // and a replay of the dead letter ran the committed work a second time
+        if (envelope.Destination != null && await IsHandledAsync(envelope, _cancellation))
+        {
+            _logger.LogWarning(exception,
+                "Envelope {EnvelopeId} at {Uri} was not moved to dead letter storage because the inbox already shows it handled",
+                envelope.Id, envelope.Destination);
+            return;
+        }
+
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         var tx = (OracleTransaction)await conn.BeginTransactionAsync(_cancellation);
 

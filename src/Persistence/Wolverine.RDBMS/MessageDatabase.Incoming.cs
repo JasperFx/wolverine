@@ -1,4 +1,5 @@
 ﻿using System.Data.Common;
+using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Interop;
@@ -144,6 +145,17 @@ public abstract partial class MessageDatabase<T>
         {
             throw new ObjectDisposedException(GetType().FullName,
                 $"The message store is disposed, so envelope {envelope.Id} could not be moved to dead letter storage");
+        }
+
+        // GH-5410: never dead-letter work the inbox says is done. A handler transaction can commit on the server
+        // and still fail on the client; the delete below then removed the Handled row that commit had written,
+        // and a replay of the dead letter ran the committed work a second time
+        if (envelope.Destination != null && await handledRowExistsAsync(envelope, _cancellation).ConfigureAwait(false))
+        {
+            Logger.LogWarning(exception,
+                "Envelope {EnvelopeId} at {Uri} was not moved to dead letter storage because the inbox already shows it handled",
+                envelope.Id, envelope.Destination);
+            return;
         }
 
         if (Durability.DeadLetterQueueExpirationEnabled && envelope.DeliverBy == null)
