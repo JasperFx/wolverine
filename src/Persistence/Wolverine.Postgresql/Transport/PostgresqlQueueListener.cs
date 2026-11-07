@@ -254,8 +254,11 @@ SELECT count(*) FROM moved");
         await _receiver.ReceivedAsync(this, messages.ToArray());
 
         // Preserve the original post-process pacing, but let a queue notification start the next poll immediately.
+        // GH-5413: a full batch means more is probably waiting, so poll again shortly. This was `>`, which a pop
+        // limited to MaximumMessagesToReceive can never satisfy, so once the notifications stopped (the producer
+        // finished, or a restarted node found a backlog) the queue drained one batch per polling interval.
         await _loop!.WaitForWakeupOrTimeoutAsync(
-            messages.Count > _queue.MaximumMessagesToReceive ? 250.Milliseconds() : _pollingInterval, token);
+            messages.Count >= _queue.MaximumMessagesToReceive ? 250.Milliseconds() : _pollingInterval, token);
 
         return true;
     }
