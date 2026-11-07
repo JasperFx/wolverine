@@ -133,6 +133,18 @@ internal partial class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISa
         }
     }
 
+    /// <summary>
+    /// GH-5428. Bound the handled-envelope reap, as PostgreSQL, SQL Server and SQLite already do, so each
+    /// statement holds its locks briefly instead of the whole expired range at once. The
+    /// idx_wolverine_incoming_envelopes_keep_until index keeps it from locking rows it will not delete.
+    /// </summary>
+    public override string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize)
+    {
+        return
+            $"delete from {SchemaName}.{DatabaseConstants.IncomingTable} " +
+            $"where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @now limit {batchSize};";
+    }
+
     /// <summary>GH-4742. A bounded reap: response bodies make one unbounded delete a long lock.</summary>
     public override string? BatchedDeleteExpiredDeduplicatedResponsesSql(int batchSize)
     {
