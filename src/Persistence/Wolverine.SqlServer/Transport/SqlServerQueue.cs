@@ -561,7 +561,8 @@ DELETE FROM {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} 
         ILogger logger, CancellationToken cancellationToken)
     {
         buildTestSqlIfMissing();
-        return _durablePop!.TryPopAsync(count, settings.AssignedNodeNumber, logger, cancellationToken);
+        return _durablePop!.TryPopAsync(count, settings.AssignedNodeNumber, settings.MessageIdentity, logger,
+            cancellationToken);
     }
 
     #endregion

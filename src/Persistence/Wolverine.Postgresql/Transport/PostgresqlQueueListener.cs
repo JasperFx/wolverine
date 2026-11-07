@@ -288,6 +288,11 @@ SELECT count(*) FROM moved");
         var queueOrderInResultOrderBy = _deterministicQueueOrdering
             ? $", popped.{QueueTable.QueueOrderColumn}"
             : string.Empty;
+        // GH-5411: an envelope the inbox already holds is skipped rather than failing the whole batch with a
+        // unique violation, which rolled every other envelope of the batch back onto the queue on every poll
+        // for as long as the earlier row lived. The probe matches the inbox's identity (the received_at joins
+        // it only under IdAndDestination) and also catches a Handled row of a partitioned inbox, whose key
+        // includes the status. ON CONFLICT covers a concurrent insert the probe's snapshot cannot see.
         var parameters = builder.AppendWithParameters($@"
 WITH popped AS (
     DELETE FROM {_queueTableName}
@@ -301,8 +306,13 @@ WITH popped AS (
     INSERT INTO {_quotedSchemaName}.{DatabaseConstants.IncomingTable}
         (id, status, owner_id, body, message_type, received_at, keep_until)
     SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM popped
+    WHERE NOT EXISTS (SELECT 1 FROM {_quotedSchemaName}.{DatabaseConstants.IncomingTable} existing WHERE {alreadyInTheInbox("existing", "popped")})
+    ON CONFLICT DO NOTHING
+    RETURNING {DatabaseConstants.Id}
 )
-SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrderInResultOrderBy}");
+SELECT popped.{DatabaseConstants.Id}, popped.{DatabaseConstants.Body}, inserted.{DatabaseConstants.Id} IS NULL
+FROM popped LEFT JOIN inserted ON inserted.{DatabaseConstants.Id} = popped.{DatabaseConstants.Id}
+ORDER BY popped.timestamp{queueOrderInResultOrderBy}");
 
         parameters[0].Value = count;
         parameters[0].NpgsqlDbType = NpgsqlDbType.Integer;
@@ -332,6 +342,17 @@ SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY pop
                 while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 {
                     var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
+
+                    // GH-5411: the inbox already holds this envelope, say from an earlier delivery received at
+                    // another address. It has left the queue, and nothing was inserted for it.
+                    if (await reader.GetFieldValueAsync<bool>(2, cancellationToken))
+                    {
+                        logger.LogInformation(
+                            "Discarding a duplicate delivery of envelope {EnvelopeId} at {Uri}, which the inbox already holds",
+                            id, Address);
+                        continue;
+                    }
+
                     batchIds.Add(id);
                     var data = await reader.GetFieldValueAsync<byte[]>(1, cancellationToken);
                     try
@@ -409,6 +430,14 @@ SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY pop
     /// stranded once the commit landed. Once the lock returns the move has either committed (the update
     /// releases the inbox rows) or rolled back (the rows are back in the queue and nothing matches).
     /// </summary>
+    private string alreadyInTheInbox(string existing, string popped)
+    {
+        var identity = $"{existing}.{DatabaseConstants.Id} = {popped}.{DatabaseConstants.Id}";
+        return _settings.MessageIdentity == MessageIdentity.IdAndDestination
+            ? $"{identity} AND {existing}.{DatabaseConstants.ReceivedAt} = '{Address}'"
+            : identity;
+    }
+
     internal async Task ReleaseUnconfirmedPopAsync(ILogger logger, CancellationToken cancellationToken)
     {
         if (_unconfirmedPop is not { } pop) return;

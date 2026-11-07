@@ -409,12 +409,41 @@ internal class OracleQueueListener : IListener
 
             var list = new List<Envelope>();
 
+            // GH-5411: matches the inbox's identity, where received_at counts only under IdAndDestination
+            var heldSql = $"SELECT COUNT(*) FROM {_schemaName}.{DatabaseConstants.IncomingTable} WHERE id = :id" +
+                          (_settings.MessageIdentity == MessageIdentity.IdAndDestination
+                              ? $" AND {DatabaseConstants.ReceivedAt} = :receivedAt"
+                              : "");
+            var inserted = new List<Guid>();
+
             for (int i = 0; i < ids.Count; i++)
             {
                 // Delete from queue
                 await using var deleteCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id = :id");
                 deleteCmd.With("id", ids[i]);
                 await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+
+                // GH-5411: an envelope the inbox already holds (say, handled after being received at another
+                // address) would fail the INSERT below with ORA-00001 and roll the whole batch back onto the
+                // queue on every poll. It has left the queue; skip it.
+                await using (var heldCmd = CreateCmd(heldSql))
+                {
+                    heldCmd.With("id", ids[i]);
+                    if (_settings.MessageIdentity == MessageIdentity.IdAndDestination)
+                    {
+                        heldCmd.With("receivedAt", Address.ToString());
+                    }
+
+                    if (Convert.ToInt64(await heldCmd.ExecuteScalarAsync(cancellationToken)) > 0)
+                    {
+                        logger.LogInformation(
+                            "Discarding a duplicate delivery of envelope {EnvelopeId} at {Uri}, which the inbox already holds",
+                            ids[i], Address);
+                        continue;
+                    }
+                }
+
+                inserted.Add(ids[i]);
 
                 // Insert into incoming
                 await using var insertCmd = CreateCmd(
@@ -451,7 +480,7 @@ internal class OracleQueueListener : IListener
                 // inbox owned by this live node and in no listener's memory -- recovery only reclaims
                 // owner_id = 0. Nothing is handed to the receiver (if the move rolled back, the rows are back in
                 // the queue and would run twice), so release whatever did commit to recovery instead.
-                await releaseAfterFailedCommitAsync(ids, settings.AssignedNodeNumber, e, logger);
+                await releaseAfterFailedCommitAsync(inserted, settings.AssignedNodeNumber, e, logger);
                 throw;
             }
 
