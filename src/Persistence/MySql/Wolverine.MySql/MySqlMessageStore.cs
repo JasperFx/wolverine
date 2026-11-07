@@ -548,6 +548,8 @@ internal partial class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISa
         {
             Engine = "MySQL",
             ServerName = builder.Server ?? string.Empty,
+            // GH-5435: lets two tenant databases with one name on one host be told apart by port
+            Port = (int)builder.Port,
             DatabaseName = builder.Database ?? string.Empty,
             Subject = GetType().FullNameInCode(),
             SubjectUri = SubjectUri,

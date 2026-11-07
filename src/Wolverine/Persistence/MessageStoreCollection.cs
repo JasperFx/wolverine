@@ -128,8 +128,14 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
 
     public IReadOnlyList<MultiTenantedMessageStore> MultiTenanted => _multiTenanted;
 
+    // GH-5435. Agent Uris that two different databases turned out to share. Remembered, so a tenant database
+    // discovered later with one of these Uris is qualified too, whatever order the databases were found in
+    private readonly HashSet<Uri> _ambiguousAgentUris = new();
+
     private void categorizeStore(IMessageStore store)
     {
+        disambiguateAgentUri(store);
+
         if (_services.TryFind(store.Uri, out var existing))
         {
             if (store.Role == MessageStoreRole.Main && existing.Role != MessageStoreRole.Main)
@@ -140,6 +146,40 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         else
         {
             _services = _services.AddOrUpdate(store.Uri, store);
+        }
+    }
+
+    /// <summary>
+    /// GH-5435. A relational store's agent Uri leaves out the server port, so two tenant databases with one name
+    /// on one host but different ports used to share a Uri. Only the first then got a durability agent, and
+    /// the second database's scheduled messages were never released and its dead nodes' work never recovered.
+    /// When that happens, each of the databases that is not the main store switches to a Uri that carries its
+    /// port. A configuration without the collision keeps the Uri it always had.
+    /// </summary>
+    private void disambiguateAgentUri(IMessageStore store)
+    {
+        if (store.Role == MessageStoreRole.Main || store is not IPortQualifiedAgentUri qualifiable) return;
+
+        if (_ambiguousAgentUris.Contains(store.Uri))
+        {
+            qualifiable.UsePortQualifiedUri();
+            return;
+        }
+
+        if (!_services.TryFind(store.Uri, out var existing) || ReferenceEquals(existing, store)) return;
+
+        // The same database reached twice (one database serving several tenant ids, say) is not a collision
+        if (existing is not IPortQualifiedAgentUri other || other.AgentUriPort == qualifiable.AgentUriPort) return;
+
+        var shared = store.Uri;
+        _ambiguousAgentUris.Add(shared);
+        qualifiable.UsePortQualifiedUri();
+
+        if (existing.Role != MessageStoreRole.Main)
+        {
+            _services = _services.Remove(shared);
+            other.UsePortQualifiedUri();
+            _services = _services.AddOrUpdate(existing.Uri, existing);
         }
     }
 
