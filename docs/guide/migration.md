@@ -1,5 +1,11 @@
 # Migration Guide
 
+## Standard transport timestamp headers (GH-3645)
+
+Transport mappers now write `sent-at`, `time-to-send`, and `deliver-by` as invariant round-trip (`"o"`) timestamps in UTC. Standard date parsers can read these values, and all seven fractional-second digits are preserved. Wolverine continues reading the legacy format, including headers in persisted or replayed messages. There is no database schema change.
+
+Upgrade receivers to a release containing the dual-format reader from [#3656](https://github.com/JasperFx/wolverine/pull/3656) before deploying senders with this change. Older receivers can silently lose scheduling and expiration values when they see the new format. For 5.x receivers, the reader backport [#4583](https://github.com/JasperFx/wolverine/pull/4583) must be included in their installed package; a merged backport alone is insufficient. Custom mappers that override the timestamp writers keep their own behavior.
+
 ## Key Changes in 6.0
 
 ::: warning
