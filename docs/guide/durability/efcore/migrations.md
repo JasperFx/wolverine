@@ -10,7 +10,11 @@ When you register a `DbContext` with Wolverine using `AddDbContextWithWolverineI
 2. **Compare against the actual database** — Weasel connects to the database and compares the expected schema with the current state
 3. **Apply deltas** — Only the necessary changes (new tables, added columns, foreign keys) are applied
 
-This all happens automatically at application startup when you use `UseResourceSetupOnStartup()` or through Wolverine's resource management commands.
+This all happens automatically at application startup when you use `UseResourceSetupOnStartup()`, as a deployment step through
+`dotnet run -- resources setup` (JasperFx's [stateful resource](https://shared-libs.jasperfx.net/cli/resources.html) model) or
+`dotnet run -- db-apply`, or as a reviewed script through `dotnet run -- db-patch` -- the managed `DbContext` is registered as a Weasel
+database, so every one of Weasel's [`db-*` commands](https://weasel.jasperfx.net/cli/) sees it. See
+[Managing Message Storage](/guide/durability/managing#choosing-an-approach) for choosing between them.
 
 ## Enabling Weasel-Managed Migrations
 
