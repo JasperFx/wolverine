@@ -11,8 +11,12 @@ using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 using Wolverine.Marten.Publishing;
+using Wolverine.MySql;
+using Wolverine.Oracle;
 using Wolverine.Postgresql;
 using Wolverine.RabbitMQ;
+using Wolverine.RDBMS;
+using Wolverine.Sqlite;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
 
@@ -50,6 +54,9 @@ public class Processed
     public string Node { get; set; } = "";
     public int Attempts { get; set; }
     public DateTimeOffset At { get; set; }
+
+    /// <summary>The Wolverine envelope id of the execution that committed, so a duplicate can be followed through the worker logs (GH-5426)</summary>
+    public string EnvelopeId { get; set; } = "";
 }
 
 public static class Flags
@@ -67,8 +74,8 @@ public static class Steps
 {
     public static async Task<OutgoingMessages> WorkAsync(Work work, Envelope envelope, Action<Processed> store)
     {
-        // Widen the in-flight window a kill can land in
-        await Task.Delay(Random.Shared.Next(0, 40));
+        // Widen the in-flight window a kill can land in. CHAOS_HANDLER_DELAY=min-max in milliseconds
+        await Task.Delay(Node.HandlerDelay());
 
         if ((work.Flags & Flags.FailFirstAttempt) != 0 && envelope.Attempts <= 1) throw new FlakyException();
         if ((work.Flags & Flags.Poison) != 0 && !File.Exists(Node.PoisonFixedFile)) throw new PoisonException();
@@ -112,6 +119,98 @@ public static class EfWorkHandler
         db.Processed.Add(Ledger.Record(step.Id, "delayed", envelope));
 }
 
+/// <summary>
+/// MySQL, Oracle and SQLite have no transactional middleware for a plain connection, so these handlers do what the
+/// EF Core and Marten integrations do by hand: one ADO.NET transaction holds the ledger row, the cascaded messages
+/// (through an enlisted outbox) and the mark that retires this envelope's inbox row, and the cascades are only
+/// handed to their queues once it commits
+/// </summary>
+public static class AdoWorkHandler
+{
+    public static async Task Handle(Work work, IMessageContext context, IWolverineRuntime runtime, Envelope envelope)
+    {
+        await Task.Delay(Node.HandlerDelay());
+
+        if ((work.Flags & Flags.FailFirstAttempt) != 0 && envelope.Attempts <= 1) throw new FlakyException();
+        if ((work.Flags & Flags.Poison) != 0 && !File.Exists(Node.PoisonFixedFile)) throw new PoisonException();
+
+        await commitAsync(runtime, (MessageContext)context, envelope, Ledger.Record(work.Id, "work", envelope),
+            async () =>
+            {
+                if ((work.Flags & Flags.Local) != 0) await context.PublishAsync(new LocalStep(work.Id));
+                if ((work.Flags & Flags.Delayed) != 0)
+                {
+                    await context.PublishAsync(new DelayedStep(work.Id),
+                        new DeliveryOptions { ScheduleDelay = 2.Seconds() });
+                }
+            });
+    }
+
+    public static async Task Handle(LocalStep step, IMessageContext context, IWolverineRuntime runtime, Envelope envelope)
+    {
+        await Task.Delay(Random.Shared.Next(0, 20));
+        await commitAsync(runtime, (MessageContext)context, envelope, Ledger.Record(step.Id, "local", envelope), null);
+    }
+
+    public static Task Handle(DelayedStep step, IMessageContext context, IWolverineRuntime runtime, Envelope envelope)
+    {
+        return commitAsync(runtime, (MessageContext)context, envelope, Ledger.Record(step.Id, "delayed", envelope), null);
+    }
+
+    private static async Task commitAsync(IWolverineRuntime runtime, MessageContext context, Envelope envelope,
+        Processed processed, Func<Task>? cascade)
+    {
+        var database = (IMessageDatabase)runtime.Storage;
+
+        await using var conn = Db.Open(Db.NodeConnectionString);
+        await conn.OpenAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+
+        await context.EnlistInOutboxAsync(new DatabaseEnvelopeTransaction(database, tx));
+
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText =
+                $"insert into {Db.ProcessedTable} (id, message_id, stage, node, attempts, at, envelope_id) values ({p(0)}, {p(1)}, {p(2)}, {p(3)}, {p(4)}, {p(5)}, {p(6)})";
+            add(cmd, 0, Db.Id(processed.Id));
+            add(cmd, 1, Db.Id(processed.MessageId));
+            add(cmd, 2, processed.Stage);
+            add(cmd, 3, processed.Node);
+            add(cmd, 4, processed.Attempts);
+            add(cmd, 5, Db.Timestamp(processed.At));
+            add(cmd, 6, processed.EnvelopeId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        if (cascade != null) await cascade();
+
+        var marked = false;
+        if (envelope.WasPersistedInInbox && envelope.Destination != null)
+        {
+            await database.MarkIncomingEnvelopeAsHandledInTransactionAsync(conn, tx, envelope,
+                DateTimeOffset.UtcNow.Add(runtime.Options.Durability.KeepAfterMessageHandling), CancellationToken.None);
+            marked = true;
+        }
+
+        await tx.CommitAsync();
+
+        if (marked) envelope.Status = EnvelopeStatus.Handled;
+
+        await context.FlushOutgoingMessagesAsync();
+    }
+
+    internal static string p(int i) => Db.Kind == DbKind.Oracle ? $":p{i}" : $"@p{i}";
+
+    internal static void add(System.Data.Common.DbCommand cmd, int i, object value)
+    {
+        var parameter = cmd.CreateParameter();
+        parameter.ParameterName = Db.Kind == DbKind.Oracle ? $"p{i}" : $"@p{i}";
+        parameter.Value = value;
+        cmd.Parameters.Add(parameter);
+    }
+}
+
 public class ChaosDbContext(DbContextOptions<ChaosDbContext> options) : DbContext(options)
 {
     public DbSet<Sent> Sent => Set<Sent>();
@@ -138,6 +237,7 @@ public class ChaosDbContext(DbContextOptions<ChaosDbContext> options) : DbContex
             x.Property(e => e.Node).HasColumnName("node").HasMaxLength(20);
             x.Property(e => e.Attempts).HasColumnName("attempts");
             x.Property(e => e.At).HasColumnName("at");
+            x.Property(e => e.EnvelopeId).HasColumnName("envelope_id").HasMaxLength(36);
         });
     }
 }
@@ -149,8 +249,28 @@ public static class Node
     /// <summary>pgqueue, rabbit or sqlqueue</summary>
     public static string Transport => Environment.GetEnvironmentVariable("CHAOS_TRANSPORT") ?? "pgqueue";
 
-    /// <summary>marten (PostgreSQL) or ef (EF Core over SQL Server)</summary>
+    /// <summary>
+    /// marten (PostgreSQL), ef (EF Core over SQL Server), efpg (EF Core over PostgreSQL), or mysql, oracle and sqlite
+    /// (plain ADO.NET handlers, see <see cref="AdoWorkHandler"/>)
+    /// </summary>
     public static string Store => Environment.GetEnvironmentVariable("CHAOS_STORE") ?? "marten";
+
+    private static (int min, int max)? _handlerDelay;
+
+    /// <summary>CHAOS_HANDLER_DELAY=min-max, in milliseconds. 0-40 by default</summary>
+    public static TimeSpan HandlerDelay()
+    {
+        _handlerDelay ??= Environment.GetEnvironmentVariable("CHAOS_HANDLER_DELAY") is { Length: > 0 } spec &&
+                          spec.Split('-') is [var min, var max]
+            ? (int.Parse(min), int.Parse(max))
+            : (0, 40);
+
+        return TimeSpan.FromMilliseconds(Random.Shared.Next(_handlerDelay.Value.min, _handlerDelay.Value.max + 1));
+    }
+
+    /// <summary>CHAOS_RETRY_COOLDOWN, in seconds: how long a FlakyException waits before its scheduled retry. 1 by default</summary>
+    public static TimeSpan RetryCooldown =>
+        TimeSpan.FromSeconds(double.TryParse(Environment.GetEnvironmentVariable("CHAOS_RETRY_COOLDOWN"), out var s) ? s : 1);
 
     public static string Name => Environment.GetEnvironmentVariable("CHAOS_NODE") ?? "node";
     public static string Dir => Environment.GetEnvironmentVariable("CHAOS_DIR") ?? ".";
@@ -174,6 +294,8 @@ public static class Node
             .ConfigureLogging(x =>
             {
                 x.SetMinimumLevel(LogLevel.Information);
+                // Wall-clock timestamps, so one envelope can be followed across the worker logs
+                x.AddSimpleConsole(o => o.TimestampFormat = "HH:mm:ss.fff ");
                 x.AddFilter("Wolverine.Runtime.WolverineRuntime", LogLevel.Warning);
                 x.AddFilter("Microsoft", LogLevel.Warning);
             })
@@ -181,9 +303,17 @@ public static class Node
             {
                 opts.ServiceName = "chaos";
                 opts.Discovery.DisableConventionalDiscovery()
-                    .IncludeType(Store == "ef" ? typeof(EfWorkHandler) : typeof(MartenWorkHandler));
+                    .IncludeType(Store switch
+                    {
+                        "ef" or "efpg" => typeof(EfWorkHandler),
+                        "mysql" or "oracle" or "sqlite" => typeof(AdoWorkHandler),
+                        _ => typeof(MartenWorkHandler)
+                    });
 
-                opts.Durability.Mode = DurabilityMode.Balanced;
+                // CHAOS_DURABILITY=solo for a store meant for one node, such as SQLite
+                opts.Durability.Mode = Environment.GetEnvironmentVariable("CHAOS_DURABILITY") == "solo"
+                    ? DurabilityMode.Solo
+                    : DurabilityMode.Balanced;
                 opts.Durability.FirstHealthCheckExecution = 1.Seconds();
                 opts.Durability.HealthCheckPollingTime = 2.Seconds();
                 opts.Durability.StaleNodeTimeout = 10.Seconds();
@@ -200,23 +330,65 @@ public static class Node
                     opts.UseEntityFrameworkCoreTransactions();
                     opts.UseEntityFrameworkCoreWolverineManagedMigrations();
                 }
+                else if (Store == "efpg")
+                {
+                    opts.UsePostgresqlPersistenceAndTransport(Db.NodeConnectionString, Schema,
+                        transportSchema: Schema + "_queues").AutoProvision();
+                    opts.Services.AddDbContextWithWolverineIntegration<ChaosDbContext>(x =>
+                        x.UseNpgsql(Db.NodeConnectionString));
+                    opts.UseEntityFrameworkCoreTransactions();
+                    opts.UseEntityFrameworkCoreWolverineManagedMigrations();
+                }
+                else if (Store == "mysql")
+                {
+                    opts.UseMySqlPersistenceAndTransport(Db.NodeConnectionString, Schema, Schema + "_queues")
+                        .AutoProvision();
+                }
+                else if (Store == "oracle")
+                {
+                    opts.PersistMessagesWithOracle(Db.NodeConnectionString, Db.Schema).EnableMessageTransport();
+                }
+                else if (Store == "sqlite")
+                {
+                    opts.UseSqlitePersistenceAndTransport(Db.NodeConnectionString).AutoProvision();
+                }
                 else
                 {
                     opts.Services.AddMarten(m =>
                         {
-                            m.Connection(PostgresConnectionString);
+                            if (Tenancy.Enabled)
+                            {
+                                // CHAOS_TENANTS=1: a database per tenant, the second one in its own container
+                                // so a dbdown fault takes one tenant's inbox away while the other keeps working
+                                m.MultiTenantedDatabases(x =>
+                                {
+                                    foreach (var (tenant, connectionString) in Tenancy.Databases)
+                                    {
+                                        x.AddSingleTenantDatabase(connectionString, tenant);
+                                    }
+                                });
+                            }
+                            else
+                            {
+                                m.Connection(Db.NodeConnectionString);
+                            }
+
                             m.DatabaseSchemaName = Schema;
                             m.Schema.For<Processed>().Duplicate(x => x.MessageId).Duplicate(x => x.Stage);
                             m.Schema.For<Sent>().Duplicate(x => x.Flags);
                         })
                         .UseLightweightSessions()
-                        .IntegrateWithWolverine(x => x.TransportSchemaName = Schema + "_queues");
+                        .IntegrateWithWolverine(x =>
+                        {
+                            x.TransportSchemaName = Schema + "_queues";
+                            if (Tenancy.Enabled) x.MainDatabaseConnectionString = Db.NodeConnectionString;
+                        });
                 }
 
                 opts.Policies.AutoApplyTransactions();
                 opts.Services.AddResourceSetupOnStartup();
 
-                opts.OnException<FlakyException>().ScheduleRetry(1.Seconds());
+                opts.OnException<FlakyException>().ScheduleRetry(RetryCooldown);
 
                 switch (Transport)
                 {
@@ -224,6 +396,32 @@ public static class Node
                         opts.UseRabbitMq().AutoProvision();
                         opts.PublishMessage<Work>().ToRabbitQueue("chaos-work");
                         if (listens) opts.ListenToRabbitQueue("chaos-work").UseDurableInbox().MaximumParallelMessages(8);
+                        break;
+
+                    case "pgshard":
+                        // Global partitioning over four sharded PostgreSQL queues. The leader hands the slots out to
+                        // the nodes and moves them when a node dies, which is what this mode is for
+                        opts.MessagePartitioning.ByMessage<Work>(x => x.Id.ToString());
+                        opts.MessagePartitioning.GlobalPartitioned(topology =>
+                        {
+                            topology.UseShardedPostgresqlQueues("chaos_shard", 4);
+                            topology.Message<Work>();
+                        });
+                        break;
+
+                    case "mysqlqueue":
+                        opts.PublishMessage<Work>().ToMySqlQueue("chaos_work");
+                        if (listens) opts.ListenToMySqlQueue("chaos_work").UseDurableInbox().MaximumParallelMessages(8);
+                        break;
+
+                    case "oraclequeue":
+                        opts.PublishMessage<Work>().ToOracleQueue("chaos_work");
+                        if (listens) opts.ListenToOracleQueue("chaos_work").UseDurableInbox().MaximumParallelMessages(8);
+                        break;
+
+                    case "sqlitequeue":
+                        opts.PublishMessage<Work>().ToSqliteQueue("chaos_work");
+                        if (listens) opts.ListenToSqliteQueue("chaos_work").UseDurableInbox().MaximumParallelMessages(8);
                         break;
 
                     case "sqlqueue":
@@ -248,7 +446,13 @@ public static class Node
     public static async Task RunWorkerAsync()
     {
         using var host = Build(listens: true).Build();
-        await host.RunAsync();
+        await host.StartAsync();
+
+        // Which node number this incarnation got, so "ejected stale node N" in another log can be matched to it
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss.fff} {Name} started as node {runtime.Options.Durability.AssignedNodeNumber} ({runtime.Options.UniqueNodeId})");
+
+        await host.WaitForShutdownAsync();
     }
 
     /// <summary>
@@ -275,13 +479,17 @@ public static class Node
 
             try
             {
-                if (Store == "ef")
+                switch (Store)
                 {
-                    await commitWithEfAsync(host, batch, stopping);
-                }
-                else
-                {
-                    await commitWithMartenAsync(host, batch, stopping);
+                    case "ef" or "efpg":
+                        await commitWithEfAsync(host, batch, stopping);
+                        break;
+                    case "mysql" or "oracle" or "sqlite":
+                        await commitWithAdoAsync(host, batch, stopping);
+                        break;
+                    default:
+                        await commitWithMartenAsync(host, batch, stopping);
+                        break;
                 }
             }
             catch (OperationCanceledException)
@@ -305,6 +513,9 @@ public static class Node
     {
         var factory = host.Services.GetRequiredService<OutboxedSessionFactory>();
         var context = new MessageContext(host.Services.GetRequiredService<IWolverineRuntime>());
+
+        // With tenancy, each batch goes to one tenant's database, alternating, and its messages carry that tenant
+        if (Tenancy.Enabled) context.TenantId = Tenancy.Next();
         await using var session = factory.OpenSession(context);
         foreach (var sent in batch)
         {
@@ -313,6 +524,36 @@ public static class Node
         }
 
         await session.SaveChangesAsync(token);
+    }
+
+    /// <summary>The documented outbox pattern on a plain connection: enlist, write, publish, commit, then flush</summary>
+    private static async Task commitWithAdoAsync(IHost host, Sent[] batch, CancellationToken token)
+    {
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        var database = (IMessageDatabase)runtime.Storage;
+        var context = new MessageContext(runtime);
+
+        await using var conn = Db.Open(Db.NodeConnectionString);
+        await conn.OpenAsync(token);
+        await using var tx = await conn.BeginTransactionAsync(token);
+        await context.EnlistInOutboxAsync(new DatabaseEnvelopeTransaction(database, tx));
+
+        foreach (var sent in batch)
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText =
+                $"insert into {Db.SentTable} (id, flags, at) values ({AdoWorkHandler.p(0)}, {AdoWorkHandler.p(1)}, {AdoWorkHandler.p(2)})";
+            AdoWorkHandler.add(cmd, 0, Db.Id(sent.Id));
+            AdoWorkHandler.add(cmd, 1, sent.Flags);
+            AdoWorkHandler.add(cmd, 2, Db.Timestamp(sent.At));
+            await cmd.ExecuteNonQueryAsync(token);
+
+            await context.PublishAsync(new Work(sent.Id, sent.Flags));
+        }
+
+        await tx.CommitAsync(token);
+        await context.FlushOutgoingMessagesAsync();
     }
 
     private static async Task commitWithEfAsync(IHost host, Sent[] batch, CancellationToken token)
@@ -338,6 +579,7 @@ public static class Ledger
         Stage = stage,
         Node = Node.Name,
         Attempts = envelope.Attempts,
-        At = DateTimeOffset.UtcNow
+        At = DateTimeOffset.UtcNow,
+        EnvelopeId = envelope.Id.ToString("D")
     };
 }

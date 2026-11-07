@@ -63,15 +63,29 @@ After the chaos period the driver stops the producer, resumes anything paused, a
 
 | Variable | Values | Default |
 |---|---|---|
-| `CHAOS_STORE` | `marten` (PostgreSQL) or `ef` (EF Core on SQL Server) | `marten` |
-| `CHAOS_TRANSPORT` | `pgqueue`, `rabbit` or `sqlqueue` | `pgqueue` |
-| `CHAOS_FAULTS` | weights, e.g. `kill:6,term:2,pause:2,dbdown:1,brokerdown:1`. Empty means a calm baseline. | as in the example |
+| `CHAOS_STORE` | `marten` (PostgreSQL), `ef` (EF Core on SQL Server), `efpg` (EF Core on PostgreSQL), `mysql`, `oracle` or `sqlite` | `marten` |
+| `CHAOS_TRANSPORT` | `pgqueue`, `rabbit`, `sqlqueue`, `mysqlqueue`, `oraclequeue` or `sqlitequeue` | `pgqueue` |
+| `CHAOS_FAULTS` | weights, e.g. `kill:6,term:2,pause:2,dbdown:1,brokerdown:1`. Add `net:N` with `CHAOS_TOXIPROXY=1`. Empty means a calm baseline. | `kill:6,term:2,pause:2,dbdown:1,brokerdown:1` |
+| `CHAOS_HANDLER_DELAY` | `min-max` milliseconds every `Work` handler waits, e.g. `500-3000` for long handlers | `0-40` |
+| `CHAOS_RETRY_COOLDOWN` | seconds a first-attempt failure waits before its `ScheduleRetry` | `1` |
+| `CHAOS_TENANTS` | `1` (`CHAOS_STORE=marten` only) gives each tenant its own database, see below | off |
+| `CHAOS_TENANT_PORT` | the port of the PostgreSQL that holds tenant `blue` | `5445` |
+| `CHAOS_TOXIPROXY` | `1` routes the nodes' PostgreSQL traffic through Toxiproxy and enables the `net` fault | off |
+| `CHAOS_DB_CONTAINER` | the container `dbdown` pauses, when it is not the compose default | per store |
 | `CHAOS_POISON` | the share of `Work` messages that are poison, e.g. `0.05` | off |
 | `CHAOS_SHORT_TIMEOUTS` | `1` adds `Command Timeout=5` to the connection string, which produces commits where "the error may mean it succeeded" | off |
 | `CHAOS_SCHEMA` | the schema for the ledger and the message store. The queue tables go in `{schema}_queues`. | `chaos` |
 | `CHAOS_DIR` | where the logs go | a new folder under `$TMPDIR/durability-chaos` |
 
-`sqlqueue` needs `CHAOS_STORE=ef`, and `pgqueue` needs `CHAOS_STORE=marten`. The driver drops and recreates
+Each database queue needs its own store: `pgqueue` with `marten` or `efpg`, `sqlqueue` with `ef`, `mysqlqueue`
+with `mysql`, `oraclequeue` with `oracle`, `sqlitequeue` with `sqlite`. `rabbit` works with any store.
+
+The `mysql`, `oracle` and `sqlite` stores have no transactional middleware for a plain connection, so
+`AdoWorkHandler` does it by hand: one ADO.NET transaction holds the ledger row, the cascaded messages through an
+enlisted `DatabaseEnvelopeTransaction`, and the mark that retires the envelope's inbox row. The driver creates their
+`sent` and `processed` tables (`chaos_sent` and `chaos_processed` on Oracle). Oracle always uses the `WOLVERINE`
+schema, whatever `CHAOS_SCHEMA` says, and SQLite uses `chaos.db` in `CHAOS_DIR`. SQLite takes one writer at a
+time, so run it with one worker (`driver 120 1 <seed>`); there is no `dbdown` for it. The driver drops and recreates
 both schemas at the start of each run, and on RabbitMQ deletes `chaos-work` and purges
 `wolverine-dead-letter-queue`.
 
@@ -89,6 +103,41 @@ CHAOS_STORE=ef CHAOS_TRANSPORT=sqlqueue CHAOS_SHORT_TIMEOUTS=1 CHAOS_POISON=0.05
   dotnet DurabilityChaosRig.dll driver 180 3 23
 ```
 
+### Network faults with Toxiproxy
+
+`CHAOS_TOXIPROXY=1` (PostgreSQL stores only) points the nodes at a Toxiproxy proxy on port 25433 instead of the
+database, and the `net` fault adds one toxic for 3 to 10 seconds: 1 to 6 seconds of latency, `reset_peer` on half
+the traffic, or a black hole that closes connections after 4 seconds. The driver itself connects directly.
+
+```bash
+docker run -d --name wolverine-toxiproxy -p 8474:8474 -p 25433:25433 ghcr.io/shopify/toxiproxy:2.9.0
+
+CHAOS_TOXIPROXY=1 CHAOS_SHORT_TIMEOUTS=1 CHAOS_FAULTS=net:6,kill:1 dotnet DurabilityChaosRig.dll driver 120 3 61
+```
+
+The proxy forwards to `host.docker.internal:5433` (`CHAOS_TOXIPROXY_UPSTREAM`), and the API is at
+`http://localhost:8474` (`CHAOS_TOXIPROXY_API`).
+
+### A database per tenant
+
+`CHAOS_TENANTS=1` turns the Marten store into Marten's database-per-tenant tenancy. Tenant `red` is the
+`{schema}_tenant` database on the main PostgreSQL, and tenant `blue` is a database with the same name on a second
+PostgreSQL at `CHAOS_TENANT_PORT`. The producer alternates batches between the two tenants, and the report adds up
+the ledger and the inboxes over the main database and both tenant databases. With
+`CHAOS_DB_CONTAINER=wolverine-tenant-pg`, a `dbdown` fault takes only `blue` away. The main database (queues,
+nodes, the main inbox) and `red` keep working.
+
+The two tenant databases share a name on one host on purpose, because that is what GH-5435 was: their agent Uris
+collided, and `blue` never got a durability agent.
+
+```bash
+docker run -d --name wolverine-tenant-pg -p 5445:5432 -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
+  postgres:17 -c max_connections=300
+
+CHAOS_TENANTS=1 CHAOS_DB_CONTAINER=wolverine-tenant-pg CHAOS_FAULTS=kill:4,term:2,pause:2,dbdown:3 \
+  dotnet DurabilityChaosRig.dll driver 120 3 81
+```
+
 ## Containers
 
 The rig connects through `src/Servers.cs`, so it uses Wolverine's own `docker compose` services.
@@ -98,6 +147,23 @@ The rig connects through `src/Servers.cs`, so it uses Wolverine's own `docker co
 | `CHAOS_STORE=marten` | `wolverine-postgresql-1` |
 | `CHAOS_STORE=ef` | `wolverine-sqlserver-1` |
 | `CHAOS_TRANSPORT=rabbit` | `wolverine-rabbitmq-1` as well |
+| `CHAOS_STORE=mysql` | `wolverine-mysql-1`, or any MySQL 8 through `WOLVERINE_MYSQL` and `CHAOS_DB_CONTAINER` |
+| `CHAOS_STORE=oracle` | `wolverine-oracle-1`, or any Oracle Free 23 through `WOLVERINE_ORACLE` and `CHAOS_DB_CONTAINER` |
+| `CHAOS_STORE=sqlite` | none |
+
+Weasel's own containers hold ports 3306 and 1521 on a machine that also works on Weasel. Run MySQL and Oracle on
+spare ports instead and point the rig at them:
+
+```bash
+docker run -d --name wolverine-mysql-3316 -p 3316:3306 -e MYSQL_ROOT_PASSWORD=P@55w0rd -e MYSQL_DATABASE=wolverine \
+  mysql:8.0 --max-connections=500
+docker run -d --name wolverine-oracle-1531 -p 1531:1521 -e ORACLE_PASSWORD=P@55w0rd -e APP_USER=wolverine \
+  -e APP_USER_PASSWORD=wolverine -v $PWD/docker/oracle:/container-entrypoint-initdb.d gvenzl/oracle-free:23-slim
+
+export WOLVERINE_MYSQL="Server=localhost;Port=3316;Database=wolverine;User=root;Password=P@55w0rd;"
+export WOLVERINE_ORACLE="User Id=wolverine;Password=wolverine;Data Source=localhost:1531/FREEPDB1"
+CHAOS_STORE=mysql CHAOS_TRANSPORT=mysqlqueue CHAOS_DB_CONTAINER=wolverine-mysql-3316 dotnet DurabilityChaosRig.dll driver 120 3 51
+```
 
 ```bash
 docker compose up -d postgresql sqlserver rabbitmq
