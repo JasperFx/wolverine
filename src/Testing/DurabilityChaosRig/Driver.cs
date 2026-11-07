@@ -52,10 +52,12 @@ public class Driver
             .Select(x => (x[0], int.Parse(x[1])))
             .Where(x => x.Item2 > 0)
             .Where(x => x.Item1 != "brokerdown" || Node.Transport == "rabbit")
+            .Where(x => x.Item1 != "dbdown" || Db.Container != null)
+            .Where(x => x.Item1 != "net" || Toxiproxy.Enabled)
             .ToList();
     }
 
-    private static string DatabaseContainer => Node.Store == "ef" ? "wolverine-sqlserver-1" : "wolverine-postgresql-1";
+    private static string DatabaseContainer => Db.Container!;
     private static bool Poison => Environment.GetEnvironmentVariable("CHAOS_POISON") is { Length: > 0 } p && p != "0";
 
     private void log(string message) => Console.WriteLine($"{DateTime.Now:HH:mm:ss.fff} {message}");
@@ -177,6 +179,13 @@ public class Driver
                 break;
             }
 
+            case "net":
+            {
+                var description = await Toxiproxy.InjectAsync(_random);
+                schedule($"toxiproxy: {description}");
+                break;
+            }
+
             case "brokerdown":
             {
                 var seconds = _random.Next(3, 12);
@@ -204,9 +213,7 @@ public class Driver
             await using var conn = openConnection();
             await conn.OpenAsync();
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = Node.Store == "ef"
-                ? $"update {Node.Schema}.wolverine_dead_letters set replayable = 1 where replayable = 0"
-                : $"update {Node.Schema}.wolverine_dead_letters set replayable = true where replayable = false";
+            cmd.CommandText = $"update {Db.DeadLetters} set replayable = {Db.True} where replayable = {Db.False}";
             var marked = await cmd.ExecuteNonQueryAsync();
             if (marked > 0) schedule($"marked {marked} dead letter(s) replayable");
         }
@@ -280,26 +287,15 @@ public class Driver
         await process.WaitForExitAsync();
     }
 
-    internal static DbConnection openConnection() => Node.Store == "ef"
-        ? new SqlConnection(Node.SqlServerConnectionString)
-        : new NpgsqlConnection(Node.PostgresConnectionString);
+    internal static DbConnection openConnection() => Db.Open();
 
     private async Task resetAsync()
     {
-        foreach (var schema in new[] { Node.Schema, Node.Schema + "_queues" })
+        await Db.ResetAsync();
+
+        if (Toxiproxy.Enabled)
         {
-            if (Node.Store == "ef")
-            {
-                await using var conn = new SqlConnection(Node.SqlServerConnectionString);
-                await conn.OpenAsync();
-                await conn.DropSchemaAsync(schema);
-            }
-            else
-            {
-                await using var conn = new NpgsqlConnection(Node.PostgresConnectionString);
-                await conn.OpenAsync();
-                await conn.DropSchemaAsync(schema);
-            }
+            await Toxiproxy.CreateProxyAsync();
         }
 
         if (Node.Transport == "rabbit")
@@ -369,14 +365,14 @@ public class Report
         (Clean ? "CLEAN: " : "PROBLEMS: ") + Summary + Environment.NewLine + "  latency: " + Latency +
         (Details.Count == 0 ? "" : Environment.NewLine + string.Join(Environment.NewLine, Details));
 
-    private static bool ef => Node.Store == "ef";
-    private static string sentTable => ef ? $"{Node.Schema}.sent" : $"{Node.Schema}.mt_doc_sent";
-    private static string processedTable => ef ? $"{Node.Schema}.processed" : $"{Node.Schema}.mt_doc_processed";
-    private static string sentAt => ef ? "sent.at" : "(sent.data->>'At')::timestamptz";
-    private static string processedAt => ef ? "p.at" : "(p.data->>'At')::timestamptz";
-    private static string nodeAndAttempts => ef
-        ? "concat(node, '@', attempts)"
-        : "coalesce(data->>'Node', data->>'node') || '@' || coalesce(data->>'Attempts', data->>'attempts')";
+    private static bool marten => Db.MartenLedger;
+    private static string sentTable => Db.SentTable;
+    private static string processedTable => Db.ProcessedTable;
+    private static string sentAt => marten ? "(sent.data->>'At')::timestamptz" : "sent.at";
+    private static string processedAt => marten ? "(p.data->>'At')::timestamptz" : "p.at";
+    private static string nodeAndAttempts => marten
+        ? "coalesce(data->>'Node', data->>'node') || '@' || coalesce(data->>'Attempts', data->>'attempts') || '/' || coalesce(data->>'EnvelopeId', data->>'envelopeId', '')"
+        : Db.Concat("node", "'@'", Db.Kind == DbKind.Oracle ? "to_char(attempts)" : Db.Kind == DbKind.Postgres ? "attempts::text" : "attempts", "'/'", "coalesce(envelope_id, '')");
 
     public static async Task<Report> ReadAsync()
     {
@@ -384,29 +380,44 @@ public class Report
         var report = new Report();
         try
         {
-            await using var conn = Driver.openConnection();
-            await conn.OpenAsync();
+            // With CHAOS_TENANTS=1 the ledger and the inboxes are spread over the main and tenant databases. A
+            // message's sent and processed rows are always in the same tenant database, so the counts add up
+            foreach (var connectionString in Tenancy.AllConnectionStrings)
+            {
+                await using var conn = Db.Open(connectionString);
+                await conn.OpenAsync();
 
-            report.Sent = await scalar(conn, $"select count(*) from {sentTable}");
-            report.LostWork = await scalar(conn, lost("work", 0));
-            report.LostLocal = await scalar(conn, lost("local", Flags.Local));
-            report.LostDelayed = await scalar(conn, lost("delayed", Flags.Delayed));
-            report.Duplicates = await scalar(conn,
-                $"select count(*) from (select message_id, stage from {processedTable} group by message_id, stage having count(*) > 1) d");
-            report.Incoming = await scalar(conn, $"select count(*) from {s}.wolverine_incoming_envelopes where status = 'Incoming'");
-            report.Scheduled = await scalar(conn, $"select count(*) from {s}.wolverine_incoming_envelopes where status = 'Scheduled'");
-            report.Outgoing = await scalar(conn, $"select count(*) from {s}.wolverine_outgoing_envelopes");
-            report.DeadLetters = await scalar(conn, $"select count(*) from {s}.wolverine_dead_letters");
+                report.Sent += await scalar(conn, $"select count(*) from {sentTable}");
+                report.LostWork += await scalar(conn, lost("work", 0));
+                report.LostLocal += await scalar(conn, lost("local", Flags.Local));
+                report.LostDelayed += await scalar(conn, lost("delayed", Flags.Delayed));
+                report.Duplicates += await scalar(conn,
+                    $"select count(*) from (select message_id, stage from {processedTable} group by message_id, stage having count(*) > 1) d");
+                report.Incoming += await scalar(conn, $"select count(*) from {Db.Incoming} where status = 'Incoming'");
+                report.Scheduled += await scalar(conn, $"select count(*) from {Db.Incoming} where status = 'Scheduled'");
+                report.Outgoing += await scalar(conn, $"select count(*) from {Db.Outgoing}");
+                report.DeadLetters += await scalar(conn, $"select count(*) from {Db.DeadLetters}");
+            }
+
             report.RabbitDeadLetters = Node.Transport == "rabbit" ? await rabbitDeadLettersAsync() : 0;
 
-            if (!report.Clean)
+            var latencies = new List<string>();
+            foreach (var connectionString in Tenancy.AllConnectionStrings)
             {
-                await detailsAsync(conn, report, s);
+                await using var conn = Db.Open(connectionString);
+                await conn.OpenAsync();
+
+                if (!report.Clean)
+                {
+                    await detailsAsync(conn, report, s);
+                }
+                else if (await scalar(conn, $"select count(*) from {sentTable}") > 0)
+                {
+                    latencies.Add(await latencyAsync(conn));
+                }
             }
-            else
-            {
-                report.Latency = await latencyAsync(conn);
-            }
+
+            report.Latency = string.Join(" / ", latencies);
         }
         catch (Exception e)
         {
@@ -426,7 +437,7 @@ public class Report
             cmd.CommandText = sql;
             return Convert.ToInt64(await cmd.ExecuteScalarAsync() ?? 0L);
         }
-        catch (DbException e) when (e.Message.Contains("does not exist") || e.Message.Contains("Invalid object name"))
+        catch (DbException e) when (Db.IsMissingTable(e))
         {
             return 0; // not created yet
         }
@@ -443,8 +454,9 @@ public class Report
         return line != null && long.TryParse(line.Split('\t').Last().Trim(), out var count) ? count : 0;
     }
 
+    // The Marten ledger duplicates the columns it is queried by (flags, message_id, stage), so this is the same SQL
     private static string lost(string stage, int flag) =>
-        $"select count(*) from {sentTable} sent where {(flag == 0 ? "1 = 1" : $"(sent.flags & {flag}) <> 0")} " +
+        $"select count(*) from {sentTable} sent where {(flag == 0 ? "1 = 1" : $"{Db.BitAnd("sent.flags", flag)} <> 0")} " +
         $"and not exists (select 1 from {processedTable} p where p.message_id = sent.id and p.stage = '{stage}')";
 
     /// <summary>
@@ -452,9 +464,7 @@ public class Report
     /// </summary>
     private static async Task<string> latencyAsync(DbConnection conn)
     {
-        var seconds = ef
-            ? "datediff_big(millisecond, sent.at, p.at) / 1000.0"
-            : $"extract(epoch from ({processedAt} - {sentAt}))";
+        var seconds = Db.Seconds(sentAt, processedAt);
         var results = new List<string>();
         foreach (var stage in new[] { "work", "local", "delayed" })
         {
@@ -496,11 +506,16 @@ public class Report
             }
         }
 
-        await rows("lost", $"select sent.id, sent.flags, st.stage from {sentTable} sent cross join (values ('work', 0), ('local', {Flags.Local}), ('delayed', {Flags.Delayed})) st(stage, flag) " +
-                           $"where (st.flag = 0 or (sent.flags & st.flag) <> 0) and not exists (select 1 from {processedTable} p where p.message_id = sent.id and p.stage = st.stage)");
-        await rows("duplicate", $"select message_id, stage, count(*), string_agg({nodeAndAttempts}, ',') from {processedTable} group by message_id, stage having count(*) > 1");
-        await rows("inbox", $"select id, status, owner_id, attempts, message_type, received_at, execution_time from {s}.wolverine_incoming_envelopes where status <> 'Handled'");
-        await rows("outbox", $"select id, owner_id, destination, attempts, message_type from {s}.wolverine_outgoing_envelopes");
-        await rows("dead letter", $"select id, message_type, exception_type, exception_message, replayable from {s}.wolverine_dead_letters");
+        foreach (var (stage, flag) in new[] { ("work", 0), ("local", Flags.Local), ("delayed", Flags.Delayed) })
+        {
+            await rows("lost", $"select sent.id, sent.flags, '{stage}' from {sentTable} sent " +
+                               $"where {(flag == 0 ? "1 = 1" : $"{Db.BitAnd("sent.flags", flag)} <> 0")} " +
+                               $"and not exists (select 1 from {processedTable} p where p.message_id = sent.id and p.stage = '{stage}')");
+        }
+
+        await rows("duplicate", $"select message_id, stage, count(*), {Db.StringAgg(nodeAndAttempts)} from {processedTable} group by message_id, stage having count(*) > 1");
+        await rows("inbox", $"select id, status, owner_id, attempts, message_type, received_at, execution_time from {Db.Incoming} where status <> 'Handled'");
+        await rows("outbox", $"select id, owner_id, destination, attempts, message_type from {Db.Outgoing}");
+        await rows("dead letter", $"select id, message_type, exception_type, exception_message, replayable from {Db.DeadLetters}");
     }
 }
