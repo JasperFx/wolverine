@@ -285,8 +285,14 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction?.GetDbTransaction();
             
+            // GH-5423: eager idempotency already wrote this execution's Handled row into the transaction
+            if (_messaging.EagerIdempotencyRowWritten)
+            {
+                markedHandled = true;
+            }
+
             // Are we marking an existing envelope as persisted?
-            if (_messaging.Envelope.WasPersistedInInbox)
+            else if (_messaging.Envelope.WasPersistedInInbox)
             {
                 // GH-5040: only when this DbContext's database holds the row. A durable PostgreSQL queue moves
                 // the row into the MAIN store's inbox on dequeue, while a DbContext enrolled in an ancillary

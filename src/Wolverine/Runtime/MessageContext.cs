@@ -54,6 +54,13 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     // envelope as if it were already persisted. Both stand only if that transaction commits, so a failed attempt
     // puts the envelope back the way the check found it. See ClearAllAsync
     private bool _eagerIdempotencyStamped;
+
+    /// <summary>
+    ///     GH-5423. Whether eager idempotency wrote this execution's own Handled inbox row into the handler's
+    ///     transaction. A transaction that commits the work then has nothing left to mark, and a Handled row for the
+    ///     envelope is its own rather than another execution's
+    /// </summary>
+    public bool EagerIdempotencyRowWritten => _eagerIdempotencyStamped;
     private EnvelopeStatus _statusBeforeEagerIdempotency;
 
     /// <summary>

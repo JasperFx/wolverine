@@ -120,6 +120,15 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
                     session.QueueSqlCommand(statement.Sql, statement.Arguments);
                 }
 
+                // GH-5423: and refuse to commit work another execution has already finished. Not for eager
+                // idempotency, which wrote this execution's own Handled row earlier in the same session
+                if (!_context.EagerIdempotencyRowWritten)
+                {
+                    var check = incomingStore.BuildHandledElsewhereCheck(_context.Envelope,
+                        MarkAsHandledCommand.KeepUntilForMark(keepUntil), "?", "?", "?");
+                    session.QueueOperation(new AssertNotHandledElsewhere(check, _context.Envelope));
+                }
+
                 // Defer the in-memory status flip to AfterCommitAsync — the UPDATE
                 // above is only durable if this batch commits. See _queuedHandledUpdate.
                 _queuedHandledUpdate = true;
