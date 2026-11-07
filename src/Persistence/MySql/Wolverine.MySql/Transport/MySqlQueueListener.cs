@@ -330,7 +330,10 @@ WHERE id IN (SELECT id FROM {_tempMoveTable})");
                     // is not latched until it returns, so a shutdown drain defers whatever it is still holding.
                     await _receiver.ReceivedAsync(this, messages.ToArray());
 
-                    pause = messages.Count > _queue.MaximumMessagesToReceive
+                    // GH-5413: a full batch means more is probably waiting, so poll again shortly. This was
+                    // `>`, which a pop limited to MaximumMessagesToReceive can never satisfy, so every batch
+                    // waited the whole polling interval and a backlog drained one batch per interval
+                    pause = messages.Count >= _queue.MaximumMessagesToReceive
                         ? 250.Milliseconds()
                         : _pollingInterval;
                 }

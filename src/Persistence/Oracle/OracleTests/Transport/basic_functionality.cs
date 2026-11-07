@@ -74,6 +74,10 @@ public class basic_functionality : IAsyncLifetime
 
         theMessageStore = theHost.GetRuntime().Storage;
 
+        // The Oracle tests share one schema, and several assertions here count the whole store. Other classes
+        // leave rows behind, e.g. outgoing_move_path_4371's stored outgoing envelopes
+        await theMessageStore.Admin.ClearAllAsync();
+
         theRuntime = theHost.GetRuntime();
     }
 
