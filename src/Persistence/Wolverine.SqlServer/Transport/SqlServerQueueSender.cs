@@ -235,11 +235,18 @@ END CATCH
 
         try
         {
+            // GH-5438. The INSERT and the DELETE commit together. Autocommitted one by one, a process killed or a
+            // command timed out between them left the envelope in the queue AND the outbox, and outbox recovery
+            // sent it a second time
+            await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
             await using var cmd = conn.CreateCommand(_moveFromOutgoingToQueueSql)
                 .With("id", envelope.Id);
+            cmd.Transaction = tx;
             var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
             if (count == 0) throw new InvalidOperationException("No matching outgoing envelope");
+
+            await tx.CommitAsync(cancellationToken);
         }
         catch (SqlException e)
         {
@@ -264,12 +271,17 @@ END CATCH
 
         try
         {
+            // GH-5438: the INSERT and the DELETE commit together, as in MoveFromOutgoingToQueueAsync
+            await using var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
             await using var cmd = conn.CreateCommand(_moveFromOutgoingToScheduledSql)
                 .With("id", envelope.Id)
                 .With("time", envelope.ScheduledTime!.Value);
+            cmd.Transaction = tx;
             var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
             if (count == 0) throw new InvalidOperationException($"No matching outgoing envelope for {envelope}");
+
+            await tx.CommitAsync(cancellationToken);
         }
         catch (SqlException e)
         {

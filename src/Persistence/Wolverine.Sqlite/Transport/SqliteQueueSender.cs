@@ -235,11 +235,17 @@ values (@id, @body, @type, @time)
 
         try
         {
-            var count = await conn.CreateCommand(_moveFromOutgoingToQueueSql)
-                .With("id", $"{envelope.Id:D}")
-                .ExecuteNonQueryAsync(cancellationToken);
+            // GH-5438. The INSERT and the DELETE commit together. Autocommitted one by one, a process killed
+            // between them left the envelope in the queue AND the outbox, and outbox recovery sent it a second time
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+            var cmd = conn.CreateCommand(_moveFromOutgoingToQueueSql)
+                .With("id", $"{envelope.Id:D}");
+            cmd.Transaction = tx;
+            var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
             if (count == 0) throw new InvalidOperationException("No matching outgoing envelope");
+
+            await tx.CommitAsync(cancellationToken);
         }
         catch (SqliteException e)
         {
@@ -257,12 +263,17 @@ values (@id, @body, @type, @time)
 
         try
         {
-            var count = await conn.CreateCommand(_moveFromOutgoingToScheduledSql)
+            // GH-5438: the INSERT and the DELETE commit together, as in MoveFromOutgoingToQueueAsync
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+            var cmd = conn.CreateCommand(_moveFromOutgoingToScheduledSql)
                 .With("id", $"{envelope.Id:D}")
-                .With("time", envelope.ScheduledTime!.Value.UtcDateTime.ToString(SqliteDateTimeFormat))
-                .ExecuteNonQueryAsync(cancellationToken);
+                .With("time", envelope.ScheduledTime!.Value.UtcDateTime.ToString(SqliteDateTimeFormat));
+            cmd.Transaction = tx;
+            var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
             if (count == 0) throw new InvalidOperationException($"No matching outgoing envelope for {envelope}");
+
+            await tx.CommitAsync(cancellationToken);
         }
         catch (SqliteException e)
         {
