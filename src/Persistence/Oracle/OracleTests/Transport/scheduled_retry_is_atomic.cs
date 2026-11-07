@@ -53,12 +53,14 @@ public class scheduled_retry_is_atomic : IAsyncLifetime
     /// <summary>
     /// What a durable listener has done by the time the handler fails: the envelope sits in the inbox
     /// </summary>
-    private async Task<Envelope> receivedIntoTheInboxAsync()
+    private async Task<Envelope> receivedIntoTheInboxAsync(int? ownerId = null)
     {
         var runtime = _host.GetRuntime();
         var envelope = runtime.RoutingFor(typeof(OracleScheduledRetryMessage))
             .RouteForSend(new OracleScheduledRetryMessage(Guid.NewGuid()), null).Single();
         envelope.Destination = _queue.Uri;
+        // Owned by the node that popped it, as the durable pop writes it
+        envelope.OwnerId = ownerId ?? runtime.DurabilitySettings.AssignedNodeNumber;
         await runtime.Storage.Inbox.StoreIncomingAsync(envelope);
 
         envelope.ScheduledTime = DateTimeOffset.UtcNow.AddHours(1);
@@ -97,6 +99,30 @@ public class scheduled_retry_is_atomic : IAsyncLifetime
 
         // and the receiver's retry completes the move once the write can succeed
         envelope.MessageType = messageType;
+        await _queue.ScheduleRetryAsync(envelope, CancellationToken.None);
+
+        (await isInTheInboxAsync(envelope)).ShouldBeFalse();
+        (await _queue.ScheduledCountAsync()).ShouldBe(1);
+    }
+
+    // GH-5426. A node ejected as stale resumes after another node recovered the inbox row, fails the envelope again
+    // and asks for the retry too. It must neither take the other execution's row nor write a second scheduled copy
+    [Fact]
+    public async Task a_node_that_no_longer_owns_the_inbox_row_schedules_nothing()
+    {
+        var envelope = await receivedIntoTheInboxAsync(ownerId: 99);
+
+        await _queue.ScheduleRetryAsync(envelope, CancellationToken.None);
+
+        (await isInTheInboxAsync(envelope)).ShouldBeTrue();
+        (await _queue.ScheduledCountAsync()).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task the_node_that_owns_the_inbox_row_moves_it_to_the_scheduled_table()
+    {
+        var envelope = await receivedIntoTheInboxAsync(ownerId: _host.GetRuntime().DurabilitySettings.AssignedNodeNumber);
+
         await _queue.ScheduleRetryAsync(envelope, CancellationToken.None);
 
         (await isInTheInboxAsync(envelope)).ShouldBeFalse();

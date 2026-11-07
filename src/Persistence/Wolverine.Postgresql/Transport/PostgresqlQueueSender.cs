@@ -142,20 +142,50 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
 
     public async Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellationToken)
     {
+        // GH-5426. The retry is fenced on the inbox row's owner. A node ejected as stale while it held the envelope in
+        // memory resumes and fails it again after another node has recovered the row; unfenced, it deleted whatever
+        // inbox row the other execution held for the id and wrote a second scheduled copy, and both copies ran the
+        // retry. The scheduled row is written only if this node's inbox row was deleted, in the same transaction.
+        // Only the durable receiver calls this, and every envelope it holds from a database queue has an inbox row
+        // owned by this node -- the durable pop, inbox recovery and dead letter replay all write one -- so the fence
+        // does not depend on WasPersistedInInbox, which the pop does not set.
+        var owner = _queue.Parent.Store?.Durability.AssignedNodeNumber;
+
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await conn.CreateCommand($"delete from {_quotedStorageSchemaName}.{DatabaseConstants.IncomingTable} where id = :id;" + _writeDirectlyToTheScheduledTable)
-            .With("id", envelope.Id)
-            .With("body", EnvelopeSerializer.Serialize(envelope))
-            .With("type", envelope.MessageType!)
-            .With("expires", envelope.DeliverBy!)
-            .With("time", envelope.ScheduledTime!)
-            .ExecuteNonQueryAsync(cancellationToken);
-
-
         try
         {
-            var tx = conn.BeginTransactionAsync(cancellationToken);
-            await scheduleMessageAsync(envelope, cancellationToken, conn);
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+
+            var delete = $"delete from {_quotedStorageSchemaName}.{DatabaseConstants.IncomingTable} where id = :id";
+            if (owner.HasValue) delete += $" and {DatabaseConstants.OwnerId} = :owner";
+
+            await using (var deleteCmd = conn.CreateCommand(delete).With("id", envelope.Id))
+            {
+                if (owner.HasValue) deleteCmd.With("owner", owner.Value);
+                deleteCmd.Transaction = tx;
+
+                if (await deleteCmd.ExecuteNonQueryAsync(cancellationToken) == 0 && owner.HasValue)
+                {
+                    _logger?.LogInformation(
+                        "Discarding the scheduled retry of envelope {EnvelopeId} at {Uri}: its inbox row is no longer owned by node {NodeNumber}, so another execution has it",
+                        envelope.Id, Destination, owner.Value);
+                    await tx.RollbackAsync(cancellationToken);
+                    return;
+                }
+            }
+
+            await using (var scheduleCmd = conn.CreateCommand(_writeDirectlyToTheScheduledTable)
+                             .With("id", envelope.Id)
+                             .With("body", EnvelopeSerializer.Serialize(envelope))
+                             .With("type", envelope.MessageType!)
+                             .With("expires", envelope.DeliverBy!)
+                             .With("time", envelope.ScheduledTime!))
+            {
+                scheduleCmd.Transaction = tx;
+                await scheduleCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await tx.CommitAsync(cancellationToken);
         }
         finally
         {

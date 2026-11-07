@@ -59,6 +59,15 @@ internal class OracleQueueSender : IOracleQueueSender
 
     public async Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellationToken)
     {
+        // GH-5426. The retry is fenced on the inbox row's owner. A node ejected as stale while it held the envelope in
+        // memory resumes and fails it again after another node has recovered the row; unfenced, it deleted whatever
+        // inbox row the other execution held for the id and wrote a second scheduled copy, and both copies ran the
+        // retry. The scheduled row is written only if this node's inbox row was deleted, in the same transaction.
+        // Only the durable receiver calls this, and every envelope it holds from a database queue has an inbox row
+        // owned by this node -- the durable pop, inbox recovery and dead letter replay all write one -- so the fence
+        // does not depend on WasPersistedInInbox, which the pop does not set.
+        var owner = _queue.Parent.Store?.Durability.AssignedNodeNumber;
+
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         try
         {
@@ -66,11 +75,22 @@ internal class OracleQueueSender : IOracleQueueSender
             // scheduled write left the inbox row deleted with nothing scheduled
             await using var tx = (OracleTransaction)await conn.BeginTransactionAsync(cancellationToken);
 
-            await using var deleteCmd = conn.CreateCommand(
-                $"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} WHERE id = :id");
-            deleteCmd.Transaction = tx;
-            deleteCmd.With("id", envelope.Id);
-            await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+            var delete = $"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} WHERE id = :id";
+            if (owner.HasValue) delete += $" AND {DatabaseConstants.OwnerId} = :owner";
+
+            await using (var deleteCmd = conn.CreateCommand(delete))
+            {
+                deleteCmd.Transaction = tx;
+                deleteCmd.With("id", envelope.Id);
+                if (owner.HasValue) deleteCmd.With("owner", owner.Value);
+
+                if (await deleteCmd.ExecuteNonQueryAsync(cancellationToken) == 0 && owner.HasValue)
+                {
+                    // Another execution owns the message now: drop this stale copy
+                    await tx.RollbackAsync(cancellationToken);
+                    return;
+                }
+            }
 
             await writeToScheduledTableAsync(envelope, cancellationToken, conn, tx);
 
