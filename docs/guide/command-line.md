@@ -2,8 +2,8 @@
 
 @[youtube](3C5bacH0akU)
 
-With help from its [JasperFx](https://github.com/JasperFx) team mate [Oakton](https://jasperfx.github.io/oakton), Wolverine supports quite a few command line diagnostic and resource management
-tools. To get started, apply Oakton as the command line parser in your applications as shown in the last line of code in this
+With help from the shared [JasperFx](https://shared-libs.jasperfx.net/cli/) command line library (the successor to Oakton), Wolverine supports quite a few command line diagnostic and resource management
+tools. To get started, apply JasperFx as the command line parser in your applications as shown in the last line of code in this
 sample application bootstrapping from Wolverine's [Getting Started](/tutorials/getting-started):
 
 ::: info
@@ -299,8 +299,13 @@ start it, so no database or message-broker connections are opened.
 
 * See the [code generation support](./codegen)
 * The `storage` command helps manage the [durable messaging support](./durability/)
-* Wolverine has direct support for [Oakton](https://jasperfx.github.io/oakton) environment checks and resource management that
-  can be very helpful for Wolverine integrations with message brokers or database servers
+* `resources` is JasperFx's [stateful resource](https://shared-libs.jasperfx.net/cli/resources.html) model: `resources list`, `check`,
+  `setup`, `clear` and `teardown` act on Wolverine's message storage *and* on every queue, exchange, topic or subscription its transports
+  declare. See [Managing Message Storage](./durability/managing) for how it fits with the `db-*` commands and startup setup
+* When a database-backed message store is configured, Weasel's [`db-apply`, `db-assert`, `db-patch`, `db-dump` and `db-list`](https://weasel.jasperfx.net/cli/)
+  commands appear too, for migrating or scripting the storage schema on its own
+* `check-env` runs JasperFx [environment checks](https://shared-libs.jasperfx.net/cli/environment-checks.html), and every stateful resource
+  contributes one, so it confirms the database and the brokers are reachable and provisioned before the application takes traffic
 
 ## Exporting the Event Model
 

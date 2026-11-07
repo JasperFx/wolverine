@@ -282,8 +282,7 @@ sequence, which hands out increasing values on a single instance. On Oracle RAC,
 not ordered across instances by default.
 
 The option is disabled by default so existing applications do not receive an automatic queue schema
-change. With `AutoCreate.None`, apply the Wolverine resource migration before starting with the option
-enabled. Configure the option consistently on every application using the same queue schema; once the
+change. With `AutoCreate.None`, apply the Wolverine resource migration before starting with the option enabled, with `dotnet run -- resources setup` or `dotnet run -- db-apply` (see [Managing Message Storage](/guide/durability/managing#choosing-an-approach)). Configure the option consistently on every application using the same queue schema; once the
 schema has been upgraded, leaving the option disabled preserves the added column and indexes. The
 existing `execution_time` index on the scheduled table remains and the opt-in adds the composite indexes,
 which take additional storage and write maintenance. Adding the identity column to a populated table

@@ -5,9 +5,29 @@ Wolverine will automatically check for the existence of necessary database table
 configured message storage, and will also apply any necessary database changes to comply with the configuration automatically.
 :::
 
-Wolverine uses the [JasperFx "Stateful Resource"](https://github.com/JasperFx/jasperfx) model for managing
+Wolverine uses the [JasperFx "Stateful Resource"](https://shared-libs.jasperfx.net/cli/resources.html) model for managing
 infrastructure configuration at development or even deployment time for configured items like the database-backed message storage or
-message broker queues.
+message broker queues. The database half of that -- the envelope tables, the node and agent tables, the queue tables of a
+database-backed transport, and any EF Core `DbContext` Wolverine manages -- is defined and migrated through
+[Weasel](https://weasel.jasperfx.net/core/schema-migrations.html), the same schema library Marten, Polecat and Fisher use for their own tables.
+
+## Choosing an Approach
+
+Weasel always computes the migration the same way: compare the tables Wolverine's configuration describes against the live database,
+and produce the DDL for the difference. What you choose is *when* that runs and *who* runs it:
+
+| Approach | How | Typical use |
+|---|---|---|
+| At application startup | The default. `AutoBuildMessageStorageOnStartup` is `CreateOrUpdate`, so Wolverine applies any outstanding change to its storage as the host starts. `UseResourceSetupOnStartup()` does the same for *every* stateful resource, message broker objects included | Development, integration tests, and production deployments where the application owns its schema |
+| As an explicit deployment step | `dotnet run -- resources setup`, or `dotnet run -- `[`db-apply`](https://weasel.jasperfx.net/cli/db-apply.html) for the databases alone, with the application itself on `AutoCreate.None` | Production, when the deployment identity may run DDL |
+| From reviewed SQL scripts | `dotnet run -- `[`db-patch`](https://weasel.jasperfx.net/cli/db-patch.html) and [`db-dump`](https://weasel.jasperfx.net/cli/db-dump.html), applied by a DBA or a migration tool, with the application on `AutoCreate.None` | Production, when the application's credentials cannot run DDL |
+
+In every case, `dotnet run -- `[`db-assert`](https://weasel.jasperfx.net/cli/db-assert.html) or `resources check` reports whether the storage matches
+the configuration without changing anything, and is the right gate for a deployment pipeline. `AutoCreate.None` on its own does not
+report drift; Wolverine logs a warning at runtime when it detects a difference it is not allowed to apply.
+
+The rest of this page covers each option. The `AutoCreate` policy itself, including the warning that `CreateOrUpdate` drops columns the
+configuration no longer declares, is documented with the [Weasel migration engine](https://weasel.jasperfx.net/core/schema-migrations.html#autocreate-policy).
 
 ## Schema Names
 
@@ -44,7 +64,9 @@ up against storage that had never been created and then die much later against a
 configured.
 
 Hosts that would rather start up anyway — a replica in a rolling deploy where another node is mid-migration, for
-instance — can keep the older, tolerant behavior by setting the failure mode:
+instance — can keep the older, tolerant behavior by setting the failure mode (or setting it once for every
+Critter Stack library through the JasperFx profile's
+[`ResourceMigrationFailureMode`](https://shared-libs.jasperfx.net/configuration/jasperfx-options.html#resourcemigrationfailuremode)):
 
 ```csharp
 builder.Host.UseWolverine(opts =>
@@ -84,12 +106,18 @@ using var host = await Host.CreateDefaultBuilder()
 
 ::: tip
 Disabling the automatic migration only affects the *passive* paths — host startup and tenant store discovery. An
-explicit setup operation (`dotnet run -- resources setup` or `IHost.SetupResources()`) is treated as intent to
+explicit setup operation ([`dotnet run -- resources setup`](https://shared-libs.jasperfx.net/cli/resources.html), `dotnet run -- db-apply`
+or `IHost.SetupResources()`) is treated as intent to
 provision the storage, so it always applies the message storage migration as `CreateOrUpdate` — even when
 `AutoBuildMessageStorageOnStartup` or the store's `AutoCreate` is `None`. `CreateOrUpdate` never drops existing
 data. This is the recommended production recipe: disable automatic migrations, then run `resources setup` as an
 explicit deployment step. When a schema difference is detected at runtime but `AutoCreate` is `None`, Wolverine
 now logs a warning telling you the storage is out of date instead of silently skipping the migration.
+
+`AutoBuildMessageStorageOnStartup` takes its default from the active JasperFx profile's `ResourceAutoCreate`, which Marten reads too, so
+the one-liner that turns off automatic migration for Wolverine *and* Marten in production is
+`services.CritterStackDefaults(x => x.Production.ResourceAutoCreate = AutoCreate.None)`. See
+[Critter Stack Defaults](https://shared-libs.jasperfx.net/configuration/critter-stack-defaults.html).
 :::
 
 ## Programmatic Management
@@ -143,7 +171,10 @@ If you want the whole Wolverine storage footprint wiped between integration test
 
 ## Building Storage on Startup
 
-To have any missing database schema objects built as needed on application startup, just add this option:
+To have any missing database schema objects built as needed on application startup -- and any message broker queues, exchanges, topics
+and subscriptions the transports declare -- register the JasperFx resource setup hosted service. It runs `Setup()` on every
+[stateful resource](https://shared-libs.jasperfx.net/cli/resources.html#setting-up-resources-at-application-startup) before any other
+hosted service starts, respecting the `AutoCreate` policy, so it can stay registered in every environment:
 
 <!-- snippet: sample_resource_setup_on_startup -->
 <a id='snippet-sample_resource_setup_on_startup'></a>
@@ -219,7 +250,8 @@ dotnet run -- storage rebuild
 ```
 
 or this option which will also attempt to create Marten database objects or any known Wolverine transport objects like
-Rabbit MQ / Azure Service Bus / AWS SQS queues:
+Rabbit MQ / Azure Service Bus / AWS SQS queues (see [Stateful Resources](https://shared-libs.jasperfx.net/cli/resources.html) for
+`resources list`, `check`, `clear`, `teardown` and the `--type` / `--name` filters):
 
 ```bash
 dotnet run -- resources setup

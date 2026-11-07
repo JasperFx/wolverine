@@ -97,7 +97,7 @@ For more information, see [durable messaging](/guide/durability/) and the [sampl
 
 Using the `IntegrateWithWolverine()` extension method behind your call to `AddMarten()` will:
 
-* Register the necessary [inbox and outbox](/guide/durability/) database tables with [Marten's database schema management](https://martendb.io/schema/migrations.html)
+* Register the necessary [inbox and outbox](/guide/durability/) database tables with [Marten's database schema management](https://martendb.io/schema/migrations.html), so `db-apply`, `db-patch` and `resources setup` migrate the Marten schema and Wolverine's envelope storage together (see [Managing Message Storage](/guide/durability/managing))
 * Adds Wolverine's "DurabilityAgent" to your .NET application for the inbox and outbox
 * Makes Marten the active [saga storage](/guide/durability/sagas) for Wolverine
 * Adds transactional middleware using Marten to your Wolverine application

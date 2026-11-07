@@ -90,7 +90,7 @@ and [Marten](/guide/durability/marten), [Polecat](/guide/durability/polecat/), o
 
 There are three things you need to enable for the transactional outbox (and inbox for incoming messages):
 
-1. Set up message storage in your application, and manage the storage schema objects -- don't worry though, Wolverine comes with a lot of tooling to help you with that
+1. Set up message storage in your application, and manage the storage schema objects -- don't worry though, Wolverine comes with a lot of tooling to help you with that; see [Managing Message Storage](/guide/durability/managing#choosing-an-approach)
 2. Enroll outgoing subscriber or listener endpoints in the durable storage at configuration time
 3. Enable Wolverine's transactional middleware or utilize one of Wolverine's outbox publishing services
 

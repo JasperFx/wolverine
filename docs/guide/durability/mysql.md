@@ -297,8 +297,7 @@ added in a single `ALTER TABLE`, which keeps the existing rows and gives each of
 order cannot be reconstructed when their timestamps already tie. This gives a stable order within each queue; it does not
 define a global commit order across concurrent senders, consumers, or different queues.
 
-The option is disabled by default so existing applications do not receive an automatic queue schema change. With
-`AutoCreate.None`, apply the Wolverine resource migration before starting with the option enabled. Configure the option
+The option is disabled by default so existing applications do not receive an automatic queue schema change. With `AutoCreate.None`, apply the Wolverine resource migration before starting with the option enabled, with `dotnet run -- resources setup` or `dotnet run -- db-apply` (see [Managing Message Storage](/guide/durability/managing#choosing-an-approach)). Configure the option
 consistently on every application using the same queue tables; once the schema has been upgraded, leaving the option
 disabled preserves the added column and indexes. The new indexes require additional storage and write maintenance, and
 the `ALTER TABLE` rebuilds the table, so expect it to take a while on a large backlog.
