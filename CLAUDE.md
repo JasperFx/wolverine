@@ -245,6 +245,14 @@ Ground rules when measuring:
 - Negative results go in the ledger too (ack coalescing was measured at −10% on RabbitMQ and
   is a standing "do not revisit").
 
+## Durability Chaos Rig (`src/Testing/DurabilityChaosRig`)
+
+Out-of-process crash rig for the outbox, durable inbox, database queues and node agents: a driver kills,
+stops, pauses and starves (database or broker outages) a producer and several workers, then checks a ledger
+for lost, duplicated and stuck messages. Outside both solutions and CI, like the perf rig. Build and run it
+standalone; its README covers roles, `CHAOS_*` knobs, containers and how to investigate a non-clean run.
+Every non-clean result gets its own issue with a deterministic test (GH-5399, GH-5408, GH-5410).
+
 ## Additional Documentation
 
 When working on specific areas, consult these files:
