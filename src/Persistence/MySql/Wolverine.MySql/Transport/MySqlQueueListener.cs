@@ -365,6 +365,37 @@ WHERE id IN (SELECT id FROM {_tempMoveTable})");
         }
     }
 
+    private async Task discardEnvelopesTheInboxHoldsAsync(Func<string, MySqlCommand> createCmd, ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        // Matches the inbox's identity: received_at is part of it only under IdAndDestination
+        var identity = _settings.MessageIdentity == MessageIdentity.IdAndDestination
+            ? $" AND existing.{DatabaseConstants.ReceivedAt} = @receivedAt"
+            : "";
+        var held = $"SELECT existing.id FROM {_schemaName}.{DatabaseConstants.IncomingTable} existing WHERE existing.id = popped.id{identity}";
+
+        var duplicates = new List<object>();
+        await using (var findCmd = createCmd($"SELECT popped.id FROM {_tempPopTable} popped WHERE EXISTS ({held})"))
+        {
+            findCmd.Parameters.AddWithValue("@receivedAt", Address.ToString());
+            await using var reader = await findCmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) duplicates.Add(reader.GetValue(0));
+        }
+
+        if (duplicates.Count == 0) return;
+
+        foreach (var id in duplicates)
+        {
+            logger.LogInformation(
+                "Discarding a duplicate delivery of envelope {EnvelopeId} at {Uri}, which the inbox already holds",
+                id, Address);
+        }
+
+        await using var deleteCmd = createCmd($"DELETE popped FROM {_tempPopTable} popped WHERE EXISTS ({held})");
+        deleteCmd.Parameters.AddWithValue("@receivedAt", Address.ToString());
+        await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Envelope>> TryPopDurablyAsync(int count, DurabilitySettings settings,
         ILogger logger, CancellationToken cancellationToken)
     {
@@ -423,6 +454,11 @@ FOR UPDATE SKIP LOCKED");
             // Delete from queue table
             await using var deleteCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM {_tempPopTable})");
             await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+
+            // GH-5411: an envelope the inbox already holds (say, handled after being received at another
+            // address) would fail the whole INSERT below with a duplicate key, rolling every envelope of the
+            // batch back onto the queue on every poll. It has left the queue above; drop it from the batch too.
+            await discardEnvelopesTheInboxHoldsAsync(CreateCmd, logger, cancellationToken);
 
             // Insert into incoming table
             await using var insertCmd = CreateCmd($@"

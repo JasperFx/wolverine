@@ -234,7 +234,9 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
     public Task<IReadOnlyList<Envelope>> TryPopDurablyAsync(int count, DurabilitySettings settings,
         ILogger logger, CancellationToken cancellationToken)
     {
-        return _durablePop.TryPopAsync(count, settings.AssignedNodeNumber, logger, cancellationToken);
+        // The identity is the runtime's: it decides the inbox table's key, whatever settings the caller passed
+        return _durablePop.TryPopAsync(count, settings.AssignedNodeNumber, _settings.MessageIdentity, logger,
+            cancellationToken);
     }
 
     internal SqlServerDurablePop DurablePop => _durablePop;

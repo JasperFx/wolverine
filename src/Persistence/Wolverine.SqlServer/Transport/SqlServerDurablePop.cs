@@ -24,6 +24,7 @@ internal class SqlServerDurablePop
 {
     private readonly string _connectionString;
     private readonly string _popSql;
+    private readonly string _popSqlByDestination;
     private readonly string _incomingTable;
     private readonly string _queueName;
     private readonly Uri _address;
@@ -34,14 +35,15 @@ internal class SqlServerDurablePop
         _connectionString = connectionString;
         _address = address;
         _queueName = queue.Name;
-        _popSql = SqlServerQueueSql.TryPopToInbox(queue, address);
+        _popSql = SqlServerQueueSql.TryPopToInbox(queue, address, MessageIdentity.IdOnly);
+        _popSqlByDestination = SqlServerQueueSql.TryPopToInbox(queue, address, MessageIdentity.IdAndDestination);
         _incomingTable = $"{queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable}";
     }
 
     public bool HasUnconfirmedPop => _unconfirmedPop != null;
 
-    public async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, int nodeNumber, ILogger logger,
-        CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, int nodeNumber, MessageIdentity identity,
+        ILogger logger, CancellationToken cancellationToken)
     {
         await using var conn = new SqlConnection(_connectionString);
         await conn.OpenAsync(cancellationToken);
@@ -56,13 +58,22 @@ internal class SqlServerDurablePop
             await using (var cmd = conn.CreateCommand())
             {
                 cmd.Transaction = tx;
-                cmd.CommandText = _popSql;
+                cmd.CommandText = identity == MessageIdentity.IdAndDestination ? _popSqlByDestination : _popSql;
                 cmd.Parameters.AddWithValue("count", count);
                 cmd.Parameters.AddWithValue("node", nodeNumber);
 
                 await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
                 while (await reader.ReadAsync(cancellationToken))
                 {
+                    // GH-5411: the inbox already holds this envelope. It has left the queue and was not inserted.
+                    if (reader.GetBoolean(2))
+                    {
+                        logger.LogInformation(
+                            "Discarding a duplicate delivery of envelope {EnvelopeId} at {Uri}, which the inbox already holds",
+                            reader.GetGuid(0), _address);
+                        continue;
+                    }
+
                     ids.Add(reader.GetGuid(0));
                     var data = await reader.GetFieldValueAsync<byte[]>(1, cancellationToken);
                     try
