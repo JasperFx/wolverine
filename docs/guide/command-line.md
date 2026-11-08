@@ -10,6 +10,15 @@ sample application bootstrapping from Wolverine's [Getting Started](/tutorials/g
 This page covers the Wolverine-specific CLI surface. The underlying JasperFx command-line library that backs `RunJasperFxCommands` — including how to [author your own commands](https://shared-libs.jasperfx.net/cli/writing-commands.html), [argument/flag handling](https://shared-libs.jasperfx.net/cli/arguments-flags.html), and [environment checks](https://shared-libs.jasperfx.net/cli/environment-checks.html) — is documented at [shared-libs.jasperfx.net/cli](https://shared-libs.jasperfx.net/cli/). When a command accepts a generic flag not listed on this page, that's where to look first.
 :::
 
+::: tip Native AOT
+Since JasperFx 2.101.0 the command line also runs from a Native AOT binary, not only under `dotnet run`: commands are found,
+parsed and created without reflection, so `help`, the default `run` and the rest are available from the published binary,
+provided every assembly that contributes commands is built with `JasperFx.SourceGenerator` (Wolverine is, and it flows the
+generator to your project). What a command then does is subject to the same AOT rules as the rest of your application. `codegen write` and `wolverine-diagnostics codegen-preview` build handler code at run time, so they stay dev-time commands under `dotnet run`. See
+[Native AOT](https://shared-libs.jasperfx.net/cli/#native-aot) in the JasperFx documentation and
+[the command line in an AOT binary](/guide/aot#the-command-line-in-an-aot-binary) in Wolverine's AOT guide.
+:::
+
 <!-- snippet: sample_quickstart_program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
