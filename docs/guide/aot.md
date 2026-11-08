@@ -63,6 +63,53 @@ A clean AOT-published Wolverine app in `Static` mode emits **no** `IL2026` / `IL
 Until the [AOT-pillar tracking issue (#2746)](https://github.com/JasperFx/wolverine/issues/2746) is fully closed out, Wolverine APIs outside the AOT-clean subset above may emit IL warnings under `PublishAot=true`. The warnings are informative — they tell you which Wolverine APIs require dynamic code / aren't trim-safe. The Static-mode runtime path avoids most of them; the rest get annotated as the pillar work progresses.
 :::
 
+## The command line in an AOT binary
+
+An application that ends in `return await app.RunJasperFxCommands(args);` goes through the JasperFx command line on every start,
+because `run` is the default command. Before JasperFx 2.101.0 that failed in a native binary, `run` included, because commands
+were found and created through reflection the trimmer removes. Since 2.101.0, `JasperFx.SourceGenerator` registers every command,
+its input and its `[InjectService]` properties as ordinary code, so in the native binary:
+
+- `run` (the default), `help`, `describe`, `check-env`, `resources` and Wolverine's own commands (`storage`, `capabilities`,
+  `clear-handled`, `wolverine-diagnostics`) are found, parsed and created without reflection. What each command then does
+  is held to the same rules as the rest of the application; see [what isn't AOT-clean](#surfaces-that-intentionally-aren-t-aot-clean).
+- `codegen write` still needs Roslyn and stays a dev-time step under `dotnet run`, as in [step 1](#_1-pre-generate-handler-code).
+  The same goes for `wolverine-diagnostics codegen-preview`, which generates handler code to show it.
+- **Every assembly that contributes commands must be built with the generator.** Wolverine references it with
+  `PrivateAssets="none"`, so it flows to your project and covers your own commands. A command from an assembly built without it
+  is missing from `help` in the native binary.
+- Weasel's `db-*` commands, used with database-backed message storage, are available natively from Weasel 9.50.0, the first
+  release built with the generator.
+
+`ApplyJasperFxExtensions` and `RunJasperFxCommands` keep their trimming warnings for assemblies built without the generator.
+Suppress them on an explicit `Main`, because a top-level `Program.cs` has nowhere to put the attributes:
+
+```csharp
+public static class Program
+{
+    [UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+        Justification = "JasperFx.SourceGenerator registers the commands, their factories and their input parsers.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode",
+        Justification = "Every command input has a source-generated parser.")]
+    public static async Task<int> Main(string[] args)
+    {
+        var builder = WebApplication.CreateSlimBuilder(args);
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
+        });
+
+        var app = builder.Build();
+        return await app.RunJasperFxCommands(args);
+    }
+}
+```
+
+The full reference is [Native AOT](https://shared-libs.jasperfx.net/cli/#native-aot) in the JasperFx command line documentation
+and [Running the command line in an AOT binary](https://shared-libs.jasperfx.net/codegen/aot#running-the-command-line-in-an-aot-binary)
+in the JasperFx AOT guide. JasperFx's CI publishes a slim-builder app with Native AOT and runs its commands from the binary on every
+pull request.
+
 ## What `Wolverine.AotSmoke` already guarantees
 
 The [`Wolverine.AotSmoke`](https://github.com/JasperFx/wolverine/tree/main/src/Testing/Wolverine.AotSmoke) project in the Wolverine repo sets `IsAotCompatible=true`, `TrimMode=full`, and promotes the `IL2026/IL2046/IL2055/IL2065/IL2067/IL2070/IL2072/IL2075/IL2090/IL2091/IL2111/IL3050/IL3051` warning codes to errors. Every PR runs it via the [`aot` workflow](https://github.com/JasperFx/wolverine/blob/main/.github/workflows/aot.yml).
@@ -154,6 +201,7 @@ If a handler type changes between releases, re-run `codegen write` and commit th
 ## Related
 
 - [Code Generation](/guide/codegen.html) — full reference for `TypeLoadMode`, `codegen write`, and the underlying JasperFx runtime-compilation surface
+- [Command Line Integration](/guide/command-line.html) and the [JasperFx command line documentation](https://shared-libs.jasperfx.net/cli/), including its [Native AOT](https://shared-libs.jasperfx.net/cli/#native-aot) section
 - [`Wolverine.AotSmoke`](https://github.com/JasperFx/wolverine/tree/main/src/Testing/Wolverine.AotSmoke) — the regression-guard project this guide references
 - [AOT-pillar tracking](https://github.com/JasperFx/wolverine/issues/2746) — what's annotated, what's left
 - [JasperFx 2.0 AOT pillar](https://github.com/JasperFx/jasperfx/issues/213) — the foundation Wolverine builds on
