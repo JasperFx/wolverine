@@ -106,8 +106,8 @@ using var host = await Host.CreateDefaultBuilder()
 
 ::: tip
 Disabling the automatic migration only affects the *passive* paths — host startup and tenant store discovery. An
-explicit setup operation ([`dotnet run -- resources setup`](https://shared-libs.jasperfx.net/cli/resources.html), `dotnet run -- db-apply`
-or `IHost.SetupResources()`) is treated as intent to
+explicit setup operation ([`dotnet run -- resources setup`](https://shared-libs.jasperfx.net/cli/resources.html), `dotnet run -- db-apply`,
+`IHost.SetupResources()`, or the `UseResourceSetupOnStartup()` / `AddResourceSetupOnStartup()` hosted service) is treated as intent to
 provision the storage, so it always applies the message storage migration as `CreateOrUpdate` — even when
 `AutoBuildMessageStorageOnStartup` or the store's `AutoCreate` is `None`. `CreateOrUpdate` never drops existing
 data. This is the recommended production recipe: disable automatic migrations, then run `resources setup` as an
@@ -174,7 +174,7 @@ If you want the whole Wolverine storage footprint wiped between integration test
 To have any missing database schema objects built as needed on application startup -- and any message broker queues, exchanges, topics
 and subscriptions the transports declare -- register the JasperFx resource setup hosted service. It runs `Setup()` on every
 [stateful resource](https://shared-libs.jasperfx.net/cli/resources.html#setting-up-resources-at-application-startup) before any other
-hosted service starts, respecting the `AutoCreate` policy, so it can stay registered in every environment:
+hosted service starts:
 
 <!-- snippet: sample_resource_setup_on_startup -->
 <a id='snippet-sample_resource_setup_on_startup'></a>
@@ -184,6 +184,22 @@ builder.Host.UseResourceSetupOnStartup();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L68-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_resource_setup_on_startup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+::: warning
+The setup hosted service is an *explicit* setup operation, just like `resources setup`, so it does **not**
+honor `AutoBuildMessageStorageOnStartup = AutoCreate.None` or `ResourceAutoCreate = AutoCreate.None`. Wolverine's
+message storage always migrates with `CreateOrUpdate` when it runs.
+
+That matters if your running application connects with a database role that cannot execute DDL. As long as the
+schema already matches the configuration, the setup service only compares and changes nothing, and the
+application starts normally. As soon as the schema drifts though, say after a Wolverine upgrade adds a table or
+after you register your first [recurring message](/guide/messaging/recurring), the application fails at startup with
+an `InsufficientDatabasePrivilegeException` from Weasel.
+
+If that fail-fast behavior is what you want, keep the setup service registered. Otherwise, leave it out of
+applications that run under a restricted role, build the schema in a deployment step with an elevated role
+(`resources setup`, `db-apply`, or a reviewed `db-patch` script), and use `db-assert` as the deployment gate.
+:::
 
 ## Command Line Management
 
