@@ -333,7 +333,9 @@ public partial class WolverineRuntime : IAgentRuntime
             // scheduled model: the schedule itself survives a restart (the agent re-establishes
             // the next occurrence from the registrations), but an occurrence inside the restart
             // window is lost and nothing dedupes — the startup warning in HostService names both.
-            if (Options.Schedules.Any())
+            // A lightweight run (codegen, describe, OpenAPI generation) only reads metadata, so it must
+            // not publish occurrences.
+            if (Options.Schedules.Any() && !Options.LightweightMode)
             {
                 InMemoryRecurringAgent = _container.GetAllInstances<IAgentFamily>()
                     .OfType<Recurring.RecurringMessageAgent>().FirstOrDefault();
