@@ -18,7 +18,7 @@ public class resetting_resources_keeps_one_reply_queue_5452 : IAsyncLifetime
     private readonly string _queueName = $"gh5452-{Guid.NewGuid():N}";
     private IHost _host = null!;
 
-    private static CancellationToken Token => TestContext.Current.CancellationToken;
+    private static CancellationToken token => TestContext.Current.CancellationToken;
 
     public async ValueTask InitializeAsync()
     {
@@ -45,7 +45,7 @@ public class resetting_resources_keeps_one_reply_queue_5452 : IAsyncLifetime
 
         for (var i = 0; i < 3; i++)
         {
-            await _host.ResetResourceState(Token);
+            await _host.ResetResourceState(token);
         }
 
         transport.Queues.Count(x => x.QueueName.StartsWith("wolverine.response.")).ShouldBe(1);
@@ -55,12 +55,12 @@ public class resetting_resources_keeps_one_reply_queue_5452 : IAsyncLifetime
     [Fact]
     public async Task request_reply_works_through_a_sender_started_after_a_reset()
     {
-        await _host.ResetResourceState(Token);
+        await _host.ResetResourceState(token);
 
         // A listener-only queue has no sending agent yet, so this one is started now, after the reset
         var pong = await _host.MessageBus()
             .EndpointFor(new Uri($"rabbitmq://queue/{_queueName}"))
-            .InvokeAsync<Pong5452>(new Ping5452("hello"), Token, 10.Seconds());
+            .InvokeAsync<Pong5452>(new Ping5452("hello"), token, 10.Seconds());
 
         pong.Message.ShouldBe("hello");
     }
