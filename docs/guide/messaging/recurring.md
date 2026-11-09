@@ -406,3 +406,8 @@ agents at all, so a registered schedule would be accepted and then silently neve
 **refuses to start** in those modes with schedules registered, naming the schedules in the
 exception — a schedule that quietly never happens is exactly the failure this feature exists to
 avoid.
+
+The refusal does not apply to the metadata-only command line runs (`codegen`, `describe`,
+`wolverine-diagnostics codegen-preview` and `describe-routing`, and OpenAPI generation). Wolverine
+forces those runs into `MediatorOnly` itself, so they start with schedules registered and run no
+recurring agent.
