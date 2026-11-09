@@ -78,7 +78,22 @@ public interface IWolverineObserver
     Task BackPressureLifted(Endpoint endpoint);
     Task ListenerLatched(Endpoint endpoint);
     Task CircuitBreakerTripped(Endpoint endpoint, CircuitBreakerOptions options);
+
+    /// <summary>
+    /// Raised once per <see cref="CircuitBreakerTripped" /> when the listener the breaker paused is accepting
+    /// messages again. Wolverine raises the two-argument overload, whose default forwards here, so an observer
+    /// written against this member keeps working unchanged. See GH-5446.
+    /// </summary>
     Task CircuitBreakerReset(Endpoint endpoint);
+
+    /// <summary>
+    /// Raised once per <see cref="CircuitBreakerTripped" /> when the listener the breaker paused is accepting
+    /// messages again, saying how it got there: on its own once <see cref="CircuitBreakerOptions.PauseTime" />
+    /// elapsed, or through an explicit start or restart while the breaker's pause was still pending. Not raised for
+    /// a pause the breaker did not cause. The default forwards to <see cref="CircuitBreakerReset(Endpoint)" />.
+    /// See GH-5446.
+    /// </summary>
+    Task CircuitBreakerReset(Endpoint endpoint, CircuitBreakerResetReason reason) => CircuitBreakerReset(endpoint);
     void PersistedCounts(Uri storeUri, PersistedCounts counts);
     void MessageHandlingMetricsExported(MessageHandlingMetrics metrics);
 

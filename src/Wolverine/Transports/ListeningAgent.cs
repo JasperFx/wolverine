@@ -81,6 +81,9 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 {
     private readonly BackPressureAgent? _backPressureAgent;
     private readonly CircuitBreaker? _circuitBreaker;
+
+    /// <summary>Null unless the endpoint opted into a circuit breaker. Test seam.</summary>
+    internal CircuitBreaker? CircuitBreaker => _circuitBreaker;
     private readonly ILogger _logger;
     private readonly HandlerPipeline _pipeline;
     private readonly WolverineRuntime _runtime;
@@ -477,7 +480,12 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         await StartAsync();
     }
 
-    public async ValueTask StartAsync()
+    public ValueTask StartAsync()
+    {
+        return startAsync(CircuitBreakerResetReason.ExplicitStart);
+    }
+
+    private async ValueTask startAsync(CircuitBreakerResetReason reason)
     {
         if (Status == ListeningStatus.Accepting)
         {
@@ -490,7 +498,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         // endpoint. Without the lock, two overlapping starts both got past the Accepting check above, both built a
         // full listener set, and the second replaced Listener -- leaving the first set's broker consumers attached
         // to the queue with nothing that would ever stop them. No caller holds _semaphore when it calls this, and
-        // nothing under startAsync() calls back into this agent's locked methods.
+        // nothing under startListenerAsync() calls back into this agent's locked methods.
         await _semaphore.WaitAsync();
         try
         {
@@ -499,15 +507,23 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
                 return;
             }
 
-            await startAsync();
+            await startListenerAsync();
         }
         finally
         {
             _semaphore.Release();
         }
+
+        // GH-5446. Outside the semaphore, so an observer that reaches back into this listener cannot deadlock it.
+        // Only a start that actually reached Accepting counts: one refused by an agent restriction leaves the
+        // breaker's reset pending for whichever start does get there.
+        if (Status == ListeningStatus.Accepting && _circuitBreaker != null)
+        {
+            await _circuitBreaker.ListenerResumedAsync(reason, _logger);
+        }
     }
 
-    private async ValueTask startAsync()
+    private async ValueTask startListenerAsync()
     {
         // GH-5257. A restarted listener's retries must not see the last stop's signal
         _pipeline.ResetStopping();
@@ -823,6 +839,12 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         // handler pipeline (e.g. via RateLimitContinuation → PauseListenerContinuation).
         // Pre-latching causes DrainAsync to wait for the ActionBlock to drain, which
         // deadlocks because the current message's execute frame is still on the call stack.
+
+        // GH-5446. Not the breaker's pause, so the start that ends it is not a breaker recovery -- even when it
+        // lands on a listener the breaker had paused first. The breaker's own pause goes through
+        // PauseWithDrainAsync and leaves its pending reset alone.
+        _circuitBreaker?.PauseSuperseded();
+
         await PauseCoreAsync(pauseTime, latchBeforeDrain: false);
     }
 
@@ -860,7 +882,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         // restarts race in StartAsync, and all but the last set of listeners they build are never stopped: their
         // consumers stay on the broker. The latest pause owns the restart, as in PauseForInboxRecoveryAsync.
         _restarter?.SafeDispose();
-        _restarter = new Restarter(this, pauseTime);
+        _restarter = new Restarter(() => startAsync(CircuitBreakerResetReason.PauseTimeElapsed), pauseTime);
     }
 
     private readonly SemaphoreSlim _semaphore = new(1, 1);
@@ -968,7 +990,9 @@ internal class Restarter : IDisposable
     private readonly CancellationTokenSource _cancellation;
     private readonly Task<Task> _task;
 
-    public Restarter(IListenerCircuit parent, TimeSpan timeSpan)
+    // GH-5446. A callback rather than the circuit's StartAsync, so the circuit can tell the start a pause's own timer
+    // makes (a breaker recovering after PauseTime) from an explicit one
+    public Restarter(Func<ValueTask> restart, TimeSpan timeSpan)
     {
         _cancellation = new CancellationTokenSource();
         _task = Task.Delay(timeSpan, _cancellation.Token)
@@ -979,7 +1003,7 @@ internal class Restarter : IDisposable
                     return;
                 }
 
-                await parent.StartAsync();
+                await restart();
             }, TaskScheduler.Default);
     }
 
