@@ -133,6 +133,9 @@ internal sealed class TelemetryObserver : IWolverineObserver
 
     public Task CircuitBreakerReset(Endpoint endpoint) => _inner.CircuitBreakerReset(endpoint);
 
+    public Task CircuitBreakerReset(Endpoint endpoint, CircuitBreakerResetReason reason) =>
+        _inner.CircuitBreakerReset(endpoint, reason);
+
     public void PersistedCounts(Uri storeUri, PersistedCounts counts) => _inner.PersistedCounts(storeUri, counts);
 
     public void MessageHandlingMetricsExported(MessageHandlingMetrics metrics) =>
