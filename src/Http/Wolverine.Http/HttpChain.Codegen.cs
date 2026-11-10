@@ -71,6 +71,7 @@ public partial class HttpChain
             var loggedType = determineLogMarkerType();
 
             handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
+            handleMethod.Sources.Add(new FormCollectionSource(this));
             handleMethod.Sources.Add(new MessageBusSource(_parent.Options.EnableRelayOfUserName,
                 _parent.ApplyCorrelationIdHeaderToAllEndpoints));
 

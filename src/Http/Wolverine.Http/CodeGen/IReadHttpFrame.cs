@@ -50,6 +50,14 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
 
     public HttpElementVariable Variable { get; }
 
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        if (_source != BindingSource.Form) yield break;
+
+        _form = chain.FindVariable(typeof(IFormCollection));
+        yield return _form;
+    }
+
     /// <summary>
     /// GH-5099: the C# literal of the bound parameter's declared default value, or null for none.
     /// A value missing from the request keeps it, as in ASP.NET Core Minimal APIs.
@@ -90,7 +98,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
         switch (_source)
         {
             case BindingSource.Form:
-                return $"httpContext.Request.Form[\"{Key}\"]";
+                return $"{_form!.Usage}[\"{Key}\"]";
             
             case BindingSource.Header:
                 return $"{nameof(HttpHandler.ReadSingleHeaderValue)}(httpContext, \"{Key}\")";
@@ -269,7 +277,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
         switch (_source)
         {
             case BindingSource.Form:
-                return $"httpContext.Request.Form.[\"{Key}\"].ToString()";
+                return $"{_form!.FSharpUsage}.[\"{Key}\"].ToString()";
 
             case BindingSource.Header:
                 return $"{typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.ReadSingleHeaderValue)}(httpContext, \"{Key}\")";
@@ -381,6 +389,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
 
 
     private string? _property;
+    private Variable? _form;
     private readonly bool _isOptional;
     private readonly bool _isNullable;
     private readonly Type _rawType;
