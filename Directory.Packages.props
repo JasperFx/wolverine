@@ -157,7 +157,9 @@
     <PackageVersion Include="StackExchange.Redis" Version="2.9.17" />
     <PackageVersion Include="StronglyTypedId" Version="1.0.0-beta08" />
     <!-- Swashbuckle 9.x and Microsoft.AspNetCore.OpenApi 10.x pull Microsoft.OpenApi 2.0.0, which
-         carries a high severity advisory (GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). The projects that
+         carries a high severity advisory (GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). The Microsoft.OpenApi
+         pin itself is per-TFM, in the TFM-conditional groups at the bottom of this file: 2.13.x on net10.0,
+         3.11.x on net11.0 (Microsoft.AspNetCore.OpenApi 11 floors Microsoft.OpenApi at >= 3.10.2; GH-5132). The projects that
          need it reference Microsoft.AspNetCore.OpenApi directly, so this pin wins there without
          transitive pinning (which is off — see the note at the top of the file).
 
@@ -166,7 +168,6 @@
          advisory explicitly does not cover the 1.x line, which could not resolve a reference
          pointing at another reference. Lifting those to 2.x would be a major-version jump against
          libraries compiled for the 1.x API, for no security benefit. -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore.Swagger" Version="9.0.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
@@ -338,8 +339,14 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="[9.0.0,12.0.0)" />
     <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="[9.0.12,12.0.0)" />
   </ItemGroup>
+  <!-- net11.0 is not a target yet (p0-tooling-wolverine adds it). Microsoft.OpenApi 3.x is a different
+       object model from 2.x (GH-5132), and Microsoft.AspNetCore.OpenApi 11 requires >= 3.10.2. -->
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net11.0' ">
+    <PackageVersion Include="Microsoft.OpenApi" Version="3.11.0" />
+  </ItemGroup>
   <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0' ">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
     <PackageVersion Include="Microsoft.DotNet.ILCompiler" Version="10.0.14" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
