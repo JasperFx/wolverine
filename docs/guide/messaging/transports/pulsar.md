@@ -97,7 +97,10 @@ opts.AddNamedPulsarBrokerUsingNamedConnection(new BrokerName("secondary"), "puls
 ::: info
 There isn't an Aspire hosting integration for Pulsar as of this writing, but you can still declare the connection
 string in your AppHost with `builder.AddConnectionString("pulsar")` and reference it from your service with
-`.WithReference()` like any other resource.
+`.WithReference()` like any other resource. To run the broker itself from the AppHost, add Pulsar's standalone
+image as a plain container, for example `builder.AddContainer("pulsar", "apachepulsar/pulsar").WithArgs("bin/pulsar", "standalone").WithEndpoint(6650, 6650, scheme: "pulsar", name: "broker")`,
+and hand the service a connection string like `pulsar://localhost:6650`. The community toolkit repository doesn't
+have a Pulsar package yet.
 :::
 
 See [Aspire Integration](/guide/aspire) for the full picture.
