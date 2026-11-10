@@ -5,19 +5,7 @@ using Xunit;
 
 namespace CoreTests.Transports;
 
-/// <summary>
-///     GH-3645, step ONE. Wolverine has two writers for the same timestamp header keys:
-///     <see cref="EnvelopeMapper{TIncoming,TOutgoing}" /> emits
-///     <see cref="EnvelopeConstants.TransportHeaderDateTimeFormat" /> (<c>"yyyy-MM-dd HH:mm:ss:ffffff Z"</c>),
-///     while <see cref="EnvelopeSerializer" /> emits round-trippable <c>"o"</c>. The mapper's reader only ever
-///     accepted its own format, so an <c>"o"</c> value — from the serializer, from a non-Wolverine producer, or
-///     from a future Wolverine that has flipped its writers — bound as <c>default</c>/<c>null</c> silently.
-///     That silent-null is precisely the failure mode of GH-1716 and GH-3613.
-///
-///     <para>The reader now accepts both. The <b>writer is deliberately unchanged</b> and pinned below: readers
-///     have to tolerate both formats in a shipped release before the writers can flip, or a newer sender talking
-///     to an older receiver reintroduces the silent null.</para>
-/// </summary>
+/// <summary>GH-3645: standard timestamp writers retain support for reading legacy headers.</summary>
 public class envelope_mapper_reads_both_timestamp_formats_3645
 {
     private static readonly DateTimeOffset TheTimestamp =
@@ -36,7 +24,7 @@ public class envelope_mapper_reads_both_timestamp_formats_3645
     [Fact]
     public void reads_the_legacy_transport_header_format()
     {
-        // Unchanged behaviour: this is still what the mapper writes.
+        // Persisted headers and older senders still use this format.
         var value = TheTimestamp.ToString(EnvelopeConstants.TransportHeaderDateTimeFormat);
 
         readBack(value, EnvelopeConstants.ExecutionTimeKey)
@@ -86,20 +74,61 @@ public class envelope_mapper_reads_both_timestamp_formats_3645
             .ScheduledTime!.Value.ToUniversalTime().ShouldBe(TheTimestamp);
     }
 
-    /// <summary>
-    ///     Pins step ONE as step one. The writer must still emit the legacy format until a later release, so
-    ///     that a newer sender cannot hand an older receiver something it cannot parse. When GH-3645 step two
-    ///     lands, this assertion flips to <c>"o"</c> — deliberately, not by accident.
-    /// </summary>
-    [Fact]
-    public void the_writer_still_emits_the_legacy_format()
+    [Theory]
+    [InlineData(EnvelopeConstants.ExecutionTimeKey)]
+    [InlineData(EnvelopeConstants.DeliverByKey)]
+    [InlineData(EnvelopeConstants.SentAtKey)]
+    public void legacy_headers_remain_readable_after_binary_persistence(string key)
     {
-        var outgoing = new Envelope { ScheduledTime = TheTimestamp };
+        var envelope = readBack(TheTimestamp.ToString(EnvelopeConstants.TransportHeaderDateTimeFormat), key);
+        envelope.MessageType = "some-message";
+        envelope.Data = [1, 2, 3];
+        var persisted = EnvelopeSerializer.Deserialize(EnvelopeSerializer.Serialize(envelope));
+        var actual = key == EnvelopeConstants.ExecutionTimeKey ? persisted.ScheduledTime
+            : key == EnvelopeConstants.DeliverByKey ? persisted.DeliverBy : persisted.SentAt;
+        actual.ShouldBe(TheTimestamp);
+    }
+
+    [Fact]
+    public void absent_nullable_timestamps_do_not_write_headers()
+    {
         var written = new StubTransportMessage();
+        new StubEnvelopeMapper(new StubEndpoint()).MapEnvelopeToOutgoing(new Envelope(), written);
+        written.Headers.ContainsKey(EnvelopeConstants.ExecutionTimeKey).ShouldBeFalse();
+        written.Headers.ContainsKey(EnvelopeConstants.DeliverByKey).ShouldBeFalse();
+    }
 
-        new StubEnvelopeMapper(new StubEndpoint()).MapEnvelopeToOutgoing(outgoing, written);
+    [Theory]
+    [InlineData("en-US")]
+    [InlineData("fr-FR")]
+    [InlineData("ar-SA")]
+    public void writers_emit_standard_timestamps_without_losing_precision(string culture)
+    {
+        var previous = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo(culture);
+            var timestamp = TheTimestamp.AddTicks(7).ToOffset(TimeSpan.FromHours(5.5));
+            var outgoing = new Envelope { ScheduledTime = timestamp, DeliverBy = timestamp, SentAt = timestamp };
+            var written = new StubTransportMessage();
+            var mapper = new StubEnvelopeMapper(new StubEndpoint());
+            mapper.MapEnvelopeToOutgoing(outgoing, written);
 
-        written.Headers[EnvelopeConstants.ExecutionTimeKey]
-            .ShouldBe(TheTimestamp.ToString(EnvelopeConstants.TransportHeaderDateTimeFormat));
+            foreach (var key in new[] { EnvelopeConstants.ExecutionTimeKey, EnvelopeConstants.DeliverByKey, EnvelopeConstants.SentAtKey })
+            {
+                written.Headers[key].ShouldBe(timestamp.ToUniversalTime().ToString("o", System.Globalization.CultureInfo.InvariantCulture));
+                DateTimeOffset.Parse(written.Headers[key]!, System.Globalization.CultureInfo.InvariantCulture).ShouldBe(timestamp);
+            }
+
+            var incoming = new Envelope();
+            mapper.MapIncomingToEnvelope(incoming, written);
+            incoming.ScheduledTime.ShouldBe(timestamp);
+            incoming.DeliverBy.ShouldBe(timestamp);
+            incoming.SentAt.ShouldBe(timestamp);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = previous;
+        }
     }
 }
