@@ -17,7 +17,7 @@
           Swashbuckle 6.5.0, and they aren't vulnerable, so leave them too.
       Non-web test projects that reference these web apps inherit the pin transitively.
     -->
-    <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0' And @(PackageReference->AnyHaveMetadataValue('Identity', 'Microsoft.AspNetCore.OpenApi')) ">
+    <ItemGroup Condition=" ('$(TargetFramework)' == 'net10.0' Or '$(TargetFramework)' == 'net11.0') And @(PackageReference->AnyHaveMetadataValue('Identity', 'Microsoft.AspNetCore.OpenApi')) ">
         <PackageReference Include="Microsoft.OpenApi" />
     </ItemGroup>
 
