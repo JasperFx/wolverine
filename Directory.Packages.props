@@ -24,9 +24,9 @@
          the same version as the Aspire.AppHost.Sdk those AppHost projects declare. -->
     <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.6.3" />
     <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.6.3" />
-    <PackageVersion Include="Asp.Versioning.Abstractions" Version="[10.0.0,11.0.0)" />
-    <PackageVersion Include="Asp.Versioning.Http" Version="[10.0.0,11.0.0)" />
-    <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="[10.0.0,11.0.0)" />
+    <PackageVersion Include="Asp.Versioning.Abstractions" Version="[10.0.0,12.0.0)" />
+    <PackageVersion Include="Asp.Versioning.Http" Version="[10.0.0,12.0.0)" />
+    <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="[10.0.0,12.0.0)" />
     <PackageVersion Include="AWSSDK.S3" Version="4.0.22.1" />
     <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.0.2.14" />
     <PackageVersion Include="AWSSDK.SQS" Version="4.0.2.14" />
@@ -327,16 +327,16 @@
   <ItemGroup Condition=" '$(TargetFramework)' == 'net9.0' ">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
     <PackageVersion Include="Microsoft.DotNet.ILCompiler" Version="9.0.22" />
-    <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="[9.0.12,11.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="[9.0.0,12.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="[9.0.0,12.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="[9.0.0,12.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="[9.0.0,12.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="[9.0.0,12.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="[9.0.0,12.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="[9.0.0,12.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="[9.0.0,12.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="[9.0.0,12.0.0)" />
+    <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="[9.0.12,12.0.0)" />
   </ItemGroup>
   <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0' ">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
