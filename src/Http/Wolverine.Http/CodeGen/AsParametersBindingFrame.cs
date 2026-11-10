@@ -428,6 +428,12 @@ internal class AsParametersBindingFrame : SyncFrame
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         foreach (var parameter in _dependencies) yield return parameter;
+
+        // The arranger never sees the absorbed frames, which this frame emits inline
+        foreach (var variable in _parameterFrames.Concat(_props).SelectMany(x => x.FindVariables(chain)))
+        {
+            yield return variable;
+        }
     }
 
     // A member is nullable when it's a Nullable<T> value type or a reference type whose nullable

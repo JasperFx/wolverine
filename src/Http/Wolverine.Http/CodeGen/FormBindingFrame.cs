@@ -175,5 +175,11 @@ internal class FormBindingFrame : SyncFrame
         {
             yield return parameter;
         }
+
+        // The arranger never sees the property frames, which this frame emits inline
+        foreach (var variable in _props.OfType<Frame>().SelectMany(x => x.FindVariables(chain)))
+        {
+            yield return variable;
+        }
     }
 }
