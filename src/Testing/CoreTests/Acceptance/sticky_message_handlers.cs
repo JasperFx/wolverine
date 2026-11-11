@@ -79,10 +79,10 @@ public class sticky_message_handlers : IntegrationContext
 
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
-        // Original chain for StickyMessage
-        // The sticky handler for "blue"
-        // The sticky handler for "green"
-        policy.Chains.Count.ShouldBe(3);
+        // GH-5136. No placeholder chain for StickyMessage any more, just
+        // the sticky handler for "blue" and
+        // the sticky handler for "green"
+        policy.Chains.Count.ShouldBe(2);
 
         foreach (var chain in policy.Chains)
         {
