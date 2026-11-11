@@ -34,6 +34,8 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `WolverineHttpOptions.MapUnknownTenantToNotFound()` | off: `UnknownTenantIdException` escapes as a 500 | on for the tenanted endpoints: 404 with ProblemDetails, advertised in OpenAPI | `opts.DoNotMapUnknownTenantToNotFound()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
 | `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` | `false` | `true`: the `X-Correlation-ID` header reaches every endpoint, and the events it appends | `opts.ApplyCorrelationIdHeaderToAllEndpoints = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
 | `PushReceiverOptions.DeduplicateWithInbox` | `false` | `true` when the application has a message store | `o.DeduplicateWithInbox = false` in `MapWolverinePushReceiver()` | `push_receiver_5016` |
+| `BrokerTransport.TenantedIdBehavior` (RabbitMQ, Azure Service Bus, SQS, SNS, Kafka, GCP Pub/Sub, Redis, NATS; also MQTT, MQTT 5 and Pulsar) | `FallbackToDefault`: a message for an unregistered tenant id goes to the default broker | `DeadLetterUnknownTenants`: it goes to dead letter storage and is sent nowhere | `.TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)` (`ConfigureMultiTenancy(...)` on Redis and NATS) | `restore_v6_broker_tenancy_defaults` |
+| `NatsTransportConfiguration.TrustTenantIdHeader` | `true`: a tenant-aware listener takes the tenant from the `tenant-id` header | not trusted: the tenant comes from the connection or subject prefix the message arrived on | `nats.TrustTenantIdHeader = true` | `NatsTenantIdHeaderTests` |
 
 ### Wolverine.Http defaults that changed in 7.0
 
@@ -69,6 +71,31 @@ Five Wolverine.Http defaults flipped in 7.0 (GH-5195). They are the rows of the 
 Two related behaviors need no action. `DefaultClaimInTransaction` stays opt-in. And since 6.51.2, a query string, header
 or form value that is omitted binds the parameter's declared default (`int limit = 50` binds 50, not 0); that change
 shipped without a flag, so there is nothing for `RestoreV6Defaults()` to restore (GH-5099).
+
+### Broker-per-tenant tenancy is strict in 7.0
+
+A broker is a trust boundary in 7.0 (GH-5196). Two defaults flipped, and `RestoreV6Defaults()` puts back both:
+
+- **An unknown tenant id is dead lettered, not sent to the default broker.** With tenants registered on a transport
+  (`AddTenant()`), a message with no tenant id still goes to the default broker and a message for a registered tenant
+  goes to that tenant's broker only. A message for a tenant id that no registered tenant matches is moved to dead
+  letter storage with an `UnknownBrokerTenantException` naming the tenant id, the message type and the endpoint, and
+  is sent nowhere: not to the default broker, not to another tenant's. The exception derives from
+  `UnknownTenantIdException`. The dead letter goes to the **main** message store (there is no tenant database for a
+  tenant nobody registered) and keeps the envelope's tenant id. With the durable outbox, a message the outbox already
+  holds is removed from it once its dead letter is written, so the durability agent never sends it. With **no message
+  store** there is nowhere to dead letter it, so the send throws `UnknownBrokerTenantException` instead. Tenant ids
+  match exactly (ordinal, case sensitive, no trimming). Explicit `FallbackToDefault`, `TenantIdRequired` and
+  `IgnoreUnknownTenants` behave as they did in 6.x. `ConfigureMultiTenancy()` on Redis and NATS no longer pins
+  `FallbackToDefault` when called without an argument.
+- **NATS does not trust the `tenant-id` header.** A tenant-aware NATS listener takes the tenant from the tenant's own
+  connection, or from the subject's tenant prefix, so a producer with publish rights on tenant A's subjects can no
+  longer stamp a message as tenant B. `NatsTransportConfiguration.TrustTenantIdHeader` is now a `bool?`; null means
+  the default. The unused `NatsTransportConfiguration.TenantIdResolver` property and `ITenantIdResolver` interface
+  were removed.
+
+During a rolling upgrade, 6.x nodes in the same cluster still send unknown tenant ids to the default broker until they
+are upgraded.
 
 ### `.NET 9.0` support dropped (BREAKING)
 

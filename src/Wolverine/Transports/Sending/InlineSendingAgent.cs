@@ -69,6 +69,14 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
     {
         setDefaults(envelope);
 
+        // GH-5196. A message for a tenant id the transport does not know is dead lettered, never sent
+        var unknownTenant = UnknownBrokerTenants.Check(Sender, envelope);
+        if (unknownTenant != null)
+        {
+            await UnknownBrokerTenants.DeadLetterAsync(_runtime, envelope, unknownTenant, _logger);
+            return;
+        }
+
         await _sending.PostAsync(envelope);
 
         // GH-4955: a refusal by the destination is the caller's to know about. A retry cannot succeed, so the

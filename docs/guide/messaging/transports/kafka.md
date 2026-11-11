@@ -947,7 +947,7 @@ using var host = await Host.CreateDefaultBuilder()
             .AutoProvision()
 
             // How should Wolverine route a message whose TenantId is null or
-            // unknown? FallbackToDefault (the default) uses the shared cluster;
+            // unknown? FallbackToDefault (the 6.x default) uses the shared cluster;
             // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
             .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
@@ -996,7 +996,8 @@ tenant* based on the runtime tenant id. They are independent features and can be
 
 `TenantIdBehavior(...)` controls what happens when a message has a null or unregistered tenant id:
 
-* `FallbackToDefault` (the default) — route it to the shared/default cluster (the one passed to `UseKafka`).
+* `DeadLetterUnknownTenants` (the default since 7.0) — a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
+* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) — route it to the shared/default cluster (the one passed to `UseKafka`).
 * `TenantIdRequired` — throw; every message must carry a known tenant id.
 * `IgnoreUnknownTenants` — silently drop the message.
 
