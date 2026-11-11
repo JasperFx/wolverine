@@ -339,6 +339,7 @@ partial class Build : NukeBuild
                 Solution.Wolverine,
                 Solution.Wolverine_RuntimeCompilation,
                 Solution.Wolverine_HealthChecks,
+                Solution.Wolverine_ServiceDefaults,
                 Solution.Transports.RabbitMQ.Wolverine_RabbitMQ,
                 Solution.Transports.Azure.Wolverine_AzureServiceBus,
                 Solution.Transports.AWS.Wolverine_AmazonSqs,

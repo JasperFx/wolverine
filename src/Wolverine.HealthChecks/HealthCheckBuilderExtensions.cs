@@ -70,4 +70,34 @@ public static class HealthCheckBuilderExtensions
             tags,
             timeout));
     }
+
+    /// <summary>
+    /// Register a <see cref="WolverineTransportsHealthCheck"/> with the supplied
+    /// <see cref="IHealthChecksBuilder"/>. The check reports the worst connection state among the
+    /// Wolverine transports that implement <c>ITransport.BuildHealthCheck()</c>.
+    /// </summary>
+    /// <param name="builder">The health-checks builder.</param>
+    /// <param name="name">Health-check name. Defaults to <c>"wolverine-transports"</c>.</param>
+    /// <param name="failureStatus">Status reported when the check fails. Defaults to <see cref="HealthStatus.Unhealthy"/>.</param>
+    /// <param name="tags">Optional tags. Useful for splitting Kubernetes liveness vs. readiness probes.</param>
+    /// <param name="timeout">Optional per-check timeout.</param>
+    public static IHealthChecksBuilder AddWolverineTransports(
+        this IHealthChecksBuilder builder,
+        string name = "wolverine-transports",
+        HealthStatus? failureStatus = null,
+        IEnumerable<string>? tags = null,
+        TimeSpan? timeout = null)
+    {
+        if (builder is null) throw new ArgumentNullException(nameof(builder));
+
+        // The health-check service calls the factory on every run. Keep one instance so each transport's
+        // health check is built once, and IWolverineRuntime is a singleton anyway
+        WolverineTransportsHealthCheck? check = null;
+        return builder.Add(new HealthCheckRegistration(
+            name,
+            sp => check ??= new WolverineTransportsHealthCheck(sp.GetRequiredService<IWolverineRuntime>()),
+            failureStatus,
+            tags,
+            timeout));
+    }
 }
