@@ -279,13 +279,42 @@ public class DurabilitySettings : IDescribeMyself
         : AssignedNodeNumber;
 
     /// <summary>
-    /// GH-5016. Opt in to an index on the outgoing envelope table's <c>timestamp</c> column, for the stale
-    /// <c>owner_id = 0</c> predicate a <see cref="DurabilityMode.ServerlessWithOutbox"/> durability pass
-    /// uses to find the outbox rows whose inline send failed. Only applies where the column exists, which
-    /// is whenever <see cref="OutboxStaleTime"/> has a value. Default is false, so there is no schema
-    /// change unless you ask for one
+    /// GH-5193. When true (the default since 7.0), the relational message stores always create three small,
+    /// additive schema objects whether or not the feature that reads them is turned on: the <c>timestamp</c>
+    /// column on the incoming and outgoing envelope tables, the partial index on the outgoing <c>timestamp</c>
+    /// column for the stale <c>owner_id = 0</c> predicate of a <see cref="DurabilityMode.ServerlessWithOutbox"/>
+    /// durability pass, and the nullable <c>load_factor</c> column on the <c>wolverine_nodes</c> table. Turning
+    /// on <see cref="InboxStaleTime"/>, <see cref="OutboxStaleTime"/> or <see cref="CapacityAwareAssignment"/>
+    /// later is then a configuration change only, with no schema migration.
     /// </summary>
-    public bool EnableOutgoingTimestampIndex { get; set; }
+    /// <remarks>
+    /// Only the schema is unconditional; the behaviour stays opt-in, and no statement reads or writes these
+    /// objects unless its own setting is on. Set this to false, or call
+    /// <c>WolverineOptions.RestoreV6Defaults()</c>, for the Wolverine 6.x layout: each column is created
+    /// only when its setting is on, and the outgoing timestamp index is not created. The document stores have
+    /// no schema to provision and ignore this setting.
+    /// </remarks>
+    public bool AlwaysProvisionOptionalSchemaObjects { get; set; } = true;
+
+    /// <summary>
+    /// Whether the relational stores create the incoming envelope table's <c>timestamp</c> column
+    /// </summary>
+    internal bool ProvisionsIncomingTimestamp => AlwaysProvisionOptionalSchemaObjects || InboxStaleTime.HasValue;
+
+    /// <summary>
+    /// Whether the relational stores create the outgoing envelope table's <c>timestamp</c> column
+    /// </summary>
+    internal bool ProvisionsOutgoingTimestamp => AlwaysProvisionOptionalSchemaObjects || OutboxStaleTime.HasValue;
+
+    /// <summary>
+    /// Whether the relational stores create the partial index on the outgoing <c>timestamp</c> column (GH-5016)
+    /// </summary>
+    internal bool ProvisionsOutgoingTimestampIndex => AlwaysProvisionOptionalSchemaObjects;
+
+    /// <summary>
+    /// Whether the relational stores create the <c>load_factor</c> column on <c>wolverine_nodes</c> (GH-3959)
+    /// </summary>
+    internal bool ProvisionsNodeLoadFactor => AlwaysProvisionOptionalSchemaObjects || CapacityAwareAssignment;
 
     /// <summary>
     /// GH-5279. Opt in to a transaction-scoped durability pass lock for the message stores that support one, which
@@ -959,12 +988,15 @@ public class DurabilitySettings : IDescribeMyself
     ///         take the entire partition — a shard database's agents are never split to relieve pressure.
     ///     </para>
     ///     <para>
-    ///         On a relational store, enabling this provisions a <c>load_factor</c> column on the
-    ///         <c>wolverine_nodes</c> table. With <c>AutoCreate.None</c> — or a process without DDL
-    ///         rights — apply the schema migration before turning this on; otherwise every heartbeat
-    ///         fails against the missing column. Every statement naming the column is gated on this same
-    ///         flag, so leaving it off migrates nothing and reads nothing. The document stores have no
-    ///         schema to migrate: an absent property simply reads back as "not advertising".
+    ///         On a relational store, the nullable <c>load_factor</c> column on the <c>wolverine_nodes</c>
+    ///         table is always created (GH-5193, see <see cref="AlwaysProvisionOptionalSchemaObjects" />),
+    ///         so turning this on needs no schema migration. Every statement naming the column is gated on
+    ///         this flag, so leaving it off reads and writes nothing. With
+    ///         <see cref="AlwaysProvisionOptionalSchemaObjects" /> turned off the column is only created when
+    ///         this is on; with <c>AutoCreate.None</c> — or a process without DDL rights — apply the schema
+    ///         migration before turning it on, otherwise every heartbeat fails against the missing column.
+    ///         The document stores have no schema to migrate: an absent property simply reads back as
+    ///         "not advertising".
     ///     </para>
     /// </summary>
     public bool CapacityAwareAssignment { get; set; }
@@ -1248,7 +1280,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(EnableRecurringMessages), EnableRecurringMessages);
 
         if (OutboxStaleTime.HasValue) desc.AddValue(nameof(OutboxStaleTime), OutboxStaleTime.Value);
-        if (EnableOutgoingTimestampIndex) desc.AddValue(nameof(EnableOutgoingTimestampIndex), EnableOutgoingTimestampIndex);
+        desc.AddValue(nameof(AlwaysProvisionOptionalSchemaObjects), AlwaysProvisionOptionalSchemaObjects);
         if (UseTransactionScopedDurabilityPassLock) desc.AddValue(nameof(UseTransactionScopedDurabilityPassLock), UseTransactionScopedDurabilityPassLock);
         if (InboxStaleTime.HasValue) desc.AddValue(nameof(InboxStaleTime), InboxStaleTime.Value);
         if (MessageStorageSchemaName != null) desc.AddValue(nameof(MessageStorageSchemaName), MessageStorageSchemaName);

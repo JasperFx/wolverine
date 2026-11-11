@@ -242,7 +242,8 @@ public class DatabaseConstants
 
     // GH-3959, extended to every store by GH-4593: per-node load advertisement. Deliberately NOT part of
     // NodeColumns -- every store's readNode is a positional read over that shared list, and this column is
-    // only provisioned when DurabilitySettings.CapacityAwareAssignment asked for it. Each store appends it
+    // only read and written when DurabilitySettings.CapacityAwareAssignment asks for it (and, with
+    // AlwaysProvisionOptionalSchemaObjects off, only provisioned then; GH-5193). Each store appends it
     // through its own `nodeColumns` property and reads it back by NAME rather than by ordinal.
     public static readonly string LoadFactor = "load_factor";
 

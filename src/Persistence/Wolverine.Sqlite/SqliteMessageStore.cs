@@ -723,11 +723,11 @@ internal partial class SqliteMessageStore : MessageDatabase<SqliteConnection>, I
             nodeTable.AddColumn("version", "TEXT");
             nodeTable.AddColumn("capabilities", "TEXT");
 
-            // GH-4593, mirroring the PostgreSQL gate from GH-3959: provisioned only behind the opt-in so
-            // an upgrade migrates nothing, and SqliteNodePersistence gates every statement naming it on
-            // the same flag. REAL rather than TEXT -- unlike the timestamps around it, this value is only
+            // GH-4593, mirroring the PostgreSQL gate from GH-3959: always provisioned since 7.0 (GH-5193) unless
+            // AlwaysProvisionOptionalSchemaObjects is off, and SqliteNodePersistence gates every statement naming it on
+            // CapacityAwareAssignment, so the behaviour stays opt-in. REAL rather than TEXT -- unlike the timestamps around it, this value is only
             // ever compared numerically and never round-tripped through a format.
-            if (Durability.CapacityAwareAssignment)
+            if (Durability.ProvisionsNodeLoadFactor)
             {
                 nodeTable.AddColumn(DatabaseConstants.LoadFactor, "REAL");
             }

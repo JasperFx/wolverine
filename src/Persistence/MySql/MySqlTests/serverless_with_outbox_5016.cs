@@ -142,18 +142,18 @@ public class serverless_with_outbox_5016 : IAsyncLifetime
     }
 
     [Fact]
-    public async Task the_timestamp_column_exists_but_its_index_is_opt_in()
+    public async Task the_timestamp_column_and_its_index_are_always_created()
     {
-        // The 60 second default OutboxStaleTime under ServerlessWithOutbox brings the column
-        theHost.GetRuntime().Options.Durability.OutboxStaleTime.ShouldBe(60.Seconds());
-        (await hasStaleIndexAsync(SchemaName)).ShouldBeFalse();
+        // GH-5193: since 7.0 the index is created whatever the settings, like the column
+        (await hasStaleIndexAsync(SchemaName)).ShouldBeTrue();
 
-        using var indexed = await buildHostAsync("serverless_outbox_indexed",
-            opts => opts.Durability.EnableOutgoingTimestampIndex = true);
+        // The 6.x layout, which RestoreV6Defaults() puts back: no index
+        using var v6 = await buildHostAsync("serverless_outbox_v6_schema",
+            opts => opts.Durability.AlwaysProvisionOptionalSchemaObjects = false);
 
-        (await hasStaleIndexAsync("serverless_outbox_indexed")).ShouldBeTrue();
+        (await hasStaleIndexAsync("serverless_outbox_v6_schema")).ShouldBeFalse();
 
-        await indexed.StopAsync(Token);
+        await v6.StopAsync(Token);
     }
 
     [Fact]

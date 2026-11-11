@@ -38,12 +38,12 @@ public class serverless_with_outbox_5016 : IAsyncLifetime
         await _fixture.ClearAll();
     }
 
-    private async Task startHostAsync(bool enableOutgoingTimestampIndex = false)
+    private async Task startHostAsync(bool alwaysProvisionOptionalSchemaObjects = true)
     {
-        theHost = await buildHostAsync(enableOutgoingTimestampIndex);
+        theHost = await buildHostAsync(alwaysProvisionOptionalSchemaObjects);
     }
 
-    private Task<IHost> buildHostAsync(bool enableOutgoingTimestampIndex = false, string? serviceName = null)
+    private Task<IHost> buildHostAsync(bool alwaysProvisionOptionalSchemaObjects = true, string? serviceName = null)
     {
         return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -52,7 +52,7 @@ public class serverless_with_outbox_5016 : IAsyncLifetime
                 opts.Durability.Mode = DurabilityMode.ServerlessWithOutbox;
 
                 // Makes no difference to Cosmos DB, whose containers index every property by default
-                opts.Durability.EnableOutgoingTimestampIndex = enableOutgoingTimestampIndex;
+                opts.Durability.AlwaysProvisionOptionalSchemaObjects = alwaysProvisionOptionalSchemaObjects;
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(ServerlessCosmosHandler));
 
@@ -160,9 +160,9 @@ public class serverless_with_outbox_5016 : IAsyncLifetime
     [InlineData(false)]
     [InlineData(true)]
     public async Task an_unsent_document_is_owned_by_any_node_and_recovered_by_a_durability_pass_once_stale(
-        bool enableOutgoingTimestampIndex)
+        bool alwaysProvisionOptionalSchemaObjects)
     {
-        await startHostAsync(enableOutgoingTimestampIndex);
+        await startHostAsync(alwaysProvisionOptionalSchemaObjects);
 
         var envelope = await persistUnsentEnvelopeAsync();
         (await outboxDocumentsAsync()).Single().OwnerId.ShouldBe(0);

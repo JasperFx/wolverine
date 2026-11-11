@@ -632,10 +632,10 @@ internal partial class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISa
             nodeTable.AddColumn<string>("version");
             nodeTable.AddColumn("capabilities", "TEXT").AllowNulls();
 
-            // GH-4593, mirroring the PostgreSQL gate from GH-3959: provisioned only behind the opt-in so
-            // an upgrade migrates nothing, and MySqlNodePersistence gates every statement naming it on the
-            // same flag. Plain DOUBLE with no modifiers in the type string, per GH-3983.
-            if (Durability.CapacityAwareAssignment)
+            // GH-4593, mirroring the PostgreSQL gate from GH-3959: always provisioned since 7.0 (GH-5193) unless
+            // AlwaysProvisionOptionalSchemaObjects is off, and MySqlNodePersistence gates every statement naming it on
+            // CapacityAwareAssignment, so the behaviour stays opt-in. Plain DOUBLE with no modifiers in the type string, per GH-3983.
+            if (Durability.ProvisionsNodeLoadFactor)
             {
                 nodeTable.AddColumn(DatabaseConstants.LoadFactor, "DOUBLE").AllowNulls();
             }

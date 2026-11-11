@@ -98,7 +98,8 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
 
     public async Task RestartStaleOutgoingAsync(IReadOnlyList<Envelope> envelopes, CancellationToken token)
     {
-        // The timestamp column only exists when OutboxStaleTime is set
+        // Only when OutboxStaleTime is set: the timestamp column is always there since 7.0 (GH-5193), unless
+        // AlwaysProvisionOptionalSchemaObjects is off, in which case only with OutboxStaleTime
         if (HasDisposed || envelopes.Count == 0 || !Durability.OutboxStaleTime.HasValue) return;
 
         var builder = new SqlServerDbCommandBuilder();
@@ -124,7 +125,8 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
     {
         builder.Append($" where {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode}");
 
-        // The timestamp column only exists when OutboxStaleTime is set
+        // Only when OutboxStaleTime is set: the timestamp column is always there since 7.0 (GH-5193), unless
+        // AlwaysProvisionOptionalSchemaObjects is off, in which case only with OutboxStaleTime
         if (staleBefore.HasValue && Durability.OutboxStaleTime.HasValue)
         {
             builder.Append($" and {DatabaseConstants.Timestamp} <= ");
@@ -193,7 +195,8 @@ public partial class SqlServerMessageStore : IMessageStoreWithDurabilityPass, IS
     {
         builder.Append($" where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'");
 
-        // The timestamp column only exists when InboxStaleTime is set. A row owned by any node was never claimed
+        // Only when InboxStaleTime is set: the timestamp column is always there since 7.0 (GH-5193), unless
+        // AlwaysProvisionOptionalSchemaObjects is off, in which case only with InboxStaleTime. A row owned by any node was never claimed
         // by a live request, so it is recoverable at once, and a row a node claimed is once its stale clock runs out
         if (staleBefore.HasValue && Durability.InboxStaleTime.HasValue)
         {
