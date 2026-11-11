@@ -271,7 +271,7 @@ public partial class NodeAgentController
         // Step down cleanly here, then fall through to the normal election
         // path so this same tick either re-attains the lock (if no one else
         // has taken it) or peacefully becomes a follower.
-        if (IsLeader && !_persistence.HasLeadershipLock())
+        if (IsLeader && !await _persistence.HasLeadershipLockAsync(_cancellation.Token))
         {
             await stepDownAsync("the leadership advisory lock was released server-side");
         }
@@ -600,7 +600,7 @@ public partial class NodeAgentController
         // wipe it — the freed advisory lock lets a follower attain leadership through the normal election
         // path, and that confirmed new leader ejects the old row on a later tick. This prevents a transient
         // blip from destroying a live leader's row, ownership, and assignments.
-        var holdsLeadership = _persistence.HasLeadershipLock();
+        var holdsLeadership = await _persistence.HasLeadershipLockAsync(_cancellation.Token);
 
         // GH-3698: only the nodes actually deleted below get a DormantNodeEjected record. Reporting the whole
         // stale list wrote one for every node the checks here deliberately SPARE -- this node itself, a

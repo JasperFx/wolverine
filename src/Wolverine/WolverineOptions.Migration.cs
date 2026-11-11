@@ -67,6 +67,9 @@ public sealed partial class WolverineOptions
         // is in a partitioned topology (resolved at startup) and the in-memory idempotency guard on NativeAck
         // endpoints (resolved in Endpoint.Compile()).
 
+        // GH-5201: three transport defaults read V6DefaultsRestored when the transport starts: SQS
+        // ExtendVisibilityWhileHandling, Kafka idempotent producers and RabbitMQ DrainWaitForPrefetch.
+
         // GH-5139: 7.0 identifies an inbox row by envelope id and destination (MessageIdentity.IdAndDestination),
         // 6.x by envelope id alone. Nothing to assign: the MessageIdentity getter reads Durability.V6DefaultsRestored,
         // set above, so an explicit setting still wins.

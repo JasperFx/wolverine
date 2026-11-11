@@ -42,6 +42,9 @@ public class lease_renewal_4048
                         q.WaitTimeSeconds = 1;
                     })
                     .ProcessInline()
+                    // GH-5201: the inline heartbeat is on by default since 7.0. Off here, so the only renewal is the
+                    // one this test drives, and the negative control can see the redelivery
+                    .DoNotExtendVisibilityWhileHandling()
                     // The second listener is what picks up a redelivered copy while the first is still running
                     .ListenerCount(2);
 

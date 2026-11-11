@@ -18,6 +18,18 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     private bool _batchDrained;
     private readonly SemaphoreSlim _cancelOks = new(0);
 
+    // GH-5201. Marks the async flow of a delivery this consumer is dispatching. An Inline handler runs inside
+    // HandleBasicDeliverAsync on the client's dispatch thread, so when it stops its own listener
+    // (PauseThenRequeue, PauseProcessing) the cancel-ok that DrainWaitForPrefetch waits for cannot be dispatched
+    // until the handler returns. Set inside an async method, so it is undone when that method returns.
+    private static readonly AsyncLocal<WorkerQueueMessageConsumer?> _dispatching = new();
+
+    /// <summary>
+    /// True when called from inside a delivery this consumer is dispatching, where waiting for cancel-ok would
+    /// only wait out the drain timeout
+    /// </summary>
+    internal bool IsDispatchingOnCurrentFlow => ReferenceEquals(_dispatching.Value, this);
+
     // GH-3492: durable endpoints coalesce prefetched deliveries into Envelope[] batches so the
     // inbox persists them with one multi-VALUES insert instead of gating on one INSERT round
     // trip per message. The 5ms window is a max-age (JasperFx >= 2.30.1), so a lone message
@@ -144,6 +156,8 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         string routingKey, IReadOnlyBasicProperties properties, ReadOnlyMemory<byte> body,
         CancellationToken cancellationToken = new())
     {
+        _dispatching.Value = this;
+
         if (_latched || _cancellation.IsCancellationRequested || !_listener.IsConnected)
         {
             // Give it back on the DELIVERING channel, not on whatever the listener currently holds. One of the

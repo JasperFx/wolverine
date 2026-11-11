@@ -17,11 +17,12 @@ public partial class CosmosDbMessageStore
     private CosmosDistributedLock? _leaderLock;
     private string? _leaderLockETag;
 
-    public bool HasLeadershipLock()
+    // A lease read from memory: there is no session to ping, so nothing here does I/O.
+    public Task<bool> HasLeadershipLockAsync(CancellationToken token)
     {
-        if (_leaderLock == null) return false;
-        if (_leaderLock.ExpirationTime < DateTimeOffset.UtcNow) return false;
-        return true;
+        if (_leaderLock == null) return Task.FromResult(false);
+        if (_leaderLock.ExpirationTime < DateTimeOffset.UtcNow) return Task.FromResult(false);
+        return Task.FromResult(true);
     }
 
     public async Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)

@@ -155,7 +155,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
     public IMessageStoreAdmin Admin => this;
     public IDeadLetters DeadLetters => this;
     public string Name { get; set; }
-    public IAdvisoryLock AdvisoryLock { get; }
+    public IWolverineAdvisoryLock AdvisoryLock { get; }
 
     // IMessageDatabase
     public DatabaseSettings Settings { get; }

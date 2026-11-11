@@ -131,7 +131,9 @@ public class KafkaProducerOptions : KafkaClientOptions
 {
     /// <summary>
     /// The idempotent producer (implies acks=all and bounded in-flight requests) keeps producer-side
-    /// retries from writing duplicates to the broker. Unset leaves Dekaf's default, which is enabled
+    /// retries from writing duplicates to the broker. Unset leaves Dekaf's default, which is enabled, the
+    /// Wolverine 7.0 default (GH-5201). <see cref="WolverineOptions.RestoreV6Defaults" /> turns it off where it
+    /// is unset, as Confluent.Kafka producers were in 6.x
     /// </summary>
     public bool? EnableIdempotence { get; set; }
 
@@ -148,7 +150,7 @@ public class KafkaProducerOptions : KafkaClientOptions
         if (Acks is { } acks && acks != Dekaf.Producer.Acks.All && EnableIdempotence != false)
         {
             throw new InvalidOperationException(
-                $"The Kafka producer options for {owner} set Acks = {acks}, which an idempotent producer cannot use. Dekaf producers are idempotent by default, so also set EnableIdempotence = false, or use Acks.All");
+                $"The Kafka producer options for {owner} set Acks = {acks}, which an idempotent producer cannot use. Kafka producers are idempotent by default since Wolverine 7.0, so opt out with DisableIdempotentProducer() (or set EnableIdempotence = false on the producer options), or use Acks.All");
         }
     }
 

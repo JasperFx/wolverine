@@ -450,9 +450,9 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
             .ExecuteNonQueryAsync();
     }
 
-    public bool HasLeadershipLock()
+    public Task<bool> HasLeadershipLockAsync(CancellationToken token)
     {
-        return _database.AdvisoryLock.HasLock(_lockId);
+        return _database.AdvisoryLock.HasLockAsync(_lockId, token);
     }
 
     public Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)

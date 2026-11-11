@@ -95,6 +95,37 @@ latency between messages; for Buffered/Durable it controls how far the broker ca
 your workers — higher values smooth throughput at the cost of more unacked messages redelivered
 if the node dies.
 
+### Draining prefetched deliveries at shutdown
+
+When a listener stops, pauses or restarts, the deliveries still waiting in the RabbitMQ client's prefetch buffer
+have not reached Wolverine yet. Since Wolverine 7.0 the listener waits for them: it cancels its consumer, waits for
+the broker to confirm, and lets every delivery ahead of that confirmation reach the listener (and, for a durable
+listener, the inbox) before the channel closes. Through 6.x this was the opt-in `DrainWaitForPrefetch()`. Without
+it the listener cancels without waiting, and the broker redelivers the whole prefetched backlog after the channel
+closes. On a Rabbit MQ 4 quorum queue each of those redeliveries also counts against the queue's delivery limit.
+
+The wait slows the drain. It is bounded by `opts.Durability.DrainTimeout`, but under a deep prefetch the drain takes
+longer than it used to, so check that your platform gives the process enough time to stop. On Kubernetes that is
+the pod's `terminationGracePeriodSeconds` (30 seconds by default), which has to cover the drain of every listener
+plus anything else your application does at shutdown.
+
+Two stops never wait. One is a stop made by a handler on the listener's own delivery, such as an inline listener's
+`PauseThenRequeue()`: the broker's confirmation can't be dispatched until that handler returns. The other is a stop on
+a channel that has already closed, which can't confirm anything. Both cancel the 6.x way.
+
+It is only a hard guarantee at `ConsumerDispatchConcurrency` of 1, the default. At higher concurrency the client
+handles deliveries and the cancel confirmation in parallel, so some deliveries may still be redelivered, but fewer
+than without waiting.
+
+To go back to the faster stop on one listener:
+
+```csharp
+opts.ListenToRabbitQueue("incoming")
+    .DoNotDrainWaitForPrefetch();
+```
+
+`opts.RestoreV6Defaults()` turns it off for every listener that doesn't call `DrainWaitForPrefetch()` itself.
+
 ## Publisher confirms are off by default
 
 Wolverine publishes with confirms **disabled** by default: publishes are fire-and-forget at the

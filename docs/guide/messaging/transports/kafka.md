@@ -562,8 +562,14 @@ does **not** get this protection today. See [Deduplicating CloudEvents](/tutoria
 
 ### Idempotent producer
 
-Dekaf producers are idempotent by default, so producer-side retries can't write duplicates to the broker.
-To pin that on explicitly, for example over configuration that sets `EnableIdempotence = false`:
+Kafka producers are idempotent by default since Wolverine 7.0 (`enable.idempotence = true`, Dekaf's own default),
+so producer-side retries can't write duplicates to the broker. Java clients have defaulted to the same since Kafka 3.0.
+Wolverine 6.x ran on Confluent.Kafka, whose producers were not idempotent unless you called `UseIdempotentProducer()`,
+and `opts.RestoreV6Defaults()` puts that back: idempotence is turned off on every producer that doesn't set
+`EnableIdempotence` itself.
+
+To pin it on explicitly, for example over configuration that sets `EnableIdempotence = false` or after
+`RestoreV6Defaults()`:
 
 ```csharp
 opts.UseKafka(connectionString).UseIdempotentProducer();       // node-wide
@@ -572,12 +578,25 @@ opts.PublishMessage<T>().ToKafkaTopic("t").UseIdempotentProducer();  // per topi
 
 This sets `EnableIdempotence = true` on the producer options (which implies acks from all in-sync replicas
 and bounded in-flight requests). It is
-**producer→broker** de-duplication only — it does not make consume-process-produce atomic. Set
-`EnableIdempotence = false` through `ConfigureProducers(...)` to turn it off.
+**producer→broker** de-duplication only — it does not make consume-process-produce atomic.
+
+To turn it off:
+
+```csharp
+opts.UseKafka(connectionString).DisableIdempotentProducer();       // node-wide
+opts.PublishMessage<T>().ToKafkaTopic("t").DisableIdempotentProducer();  // per topic
+```
+
+Both set `EnableIdempotence = false` on the producer options, which you can also do yourself through
+`ConfigureProducers(...)` or `ConfigureProducer(...)`. A topic with its own producer options doesn't inherit the
+node-wide setting, so call it on that topic as well.
 
 An idempotent producer always waits for acks from every in-sync replica, so `Acks` values other than
-`Acks.All` need `EnableIdempotence = false` as well. Wolverine refuses to start when a producer sets
-`Acks.None` or `Acks.Leader` without turning idempotence off.
+`Acks.All` need idempotence turned off as well. Wolverine refuses to start when a producer sets
+`Acks.None` or `Acks.Leader` without turning idempotence off, and the error names `DisableIdempotentProducer()`.
+
+The idempotent producer needs no extra broker permission on the Kafka 4.0+ brokers Wolverine 7 requires. Brokers
+older than 2.8 also required the `IdempotentWrite` ACL on the cluster.
 
 ### `read_committed` isolation
 
