@@ -88,8 +88,10 @@ A few things to know:
 ## Logical Message Deduplication <Badge type="tip" text="6.31" />
 
 ::: warning
-This is opt-in, and turning it on provisions a new `wolverine_deduplication` table. Leaving it off
-means no schema change at all on upgrade.
+Since 7.0 the storage for this is on by default: every message store provisions a
+`wolverine_deduplication_hashed` table and a cleanup job for it. In 6.x it was opt-in. Set
+`opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None` (or call `opts.RestoreV6Defaults()`)
+to provision nothing. The storage alone deduplicates nothing; handlers and endpoints still opt in.
 :::
 
 Everything above keys on `Envelope.Id`, which identifies **one delivery**. That's helpful to make sure that Wolverine 
@@ -131,6 +133,9 @@ class chron message scheduler and use the deduplication id as a way of preventin
 
 ### Turning it on
 
+The storage is on unless you turned it off. A handler, HTTP endpoint or gRPC method still has to ask for
+deduplication itself (below). This is the configuration with the default spelled out:
+
 <!-- snippet: sample_enabling_message_deduplication -->
 <a id='snippet-sample_enabling_message_deduplication'></a>
 ```cs
@@ -139,9 +144,9 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts.PersistMessagesWithPostgresql("connection string");
 
-        // Opt in to logical message deduplication. This provisions a new
-        // "wolverine_deduplication" table -- nothing else about your message
-        // storage changes, and leaving this at None means no schema migration at all.
+        // CompareByHash is the default as of 7.0, so this line only spells it out.
+        // It provisions the "wolverine_deduplication_hashed" table -- nothing else
+        // about your message storage changes. Set None to provision nothing.
         // CompareByHash compares ids by a binary SHA-256, so they mean the same thing
         // on every database engine
         opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
@@ -156,7 +161,8 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 ::: warning
-If a handler asks for deduplication and `MessageDeduplicationMode` is left at `None`, Wolverine logs a
+If a handler asks for deduplication and `MessageDeduplicationMode` is set to `None` (or
+`RestoreV6Defaults()` put it back to `None`), Wolverine logs a
 warning at startup and that handler **throws on its first message**. It is deliberately a warning
 rather than a startup failure: `[Deduplicated]` lives on a handler type, and handler types are
 discovered by every host that scans their assembly. In a modular monolith where one module wants
@@ -175,8 +181,8 @@ another mode's table:
 
 | Mode | Table | Comparison |
 |---|---|---|
-| `None` (default) | neither | no deduplication |
-| `CompareByHash` | `wolverine_deduplication_hashed` — a binary SHA-256 is the primary key, `deduplication_id` rides along as a plain column | identical on every engine |
+| `None` (6.x default) | neither | no deduplication |
+| `CompareByHash` (7.0 default) | `wolverine_deduplication_hashed` — a binary SHA-256 is the primary key, `deduplication_id` rides along as a plain column | identical on every engine |
 | `CompareByString` | `wolverine_deduplication`, exactly as it has always been — `deduplication_id` is the primary key | whatever the column's collation says |
 
 `CompareByString` is what Wolverine shipped in 6.31, and it compares the ids as strings — which in a
@@ -198,8 +204,9 @@ migration that can be applied in place — on SQLite it is a full table rebuild.
 switch costs nothing: Wolverine creates the one the configured mode needs and leaves the other alone.
 
 ::: warning Upgrading
-`Durability.EnableMessageDeduplication = true` is now obsolete and maps to `CompareByHash`, so the first
-deploy after upgrading provisions `wolverine_deduplication_hashed`. Nothing happens to the existing
+`Durability.EnableMessageDeduplication` was removed in 7.0; `true` meant `CompareByHash`, now the default.
+An application that used the original `wolverine_deduplication` table provisions `wolverine_deduplication_hashed`
+on its first deploy of 6.45 or later, unless it sets `CompareByString`. Nothing happens to the existing
 `wolverine_deduplication` table: it is not altered, not dropped, and the claims in it are not lost. They
 simply stop being consulted and are reaped on their own `expires`, so the table empties itself within
 `DeduplicationWindow` and can be dropped by hand at any point after that.

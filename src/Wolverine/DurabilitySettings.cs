@@ -488,72 +488,98 @@ public class DurabilitySettings : IDescribeMyself
     /// </summary>
     public int HandledMessageCleanupMaxBatchesPerCycle { get; set; } = 20;
 
+    private MessageDeduplicationMode? _messageDeduplicationMode;
+    private bool? _enableDeduplicatedResponses;
+    private bool _v6DeduplicationDefaultsRestored;
+
     /// <summary>
-    ///     GH-4180. Opt in to storage for <b>logical</b> message deduplication ids — the
+    ///     GH-4757. Storage for <b>logical</b> message deduplication ids — the
     ///     <see cref="Envelope.DeduplicationId" /> an application sets to say "this is the same intent",
-    ///     as opposed to <see cref="Envelope.Id" />, which identifies one delivery.
+    ///     as opposed to <see cref="Envelope.Id" />, which identifies one delivery — and how those ids
+    ///     are compared for equality.
     ///
     ///     <para>
-    ///     Off by default, and deliberately so: enabling it provisions a new
-    ///     <c>wolverine_deduplication</c> table, and forcing a schema change on every existing
-    ///     deployment is not something a patch upgrade should do. Nothing in the read or write path of
-    ///     the transactional inbox changes either way — the deduplication markers live in their own
-    ///     table (see <see cref="Persistence.Durability.IDeduplicationStore" /> for why).
+    ///     The default is <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" /> as of 7.0
+    ///     (GH-5194), so every message store provisions the <c>wolverine_deduplication_hashed</c> table
+    ///     and its cleanup job. It was <see cref="Wolverine.MessageDeduplicationMode.None" /> in 6.x.
+    ///     <see cref="WolverineOptions.RestoreV6Defaults" /> puts the 6.x default back, and so does
+    ///     setting this to <see cref="Wolverine.MessageDeduplicationMode.None" />, which provisions
+    ///     nothing. An explicit setting always wins over either default.
     ///     </para>
     ///
     ///     <para>
-    ///     Turning this on provisions storage; it does not by itself deduplicate anything. Individual
-    ///     message handlers, HTTP endpoints and gRPC methods opt in with <c>[Deduplicated]</c> or via
+    ///     The comparison is a binary one with
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" />, and therefore identical on
+    ///     every engine. <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> preserves the
+    ///     original GH-4180 table and comparison exactly, for an application that cannot take the schema
+    ///     change.
+    ///     </para>
+    ///
+    ///     <para>
+    ///     Storage on its own does not deduplicate anything. Individual message handlers, HTTP endpoints
+    ///     and gRPC methods opt in with <c>[Deduplicated]</c> or via
     ///     <c>Policies.RequireDeduplicationId()</c>.
     ///     </para>
     /// </summary>
     /// <remarks>
-    ///     GH-4757. A boolean cannot say HOW the ids are compared, and the original string comparison
-    ///     behaves differently on SQL Server and MySQL than on PostgreSQL and SQLite — see
-    ///     <see cref="MessageDeduplicationMode" />. Kept as a pass-through so existing configuration code
-    ///     keeps compiling: <c>true</c> now means
-    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" />, the engine-independent
-    ///     comparison. An application that needs the old table and the old comparison sets
-    ///     <see cref="MessageDeduplicationMode" /> to
-    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> explicitly.
+    ///     GH-5194. Why a default rather than "provision the table only when a chain uses it": the
+    ///     message stores decide which tables they own when they are constructed and initialized, and
+    ///     that happens before handler discovery at startup. The <c>resources setup</c> /
+    ///     <c>db-apply</c> commands build the schema without discovering handlers at all, and HTTP
+    ///     endpoints can be discovered after the storage has migrated. Usage is not known in time.
     /// </remarks>
-    [Obsolete(
-        "Use DurabilitySettings.MessageDeduplicationMode instead. 'true' maps to MessageDeduplicationMode.CompareByHash and 'false' to MessageDeduplicationMode.None. GH-4757")]
-    public bool EnableMessageDeduplication
+    public MessageDeduplicationMode MessageDeduplicationMode
     {
-        get => MessageDeduplicationMode != MessageDeduplicationMode.None;
-        set => MessageDeduplicationMode =
-            value ? MessageDeduplicationMode.CompareByHash : MessageDeduplicationMode.None;
+        get => _messageDeduplicationMode ?? (_v6DeduplicationDefaultsRestored
+            ? MessageDeduplicationMode.None
+            : MessageDeduplicationMode.CompareByHash);
+        set => _messageDeduplicationMode = value;
     }
 
     /// <summary>
-    ///     GH-4757. Opt in to storage for <b>logical</b> message deduplication ids, and choose how those
-    ///     ids are compared for equality. <see cref="Wolverine.MessageDeduplicationMode.None" /> — the
-    ///     default — provisions nothing, so an upgrade migrates nothing.
-    ///
-    ///     <para>
-    ///     Prefer <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" />: the comparison is a
-    ///     binary one and therefore identical on every engine.
-    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> preserves the original
-    ///     GH-4180 table and comparison exactly, for an application that cannot take the schema change.
-    ///     </para>
-    ///
-    ///     <para>
-    ///     Setting this provisions storage; it does not by itself deduplicate anything. Individual
-    ///     message handlers, HTTP endpoints and gRPC methods opt in with <c>[Deduplicated]</c> or via
-    ///     <c>Policies.RequireDeduplicationId()</c>.
-    ///     </para>
-    /// </summary>
-    public MessageDeduplicationMode MessageDeduplicationMode { get; set; } = MessageDeduplicationMode.None;
-
-    /// <summary>
-    ///     GH-4742. Opt in to storage for <c>[DeduplicatedWithResponse]</c> HTTP endpoints, which answer a repeat
+    ///     GH-4742. Storage for <c>[DeduplicatedWithResponse]</c> HTTP endpoints, which answer a repeat
     ///     of a request with its first response. Provisions a separate <c>wolverine_deduplicated_responses</c>
-    ///     table, so it is independent of <see cref="EnableMessageDeduplication" />. Claims expire after
+    ///     table, so it is independent of <see cref="MessageDeduplicationMode" />. Claims expire after
     ///     <see cref="DeduplicationWindow" /> unless the endpoint sets its own, and are reaped on
     ///     <see cref="DeduplicationCleanupPollingTime" />.
+    ///
+    ///     <para>
+    ///     On by default as of 7.0 (GH-5194), off in 6.x. <see cref="WolverineOptions.RestoreV6Defaults" />
+    ///     turns it back off, and so does setting it to <see langword="false" />. An explicit setting
+    ///     always wins over either default.
+    ///     </para>
     /// </summary>
-    public bool EnableDeduplicatedResponses { get; set; }
+    public bool EnableDeduplicatedResponses
+    {
+        get => _enableDeduplicatedResponses ?? !_v6DeduplicationDefaultsRestored;
+        set => _enableDeduplicatedResponses = value;
+    }
+
+    /// <summary>
+    ///     GH-5194. Called by <see cref="WolverineOptions.RestoreV6Defaults" />: the deduplication defaults go
+    ///     back to <see cref="Wolverine.MessageDeduplicationMode.None" /> and no deduplicated responses.
+    ///     Values the application set explicitly, before or after, are left alone.
+    /// </summary>
+    internal void RestoreV6DeduplicationDefaults()
+    {
+        _v6DeduplicationDefaultsRestored = true;
+    }
+
+    /// <summary>
+    ///     GH-5194. Make sure logical deduplication storage is on, for a feature that depends on it
+    ///     (registering a recurring message). Leaves an explicit
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> alone, promotes an explicit
+    ///     <see cref="Wolverine.MessageDeduplicationMode.None" />, and pins
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" /> when nothing was set, so a later
+    ///     <see cref="WolverineOptions.RestoreV6Defaults" /> cannot take it away again.
+    /// </summary>
+    internal void RequireMessageDeduplication()
+    {
+        if (_messageDeduplicationMode is null or MessageDeduplicationMode.None)
+        {
+            _messageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
+        }
+    }
 
     /// <summary>
     ///     GH-4180. How long a logical deduplication claim is honoured before the reaper removes it.

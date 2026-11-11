@@ -28,6 +28,12 @@ public class restore_v6_defaults_tests
     private static readonly Dictionary<string, (Action<WolverineOptions> AssertV7Default, Action<WolverineOptions> AssertV6Value)>
         CoreRestorations = new()
         {
+            ["`DurabilitySettings.MessageDeduplicationMode`"] = (
+                o => o.Durability.MessageDeduplicationMode.ShouldBe(MessageDeduplicationMode.CompareByHash),
+                o => o.Durability.MessageDeduplicationMode.ShouldBe(MessageDeduplicationMode.None)),
+            ["`DurabilitySettings.EnableDeduplicatedResponses`"] = (
+                o => o.Durability.EnableDeduplicatedResponses.ShouldBeTrue(),
+                o => o.Durability.EnableDeduplicatedResponses.ShouldBeFalse()),
             // GH-5193
             ["`DurabilitySettings.AlwaysProvisionOptionalSchemaObjects`"] = (
                 o => o.Durability.AlwaysProvisionOptionalSchemaObjects.ShouldBeTrue(),

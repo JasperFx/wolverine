@@ -50,6 +50,9 @@ public sealed partial class WolverineOptions
     {
         V6DefaultsRestored = true;
 
+        // GH-5194: no deduplication tables (MessageDeduplicationMode.None) and no deduplicated responses
+        Durability.RestoreV6DeduplicationDefaults();
+
         // GH-5193: 7.0 always creates the inbox/outbox timestamp columns, the outbox stale index and
         // wolverine_nodes.load_factor. Restored as the 6.x layout, each column only exists when its setting is
         // on and the index is not created. Resolved through the flag so an explicit setting still wins.

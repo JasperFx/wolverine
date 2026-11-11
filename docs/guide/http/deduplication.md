@@ -5,7 +5,7 @@
 ::: tip
 This is the HTTP half of Wolverine's [logical message
 deduplication](/guide/durability/idempotency#logical-message-deduplication). Read that page first
-for the storage, the retention window, and why this is opt-in — everything here builds on it.
+for the storage, the retention window, and how to turn it off — everything here builds on it.
 :::
 
 A `POST` that creates something is the classic at-most-once problem. The user double-clicks; the
@@ -151,7 +151,8 @@ caller reading another's response, so it requires a scope.
 created. `[DeduplicatedWithResponse]` answers it instead:
 
 ```csharp
-// Program.cs
+// Program.cs. On by default since 7.0; set it to false, or call
+// opts.RestoreV6Defaults(), to provision no wolverine_deduplicated_responses table
 opts.Durability.EnableDeduplicatedResponses = true;
 
 [DeduplicatedWithResponse(DeduplicationScope.User | DeduplicationScope.Endpoint)]
@@ -334,7 +335,7 @@ releasing it with a rolled-back transaction.
 
 ### Requirements and limits
 
-- `Durability.EnableDeduplicatedResponses`, and the PostgreSQL, SQL Server, MySQL or SQLite message store
+- `Durability.EnableDeduplicatedResponses` (on by default since 7.0), and the PostgreSQL, SQL Server, MySQL or SQLite message store
   (including Marten's). With a database per tenant, claims are kept in the main database. Without them
   the host logs a warning at startup and the endpoint throws at its first request.
 - The endpoint must return a resource, written as JSON by System.Text.Json, or an `IResult` (below); any

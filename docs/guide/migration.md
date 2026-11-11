@@ -36,6 +36,8 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `PushReceiverOptions.DeduplicateWithInbox` | `false` | `true` when the application has a message store | `o.DeduplicateWithInbox = false` in `MapWolverinePushReceiver()` | `push_receiver_5016` |
 | `BrokerTransport.TenantedIdBehavior` (RabbitMQ, Azure Service Bus, SQS, SNS, Kafka, GCP Pub/Sub, Redis, NATS; also MQTT, MQTT 5 and Pulsar) | `FallbackToDefault`: a message for an unregistered tenant id goes to the default broker | `DeadLetterUnknownTenants`: it goes to dead letter storage and is sent nowhere | `.TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)` (`ConfigureMultiTenancy(...)` on Redis and NATS) | `restore_v6_broker_tenancy_defaults` |
 | `NatsTransportConfiguration.TrustTenantIdHeader` | `true`: a tenant-aware listener takes the tenant from the `tenant-id` header | not trusted: the tenant comes from the connection or subject prefix the message arrived on | `nats.TrustTenantIdHeader = true` | `NatsTenantIdHeaderTests` |
+| `DurabilitySettings.MessageDeduplicationMode` | `None`: no deduplication table | `CompareByHash`: every message store provisions `wolverine_deduplication_hashed` and its cleanup job | `opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.EnableDeduplicatedResponses` | `false` | `true`: every message store provisions `wolverine_deduplicated_responses` and its cleanup job | `opts.Durability.EnableDeduplicatedResponses = false` | `restore_v6_defaults_tests` |
 | `DurabilitySettings.AlwaysProvisionOptionalSchemaObjects` | not there (new in 7.0; `EnableOutgoingTimestampIndex` is removed): the inbox/outbox `timestamp` columns only exist with `InboxStaleTime`/`OutboxStaleTime`, `wolverine_nodes.load_factor` only with `CapacityAwareAssignment`, and the outbox stale index only with `EnableOutgoingTimestampIndex` | `true`: the relational stores always create all four, a one-time additive migration on first start; reading and writing them stays opt-in | `opts.Durability.AlwaysProvisionOptionalSchemaObjects = false` | `restore_v6_defaults_tests` |
 
 ### Wolverine.Http defaults that changed in 7.0
@@ -97,6 +99,42 @@ A broker is a trust boundary in 7.0 (GH-5196). Two defaults flipped, and `Restor
 
 During a rolling upgrade, 6.x nodes in the same cluster still send unknown tenant ids to the default broker until they
 are upgraded.
+
+### Deduplication storage is on by default; `EnableMessageDeduplication` removed (BREAKING)
+
+`Durability.MessageDeduplicationMode` now defaults to `CompareByHash` (it was `None`), and
+`Durability.EnableDeduplicatedResponses` now defaults to `true` (it was `false`). So every message store, in every
+role and tenant database, provisions the `wolverine_deduplication_hashed` and `wolverine_deduplicated_responses` tables
+on the first deploy of 7.0, each with a cleanup job that runs every five minutes. Storage alone deduplicates nothing:
+handlers and endpoints still opt in with `[Deduplicated]`, `[DeduplicatedWithResponse]` or
+`Policies.RequireDeduplicationId()`. A `[Deduplicated]` handler now works without any extra configuration.
+
+To keep the 6.x schema, turn either one off or call `opts.RestoreV6Defaults()`, which turns both off:
+
+```csharp
+opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None;
+opts.Durability.EnableDeduplicatedResponses = false;
+```
+
+If you provision the schema yourself (`AutoBuildMessageStorageOnStartup = AutoCreate.None`), Wolverine will not create
+these tables for you. Before you deploy 7.0, run `resources setup` or `db-apply` (or call `IHost.SetupResources()`)
+against every message database, including each tenant database. Otherwise, opt out as shown above. If you do
+neither, the startup check still passes, because it only looks for the envelope and node tables. But the cleanup jobs,
+and any handler or endpoint that uses deduplication, will then fail against the missing tables.
+
+An explicit setting wins over both the 7.0 default and `RestoreV6Defaults()`, in either order. Registering a recurring
+message still turns deduplication on, even after `RestoreV6Defaults()`, because the recurring agent relies on it.
+
+The obsolete `Durability.EnableMessageDeduplication` flag is gone. Replace `EnableMessageDeduplication = true` with
+`MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash` (or just delete the line), and `false` with
+`MessageDeduplicationMode = MessageDeduplicationMode.None`.
+
+Why defaults rather than creating the tables only when something uses them (GH-5194): we checked first whether
+Wolverine knows which handlers and endpoints use deduplication before it builds the storage, and it does not. A message
+store decides which tables it owns when it is constructed and initialized, before handler discovery runs at startup.
+The `resources setup` and `db-apply` commands build the schema without discovering handlers at all. And an HTTP
+endpoint mapped from a `Startup` class can be discovered after the storage has already migrated. Creating the tables
+on use would have left a pre-provisioned database without the table a `[Deduplicated]` handler needs.
 
 ### Optional message storage schema objects are always created in 7.0
 
