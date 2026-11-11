@@ -74,6 +74,11 @@ public interface IManagedMqttClient : IDisposable
     bool IsConnected { get; }
     IMqttClient InternalClient { get; }
 
+    /// <summary>
+    /// Messages enqueued but not yet published to the broker, as on MQTTnet 4's managed client
+    /// </summary>
+    int PendingApplicationMessagesCount { get; }
+
     Task StartAsync(ManagedMqttClientOptions options);
     Task StopAsync();
     Task PingAsync(CancellationToken cancellationToken = default);
@@ -123,6 +128,17 @@ internal class ManagedMqttClient : IManagedMqttClient
 
     public bool IsConnected => _client.IsConnected;
     public IMqttClient InternalClient => _client;
+
+    public int PendingApplicationMessagesCount
+    {
+        get
+        {
+            lock (_pendingLock)
+            {
+                return _pendingMessages.Count;
+            }
+        }
+    }
 
     public async Task StartAsync(ManagedMqttClientOptions options)
     {

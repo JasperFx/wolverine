@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
-using MQTTnet.Client;
-using MQTTnet.Diagnostics;
+using MQTTnet;
+using MQTTnet.Diagnostics.Logger;
 
 namespace Wolverine.MQTT.Internals;
 

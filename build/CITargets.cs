@@ -1152,18 +1152,6 @@ partial class Build
             RunTestProject(tests);
         });
 
-    Target CIMQTT5 => _ => _
-        .ProceedAfterFailure()
-        .Executes(() =>
-        {
-            var tests = RootDirectory / "src" / "Transports" / "MQTT" / "Wolverine.Mqtt5.Tests" / "Wolverine.Mqtt5.Tests.csproj";
-
-            BuildTestProjects(tests);
-            StartDockerServices("postgresql", "sqlserver");
-
-            RunTestProject(tests);
-        });
-
     Target CINATS => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
