@@ -34,6 +34,11 @@ internal class ProjectionSideEffectSink
         _transactionSource = transactionSource;
     }
 
+    /// <summary>
+    ///     The batch's own context. Exposed for tests that check which message store a batch enlists in.
+    /// </summary>
+    internal MessageContext Context => _context;
+
     public ValueTask PublishAsync<T>(T message, MessageMetadata metadata)
     {
         // MessageBus only lets an ISendMyself apply itself when NO DeliveryOptions are passed (the

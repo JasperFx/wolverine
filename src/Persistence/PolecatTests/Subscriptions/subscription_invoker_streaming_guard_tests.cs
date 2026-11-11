@@ -1,5 +1,5 @@
 using Shouldly;
-using Wolverine.Polecat.Subscriptions;
+using Wolverine.Persistence.EventSourcing.Subscriptions;
 using Xunit;
 
 namespace PolecatTests.Subscriptions;
