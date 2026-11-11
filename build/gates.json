@@ -536,6 +536,14 @@
       "tracks": []
     },
     {
+      "name": "Wolverine.Http.Compat.Tests",
+      "path": "src/Http/Wolverine.Http.Compat.Tests/Wolverine.Http.Compat.Tests.csproj",
+      "ciTargets": "CIHttpCompat",
+      "workers": 1,
+      "services": [],
+      "tracks": []
+    },
+    {
       "name": "Wolverine.Http.AspVersioning.Tests",
       "path": "src/Http/Wolverine.Http.AspVersioning.Tests/Wolverine.Http.AspVersioning.Tests.csproj",
       "ciTargets": "CIHttpAspVersioning",

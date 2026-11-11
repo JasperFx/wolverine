@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      GH-5147: Wolverine.Http against ASP.NET Core 11: the CSRF default on form endpoints, the async
+      DataAnnotations executor, [ShortCircuit] and OpenAPI 3.2, and the same scenarios on ASP.NET Core 10,
+      where the behaviour deliberately differs. Both frameworks, no database and no broker: Wolverine.Http.Tests
+      is net10.0-only (WolverineWebApi) and cannot see the .NET 11 surface at all.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+        <!-- Microsoft.AspNetCore.OpenApi's XML comment source generator intercepts the AddOpenApi() calls here -->
+        <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
+        <OpenApiGenerateDocumentsOnBuild>false</OpenApiGenerateDocumentsOnBuild>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Alba" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit.v3" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
+        <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
+    </ItemGroup>
+
+</Project>

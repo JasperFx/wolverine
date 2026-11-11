@@ -62,6 +62,8 @@
          The CIHttpAspVersioning target builds and tests them. -->
     <Project Path="src/Http/Wolverine.Http.AspVersioning.Tests/Wolverine.Http.AspVersioning.Tests.csproj" />
     <Project Path="src/Http/Wolverine.Http.AspVersioning/Wolverine.Http.AspVersioning.csproj" />
+    <!-- net10.0;net11.0 (GH-5147); the CIHttpCompat target runs it on both. -->
+    <Project Path="src/Http/Wolverine.Http.Compat.Tests/Wolverine.Http.Compat.Tests.csproj" />
     <Project Path="src/Http/Wolverine.Http.FluentValidation/Wolverine.Http.FluentValidation.csproj" />
     <Project Path="src/Http/Wolverine.Http.Marten/Wolverine.Http.Marten.csproj" />
     <Project Path="src/Http/Wolverine.Http.Tests.AncillaryStore/Wolverine.Http.Tests.AncillaryStore.csproj" />

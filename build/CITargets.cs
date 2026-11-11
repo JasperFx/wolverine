@@ -1258,6 +1258,21 @@ partial class Build
             RunTestProject(tests, frameworkOverride: "net10.0");
         });
 
+    // GH-5147: Wolverine.Http against ASP.NET Core 11 (CSRF default, async DataAnnotations, [ShortCircuit],
+    // OpenAPI 3.2). Runs on both frameworks whatever --framework says, because the behaviour under test is
+    // deliberately different between them. No database or broker.
+    Target CIHttpCompat => _ => _
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Http" / "Wolverine.Http.Compat.Tests" / "Wolverine.Http.Compat.Tests.csproj";
+
+            foreach (var framework in new[] { "net10.0", "net11.0" })
+            {
+                BuildTestProjectsWithFramework(framework, tests);
+                RunTestProject(tests, frameworkOverride: framework);
+            }
+        });
+
     Target CIRabbitMQ => _ => _
         .ProceedAfterFailure()
         .Executes(() =>

@@ -288,6 +288,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         options.JsonSerializerOptions = aspNetCoreJsonOptions(serviceProvider);
 
         options.Endpoints.AutoAntiforgeryOnFormEndpoints = options._autoAntiforgeryOnFormEndpoints;
+        options.Endpoints.RequireAntiforgeryOnAll = options._requireAntiforgeryOnAll;
         options.Endpoints.RejectUnparseableQueryValues = options.RejectUnparseableQueryValues;
         options.Endpoints.RejectUnparseableHeaderValues = options.RejectUnparseableHeaderValues;
         options.Endpoints.ApplyCorrelationIdHeaderToAllEndpoints = options.ApplyCorrelationIdHeaderToAllEndpoints;
