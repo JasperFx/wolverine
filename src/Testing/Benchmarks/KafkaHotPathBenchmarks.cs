@@ -1,7 +1,8 @@
 using System.Reflection;
 using System.Text;
 using BenchmarkDotNet.Attributes;
-using Confluent.Kafka;
+using Dekaf.Consumer;
+using Dekaf.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
@@ -34,7 +35,7 @@ public class KafkaHotPathBenchmarks
 
     private Envelope _outgoing = null!;
     private Envelope _restampTarget = null!;
-    private Message<string, byte[]> _incoming = null!;
+    private ConsumeResult<string, byte[]> _incoming;
     private KafkaHotPathMessage _message = null!;
     private byte[] _payload = null!;
     private string _messageTypeName = null!;
@@ -96,8 +97,8 @@ public class KafkaHotPathBenchmarks
         };
 
         // Round-trip a real outgoing envelope through the mapper ONCE to get a wire-realistic
-        // incoming Message<string, byte[]> (same header set Wolverine itself would write).
-        _incoming = createMessage(_mapper, _outgoing);
+        // incoming ConsumeResult<string, byte[]> (same header set Wolverine itself would write).
+        _incoming = createIncoming(_mapper, _outgoing);
         Console.WriteLine($"// Incoming benchmark message carries {_incoming.Headers.Count} headers");
 
         // Standalone-but-real HandlerGraph for the message-type name lookup. (The runtime's
@@ -144,23 +145,22 @@ public class KafkaHotPathBenchmarks
     }
 
     /// <summary>
-    /// The outgoing twin: per-send Message construction + MapEnvelopeToOutgoing, which pays
+    /// The outgoing twin: per-send record construction + MapEnvelopeToOutgoing, which pays
     /// _envelopeToHeader.Values.ToArray() (EnvelopeMapper.cs:391-397) and ~18 UTF8 header
     /// writes per message. Body replicates the internal KafkaTransportExtensions.CreateMessage
-    /// (KafkaTransportExtensions.cs:266-289) minus the (synchronously-completed) GetDataAsync.
+    /// (KafkaTransportExtensions.cs) minus the (synchronously-completed) GetDataAsync.
     /// </summary>
     [Benchmark]
-    public Message<string, byte[]> MapOutgoing()
+    public OutgoingKafkaRecord MapOutgoing()
     {
-        var message = new Message<string, byte[]>
+        var record = new OutgoingKafkaRecord
         {
             Key = !string.IsNullOrEmpty(_outgoing.PartitionKey) ? _outgoing.PartitionKey : _outgoing.Id.ToString(),
-            Value = _payload,
-            Headers = new Headers()
+            Value = _payload
         };
 
-        _mapper.MapEnvelopeToOutgoing(_outgoing, message);
-        return message;
+        _mapper.MapEnvelopeToOutgoing(_outgoing, record);
+        return record;
     }
 
     /// <summary>
@@ -226,19 +226,27 @@ public class KafkaHotPathBenchmarks
         return combined.Token;
     }
 
-    // Replica of the internal KafkaTransportExtensions.CreateMessage used once in setup to
-    // produce a wire-realistic incoming message by round-tripping the outgoing envelope.
-    private static Message<string, byte[]> createMessage(IKafkaEnvelopeMapper mapper, Envelope envelope)
+    // Round-trips the outgoing envelope through the mapper once in setup to produce a
+    // wire-realistic incoming ConsumeResult, exactly as if the record came off the broker.
+    private static ConsumeResult<string, byte[]> createIncoming(IKafkaEnvelopeMapper mapper, Envelope envelope)
     {
-        var message = new Message<string, byte[]>
+        var record = new OutgoingKafkaRecord
         {
             Key = envelope.PartitionKey!,
-            Value = envelope.Data!,
-            Headers = new Headers()
+            Value = envelope.Data!
         };
 
-        mapper.MapEnvelopeToOutgoing(envelope, message);
-        return message;
+        mapper.MapEnvelopeToOutgoing(envelope, record);
+
+        return new ConsumeResult<string, byte[]>(
+            TopicName, 0, 0,
+            Encoding.UTF8.GetBytes(record.Key!), false,
+            record.Value!, false,
+            record.Headers.ToList(),
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), TimestampType.CreateTime,
+            null,
+            Serializers.String, Serializers.ByteArray,
+            false);
     }
 }
 

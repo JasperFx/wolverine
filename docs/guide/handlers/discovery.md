@@ -294,7 +294,7 @@ public class NetflixHandler : IMovieSink
     {
     }
 
-    public void Consume(MovieAdded added)
+    public void Consume(EpisodeAvailable available)
     {
     }
 

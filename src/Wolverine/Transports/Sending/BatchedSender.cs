@@ -3,10 +3,11 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Util;
 
 namespace Wolverine.Transports.Sending;
 
-public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativeScheduling
+public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativeScheduling, IAsyncDisposable
 {
     private readonly CancellationToken _cancellation;
     private readonly ILogger _logger;
@@ -39,16 +40,14 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
         // defaults to 1) before the switch from TPL Dataflow to Channels; the rewrite raised it to
         // Environment.ProcessorCount and lost the guarantee along the way. Everything downstream is
         // already serial by default (Endpoint.MessageBatchMaxDegreeOfParallelism is 1).
-        _serializing = batching.PushUpstream<Envelope>(1, e =>
+        //
+        // EnsureDataAsync lets IAsyncMessageSerializer implementations (schema registry, encryption)
+        // serialize without blocking; plain serializers fall through to the synchronous Write.
+        _serializing = batching.PushUpstream<Envelope>(1, async (e, _) =>
         {
             try
             {
-                if (e.Data == null && e.Serializer != null)
-                {
-                    e.Data = e.Serializer.Write(e);
-                }
-
-                return e;
+                await e.EnsureDataAsync().ConfigureAwait(false);
             }
             catch (Exception? ex)
             {
@@ -113,10 +112,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
             throw new InlineSendFailedException($"The sender to {Destination} is latched", null);
         }
 
-        if (envelope.Data == null && envelope.Serializer != null)
-        {
-            envelope.Data = envelope.Serializer.Write(envelope);
-        }
+        await envelope.EnsureDataAsync().ConfigureAwait(false);
 
         var callback = new InlineSendCallback();
         await _protocol.SendBatchAsync(callback, new OutgoingMessageBatch(Destination, [envelope]))
@@ -145,10 +141,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
         {
             try
             {
-                if (envelope.Data == null && envelope.Serializer != null)
-                {
-                    envelope.Data = envelope.Serializer.Write(envelope);
-                }
+                await envelope.EnsureDataAsync().ConfigureAwait(false);
 
                 ready.Add(envelope);
             }
@@ -190,15 +183,12 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
         }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        if (_protocol is IDisposable d)
-        {
-            d.SafeDispose();
-        }
+        await _protocol.MaybeDisposeAsync().ConfigureAwait(false);
 
         _serializing.Complete();
-        _serializing.SafeDisposeSynchronously();
+        await _serializing.DisposeAsync().ConfigureAwait(false);
     }
 
     public void RegisterCallback(ISenderCallback senderCallback)

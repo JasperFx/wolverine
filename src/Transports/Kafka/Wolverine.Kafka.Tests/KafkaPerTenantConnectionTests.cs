@@ -46,7 +46,8 @@ public class KafkaPerTenantConnectionTests : IAsyncLifetime
 
         try
         {
-            _clusterB = new KafkaBuilder().WithImage("confluentinc/cp-kafka:7.6.1").Build();
+            // Must be a Kafka 4.0+ image: the Dekaf client only speaks the KIP-848 consumer protocol
+            _clusterB = new KafkaBuilder().WithImage("confluentinc/cp-kafka:8.0.0").Build();
             await _clusterB.StartAsync();
             _clusterBServers = StripScheme(_clusterB.GetBootstrapAddress());
 

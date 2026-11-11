@@ -9,7 +9,7 @@ name: bobcat-samples
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, '7.0' ]
     paths:
       - 'src/**'
       - 'build/**'
@@ -18,7 +18,7 @@ on:
       - 'docker-compose.yml'
       - '.github/workflows/bobcat-samples.yml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, '7.0' ]
     paths:
       - 'src/**'
       - 'build/**'

@@ -1,5 +1,6 @@
-using Confluent.Kafka;
-using Confluent.Kafka.Admin;
+using Dekaf.Admin;
+using Dekaf.Errors;
+using Dekaf.Protocol;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -8,50 +9,36 @@ using Wolverine.Kafka.Internals;
 
 namespace Wolverine.Kafka.Tests;
 
+// AutoProvision idempotency: a create against an existing topic throws a KafkaException carrying
+// ErrorCode.TopicAlreadyExists, which SetupOnAsync must swallow — while every other failure
+// (authorization, invalid config, ...) must propagate and fail startup loudly.
 public class create_topics_exception_handling
 {
     [Fact]
-    public async Task single_topic_tolerates_redpanda_topic_already_exists_reason()
+    public async Task single_topic_tolerates_topic_already_exists()
     {
-        await SetupSingleTopic(ExistingTopic("The topic has already been created"));
+        await SetupSingleTopic(KafkaException.FromErrorCode(ErrorCode.TopicAlreadyExists,
+            "Topic 'topic' already exists."));
     }
 
     [Fact]
-    public async Task single_topic_tolerates_multiple_topic_already_exists_results()
+    public async Task single_topic_propagates_authorization_failure()
     {
-        await SetupSingleTopic(ExceptionFor(
-            ("one", ErrorCode.TopicAlreadyExists, "first"),
-            ("two", ErrorCode.TopicAlreadyExists, "second")));
-    }
-
-    [Fact]
-    public async Task single_topic_propagates_empty_results()
-    {
-        await ShouldPropagateFromSingleTopic(new CreateTopicsException([]));
-    }
-
-    [Fact]
-    public async Task single_topic_propagates_mixed_results()
-    {
-        await ShouldPropagateFromSingleTopic(ExceptionFor(
-            ("one", ErrorCode.TopicAlreadyExists, "exists"),
-            ("two", ErrorCode.TopicAuthorizationFailed, "denied")));
-    }
-
-    [Fact]
-    public async Task single_topic_propagates_unrelated_error()
-    {
-        await ShouldPropagateFromSingleTopic(ExceptionFor(
-            ("topic", ErrorCode.TopicException, "invalid")));
+        await ShouldPropagateFromSingleTopic(KafkaException.FromErrorCode(
+            ErrorCode.TopicAuthorizationFailed, "denied"));
     }
 
     [Fact]
     public async Task single_topic_propagates_unrelated_error_with_misleading_text()
     {
-        var expected = ExceptionFor(
-            ("topic", ErrorCode.TopicAuthorizationFailed, "already exists."));
+        await ShouldPropagateFromSingleTopic(KafkaException.FromErrorCode(
+            ErrorCode.TopicAuthorizationFailed, "already exists."));
+    }
 
-        await ShouldPropagateFromSingleTopic(expected);
+    [Fact]
+    public async Task single_topic_propagates_a_kafka_exception_without_an_error_code()
+    {
+        await ShouldPropagateFromSingleTopic(new KafkaException("something went sideways"));
     }
 
     [Fact]
@@ -65,7 +52,7 @@ public class create_topics_exception_handling
             {
                 visited.Add(topic);
                 return topic == "one"
-                    ? Task.FromException(ExistingTopic(
+                    ? Task.FromException(KafkaException.FromErrorCode(ErrorCode.TopicAlreadyExists,
                         "The topic has already been created"))
                     : Task.CompletedTask;
             }
@@ -78,25 +65,23 @@ public class create_topics_exception_handling
     }
 
     [Fact]
-    public async Task topic_group_propagates_mixed_results()
+    public async Task topic_group_propagates_other_errors()
     {
-        var expected = ExceptionFor(
-            ("one", ErrorCode.TopicAlreadyExists, "exists"),
-            ("two", ErrorCode.TopicAuthorizationFailed, "denied"));
+        var expected = KafkaException.FromErrorCode(ErrorCode.TopicAuthorizationFailed, "denied");
         var group = new KafkaTopicGroup(
             new KafkaTransport(), ["one", "two"], EndpointRole.Application)
         {
             CreateTopicFunc = (_, _) => Task.FromException(expected)
         };
 
-        var thrown = await Should.ThrowAsync<CreateTopicsException>(
+        var thrown = await Should.ThrowAsync<KafkaException>(
             () => group.SetupOnAsync(
                 Substitute.For<IAdminClient>(), NullLogger.Instance).AsTask());
 
         thrown.ShouldBeSameAs(expected);
     }
 
-    private static Task SetupSingleTopic(CreateTopicsException exception)
+    private static Task SetupSingleTopic(KafkaException exception)
     {
         var topic = new KafkaTopic(new KafkaTransport(), "topic", EndpointRole.Application)
         {
@@ -107,26 +92,11 @@ public class create_topics_exception_handling
             Substitute.For<IAdminClient>(), NullLogger.Instance).AsTask();
     }
 
-    private static async Task ShouldPropagateFromSingleTopic(CreateTopicsException expected)
+    private static async Task ShouldPropagateFromSingleTopic(KafkaException expected)
     {
-        var thrown = await Should.ThrowAsync<CreateTopicsException>(
+        var thrown = await Should.ThrowAsync<KafkaException>(
             () => SetupSingleTopic(expected));
 
         thrown.ShouldBeSameAs(expected);
-    }
-
-    private static CreateTopicsException ExistingTopic(string reason)
-    {
-        return ExceptionFor(("topic", ErrorCode.TopicAlreadyExists, reason));
-    }
-
-    private static CreateTopicsException ExceptionFor(
-        params (string Topic, ErrorCode Code, string Reason)[] results)
-    {
-        return new CreateTopicsException(results.Select(x => new CreateTopicReport
-        {
-            Topic = x.Topic,
-            Error = new Error(x.Code, x.Reason)
-        }).ToList());
     }
 }

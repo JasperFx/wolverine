@@ -118,13 +118,13 @@ public partial class WolverineRuntime : IExecutorFactory
     /// </summary>
     private IMessageHandler? tryBuildExternalArrivalFanoutHandler(Type messageType, Endpoint endpoint)
     {
-        if (endpoint is LocalQueue || Options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
+        if (endpoint is LocalQueue)
         {
             return null;
         }
 
         var batchDefinition = Options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
-        var directChain = Handlers.ChainFor(messageType);
+        var directChain = Handlers.GroupFor(messageType)?.Chains.FirstOrDefault();
         if (batchDefinition?.LocalExecutionQueueName is { } batchQueueName && directChain != null)
         {
             var local = Options.Transports.GetOrCreate<LocalTransport>();
@@ -145,7 +145,7 @@ public partial class WolverineRuntime : IExecutorFactory
     /// </summary>
     private IMessageHandler? tryBuildMultipleBatchHandlerFanout(Type messageType, Endpoint endpoint)
     {
-        if (endpoint is not LocalQueue || Options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
+        if (endpoint is not LocalQueue)
         {
             return null;
         }
@@ -158,21 +158,17 @@ public partial class WolverineRuntime : IExecutorFactory
             return null;
         }
 
-        var batchChain = Handlers.ChainFor(messageType);
-        if (batchChain == null || !batchChain.ByEndpoint.Any() || batchChain.HasDefaultNonStickyHandlers())
+        // GH-5136. Only when every chain of the batch type is bound to an endpoint of its own
+        var batchGroup = Handlers.GroupFor(messageType);
+        if (batchGroup == null || !batchGroup.BoundChains().Any() || batchGroup.UnboundChains().Any())
         {
             return null;
         }
 
-        var stickyLocalUris = batchChain.ByEndpoint
-            .SelectMany(c => c.Endpoints)
-            .OfType<LocalQueue>()
-            .Select(e => e.Uri)
-            .Distinct()
-            .ToArray();
+        var stickyLocalUris = batchGroup.BoundLocalQueueUris();
 
         return stickyLocalUris.Length != 0
-            ? Handlers.BuildFanoutHandler(messageType, batchChain, stickyLocalUris)
+            ? Handlers.BuildFanoutHandler(messageType, batchGroup.Chains[0], stickyLocalUris)
             : null;
     }
 }

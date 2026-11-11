@@ -48,8 +48,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     public const string Consume = "Consume";
     public const string Consumes = "Consumes";
 
-    protected readonly List<HandlerChain> _byEndpoint = [];
-
     /// <summary>
     /// Compose the name of a generated handler class for a type in a way that is guaranteed to be a legal
     /// C# identifier. <see cref="TypeNameExtensions.ToSuffixedTypeName"/> only strips the generic arity
@@ -86,7 +84,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         TypeName = GeneratedTypeNameFor(messageType, HandlerSuffix);
 
-        Description = "Message Handler for " + MessageType.FullNameInCode();
+        _description = "Message Handler for " + MessageType.FullNameInCode();
 
         applyAuditAttributes(messageType);
     }
@@ -94,15 +92,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     protected HandlerChain(MethodCall call, HandlerGraph parent) : this(call.Method.MessageType()!, parent)
     {
         Handlers.Add(call);
-    }
-
-    internal HandlerChain(MethodCall call, HandlerGraph parent, Endpoint[] endpoints) : this(call, parent)
-    {
-        foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
-
-        TypeName = GeneratedTypeNameFor(call.HandlerType, HandlerSuffix);
-
-        Description = $"Message Handler for {MessageType.FullNameInCode()} using {call}";
     }
 
     public HandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : this(
@@ -128,20 +117,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
                 }
             }
         }
-
-        if (grouping.Count() > 1)
-        {
-            // ReSharper disable once VirtualMemberCallInConstructor
-            maybeAssignStickyHandlers(options, grouping);
-        }
-    }
-
-    protected virtual void maybeAssignStickyHandlers(WolverineOptions options, IGrouping<Type, HandlerCall> grouping)
-    {
-        foreach (var handlerCall in grouping)
-        {
-            tryAssignStickyEndpoints(handlerCall, options);
-        }
     }
 
     internal void ApplyIdempotencyCheck()
@@ -163,12 +138,10 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         }
     }
 
-    public IReadOnlyList<HandlerChain> ByEndpoint => _byEndpoint;
-
-    internal virtual bool HasDefaultNonStickyHandlers() => Handlers.Any();
-
     /// <summary>
-    ///     In the case of "sticky" message handlers, this helps group the handler by an endpoint
+    ///     The endpoints this chain is bound to: the endpoints of a "sticky" handler, or the local queue named
+    ///     for the handler type when the message type has more than one handler type. Empty when the chain
+    ///     runs wherever its message type is received
     /// </summary>
     [IgnoreDescription]
     public IReadOnlyList<Endpoint> Endpoints => _endpoints;
@@ -211,7 +184,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// <summary>
     ///     A textual description of this HandlerChain
     /// </summary>
-    public override string Description { get; }
+    public override string Description => _description;
+
+    private string _description = null!;
+
+    internal void OverrideDescription(string description) => _description = description;
 
     public Type MessageType { get; }
 
@@ -361,32 +338,44 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     /// </summary>
     public FailureRuleCollection Failures { get; } = new();
 
-    protected void tryAssignStickyEndpoints(HandlerCall handlerCall, WolverineOptions options)
+    /// <summary>
+    ///     GH-5136. Bind this chain to the endpoints its handler type or method is "sticky" to, if any. Sticky
+    ///     handlers always apply, including for a message type with only this one handler
+    /// </summary>
+    /// <returns>Whether the chain is sticky to at least one endpoint</returns>
+    internal bool TryAssignStickyEndpoints(WolverineOptions options)
     {
-        var endpoints = findStickyEndpoints(handlerCall, options).Distinct().ToArray();
-        if (endpoints.Any())
+        var endpoints = HandlerCalls()
+            .SelectMany(call => findStickyEndpoints(call, options))
+            .Distinct()
+            .ToArray();
+
+        if (endpoints.Length == 0) return false;
+
+        foreach (var stub in endpoints.OfType<StubEndpoint>())
         {
-            foreach (var stub in endpoints.OfType<StubEndpoint>())
-            {
-                stub.Subscriptions.Add(Subscription.ForType(MessageType));
-            }
-
-            var chain = new HandlerChain(handlerCall, options.HandlerGraph, endpoints);
-
-            Handlers.Remove(handlerCall);
-
-            _byEndpoint.Add(chain);
+            stub.Subscriptions.Add(Subscription.ForType(MessageType));
         }
+
+        foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
+
+        IsSticky = true;
+        return true;
     }
 
-    private IEnumerable<Endpoint> findStickyEndpoints(HandlerCall call, WolverineOptions options)
+    /// <summary>
+    ///     GH-5136. Whether this chain is bound to its endpoints because its handler is "sticky" to them -- it
+    ///     runs only there -- rather than by the per handler type local queue every handler type of a message
+    ///     with several handler types gets
+    /// </summary>
+    internal bool IsSticky { get; private set; }
+
+    private IEnumerable<Endpoint> findStickyEndpoints(MethodCall call, WolverineOptions options)
     {
-        var foundSticky = false;
         if (call.HandlerType.TryGetAttribute<StickyHandlerAttribute>(out var att))
         {
             foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
             {
-                foundSticky = true;
                 yield return endpoint;
             }
         }
@@ -395,22 +384,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         {
             foreach (var endpoint in options.FindOrCreateEndpointByName(att.EndpointName))
             {
-                foundSticky = true;
                 yield return endpoint;
             }
         }
 
         foreach (var endpoint in options.FindEndpointsWithHandlerType(call.HandlerType))
         {
-            foundSticky = true;
-            yield return endpoint;
-        }
-
-        // In this case, let's find the right queue
-        if (options.MultipleHandlerBehavior == MultipleHandlerBehavior.Separated && !foundSticky)
-        {
-            var endpoint = options.Transports.GetOrCreate<LocalTransport>()
-                .QueueFor(call.HandlerType.FullNameInCode().ToLowerInvariant());
             yield return endpoint;
         }
     }
@@ -627,6 +606,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             yield return variable.VariableType;
         }
     }
+
+    /// <summary>
+    ///     The chain for one handler method call
+    /// </summary>
+    internal static HandlerChain For(MethodCall call, HandlerGraph parent) => new(call, parent);
 
     public static HandlerChain For<T>(Expression<Action<T>> expression, HandlerGraph parent)
     {

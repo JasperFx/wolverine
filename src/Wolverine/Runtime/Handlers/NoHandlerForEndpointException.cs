@@ -17,5 +17,15 @@ public class NoHandlerForEndpointException : Exception
         Uri = endpointUri;
     }
 
+    // GH-5136. A message type with one handler chain per handler type has no single handler to run outside of
+    // the endpoints those chains are bound to
+    internal NoHandlerForEndpointException(Type messageType, MessageHandlerGroup group) : base(
+        $"Message type {messageType.FullNameInCode()} is handled by {group.Chains.Count} handler types " +
+        $"({group.DescribeHandlerTypes()}), each with its own handler chain and endpoint, so there is no single handler " +
+        "to run it inline. Publish or send the message instead so that each handler receives it on its own endpoint.")
+    {
+        MessageType = messageType;
+    }
+
     public Uri? Uri { get; set; }
 }

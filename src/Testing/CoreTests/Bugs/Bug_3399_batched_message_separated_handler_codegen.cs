@@ -40,7 +40,6 @@ public class Bug_3399_batched_message_separated_handler_codegen
 
         // Both the batched (array) chain and the single-message chain exist...
         var chains = runtime.Handlers.Chains
-            .SelectMany(x => x.ByEndpoint.Any() ? x.ByEndpoint : [x])
             .Where(x => x.Handlers.Any())
             .ToArray();
 

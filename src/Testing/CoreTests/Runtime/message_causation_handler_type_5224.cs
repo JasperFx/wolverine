@@ -119,23 +119,24 @@ public class message_causation_handler_type_5224 : IAsyncLifetime
     }
 
     [Fact]
-    public async Task a_chain_with_several_handler_types_reports_the_same_joined_name_as_the_span_tag()
+    public async Task each_handler_type_of_a_message_reports_only_its_own_name_and_the_same_as_the_span_tag()
     {
-        // The default ClassicCombineIntoOneLogicalHandler mode puts both handler types in one chain.
-        // Causation cannot tell which handler call produced which outgoing message, so the chain reports
-        // the same joined name the message.handler tag carries.
+        // GH-5136. Each handler type of a message has its own chain, so the chain that cascaded the event
+        // names its own handler type alone -- the same name its message.handler tag carries -- and never
+        // the other handler type of the same message.
         using var host = await startHostAsync(typeof(CausationNamingCommandHandler),
             typeof(SecondCausationNamingCommandHandler));
 
         var observer = new CausationCapturingObserver();
         host.GetRuntime().Observer = observer;
 
-        await host.MessageBus().InvokeAsync(new CausationNamingCommand("hello"), TestContext.Current.CancellationToken);
+        await host.SendMessageAndWaitAsync(new CausationNamingCommand("hello"));
 
         var caused = observer.Caused.ShouldHaveSingleItem();
-        caused.Handler.ShouldContain(typeof(CausationNamingCommandHandler).FullNameInCode());
-        caused.Handler.ShouldContain(typeof(SecondCausationNamingCommandHandler).FullNameInCode());
-        caused.Handler.ShouldBe(messageHandlerTagFor(nameof(SecondCausationNamingCommandHandler)));
+        caused.Outgoing.ShouldBe(typeof(CausationNamingEvent).FullName);
+        caused.Handler.ShouldBe(typeof(CausationNamingCommandHandler).FullNameInCode());
+        caused.Handler.ShouldNotContain(typeof(SecondCausationNamingCommandHandler).FullNameInCode());
+        caused.Handler.ShouldBe(messageHandlerTagFor(nameof(CausationNamingCommandHandler)));
     }
 
     [Fact]

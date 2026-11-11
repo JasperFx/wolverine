@@ -68,7 +68,7 @@ public class emitted_events_from_the_source_generators_manifest_4914
         var method = typeof(ClaimHandler).GetMethods(BindingFlags.Public | BindingFlags.Static)
             .Single(x => x.Name == "Handle" && x.GetParameters()[0].ParameterType == messageType);
 
-        return new HandlerChain(new MethodCall(typeof(ClaimHandler), method), new HandlerGraph(), []);
+        return HandlerChain.For(new MethodCall(typeof(ClaimHandler), method), new HandlerGraph());
     }
 
     [Theory]

@@ -128,15 +128,11 @@ public class handler_chain_customization_ordering
 
         var handlers = host.GetRuntime().Handlers;
 
-        var parent = handlers.ChainFor<StickyOrderingMessage>();
-        parent.ShouldNotBeNull();
+        // GH-5136. One chain per sticky handler type, each bound to its own endpoint
+        var chains = handlers.AllChains().Where(x => x.MessageType == typeof(StickyOrderingMessage)).ToArray();
+        chains.Length.ShouldBe(2);
 
-        // Both sticky handlers are split out into their own per-endpoint child chains; the parent
-        // keeps no default handlers.
-        parent.ByEndpoint.Count.ShouldBe(2);
-        parent.Handlers.ShouldBeEmpty();
-
-        var sticky = parent.ByEndpoint.Single(c => c.Handlers.Single().HandlerType == typeof(OrangeStickyHandler));
+        var sticky = chains.Single(c => c.Handlers.Single().HandlerType == typeof(OrangeStickyHandler));
 
         // Q4: the child chain's endpoint is resolved (to a local queue named after the attribute)
         // by the time the chain is built — the contract behind "emit Uris, resolve post-transport-config".
@@ -243,8 +239,8 @@ public class OrderingSaga : Saga
     }
 }
 
-// Sticky variant — the handler is bound to a named endpoint, so its chain is split into a
-// per-endpoint child chain (HandlerChain.ByEndpoint) that must receive the same customizations.
+// Sticky variant — the handler is bound to a named endpoint, so its chain is bound to that
+// endpoint, and it must receive the same customizations.
 [AddAttributeErrorRule]
 public record StickyOrderingMessage;
 

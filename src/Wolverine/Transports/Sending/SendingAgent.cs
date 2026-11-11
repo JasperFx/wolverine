@@ -6,6 +6,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Wolverine.Util;
 
 namespace Wolverine.Transports.Sending;
 
@@ -57,14 +58,7 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
         _circuitWatcher?.SafeDispose();
         _circuitWatcher = null;
 
-        if (_sender is IAsyncDisposable ad)
-        {
-            await ad.DisposeAsync().ConfigureAwait(false);
-        }
-        else if (_sender is IDisposable d)
-        {
-            d.SafeDispose();
-        }
+        await _sender.MaybeDisposeAsync().ConfigureAwait(false);
 
         _sending.Dispose();
         _failureCountLock.Dispose();

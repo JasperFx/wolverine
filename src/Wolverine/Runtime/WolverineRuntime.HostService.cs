@@ -218,7 +218,7 @@ public partial class WolverineRuntime
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
-            // Under MultipleHandlerBehavior.Separated, a message type may have BOTH a direct
+            // A message type may have BOTH a direct
             // Handle(T) handler AND a BatchMessagesOf<T>() batch handler. By default the batch
             // local queue is the element type's convention queue — the SAME queue the direct
             // handler uses — so the two collide (a local queue resolves a single executor per
@@ -226,11 +226,6 @@ public partial class WolverineRuntime
             // queue so both can run independently. Done before the messaging transports start so
             // the new queue still receives the durable/local-queue endpoint policies.
             reassignBatchQueuesThatCollideWithHandlers();
-
-            // Under the DEFAULT Classic behavior the same collision is NOT resolved: the direct
-            // Handle(T) handler wins and the BatchMessagesOf<T>() batch handler is silently shadowed.
-            // Warn loudly (or throw, if opted in) so the shadowing is not a silent surprise. GH-3289.
-            warnOrAssertBatchHandlerConflicts();
 
             // GH-5133. ClassicCombineIntoOneLogicalHandler is obsolete and gone in 7.0. Say which message
             // types it actually combined (once), or throw if the application opted into the assertion.
@@ -834,24 +829,22 @@ public partial class WolverineRuntime
         // that can't be resolved from a string alone
         if (Options.MessagePartitioning.GlobalPartitionedTopologies.Count > 0)
         {
-            var knownMessageTypes = Handlers.Chains.Select(x => x.MessageType).ToList();
+            var knownMessageTypes = Handlers.Groups.Select(x => x.MessageType).ToList();
             foreach (var topology in Options.MessagePartitioning.GlobalPartitionedTopologies)
             {
                 topology.ResolveMessageTypeNames(knownMessageTypes);
             }
         }
 
-        Options.MessagePartitioning.AssertTopologyGroupingIsUnambiguous(Handlers.Chains.Select(x => x.MessageType));
+        Options.MessagePartitioning.AssertTopologyGroupingIsUnambiguous(Handlers.Groups.Select(x => x.MessageType));
 
         // Build message-type-to-ancillary-store mapping for durable inbox routing.
         // When a handler targets an ancillary store on a different database, incoming
         // envelopes should be persisted in that store for transactional atomicity.
         //
-        // Use AllChains() rather than Chains so per-endpoint sticky chains
-        // produced by MultipleHandlerBehavior.Separated are included.
-        // Without this, [MartenStore]-attributed handlers under Separated mode
-        // never make it into the map and inbox routing falls back to the main
-        // store. See https://github.com/JasperFx/wolverine/issues/2576.
+        // AllChains() is every chain, one per (message type, handler type), so a
+        // [MartenStore]-attributed handler beside another handler of the same message
+        // still makes it into the map. See https://github.com/JasperFx/wolverine/issues/2576.
         if (Stores != null && Stores.HasAnyAncillaryStores())
         {
             var markerTypes = Stores.AncillaryMarkerTypes().ToArray();
@@ -1057,16 +1050,11 @@ public partial class WolverineRuntime
     }
 
     // Suffix appended to the element type's convention queue name to host the batch processor
-    // when the same element type also has a direct handler under Separated mode.
+    // when the same element type also has a direct handler.
     internal const string BatchQueueSuffix = "-batch";
 
     private void reassignBatchQueuesThatCollideWithHandlers()
     {
-        if (Options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
-        {
-            return;
-        }
-
         if (Options.BatchDefinitions.Count == 0)
         {
             return;
@@ -1078,7 +1066,7 @@ public partial class WolverineRuntime
         {
             // No direct Handle(T) handler for the element type -> the batch owns the element
             // type's queue and the existing fallback routing/executor behavior is correct.
-            if (Handlers.ChainFor(batch.ElementType) == null)
+            if (Handlers.GroupFor(batch.ElementType) == null)
             {
                 continue;
             }
@@ -1133,50 +1121,6 @@ public partial class WolverineRuntime
                "Combined message types:" + string.Concat(lines);
     }
 
-    private void warnOrAssertBatchHandlerConflicts()
-    {
-        // Only relevant under the default Classic behavior. Under Separated the same collision is
-        // legitimately resolved by reassignBatchQueuesThatCollideWithHandlers() (both handlers run).
-        if (Options.MultipleHandlerBehavior != MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler)
-        {
-            return;
-        }
-
-        if (Options.BatchDefinitions.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var batch in Options.BatchDefinitions)
-        {
-            // A non-null chain for the element type itself means there is a direct Handle(T) handler
-            // colliding with the batch (the batch handler is for T[], a different chain).
-            var directChain = Handlers.ChainFor(batch.ElementType);
-            if (directChain == null)
-            {
-                continue;
-            }
-
-            var elementType = batch.ElementType.NameInCode();
-            var directHandlers = directChain.Handlers
-                .Select(x => $"{x.HandlerType.NameInCode()}.{x.Method.Name}()").Join(", ");
-
-            var message =
-                $"Batch handler conflict for message type '{batch.ElementType.FullNameInCode()}': it has BOTH a direct handler ({directHandlers}) " +
-                $"and a BatchMessagesOf<{elementType}>() batch handler ({elementType}[]). Under the default " +
-                $"MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler the direct handler wins and the batch handler is silently " +
-                $"shadowed (it never runs). To run both independently set opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated; " +
-                $"otherwise remove one of the two handlers. (Call opts.AssertNoBatchHandlerConflicts() to make Wolverine throw on this instead of warning.)";
-
-            if (Options.AssertsNoBatchHandlerConflicts)
-            {
-                throw new InvalidOperationException(message);
-            }
-
-            Logger.LogWarning(message);
-        }
-    }
-
     /// <summary>
     /// GH-3973. A batched element type that ALSO has unbatched handlers has two independent execution
     /// paths writing the same entity: the assembled batch on its own local queue, and the unbatched
@@ -1205,13 +1149,6 @@ public partial class WolverineRuntime
             return;
         }
 
-        // Under Classic the direct handler wins and the batch never runs at all, so there is only ever
-        // one writer. warnOrAssertBatchHandlerConflicts() covers that shape.
-        if (Options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
-        {
-            return;
-        }
-
         foreach (var batch in Options.BatchDefinitions)
         {
             // Sequenced onto a shared partitioned topology by GH-3867 -- single writer per group id.
@@ -1221,14 +1158,14 @@ public partial class WolverineRuntime
             }
 
             // No unbatched sibling means no second writer.
-            var directChain = Handlers.ChainFor(batch.ElementType);
-            if (directChain == null)
+            var directGroup = Handlers.GroupFor(batch.ElementType);
+            if (directGroup == null)
             {
                 continue;
             }
 
             var elementType = batch.ElementType.NameInCode();
-            var directHandlers = directChain.Handlers
+            var directHandlers = directGroup.Chains.SelectMany(x => x.Handlers)
                 .Select(x => $"{x.HandlerType.NameInCode()}.{x.Method.Name}()").Join(", ");
 
             var message =
@@ -1358,7 +1295,7 @@ public partial class WolverineRuntime
     private void discoverListenersFromConventions()
     {
         // Let any registered routing conventions discover listener endpoints
-        var handledMessageTypes = Handlers.Chains.Select(x => x.MessageType).ToList();
+        var handledMessageTypes = Handlers.Groups.Select(x => x.MessageType).ToList();
 
         // Include batch element types so that conventional routing creates listeners for
         // the element type (e.g., BatchedItem) rather than only the array type (BatchedItem[])

@@ -11,15 +11,7 @@ public class MessageDescriptor
 {
     internal void ReadHandlerChain(HandlerChain chain, HandlerGraph handlers)
     {
-        if (chain.Handlers.Any())
-        {
-            Handlers.Add(new MessageHandlerDescriptor(chain, handlers));
-        }
-
-        foreach (var handlerChain in chain.ByEndpoint)
-        {
-            ReadHandlerChain(handlerChain, handlers);
-        }
+        Handlers.Add(new MessageHandlerDescriptor(chain, handlers));
     }
 
     public MessageDescriptor(Type messageType, IWolverineRuntime runtime) : this(TypeDescriptor.For(messageType))
@@ -36,8 +28,8 @@ public class MessageDescriptor
             .Where(x => x.SkipReason is null && x.Produced.Count != 0)
             .Select(x => x.Source));
 
-        var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
-        if (chain != null)
+        // GH-5136. One handler chain per handler type
+        foreach (var chain in runtime.Options.HandlerGraph.GroupFor(messageType)?.Chains ?? [])
         {
             ReadHandlerChain(chain, runtime.Options.HandlerGraph);
         }

@@ -2,7 +2,7 @@ name: tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, '7.0' ]
     # A markdown-only change cannot alter a single test outcome, and this matrix costs ~211 runner-minutes
     # per run (35 jobs). Those minutes are the binding constraint on this repo's CI, not wall clock: a merge
     # wave on 2026-08-23 put 26 runs in the queue with 0 in progress for ~2.5 hours, which left three merges
@@ -18,7 +18,7 @@ on:
       - 'docs/**'
       - '**/*.md'
   pull_request:
-    branches: [ main ]
+    branches: [ main, '7.0' ]
     paths-ignore:
       - 'docs/**'
       - '**/*.md'

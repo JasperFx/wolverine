@@ -47,6 +47,10 @@ public static class TriageResults
     }
 }
 
+// GH-5136. Hidden from conventional discovery -- end_to_end includes it explicitly -- because the TriageHandler
+// docs sample also handles IncidentTriage, and every handler type of a message now gets its own chain, so leaking
+// this recorder into every host in this assembly would give IncidentTriage a second handler there
+[Wolverine.Attributes.WolverineIgnore]
 public static class IncidentTriageHandler
 {
     public static void Handle(IncidentTriage triage)

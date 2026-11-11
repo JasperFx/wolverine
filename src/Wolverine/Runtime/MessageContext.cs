@@ -374,6 +374,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     {
         try
         {
+            await envelope.SerializeAheadAsync().ConfigureAwait(false);
             await (envelope.Store ?? Runtime.Storage).Outbox
                 .StoreOutgoingAsync(envelope, Runtime.Options.Durability.OutgoingOwnerId).ConfigureAwait(false);
         }

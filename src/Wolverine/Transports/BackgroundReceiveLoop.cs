@@ -108,26 +108,6 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
         }
     }
 
-    /// <summary>
-    /// GH-4330. Set when the iteration blocks a thread synchronously rather than awaiting — the
-    /// Kafka consumer's <c>Consume(CancellationToken)</c> being the case this exists for. Such a
-    /// loop occupies its thread for the listener's entire lifetime, and on the default
-    /// <see cref="Task.Run(Func{Task})" /> path that thread is a pool worker, permanently removed
-    /// from the pool the handler pipeline and every other transport's continuations share.
-    ///
-    /// <para>
-    /// When set, the loop runs on a dedicated thread for its whole lifetime: each pass is waited on
-    /// rather than awaited, so the loop is back on that thread before it calls the iteration again.
-    /// What a pass awaits, such as the receiver's durable inbox insert, still completes on the pool.
-    /// </para>
-    ///
-    /// <para>
-    /// Leave false for genuinely async iterations (SQS, Redis, the database queues): they release
-    /// their thread at every await, so a dedicated thread would waste one.
-    /// </para>
-    /// </summary>
-    public bool UsesBlockingIteration { get; init; }
-
     /// <summary>Start iterating on a background task. Idempotent — a second call is a no-op.</summary>
     public void Start()
     {
@@ -138,10 +118,7 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
 
         _status = ReceiveLoopStatus.Running;
 
-        _task = UsesBlockingIteration
-            ? Task.Factory.StartNew(runOnDedicatedThread, _cancellation.Token, TaskCreationOptions.LongRunning,
-                TaskScheduler.Default)
-            : Task.Run(runAsync, _cancellation.Token);
+        _task = Task.Run(runAsync, _cancellation.Token);
     }
 
     private async Task runAsync()
@@ -151,34 +128,6 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
             while (!_cancellation.IsCancellationRequested && await runOnceAsync().ConfigureAwait(false))
             {
             }
-
-            _status = ReceiveLoopStatus.Stopped;
-        }
-        catch (OperationCanceledException)
-        {
-            _status = ReceiveLoopStatus.Stopped;
-        }
-        catch (Exception e)
-        {
-            markFaulted(e);
-        }
-    }
-
-    // GH-4330: starting runAsync with LongRunning only kept the loop on its dedicated thread until the first await
-    // that did not complete synchronously. The thread then exited, the loop resumed on whichever pool thread
-    // completed that await, and every later Consume(token) blocked a pool worker after all -- one per Kafka
-    // listener, held for as long as it waited for a record. Waiting on each pass here instead of awaiting it brings
-    // the loop back to this thread before every iteration. The pass's own continuations still run on the pool, and
-    // nothing ever needs this thread to complete them, so the wait cannot deadlock.
-    private void runOnDedicatedThread()
-    {
-        try
-        {
-#pragma warning disable VSTHRD002 // Deliberate: blocking this dedicated thread is what keeps the next iteration on it
-            while (!_cancellation.IsCancellationRequested && runOnceAsync().GetAwaiter().GetResult())
-            {
-            }
-#pragma warning restore VSTHRD002
 
             _status = ReceiveLoopStatus.Stopped;
         }

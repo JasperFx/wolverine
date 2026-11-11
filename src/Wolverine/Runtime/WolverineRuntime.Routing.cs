@@ -165,7 +165,7 @@ internal class LocalRouting : IMessageRouteSource
         {
             var endpoints = options.LocalRouting.DiscoverSenders(messageType, runtime).ToList();
 
-            // Under MultipleHandlerBehavior.Separated, an element type may have BOTH a direct
+            // An element type may have BOTH a direct
             // handler (covered above) AND a BatchMessagesOf<T>() batch handler living on its own
             // dedicated queue. Fan the element type out to the batch queue as well so the batch
             // handler runs independently of the direct handler.
@@ -192,19 +192,14 @@ internal class LocalRouting : IMessageRouteSource
     }
 
     /// <summary>
-    /// Under <see cref="MultipleHandlerBehavior.Separated"/>, an element type that has a direct
+    /// An element type that has a direct
     /// handler may ALSO have a <c>BatchMessagesOf&lt;T&gt;()</c> batch handler living on its own
     /// dedicated local queue. Returns that batch queue endpoint (if any) so the element type can be
-    /// fanned out to it in addition to the direct handler's queue. Returns null when not in
-    /// Separated mode or when the element type has no batch definition.
+    /// fanned out to it in addition to the direct handler's queue. Returns null when the element
+    /// type has no batch definition.
     /// </summary>
     private static LocalQueue? FindSeparatedBatchEndpoint(Type messageType, WolverineOptions options)
     {
-        if (options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
-        {
-            return null;
-        }
-
         var batchDefinition = options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
         if (batchDefinition?.LocalExecutionQueueName is { } batchQueueName)
         {

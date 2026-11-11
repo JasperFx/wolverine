@@ -918,9 +918,16 @@ public sealed partial class WolverineOptions
         HandlerGraph.MappedGenericMessageTypes[interfaceType] = closedType;
     }
 
+    // GH-5136. Read while the handler graph is built -- for every handler type now that sticky handlers always
+    // apply -- which is before any listener's delayed configuration has run. A broker's Endpoints() infers a
+    // default dead letter queue for every listener whose own dead letter queue is not configured yet, so read
+    // only the endpoints configured explicitly; an inferred dead letter queue never has a sticky handler.
+    private IEnumerable<Endpoint> existingEndpoints()
+        => Transports.SelectMany(x => x is Wolverine.Transports.IHasExplicitEndpoints broker ? broker.ExplicitEndpoints() : x.Endpoints());
+
     internal IEnumerable<Endpoint> FindOrCreateEndpointByName(string endpointName)
     {
-        var existing = Transports.SelectMany(x => x.Endpoints())
+        var existing = existingEndpoints()
             .Where(x => x.EndpointName.EqualsIgnoreCase(endpointName)).ToArray();
 
         if (existing.Any()) return existing;
@@ -930,7 +937,7 @@ public sealed partial class WolverineOptions
 
     public IEnumerable<Endpoint> FindEndpointsWithHandlerType(Type handlerType)
     {
-        return Transports.SelectMany(x => x.Endpoints()).Where(x => x.StickyHandlers.Contains(handlerType));
+        return existingEndpoints().Where(x => x.StickyHandlers.Contains(handlerType));
     }
 
     public Version? Version => ApplicationAssembly?.GetName().Version ?? Assembly.GetEntryAssembly()?.GetName().Version;

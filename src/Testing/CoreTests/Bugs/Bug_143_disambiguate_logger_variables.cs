@@ -15,7 +15,10 @@ public class Bug_143_disambiguate_logger_variables
             .UseWolverine()
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await host.InvokeMessageAndWaitAsync(new LoggedMessage("Nick Boltan"));
+        // GH-5136. Each handler type has its own chain and local queue, so send the message and let every
+        // handler receive it, instead of invoking it inline
+        var tracked = await host.SendMessageAndWaitAsync(new LoggedMessage("Nick Boltan"));
+        tracked.Executed.MessagesOf<LoggedMessage>().Count().ShouldBe(2);
     }
 }
 

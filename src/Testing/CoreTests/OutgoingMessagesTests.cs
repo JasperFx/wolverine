@@ -54,9 +54,11 @@ public class OutgoingMessagesTests
         var guid = Guid.NewGuid();
         var tracked = await host.InvokeMessageAndWaitAsync(new SpawningMessage(guid));
 
-        tracked.Sent.SingleMessage<Message1>().Id.ShouldBe(guid);
-        tracked.Sent.SingleMessage<Message2>().Id.ShouldBe(guid);
-        tracked.Sent.SingleMessage<Message3>().ShouldNotBeNull();
+        // GH-5136. A message is sent once to the local queue of every handler type of it, and the shared
+        // Message1-3 have several handler types in this assembly, so count the messages, not the envelopes
+        tracked.Sent.MessagesOf<Message1>().Distinct().Single().Id.ShouldBe(guid);
+        tracked.Sent.MessagesOf<Message2>().Distinct().Single().Id.ShouldBe(guid);
+        tracked.Sent.MessagesOf<Message3>().Distinct().Single().ShouldNotBeNull();
     }
 }
 
