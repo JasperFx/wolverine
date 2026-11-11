@@ -1,6 +1,6 @@
 using JasperFx;
 using Marten;
-using Marten.Exceptions;
+using JasperFx.Events;
 using Marten.Schema;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
@@ -61,7 +61,7 @@ public static class MartenConcurrencyExceptionMiddleware
         };
     }
 
-    // StreamLockedException does NOT derive from ConcurrencyException -- it is a MartenException --
+    // Before Marten 10, StreamLockedException did NOT derive from ConcurrencyException (it was a MartenException);
     // so the FetchForExclusiveWriting path needs its own handler. Catching only ConcurrencyException
     // silently misses it
     public static ProblemDetails OnException(StreamLockedException ex)

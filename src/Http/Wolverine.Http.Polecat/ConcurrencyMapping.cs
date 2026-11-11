@@ -1,14 +1,16 @@
 using Microsoft.AspNetCore.Mvc;
-using Polecat.Exceptions;
+using JasperFx.Events;
 using Wolverine.Http.Runtime;
 
 namespace Wolverine.Http.Polecat;
 
 /// <summary>
 /// GH-4512. The Polecat half of the conflict mapping, for the same reason as Marten's:
-/// <see cref="StreamLockedException"/> -- what <c>FetchForExclusiveWriting</c> throws on a contended stream --
-/// does not derive from <c>JasperFx.ConcurrencyException</c>, so the core handler does not see it, and the
-/// type is not referenceable from Wolverine.Http.
+/// <see cref="StreamLockedException"/> -- what <c>FetchForExclusiveWriting</c> throws on a contended stream.
+/// Before Polecat 6 it was <c>Polecat.Exceptions.StreamLockedException</c>, which did not derive from
+/// <c>JasperFx.ConcurrencyException</c>, so the core handler did not see it. Polecat 6 throws the shared
+/// <c>JasperFx.Events.StreamLockedException</c>, which does; this middleware stays so
+/// <c>MapPolecatConcurrencyFailuresToConflict</c> keeps its shape and the lock timeout is mapped explicitly.
 ///
 /// <para>
 /// Fisher needs no equivalent: its exclusive methods are optimistic and throw
