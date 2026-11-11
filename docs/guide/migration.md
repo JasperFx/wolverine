@@ -39,6 +39,7 @@ list.
 | Wolverine metric instrument names | dashed (`wolverine-messages-sent`) | dotted (`wolverine.messages.sent`) *(BREAKING for dashboards and alerts)* | Rename the series in dashboards, alerts and recording rules; see [the full table](#opentelemetry-meter-and-metric-names-breaking) |
 | `WolverineOptions.ServiceName` default | the entry assembly name | `OTEL_SERVICE_NAME` when set, then the entry assembly name | None, unless a service relied on the assembly name while `OTEL_SERVICE_NAME` was set to something else: set `opts.ServiceName` explicitly |
 | `Saga.LastModified` | not there | new `DateTimeOffset` property on the base `Saga`, set to UTC now by every saga store on insert and update *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga LastModified](#saga-lastmodified-is-set-by-every-saga-store) |
+| Code generation in the `Production` profile (Wolverine hosts) | `TypeLoadMode.Dynamic`: compiled at runtime | `TypeLoadMode.Static` with `AssertAllPreGeneratedTypesExist`: pre-generated code is required *(BREAKING for applications that deploy without `codegen write`)* | Run `dotnet run -- codegen write` in the build, or call `RestoreV6Defaults()`. See [deploying 7.0 to production](#deploying-7-0-to-production) |
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 
@@ -130,6 +131,52 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `DurabilitySettings.MessageIdentity` | `IdOnly`: an inbox row is identified by its envelope id | `IdAndDestination`: by its envelope id and the endpoint that received it. **This changes the primary key of the inbox table (and the dead letter table) in the database**; see [below](#messageidentity-defaults-to-idanddestination-in-7-0-schema-change) | `opts.Durability.MessageIdentity = MessageIdentity.IdOnly` | `restore_v6_defaults_tests` |
 | `EnableDeterministicQueueOrdering` (PostgreSQL, SQL Server, MySQL, Oracle and SQLite transports) | off: new queue tables are dequeued in timestamp order alone | on for **new** queue tables: a `queue_order` identity column and indexes (an index over the rowid on SQLite) break timestamp ties. Existing tables keep their layout; see [queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout) | `.DisableDeterministicQueueOrdering()` on the persistence registration | `queue_tables_new_only` |
 | `SqlServerTransport.OptimizeQueueThroughput` | off: new SQL Server queue tables get the classic layout | on for **new** queue tables: the throughput layout, a clustered `seq` identity. Existing tables keep their layout | `.UseClassicQueueLayout()` on the persistence registration (explicit, so it also rebuilds existing throughput tables) | `queue_tables_new_only` |
+| `JasperFxOptions.Production.GeneratedCodeMode` / `AssertAllPreGeneratedTypesExist` (Wolverine hosts) | `Dynamic` / `false`: a Production application compiles its handlers and HTTP endpoints at runtime, which needs `WolverineFx.RuntimeCompilation` | `Static` / `true`: a Production application loads pre-generated code, and fails at startup naming any type that is missing. Only when `UseWolverine()` is present, and not in a process with a test framework loaded; JasperFx's own default, and so a Marten, Polecat or Fisher application without Wolverine, is unchanged. See [deploying 7.0 to production](#deploying-7-0-to-production) | `services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic)` | `restore_v6_defaults_tests` |
+
+### Deploying 7.0 to production
+
+In 7.0 a Wolverine application in the `Production` profile (any environment that isn't `Development`, unless you
+changed `DevelopmentEnvironmentName`) loads **pre-generated code** by default: `TypeLoadMode.Static` with
+`AssertAllPreGeneratedTypesExist = true` (GH-5523, from #5344). It covers every chain Wolverine generates code for:
+message handlers, HTTP endpoints, gRPC services and the Marten, Polecat and Fisher aggregate and saga chains. The
+`Development` profile still compiles at runtime.
+
+Wolverine sets this on JasperFx's `Production` profile only when `UseWolverine()` is present. The shared JasperFx
+default is unchanged, so a Marten, Polecat or Fisher application that doesn't use Wolverine behaves exactly as before.
+Any value you set yourself wins, whether with `CritterStackDefaults()` or on `opts.CodeGeneration.TypeLoadMode`.
+
+**Before the first 7.0 deploy**, generate the code as part of the build and compile it into the application:
+
+```bash
+dotnet run -- codegen write
+```
+
+Commit the output (by default under `Internal/Generated`) or run the command in CI before `dotnet publish`. Static mode
+doesn't need Roslyn, so a production build can drop `WolverineFx.RuntimeCompilation`. See
+[working with code generation](/guide/codegen).
+
+If a type is missing, because the command wasn't run or the code is stale, the application **fails at startup** with a
+`MissingPreBuiltTypesException`. The error names every missing handler type or HTTP route and tells you how to fix it.
+In 6.x the same deploy started and compiled the code at runtime.
+
+To keep compiling at runtime in production instead, do either of these:
+
+```csharp
+// Everything 6.x did, including this
+builder.Host.UseWolverine(opts => opts.RestoreV6Defaults());
+
+// Or just this setting
+builder.Services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic);
+```
+
+Either way, keep the `WolverineFx.RuntimeCompilation` package reference.
+
+::: tip Test hosts are left alone
+`Host.CreateDefaultBuilder()` without `DOTNET_ENVIRONMENT` runs in the Production environment, which is where most
+integration tests build their hosts. So Wolverine doesn't apply this default in a process that has a test framework
+loaded (xUnit, NUnit, MSTest, TUnit or Microsoft.Testing.Platform), and it logs that at startup. Tests keep compiling at
+runtime as they did in 6.x. To test the pre-generated code itself, set the mode explicitly in that test host.
+:::
 
 ### Wolverine.Http defaults that changed in 7.0
 
