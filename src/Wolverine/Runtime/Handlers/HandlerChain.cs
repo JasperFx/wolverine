@@ -359,8 +359,16 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
 
+        IsSticky = true;
         return true;
     }
+
+    /// <summary>
+    ///     GH-5136. Whether this chain is bound to its endpoints because its handler is "sticky" to them -- it
+    ///     runs only there -- rather than by the per handler type local queue every handler type of a message
+    ///     with several handler types gets
+    /// </summary>
+    internal bool IsSticky { get; private set; }
 
     private IEnumerable<Endpoint> findStickyEndpoints(MethodCall call, WolverineOptions options)
     {

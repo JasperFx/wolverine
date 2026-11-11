@@ -132,7 +132,7 @@ public class customized_finding : IntegrationContext
     {
         await withTypeDiscovery(x => x.Includes.WithNameSuffix("Watcher"));
 
-        chainFor<MovieAdded>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null!));
+        chainFor<MovieAdded, MovieWatcher>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null!));
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class customized_finding : IntegrationContext
     {
         await withTypeDiscovery(x => x.Includes.Implements<IMovieThing>());
 
-        chainFor<MovieAdded>().ShouldHaveHandler<EpisodeWatcher>(x => x.Handle(new MovieAdded()));
+        chainFor<MovieAdded, EpisodeWatcher>().ShouldHaveHandler<EpisodeWatcher>(x => x.Handle(new MovieAdded()));
     }
 
     public record DifferentNameMessage;

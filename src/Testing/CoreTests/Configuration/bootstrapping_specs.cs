@@ -57,7 +57,7 @@ public class bootstrapping_specs : IntegrationContext
         });
 
 
-        chainFor<Message1>()
+        chainFor<Message1, SpecialServiceUsingThing>()
             .ShouldHaveHandler<SpecialServiceUsingThing>(x => x.Handle(null!, null!));
     }
 

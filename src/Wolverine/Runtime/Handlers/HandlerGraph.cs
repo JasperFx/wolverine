@@ -242,6 +242,29 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return ChainFor(typeof(T));
     }
 
+    /// <summary>
+    /// GH-5136. The handler chain of <paramref name="messageType"/> that belongs to
+    /// <paramref name="handlerType"/>, or null
+    /// </summary>
+    internal HandlerChain? ChainFor(Type messageType, Type handlerType)
+    {
+        return GroupFor(messageType)?.Chains.FirstOrDefault(x => MessageHandlerGroup.HandlerTypeOf(x) == handlerType);
+    }
+
+    /// <summary>
+    /// GH-5136. The compiled handler of the chain of <paramref name="messageType"/> that belongs to
+    /// <paramref name="handlerType"/>, resolved for the endpoint that chain is bound to if it is bound to one
+    /// </summary>
+    internal IMessageHandler? HandlerForHandlerType(Type messageType, Type handlerType)
+    {
+        var chain = ChainFor(messageType, handlerType);
+        if (chain == null) return null;
+
+        return chain.Endpoints.Count == 0
+            ? HandlerFor(messageType)
+            : HandlerFor(messageType, chain.Endpoints[0]);
+    }
+
     public IMessageHandler? HandlerFor(Type messageType, Endpoint endpoint)
     {
         // A manual handler registered for this endpoint only (Endpoint.RegisterStickyMessageHandler) wins
@@ -308,6 +331,18 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             if (endpoint.UsedInShardedTopology)
             {
                 return getOrBuildFanoutHandler(messageType, group);
+            }
+
+            // GH-5136. Any other local queue -- the message type's own queue holding envelopes from before the
+            // handler types were split, or a queue the message was explicitly sent to -- relays the message to
+            // the queues of the handler types that are not sticky, so each still gets it. A sticky handler runs
+            // only at its own endpoints, so a message type whose chains are all sticky still has no handler here.
+            var unstickyQueues = group.Chains.Where(x => !x.IsSticky)
+                .SelectMany(x => x.Endpoints).OfType<LocalQueue>().Select(x => x.Uri).Distinct().ToArray();
+
+            if (unstickyQueues.Length > 0)
+            {
+                return BuildFanoutHandler(messageType, group.Chains[0], unstickyQueues);
             }
         }
 

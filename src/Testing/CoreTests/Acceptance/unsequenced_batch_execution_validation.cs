@@ -98,28 +98,29 @@ public class unsequenced_batch_execution_validation
     }
 
     /// <summary>
-    ///     Under the default Classic behaviour the direct handler wins and the batch handler never runs at
-    ///     all, so there is only ever one writer. That shape is already reported by
-    ///     <c>warnOrAssertBatchHandlerConflicts</c> and must not be double-reported here.
+    ///     GH-5136. There is no classic mode any more in which the direct handler shadows the batch and the batch
+    ///     never runs: both handler types always get their own chain, so the unsequenced shape is reported by
+    ///     default.
     /// </summary>
     [Fact]
-    public async Task silent_under_classic_behavior_where_the_batch_never_runs()
+    public async Task the_batch_always_runs_so_the_unsequenced_shape_is_reported_by_default()
     {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Discovery.DisableConventionalDiscovery()
-                    .IncludeType(typeof(ClassicProbeHandler))
-                    .IncludeType(typeof(ClassicProbeBatchHandler));
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.Discovery.DisableConventionalDiscovery()
+                        .IncludeType(typeof(ClassicProbeHandler))
+                        .IncludeType(typeof(ClassicProbeBatchHandler));
 
-                // The default, stated explicitly for the sake of the test
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler;
-                opts.BatchMessagesOf<ClassicProbe>();
+                    opts.BatchMessagesOf<ClassicProbe>();
 
-                opts.AssertBatchExecutionIsSequenced();
-            }).StartAsync(TestContext.Current.CancellationToken);
+                    opts.AssertBatchExecutionIsSequenced();
+                }).StartAsync(TestContext.Current.CancellationToken);
+        });
 
-        host.ShouldNotBeNull();
+        ex.Message.ShouldContain("Unsequenced batch execution");
     }
 
     [Fact]
