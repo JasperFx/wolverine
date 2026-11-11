@@ -277,15 +277,14 @@ A `null` `Status` is filled in as 409.
 | Polecat, Fisher, or no event store | `opts.MapConcurrencyFailuresToConflict()` |
 
 `MapConcurrencyFailuresToConflict()` maps both `JasperFx.ConcurrencyException` and
-`JasperFx.Events.StreamLockedException`, which `FetchForExclusiveWriting` throws on a contended stream and which
-is **not** a `ConcurrencyException`. Polecat's and Fisher's `StreamLockedException` derive from the JasperFx one,
-so the core call covers them. `MapPolecatConcurrencyFailuresToConflict()` still works and does the same thing.
+`JasperFx.Events.StreamLockedException`, which `FetchForExclusiveWriting` throws on a contended stream. Marten 10,
+Polecat 6 and Fisher 2 all throw that shared type, so the core call covers every store, and the 7.0 default is the
+core call. `MapMartenConcurrencyFailuresToConflict()` and `MapPolecatConcurrencyFailuresToConflict()` still work
+and do the same thing.
 
-Marten is the exception for now: `Marten.Exceptions.StreamLockedException` derives from `MartenException`
-instead, so `MapConcurrencyFailuresToConflict()` alone would leave Marten's exclusive locking path returning
-500s. `MapMartenConcurrencyFailuresToConflict()` adds Marten's type. That includes the 7.0 default, which is the
-core call, so a Marten application that wants the exclusive-lock failure mapped too still calls
-`MapMartenConcurrencyFailuresToConflict()`.
+Before Marten 10, `Marten.Exceptions.StreamLockedException` derived from `MartenException` instead, so
+`MapConcurrencyFailuresToConflict()` alone left Marten's exclusive locking path returning 500s and
+`MapMartenConcurrencyFailuresToConflict()` added Marten's type.
 :::
 
 A commit that fails more than one version check at once -- two `[UseOptimisticConcurrency]` documents in one
@@ -377,11 +376,12 @@ public static class MartenConcurrencyExceptionMiddleware
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/ConcurrencyEndpoints.cs#L32-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_marten_concurrency_exception_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-::: warning `StreamLockedException` is not a `ConcurrencyException`
+::: warning `StreamLockedException` before Marten 10
 `EventStreamUnexpectedMaxEventIdException` and Marten's document level concurrency violations derive from
-`JasperFx.ConcurrencyException`, so a single handler covers both. But `Marten.Exceptions.StreamLockedException`
--- what `FetchForExclusiveWriting` throws on a contended stream -- derives from `MartenException` instead.
-A recipe that catches only `ConcurrencyException` silently leaves the exclusive locking path returning 500s.
+`JasperFx.ConcurrencyException`, so a single handler covers both. Before Marten 10, `Marten.Exceptions.StreamLockedException`
+-- what `FetchForExclusiveWriting` throws on a contended stream -- derived from `MartenException` instead, and a
+recipe that caught only `ConcurrencyException` silently left the exclusive locking path returning 500s. Marten 10
+throws the shared `JasperFx.Events.StreamLockedException`, which does derive from `ConcurrencyException`.
 :::
 
 Register it across the endpoints that commit Marten sessions:

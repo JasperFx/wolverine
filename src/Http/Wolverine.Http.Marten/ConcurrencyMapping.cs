@@ -14,9 +14,10 @@ namespace Wolverine.Http.Marten;
 /// timeout is mapped explicitly whichever Marten is on the other side.
 ///
 /// <para>
-/// GH-5142: the core mapping now catches <c>JasperFx.Events.StreamLockedException</c>, which Polecat's and
-/// Fisher's lock exceptions derive from. Marten's does not yet, so this middleware is still registered for
-/// Marten, and only while that stays true.
+/// GH-5142: no longer registered. Marten 10's <see cref="StreamLockedException"/> is the shared
+/// <c>JasperFx.Events.StreamLockedException</c>, which the core <c>ConcurrencyExceptionMiddleware</c> now maps
+/// itself, for Marten, Polecat and Fisher alike. The class stays public so existing references keep compiling;
+/// GH-5145 retires it.
 /// </para>
 ///
 /// <para>
