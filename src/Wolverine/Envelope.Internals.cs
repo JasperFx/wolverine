@@ -340,6 +340,19 @@ public partial class Envelope
     }
 
     /// <summary>
+    ///     GH-5138. A copy of a received envelope for one of several handler chains that each run it inline, so
+    ///     that each one has an envelope of its own: its own id, attempt count and response
+    /// </summary>
+    internal Envelope CloneForInlineInvocation()
+    {
+        var copy = (Envelope)MemberwiseClone();
+        copy.Id = IdGenerator();
+        copy.Attempts = 0;
+        copy.Response = null;
+        return copy;
+    }
+
+    /// <summary>
     ///     Create a new Envelope that is a response to the current
     ///     Envelope
     /// </summary>
