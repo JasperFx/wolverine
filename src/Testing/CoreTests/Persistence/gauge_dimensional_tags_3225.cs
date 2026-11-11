@@ -8,10 +8,10 @@ using Xunit;
 
 namespace CoreTests.Persistence;
 
-// GH-3225: the wolverine-inbox-count / -outbox-count / -scheduled-count observable gauges must carry dimensional
+// GH-3225: the wolverine.inbox.count / .outbox.count / .scheduled.count observable gauges must carry dimensional
 // tags (source = service name, and database where applicable) so queue depth can be sliced per service/database
 // from an external TSDB. Previously the multi-database path baked the database name into the instrument *name*
-// (e.g. "wolverine-inbox-count.<db>"), which a TSDB can't group cleanly; that is now a `database` tag instead.
+// (e.g. "wolverine-inbox-count.<db>", as it was spelled then), which a TSDB can't group cleanly; that is now a `database` tag instead.
 public class gauge_dimensional_tags_3225
 {
     private const string TheServiceName = "depth-svc";
@@ -95,7 +95,7 @@ public class gauge_dimensional_tags_3225
         var gauges = captureGauges(theDatabase);
 
         // The database identity is now a tag, NOT an instrument-name suffix: the names stay canonical so a TSDB can
-        // group "wolverine-inbox-count" by the `database` dimension across every database.
+        // group "wolverine.inbox.count" by the `database` dimension across every database.
         gauges.Select(x => x.Name).ShouldBe(
             new[] { MetricsConstants.InboxCount, MetricsConstants.OutboxCount, MetricsConstants.ScheduledCount },
             ignoreOrder: true);

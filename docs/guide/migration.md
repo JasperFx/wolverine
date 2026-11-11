@@ -32,6 +32,9 @@ list.
 | `LocalQueueFor<T>()` / `[LocalQueue]` on a message type with several handler types | the message type's queue received the message | the queue only drains rows left over from 6.x; each handler type's own queue receives the message *(BREAKING)* | Move the queue's settings to the handler types' queues |
 | New database queue tables (PostgreSQL, SQL Server, MySQL, Oracle, SQLite transports) | no ordering column; SQL Server classic layout | deterministic ordering, and SQL Server's throughput layout, **for new tables only** | None for existing tables; see [queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout) |
 | JasperFx / Weasel / Marten / Polecat / Fisher | 2.x / 9.x / 9.x / 5.x / 1.x | 3.0 / 10.0 / 10.0 / 6.0 / 2.0 *(BREAKING)* | Upgrade them together; see [dependency majors](#dependency-major-versions-in-7-0-breaking) |
+| Wolverine's OpenTelemetry `Meter` name | `Wolverine:{ServiceName}`, so only `AddMeter("Wolverine*")` collected it | exactly `Wolverine` *(BREAKING for exact-name meter filters)* | `AddMeter("Wolverine")` now works; `AddMeter("Wolverine*")` keeps working. See [meter and metric names](#opentelemetry-meter-and-metric-names-breaking) |
+| Wolverine metric instrument names | dashed (`wolverine-messages-sent`) | dotted (`wolverine.messages.sent`) *(BREAKING for dashboards and alerts)* | Rename the series in dashboards, alerts and recording rules; see [the full table](#opentelemetry-meter-and-metric-names-breaking) |
+| `WolverineOptions.ServiceName` default | the entry assembly name | `OTEL_SERVICE_NAME` when set, then the entry assembly name | None, unless a service relied on the assembly name while `OTEL_SERVICE_NAME` was set to something else: set `opts.ServiceName` explicitly |
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 
@@ -576,6 +579,53 @@ Before the first 7.0 node starts:
 
 `RestoreV6Defaults()` turns off the deduplication tables and the optional schema objects, so it avoids all of this
 except the SQLite queue indexes.
+
+### OpenTelemetry meter and metric names (BREAKING)
+
+Wolverine's metrics move to the OpenTelemetry naming conventions in 7.0 (GH-5128):
+
+* **The `Meter` is named exactly `Wolverine`**, the same as Wolverine's `ActivitySource`. It used to be
+  `Wolverine:{ServiceName}`, so `AddMeter("Wolverine")` matched nothing and the Aspire dashboard listed one meter
+  per application. `AddMeter("Wolverine")` now collects every Wolverine metric; `AddMeter("Wolverine*")` still works
+  and also collects the separate `Wolverine.AI` and `Wolverine.CritterWatch` meters. A `MeterListener` or a view that
+  compared the meter name to `"Wolverine:" + serviceName` has to compare it to `"Wolverine"`
+  (`MetricsConstants.MeterName`). Several Wolverine hosts in one process now share one meter name, so tell them
+  apart by the `source` tag, or by the `IWolverineRuntime.Meter` instance in a test.
+* **The service is identified by the resource, not the meter name.** The OpenTelemetry SDK takes the resource's
+  `service.name` from `OTEL_SERVICE_NAME`, and every Wolverine measurement still carries the `source` tag with
+  `WolverineOptions.ServiceName`.
+* **`WolverineOptions.ServiceName` defaults from `OTEL_SERVICE_NAME`** when it is set (an Aspire AppHost sets it for
+  every project resource), and otherwise from the entry assembly as before. An explicit `opts.ServiceName`, or a
+  `JasperFxOptions.ServiceName` set through `CritterStackDefaults()`, still wins.
+  The name is also what node records, CritterWatch and the Event Model use, so if a service ran with
+  `OTEL_SERVICE_NAME` set to something other than its assembly name, set `opts.ServiceName` explicitly to keep the
+  old name.
+* **Instrument names are dotted.** Backends that keep OpenTelemetry names as they are (OTLP into the Aspire
+  dashboard, Honeycomb, Datadog and so on) see the new names, so rename those series in dashboards, alerts and
+  queries. Only the separators changed, so a Prometheus exporter, which turns both `-` and `.` into `_`, produces the
+  same `wolverine_messages_sent` style names as before. Units and tag keys are unchanged.
+
+| 6.x instrument | 7.0 instrument |
+|---|---|
+| `wolverine-messages-sent` | `wolverine.messages.sent` |
+| `wolverine-execution-time` | `wolverine.execution.time` |
+| `wolverine-messages-succeeded` | `wolverine.messages.succeeded` |
+| `wolverine-dead-letter-queue` | `wolverine.dead_letter_queue` |
+| `wolverine-fault-publish-failures` | `wolverine.fault_publish.failures` |
+| `wolverine-effective-time` | `wolverine.effective.time` |
+| `wolverine-inbox-count` | `wolverine.inbox.count` |
+| `wolverine-outbox-count` | `wolverine.outbox.count` |
+| `wolverine-scheduled-count` | `wolverine.scheduled.count` |
+| `wolverine-database-connection-count` | `wolverine.database.connection.count` |
+| `wolverine-database-connection-budget` | `wolverine.database.connection.budget` |
+| `wolverine-leases-renewed` | `wolverine.leases.renewed` |
+| `wolverine-leases-lost` | `wolverine.leases.lost` |
+| `wolverine-lease-ceiling-reached` | `wolverine.lease.ceiling_reached` |
+| `wolverine-duplicates-suppressed` | `wolverine.duplicates.suppressed` |
+| `wolverine-idempotency-early-rotation` | `wolverine.idempotency.early_rotation` |
+| `wolverine-messages-received` | `wolverine.messages.received` |
+| `wolverine-execution-failure` | `wolverine.execution.failure` |
+| `wolverine-recurring-occurrences-skipped` | `wolverine.recurring.occurrences_skipped` |
 
 ### Changed during 6.x without a flag
 

@@ -19,7 +19,7 @@ public class RigHandlers
 {
     // Client-shaped "sequential by key" middleware: a per-game SemaphoreSlim awaited INSIDE the
     // handler window, exactly like the middleware the GH-3490 report describes. The wait lands in
-    // the rig's handler_ms stage the same way it lands in wolverine-execution-time for the client.
+    // the rig's handler_ms stage the same way it lands in wolverine.execution.time for the client.
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new();
 
     public static Task Handle(SmallEvent message, Envelope envelope)

@@ -20,8 +20,8 @@ public static class CritterStackTelemetry
         ["Wolverine*", "Marten*", "Polecat*", "Fisher*", "CritterWatch*"];
 
     /// <summary>
-    /// The Meter name patterns. Wolverine's meter is named <c>Wolverine:{ServiceName}</c>, so a bare
-    /// <c>AddMeter("Wolverine")</c> matches nothing: the wildcard is required. The CritterWatch client
+    /// The Meter name patterns. Wolverine's own meter is named exactly <c>Wolverine</c> (7.0, GH-5128); the
+    /// wildcard also collects the separate <c>Wolverine.AI</c> meter. The CritterWatch client
     /// publishes on <c>Wolverine.CritterWatch</c> (matched by <c>Wolverine*</c>) and the console on
     /// <c>CritterWatch.Console</c> and <c>CritterWatch:*</c> meters.
     /// </summary>

@@ -41,9 +41,9 @@ public static class ServiceDefaultsExtensions
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
 
-                    // Wolverine publishes its metrics from a Meter named "Wolverine:{ServiceName}",
-                    // so this has to be a wildcard. A bare AddMeter("Wolverine") matches nothing
-                    .AddMeter("Wolverine*");
+                    // Wolverine publishes its metrics from a Meter named "Wolverine" (7.0+);
+                    // the service is identified by the resource (OTEL_SERVICE_NAME) and the "source" tag
+                    .AddMeter("Wolverine");
             })
             .WithTracing(tracing =>
             {

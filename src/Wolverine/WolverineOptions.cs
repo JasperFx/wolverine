@@ -172,7 +172,7 @@ public class MetricsOptions
 
     /// <summary>
     /// Default explicit histogram bucket boundaries (in milliseconds) applied to the
-    /// <c>wolverine-execution-time</c> and <c>wolverine-effective-time</c> histograms. The
+    /// <c>wolverine.execution.time</c> and <c>wolverine.effective.time</c> histograms. The
     /// OpenTelemetry SDK's default buckets are poor for millisecond-scale latencies; these are tuned for
     /// message handling. See GH-3224.
     /// </summary>
@@ -181,7 +181,7 @@ public class MetricsOptions
 
     /// <summary>
     /// Explicit histogram bucket boundaries (in milliseconds) used as the instrument <em>advice</em> for
-    /// the <c>wolverine-execution-time</c> and <c>wolverine-effective-time</c> histograms, so quantile
+    /// the <c>wolverine.execution.time</c> and <c>wolverine.effective.time</c> histograms, so quantile
     /// baselines computed from a time-series database (Prometheus / VictoriaMetrics) are meaningful for
     /// millisecond latencies. Defaults to <see cref="DefaultHistogramBucketBoundaries"/>. Set to
     /// <c>null</c> to fall back to the OpenTelemetry SDK / exporter defaults, or supply your own ascending
@@ -767,9 +767,28 @@ public sealed partial class WolverineOptions
     }
 
     /// <summary>
-    ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support
+    ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support, and as the
+    ///     <c>source</c> tag on every Wolverine metric. When not set explicitly (here or on
+    ///     <c>JasperFxOptions.ServiceName</c>), it defaults to the <c>OTEL_SERVICE_NAME</c> environment variable if
+    ///     that is set (which is what an Aspire AppHost sets for each resource), and otherwise to the application's
+    ///     entry assembly name.
     /// </summary>
     public string ServiceName { get; set; } = null!;
+
+    /// <summary>
+    ///     The standard OpenTelemetry environment variable <see cref="ServiceName" /> defaults from. GH-5128.
+    /// </summary>
+    public const string OtelServiceNameVariable = "OTEL_SERVICE_NAME";
+
+    /// <summary>
+    ///     GH-5128. The service name chosen ahead of the JasperFx / entry assembly fallback: an explicitly set
+    ///     <see cref="ServiceName" />, then <c>OTEL_SERVICE_NAME</c>. Null when neither is set.
+    /// </summary>
+    internal static string? ResolveServiceName(string? explicitServiceName, string? otelServiceName)
+    {
+        if (explicitServiceName.IsNotEmpty()) return explicitServiceName;
+        return string.IsNullOrWhiteSpace(otelServiceName) ? null : otelServiceName.Trim();
+    }
 
     /// <summary>
     ///     GH-4916. Register every <c>EventModelDefinition</c> subclass in the application's assemblies from the
@@ -914,6 +933,9 @@ public sealed partial class WolverineOptions
     }
 
     internal void ReadJasperFxOptions(JasperFxOptions jasperfx)
+        => ReadJasperFxOptions(jasperfx, Environment.GetEnvironmentVariable(OtelServiceNameVariable));
+
+    internal void ReadJasperFxOptions(JasperFxOptions jasperfx, string? otelServiceName)
     {
         // GH-4448: the exchange runs BOTH ways, and it used to run only one. `??=` makes JasperFx's value
         // the fallback for Wolverine's — which already says an explicit WolverineOptions.ServiceName
@@ -931,16 +953,24 @@ public sealed partial class WolverineOptions
         //
         // Captured before the `??=` because afterwards there is no telling a value the user set from
         // one just adopted from JasperFx — and adopting is precisely the case that must NOT write back.
-        var explicitlyNamedHere = ServiceName;
+        //
+        // GH-5128 (7.0): OTEL_SERVICE_NAME, which an Aspire AppHost sets per resource, replaces the entry
+        // assembly default, but not a name set explicitly on either side. JasperFx can't tell us whether its
+        // name was set, so a name other than its application assembly's counts as set. A name taken from
+        // OTEL_SERVICE_NAME is written back like an explicit one, for the same GH-4448 reason: JasperFx would
+        // otherwise go on naming the service after the entry assembly.
+        var jasperFxNamedExplicitly = jasperfx.ServiceName.IsNotEmpty() &&
+                                      jasperfx.ServiceName != jasperfx.ApplicationAssembly?.GetName().Name;
+        var namedHere = ResolveServiceName(ServiceName, jasperFxNamedExplicitly ? null : otelServiceName);
 
-        ServiceName ??= jasperfx.ServiceName;
+        ServiceName = namedHere ?? jasperfx.ServiceName;
 
-        if (explicitlyNamedHere.IsNotEmpty())
+        if (namedHere.IsNotEmpty())
         {
-            // Wolverine's own value wins, in the same direction the `??=` above already established.
+            // Wolverine's own value wins, in the same direction the fallback above already established.
             // Safe to assign unconditionally because JasperFxOptions is resolved from THIS container, so
             // a second host in the process has its own instance to name.
-            jasperfx.ServiceName = explicitlyNamedHere;
+            jasperfx.ServiceName = namedHere;
         }
 
 

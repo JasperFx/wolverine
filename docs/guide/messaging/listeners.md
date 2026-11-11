@@ -304,8 +304,8 @@ Both are also metered <Badge type="tip" text="6.32" />, tagged by endpoint:
 
 | Meter | Answers |
 | --- | --- |
-| `wolverine-duplicates-suppressed` | "Is my redelivery rate normal?" — how many duplicate deliveries this guard has dropped |
-| `wolverine-idempotency-early-rotation` | "Is my window big enough?" — how often the `maxTracked` ceiling forced a rotation *before* the window elapsed |
+| `wolverine.duplicates.suppressed` | "Is my redelivery rate normal?" — how many duplicate deliveries this guard has dropped |
+| `wolverine.idempotency.early_rotation` | "Is my window big enough?" — how often the `maxTracked` ceiling forced a rotation *before* the window elapsed |
 
 The second is the one to alert on. A non-zero and rising count means the early-rotation row in the table
 above is firing, so the effective suppression window is **shorter than the `window` you configured** — the
@@ -349,8 +349,8 @@ delivery again and is going to redeliver it. Wolverine's response depends on whe
 * **Already executing.** A running handler cannot be un-run. This one stays at-least-once — NativeAck's
   documented contract — and Wolverine's only job is to not compound it, so its defer is suppressed too.
 
-Both are metered. `wolverine-leases-lost` is tagged `lease.loss.stage` = `not-started` (duplication prevented)
-or `executing` (duplication realized); `wolverine-leases-renewed` and `wolverine-lease-ceiling-reached` round
+Both are metered. `wolverine.leases.lost` is tagged `lease.loss.stage` = `not-started` (duplication prevented)
+or `executing` (duplication realized); `wolverine.leases.renewed` and `wolverine.lease.ceiling_reached` round
 out the picture. A rising `executing` count means lane depth has outgrown the configured lease — raise the
 lease, raise the slot count, or lower the prefetch.
 :::

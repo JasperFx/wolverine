@@ -97,8 +97,8 @@ and reports that server's budget as unknown rather than failing the metrics swee
 
 | Instrument | Meaning |
 |------------|---------|
-| `wolverine-database-connection-count` | Connections currently open on the server |
-| `wolverine-database-connection-budget` | The budget, omitted entirely when unknown |
+| `wolverine.database.connection.count` | Connections currently open on the server |
+| `wolverine.database.connection.budget` | The budget, omitted entirely when unknown |
 
 **`IWolverineObserver.ConnectionBudget`**, which is how CritterWatch surfaces it:
 
