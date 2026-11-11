@@ -79,7 +79,9 @@ public class message_causation_handler_type_5224 : IAsyncLifetime
             return _capturedActivities
                 .Select(a => a.GetTagItem(WolverineTracing.MessageHandler) as string)
                 .OfType<string>()
-                .First(x => x.Contains(handlerName));
+                // The whole type name: "CausationNamingCommandHandler" is also the tail of
+                // "SecondCausationNamingCommandHandler", whose span may be captured first
+                .First(x => x.EndsWith("." + handlerName));
         }
     }
 

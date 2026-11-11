@@ -8,39 +8,17 @@ public sealed partial class WolverineOptions
 {
     internal List<BatchingOptions> BatchDefinitions { get; } = new();
 
-    internal bool AssertsNoBatchHandlerConflicts { get; private set; }
-
     /// <summary>
-    /// Make Wolverine throw at startup (instead of only logging a warning) if a message type has both a
-    /// direct <c>Handle(T)</c> handler and a <c>BatchMessagesOf&lt;T&gt;()</c> batch handler under the
-    /// default <see cref="MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler"/> mode — a
-    /// configuration in which the direct handler wins and the batch handler is silently shadowed. Has
-    /// no effect under <see cref="MultipleHandlerBehavior.Separated"/>, where both handlers legitimately
-    /// run and Wolverine moves the batch onto its own queue.
+    /// GH-5133. In Wolverine 6.x this made startup throw when the obsolete
+    /// <c>MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler</c> mode had combined handlers from more
+    /// than one handler class into one logical handler. GH-5139: Wolverine 7.0 removed that mode and always
+    /// gives each handler type its own handler chain, so nothing is ever combined and this does nothing.
+    /// It is kept for one major version so that a build that called it while rehearsing the upgrade still
+    /// compiles.
     /// </summary>
-    public void AssertNoBatchHandlerConflicts()
-    {
-        AssertsNoBatchHandlerConflicts = true;
-    }
-
-    internal bool AssertsNoCombinedHandlers { get; private set; }
-
-    /// <summary>
-    /// GH-5133. Make Wolverine throw at startup if any message type has handlers from more than one
-    /// handler class combined into one logical handler, which only happens under the obsolete
-    /// <c>MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler</c> mode (the 6.x default).
-    /// Wolverine 7.0 always gives each handler type its own handler chain, so this is a way to find
-    /// the message types the upgrade changes -- in a test or a CI build -- before upgrading. Without
-    /// this, Wolverine only logs a warning listing them.
-    /// </summary>
-    /// <remarks>
-    /// Several methods on ONE handler class for the same message type (a saga's <c>Start</c> and
-    /// <c>Handle</c>, for example) are not "combined handlers" and do not trip this. Has no effect under
-    /// <see cref="MultipleHandlerBehavior.Separated"/>, where nothing is combined.
-    /// </remarks>
+    [Obsolete("Wolverine 7.0 always gives each handler type its own handler chain, so no handlers are ever combined and this does nothing. Remove the call.")]
     public void AssertNoCombinedHandlers()
     {
-        AssertsNoCombinedHandlers = true;
     }
 
     internal bool AssertsBatchExecutionIsSequenced { get; private set; }

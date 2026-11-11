@@ -109,6 +109,7 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `DurabilitySettings.CompressAgentCommands` | `false`: agent commands travel under the plain intrinsic content type | `true`: agent commands are gzipped under `binary/wolverine+gzip`. **Every node in the cluster must run 6.44 or later before the first 7.0 node starts**; a node older than 6.44 rejects the command and stops taking agent assignments | `opts.Durability.CompressAgentCommands = false` | `restore_v6_defaults_tests` |
 | `BatchingOptions.GroupByGroupId()` for a batched message type in a partitioned topology | off unless the batch executes on the topology's local slots: a batch envelope has no group id and draws a random slot downstream | on whenever the element type is in a partitioned topology (`GlobalPartitioned`, `PublishToPartitionedLocalMessaging` or a sharded listener topology), including with `ExecuteOnDedicatedLocalQueue()` or a named queue. Non-partitioned batching and a custom `IMessageBatcher` are unchanged | `batching.DoNotGroupByGroupId()` in `BatchMessagesOf<T>()` | `core_default_flips_5200` |
 | `WithInMemoryIdempotency()` on `ProcessInParallelWithNativeAcks()` endpoints | off: no guard unless the listener asks for one | on, with the default 5 minute window and 100,000 id ceiling. Every other endpoint mode still opts in | `.WithoutInMemoryIdempotency()` on the listener | `core_default_flips_5200` |
+| `DurabilitySettings.MessageIdentity` | `IdOnly`: an inbox row is identified by its envelope id | `IdAndDestination`: by its envelope id and the endpoint that received it. **This changes the primary key of the inbox table (and the dead letter table) in the database**; see [below](#messageidentity-defaults-to-idanddestination-in-7-0-schema-change) | `opts.Durability.MessageIdentity = MessageIdentity.IdOnly` | `restore_v6_defaults_tests` |
 
 ### Wolverine.Http defaults that changed in 7.0
 
@@ -315,6 +316,44 @@ code used one of them, it won't compile against 7.0 until you make the change be
 | `ChainDeduplicationExtensions.ApplyDeduplication(this IChain)` | Call `ApplyDeduplication(rules, container)`, so a store that can write the deduplication claim inside its own transaction gets to |
 | `FisherIntegration.TransportSchemaName` | `FisherIntegration.PrefixName`. In 6.x setting `TransportSchemaName` set `PrefixName`, so set `PrefixName` to the same value to keep your queue table names |
 | `MqttEnvelope.ShouldRequeue` | Delete it. Nothing read it, so setting it never requeued anything |
+
+### `MessageIdentity` defaults to `IdAndDestination` in 7.0 (schema change)
+
+::: warning
+This default changes your database schema. On first start, Wolverine 7 migrates the primary key of the inbox table
+(`wolverine_incoming_envelopes`) from `id` to `id, received_at` on PostgreSQL, SQL Server, MySQL, Oracle and SQLite, and
+the primary key of the dead letter table (`wolverine_dead_letters`) in the same way where that store keys it by
+identity. RavenDB and Cosmos DB put the identity in the document id instead. Plan the upgrade accordingly, or keep the
+6.x identity as shown at the end of this section.
+:::
+
+Wolverine 7 gives every handler type of a message type its own handler chain, often on a listening endpoint of its own.
+That's what makes Wolverine friendlier to modular monoliths, where several modules handle the same message
+independently. When a message broker delivers one message to several of those endpoints in the same process (a topic
+with one subscription per module, an exchange bound to one queue per module, or an upstream system publishing to both),
+every copy arrives with the same envelope id. Under 6.x's `MessageIdentity.IdOnly`, the durable inbox treated every copy
+after the first as a duplicate, and the other modules never handled the message.
+
+So 7.0 defaults `DurabilitySettings.MessageIdentity` to `MessageIdentity.IdAndDestination` (GH-5139), which identifies an
+inbox row by its envelope id **and** the endpoint that received it.
+
+What to watch for on the upgrade:
+
+* **The schema change.** With the default `AutoBuildMessageStorageOnStartup`, Wolverine applies the new primary key on
+  first start. If you manage the schema yourself, generate the migration with the `db-patch` command
+  (`db-assert` tells you whether one is outstanding) and apply it before deploying. Changing a primary key rewrites the
+  index under a lock, which is quick for a typical inbox but not for a large one.
+* **Drain the inbox first.** Upgrade with the inbox drained, so no message is in flight under the old identity. On
+  RavenDB and Cosmos DB this matters most: their inbox documents are named by the identity, and a document written under
+  the old identity is not found under the new one.
+* **Duplicate detection is per endpoint.** The same envelope id arriving at two *different* endpoints is now handled at
+  both. The same id arriving twice at the *same* endpoint is still a duplicate.
+* **A startup check guards `IdOnly`.** If you keep `IdOnly` and a message type has handler chains bound to more than one
+  durable listening endpoint of an external transport, Wolverine refuses to start and names the message types, because
+  that is exactly the setup where the inbox would drop messages.
+
+To keep the 6.x identity, and the 6.x schema, call `opts.RestoreV6Defaults()` or set
+`opts.Durability.MessageIdentity = MessageIdentity.IdOnly`. An explicit setting always wins.
 
 ### `.NET 9.0` support dropped (BREAKING)
 

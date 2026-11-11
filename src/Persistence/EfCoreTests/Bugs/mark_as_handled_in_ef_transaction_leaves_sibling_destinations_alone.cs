@@ -100,7 +100,6 @@ public class mark_as_handled_in_ef_transaction_leaves_sibling_destinations_alone
                     .IncludeType<MessageForTwoDestinationsEfHandler>()
                     .IncludeType<MessageForTwoDestinationsGatedHandler>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 // One logical message, two physical deliveries: the destination has to be part of the inbox identity
                 opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination;

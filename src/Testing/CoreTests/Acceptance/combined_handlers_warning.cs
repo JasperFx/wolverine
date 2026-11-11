@@ -11,6 +11,8 @@ namespace CoreTests.Acceptance;
 /// GH-5133. ClassicCombineIntoOneLogicalHandler is obsolete in 6.x and removed in 7.0, so an application
 /// still relying on it hears about it at startup -- and can make that a failure in CI. GH-5136: from 7.0 every
 /// handler type gets its own chain, so nothing is combined and neither the warning nor the assertion fires.
+/// GH-5139: 7.0 removed the warning and MultipleHandlerBehavior itself; AssertNoCombinedHandlers() is an
+/// obsolete no-op kept for one major version so an upgrade rehearsal still compiles.
 /// </summary>
 public class combined_handlers_warning
 {
@@ -67,24 +69,9 @@ public class combined_handlers_warning
     }
 
     [Fact]
-    public async Task no_warning_under_separated()
-    {
-        var logger = new CapturingLogger();
-
-        using var host = await buildHost(opts =>
-        {
-            opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-            opts.Discovery.IncludeType<ShippingOrderPlacedHandler>();
-            opts.Discovery.IncludeType<BillingOrderPlacedHandler>();
-        }, logger).StartAsync(TestContext.Current.CancellationToken);
-
-        logger.Entries.ShouldNotContain(x => x.Message.Contains("ClassicCombineIntoOneLogicalHandler"));
-    }
-
-    [Fact]
     public async Task AssertNoCombinedHandlers_is_satisfied_by_default()
     {
-        // GH-5136. Nothing is ever combined in 7.0, so the 6.x upgrade rehearsal passes without any setting
+        // GH-5136 / GH-5139. Nothing is ever combined in 7.0, so the 6.x upgrade rehearsal is an obsolete no-op
         #region sample_assert_no_combined_handlers
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -99,22 +86,6 @@ public class combined_handlers_warning
             }).StartAsync(TestContext.Current.CancellationToken);
         #endregion
     }
-
-    [Fact]
-    public async Task AssertNoCombinedHandlers_is_satisfied_by_separated()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Discovery.DisableConventionalDiscovery();
-                opts.Discovery.IncludeType<ShippingOrderPlacedHandler>();
-                opts.Discovery.IncludeType<BillingOrderPlacedHandler>();
-
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-                opts.AssertNoCombinedHandlers();
-            }).StartAsync(TestContext.Current.CancellationToken);
-    }
-
 }
 
 public record CombinedOrderPlaced(Guid Id);

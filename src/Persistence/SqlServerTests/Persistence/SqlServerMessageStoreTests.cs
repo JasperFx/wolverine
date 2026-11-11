@@ -30,6 +30,8 @@ public class SqlServerMessageStoreTests : MessageStoreCompliance
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // GH-5139. IdAndDestination is the 7.0 default and has its own compliance class; keep IdOnly covered
+                opts.Durability.MessageIdentity = MessageIdentity.IdOnly;
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "receiver");
                 // Exercise the real RdbmsListenerStore impl in the IListenerStore
                 // compliance tests (GH-2685). When this flag is off the suite falls

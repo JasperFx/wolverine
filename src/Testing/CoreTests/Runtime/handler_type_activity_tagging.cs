@@ -169,7 +169,6 @@ public class handler_type_activity_tagging_beyond_one_handler_call : IAsyncLifet
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<FirstTaggedModuleHandler>()
                     .IncludeType<SecondTaggedModuleHandler>();

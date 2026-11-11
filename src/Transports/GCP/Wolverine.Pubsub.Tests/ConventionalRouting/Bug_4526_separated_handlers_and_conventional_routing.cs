@@ -32,7 +32,6 @@ public class Bug4526Fixture : IAsyncLifetime
                     .UseConventionalRouting(x => x.IncludeTypes(t => t == typeof(SeparatedPubsubMessage)));
 
                 opts.Policies.DisableConventionalLocalRouting();
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 // The two sticky handlers below are [WolverineIgnore]d so no other host in this assembly
                 // discovers them: two sticky handlers for one message type change what a host provisions
