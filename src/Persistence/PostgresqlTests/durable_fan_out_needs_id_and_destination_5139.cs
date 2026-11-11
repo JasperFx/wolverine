@@ -17,7 +17,7 @@ namespace PostgresqlTests;
 /// <summary>
 /// GH-5139. With one handler chain per handler type, two handler types of one message type bound to two durable
 /// listeners of an external transport receive the same envelope id whenever the broker fans one message out to
-/// both queues. IdAndDestination, the 7.0 default, tells the copies apart. Under an explicit MessageIdentity.IdOnly
+/// both queues. The IdAndDestination opt-in tells the copies apart. Under MessageIdentity.IdOnly, the default,
 /// the durable inbox would reject the second copy as a duplicate, so Wolverine warns at startup. Only a warning:
 /// whether the broker really copies one message into both queues is not something Wolverine can see.
 /// </summary>
@@ -25,21 +25,19 @@ public class durable_fan_out_needs_id_and_destination_5139
 {
     private readonly WarningCapture theWarnings = new();
 
-    private Task<IHost> startHost(MessageIdentity? identity, bool restoreV6Defaults = false)
+    private Task<IHost> startHost(MessageIdentity? identity)
     {
         return Host.CreateDefaultBuilder()
             .ConfigureLogging(x => x.AddProvider(theWarnings))
             .UseWolverine(opts =>
             {
-                if (restoreV6Defaults) opts.RestoreV6Defaults();
-
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<FanOutShippingHandler>()
                     .IncludeType<FanOutBillingHandler>();
 
                 // A schema per identity: the two identities give the inbox different primary keys
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString,
-                    identity == MessageIdentity.IdOnly || restoreV6Defaults ? "fan_out_id_only" : "fan_out_id_and_destination");
+                    identity == MessageIdentity.IdAndDestination ? "fan_out_id_and_destination" : "fan_out_id_only");
 
                 if (identity.HasValue)
                 {
@@ -56,24 +54,14 @@ public class durable_fan_out_needs_id_and_destination_5139
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task warns_at_startup_under_IdOnly(bool throughRestoreV6Defaults)
+    public async Task warns_at_startup_under_IdOnly(bool explicitly)
     {
-        using var host = throughRestoreV6Defaults
-            ? await startHost(null, restoreV6Defaults: true)
-            : await startHost(MessageIdentity.IdOnly);
+        using var host = await startHost(explicitly ? MessageIdentity.IdOnly : null);
 
         var warning = theWarnings.Messages.ShouldHaveSingleItem();
         warning.ShouldContain(typeof(FanOutOrderPlaced).FullNameInCode());
         warning.ShouldContain("MessageIdentity.IdAndDestination");
 
-        await host.StopAsync(TestContext.Current.CancellationToken);
-    }
-
-    [Fact]
-    public async Task no_warning_under_the_7_0_default()
-    {
-        using var host = await startHost(null);
-        theWarnings.Messages.ShouldBeEmpty();
         await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
@@ -127,8 +115,8 @@ public class FanOutBillingHandler
 }
 
 /// <summary>
-/// GH-5139. A Wolverine 6.x inbox is keyed by envelope id alone. Starting Wolverine 7 against it, with the new
-/// IdAndDestination default, migrates the incoming envelope table's primary key to (id, received_at)
+/// GH-5139. An inbox under the default IdOnly identity is keyed by envelope id alone. Starting against it with the
+/// IdAndDestination opt-in migrates the incoming envelope table's primary key to (id, received_at)
 /// </summary>
 public class upgrading_an_id_only_inbox_to_id_and_destination_5139 : IAsyncLifetime
 {
@@ -153,12 +141,12 @@ public class upgrading_an_id_only_inbox_to_id_and_destination_5139 : IAsyncLifet
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private static Task<IHost> startHost(bool restoreV6Defaults)
+    private static Task<IHost> startHost(MessageIdentity? identity)
     {
         return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                if (restoreV6Defaults) opts.RestoreV6Defaults();
+                if (identity.HasValue) opts.Durability.MessageIdentity = identity.Value;
 
                 opts.Discovery.DisableConventionalDiscovery();
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, SchemaName);
@@ -188,18 +176,18 @@ public class upgrading_an_id_only_inbox_to_id_and_destination_5139 : IAsyncLifet
     }
 
     [Fact]
-    public async Task the_inbox_primary_key_gains_the_destination()
+    public async Task the_inbox_primary_key_gains_the_destination_with_the_opt_in()
     {
-        using (var v6 = await startHost(restoreV6Defaults: true))
+        using (var idOnly = await startHost(null))
         {
-            await v6.StopAsync(TestContext.Current.CancellationToken);
+            await idOnly.StopAsync(TestContext.Current.CancellationToken);
         }
 
         (await incomingPrimaryKeyColumnsAsync()).ShouldBe(["id"]);
 
-        using (var v7 = await startHost(restoreV6Defaults: false))
+        using (var idAndDestination = await startHost(MessageIdentity.IdAndDestination))
         {
-            await v7.StopAsync(TestContext.Current.CancellationToken);
+            await idAndDestination.StopAsync(TestContext.Current.CancellationToken);
         }
 
         (await incomingPrimaryKeyColumnsAsync()).ShouldBe(["id", "received_at"]);

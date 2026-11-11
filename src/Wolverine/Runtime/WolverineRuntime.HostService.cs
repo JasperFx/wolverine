@@ -990,9 +990,8 @@ public partial class WolverineRuntime
     /// or sticky routing binds each chain to a listening endpoint of its own. When a broker copies ONE envelope
     /// into two of those queues -- a topic with two subscriptions, an exchange bound to two queues, an upstream
     /// publisher -- both copies carry the same envelope id. <see cref="MessageIdentity.IdAndDestination"/>, the
-    /// 7.0 default, tells them apart. Under <see cref="MessageIdentity.IdOnly"/>, which an application can still
-    /// choose (or get from RestoreV6Defaults()), the second durable inbox insert is a duplicate, and that handler
-    /// type never runs the message. Returns the startup warning for that configuration, or null.
+    /// explicit opt-in, tells them apart. Under <see cref="MessageIdentity.IdOnly"/>, the default, the second
+    /// durable inbox insert is a duplicate, and that handler type never runs the message. Returns the startup warning for that configuration, or null.
     /// </summary>
     /// <remarks>
     /// Local queues are exempt: a local route always sends a new envelope with an id of its own. So is a
@@ -1025,10 +1024,10 @@ public partial class WolverineRuntime
         return "Wolverine gives each handler type of a message type its own handler chain, and these message types have " +
                "handler chains bound to more than one durable listening endpoint of an external transport. When the broker " +
                "delivers one message to several of those queues, every copy has the same envelope id, and with " +
-               "DurabilitySettings.MessageIdentity = MessageIdentity.IdOnly (set explicitly, or by RestoreV6Defaults()) " +
+               "DurabilitySettings.MessageIdentity = MessageIdentity.IdOnly (the default) " +
                "the durable inbox rejects all but the first as a duplicate, so the other handler types never run it. If your " +
                "broker can deliver one message to more than one of these endpoints, " +
-               "use opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination, the Wolverine 7 default, which " +
+               "use opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination, which " +
                "makes the inbox identity the envelope id and the receiving endpoint (and changes the inbox table's " +
                "primary key), or make those endpoints non-durable. Message types:" + string.Concat(lines);
     }

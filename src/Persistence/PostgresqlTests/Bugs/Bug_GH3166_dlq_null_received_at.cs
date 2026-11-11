@@ -40,11 +40,6 @@ public class Bug_GH3166_dlq_null_received_at : IAsyncLifetime
                 }).IntegrateWithWolverine();
 
                 opts.ListenAtPort(2356).UseDurableInbox();
-
-                // GH-5139. A NULL received_at is a row 6.x wrote, and only fits under IdOnly: under IdAndDestination
-                // it is part of the dead letter table's primary key. 7.0 writes a destination-less dead letter with
-                // received_at = 'unknown://none' (MessageStoreCompliance.move_to_dead_letter_storage_with_no_destination)
-                opts.Durability.MessageIdentity = MessageIdentity.IdOnly;
             }).StartAsync();
 
         var marten = _host.Services.GetRequiredService<IDocumentStore>();
