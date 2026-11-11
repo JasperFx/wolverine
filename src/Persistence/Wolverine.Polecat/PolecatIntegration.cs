@@ -11,6 +11,7 @@ using Wolverine.Polecat.Codegen;
 using Wolverine.Polecat.Persistence.Sagas;
 using Wolverine.Polecat.Publishing;
 using Wolverine.Persistence;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -47,14 +48,7 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
         // without event forwarding, the "subscription" is silently dead: no forwarding occurs, the
         // handler never fires, and nothing anywhere says so. Fail at bootstrap with the two real
         // options instead.
-        if (EventRouter.BareSubscriptions.Any() && !UseFastEventForwarding)
-        {
-            var names = EventRouter.BareSubscriptions.Select(x => x.Name).Join(", ");
-            throw new InvalidOperationException(
-                $"SubscribeToEvent<T>() was called for [{names}] but nothing completes the subscription, so these events would never reach a handler. " +
-                $"SubscribeToEvent<T>() only defines a transformation of a forwarded event — either finish it with .TransformedTo(...), " +
-                $"or, to simply have Wolverine handlers receive the event after commit, set {nameof(UseFastEventForwarding)} = true on this integration instead.");
-        }
+        EventRouter.AssertNoBareSubscriptions(UseFastEventForwarding, nameof(UseFastEventForwarding));
 
         // Duplicate incoming messages - SQL Server uses unique constraint violations.
         //
@@ -124,11 +118,8 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
 
         options.Policies.Add<PolecatOpPolicy>();
 
-        // GH-3109: pre-populate chain.AncillaryStoreType for [PolecatStore]-attributed handlers so the
-        // message-type-to-ancillary-store map built later in WolverineRuntime.HostService sees it.
-        // Mirrors Marten's MartenStoreEagerPolicy; see PolecatStoreEagerPolicy for the Phase-A vs
-        // Phase-B ordering trap this addresses.
-        options.Policies.Add<PolecatStoreEagerPolicy>();
+        // GH-3109: [PolecatStore] chains get chain.AncillaryStoreType pre-populated by core's
+        // StorageAttributeEagerPolicy (GH-5141), which Wolverine always registers.
 
         options.CodeGeneration.AddContinuationStrategy<Wolverine.Polecat.Requirements.PolecatDataRequirementContinuationStrategy>();
 
@@ -142,7 +133,7 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
     /// </summary>
     public string? MainDatabaseConnectionString { get; set; }
 
-    internal PolecatEventRouter EventRouter { get; } = new();
+    internal EventForwardingRouter EventRouter { get; } = new();
 
     private string _transportSchemaName = "wolverine_queues";
     private bool _transportSchemaNameIsExplicit;
@@ -193,7 +184,7 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
     /// </summary>
     public EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull
     {
-        EventRouter.BareSubscriptions.Add(typeof(T));
+        EventRouter.StartTransformation<T>();
         return new EventForwardingTransform<T>(EventRouter);
     }
 }
@@ -237,82 +228,6 @@ internal class PolecatOverrides : IConfigurePolecat
     }
 }
 
-internal class EventWrapperForwarder : IHandledTypeRule
-{
-    public bool TryFindHandledType(Type concreteType, [NotNullWhen(true)] out Type? handlerType)
-    {
-        handlerType = concreteType.FindInterfaceThatCloses(typeof(IEvent<>));
-        return handlerType != null;
-    }
-}
-
-internal class PolecatEventRouter : IMessageRouteSource
-{
-    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
-    {
-        if (messageType.Closes(typeof(IEvent<>)))
-        {
-            var eventType = messageType.GetGenericArguments().Single();
-            var wrappedType = typeof(IEvent<>).MakeGenericType(eventType);
-
-            if (messageType.IsConcrete())
-            {
-                return runtime.RoutingFor(wrappedType).Routes;
-            }
-
-            MessageRoute[] innerRoutes = [];
-            if (messageType.IsConcrete())
-            {
-                var inner = runtime.RoutingFor(wrappedType);
-                innerRoutes = inner.Routes.Concat(new LocalRouting().FindRoutes(wrappedType, runtime)).OfType<MessageRoute>().ToArray();
-            }
-            else
-            {
-                innerRoutes = new ExplicitRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
-                if (!innerRoutes.Any())
-                {
-                    innerRoutes = new LocalRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
-                }
-            }
-
-            // First look for explicit transformations
-            var transformers = Transformers.Where(x => x.SourceType == wrappedType);
-            var transformed = transformers.SelectMany(x =>
-                runtime.RoutingFor(x.DestinationType).Routes.Select(x.CreateRoute));
-
-            var forEventType = runtime.RoutingFor(eventType).Routes.Select(route =>
-                typeof(EventUnwrappingMessageRoute<>).CloseAndBuildAs<IMessageRoute>(route, eventType));
-
-            var candidates = forEventType.Concat(transformed).Concat(innerRoutes).ToArray();
-            return candidates;
-        }
-
-        return [];
-    }
-
-    public bool IsAdditive => false;
-    public List<IMessageTransformation> Transformers { get; } = [];
-
-    /// <summary>
-    /// GH-4310: SubscribeToEvent&lt;T&gt;() calls whose transformation was never completed with
-    /// TransformedTo(). Checked at bootstrap — bare entries with no event forwarding enabled are
-    /// a configuration error, because nothing would ever deliver those events.
-    /// </summary>
-    internal List<Type> BareSubscriptions { get; } = [];
-}
-
-internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T>, T> where T : notnull
-{
-    public EventUnwrappingMessageRoute(IMessageRoute inner) : base(e => e.Data, inner)
-    {
-    }
-
-    public override string ToString()
-    {
-        return $"Unwrap event wrapper to " + typeof(T).FullNameInCode();
-    }
-}
-
 public interface IEventForwarding
 {
     /// <summary>
@@ -325,19 +240,15 @@ public interface IEventForwarding
 
 public class EventForwardingTransform<TSource> where TSource : notnull
 {
-    private readonly PolecatEventRouter _eventRouter;
+    private readonly EventForwardingRouter _eventRouter;
 
-    internal EventForwardingTransform(PolecatEventRouter eventRouter)
+    internal EventForwardingTransform(EventForwardingRouter eventRouter)
     {
         _eventRouter = eventRouter;
     }
 
     public void TransformedTo<TDestination>(Func<IEvent<TSource>, TDestination> transformer)
     {
-        // The subscription is now completed — see PolecatEventRouter.BareSubscriptions (GH-4310).
-        _eventRouter.BareSubscriptions.Remove(typeof(TSource));
-
-        var transformation = new MessageTransformation<IEvent<TSource>, TDestination>(transformer);
-        _eventRouter.Transformers.Add(transformation);
+        _eventRouter.CompleteTransformation(transformer);
     }
 }
