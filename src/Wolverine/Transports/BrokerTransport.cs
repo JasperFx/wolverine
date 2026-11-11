@@ -11,7 +11,16 @@ namespace Wolverine.Transports;
 ///     Abstract base class suitable for brokered messaging infrastructure
 /// </summary>
 /// <typeparam name="TEndpoint"></typeparam>
-public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBrokerTransport
+/// <summary>
+/// GH-5136. A transport that can list the endpoints that were configured explicitly, without inferring (and so
+/// creating) any others such as dead letter queues
+/// </summary>
+internal interface IHasExplicitEndpoints
+{
+    IEnumerable<Endpoint> ExplicitEndpoints();
+}
+
+public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBrokerTransport, IHasExplicitEndpoints
     where TEndpoint : Endpoint, IBrokerEndpoint
 {
     protected BrokerTransport(string protocol, string name, string[] tags) : base(protocol, name, tags)
@@ -188,6 +197,8 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     {
         return endpoints();
     }
+
+    IEnumerable<Endpoint> IHasExplicitEndpoints.ExplicitEndpoints() => explicitEndpoints();
 
     /// <summary>
     ///     Template method hook to build dedicated response endpoints
