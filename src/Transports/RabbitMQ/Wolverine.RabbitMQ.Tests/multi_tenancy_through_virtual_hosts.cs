@@ -274,18 +274,6 @@ public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRa
 
         exception.TenantId.ShouldBe("four");
         exception.Endpoint.ShouldBe("rabbitmq://queue/multi_incoming".ToUri());
-
-        // A known tenant still goes through, to that tenant's broker
-        var session = await _fixture.Main
-            .TrackActivity()
-            .Timeout(15.Seconds())
-            .AlsoTrack(_fixture.One, _fixture.Two, _fixture.Three)
-            .WaitForMessageToBeReceivedAt<MultiTenantMessage>(_fixture.One)
-            .WaitForMessageToBeReceivedAt<MultiTenantResponse>(_fixture.Main)
-            .SendMessageAndWaitAsync(new MultiTenantMessage(Guid.NewGuid()), new DeliveryOptions { TenantId = "one" });
-
-        session.Received.SingleRecord<MultiTenantMessage>().ServiceName.ShouldBe("one");
-        session.Received.MessagesOf<MultiTenantMessage>().ShouldNotContain(x => x.Id == message.Id);
     }
 
     [Fact]

@@ -282,7 +282,14 @@ public class sending_agents_dead_letter_unknown_tenants_5196 : IAsyncDisposable
         await agent.EnqueueOutgoingAsync(envelope);
 
         await theRuntime.Storage.Inbox.DidNotReceiveWithAnyArgs().MoveToDeadLetterStorageAsync(default!, default);
-        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        // The durable agent sends from a background block
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while (DateTimeOffset.UtcNow < deadline && !one.ReceivedCalls().Any(x => x.GetMethodInfo().Name == nameof(ISender.SendAsync)))
+        {
+            await Task.Delay(25, TestContext.Current.CancellationToken);
+        }
+
         await one.Received(1).SendAsync(envelope);
     }
 
