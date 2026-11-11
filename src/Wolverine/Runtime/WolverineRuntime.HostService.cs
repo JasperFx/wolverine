@@ -80,6 +80,25 @@ public partial class WolverineRuntime
             generation);
     }
 
+    /// <summary>
+    /// GH-5148. Bring the runtime to the point <see cref="StartAsync"/> reaches just before the message
+    /// stores are built — the metadata-only (codegen / OpenAPI tool) check, the async extensions and the
+    /// named connection strings, in that order — for a startup validator that runs ahead of every hosted
+    /// service. Each step is idempotent, so <see cref="StartAsync"/> repeating them later is a no-op.
+    /// Returns false when the runtime is in lightweight / metadata-only mode and should not be touching
+    /// any database at all.
+    /// </summary>
+    internal async Task<bool> PrepareForStartupValidationAsync()
+    {
+        applyMetadataOnlyModeIfDetected();
+        if (Options.LightweightMode) return false;
+
+        await ApplyAsyncExtensions();
+        ApplyNamedConnectionStrings();
+
+        return true;
+    }
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         // Make this idempotent because the AddResourceSetupOnStartup() can cause it to bootstrap twice
@@ -222,10 +241,6 @@ public partial class WolverineRuntime
             // own, the batch gets a local queue of its own next to theirs. Done before the messaging transports start so
             // the new queue still receives the durable/local-queue endpoint policies.
             Handlers.BindBatchQueues(Options.Transports.GetOrCreate<LocalTransport>());
-
-            // GH-5133. ClassicCombineIntoOneLogicalHandler is obsolete and gone in 7.0. Say which message
-            // types it actually combined (once), or throw if the application opted into the assertion.
-            warnOrAssertCombinedHandlers();
 
             // Apply BatchMessagesOf<T>(b => b.ProbeIndividuallyAfter(N)) as a failure rule on the batch
             // handler chain. GH-3289.
@@ -959,6 +974,63 @@ public partial class WolverineRuntime
         var requeuePoliciesConfigured = Handlers.AnyRequeuePolicies();
 
         ListenerConfigurationValidator.AssertValid(listeners, Logger, requeuePoliciesConfigured);
+
+        // GH-5139. Needs the compiled endpoints above, because endpoint policies are what settle the durable mode.
+        // A warning rather than a startup failure: the envelope ids only collide when the BROKER copies one message
+        // into several of these queues, which Wolverine cannot see from here
+        if (Storage is not NullMessageStore)
+        {
+            var message = DurableFanOutWithoutMessageIdentity(Handlers.Groups, Options.Durability.MessageIdentity);
+            if (message != null) Logger.LogWarning(message);
+        }
+    }
+
+    /// <summary>
+    /// GH-5139. Wolverine 7 gives every handler type of a message type its own handler chain, and conventional
+    /// or sticky routing binds each chain to a listening endpoint of its own. When a broker copies ONE envelope
+    /// into two of those queues -- a topic with two subscriptions, an exchange bound to two queues, an upstream
+    /// publisher -- both copies carry the same envelope id. <see cref="MessageIdentity.IdAndDestination"/>, the
+    /// 7.0 default, tells them apart. Under <see cref="MessageIdentity.IdOnly"/>, which an application can still
+    /// choose (or get from RestoreV6Defaults()), the second durable inbox insert is a duplicate, and that handler
+    /// type never runs the message. Returns the startup warning for that configuration, or null.
+    /// </summary>
+    /// <remarks>
+    /// Local queues are exempt: a local route always sends a new envelope with an id of its own. So is a
+    /// message type with only one durable external listener, where there is nothing to collide with.
+    /// </remarks>
+    internal static string? DurableFanOutWithoutMessageIdentity(IEnumerable<MessageHandlerGroup> groups,
+        MessageIdentity identity)
+    {
+        if (identity == MessageIdentity.IdAndDestination) return null;
+
+        var lines = new List<string>();
+        foreach (var group in groups)
+        {
+            var bound = group.Chains
+                .Select(chain => (chain, endpoints: chain.Endpoints
+                    .Where(e => e.IsListener && e is not LocalQueue && e.Mode == EndpointMode.Durable)
+                    .ToArray()))
+                .Where(x => x.endpoints.Length > 0)
+                .ToArray();
+
+            if (bound.Length < 2) continue;
+
+            lines.Add($"{Environment.NewLine}  {group.MessageType.FullNameInCode()}: " + bound
+                .Select(x => $"{MessageHandlerGroup.HandlerTypeOf(x.chain).FullNameInCode()} ({x.endpoints.Select(e => e.Uri.ToString()).Join(", ")})")
+                .Join(", "));
+        }
+
+        if (lines.Count == 0) return null;
+
+        return "Wolverine gives each handler type of a message type its own handler chain, and these message types have " +
+               "handler chains bound to more than one durable listening endpoint of an external transport. When the broker " +
+               "delivers one message to several of those queues, every copy has the same envelope id, and with " +
+               "DurabilitySettings.MessageIdentity = MessageIdentity.IdOnly (set explicitly, or by RestoreV6Defaults()) " +
+               "the durable inbox rejects all but the first as a duplicate, so the other handler types never run it. If your " +
+               "broker can deliver one message to more than one of these endpoints, " +
+               "use opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination, the Wolverine 7 default, which " +
+               "makes the inbox identity the envelope id and the receiving endpoint (and changes the inbox table's " +
+               "primary key), or make those endpoints non-durable. Message types:" + string.Concat(lines);
     }
 
     /// <summary>
@@ -1043,38 +1115,6 @@ public partial class WolverineRuntime
                 Logger.LogError(e, "Error cleaning up idle sending agents");
             }
         }
-    }
-
-    private void warnOrAssertCombinedHandlers()
-    {
-        var combined = Handlers.CombinedHandlerChains();
-        if (combined.Length == 0) return;
-
-        var message = CombinedHandlersMessage(combined);
-
-        if (Options.AssertsNoCombinedHandlers)
-        {
-            throw new InvalidOperationException(message);
-        }
-
-        Logger.LogWarning(message);
-    }
-
-    internal static string CombinedHandlersMessage(IReadOnlyList<HandlerChain> combined)
-    {
-        var lines = combined
-            .Select(chain => $"{Environment.NewLine}  {chain.MessageType.FullNameInCode()}: " +
-                             chain.Handlers.Select(x => x.HandlerType).Distinct()
-                                 .Select(x => x.FullNameInCode()).Join(", "));
-
-        return $"Wolverine combined the handlers of {combined.Count} message type(s) into one logical handler each, because " +
-               "MultipleHandlerBehavior is ClassicCombineIntoOneLogicalHandler (the 6.x default). That mode is obsolete and " +
-               "is removed in Wolverine 7.0, where each handler type gets its own handler chain and its own local queue, as " +
-               "MultipleHandlerBehavior.Separated does today. After the upgrade these handlers no longer share one transaction, " +
-               "one error handling policy or one middleware pipeline, and IMessageBus.InvokeAsync() no longer runs them together. " +
-               "Set opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated to switch now, or merge the handlers into one " +
-               "class where they have to stay atomic. Call opts.AssertNoCombinedHandlers() to make this a startup failure. " +
-               "Combined message types:" + string.Concat(lines);
     }
 
     /// <summary>

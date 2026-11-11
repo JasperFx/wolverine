@@ -46,6 +46,10 @@ public class restore_v6_defaults_tests
             ["`DurabilitySettings.CompressAgentCommands`"] = (
                 o => o.Durability.CompressAgentCommands.ShouldBeTrue(),
                 o => o.Durability.CompressAgentCommands.ShouldBeFalse()),
+            // GH-5139
+            ["`DurabilitySettings.MessageIdentity`"] = (
+                o => o.Durability.MessageIdentity.ShouldBe(MessageIdentity.IdAndDestination),
+                o => o.Durability.MessageIdentity.ShouldBe(MessageIdentity.IdOnly)),
 
             // e.g.
             // ["`WolverineOptions.Something`"] = (

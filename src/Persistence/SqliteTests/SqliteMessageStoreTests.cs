@@ -27,6 +27,8 @@ public class SqliteMessageStoreTests : MessageStoreCompliance, IAsyncLifetime
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // GH-5139. IdAndDestination is the 7.0 default and has its own compliance class; keep IdOnly covered
+                opts.Durability.MessageIdentity = MessageIdentity.IdOnly;
                 opts.PersistMessagesWithSqlite(_database.ConnectionString);
 
                 opts.ListenAtPort(2345).UseDurableInbox();

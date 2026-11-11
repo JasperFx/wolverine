@@ -28,7 +28,6 @@ public class global_partitioning_with_separated_handlers
                     .IncludeType(typeof(CascadeHandlerTwo));
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 // First global partition
                 opts.MessagePartitioning.GlobalPartitioned(gp =>

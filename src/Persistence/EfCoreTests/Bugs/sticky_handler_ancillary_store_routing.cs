@@ -215,7 +215,6 @@ public class sticky_handler_ancillary_store_routing : IAsyncLifetime
                     .IncludeType<PermAgreeTwoHandler>()
                     .IncludeType<PermPlainHandler>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.Policies.AutoApplyTransactions();
                 opts.Policies.UseDurableLocalQueues();

@@ -31,7 +31,6 @@ public class Bug_5416_tracked_session_waits_for_every_fanned_out_copy
                     });
 
                 opts.Policies.DisableConventionalLocalRouting();
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<FanOut5416FastHandler>()

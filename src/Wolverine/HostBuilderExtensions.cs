@@ -238,6 +238,14 @@ public static class HostBuilderExtensions
 
         services.AddSingleton<IWolverineRuntime, WolverineRuntime>();
 
+#if NET11_0_OR_GREATER
+        // GH-5148. Registered unconditionally because budgets may be declared after UseWolverine()
+        // (ConfigureWolverine); the validator returns at once when none are. Registered only as
+        // IAsyncStartupValidator: a custom IStartupValidator would suppress every async validator.
+        services.TryAddEnumerable(ServiceDescriptor
+            .Singleton<Microsoft.Extensions.Options.IAsyncStartupValidator, ConnectionBudgetStartupValidator>());
+#endif
+
         // GH-3988: the Wolverine-derived Event Model source. GH-4152: a plain append, because the source
         // now declares EventModelProvenance.Derived and the merge resolves on that ladder rather than on
         // registration order. This used to be services.Insert(0, ...) solely so a derived role could not be

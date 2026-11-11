@@ -118,9 +118,6 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     public FailureRuleCollection Failures { get; set; } = new();
 
-    public MultipleHandlerBehavior MultipleHandlerBehavior { get; set; } =
-        MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler;
-
     public void ConfigureHandlerForMessage<T>(Action<HandlerChain> configure)
     {
         ConfigureHandlerForMessage(typeof(T), configure);
@@ -211,7 +208,8 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     /// <summary>
     /// The handler chain for this message type, or null if it has none. GH-5136: a message type handled by
     /// more than one handler type has one chain per handler type, and asking for "the" chain of it throws
-    /// <see cref="AmbiguousHandlerChainException"/>
+    /// <see cref="AmbiguousHandlerChainException"/>. Use <see cref="ChainsFor(Type)"/> or
+    /// <see cref="ChainFor(Type, Type)"/> for such a message type
     /// </summary>
     public HandlerChain? ChainFor(Type messageType)
     {
@@ -255,12 +253,39 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     }
 
     /// <summary>
-    /// GH-5136. The handler chain of <paramref name="messageType"/> that belongs to
-    /// <paramref name="handlerType"/>, or null
+    /// GH-5139. Every handler chain of <paramref name="messageType"/>, one per handler type, in discovery
+    /// order. Empty when the message type has no handler chain. Unlike <see cref="ChainFor(Type)"/>, this never
+    /// throws for a message type handled by more than one handler type
     /// </summary>
-    internal HandlerChain? ChainFor(Type messageType, Type handlerType)
+    public IReadOnlyList<HandlerChain> ChainsFor(Type messageType)
+    {
+        return GroupFor(messageType)?.Chains ?? [];
+    }
+
+    /// <summary>
+    /// GH-5139. Every handler chain of <typeparamref name="T"/>, one per handler type, in discovery order
+    /// </summary>
+    public IReadOnlyList<HandlerChain> ChainsFor<T>()
+    {
+        return ChainsFor(typeof(T));
+    }
+
+    /// <summary>
+    /// GH-5136 / GH-5139. The handler chain of <paramref name="messageType"/> that belongs to
+    /// <paramref name="handlerType"/> (the handler class, or the saga type for a saga), or null
+    /// </summary>
+    public HandlerChain? ChainFor(Type messageType, Type handlerType)
     {
         return GroupFor(messageType)?.Chains.FirstOrDefault(x => MessageHandlerGroup.HandlerTypeOf(x) == handlerType);
+    }
+
+    /// <summary>
+    /// GH-5139. The handler chain of <typeparamref name="TMessage"/> that belongs to
+    /// <typeparamref name="THandler"/>, or null
+    /// </summary>
+    public HandlerChain? ChainFor<TMessage, THandler>()
+    {
+        return ChainFor(typeof(TMessage), typeof(THandler));
     }
 
     /// <summary>
@@ -1112,12 +1137,6 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     /// </summary>
     internal bool AnyRequeuePolicies()
         => Failures.AnyRequeuePolicies() || EveryChain().Any(x => x.Failures.AnyRequeuePolicies());
-
-    /// <summary>
-    /// GH-5133. The chains that hold handlers from more than one handler class for the same message type.
-    /// GH-5136: Wolverine 7 always builds one chain per handler type, so there are none.
-    /// </summary>
-    internal HandlerChain[] CombinedHandlerChains() => [];
 
     /// <summary>
     /// Every handler chain in the graph, one per (message type, handler type). The same list as <see cref="Chains"/>

@@ -18,10 +18,8 @@ internal class TagHandlerPolicy : IHandlerPolicy
         foreach (var chain in chains)
         {
             // GH-5133. Keyed by handler TYPE rather than by handler call: a saga's Start/Handle/NotFound
-            // methods are several calls on one type and used to get no tag at all. A chain that combines
-            // several handler types (the obsolete ClassicCombineIntoOneLogicalHandler mode) is tagged with
-            // all of them. Captured here, at policy time, because SagaChain clears its handler calls while
-            // it generates code.
+            // methods are several calls on one type and used to get no tag at all. Captured here, at policy
+            // time, because SagaChain clears its handler calls while it generates code.
             //
             // GH-5224. The name is resolved (and cached) through HandlerChain.TelemetryHandlerTypeName() so
             // that RecordMessageCausationFrame reports exactly the same string to

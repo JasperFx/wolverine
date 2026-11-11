@@ -291,7 +291,7 @@ internal partial class OracleMessageStore
         insertCmd.Parameters.Add(new OracleParameter("executionTime", OracleDbType.TimeStampTZ) { Value = (object?)envelope.ScheduledTime ?? DBNull.Value });
         insertCmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = data });
         insertCmd.With("messageType", envelope.MessageType ?? string.Empty);
-        insertCmd.With("receivedAt", envelope.Destination?.ToString() ?? string.Empty);
+        insertCmd.With("receivedAt", DatabasePersistence.DeadLetterReceivedAt(envelope));
         insertCmd.With("source", envelope.Source ?? string.Empty);
         insertCmd.With("exceptionType", exception.DeadLetterExceptionType() ?? string.Empty);
         insertCmd.With("exceptionMessage", exception.DeadLetterExceptionMessage() ?? string.Empty);

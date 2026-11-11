@@ -70,6 +70,10 @@ public sealed partial class WolverineOptions
         // GH-5201: three transport defaults read V6DefaultsRestored when the transport starts: SQS
         // ExtendVisibilityWhileHandling, Kafka idempotent producers and RabbitMQ DrainWaitForPrefetch.
 
+        // GH-5139: 7.0 identifies an inbox row by envelope id and destination (MessageIdentity.IdAndDestination),
+        // 6.x by envelope id alone. Nothing to assign: the MessageIdentity getter reads Durability.V6DefaultsRestored,
+        // set above, so an explicit setting still wins.
+
         // Add one line here for each core default 7.x flips, a row to the 7.0 defaults
         // table in docs/guide/migration.md and an entry to restore_v6_defaults_tests.
         // Defaults owned by extension packages read V6DefaultsRestored instead.

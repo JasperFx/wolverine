@@ -1736,6 +1736,27 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     /// <summary>
+    /// GH-5139. An envelope can be dead-lettered without a destination -- a locally published message that fails
+    /// before routing, for one (GH-3166). Under <see cref="MessageIdentity.IdAndDestination"/>, the 7.0 default, the
+    /// destination is part of the dead letter table's primary key, so storing it as NULL refused the dead letter
+    /// </summary>
+    [Fact]
+    public async Task move_to_dead_letter_storage_with_no_destination()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Destination = null;
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(envelope, new DivideByZeroException("Kaboom!"));
+
+        var stored = await thePersistence.DeadLetters.DeadLetterEnvelopeByIdAsync(envelope.Id);
+
+        stored.ShouldNotBeNull();
+        stored.Envelope.Id.ShouldBe(envelope.Id);
+        stored.ExceptionMessage.ShouldBe("Kaboom!");
+    }
+
+    /// <summary>
     /// Contract test for https://github.com/JasperFx/wolverine/issues/2576.
     ///
     /// When a scheduled message is loaded from a store via

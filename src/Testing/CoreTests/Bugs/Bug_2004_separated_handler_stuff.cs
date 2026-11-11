@@ -15,7 +15,6 @@ public class Bug_2004_separated_handler_stuff
             .UseWolverine(opts =>
             {
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 

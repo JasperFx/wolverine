@@ -25,7 +25,7 @@ public class OracleMessageStoreTests : MessageStoreCompliance
             CommandQueuesEnabled = true,
             Role = MessageStoreRole.Main
         };
-        var durabilitySettings = new DurabilitySettings();
+        var durabilitySettings = new DurabilitySettings { MessageIdentity = MessageIdentity.IdOnly };
         var store = new OracleMessageStore(settings, durabilitySettings, dataSource,
             NullLogger<OracleMessageStore>.Instance);
 
@@ -34,6 +34,8 @@ public class OracleMessageStoreTests : MessageStoreCompliance
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // GH-5139. IdAndDestination is the 7.0 default and has its own compliance class; keep IdOnly covered
+                opts.Durability.MessageIdentity = MessageIdentity.IdOnly;
                 opts.PersistMessagesWithOracle(Servers.OracleConnectionString, "WOLVERINE");
                 opts.ListenAtPort(2345).UseDurableInbox();
                 opts.Durability.Mode = DurabilityMode.Solo;

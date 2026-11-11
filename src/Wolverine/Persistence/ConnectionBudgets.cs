@@ -104,6 +104,24 @@ public class ConnectionBudgets
     }
 
     /// <summary>
+    /// The declared budgets that cover none of <paramref name="knownServers"/>, rendered the way they
+    /// were declared (<c>host:port</c>, or the bare host for a host-wide budget). Matching follows
+    /// <see cref="MaxFor"/> exactly: server names compare case-insensitively, the engine is ignored,
+    /// and a host-wide registration covers every port on its host.
+    /// </summary>
+    internal IReadOnlyList<string> UnmatchedServers(IEnumerable<DatabaseServerId> knownServers)
+    {
+        var servers = knownServers.ToArray();
+
+        return _registrations
+            .Where(registration => !servers.Any(server =>
+                string.Equals(registration.ServerName, server.ServerName, StringComparison.OrdinalIgnoreCase)
+                && (registration.Port is null || registration.Port == server.Port)))
+            .Select(x => x.Port.HasValue ? $"{x.ServerName}:{x.Port}" : x.ServerName)
+            .ToArray();
+    }
+
+    /// <summary>
     /// Should the metrics sweeper probe connection budgets in this application?
     /// </summary>
     internal bool IsActive(DatabaseCardinality cardinality)
