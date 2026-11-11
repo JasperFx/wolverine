@@ -42,6 +42,7 @@ namespace Internal.Generated.WolverineHandlers
                 }
                 else
                 {
+                    ((Wolverine.Saga)aotSaga).LastModified = System.DateTimeOffset.UtcNow;
                     await sagaStorageOfGuidAndAotSaga_Slim.UpdateAsync(aotSaga, cancellation);
                 }
 

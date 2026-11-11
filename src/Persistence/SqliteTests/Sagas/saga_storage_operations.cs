@@ -192,6 +192,85 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
         ex.Message.ShouldContain(typeof(LightweightSaga).FullName!);
         ex.Message.ShouldContain(saga.Id.ToString());
     }
+    // GH-5345. The column keeps whatever precision the database has, so values read back are compared to
+    // what was written with a small tolerance; ordering is compared strictly between two values read back.
+    [Fact]
+    public async Task insert_and_update_stamp_last_modified_over_any_user_value()
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
+
+        var backdated = new DateTimeOffset(2001, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var saga = new LightweightSaga
+        {
+            Id = Guid.NewGuid(),
+            Name = "Xavier Worthy",
+            LastModified = backdated
+        };
+
+        var before = DateTimeOffset.UtcNow;
+        await using (var tx = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken))
+        {
+            await _theSchema.InsertAsync(saga, tx, CancellationToken.None);
+            await tx.CommitAsync(TestContext.Current.CancellationToken);
+        }
+
+        saga.LastModified.ShouldBeGreaterThanOrEqualTo(before);
+
+        LightweightSaga inserted;
+        await using (var tx = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken))
+        {
+            inserted = (await _theSchema.LoadAsync(saga.Id, tx, CancellationToken.None))!;
+        }
+
+        (inserted.LastModified - saga.LastModified).Duration().ShouldBeLessThan(TimeSpan.FromSeconds(1));
+
+        await Task.Delay(1100, TestContext.Current.CancellationToken);
+
+        inserted.Name = "Hollywood Brown";
+        inserted.LastModified = backdated;
+        await using (var tx = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken))
+        {
+            await _theSchema.UpdateAsync(inserted, tx, CancellationToken.None);
+            await tx.CommitAsync(TestContext.Current.CancellationToken);
+        }
+
+        LightweightSaga updated;
+        await using (var tx = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken))
+        {
+            updated = (await _theSchema.LoadAsync(saga.Id, tx, CancellationToken.None))!;
+        }
+
+        updated.Name.ShouldBe("Hollywood Brown");
+        updated.LastModified.ShouldBeGreaterThan(saga.LastModified);
+        (updated.LastModified - inserted.LastModified).Duration().ShouldBeLessThan(TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task load_backfills_last_modified_from_the_column_for_a_row_written_before_7_0()
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
+
+        // A body with no LastModified at all, as every saga written before 7.0 has
+        var id = Guid.NewGuid();
+        var body = $"{{\"Id\":\"{id}\",\"Name\":\"Old Saga\"}}";
+
+        var table = new SagaTableDefinition(typeof(LightweightSaga), null).TableName;
+        await using (var cmd = (Microsoft.Data.Sqlite.SqliteCommand)conn.CreateCommand())
+        {
+            cmd.CommandText = $"insert into {table} (id, body, version) values (@id, @body, 1)";
+            cmd.Parameters.AddWithValue("@id", id.ToString());
+            cmd.Parameters.AddWithValue("@body", body);
+            await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var tx = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
+        var loaded = await _theSchema.LoadAsync(id, tx, CancellationToken.None);
+
+        loaded!.Name.ShouldBe("Old Saga");
+        loaded.LastModified.ShouldNotBe(default);
+        (loaded.LastModified - DateTimeOffset.UtcNow).Duration().ShouldBeLessThan(TimeSpan.FromMinutes(5));
+    }
+
 }
 
 public class LightweightSaga : Saga
