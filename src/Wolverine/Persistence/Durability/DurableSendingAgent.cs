@@ -239,6 +239,18 @@ internal class DurableSendingAgent : SendingAgent
         }
     }
 
+    protected override Task afterDeadLetteringUnknownTenantAsync(Envelope envelope)
+    {
+        // GH-5196. The row, if a transaction wrote one, is in the store that transaction used. A database per
+        // tenant outbox cannot route a delete by an unknown tenant id, so prefer the envelope's own store
+        if (envelope.Store != null && envelope.Store is not MultiTenantedMessageStore)
+        {
+            return envelope.Store.Outbox.DeleteOutgoingAsync(envelope);
+        }
+
+        return _deleteOutgoingOne.PostAsync(envelope);
+    }
+
     public override Task MarkSuccessfulAsync(Envelope outgoing)
     {
         if (_deleteCoalescer != null)

@@ -354,8 +354,11 @@ public class queue_ordering_is_opt_in
                 var listener = opts.ListenToSqlServerQueue(queueName).PollingInterval(1.Hours());
                 if (buffered) listener.BufferedInMemory();
 
+                // GH-5192: both are 7.0 defaults, so the classic cases have to say so
                 if (optimizeThroughput) expression.OptimizeQueueThroughput();
+                else expression.UseClassicQueueLayout();
                 if (deterministicOrdering) expression.EnableDeterministicQueueOrdering();
+                else expression.DisableDeterministicQueueOrdering();
             }).StartAsync(ct);
 
         var runtime = host.GetRuntime();

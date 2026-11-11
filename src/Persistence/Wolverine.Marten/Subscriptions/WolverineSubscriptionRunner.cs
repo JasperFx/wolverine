@@ -9,6 +9,7 @@ using Marten.Services;
 using Marten.Subscriptions;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.RDBMS.MultiTenancy;
+using Wolverine.Persistence.EventSourcing.Subscriptions;
 using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Subscriptions;
@@ -31,8 +32,20 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
     public override async Task<IChangeListener> ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
         CancellationToken cancellationToken)
     {
-        var context = new MessageContext(_runtime);
+        var context = await SubscriptionMessageContext.StartAsync(_runtime, TenantFor(operations),
+            c => new MartenEnvelopeTransaction((IDocumentSession)operations, c));
 
+        await _subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);
+
+        return new WolverineCallbackForCascadingMessages(context);
+    }
+
+    /// <summary>
+    ///     The tenant a page of a Marten subscription belongs to, shared by the singleton and scoped runners
+    ///     (GH-5143: the scoped runner used to set none).
+    /// </summary>
+    internal static string? TenantFor(IDocumentOperations operations)
+    {
         // GH-4485. Only stamp the database identifier as the tenant when this store actually
         // spreads tenants across databases -- there the identifier IS the routing key that
         // MartenMessageDatabaseSource keys its per-tenant message databases by, so the outbox
@@ -50,44 +63,8 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
         // moment such a store used EventAppendMode.Quick, mt_quick_append_events' tenant guard
         // failed EVERY append to a pre-existing stream with
         // "P0001: The tenantid does not match the existing stream".
-        if (operations.DocumentStore.Options.Tenancy.Cardinality != DatabaseCardinality.Single)
-        {
-            context.TenantId = operations.Database.Identifier;
-        }
-
-        await context.EnlistInOutboxAsync(new MartenEnvelopeTransaction((IDocumentSession)operations, context));
-
-        await _subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);
-
-        return new WolverineCallbackForCascadingMessages(context);
-    }
-}
-
-internal class ScopedWolverineCallbackForCascadingMessages : IChangeListener
-{
-    private readonly IServiceScope _scope;
-    private readonly MessageContext _context;
-
-    public ScopedWolverineCallbackForCascadingMessages(IServiceScope scope, MessageContext context)
-    {
-        _scope = scope;
-        _context = context;
-    }
-
-    public async Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
-    {
-        try
-        {
-            await _context.FlushOutgoingMessagesAsync();
-        }
-        finally
-        {
-            _scope.SafeDispose();
-        }
-    }
-
-    public Task BeforeCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
-    {
-        return Task.CompletedTask;
+        return operations.DocumentStore.Options.Tenancy.Cardinality != DatabaseCardinality.Single
+            ? operations.Database.Identifier
+            : null;
     }
 }

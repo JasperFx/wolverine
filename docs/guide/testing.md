@@ -820,7 +820,8 @@ A few things to know:
   say yet, it just waits on every database before reading through the tenant. An act that carried no tenant at all is
   looked for in every database. That's still exact, because a correlation id only ever belongs to one act.
 * For an HTTP act, `WhenPosted()` sends the act's correlation id as the `X-Correlation-ID` header. For the events an
-  endpoint appends to record it, turn on `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` -- see
+  endpoint appends to record it, `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` has to be on, which
+  it is by default from Wolverine 7.0 -- see
   [applying the correlation id to every endpoint](/guide/http/middleware#applying-the-correlation-id-to-every-endpoint).
   If you make your own HTTP call inside `WhenTracked()`, send `ActCorrelationId` as that header yourself.
 

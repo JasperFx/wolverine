@@ -1,6 +1,6 @@
 using JasperFx;
 using Marten;
-using Marten.Exceptions;
+using JasperFx.Events;
 using Marten.Schema;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
@@ -61,7 +61,7 @@ public static class MartenConcurrencyExceptionMiddleware
         };
     }
 
-    // StreamLockedException does NOT derive from ConcurrencyException -- it is a MartenException --
+    // Before Marten 10, StreamLockedException did NOT derive from ConcurrencyException (it was a MartenException);
     // so the FetchForExclusiveWriting path needs its own handler. Catching only ConcurrencyException
     // silently misses it
     public static ProblemDetails OnException(StreamLockedException ex)
@@ -118,6 +118,16 @@ public static class ConcurrencyEndpoints
         await session.SaveChangesAsync();
 
         return "locked and written";
+    }
+
+    /// <summary>
+    /// GH-5142. Throws the store-agnostic lock failure that Polecat's and Fisher's StreamLockedException
+    /// derive from. Marten's own type does not, so only the core conflict mapping can catch this one
+    /// </summary>
+    [WolverinePost("/seatholds/{id}/store-agnostic-lock")]
+    public static string StoreAgnosticLock(Guid id)
+    {
+        throw new global::JasperFx.Events.StreamLockedException(id, null);
     }
 
     [WolverinePost("/seatnotes/create")]

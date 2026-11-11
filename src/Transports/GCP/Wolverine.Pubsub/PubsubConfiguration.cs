@@ -211,7 +211,7 @@ public class PubsubConfiguration : BrokerExpression<
     /// <summary>
     ///     Control how Wolverine routes outbound messages whose <see cref="Envelope.TenantId" /> is null or does not
     ///     match a registered tenant (broker-per-tenant). Defaults to
-    ///     <see cref="TenantedIdBehavior.FallbackToDefault" />, which uses the default/shared connection.
+    ///     <see cref="TenantedIdBehavior.DeadLetterUnknownTenants" /> since Wolverine 7.0 (GH-5196): an unknown tenant id is dead lettered, and a message with no tenant id uses the default/shared connection. <c>RestoreV6Defaults()</c> restores <see cref="TenantedIdBehavior.FallbackToDefault" />.
     /// </summary>
     public PubsubConfiguration TenantIdBehavior(TenantedIdBehavior behavior)
     {

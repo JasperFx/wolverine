@@ -975,22 +975,24 @@ transport's, unless its action changed them — are provisioned on each tenant s
 ### Where the Tenant Id Comes From
 
 A message that arrives on a tenant's dedicated connection always belongs to that tenant. On the shared connection
-a tenant-aware listener takes the tenant id from the message's `tenant-id` header, and otherwise from the subject's
-tenant prefix — so any producer that may publish to the subject can act in any tenant's name. When producers you
-do not control publish there, turn that off:
+a tenant-aware listener takes the tenant id only from the subject's tenant prefix, and only for a configured
+tenant; a message on the plain subject has no tenant, whatever its `tenant-id` header says. A broker is a trust
+boundary: a producer with publish rights on tenant A's subjects cannot stamp a message as tenant B.
+
+That is the default since Wolverine 7.0. In 6.x a tenant-aware listener trusted the `tenant-id` header first, so any
+producer that could publish to the subject could act in any tenant's name. `opts.RestoreV6Defaults()` brings that
+back, and so does setting `TrustTenantIdHeader` yourself, which is only safe when every producer that can publish
+there is trusted:
 
 ```csharp
 opts.UseNats(nats =>
 {
     nats.ConnectionString = "nats://shared:4222";
-    nats.TrustTenantIdHeader = false;
+    nats.TrustTenantIdHeader = true;
 })
 .AddTenant("tenant-a")
 .AddTenant("tenant-b");
-```
-
-The tenant id then comes only from the subject prefix, and only for a configured tenant; a message on the plain
-subject has no tenant, whatever its header says. Keep the shared connection out of the tenants' accounts as well:
+``` Keep the shared connection out of the tenants' accounts as well:
 in the same account, the shared and the tenant's listener both receive a core NATS message, and on a JetStream
 consumer they share, which of the two takes a message is left to chance.
 

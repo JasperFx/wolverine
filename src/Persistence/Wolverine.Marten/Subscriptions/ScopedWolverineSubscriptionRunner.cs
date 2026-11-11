@@ -5,6 +5,7 @@ using Marten.Events.Daemon;
 using Marten.Events.Daemon.Internals;
 using Marten.Subscriptions;
 using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Persistence.EventSourcing.Subscriptions;
 using Wolverine.Runtime;
 
 namespace Wolverine.Marten.Subscriptions;
@@ -30,13 +31,26 @@ internal class ScopedWolverineSubscriptionRunner<T> : SubscriptionBase where T :
     public override async Task<IChangeListener> ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
         CancellationToken cancellationToken)
     {
-        var context = new MessageContext(_runtime);
-        await context.EnlistInOutboxAsync(new MartenEnvelopeTransaction((IDocumentSession)operations, context));
+        // GH-5143: the same tenant as the singleton runner. This runner used to set none.
+        var context = await SubscriptionMessageContext.StartAsync(_runtime,
+            WolverineSubscriptionRunner.TenantFor(operations),
+            c => new MartenEnvelopeTransaction((IDocumentSession)operations, c));
 
-        using var scope = _services.CreateScope();
-        var subscription = scope.ServiceProvider.GetRequiredService<T>();
-        await subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);
+        // GH-5143: disposed by the callback, after the commit's flush. This was a `using`, so the scope
+        // was gone before the flush ran.
+        var scope = _services.CreateScope();
+        try
+        {
+            var subscription = scope.ServiceProvider.GetRequiredService<T>();
+            await subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);
+        }
+        catch
+        {
+            // No commit will follow, so no callback will dispose it
+            scope.Dispose();
+            throw;
+        }
 
-        return new ScopedWolverineCallbackForCascadingMessages(scope, context);
+        return new WolverineCallbackForCascadingMessages(context, scope);
     }
 }

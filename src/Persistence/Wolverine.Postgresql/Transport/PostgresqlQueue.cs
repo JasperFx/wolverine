@@ -2,6 +2,7 @@ using ImTools;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using Weasel.Core;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
 using Wolverine.Configuration;
@@ -23,6 +24,7 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, 
     private bool _hasInitialized;
     private IPostgresqlQueueSender? _sender;
     private ImHashMap<string, bool> _checkedDatabases = ImHashMap<string, bool>.Empty;
+    private ImHashMap<string, bool> _queueOrdering = ImHashMap<string, bool>.Empty;
     private readonly Lazy<QueueTable> _queueTable;
     private readonly Lazy<ScheduledMessageTable> _scheduledMessageTable;
 
@@ -220,16 +222,10 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, 
             await using var conn = await source.OpenConnectionAsync();
             try
             {
-                var queueDelta = await QueueTable.FindDeltaAsync(conn);
-                if (queueDelta.HasChanges())
-                {
-                    returnValue = false;
-                    return;
-                }
-
-                var scheduledDelta = await ScheduledTable.FindDeltaAsync(conn);
-
-                returnValue = returnValue && !scheduledDelta.HasChanges();
+                // GH-5192: through CreateDeltaAsync, not Table.FindDeltaAsync, so an adopted classic table
+                // is not reported as a pending change
+                var migration = await SchemaMigration.DetermineAsync(conn, CancellationToken.None, QueueTable, ScheduledTable);
+                returnValue = returnValue && migration.Difference == SchemaPatchDifference.None;
             }
             finally
             {
@@ -280,6 +276,41 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, 
         }
 
         _checkedDatabases = _checkedDatabases.AddOrUpdate(identifier, true);
+    }
+
+    /// <summary>
+    ///     GH-5192. Does this database dequeue with the <c>queue_order</c> tie-breaker? Only when it is
+    ///     enabled and neither queue table exists without the column: 7.0 adopts an existing classic table
+    ///     as it stands, and a database may hold a classic table next to one created after the upgrade.
+    /// </summary>
+    internal async Task<bool> UsesQueueOrderingAsync(string identifier, NpgsqlDataSource source)
+    {
+        if (!Parent.EnableDeterministicQueueOrdering) return false;
+        if (_queueOrdering.TryFind(identifier, out var known)) return known;
+
+        await using var conn = await source.OpenConnectionAsync();
+        try
+        {
+            await using var cmd = conn.CreateCommand(
+                $"select table_name, bool_or(column_name = '{Postgresql.Transport.QueueTable.QueueOrderColumn}') from information_schema.columns " +
+                "where table_schema = :schema and table_name = any(:names) group by table_name");
+            cmd.With("schema", QueueTable.Identifier.Schema);
+            cmd.With("names", new[] { QueueTable.Identifier.Name, ScheduledTable.Identifier.Name });
+
+            var ordered = true;
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                ordered = ordered && await reader.GetFieldValueAsync<bool>(1);
+            }
+
+            _queueOrdering = _queueOrdering.AddOrUpdate(identifier, ordered);
+            return ordered;
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 
     public async Task<long> CountAsync()

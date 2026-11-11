@@ -801,7 +801,7 @@ message's [tenant id](/guide/handlers/multi-tenancy), typically set through `Del
 opts.UseMqtt(mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("shared-broker")))
 
     // How should Wolverine route a message whose TenantId is null or unknown?
-    // FallbackToDefault (the default) uses the shared connection; TenantIdRequired
+    // FallbackToDefault (the 6.x default) uses the shared connection; TenantIdRequired
     // throws; IgnoreUnknownTenants silently drops it.
     .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
