@@ -84,6 +84,11 @@ public sealed partial class WolverineOptions
         // RejectUnparseableHeaderValues and automatic FluentValidation ProblemDetails read the flag when the
         // endpoints are mapped.
 
+        // GH-5523: in the Production profile a Wolverine host uses TypeLoadMode.Static with AssertAllPreGeneratedTypesExist in
+        // 7.0, 6.x JasperFx's Dynamic without the assertion. Nothing to assign: the JasperFxOptions post-configuration
+        // registered by UseWolverine() (ResolveProductionCodeGeneration) reads V6DefaultsRestored, so an explicit setting
+        // still wins.
+
         // Add one line here for each core default 7.x flips, a row to the 7.0 defaults
         // table in docs/guide/migration.md and an entry to restore_v6_defaults_tests.
         // Defaults owned by extension packages read V6DefaultsRestored instead.

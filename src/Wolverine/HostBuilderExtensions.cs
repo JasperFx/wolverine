@@ -148,6 +148,9 @@ public static class HostBuilderExtensions
         // warning and before any store reads it.
         services.PostConfigure<JasperFxOptions>(options.ClaimApplicationAssemblyReuseWarning);
 
+        // GH-5523 (7.0): pre-generated code by default in the Production profile, for Wolverine hosts only
+        options.ApplyProductionCodeGenerationDefault(services);
+
         services.AddSingleton<MessageStoreCollection>();
 
         // GH-4180. The single service that generated logical-deduplication code resolves, in message

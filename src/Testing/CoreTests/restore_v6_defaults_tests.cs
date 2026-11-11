@@ -1,3 +1,5 @@
+using JasperFx;
+using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using Shouldly;
 using Wolverine;
@@ -50,6 +52,10 @@ public class restore_v6_defaults_tests
             ["`WolverineOptions.EnableRelayOfUserName`"] = (
                 o => o.EnableRelayOfUserName.ShouldBeTrue(),
                 o => o.EnableRelayOfUserName.ShouldBeFalse()),
+            // GH-5523. Wolverine hosts only, Production profile only; resolved the way UseWolverine() resolves it
+            ["`JasperFxOptions.Production.GeneratedCodeMode` / `AssertAllPreGeneratedTypesExist` (Wolverine hosts)"] = (
+                o => assertProductionProfile(o, TypeLoadMode.Static, true),
+                o => assertProductionProfile(o, TypeLoadMode.Dynamic, false)),
 
             // e.g.
             // ["`WolverineOptions.Something`"] = (
@@ -163,6 +169,19 @@ public class restore_v6_defaults_tests
         options.RestoreV6Defaults();
 
         options.DefaultSerializer.ShouldBeSameAs(before);
+    }
+
+    private static void assertProductionProfile(WolverineOptions options, TypeLoadMode mode, bool assertion)
+    {
+        // This process is a test host, where the default is otherwise deliberately skipped
+        options.ApplyProductionCodeGenerationUnderTestRunner = true;
+
+        var jasperfx = new JasperFxOptions();
+        WolverineOptions.MarkProductionCodeGenerationUnset(jasperfx);
+        options.ResolveProductionCodeGeneration(jasperfx, assertionBefore: false);
+
+        jasperfx.Production.GeneratedCodeMode.ShouldBe(mode);
+        jasperfx.Production.AssertAllPreGeneratedTypesExist.ShouldBe(assertion);
     }
 
     private static void shouldHold(string setting, string what, Action assertion)
