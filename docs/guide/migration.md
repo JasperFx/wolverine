@@ -23,7 +23,8 @@ list.
 | `BackgroundReceiveLoop.UsesBlockingIteration` | opt-in dedicated thread for blocking iterations | **removed** *(BREAKING)* | Make the iteration async; see [transport author changes](#disposal-and-receive-loop-changes-for-transport-authors-breaking) |
 | `BatchedSender`, `InlineSendingAgent`, `ListeningAgent` | `IDisposable` | `IAsyncDisposable` only *(BREAKING)* | Call `await DisposeAsync()` |
 | `ISenderRequiresCallback` | extends `IDisposable` | does not *(BREAKING)* | Implement disposal on the sender itself if it needs it |
-| `UseAutomaticForwarderDiscovery()`, `WolverineOptions.EnableMessageCausationTracking`, `Policies.PublishAgentEvents`, `AgentAssignmentsChanged`, `ApplyDeduplication(IChain)`, Fisher `TransportSchemaName`, `MqttEnvelope.ShouldRequeue` | `[Obsolete]` or unused | **removed** *(BREAKING)* | See [dead and obsolete flags removed](#dead-and-obsolete-flags-removed-breaking) |
+| `UseAutomaticForwarderDiscovery()`, `WolverineOptions.EnableMessageCausationTracking`, `WolverineOptions.EnableAutomaticFailureAcks`, `Policies.PublishAgentEvents`, `AgentAssignmentsChanged`, `ApplyDeduplication(IChain)`, Fisher `TransportSchemaName`, `MqttEnvelope.ShouldRequeue` | `[Obsolete]` or unused | **removed** *(BREAKING)* | See [dead and obsolete flags removed](#dead-and-obsolete-flags-removed-breaking) |
+| `DurabilitySettings.EnableRecurringMessages` | public, "never set this by hand" | `internal` *(BREAKING)* | Delete the line; registering a recurring schedule sets it. See [dead and obsolete flags removed](#dead-and-obsolete-flags-removed-breaking) |
 | `INodeAgentPersistence.HasLeadershipLock()` | synchronous, pinged the lock's database session with blocking I/O | `HasLeadershipLockAsync(CancellationToken)` *(BREAKING for custom node persistence)* | See [leadership lock probe is asynchronous](#the-leadership-lock-probe-is-asynchronous-breaking) |
 | Several handler types for one message type | combined into one chain and one transaction by default (`ClassicCombineIntoOneLogicalHandler`) | **one chain per handler type**, each with its own transaction, local queue and generated type *(BREAKING)* | See [one handler chain per handler type](#one-handler-chain-per-handler-type-breaking); regenerate pre-generated code |
 | `WolverineOptions.MultipleHandlerBehavior`, the `MultipleHandlerBehavior` enum, `AssertNoBatchHandlerConflicts()` | `ClassicCombineIntoOneLogicalHandler` (default, `[Obsolete]` in 6.52) or `Separated` | **removed**: 7.0 always behaves like `Separated` *(BREAKING)* | Delete the setting and the call; `AssertNoCombinedHandlers()` is an `[Obsolete]` no-op for one major version |
@@ -367,6 +368,8 @@ code used one of them, it won't compile against 7.0 until you make the change be
 | `WolverineOptions.EnableMessageCausationTracking` | `opts.Tracking.EnableMessageCausationTracking`. The old property just forwarded to it |
 | `opts.Policies.PublishAgentEvents` | Delete the line. Nothing read it |
 | `AgentAssignmentsChanged` | Nothing published it after GH-5078. Wrap the runtime's `Observer` and handle `IWolverineObserver.AssignmentsChanged(AssignmentGrid, AgentCommands)` instead |
+| `WolverineOptions.EnableAutomaticFailureAcks` | Delete the line. It has been `false` by default since 4.6, and 7.0 behaves as if it were always `false`: moving a message to the error queue never sends a failure acknowledgement to the sender (GH-5521). If you had turned it on, a remote `InvokeAsync()` or `InvokeAsync<T>()` whose handler moves the message to the error queue now ends in a `TimeoutException` on the caller instead of a `WolverineRequestReplyException`. Failure replies for a missing handler or a missing response are still sent |
+| `DurabilitySettings.EnableRecurringMessages` | Delete the line. It is internal now (GH-5521): registering a recurring schedule through `opts.Schedules` sets it, which was always the only supported way to turn it on |
 | `ChainDeduplicationExtensions.ApplyDeduplication(this IChain)` | Call `ApplyDeduplication(rules, container)`, so a store that can write the deduplication claim inside its own transaction gets to |
 | `FisherIntegration.TransportSchemaName` | `FisherIntegration.PrefixName`. In 6.x setting `TransportSchemaName` set `PrefixName`, so set `PrefixName` to the same value to keep your queue table names |
 | `MqttEnvelope.ShouldRequeue` | Delete it. Nothing read it, so setting it never requeued anything |
@@ -768,11 +771,12 @@ Wolverine's metrics move to the OpenTelemetry naming conventions in 7.0 (GH-5128
 
 ### Changed during 6.x without a flag
 
-These changed in 6.x minor releases with no setting to put the old behaviour back in place, so `RestoreV6Defaults()`
-doesn't touch them. If you are coming from an early 6.x release, check each one:
+These changed in 6.x minor releases, so `RestoreV6Defaults()` doesn't put them back. If you are coming from an early
+6.x release, check each one:
 
 | Change | Shipped in | What to do |
 |---|---|---|
+| **Successful message processing is logged at `Debug`** (GH-3490), where it was logged at `Information`. A per-message `Information` log was a real throughput cost on busy listeners | 6.21 | Nothing, unless you rely on that log line: then call `opts.Policies.MessageSuccessLogLevel(LogLevel.Information)`. See [logging](/guide/logging) |
 | **Kafka `CommitMode` default** became `StoreThenAutoFlush` (GH-3150): offsets are stored per finished message and committed by the client's background committer, where earlier releases committed synchronously after every message | 6.13 | Nothing, unless you need strict per-message commits: then call `.CommitOffsets(CommitMode.PerMessage)`. See [Kafka behaviour changes](#kafka-behaviour-changes) for how commits run on Dekaf |
 | **GCP Pub/Sub competing consumers share one subscription** (GH-4615), named after the topic, where each node used to create its own `{subscription}.{node number}` and handle every message | 6.41 | Let the old nodes drain their per-node subscriptions, then delete them by hand; Wolverine doesn't. Expect duplicates during a rolling deploy unless the listener is durable. `.SubscriptionPerNode()` on a listener keeps the old behaviour. See [GCP Pub/Sub listening](/guide/messaging/transports/gcp-pubsub/listening) |
 | **NATS named consumers are created or updated on startup**: an existing JetStream consumer is brought in line with the listener's ack, `AckWait`, `MaxDeliver`, filter subject and `MaxAckPending` settings, where it used to be reused as it was | 6.47 | If you manage consumers outside the application, call `.Provisioning(NatsProvisioning.CreateOnly)` on `UseNats(...)`. See [NATS](/guide/messaging/transports/nats) |

@@ -235,7 +235,7 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
 
     /// <summary>
     /// Override the log level for Wolverine's built in logging for messages
-    /// being completed successfully. This is Information by default
+    /// being completed successfully. This is Debug by default (it was Information before 6.21, GH-3490)
     /// </summary>
     /// <param name="logLevel"></param>
     void MessageSuccessLogLevel(LogLevel logLevel);

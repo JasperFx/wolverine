@@ -66,7 +66,6 @@ public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
             {
                 opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
                 opts.Policies.AutoApplyTransactions();
-                opts.EnableAutomaticFailureAcks = false;
                 opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();
                 opts.ListenToRabbitQueue(queueName).UseDurableInbox();
                 opts.PublishMessage<TestMessage>().ToRabbitQueue(queueName);
@@ -96,7 +95,6 @@ public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
             {
                 opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
                 opts.Policies.AutoApplyTransactions();
-                opts.EnableAutomaticFailureAcks = false;
                 opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();
                 opts.ListenToRabbitQueue(queueName); // No UseDurableInbox()
                 opts.PublishMessage<TestMessage>().ToRabbitQueue(queueName);
@@ -126,7 +124,6 @@ public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
             {
                 opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
                 opts.Policies.AutoApplyTransactions();
-                opts.EnableAutomaticFailureAcks = false;
                 opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();
                 
                 // Global durable configs
@@ -162,7 +159,6 @@ public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
     //         {
     //             opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
     //             opts.Policies.AutoApplyTransactions();
-    //             opts.EnableAutomaticFailureAcks = false;
     //             opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup().UseQuorumQueues();
     //             
     //             // Global durable configs
@@ -199,7 +195,6 @@ public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
             {
                 opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
                 opts.Policies.AutoApplyTransactions();
-                opts.EnableAutomaticFailureAcks = false;
                 opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -265,7 +260,6 @@ public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
             {
                 opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
                 opts.Policies.AutoApplyTransactions();
-                opts.EnableAutomaticFailureAcks = false;
                 opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();
                 opts.ListenToRabbitQueue(queueName);
                 opts.PublishMessage<TestMessage>().ToRabbitQueue(queueName);

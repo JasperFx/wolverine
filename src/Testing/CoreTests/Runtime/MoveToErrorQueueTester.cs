@@ -23,32 +23,16 @@ public class MoveToErrorQueueTester
     }
 
     [Fact]
-    public async Task should_send_a_failure_ack_if_not_local()
+    public async Task never_sends_a_failure_ack_for_a_remote_destination()
     {
-        theRuntime.Options.EnableAutomaticFailureAcks = true;
-        
+        // GH-5521: EnableAutomaticFailureAcks (off by default since 4.6) is gone in 7.0, and with it the
+        // failure ack that moving a message to the error queue used to send
         theEnvelope.Destination = new Uri("tcp://localhost:9000");
-        
+
         await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
 
-        await theLifecycle
-                .Received()
-                .SendFailureAcknowledgementAsync($"Moved message {theEnvelope.Id} to the Error Queue.\n{theException}")
-            ;
-    }
-    
-    [Fact]
-    public async Task should_not_send_a_failure_ack_if_wolverine_options_latches_that()
-    {
-        theEnvelope.Destination = new Uri("local://foo");
-        theRuntime.Options.EnableAutomaticFailureAcks = false;
-        
-        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
-
-        await theLifecycle
-                .DidNotReceive()
-                .SendFailureAcknowledgementAsync($"Moved message {theEnvelope.Id} to the Error Queue.\n{theException}")
-            ;
+        await theLifecycle.Received().MoveToDeadLetterQueueAsync(theException);
+        await theLifecycle.DidNotReceive().SendFailureAcknowledgementAsync(Arg.Any<string>());
     }
     
     [Fact]
@@ -83,7 +67,6 @@ public class MoveToErrorQueueTester
     public async Task a_move_handed_back_for_redelivery_sends_no_failure_ack()
     {
         // The redelivery is a new envelope that comes back through here, so an ack now would be one per redelivery
-        theRuntime.Options.EnableAutomaticFailureAcks = true;
         theEnvelope.Destination = new Uri("tcp://localhost:9000");
         theLifecycle.MoveToDeadLetterQueueAsync(theException)
             .Returns(Task.FromException(new DeadLetterMoveFailedException("no dead letter stream", null)));
@@ -94,24 +77,8 @@ public class MoveToErrorQueueTester
     }
 
     [Fact]
-    public async Task the_failure_ack_is_sent_after_the_move()
+    public async Task any_other_failure_of_the_move_is_rethrown()
     {
-        theRuntime.Options.EnableAutomaticFailureAcks = true;
-        theEnvelope.Destination = new Uri("tcp://localhost:9000");
-
-        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
-
-        Received.InOrder(() =>
-        {
-            _ = theLifecycle.MoveToDeadLetterQueueAsync(theException);
-            _ = theLifecycle.SendFailureAcknowledgementAsync(Arg.Any<string>());
-        });
-    }
-
-    [Fact]
-    public async Task any_other_failure_of_the_move_still_sends_the_failure_ack()
-    {
-        theRuntime.Options.EnableAutomaticFailureAcks = true;
         theEnvelope.Destination = new Uri("tcp://localhost:9000");
         var moveFailure = new InvalidOperationException("the database is down");
         theLifecycle.MoveToDeadLetterQueueAsync(theException).Returns(Task.FromException(moveFailure));
@@ -120,7 +87,7 @@ public class MoveToErrorQueueTester
             theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null).AsTask());
 
         thrown.ShouldBeSameAs(moveFailure);
-        await theLifecycle.Received(1).SendFailureAcknowledgementAsync(Arg.Any<string>());
+        await theLifecycle.DidNotReceive().SendFailureAcknowledgementAsync(Arg.Any<string>());
     }
 
     [Fact]
@@ -142,16 +109,13 @@ public class MoveToErrorQueueTester
     [Fact]
     public async Task does_not_NRE_when_envelope_has_no_destination()
     {
-        // GH-3013: a malformed system envelope (no Destination) must not NRE on the
-        // `lifecycle.Envelope!.Destination!.Scheme` read before EnableAutomaticFailureAcks
-        // even gets a chance to short-circuit. Enabling acks reproduces the pre-fix bug.
-        theRuntime.Options.EnableAutomaticFailureAcks = true;
+        // GH-3013: a malformed system envelope (no Destination) must not NRE in the continuation
         theEnvelope.Destination = null;
 
-        // A throw here fails the test — pre-fix this NRE'd at the `scheme` variable init.
+        // A throw here fails the test
         await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
 
-        // No scheme → no failure ack attempted, and the move-to-DLQ still happens.
+        // No failure ack attempted, and the move-to-DLQ still happens.
         await theLifecycle.DidNotReceive().SendFailureAcknowledgementAsync(Arg.Any<string>());
         await theLifecycle.Received().MoveToDeadLetterQueueAsync(theException);
     }
