@@ -76,6 +76,49 @@ public class marten_concurrency_problem_details(AppFixture fixture) : Integratio
     }
 
     [Fact]
+    public async Task store_agnostic_stream_locked_failure_becomes_a_409_problem_details()
+    {
+        // GH-5142. JasperFx.Events.StreamLockedException is what Polecat's and Fisher's lock failures derive
+        // from, and Marten 10's does too. Before Marten 10 the core catch was the only one that could turn this into a 409
+        var id = Guid.NewGuid();
+
+        var result = await Host.Scenario(x =>
+        {
+            x.Post.Url($"/seatholds/{id}/store-agnostic-lock");
+            x.StatusCodeShouldBe(409);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+
+        (await result.ReadAsTextAsync()).ShouldContain(id.ToString());
+    }
+
+    [Fact]
+    public async Task marten_adds_its_own_lock_handler_only_while_its_type_is_not_the_jasperfx_one()
+    {
+        // GH-5142. The core catch for JasperFx.Events.StreamLockedException is always there. The Marten-specific
+        // catch is added by MapMartenConcurrencyFailuresToConflict() only while Marten's StreamLockedException
+        // does not derive from the JasperFx one, so this holds on both sides of Marten rebasing the type
+
+        // The chain's code is generated on its first request
+        await Host.Scenario(x =>
+        {
+            x.Post.Url($"/seatholds/{Guid.NewGuid()}/store-agnostic-lock");
+            x.StatusCodeShouldBe(409);
+        });
+
+        var chain = Host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!
+            .ChainFor("POST", "/seatholds/{id}/store-agnostic-lock");
+        chain.ShouldNotBeNull();
+        var code = chain.SourceCode.ShouldNotBeNull();
+
+        code.ShouldContain("JasperFx.Events.StreamLockedException");
+
+        var martenNeedsItsOwnCatch = !typeof(StreamLockedException)
+            .IsAssignableTo(typeof(global::JasperFx.Events.StreamLockedException));
+        code.Contains("Marten.Exceptions.StreamLockedException").ShouldBe(martenNeedsItsOwnCatch);
+    }
+
+    [Fact]
     public void stream_locked_now_derives_from_concurrency_exception_and_both_handlers_still_coexist()
     {
         // Marten 10 did what the earlier version of this test said should fail loudly: it moved

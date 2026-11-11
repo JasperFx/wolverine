@@ -264,6 +264,9 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
 
         configure?.Invoke(options);
 
+        // GH-5195: after the user's configuration, so RestoreV6Defaults() and explicit settings are both seen
+        options.ResolveVersionDefaults(runtime.Options.V6DefaultsRestored);
+
         options.Policies.Add(new ProblemDetailsFromMiddleware());
 
         // If ApiVersioning is enabled, append a finalization policy that re-positions the header

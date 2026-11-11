@@ -120,6 +120,16 @@ public static class ConcurrencyEndpoints
         return "locked and written";
     }
 
+    /// <summary>
+    /// GH-5142. Throws the store-agnostic lock failure that Polecat's and Fisher's StreamLockedException
+    /// derive from. Marten's own type does not, so only the core conflict mapping can catch this one
+    /// </summary>
+    [WolverinePost("/seatholds/{id}/store-agnostic-lock")]
+    public static string StoreAgnosticLock(Guid id)
+    {
+        throw new global::JasperFx.Events.StreamLockedException(id, null);
+    }
+
     [WolverinePost("/seatnotes/create")]
     public static async Task<Guid[]> CreateNotes(IDocumentSession session)
     {

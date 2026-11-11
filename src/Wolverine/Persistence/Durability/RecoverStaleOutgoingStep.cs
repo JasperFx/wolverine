@@ -145,14 +145,14 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
                 if (result == null)
                 {
                     _logger.LogError(
-                        "Gave up waiting on the send of recovered outgoing message {Envelope} to {Destination}. It is left in the outbox for a later durability pass",
-                        envelope, envelope.Destination);
+                        "Gave up waiting on the send of recovered outgoing message {Name}#{Id} to {Destination}. It is left in the outbox for a later durability pass",
+                        envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
                 }
                 else
                 {
                     _logger.LogError(result.Exception,
-                        "Unable to send recovered outgoing message {Envelope} to {Destination}. It is left in the outbox for a later durability pass",
-                        envelope, envelope.Destination);
+                        "Unable to send recovered outgoing message {Name}#{Id} to {Destination}. It is left in the outbox for a later durability pass",
+                        envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
                 }
 
                 failedEnvelopes.Add(envelope);
@@ -302,8 +302,8 @@ public sealed class RecoverStaleOutgoingStep : IDurabilityPassStep
         if (sender == null || agent.Latched)
         {
             _logger.LogWarning(
-                "Unable to send recovered outgoing message {Envelope} to {Destination} inline, so it is left in the outbox",
-                envelope, envelope.Destination);
+                "Unable to send recovered outgoing message {Name}#{Id} to {Destination} inline, so it is left in the outbox",
+                envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
             return null;
         }
 

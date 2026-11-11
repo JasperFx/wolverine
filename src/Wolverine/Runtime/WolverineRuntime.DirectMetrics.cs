@@ -134,13 +134,13 @@ public partial class WolverineRuntime
         public void MovedToErrorQueue(Envelope envelope, Exception ex)
         {
             _runtime.ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
-            _movedToErrorQueue(Logger, envelope, ex);
+            _movedToErrorQueue(Logger, envelope.GetMessageTypeName(), envelope.Id, ex);
             _sink.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId!));
         }
 
         public void DiscardedEnvelope(Envelope envelope)
         {
-            _undeliverable(Logger, envelope, null);
+            _undeliverable(Logger, envelope.GetMessageTypeName(), envelope.Id, null);
         }
 
         public void Requeued(Envelope envelope)

@@ -1,6 +1,7 @@
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Events;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -19,18 +20,26 @@ namespace Wolverine.Http.Runtime;
 /// </para>
 ///
 /// <para>
-/// It deliberately does <b>not</b> cover the store-specific exclusive-lock types, because
-/// <c>Marten.Exceptions.StreamLockedException</c> and <c>Polecat.Exceptions.StreamLockedException</c>
-/// derive from their own store's base exception rather than from <see cref="ConcurrencyException"/>, and
-/// neither type is referenceable from Wolverine.Http. Those are added by
-/// <c>MapMartenConcurrencyFailuresToConflict()</c> and <c>MapPolecatConcurrencyFailuresToConflict()</c> in
-/// the store integration packages, which is why a Marten or Polecat application should call one of those
-/// rather than this one directly.
+/// GH-5142: it also covers the exclusive-lock failure, <see cref="StreamLockedException"/> -- what
+/// <c>FetchForExclusiveWriting</c> throws on a contended stream. That type lives in JasperFx.Events and does
+/// not derive from <see cref="ConcurrencyException"/>. Polecat's and Fisher's own <c>StreamLockedException</c>
+/// derive from it, so this one handler covers both stores. Marten's does not yet (it still derives from
+/// <c>MartenException</c>), which is why a Marten application should call
+/// <c>MapMartenConcurrencyFailuresToConflict()</c> rather than this directly.
 /// </para>
 /// </summary>
 public static class ConcurrencyExceptionMiddleware
 {
     public static ProblemDetails OnException(ConcurrencyException ex, WolverineHttpOptions options)
+    {
+        return ConflictMapping.ToProblemDetails(ex, options);
+    }
+
+    /// <summary>
+    /// GH-5142. The store-agnostic exclusive-lock failure. A lost race for the stream lock, so a 409 the
+    /// client can retry, exactly like an optimistic concurrency failure.
+    /// </summary>
+    public static ProblemDetails OnException(StreamLockedException ex, WolverineHttpOptions options)
     {
         return ConflictMapping.ToProblemDetails(ex, options);
     }
@@ -57,7 +66,7 @@ public static class ConcurrencyExceptionMiddleware
 
 /// <summary>
 /// GH-4512. The one place a conflict ProblemDetails is shaped, so the core middleware and the store-specific
-/// ones registered from Wolverine.Http.Marten / Wolverine.Http.Polecat cannot drift apart.
+/// one registered from Wolverine.Http.Marten cannot drift apart.
 /// </summary>
 public static class ConflictMapping
 {
