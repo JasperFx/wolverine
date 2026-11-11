@@ -200,8 +200,10 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, ISto
             try
             {
                 // GH-5192: through CreateDeltaAsync, not Table.FindDeltaAsync, so an adopted classic table is
-                // not reported as a pending change
-                var migration = await SchemaMigration.DetermineAsync(conn, CancellationToken.None, QueueTable, ScheduledTable);
+                // not reported as a pending change. Oracle runs one statement per command, so through its own
+                // command builder, as Weasel's Oracle ApplyChangesAsync does
+                var migration = await SchemaMigration.DetermineAsync(conn, new OracleDbCommandBuilder(), CancellationToken.None,
+                    QueueTable, ScheduledTable);
                 returnValue = returnValue && migration.Difference == SchemaPatchDifference.None;
             }
             finally
