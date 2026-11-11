@@ -124,7 +124,7 @@ public class when_definining_sticky_handlers_by_fluent_interface
 public class when_building_a_handler_chain_for_sticky_handlers
 {
     private WolverineOptions theOptions = new();
-    private readonly HandlerChain theChain;
+    private readonly HandlerChain[] theChains;
 
     public when_building_a_handler_chain_for_sticky_handlers()
     {
@@ -133,28 +133,30 @@ public class when_building_a_handler_chain_for_sticky_handlers
         
         var blue = new HandlerCall(typeof(BlueStickyHandler), nameof(BlueStickyHandler.Handle));
         var green = new HandlerCall(typeof(GreenStickyHandler), nameof(GreenStickyHandler.Handle));
-        var grouping = new HandlerGrouping(typeof(StickyMessage), [blue, green]);
-        
-        theChain = new HandlerChain(theOptions, grouping, theOptions.HandlerGraph);
+
+        // GH-5136. The handler graph groups the calls into one chain per handler type
+        theOptions.HandlerGraph.AddRange([blue, green]);
+        theOptions.HandlerGraph.Group(theOptions);
+
+        theChains = theOptions.HandlerGraph.AllChains().Where(x => x.MessageType == typeof(StickyMessage)).ToArray();
     }
 
     [Fact]
     public void should_split_into_separate_chains()
     {
-        theChain.ByEndpoint.Count.ShouldBe(2);
+        theChains.Length.ShouldBe(2);
 
-        foreach (var chain in theChain.ByEndpoint)
+        foreach (var chain in theChains)
         {
             chain.Handlers.Count.ShouldBe(1);
+            chain.Endpoints.ShouldNotBeEmpty();
         }
-        
-        theChain.Handlers.Count.ShouldBe(0);
     }
 
     [Fact]
     public void use_a_local_queue_when_there_is_no_named_endpoint_for_the_attribute()
     {
-        var blue = theChain.ByEndpoint.Single(x => x.Handlers.Single().HandlerType == typeof(BlueStickyHandler));
+        var blue = theChains.Single(x => x.Handlers.Single().HandlerType == typeof(BlueStickyHandler));
         blue.Endpoints.Single().ShouldBeOfType<LocalQueue>()
             .EndpointName.ShouldBe("blue");
     }
@@ -162,7 +164,7 @@ public class when_building_a_handler_chain_for_sticky_handlers
     [Fact]
     public void use_a_named_endpoint_if_one_already_exists()
     {
-        var blue = theChain.ByEndpoint.Single(x => x.Handlers.Single().HandlerType == typeof(GreenStickyHandler));
+        var blue = theChains.Single(x => x.Handlers.Single().HandlerType == typeof(GreenStickyHandler));
         blue.Endpoints.Single().ShouldBeOfType<StubEndpoint>()
             .EndpointName.ShouldBe("green");
     }

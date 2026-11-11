@@ -28,8 +28,8 @@ namespace Wolverine.Marten;
 /// which has to stay lazy because middleware insertion participates in codegen.
 ///
 /// Mirrors the discovery rules in Chain.applyAttributesAndConfigureMethods (handler-type and
-/// handler-method, not message-type). Also walks per-endpoint sticky child chains (ByEndpoint) so
-/// MultipleHandlerBehavior.Separated keeps working - matches the AllChains() iteration that the
+/// handler-method, not message-type). The chains are every chain, one per (message type, handler type) since GH-5136 -
+/// matching the AllChains() iteration that the
 /// HostService loop already uses for the same reason (refs GH-2576).
 /// </summary>
 internal class MartenStoreEagerPolicy : IHandlerPolicy
@@ -39,11 +39,6 @@ internal class MartenStoreEagerPolicy : IHandlerPolicy
         foreach (var chain in chains)
         {
             applyTo(chain);
-
-            foreach (var byEndpoint in chain.ByEndpoint)
-            {
-                applyTo(byEndpoint);
-            }
         }
     }
 

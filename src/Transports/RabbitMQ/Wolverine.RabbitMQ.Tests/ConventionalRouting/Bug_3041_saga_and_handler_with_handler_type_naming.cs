@@ -13,8 +13,8 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
 // GH-3041: with NamingSource.FromHandlerType + MultipleHandlerBehavior.Separated, a message handled by
 // BOTH a saga (e.g. a Start method) and a regular handler only created a listener queue for the saga -
-// the regular handler's separated chain lives in chain.ByEndpoint, which the FromHandlerType listener
-// discovery ignored. Result: the regular handler never received the message.
+// the regular handler's separated chain was not the message type's root chain, which the FromHandlerType
+// listener discovery ignored. Result: the regular handler never received the message.
 public class Bug_3041_saga_and_handler_with_handler_type_naming : IAsyncLifetime, IDisposable
 {
     private IHost _host = null!;

@@ -17,8 +17,7 @@ namespace Wolverine.Fisher;
 /// and re-assigns the same value (idempotent) plus inserts the Fisher outbox-factory frame.
 ///
 /// <para>
-/// Walks the per-endpoint sticky child chains (<see cref="HandlerChain.ByEndpoint"/>) too so
-/// <c>MultipleHandlerBehavior.Separated</c> keeps working — matching the <c>AllChains()</c> iteration the
+/// The chains are every chain, one per (message type, handler type) since GH-5136 — matching the <c>AllChains()</c> iteration the
 /// HostService loop uses (refs GH-2576).
 /// </para>
 /// </summary>
@@ -29,11 +28,6 @@ internal class FisherStoreEagerPolicy : IHandlerPolicy
         foreach (var chain in chains)
         {
             applyTo(chain);
-
-            foreach (var byEndpoint in chain.ByEndpoint)
-            {
-                applyTo(byEndpoint);
-            }
         }
     }
 

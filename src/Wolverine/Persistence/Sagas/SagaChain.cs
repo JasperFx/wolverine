@@ -45,18 +45,10 @@ public class SagaChain : HandlerChain
 
     public SagaChain(WolverineOptions options, IGrouping<Type, HandlerCall> grouping, HandlerGraph parent) : base(options, grouping, parent)
     {
-        // After base constructor, saga handlers may have been moved to ByEndpoint (Separated mode).
-        // Check what's left in Handlers (not the original grouping).
+        // GH-5136. HandlerGraph builds one chain per (message type, handler type), so a saga chain holds the
+        // methods of exactly one saga type and nothing else
         var allSagaHandlers = Handlers.Where(x => x.HandlerType.CanBeCastTo<Saga>()).ToArray();
         var distinctSagaTypes = allSagaHandlers.DistinctBy(x => x.HandlerType).ToArray();
-
-        if (distinctSagaTypes.Length == 0)
-        {
-            // All sagas were separated into ByEndpoint chains — this parent is routing-only.
-            var anySaga = grouping.First(x => x.HandlerType.CanBeCastTo<Saga>());
-            SagaType = anySaga.HandlerType;
-            return;
-        }
 
         try
         {
@@ -85,48 +77,6 @@ public class SagaChain : HandlerChain
         }
     }
 
-    protected override void maybeAssignStickyHandlers(WolverineOptions options, IGrouping<Type, HandlerCall> grouping)
-    {
-        var notSaga = grouping.Where(x => !x.HandlerType.CanBeCastTo<Saga>());
-        foreach (var handlerCall in notSaga)
-        {
-            tryAssignStickyEndpoints(handlerCall, options);
-        }
-
-        var groupedSagas = grouping.Where(x => x.HandlerType.CanBeCastTo<Saga>())
-            .GroupBy(x => x.HandlerType).ToArray();
-
-        if (groupedSagas.Length > 1)
-        {
-            if (options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
-            {
-                var sagaTypes = groupedSagas.Select(x => x.Key.FullNameInCode()).Join(", ");
-                throw new InvalidSagaException(
-                    $"Multiple saga types ({sagaTypes}) handle message {MessageType.FullNameInCode()}. " +
-                    $"Set MultipleHandlerBehavior to Separated to allow this.");
-            }
-
-            // In Separated mode, create a separate SagaChain per saga type
-            foreach (var sagaGroup in groupedSagas)
-            {
-                var sagaCalls = sagaGroup.ToArray();
-                var sagaType = sagaGroup.Key;
-
-                var endpoint = options.Transports.GetOrCreate<LocalTransport>()
-                    .QueueFor(sagaType.FullNameInCode().ToLowerInvariant());
-
-                var chain = new SagaChain(sagaCalls, options.HandlerGraph, [endpoint]);
-
-                foreach (var call in sagaCalls)
-                {
-                    Handlers.Remove(call);
-                }
-
-                _byEndpoint.Add(chain);
-            }
-        }
-    }
-
     public SagaChain(HandlerCall handlerCall, HandlerGraph handlerGraph, Endpoint[] endpoints) : base(handlerCall, handlerGraph)
     {
         foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
@@ -142,28 +92,6 @@ public class SagaChain : HandlerChain
         {
             AuditedMembers.Add(new AuditedMember(SagaIdMember, SagaIdMember.Name, SagaIdMember.Name));
         }
-    }
-
-    internal SagaChain(HandlerCall[] sagaCalls, HandlerGraph handlerGraph, Endpoint[] endpoints)
-        : base(sagaCalls[0].Method.MessageType()!, handlerGraph)
-    {
-        foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
-        foreach (var call in sagaCalls) Handlers.Add(call);
-
-        var saga = sagaCalls.First();
-        SagaType = saga.HandlerType;
-        SagaMethodInfo = saga.Method;
-
-        // Pass ALL saga handler methods so [SagaIdentityFrom] is found regardless of declaration order
-        SagaIdMember = DetermineSagaIdMember(MessageType, SagaType,
-            sagaCalls.Select(x => x.Method).ToArray());
-
-        if (SagaIdMember != null && AuditedMembers.All(x => x.Member != SagaIdMember))
-        {
-            AuditedMembers.Add(new AuditedMember(SagaIdMember, SagaIdMember.Name, SagaIdMember.Name));
-        }
-
-        TypeName = GeneratedTypeNameFor(saga.HandlerType, HandlerSuffix);
     }
 
     public override bool TryInferMessageIdentity(out PropertyInfo? property)
@@ -363,8 +291,6 @@ public class SagaChain : HandlerChain
         var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container);
         frames.Add(ifNotCompleted);
     }
-
-    internal override bool HasDefaultNonStickyHandlers() => Handlers.Any();
 
     internal IEnumerable<Frame> DetermineSagaDoesNotExistSteps(Variable sagaId, Variable saga,
         IPersistenceFrameProvider frameProvider, IServiceContainer container)

@@ -29,11 +29,6 @@ internal sealed class ResultTypeReturnActionPolicy : IHandlerPolicy
         foreach (var chain in chains)
         {
             ApplyTo(chain, registry);
-
-            foreach (var byEndpoint in chain.ByEndpoint)
-            {
-                ApplyTo(byEndpoint, registry);
-            }
         }
     }
 

@@ -25,9 +25,8 @@ namespace Wolverine.Persistence;
 /// </para>
 ///
 /// <para>
-/// Walks the per-endpoint sticky child chains (<see cref="HandlerChain.ByEndpoint"/>) too, so
-/// <c>MultipleHandlerBehavior.Separated</c> keeps working — matching the <c>AllChains()</c> iteration
-/// that the HostService loop uses (refs GH-2576/GH-2944).
+/// The chains it is handed are every chain, one per (message type, handler type) since GH-5136 —
+/// matching the <c>AllChains()</c> iteration that the HostService loop uses (refs GH-2576/GH-2944).
 /// </para>
 /// </summary>
 internal class StorageAttributeEagerPolicy : IHandlerPolicy
@@ -37,11 +36,6 @@ internal class StorageAttributeEagerPolicy : IHandlerPolicy
         foreach (var chain in chains)
         {
             applyTo(chain);
-
-            foreach (var byEndpoint in chain.ByEndpoint)
-            {
-                applyTo(byEndpoint);
-            }
         }
     }
 
