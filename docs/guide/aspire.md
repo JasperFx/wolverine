@@ -187,7 +187,7 @@ Fisher service that doesn't use Wolverine, or when you'd rather call `UseWolveri
 
 In an application without Wolverine the three Wolverine checks report `Healthy` with a note.
 
-The three methods are also available separately as `ConfigureCritterStackOpenTelemetry()` and
+The two halves are also available separately as `ConfigureCritterStackOpenTelemetry()` and
 `AddCritterStackHealthChecks()`, if you only want half of it.
 
 ### Writing your own service defaults
