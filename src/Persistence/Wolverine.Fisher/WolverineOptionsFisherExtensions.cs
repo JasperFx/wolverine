@@ -114,15 +114,18 @@ public static class WolverineOptionsFisherExtensions
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
-        // CritterWatch / saga-explorer diagnostic surface — Fisher
-        // builds a SqliteMessageStore underneath, so the lightweight
-        // SQLite saga storage owns every Fisher-driven saga. The
-        // runtime aggregator picks this up alongside any other saga
-        // storages (Marten / EF Core / RavenDB) for mixed-storage hosts.
+        // CritterWatch / saga-explorer diagnostic surface. GH-5142: a Fisher
+        // saga is a Fisher document, not a row in Wolverine's lightweight
+        // SQLite saga tables, so this used to register DatabaseSagaStoreDiagnostics
+        // over tables Fisher sagas are never written to, and the saga explorer
+        // showed nothing. The document-store diagnostics read the documents,
+        // with the same implementation Marten uses.
         expression.Services.AddSingleton<Wolverine.Persistence.Sagas.ISagaStoreDiagnostics>(s =>
-            new DatabaseSagaStoreDiagnostics(
+            new Wolverine.Persistence.Sagas.DocumentStoreSagaStoreDiagnostics(
                 s.GetRequiredService<IWolverineRuntime>(),
-                (IMessageDatabase)s.GetRequiredService<IMessageStore>()));
+                s.GetRequiredService<IDocumentStore>(),
+                typeof(Wolverine.Fisher.Persistence.Sagas.FisherPersistenceFrameProvider),
+                "Fisher"));
 
         // GH-3365: do NOT bridge the primary store to the store-agnostic JasperFx.Events.IEventStore
         // here. Fisher's own AddFisher() registers IEventStore for the primary DocumentStore on every
