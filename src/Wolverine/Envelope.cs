@@ -452,6 +452,22 @@ public partial class Envelope : IHasTenantId
     /// </summary>
     public string? ParentId { get; set; }
 
+    public bool StartsNewLinkedTrace
+    {
+        get => _headers != null && _headers.ContainsKey(EnvelopeConstants.StartsNewLinkedTraceKey);
+        set
+        {
+            if (value)
+            {
+                Headers[EnvelopeConstants.StartsNewLinkedTraceKey] = "true";
+            }
+            else
+            {
+                _headers?.Remove(EnvelopeConstants.StartsNewLinkedTraceKey);
+            }
+        }
+    }
+
     /// <summary>
     ///     User defined tenant identifier for multi-tenancy strategies. This is
     ///     part of metrics reporting and message correlation

@@ -877,6 +877,42 @@ builder.UseWolverine(opts =>
 
 The setting also covers the `wolverine.deserialize` span described above.
 
+## Starting a New Trace per Message
+
+By default, the spans a message produces on the receiving side are children of the activity that sent it, so
+everything a message causes lands in the sender's trace. When one handler fans out into many messages, that trace
+grows with every message it sends, and the work for each message is hard to look at on its own.
+
+Mark an outgoing message to have the receiving side start a new trace instead. The first span Wolverine starts for
+that message is the root of a new trace, with a span link back to the activity that sent it, which is how the
+OpenTelemetry messaging conventions correlate a producer with its consumers. Spans started later for the same
+message, including retries, join the new trace. The correlation id is unchanged, so it still ties the whole flow
+together.
+
+```cs
+await bus.SendAsync(new ProcessItem(id), new DeliveryOptions { StartsNewLinkedTrace = true });
+```
+
+The same flag is available on the envelope, so a metadata rule can set it:
+
+```cs
+public class NewTracePerItem : IEnvelopeRule
+{
+    public void Modify(Envelope envelope)
+    {
+        if (envelope.Message is ProcessItem)
+        {
+            envelope.StartsNewLinkedTrace = true;
+        }
+    }
+}
+
+opts.MetadataRules.Add(new NewTracePerItem());
+```
+
+The flag travels as the `starts-new-linked-trace` header, so it crosses external transports and the durable inbox
+like any other header.
+
 ## Handler Type Tagging
 
 Wolverine automatically tags Open Telemetry activity spans with the handler type name during message processing. This provides per-handler tracing visibility in observability backends like Jaeger, Zipkin, or Honeycomb without any additional configuration.
