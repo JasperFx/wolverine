@@ -184,6 +184,14 @@ public partial class WolverineRuntime : IAgentRuntime
         var commands = await NodeController!.EvaluateAssignmentsAsync(nodes, assignments);
         var failures = await executeAgentCommandsAsync(commands, cancellationToken);
 
+        // GH-5458: Solo has no assignment grid, so the evaluation above issues no stop for a paused agent and no
+        // start for a released one. Carry the change out on this node now rather than leaving a pause to be
+        // ignored and a release to wait for the next CheckAssignmentPeriod.
+        if (Options.Durability.Mode == DurabilityMode.Solo && NodeController.HasStartedInSoloMode)
+        {
+            await NodeController.ApplySoloRestrictionsAsync();
+        }
+
         // The in-memory copy is otherwise only ever loaded at startup, but ListeningAgent reads it
         // on every start attempt to decide whether a listener is meant to stay paused — so without
         // this a listener paused through restrictions would keep restarting until the node did.
