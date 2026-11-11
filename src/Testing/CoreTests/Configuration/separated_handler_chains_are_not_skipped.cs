@@ -28,7 +28,6 @@ public class separated_handler_chains_are_not_skipped : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<InventoryModuleHandler>()
@@ -155,7 +154,6 @@ public class separated_saga_chains_are_not_skipped : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<FirstSharedWorkSaga>()

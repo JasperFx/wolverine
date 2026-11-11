@@ -45,5 +45,5 @@ public class DurabilitySettingsDescription
     public bool DurabilityMetricsEnabled { get; set; } = true;
     public string? OutboxStaleTime { get; set; }
     public string? InboxStaleTime { get; set; }
-    public string MessageIdentity { get; set; } = "IdOnly";
+    public string MessageIdentity { get; set; } = "IdAndDestination";
 }

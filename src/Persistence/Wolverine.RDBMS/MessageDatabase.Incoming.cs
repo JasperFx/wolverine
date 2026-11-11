@@ -168,8 +168,18 @@ public abstract partial class MessageDatabase<T>
             var builder = ToCommandBuilder();
             builder.Append($"delete from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} WHERE id = ");
             builder.AppendParameter(envelope.Id);
-            builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
-            builder.AppendParameter(envelope.Destination!.ToString(), AddressParameterType);
+            if (envelope.Destination == null)
+            {
+                // GH-5139. An envelope dead-lettered without a destination (GH-3166) used to throw here. Only a row
+                // stored with no destination can be its inbox row
+                builder.Append($" and {DatabaseConstants.ReceivedAt} is null");
+            }
+            else
+            {
+                builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
+                builder.AppendParameter(envelope.Destination.ToString(), AddressParameterType);
+            }
+
             builder.Append(';');
 
             DatabasePersistence.ConfigureDeadLetterCommands(Durability, envelope, exception, builder, this);

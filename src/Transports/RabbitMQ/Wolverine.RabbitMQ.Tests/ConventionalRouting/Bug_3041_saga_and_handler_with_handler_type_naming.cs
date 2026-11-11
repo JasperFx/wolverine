@@ -29,7 +29,6 @@ public class Bug_3041_saga_and_handler_with_handler_type_naming : IAsyncLifetime
                 .UseConventionalRouting(NamingSource.FromHandlerType);
 
             opts.Policies.DisableConventionalLocalRouting();
-            opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
             opts.Discovery.DisableConventionalDiscovery()
                 .IncludeType(typeof(Bug3041Saga))

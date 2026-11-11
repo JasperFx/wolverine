@@ -68,15 +68,10 @@ public class WolverineOptionsTests
     }
     
     [Fact]
-    public void multiple_handler_behavior_is_classic_mode_by_default()
+    public void default_id_behavior_is_id_and_destination()
     {
-        new WolverineOptions().MultipleHandlerBehavior.ShouldBe(MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler);
-    }
-
-    [Fact]
-    public void default_id_behavior_is_id_only()
-    {
-        new WolverineOptions().Durability.MessageIdentity.ShouldBe(MessageIdentity.IdOnly);
+        // GH-5139. IdOnly was the default through 6.x
+        new WolverineOptions().Durability.MessageIdentity.ShouldBe(MessageIdentity.IdAndDestination);
     }
 
     [Fact]

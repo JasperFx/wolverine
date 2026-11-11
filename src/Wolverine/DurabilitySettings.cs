@@ -72,14 +72,15 @@ public enum NodeRole
 public enum MessageIdentity
 {
     /// <summary>
-    /// The default, "classic" behavior where Wolverine only identifies a received message by the unique message id
+    /// The "classic" behavior, and the default before Wolverine 7.0, where Wolverine only identifies a received
+    /// message by the unique message id
     /// </summary>
     IdOnly,
     
     /// <summary>
-    /// Make Wolverine identify message identity uniqueness by a combination of the message id and destination (received_at). Use
-    /// this if you are having a single Wolverine process receive the same message from multiple external listeners. This may be
-    /// necessary for some "Modular Monolith" approaches
+    /// The default in Wolverine 7.0. Wolverine identifies a received message by the combination of the message id and
+    /// destination (received_at), so a single Wolverine process can receive the same message from multiple external
+    /// listeners -- one per handler type in a "Modular Monolith", for example
     /// </summary>
     IdAndDestination
 }
@@ -167,11 +168,21 @@ public class DurabilitySettings : IDescribeMyself
         Wolverine.Persistence.Durability.IMessageStore?>? ResolveMainStoreOnConflict { get; set; }
 
     /// <summary>
-    /// Direct Wolverine on how it judges message identity. "Classic" default is IdOnly. Switch to IdAndDestination
-    /// for Modular Monolith usage where you may be receiving the same message and processing separately in different
-    /// external transport listening endpoints
+    /// Direct Wolverine on how it judges the identity of a received message in the durable inbox. The default in
+    /// Wolverine 7.0 is <see cref="Wolverine.MessageIdentity.IdAndDestination"/> (GH-5139): Wolverine gives every
+    /// handler type of a message type its own handler chain, often on a listening endpoint of its own, so one
+    /// message fanned out by a broker to several of those endpoints in one process is several inbox rows with the
+    /// same envelope id. Wolverine 6.x defaulted to <see cref="Wolverine.MessageIdentity.IdOnly"/>, which
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/> restores. The two give the inbox table a different primary
+    /// key, so changing this changes the database schema
     /// </summary>
-    public MessageIdentity MessageIdentity { get; set; } = MessageIdentity.IdOnly;
+    public MessageIdentity MessageIdentity
+    {
+        get => _messageIdentity ?? (V6DefaultsRestored ? MessageIdentity.IdOnly : MessageIdentity.IdAndDestination);
+        set => _messageIdentity = value;
+    }
+
+    private MessageIdentity? _messageIdentity;
 
     /// <summary>
     /// GH-4012. The maximum number of times Wolverine will try to settle (ack/nack) a single broker

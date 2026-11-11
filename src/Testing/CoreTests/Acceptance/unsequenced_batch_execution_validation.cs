@@ -27,9 +27,8 @@ public class unsequenced_batch_execution_validation
                         .IncludeType(typeof(UnsequencedProbeHandler))
                         .IncludeType(typeof(UnsequencedProbeBatchHandler));
 
-                    // Both handlers legitimately run under Separated -- which is exactly when there are
-                    // two writers
-                    opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+                    // Both handlers legitimately run, each on its own chain -- which is exactly when there
+                    // are two writers
                     opts.BatchMessagesOf<UnsequencedProbe>();
 
                     opts.AssertBatchExecutionIsSequenced();
@@ -60,7 +59,6 @@ public class unsequenced_batch_execution_validation
                     .IncludeType(typeof(PartitionedProbeHandler))
                     .IncludeType(typeof(PartitionedProbeBatchHandler));
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 // Same harness GH-3867's own resolution test uses -- this is what gives the batch
                 // execution slots to share with its unbatched siblings
@@ -88,7 +86,6 @@ public class unsequenced_batch_execution_validation
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(BatchOnlyProbeBatchHandler));
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.BatchMessagesOf<BatchOnlyProbe>();
 
                 opts.AssertBatchExecutionIsSequenced();
@@ -136,7 +133,6 @@ public class unsequenced_batch_execution_validation
                     .IncludeType(typeof(UnsequencedProbeHandler))
                     .IncludeType(typeof(UnsequencedProbeBatchHandler));
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.BatchMessagesOf<UnsequencedProbe>();
 
                 // Deliberately NOT calling AssertBatchExecutionIsSequenced()

@@ -29,7 +29,7 @@ public class MySqlMessageStoreTests : MessageStoreCompliance
             CommandQueuesEnabled = true,
             Role = MessageStoreRole.Main
         };
-        var durabilitySettings = new DurabilitySettings();
+        var durabilitySettings = new DurabilitySettings { MessageIdentity = MessageIdentity.IdOnly };
         var store = new MySqlMessageStore(settings, durabilitySettings, dataSource,
             Microsoft.Extensions.Logging.Abstractions.NullLogger<MySqlMessageStore>.Instance);
 
@@ -39,6 +39,8 @@ public class MySqlMessageStoreTests : MessageStoreCompliance
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // GH-5139. IdAndDestination is the 7.0 default and has its own compliance class; keep IdOnly covered
+                opts.Durability.MessageIdentity = MessageIdentity.IdOnly;
                 opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "receiver");
                 opts.ListenAtPort(2345).UseDurableInbox();
                 opts.Durability.Mode = DurabilityMode.Solo;

@@ -260,12 +260,6 @@ public class DocumentationSamples
             // modules, which in turn should help Wolverine be more efficient with
             // your database
             opts.Durability.MessageStorageSchemaName = "wolverine";
-            
-            // Tell Wolverine that when you have more than one handler for the same
-            // message type, they should be executed separately and automatically
-            // "stuck" to separate local queues
-            opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-
 
             // *If* you may be using external message brokers in such a way that they
             // are "fanning out" a single message sent from an upstream system into
