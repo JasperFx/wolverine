@@ -974,7 +974,7 @@ observability tooling:
 
 | Tag                   | Description                                                                            |
 |-----------------------|----------------------------------------------------------------------------------------|
-| `message.type`        | The message type name                                                                  |
+| `wolverine.message.type` | The message type name (`message.type` before 7.0, see the [migration guide](/guide/migration#opentelemetry-meter-and-metric-names-breaking)) |
 | `message.destination` | The endpoint URI the message was sent to / received at (when known)                    |
 | `tenant.id`           | The tenant id (when the message is tenant-scoped)                                       |
 | `source`              | The Wolverine `ServiceName` of the application emitting the metric                      |
