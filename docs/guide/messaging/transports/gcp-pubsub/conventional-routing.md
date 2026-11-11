@@ -44,7 +44,7 @@ var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L130-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_pubsub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L211-L245' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -74,10 +74,10 @@ With `NamingSource.FromHandlerType`, each handler class gets its own dedicated t
 handler type. This ensures that each handler independently receives a copy of every message. Outgoing topic names
 are still derived from the message type.
 
-## Separated Handler Behavior <Badge type="tip" text="6.49" />
+## Several Handler Types for One Message Type <Badge type="tip" text="7.0" />
 
-With `MultipleHandlerBehavior.Separated`, every handler of a message type past the first is its own handler
-chain with its own listener. A Pub/Sub topic fans out to every subscription on it, so the convention gives each
+When a message type has more than one handler type, every handler type is its own handler chain
+([see here](/guide/handlers/#multiple-handlers-for-the-same-message-type)) with its own listener. A Pub/Sub topic fans out to every subscription on it, so the convention gives each
 of those handlers a subscription of its own on the message type's topic, named from the handler type the way
 `NamingSource.FromHandlerType` names a handler's topic. The sender is unchanged: it publishes to the one topic.
 
@@ -85,8 +85,6 @@ of those handlers a subscription of its own on the message type's topic, named f
 opts.UsePubsub("your-project-id")
     .AutoProvision()
     .UseConventionalRouting();
-
-opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 ```
 
 Each per-handler subscription is an endpoint of its own with the Uri `pubsub://{projectId}/{topic}/{subscription}`,

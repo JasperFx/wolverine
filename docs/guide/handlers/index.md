@@ -159,84 +159,62 @@ Also see [stateful sagas](/guide/durability/sagas) as they have some additional 
 See [return values](./return-values) for much more information about what types can be returned from a handler method and how Wolverine
 would use those values.
 
-## Multiple Handlers for the Same Message Type <Badge type="tip" text="3.6" />
+## Multiple Handlers for the Same Message Type <Badge type="tip" text="7.0" />
 
 ::: tip
 Pay attention to this section if you are trying to utilize a "Modular Monolith" architecture.
 :::
 
+Let's say that you want to take more than one action on a message type published in or to your
+application. In this case you'll probably have more than one handler class for the exact same
+message type. From Wolverine 7.0, **every handler type gets its own handler chain**: its own generated code, service
+scope, transaction, error handling policies and deduplication scope. Handlers of the same message do not commit
+together, and one failing does not roll back the others. There is nothing to configure.
+
 ::: info
-The `Separated` setting is useful even with `Saga` handlers as of Wolverine 5.10, but ignored
-in previous versions.
+Wolverine 6.x combined every handler of a message type into one logical handler that ran in one transaction by default
+(`MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler`), and only separated them under
+`MultipleHandlerBehavior.Separated`. 7.0 removed `MultipleHandlerBehavior` and always behaves the way `Separated` did.
+See [one handler chain per handler type](/guide/migration#one-handler-chain-per-handler-type-breaking) in the migration
+guide.
 :::
 
-Let's say that you want to take more than one action on a message type published in or to your
-application. In this case you'll probably have more than one handler method for the exact same
-message type. **The original concept for Wolverine was to effectively combine these individual handlers
-into one logical handler that executes together, and in the same logical transaction (if you use transactional middleware).**
-
-This very old decision has turned out to be harmful for folks trying to use Wolverine with newer ideas about "Modular Monolith"
-architectures or "Event Driven Architecture" approaches where you much more frequently take completely independent actions
-on the same message. 
-
-To alleviate this issue of combining handlers, Wolverine first introduced the [Sticky Handler concept](/guide/handlers/sticky) in Wolverine 3.0
-where you're able to explicitly separate handlers for the same message type and "stick" them against different listening endpoints or local queues.
-
-Now though, you can flip this switch in one place to ensure that Wolverine always "separates" handlers for the same message type
-into completely separate Wolverine message handlers and message subscriptions:
-
-<!-- snippet: sample_using_multiplehandlerbehavior -->
-<a id='snippet-sample_using_multiplehandlerbehavior'></a>
-```cs
-using var host = Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        // Right here, tell Wolverine to make every handler "sticky"
-        opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-    }).StartAsync();
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/using_separate_handlers.cs#L13-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiplehandlerbehavior' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-This makes a couple changes. For example, let's say that you have these handlers for the same message type of `MyApp.Orders.OrderCreated`:
+For example, let's say that you have these handlers for the same message type of `MyApp.Orders.OrderCreated`:
 
 1. `MyApp.Module1.OrderCreatedHandler`
 2. `MyApp.Module2.OrderCreatedHandler`
 3. `MyApp.Module3.OrderCreatedHandler`
 
-In the default `ClassicCombineIntoOneLogicalHandler` mode, Wolverine will combine all of those handlers into one logical
-handler that would be published (using default routing configuration) to a local queue named "MyApp.Orders.OrderCreated".
-By switching to the `Separated` mode, Wolverine will create three completely separate handlers and local subscriptions
-named:
+Wolverine creates three completely separate handler chains and local queues named:
 
-1. "MyApp.Module1.OrderCreatedHandler" with only executes the handler with the same full name
-2. "MyApp.Module2.OrderCreatedHandler" with only executes the handler with the same full name
-3. "MyApp.Module3.OrderCreatedHandler" with only executes the handler with the same full name
+1. "myapp.module1.ordercreatedhandler" which only executes `MyApp.Module1.OrderCreatedHandler`
+2. "myapp.module2.ordercreatedhandler" which only executes `MyApp.Module2.OrderCreatedHandler`
+3. "myapp.module3.ordercreatedhandler" which only executes `MyApp.Module3.OrderCreatedHandler`
 
-Likewise, if you were using conventional routing for an external message broker, using the `Separated` mode
-will create separate listeners for each individual handler type and key the naming off of the handler type.
-So if you were using the baseline Rabbit MQ conventions and `Separated`, you would end up with three
-Rabbit MQ queues that each had a "sticky" relationship to one particular handler like so:
+Publishing an `OrderCreated` message puts one copy on each of those queues. A message type with only one handler type
+keeps its local queue named for the message type.
+
+Likewise, if you are using conventional routing for an external message broker, Wolverine creates a separate listener
+for each individual handler type and keys the naming off of the handler type *if* there is more than one handler type
+for the message type. So with the baseline Rabbit MQ conventions you would end up with three Rabbit MQ queues that each
+had a "sticky" relationship to one particular handler like so:
 
 1. Listening to a queue named "MyApp.Module1.OrderCreatedHandler" that executes the `MyApp.Module1.OrderCreatedHandler` handler
 2. And you get the picture...
 
-In all cases, if you are using one of the built in message broker conventional routing approaches, Wolverine will create
-a separate listener for each handler using the handler type to determine the queue / subscription / topic names instead
-of the message type *if* there is more than one handler for that type.
+A few more rules:
 
-### Preparing for Wolverine 7.0
-
-`ClassicCombineIntoOneLogicalHandler` is still the default in Wolverine 6.x, but it is marked `[Obsolete]`. Wolverine 7.0
-removes `MultipleHandlerBehavior` and always behaves like `Separated` does today, with one handler chain per handler type.
-While the classic mode is in use, Wolverine logs one warning at startup that lists every message type whose handlers
-from more than one class were combined. Several methods on the same class for the same message, like a saga's `Start()` and
-`Handle()` methods, are not counted.
-
-To make that a startup failure, say in a CI build or a test, use `AssertNoCombinedHandlers()`:
-
-<!-- snippet: sample_assert_no_combined_handlers -->
-<!-- endSnippet -->
+* One saga type's `Start`, `Handle` and `NotFound` methods for a message are one saga chain. A saga and a plain handler
+  for the same message are two chains, as are several saga types for one message.
+* Two methods on one (non-saga) handler class for the same message type are a startup error. Merge them into one method
+  or move one to another class.
+* `InvokeAsync(message)` runs every chain inline, one after another, each in its own transaction. The first failure
+  stops the run and throws `HandlerInvocationException`; the chains that already ran are not rolled back.
+  `InvokeAsync<T>()` and `StreamAsync<T>()` run only the one chain whose handler returns `T`, and throw
+  `AmbiguousHandlerChainException` if no chain or more than one does.
+* `HandlerGraph.ChainFor(messageType)` throws `AmbiguousHandlerChainException` for such a message type. Use
+  `ChainsFor(messageType)` for all of its chains, or `ChainFor(messageType, handlerType)` (`ChainFor<TMessage, THandler>()`)
+  for one of them.
 
 ## Message Handler Parameters
 

@@ -522,7 +522,7 @@ same guards apply to every one of them, and a slice joined on an earlier key is 
 
 ### One message, several modules
 
-In a modular monolith running `MultipleHandlerBehavior.Separated`, every module's handler of the same message is
+In a modular monolith, every module's handler of the same message is
 its own chain, and each gets its own slice. A message with a single handler keeps its bare name; a message with
 several gets one slice per handler, named for its **domain** — `OrderPlaced (Billing)`, `OrderPlaced (Shipping)` —
 or, when no domain is declared, for its handler type: `OrderPlaced (MyApp.Billing.OrderPlacedHandler)`.
