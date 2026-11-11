@@ -91,13 +91,11 @@ public class marten_concurrency_problem_details(AppFixture fixture) : Integratio
     }
 
     [Fact]
-    public async Task marten_keeps_its_own_lock_handler_only_while_its_type_is_not_the_jasperfx_one()
+    public async Task marten_adds_its_own_lock_handler_only_while_its_type_is_not_the_jasperfx_one()
     {
-        // GH-5142. MapMartenConcurrencyFailuresToConflict() adds MartenStreamLockedMiddleware only while
-        // Marten's StreamLockedException does not derive from JasperFx's. When Marten rebases it, this
-        // fails, and the Marten-specific handler (and this test) can go
-        typeof(StreamLockedException).IsAssignableTo(typeof(global::JasperFx.Events.StreamLockedException))
-            .ShouldBeFalse();
+        // GH-5142. The core catch for JasperFx.Events.StreamLockedException is always there. The Marten-specific
+        // catch is added by MapMartenConcurrencyFailuresToConflict() only while Marten's StreamLockedException
+        // does not derive from the JasperFx one, so this holds on both sides of Marten rebasing the type
 
         // The chain's code is generated on its first request
         await Host.Scenario(x =>
@@ -110,8 +108,12 @@ public class marten_concurrency_problem_details(AppFixture fixture) : Integratio
             .ChainFor("POST", "/seatholds/{id}/store-agnostic-lock");
         chain.ShouldNotBeNull();
         var code = chain.SourceCode.ShouldNotBeNull();
-        code.ShouldContain("Marten.Exceptions.StreamLockedException");
+
         code.ShouldContain("JasperFx.Events.StreamLockedException");
+
+        var martenNeedsItsOwnCatch = !typeof(StreamLockedException)
+            .IsAssignableTo(typeof(global::JasperFx.Events.StreamLockedException));
+        code.Contains("Marten.Exceptions.StreamLockedException").ShouldBe(martenNeedsItsOwnCatch);
     }
 
     [Fact]
