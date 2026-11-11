@@ -620,7 +620,8 @@ public class DurabilitySettings : IDescribeMyself
 
     /// <summary>
     ///     Is the recurring (cron) message feature active on this application? Flipped by
-    ///     registering the first schedule through <c>opts.Schedules</c> — never set this by hand.
+    ///     registering the first schedule through <c>opts.Schedules</c>. Internal since 7.0 (GH-5521): it
+    ///     was public, but setting it by hand was never supported.
     ///
     ///     <para>
     ///     It exists as a durability setting because the message stores read it: when
@@ -631,7 +632,7 @@ public class DurabilitySettings : IDescribeMyself
     ///     without the feature, so an upgrade forces no migration on anyone who has not asked for it.
     ///     </para>
     /// </summary>
-    public bool EnableRecurringMessages { get; set; }
+    internal bool EnableRecurringMessages { get; set; }
 
     /// <summary>
     ///     Governs the page size for how many persisted incoming or outgoing messages

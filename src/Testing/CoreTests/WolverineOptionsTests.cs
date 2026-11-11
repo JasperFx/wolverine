@@ -62,12 +62,6 @@ public class WolverineOptionsTests
     }       
     
     [Fact]
-    public void failure_acks_are_NOT_enabled_by_default()
-    {
-        new WolverineOptions().EnableAutomaticFailureAcks.ShouldBeFalse();
-    }
-    
-    [Fact]
     public void default_id_behavior_is_id_only()
     {
         new WolverineOptions().Durability.MessageIdentity.ShouldBe(MessageIdentity.IdOnly);

@@ -387,13 +387,23 @@ opts.Services.AddScoped<IValidator<CreateCustomer>, CreateCustomerValidator>();
 See [Validation and AOT](/guide/aot.html#validation-and-aot) for the full story.
 :::
 
-Next, add this one single line of code to your Wolverine.Http bootstrapping:
+From Wolverine 7.0 that is all it takes: when the `WolverineFx.Http.FluentValidation` package is referenced and
+`UseFluentValidation()` is called, every Wolverine HTTP endpoint whose request type has a validator gets the
+validation middleware, which answers `400` with a `ValidationProblemDetails` body when validation fails. In 6.x you also
+had to add this line to your Wolverine.Http bootstrapping, and it still works, applying the middleware once however
+often it is called:
 
 ```csharp
 opts.UseFluentValidationProblemDetailMiddleware();
 ```
 
-as shown in context below in an application shown below:
+To keep the middleware off your HTTP endpoints, call `opts.DoNotUseFluentValidationProblemDetailMiddleware()` in
+`MapWolverineEndpoints()`. `opts.RestoreV6Defaults()` in `UseWolverine()` turns the automatic middleware off too, and an
+explicit `UseFluentValidationProblemDetailMiddleware()` still applies it after either. With
+`ExtensionDiscovery.ManualOnly`, the package is not loaded automatically; call `opts.UseFluentValidationProblemDetail()`
+in `UseWolverine()` to load it.
+
+The explicit call is shown in context below in an application:
 
 <!-- snippet: sample_using_configure_endpoints -->
 <a id='snippet-sample_using_configure_endpoints'></a>

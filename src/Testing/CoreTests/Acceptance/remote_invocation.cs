@@ -35,8 +35,6 @@ public class remote_invocation : IAsyncLifetime
             {
                 opts.ServiceName = "Receiver1";
                 opts.ListenAtPort(_receiver1Port);
-
-                opts.EnableAutomaticFailureAcks = true;
             }).StartAsync();
 
         _receiver2 = await Host.CreateDefaultBuilder()
@@ -44,8 +42,6 @@ public class remote_invocation : IAsyncLifetime
             {
                 opts.ServiceName = "Receiver2";
                 opts.ListenAtPort(_receiver2Port);
-                
-                opts.EnableAutomaticFailureAcks = true;
             }).StartAsync();
 
         _sender = await Host.CreateDefaultBuilder()
@@ -64,8 +60,6 @@ public class remote_invocation : IAsyncLifetime
                 opts.PublishMessage<Request4>().ToPort(_receiver1Port);
                 opts.PublishMessage<Request4>().ToPort(_receiver2Port);
                 opts.PublishMessage<AlwaysPublishRequest>().ToPort(_receiver1Port);
-
-                opts.EnableAutomaticFailureAcks = true;
             }).StartAsync();
     }
 
@@ -241,7 +235,9 @@ public class remote_invocation : IAsyncLifetime
     [Fact]
     public async Task sad_path_with_auto_routing()
     {
-        var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
+        // GH-5521: moving the message to the error queue sends the caller no failure acknowledgement in 7.0
+        // (WolverineOptions.EnableAutomaticFailureAcks was removed), so the caller times out
+        await Should.ThrowAsync<TimeoutException>(async () =>
         {
             var (session, response) = await _sender.TrackActivity()
                 .AlsoTrack(_receiver1, _receiver2)
@@ -250,9 +246,6 @@ public class remote_invocation : IAsyncLifetime
                 // This message is rigged to fail
                 .InvokeAndWaitAsync<Response1>(new Request1 { Name = "Soulcatcher" });
         });
-
-        ex.Message.ShouldContain("Request failed");
-        ex.Message.ShouldContain("System.Exception: You shall not pass!");
     }
 
     [Fact]
@@ -327,7 +320,8 @@ public class remote_invocation : IAsyncLifetime
     [Fact]
     public async Task sad_path_send_and_wait_for_acknowledgement_with_auto_routing()
     {
-        var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
+        // GH-5521: no failure acknowledgement when the message is moved to the error queue, so the caller times out
+        await Should.ThrowAsync<TimeoutException>(async () =>
         {
             var session = await _sender.TrackActivity()
                 .AlsoTrack(_receiver1, _receiver2)
@@ -337,9 +331,6 @@ public class remote_invocation : IAsyncLifetime
 
                 .InvokeMessageAndWaitAsync(new Request2 { Name = "Limper" });
         });
-
-        ex.Message.ShouldContain("Request failed");
-        ex.Message.ShouldContain("System.Exception: You shall not pass!");
     }
 
     [Fact]

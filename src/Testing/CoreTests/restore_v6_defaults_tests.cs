@@ -48,6 +48,10 @@ public class restore_v6_defaults_tests
             ["`DurabilitySettings.CompressAgentCommands`"] = (
                 o => o.Durability.CompressAgentCommands.ShouldBeTrue(),
                 o => o.Durability.CompressAgentCommands.ShouldBeFalse()),
+            // GH-5520
+            ["`WolverineOptions.EnableRelayOfUserName`"] = (
+                o => o.EnableRelayOfUserName.ShouldBeTrue(),
+                o => o.EnableRelayOfUserName.ShouldBeFalse()),
             // GH-5523. Wolverine hosts only, Production profile only; resolved the way UseWolverine() resolves it
             ["`JasperFxOptions.Production.GeneratedCodeMode` / `AssertAllPreGeneratedTypesExist` (Wolverine hosts)"] = (
                 o => assertProductionProfile(o, TypeLoadMode.Static, true),
@@ -82,6 +86,22 @@ public class restore_v6_defaults_tests
         if (!restoreFirst) options.RestoreV6Defaults();
 
         options.Durability.AlwaysProvisionOptionalSchemaObjects.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    public void an_explicit_EnableRelayOfUserName_wins_over_RestoreV6Defaults(bool restoreFirst, bool relay)
+    {
+        // GH-5520: whichever order the two are called in
+        var options = new WolverineOptions();
+        if (restoreFirst) options.RestoreV6Defaults();
+        options.EnableRelayOfUserName = relay;
+        if (!restoreFirst) options.RestoreV6Defaults();
+
+        options.EnableRelayOfUserName.ShouldBe(relay);
     }
 
     [Fact]
