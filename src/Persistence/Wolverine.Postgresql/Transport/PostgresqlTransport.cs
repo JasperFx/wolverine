@@ -141,7 +141,7 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
     /// </summary>
     public bool EnableDeterministicQueueOrdering
     {
-        get => _enableDeterministicQueueOrdering ?? !V6DefaultsRestored;
+        get => _enableDeterministicQueueOrdering ?? !QueueV6DefaultsRestored;
         set => _enableDeterministicQueueOrdering = value;
     }
 
@@ -152,11 +152,10 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
     internal bool DeterministicQueueOrderingIsExplicit => _enableDeterministicQueueOrdering.HasValue;
 
     /// <summary>
-    ///     GH-5192. Whether the application restored the Wolverine 6.x defaults.
+    ///     GH-5192. Whether the application restored the Wolverine 6.x defaults for the queue tables. Named apart from
+    ///     <c>BrokerTransport.V6DefaultsRestored</c> (GH-5196), which this transport inherits.
     /// </summary>
-    // Hides BrokerTransport.V6DefaultsRestored (GH-5196), which is only read when the transport initializes:
-    // the queue table layout is decided earlier, by the message store setup that sets this one (GH-5192)
-    internal new bool V6DefaultsRestored { get; set; }
+    internal bool QueueV6DefaultsRestored { get; set; }
 
     protected override IEnumerable<PostgresqlQueue> endpoints()
     {

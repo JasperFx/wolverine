@@ -138,7 +138,7 @@ public class queue_tables_new_only
 
             // Stands in for RestoreV6Defaults(): the classic layout as the default, not as an explicit setting
             using var restored = await startAsync(schema,
-                opts => opts.Transports.OfType<SqlServerTransport>().Single().V6DefaultsRestored = true);
+                opts => opts.Transports.OfType<SqlServerTransport>().Single().QueueV6DefaultsRestored = true);
             var queue = queueOf(restored);
 
             queue.OptimizeThroughput.ShouldBeFalse();
