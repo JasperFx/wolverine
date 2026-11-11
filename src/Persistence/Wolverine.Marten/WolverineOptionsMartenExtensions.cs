@@ -92,7 +92,7 @@ public static class WolverineOptionsMartenExtensions
         // GH-3956: Marten registers its own interfaces, never the store-agnostic JasperFx.Events.Documents
         // contracts its session types already implement, so a service depending on one of those could not
         // be resolved at all on a stock host. Handler PARAMETERS are satisfied by codegen
-        // (SharedDocumentOperationsSource); these registrations cover everything codegen does not see --
+        // (DocumentSessionContractSource, GH-5141); these registrations cover everything codegen does not see --
         // a service-located contract, or one injected into a class that a handler depends on.
         //
         // Deliberately delegating to IDocumentSession / IQuerySession rather than to a fresh session, so

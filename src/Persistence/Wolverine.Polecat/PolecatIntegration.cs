@@ -12,6 +12,7 @@ using Wolverine.Polecat.Persistence.Sagas;
 using Wolverine.Polecat.Publishing;
 using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
+using Wolverine.Persistence.DocumentStores.Codegen;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -71,12 +72,9 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
             new PrimeScopedSessionFrame<IDocumentSession, ScopedDocumentSessionHolder>());
 
         options.CodeGeneration.InsertFirstPersistenceStrategy<PolecatPersistenceFrameProvider>();
-        options.CodeGeneration.Sources.Add(new SessionVariableSource());
-        options.CodeGeneration.Sources.Add(new DocumentOperationsSource());
-        options.CodeGeneration.Sources.Add(new EventOperationsSource());
-        options.CodeGeneration.Sources.Add(new SharedEventOperationsSource());
-        options.CodeGeneration.Sources.Add(new SharedEventStoreOperationsSource());
-        options.CodeGeneration.Sources.Add(new SharedDocumentOperationsSource());
+        // GH-5141: Wolverine core's session and session-contract sources, given this store's types
+        options.CodeGeneration.Sources.Add(new DocumentSessionVariableSource(SessionTypes));
+        options.CodeGeneration.Sources.Add(new DocumentSessionContractSource(SessionTypes));
 
         options.Policies.Add<PolecatAggregateHandlerStrategy>();
 
@@ -132,6 +130,20 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
     ///     This does not have to be one of the tenant databases
     /// </summary>
     public string? MainDatabaseConnectionString { get; set; }
+
+    /// <summary>
+    ///     GH-5141: Polecat's session types, as Wolverine core's codegen sources need them
+    /// </summary>
+    internal static readonly DocumentSessionTypes SessionTypes = new()
+    {
+        StoreName = "Polecat",
+        DocumentSession = typeof(global::Polecat.IDocumentSession),
+        QuerySession = typeof(global::Polecat.IQuerySession),
+        OutboxedSessionFactory = typeof(Wolverine.Polecat.Publishing.OutboxedSessionFactory),
+        NativeSessionFactory = typeof(global::Polecat.ISessionFactory),
+        DocumentOperations = typeof(global::Polecat.IDocumentOperations),
+        EventOperations = typeof(global::Polecat.Events.IEventOperations)
+    };
 
     internal EventForwardingRouter EventRouter { get; } = new();
 
