@@ -38,7 +38,7 @@ internal class StoreIncomingEnvelopeParticipant : ITransactionParticipant
         await using var cmd = connection.CreateCommand();
         cmd.Transaction = transaction;
         cmd.CommandText =
-            $"insert into {_incomingTable} ({DatabaseConstants.IncomingFields}) values (@body, @id, @status, @ownerId, @scheduledTime, @attempts, @messageType, @destination, @keepUntil)";
+            $"insert into {_incomingTable} ({DatabaseConstants.IncomingFields}) values (@body, @id, @status, @ownerId, @scheduledTime, @attempts, @messageType, @destination, @keepUntil, @groupId)";
 
         cmd.Parameters.AddWithValue("@body", EnvelopeSerializer.Serialize(_envelope));
         cmd.Parameters.AddWithValue("@id", _envelope.Id);
@@ -52,6 +52,7 @@ internal class StoreIncomingEnvelopeParticipant : ITransactionParticipant
             (object?)_envelope.Destination?.ToString() ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@keepUntil",
             _envelope.KeepUntil.HasValue ? _envelope.KeepUntil.Value : DBNull.Value);
+        cmd.Parameters.AddWithValue("@groupId", (object?)DatabaseConstants.StorableGroupId(_envelope) ?? DBNull.Value);
 
         await cmd.ExecuteNonQueryAsync(token);
     }

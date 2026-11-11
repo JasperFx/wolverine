@@ -60,13 +60,24 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     /// Always yields at least one envelope per slice: a single envelope that cannot fit is a problem no
     /// amount of chunking solves, and silently yielding nothing would drop messages.
     /// </remarks>
-    protected IEnumerable<ArraySegment<Envelope>> chunkByParameterLimit(Envelope[] envelopes,
+    /// <summary>
+    /// Parameters the driver adds to every command on top of the ones Wolverine builds, kept out of the
+    /// <see cref="MaximumParameterCount"/> budget when a batch is chunked
+    /// </summary>
+    protected const int ReservedDriverParameters = 2;
+
+        protected IEnumerable<ArraySegment<Envelope>> chunkByParameterLimit(Envelope[] envelopes,
         int parametersPerEnvelope, int sharedParameters = 0)
     {
         // The shared parameters have to come off the budget BEFORE the division. Leaving them out puts
         // the chunk boundary exactly one envelope past what fits: the outgoing builder is 6N + 1 (owner
         // is shared), so 2100/6 = 350 chunks to precisely the size that was already known to fail.
-        var budget = Math.Max(1, MaximumParameterCount - sharedParameters);
+        //
+        // GH-5167: the budget also keeps back the two arguments SqlClient's sp_executesql call carries alongside the
+        // command's own parameters (the statement and the parameter definitions), which count against SQL Server's
+        // 2,100. With ten incoming columns, 2100 / 10 chunked to exactly 2,100 command parameters, which SQL Server
+        // refuses; nine columns had hidden it (2100 / 9 = 233, 2,097 parameters).
+        var budget = Math.Max(1, MaximumParameterCount - sharedParameters - ReservedDriverParameters);
         var perChunk = Math.Max(1, budget / Math.Max(1, parametersPerEnvelope));
 
         if (envelopes.Length <= perChunk)

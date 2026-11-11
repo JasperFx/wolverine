@@ -60,7 +60,7 @@ internal partial class PostgresqlMessageStore
         var table = QuotedTableNameFor(DatabaseConstants.IncomingTable);
         var insert =
             $"insert into {table}({DatabaseConstants.IncomingFields}) " +
-            "select * from unnest(@bodies, @ids, @statuses, @owners, @executions, @attempts, @types, @destinations, @keeps)";
+            "select * from unnest(@bodies, @ids, @statuses, @owners, @executions, @attempts, @types, @destinations, @keeps, @groups)";
 
         if (!Durability.EnableInboxPartitioning) return insert;
 
@@ -104,6 +104,7 @@ internal partial class PostgresqlMessageStore
         var types = new string[count];
         var destinations = new string?[count];
         var keeps = new DateTimeOffset?[count];
+        var groups = new string?[count];
 
         for (var i = 0; i < count; i++)
         {
@@ -122,6 +123,7 @@ internal partial class PostgresqlMessageStore
             types[i] = envelope.MessageType!;
             destinations[i] = envelope.Destination?.ToString();
             keeps[i] = envelope.KeepUntil;
+            groups[i] = DatabaseConstants.StorableGroupId(envelope);
         }
 
         var command = new NpgsqlCommand(batchedIncomingSql());
@@ -134,6 +136,7 @@ internal partial class PostgresqlMessageStore
         add(command, "types", NpgsqlDbType.Array | NpgsqlDbType.Varchar, types);
         add(command, "destinations", NpgsqlDbType.Array | NpgsqlDbType.Varchar, destinations);
         add(command, "keeps", NpgsqlDbType.Array | NpgsqlDbType.TimestampTz, keeps);
+        add(command, "groups", NpgsqlDbType.Array | NpgsqlDbType.Varchar, groups);
 
         return command;
     }
