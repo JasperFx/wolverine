@@ -130,6 +130,86 @@ public class queue_tables_new_only
         }
     }
 
+    [Fact]
+    public async Task restore_v6_defaults_gives_a_new_queue_table_the_6x_layout()
+    {
+        // GH-5511. RestoreV6Defaults() comes after the transport is registered, so it is read at startup
+        var schema = await newSchemaAsync();
+
+        try
+        {
+            using var host = await startAsync(schema, opts => opts.RestoreV6Defaults());
+            var queue = queueOf(host);
+
+            queue.Parent.EnableDeterministicQueueOrdering.ShouldBeFalse();
+            (await hasQueueOrderAsync(queue.QueueTable)).ShouldBeFalse();
+            (await hasQueueOrderAsync(queue.ScheduledTable)).ShouldBeFalse();
+            (await queue.UsesQueueOrderingAsync("check", queue.Parent.Store!.MySqlDataSource)).ShouldBeFalse();
+            (await queue.CheckAsync()).ShouldBeTrue();
+
+            await host.StopAsync(ct);
+        }
+        finally
+        {
+            await executeAsync($"DROP DATABASE IF EXISTS {schema}");
+        }
+    }
+
+    [Fact]
+    public async Task an_explicit_opt_in_wins_over_restore_v6_defaults()
+    {
+        var schema = await newSchemaAsync();
+
+        try
+        {
+            using var host = await startAsync(schema, opts => opts.RestoreV6Defaults(),
+                x => x.EnableDeterministicQueueOrdering());
+            var queue = queueOf(host);
+
+            queue.Parent.EnableDeterministicQueueOrdering.ShouldBeTrue();
+            (await hasQueueOrderAsync(queue.QueueTable)).ShouldBeTrue();
+            (await hasQueueOrderAsync(queue.ScheduledTable)).ShouldBeTrue();
+            (await queue.UsesQueueOrderingAsync("check", queue.Parent.Store!.MySqlDataSource)).ShouldBeTrue();
+
+            await host.StopAsync(ct);
+        }
+        finally
+        {
+            await executeAsync($"DROP DATABASE IF EXISTS {schema}");
+        }
+    }
+
+    [Fact]
+    public async Task an_existing_ordered_table_is_not_rebuilt_by_restore_v6_defaults()
+    {
+        var schema = await newSchemaAsync();
+
+        try
+        {
+            using (var current = await startAsync(schema, _ => { }))
+            {
+                (await hasQueueOrderAsync(queueOf(current).QueueTable)).ShouldBeTrue();
+                await current.StopAsync(ct);
+            }
+
+            using var restored = await startAsync(schema, opts => opts.RestoreV6Defaults());
+            var queue = queueOf(restored);
+
+            queue.Parent.EnableDeterministicQueueOrdering.ShouldBeFalse();
+            (await migrationScriptAsync(queue.QueueTable)).ShouldBeEmpty();
+            (await migrationScriptAsync(queue.ScheduledTable)).ShouldBeEmpty();
+            (await hasQueueOrderAsync(queue.QueueTable)).ShouldBeTrue();
+            (await hasQueueOrderAsync(queue.ScheduledTable)).ShouldBeTrue();
+            (await queue.CheckAsync()).ShouldBeTrue();
+
+            await restored.StopAsync(ct);
+        }
+        finally
+        {
+            await executeAsync($"DROP DATABASE IF EXISTS {schema}");
+        }
+    }
+
     private static async Task<IHost> startAsync(string schema, Action<WolverineOptions> configure,
         Action<MySqlPersistenceExpression>? transport = null, bool listen = true)
     {

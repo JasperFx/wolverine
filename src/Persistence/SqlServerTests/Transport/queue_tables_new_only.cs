@@ -136,9 +136,8 @@ public class queue_tables_new_only
                 await current.StopAsync(ct);
             }
 
-            // Stands in for RestoreV6Defaults(): the classic layout as the default, not as an explicit setting
-            using var restored = await startAsync(schema,
-                opts => opts.Transports.OfType<SqlServerTransport>().Single().QueueV6DefaultsRestored = true);
+            // GH-5511. RestoreV6Defaults(): the classic layout as the default, not as an explicit setting
+            using var restored = await startAsync(schema, opts => opts.RestoreV6Defaults());
             var queue = queueOf(restored);
 
             queue.OptimizeThroughput.ShouldBeFalse();
@@ -150,6 +149,93 @@ public class queue_tables_new_only
             layout.Ready.ShouldBe(new SqlServerTableLayout(true, false));
 
             await restored.StopAsync(ct);
+        }
+        finally
+        {
+            await dropSchemaAsync(schema);
+        }
+    }
+
+    [Fact]
+    public async Task restore_v6_defaults_gives_a_new_queue_table_the_classic_layout()
+    {
+        // GH-5511. RestoreV6Defaults() comes after the transport is registered, so it is read at startup
+        var schema = $"gh5511_new_{Guid.NewGuid():N}";
+        await dropSchemaAsync(schema);
+
+        try
+        {
+            using var host = await startAsync(schema, opts => opts.RestoreV6Defaults());
+            var queue = queueOf(host);
+
+            queue.OptimizeThroughput.ShouldBeFalse();
+            queue.Parent.EnableDeterministicQueueOrdering.ShouldBeFalse();
+            (await columnsAsync(queue.QueueTable)).ShouldNotContain("seq");
+            (await columnsAsync(queue.QueueTable)).ShouldNotContain("queue_order");
+            (await columnsAsync(queue.ScheduledTable)).ShouldNotContain("seq");
+            (await columnsAsync(queue.ScheduledTable)).ShouldNotContain("queue_order");
+            (await queue.CheckAsync()).ShouldBeTrue();
+
+            var layout = await queue.ResolveLayoutAsync("check", queue.Parent.Settings.ConnectionString!);
+            layout.Ready.ShouldBe(new SqlServerTableLayout(false, false));
+            layout.Scheduled.ShouldBe(new SqlServerTableLayout(false, false));
+
+            await host.StopAsync(ct);
+        }
+        finally
+        {
+            await dropSchemaAsync(schema);
+        }
+    }
+
+    [Fact]
+    public async Task an_explicit_throughput_layout_wins_over_restore_v6_defaults()
+    {
+        var schema = $"gh5511_throughput_{Guid.NewGuid():N}";
+        await dropSchemaAsync(schema);
+
+        try
+        {
+            using var host = await startAsync(schema, opts => opts.RestoreV6Defaults(),
+                x => x.OptimizeQueueThroughput());
+            var queue = queueOf(host);
+
+            queue.OptimizeThroughput.ShouldBeTrue();
+            queue.Parent.EnableDeterministicQueueOrdering.ShouldBeFalse();
+            (await columnsAsync(queue.QueueTable)).ShouldContain("seq");
+
+            var layout = await queue.ResolveLayoutAsync("check", queue.Parent.Settings.ConnectionString!);
+            layout.Ready.ShouldBe(new SqlServerTableLayout(true, false));
+
+            await host.StopAsync(ct);
+        }
+        finally
+        {
+            await dropSchemaAsync(schema);
+        }
+    }
+
+    [Fact]
+    public async Task an_explicit_queue_order_wins_over_restore_v6_defaults()
+    {
+        var schema = $"gh5511_ordered_{Guid.NewGuid():N}";
+        await dropSchemaAsync(schema);
+
+        try
+        {
+            using var host = await startAsync(schema, opts => opts.RestoreV6Defaults(),
+                x => x.EnableDeterministicQueueOrdering());
+            var queue = queueOf(host);
+
+            queue.OptimizeThroughput.ShouldBeFalse();
+            queue.Parent.EnableDeterministicQueueOrdering.ShouldBeTrue();
+            (await columnsAsync(queue.QueueTable)).ShouldContain("queue_order");
+            (await columnsAsync(queue.QueueTable)).ShouldNotContain("seq");
+
+            var layout = await queue.ResolveLayoutAsync("check", queue.Parent.Settings.ConnectionString!);
+            layout.Ready.ShouldBe(new SqlServerTableLayout(false, true));
+
+            await host.StopAsync(ct);
         }
         finally
         {
