@@ -246,7 +246,8 @@ app.MapWolverineEndpoints(opts =>
 ```
 
 That single call does everything the hand written recipe below used to: it maps every
-`JasperFx.ConcurrencyException` **and** Marten's `StreamLockedException` to a 409 `ProblemDetails`, applies
+`JasperFx.ConcurrencyException` (which includes `StreamLockedException`) **and**
+`ExistingStreamIdCollisionException` to a 409 `ProblemDetails`, applies
 to the transactional chains, and stamps `ProducesProblem(409)` so your OpenAPI document advertises the
 conflict. It takes the same optional predicate `AddMiddleware` does if you want to narrow it further:
 
@@ -276,15 +277,22 @@ A `null` `Status` is filled in as 409.
 | Marten | `opts.MapMartenConcurrencyFailuresToConflict()` |
 | Polecat, Fisher, or no event store | `opts.MapConcurrencyFailuresToConflict()` |
 
-`MapConcurrencyFailuresToConflict()` maps both `JasperFx.ConcurrencyException` and
-`JasperFx.Events.StreamLockedException`, which `FetchForExclusiveWriting` throws on a contended stream. Marten 10,
-Polecat 6 and Fisher 2 all throw that shared type, so the core call covers every store, and the 7.0 default is the
-core call. `MapMartenConcurrencyFailuresToConflict()` and `MapPolecatConcurrencyFailuresToConflict()` still work
-and do the same thing.
+`MapConcurrencyFailuresToConflict()` is one mapping over the shared JasperFx.Events exception types:
+
+* `JasperFx.ConcurrencyException` and everything deriving from it, including
+  `JasperFx.Events.StreamLockedException`, which `FetchForExclusiveWriting` throws on a contended stream (a
+  `ConcurrencyException` since JasperFx 3.0)
+* `JasperFx.Events.ExistingStreamIdCollisionException`, which `StartStream` throws when the stream id is already
+  taken <Badge type="tip" text="7.0" />
+
+Marten 10, Polecat 6 and Fisher 2 all throw those shared types, so the core call covers every store, and the 7.0
+default is the core call. `MapMartenConcurrencyFailuresToConflict()` and `MapPolecatConcurrencyFailuresToConflict()`
+still work and do the same thing.
 
 Before Marten 10, `Marten.Exceptions.StreamLockedException` derived from `MartenException` instead, so
 `MapConcurrencyFailuresToConflict()` alone left Marten's exclusive locking path returning 500s and
-`MapMartenConcurrencyFailuresToConflict()` added Marten's type.
+`MapMartenConcurrencyFailuresToConflict()` added Marten's type. Wolverine 7.0 removed the
+`MartenStreamLockedMiddleware` and `PolecatStreamLockedMiddleware` classes that did that.
 :::
 
 A commit that fails more than one version check at once -- two `[UseOptimisticConcurrency]` documents in one
@@ -346,9 +354,10 @@ one is easy to miss:
 /// </summary>
 public static class MartenConcurrencyExceptionMiddleware
 {
-    // Marten's optimistic concurrency failures -- EventStreamUnexpectedMaxEventIdException from
-    // the event store, and document level concurrency violations -- all derive from
-    // JasperFx.ConcurrencyException, so one handler covers them
+    // Every optimistic concurrency failure -- EventStreamUnexpectedMaxEventIdException from the
+    // event store, document level concurrency violations, and since JasperFx 3.0 the
+    // StreamLockedException that FetchForExclusiveWriting throws on a contended stream -- derives
+    // from JasperFx.ConcurrencyException, so one handler covers them
     public static ProblemDetails OnException(ConcurrencyException ex)
     {
         return new ProblemDetails
@@ -359,10 +368,9 @@ public static class MartenConcurrencyExceptionMiddleware
         };
     }
 
-    // StreamLockedException does NOT derive from ConcurrencyException -- it is a MartenException --
-    // so the FetchForExclusiveWriting path needs its own handler. Catching only ConcurrencyException
-    // silently misses it
-    public static ProblemDetails OnException(StreamLockedException ex)
+    // StartStream with an id that is already taken throws ExistingStreamIdCollisionException,
+    // which is NOT a ConcurrencyException, so it needs its own handler
+    public static ProblemDetails OnException(ExistingStreamIdCollisionException ex)
     {
         return new ProblemDetails
         {
@@ -373,15 +381,17 @@ public static class MartenConcurrencyExceptionMiddleware
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/ConcurrencyEndpoints.cs#L32-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_marten_concurrency_exception_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/ConcurrencyEndpoints.cs#L43-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_marten_concurrency_exception_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning `StreamLockedException` before Marten 10
-`EventStreamUnexpectedMaxEventIdException` and Marten's document level concurrency violations derive from
-`JasperFx.ConcurrencyException`, so a single handler covers both. Before Marten 10, `Marten.Exceptions.StreamLockedException`
--- what `FetchForExclusiveWriting` throws on a contended stream -- derived from `MartenException` instead, and a
-recipe that caught only `ConcurrencyException` silently left the exclusive locking path returning 500s. Marten 10
-throws the shared `JasperFx.Events.StreamLockedException`, which does derive from `ConcurrencyException`.
+`EventStreamUnexpectedMaxEventIdException`, document level concurrency violations and, since JasperFx 3.0,
+`JasperFx.Events.StreamLockedException` all derive from `JasperFx.ConcurrencyException`, so a single handler
+covers them. Before Marten 10, `Marten.Exceptions.StreamLockedException` -- what `FetchForExclusiveWriting` throws
+on a contended stream -- derived from `MartenException` instead, and a recipe that caught only
+`ConcurrencyException` silently left the exclusive locking path returning 500s. Wolverine 7 requires
+Marten 10, so that trap is gone. `ExistingStreamIdCollisionException` is not a `ConcurrencyException` on any
+version.
 :::
 
 Register it across the endpoints that commit Marten sessions:

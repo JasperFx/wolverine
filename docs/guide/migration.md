@@ -134,15 +134,13 @@ Five Wolverine.Http defaults flipped in 7.0 (GH-5195). They are the rows of the 
   so an application that pre-generates F# code for an endpoint with a parsed query string parameter has to set
   `RejectUnparseableQueryValues = false`.
 - **Concurrency failures answer 409.** The commit-time concurrency failures (`JasperFx.ConcurrencyException` and
-  everything deriving from it, plus `JasperFx.Events.StreamLockedException`) on a transactional endpoint now answer 409
-  with ProblemDetails instead of escaping as a 500, and the OpenAPI document advertises the 409. If you call
-  `MapConcurrencyFailuresToConflict()`, `MapMartenConcurrencyFailuresToConflict()` or
+  everything deriving from it, which since JasperFx 3.0 includes `JasperFx.Events.StreamLockedException`, plus
+  `JasperFx.Events.ExistingStreamIdCollisionException` from a `StartStream` whose id is already taken) on a
+  transactional endpoint now answer 409 with ProblemDetails instead of escaping as a 500, and the OpenAPI document
+  advertises the 409. If you call `MapConcurrencyFailuresToConflict()`, `MapMartenConcurrencyFailuresToConflict()` or
   `MapPolecatConcurrencyFailuresToConflict()` yourself, your call replaces the default, so a custom filter or
-  ProblemDetails factory still applies. With Marten 9.x, Marten's own `StreamLockedException` (from
-  `FetchForExclusiveWriting`) does not derive from the JasperFx type yet, so keep calling
-  `MapMartenConcurrencyFailuresToConflict()` if you want that one mapped to a 409 too. Marten 10 rebases it onto the
-  JasperFx type, and from then on the default covers it. See
-  [exception handling](/guide/http/exception-handling).
+  ProblemDetails factory still applies. Marten 10, Polecat 6 and Fisher 2 all throw the shared JasperFx.Events types,
+  so the default covers every store with one mapping. See [exception handling](/guide/http/exception-handling).
 - **An unknown tenant answers 404.** An `UnknownTenantIdException` on an endpoint marked `[RequiresTenant]` or
   `[MaybeTenanted]` now answers 404 with ProblemDetails instead of escaping as a 500. A *missing* tenant id still
   answers 400.
@@ -515,10 +513,12 @@ changed is what they do:
   aggregate and saga ids as Polecat already did.
 * **`[DocumentExists]` / `[DocumentDoesNotExist]`** check the chain's own store, so a chain routed to an ancillary Marten
   store no longer asks the main `IDocumentStore`.
-* **`MapConcurrencyFailuresToConflict()`** maps `JasperFx.Events.StreamLockedException` to 409, which covers Polecat's and
-  Fisher's lock exceptions. Under Marten 9.x, Marten's own `StreamLockedException` doesn't derive from it, so keep
-  calling `MapMartenConcurrencyFailuresToConflict()` for that one (see the
-  [Wolverine.Http defaults](#wolverine-http-defaults-that-changed-in-7-0)).
+* **One 409 mapping for every store** (GH-5459). `MapConcurrencyFailuresToConflict()` maps `JasperFx.ConcurrencyException`
+  (including `JasperFx.Events.StreamLockedException`) and `JasperFx.Events.ExistingStreamIdCollisionException` to 409,
+  which covers Marten's, Polecat's and Fisher's exceptions alike. The `MartenStreamLockedMiddleware` and
+  `PolecatStreamLockedMiddleware` classes are **removed**; they were no longer registered by anything. Remove any
+  `AddMiddleware(typeof(MartenStreamLockedMiddleware))` of your own, since the core mapping already catches that type
+  (see the [Wolverine.Http defaults](#wolverine-http-defaults-that-changed-in-7-0)).
 * New store-agnostic side effects on `Storage`: `Storage.DeleteById<T>(id)`, `Storage.DeleteWhere<T>(filter)`,
   `Storage.ArchiveStream(id)` and `Storage.TombstoneStream(id)`.
 

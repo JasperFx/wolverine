@@ -77,7 +77,7 @@ public class restore_v6_http_defaults
     {
         // Under Marten 9.x, Marten's StreamLockedException derived from MartenException, so only an explicit
         // MapMartenConcurrencyFailuresToConflict() mapped it. Marten 10 throws the shared JasperFx.Events type
-        // (marten#5858), so the 7.0 default covers it with no Marten-specific call
+        // (marten#5858), so the 7.0 default covers it with no Marten-specific call (GH-5459)
         await using var host = await startHostAsync();
 
         await host.Scenario(x =>
@@ -85,6 +85,33 @@ public class restore_v6_http_defaults
             x.Post.Url("/v6defaults/marten-lock");
             x.StatusCodeShouldBe(409);
         });
+    }
+
+    [Fact]
+    public async Task the_default_conflict_mapping_covers_a_stream_id_collision()
+    {
+        // GH-5459. StartStream with a taken id throws the shared JasperFx.Events.ExistingStreamIdCollisionException
+        // on Marten 10, Polecat and Fisher. It is not a ConcurrencyException, so the mapping catches it explicitly
+        await using var host = await startHostAsync();
+
+        var result = await host.Scenario(x =>
+        {
+            x.Post.Url("/v6defaults/stream-collision");
+            x.StatusCodeShouldBe(409);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+
+        (await result.ReadAsTextAsync()).ShouldContain("already exists");
+    }
+
+    [Fact]
+    public async Task restoring_the_v6_defaults_leaves_a_stream_id_collision_unmapped()
+    {
+        await using var host = await startHostAsync(restoreV6Defaults: true);
+
+        (await statusOrEscapedException<global::JasperFx.Events.ExistingStreamIdCollisionException>(host,
+                x => x.Post.Url("/v6defaults/stream-collision")))
+            .ShouldNotBe(409);
     }
 
     [Fact]
@@ -308,6 +335,11 @@ public static class V6DefaultsEndpoints
     [WolverinePost("/v6defaults/marten-lock")]
     public static string MartenLock() =>
         throw new global::JasperFx.Events.StreamLockedException(Guid.NewGuid(), new Exception("Lock not available"));
+
+    [PretendTransactional]
+    [WolverinePost("/v6defaults/stream-collision")]
+    public static string StreamCollision() =>
+        throw new global::JasperFx.Events.ExistingStreamIdCollisionException(Guid.NewGuid());
 
     [RequiresTenant]
     [WolverineGet("/v6defaults/tenanted")]
