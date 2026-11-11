@@ -57,6 +57,49 @@ public class advisory_lock_session_hygiene : PostgresqlContext
     }
 
     [Fact]
+    public async Task async_liveness_ping_leaves_the_lock_session_outside_any_transaction()
+    {
+        // GH-5135 (D5): HasLockAsync pings the held session on every health-check tick. The ping has to run
+        // on the dedicated lock connection with no transaction open, or the session stops reading as idle
+        // with a NULL xact_start and Marten's gap-liveness gate starts treating it as a sequence reserver.
+        const int lockId = unchecked((int)0x5135A001);
+
+        var dataSource = NpgsqlDataSource.Create(Servers.PostgresConnectionString);
+        try
+        {
+            var holder = new AdvisoryLock(dataSource, NullLogger.Instance, "hygiene-async-ping");
+            try
+            {
+                (await holder.TryAttainLockAsync(lockId, CancellationToken.None)).ShouldBeTrue();
+
+                for (var i = 0; i < 3; i++)
+                {
+                    (await holder.HasLockAsync(lockId, CancellationToken.None)).ShouldBeTrue();
+                }
+
+                // Let the backend settle back to idle after the last ping.
+                await Task.Delay(250, TestContext.Current.CancellationToken);
+
+                var session = await findLockHolderSessionAsync(lockId);
+                session.ShouldNotBeNull("the advisory lock must still be held by the pinged backend");
+
+                session!.ApplicationName.ShouldBe("wolverine-advisory-lock:hygiene-async-ping");
+                session.XactStart.ShouldBeNull(
+                    "the liveness ping must never leave the advisory-lock session inside a transaction");
+                session.State.ShouldBe("idle");
+            }
+            finally
+            {
+                await holder.DisposeAsync();
+            }
+        }
+        finally
+        {
+            await dataSource.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task application_name_is_truncated_to_postgres_limit_for_long_database_identifiers()
     {
         const int lockId = unchecked((int)0x3664A002);

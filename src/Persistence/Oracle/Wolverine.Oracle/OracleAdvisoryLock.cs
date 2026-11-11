@@ -4,6 +4,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Oracle.ManagedDataAccess.Client;
 using Weasel.Core;
+using Wolverine.RDBMS;
 using Wolverine.Oracle.Schema;
 
 namespace Wolverine.Oracle;
@@ -12,7 +13,7 @@ namespace Wolverine.Oracle;
 /// Oracle implementation of advisory locks using row-level locks (FOR UPDATE NOWAIT).
 /// Uses the wolverine_locks table to hold lock rows.
 /// </summary>
-internal class OracleAdvisoryLock : IAdvisoryLock
+internal class OracleAdvisoryLock : IWolverineAdvisoryLock
 {
     // GH-4261. Unlike its four siblings this one keeps a connection PER LOCK rather than one shared
     // connection, but the hazard is the same: a SYNCHRONOUS HasLock pings held.conn while
@@ -51,6 +52,10 @@ internal class OracleAdvisoryLock : IAdvisoryLock
         _schemaName = schemaName;
     }
 
+    /// <summary>
+    /// The synchronous probe the JasperFx <see cref="IAdvisoryLock" /> contract requires. Wolverine's own
+    /// callers use <see cref="HasLockAsync" />, which does the same ping without blocking a thread (GH-5135).
+    /// </summary>
     public bool HasLock(int lockId)
     {
         // Cheap negative outside the gate: an id we never took cannot be held.
@@ -72,6 +77,36 @@ internal class OracleAdvisoryLock : IAdvisoryLock
         try
         {
             return hasLockUnsafe(lockId);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<bool> HasLockAsync(int lockId, CancellationToken token)
+    {
+        // Cheap negative outside the gate: an id we never took cannot be held.
+        if (!holdsId(lockId)) return false;
+
+        // GH-5135: the token bounds only this wait. A cancelled wait throws back to the caller and touches
+        // no held id -- shutting down says nothing about the session that holds the lock.
+        if (!await _gate.WaitAsync(GateTimeout, token).ConfigureAwait(false))
+        {
+            // GH-4261: a busy gate means another advisory-lock operation on THIS node is in flight, not
+            // that the row lock evaporated. A wrong `false` here is read by
+            // NodeAgentController.DoHealthChecksInternalAsync as lost leadership and fires
+            // stepDownAsync -- exactly the churn GH-2602 and GH-3604 were fighting. Report the last
+            // state we established and skip the keepalive for this tick.
+            _logger.LogDebug(
+                "Advisory lock connection for schema {Schema} was busy; reporting the last known state of lock {LockId} without pinging",
+                _schemaName, lockId);
+            return true;
+        }
+
+        try
+        {
+            return await hasLockUnsafeAsync(lockId).ConfigureAwait(false);
         }
         finally
         {
@@ -120,6 +155,58 @@ internal class OracleAdvisoryLock : IAdvisoryLock
             try
             {
                 held.conn.Dispose();
+            }
+            catch
+            {
+                // already broken
+            }
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The GH-2602 liveness ping, asynchronously (GH-5135). Callers MUST hold <c>_gate</c> -- it does I/O on a held
+    /// connection and may tear that connection down.
+    /// </summary>
+    private async Task<bool> hasLockUnsafeAsync(int lockId)
+    {
+        if (!holdsId(lockId)) return false;
+        if (!tryFindHeld(lockId, out var held)) return false;
+
+        // Oracle row-level FOR UPDATE locks are tied to the transaction
+        // that took them, which is in turn tied to the holding connection.
+        // If the connection died (network drop, RAC failover, manual KILL
+        // SESSION), the row lock evaporates server-side but our in-memory
+        // state still claims it. Ping the held connection so we can detect
+        // a broken backend and self-clean. See GH-2602.
+        try
+        {
+            // No cancellation token on purpose: CommandTimeout bounds the ping, and a cancelled ping would land
+            // in the catch below and read as a lost session.
+            await using var cmd = held.conn.CreateCommand();
+            cmd.CommandText = "select 1 from dual";
+            cmd.CommandTimeout = 2;
+            await cmd.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e,
+                "Lost advisory-lock connection for lock {LockId} in schema {Schema}; clearing held state",
+                lockId, _schemaName);
+
+            forgetId(lockId);
+            try
+            {
+                await held.tx.DisposeAsync().ConfigureAwait(false);
+            }
+            catch
+            {
+                // already broken
+            }
+            try
+            {
+                await held.conn.DisposeAsync().ConfigureAwait(false);
             }
             catch
             {
@@ -196,11 +283,11 @@ internal class OracleAdvisoryLock : IAdvisoryLock
             // stepDownAsync on the very next tick after being elected, every tick, and never reached
             // EvaluateAssignmentsAsync -- which is only on the true branch.
             //
-            // hasLockUnsafe, not HasLock: we already hold _gate and SemaphoreSlim is not reentrant. It
+            // hasLockUnsafeAsync, not HasLockAsync: we already hold _gate and SemaphoreSlim is not reentrant. It
             // pings the retained connection, so this still distinguishes "we hold it" from "our session
             // died and the row lock evaporated", which is the GH-2602 property that has to survive.
             // Postgres, SQL Server and SQLite all open with the same short-circuit.
-            if (hasLockUnsafe(lockId))
+            if (await hasLockUnsafeAsync(lockId).ConfigureAwait(false))
             {
                 return true;
             }

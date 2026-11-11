@@ -40,7 +40,7 @@ public class waiting_for_the_node_set_to_settle
         runtime.Observer.Returns(Substitute.For<IWolverineObserver>());
 
         _persistence = Substitute.For<INodeAgentPersistence>();
-        _persistence.HasLeadershipLock().Returns(false);
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(false);
         _persistence.TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(true);
 
         _controller = new NodeAgentController(

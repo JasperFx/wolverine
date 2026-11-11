@@ -55,16 +55,16 @@ public class leadership_locking : IAsyncLifetime
     public async Task try_to_lock_happy_path()
     {
         var store = _host.Services.GetService<IMessageStore>()!;
-        store.Nodes.HasLeadershipLock().ShouldBeFalse();
+        (await store.Nodes.HasLeadershipLockAsync(CancellationToken.None)).ShouldBeFalse();
 
         var gotLock = await store.Nodes.TryAttainLeadershipLockAsync(CancellationToken.None);
         gotLock.ShouldBeTrue();
 
-        store.Nodes.HasLeadershipLock().ShouldBeTrue();
+        (await store.Nodes.HasLeadershipLockAsync(CancellationToken.None)).ShouldBeTrue();
 
         await store.Nodes.ReleaseLeadershipLockAsync();
 
-        store.Nodes.HasLeadershipLock().ShouldBeFalse();
+        (await store.Nodes.HasLeadershipLockAsync(CancellationToken.None)).ShouldBeFalse();
     }
 
     [Fact]
@@ -74,24 +74,24 @@ public class leadership_locking : IAsyncLifetime
         var store2 = host2.Services.GetService<IMessageStore>()!;
 
         var store = _host.Services.GetService<IMessageStore>()!;
-        store.Nodes.HasLeadershipLock().ShouldBeFalse();
+        (await store.Nodes.HasLeadershipLockAsync(CancellationToken.None)).ShouldBeFalse();
 
         var gotLock = await store.Nodes.TryAttainLeadershipLockAsync(CancellationToken.None);
         gotLock.ShouldBeTrue();
 
-        store.Nodes.HasLeadershipLock().ShouldBeTrue();
+        (await store.Nodes.HasLeadershipLockAsync(CancellationToken.None)).ShouldBeTrue();
 
         (await store2.Nodes.TryAttainLeadershipLockAsync(CancellationToken.None))
             .ShouldBeFalse();
-        store2.Nodes.HasLeadershipLock().ShouldBeFalse();
+        (await store2.Nodes.HasLeadershipLockAsync(CancellationToken.None)).ShouldBeFalse();
 
         await store.Nodes.ReleaseLeadershipLockAsync();
         
-        store.Nodes.HasLeadershipLock().ShouldBeFalse();
+        (await store.Nodes.HasLeadershipLockAsync(CancellationToken.None)).ShouldBeFalse();
         
         (await store2.Nodes.TryAttainLeadershipLockAsync(CancellationToken.None))
             .ShouldBeTrue();
-        store2.Nodes.HasLeadershipLock().ShouldBeTrue();
+        (await store2.Nodes.HasLeadershipLockAsync(CancellationToken.None)).ShouldBeTrue();
     }
 
     [Fact]
@@ -295,11 +295,11 @@ public class leadership_locking : IAsyncLifetime
         var runtime = balancedHost.GetRuntime();
         await runtime.DoHealthChecksAsync();
         runtime.IsLeader().ShouldBeTrue("Host must be leader BEFORE");
-        runtime.Storage.Nodes.HasLeadershipLock().ShouldBeTrue("Leadership lock must be true BEFORE");
+        (await runtime.Storage.Nodes.HasLeadershipLockAsync(CancellationToken.None)).ShouldBeTrue("Leadership lock must be true BEFORE");
 
         await Task.WhenAll(Enumerable.Repeat(1, 10).Select(_ => runtime.DoHealthChecksAsync()));
 
         runtime.IsLeader().ShouldBeTrue("Host must be leader AFTER");
-        runtime.Storage.Nodes.HasLeadershipLock().ShouldBeTrue("Leadership lock must be true AFTER");
+        (await runtime.Storage.Nodes.HasLeadershipLockAsync(CancellationToken.None)).ShouldBeTrue("Leadership lock must be true AFTER");
     }
 }

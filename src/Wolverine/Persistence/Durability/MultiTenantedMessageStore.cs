@@ -1211,9 +1211,9 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return Main.Nodes.DeleteOldNodeRecordsAsync(retainCount);
     }
 
-    bool INodeAgentPersistence.HasLeadershipLock()
+    Task<bool> INodeAgentPersistence.HasLeadershipLockAsync(CancellationToken token)
     {
-        return Main.Nodes.HasLeadershipLock();
+        return Main.Nodes.HasLeadershipLockAsync(token);
     }
 
     Task<bool> INodeAgentPersistence.TryAttainLeadershipLockAsync(CancellationToken token)

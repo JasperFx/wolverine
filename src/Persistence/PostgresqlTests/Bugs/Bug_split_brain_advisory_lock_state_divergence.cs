@@ -76,6 +76,48 @@ public class Bug_split_brain_advisory_lock_state_divergence : PostgresqlContext
         }
     }
 
+    [Fact]
+    public async Task has_lock_async_detects_a_lock_postgres_released_due_to_backend_termination()
+    {
+        // GH-5135: the same detection through the asynchronous probe the leadership health check now uses.
+        const int lockId = unchecked((int)0x5135B00B);
+
+        var dataSource = NpgsqlDataSource.Create(Servers.PostgresConnectionString);
+        try
+        {
+            var holder = new AdvisoryLock(dataSource, NullLogger.Instance, "split-brain-async-test");
+
+            (await holder.TryAttainLockAsync(lockId, CancellationToken.None)).ShouldBeTrue();
+            (await holder.HasLockAsync(lockId, CancellationToken.None)).ShouldBeTrue();
+
+            var holderPid = await findAdvisoryLockHolderPidAsync(lockId);
+            holderPid.ShouldNotBeNull("Expected to find a backend holding the advisory lock");
+            await terminateBackendAsync(holderPid!.Value);
+
+            var contender = new AdvisoryLock(dataSource, NullLogger.Instance, "contender-async");
+            try
+            {
+                (await contender.TryAttainLockAsync(lockId, CancellationToken.None))
+                    .ShouldBeTrue("Postgres should have released the lock when the holder's backend was terminated");
+            }
+            finally
+            {
+                await contender.ReleaseLockAsync(lockId);
+                await contender.DisposeAsync();
+            }
+
+            (await holder.HasLockAsync(lockId, CancellationToken.None))
+                .ShouldBeFalse(
+                    "AdvisoryLock.HasLockAsync returned true even though Postgres has released the session-level lock and another session has acquired it.");
+
+            await holder.DisposeAsync();
+        }
+        finally
+        {
+            await dataSource.DisposeAsync();
+        }
+    }
+
     private static async Task<int?> findAdvisoryLockHolderPidAsync(int lockId)
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);

@@ -80,7 +80,7 @@ public class heartbeat_decoupled_from_command_execution
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        _persistence.HasLeadershipLock().Returns(false);
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(false);
         _persistence.TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {

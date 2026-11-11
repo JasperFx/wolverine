@@ -497,9 +497,9 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await conn.CloseAsync();
     }
 
-    public bool HasLeadershipLock()
+    public Task<bool> HasLeadershipLockAsync(CancellationToken token)
     {
-        return _database.AdvisoryLock.HasLock(_lockId);
+        return _database.AdvisoryLock.HasLockAsync(_lockId, token);
     }
 
     public Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)

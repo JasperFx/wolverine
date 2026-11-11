@@ -68,6 +68,8 @@ public class Bug_4275_leadership_renewal_is_reentrant : OracleContext
                     .ShouldBeTrue($"the renewal on tick {tick} must report the lock still held");
 
                 advisoryLock.HasLock(RenewalLockId).ShouldBeTrue($"and the lock is still held on tick {tick}");
+                (await advisoryLock.HasLockAsync(RenewalLockId, CancellationToken.None))
+                    .ShouldBeTrue($"and HasLockAsync agrees on tick {tick}");
             }
         }
         finally

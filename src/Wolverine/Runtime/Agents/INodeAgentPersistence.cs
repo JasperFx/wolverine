@@ -76,9 +76,13 @@ public interface INodeAgentPersistence
     /// Delete old node records, retaining only the most recent <paramref name="retainCount"/> records.
     /// </summary>
     Task DeleteOldNodeRecordsAsync(int retainCount) => Task.CompletedTask;
-    
-    
-    bool HasLeadershipLock();
+
+    /// <summary>
+    /// Whether this node still holds the leadership lock. Database-backed stores answer by pinging the
+    /// session that holds it (GH-2602), so this is asynchronous (GH-5135). The token bounds only the wait
+    /// for the lock's own connection; cancelling it never reads as a lost lock.
+    /// </summary>
+    Task<bool> HasLeadershipLockAsync(CancellationToken token);
 
     Task<bool> TryAttainLeadershipLockAsync(CancellationToken token);
 
