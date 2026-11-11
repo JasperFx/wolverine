@@ -404,6 +404,14 @@ opts.BatchMessagesOf<ScoreEvent>(batching =>
     .PartitionProcessingByGroupId(PartitionSlots.Five);
 ```
 
+::: tip Automatic for partitioned message types in 7.0
+As of Wolverine 7.0, when the batched message type belongs to a partitioned topology (`GlobalPartitioned`,
+`PublishToPartitionedLocalMessaging` or a sharded listener topology), Wolverine calls `GroupByGroupId()` for you unless
+you supplied your own `IMessageBatcher`. Call `batching.DoNotGroupByGroupId()` to keep the tenant-only batcher, or
+`opts.RestoreV6Defaults()` to go back to the 6.x behavior everywhere. A batch that executes on the topology's own slots
+(see below) is grouped either way.
+:::
+
 The group id is resolved from the envelope first (a listener already using `PartitionProcessingByGroupId` has
 stamped it upstream), falling back to your `MessagePartitioning` rules. A few deliberate behaviors:
 

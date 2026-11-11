@@ -86,6 +86,36 @@ public class BatchingOptions : IAsyncDisposable
     public void GroupByGroupId()
     {
         Batcher = typeof(GroupIdMessageBatcher<>).CloseAndBuildAs<IMessageBatcher>(ElementType);
+        GroupByGroupIdOptedOut = false;
+    }
+
+    /// <summary>
+    /// GH-5200. Keep the default tenant-only batcher when the element type belongs to a partitioned message
+    /// topology. As of Wolverine 7.0 Wolverine calls <see cref="GroupByGroupId"/> for you in that case, so that
+    /// the batch keeps the ordering guarantee its unbatched siblings have; this turns that back off for this
+    /// batch, as <c>RestoreV6Defaults()</c> does for every batch.
+    /// </summary>
+    /// <remarks>
+    /// A batch that executes on the topology's own slots (a <c>GlobalPartitioned</c> or
+    /// <c>PublishToPartitionedLocalMessaging</c> topology, without <see cref="ExecuteOnDedicatedLocalQueue"/> or
+    /// <see cref="LocalExecutionQueueName"/>) is still grouped by group id, as it has been since 6.25: a batch
+    /// can only be placed on a slot if it belongs to exactly one group.
+    /// </remarks>
+    public void DoNotGroupByGroupId()
+    {
+        GroupByGroupIdOptedOut = true;
+    }
+
+    internal bool GroupByGroupIdOptedOut { get; private set; }
+
+    /// <summary>True while <see cref="Batcher"/> is still Wolverine's built-in tenant-only batcher.</summary>
+    internal bool UsesDefaultBatcher
+    {
+        get
+        {
+            var batcherType = Batcher.GetType();
+            return batcherType.IsGenericType && batcherType.GetGenericTypeDefinition() == typeof(DefaultMessageBatcher<>);
+        }
     }
 
     internal int? ProbeIndividuallyAfterAttempts { get; private set; }

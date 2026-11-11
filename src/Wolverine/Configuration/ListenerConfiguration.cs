@@ -462,6 +462,12 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// </para>
     ///
     /// <para>
+    /// As of Wolverine 7.0 (GH-5200) a <see cref="ProcessInParallelWithNativeAcks"/> endpoint gets this guard by
+    /// default with the default window and ceiling, so call this there only to change them. Opt out with
+    /// <see cref="WithoutInMemoryIdempotency"/>.
+    /// </para>
+    ///
+    /// <para>
     /// The guard is per-process and in memory, and the docs say so out loud: a restart forgets every id it
     /// ever saw, and a sibling node -- or the new owner after an exclusive-listener failover -- starts empty.
     /// The promise is "at-least-once with best-effort dedup", not exactly-once. Where the broker has a real
@@ -485,7 +491,21 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         if (window.HasValue) settings.Window = window.Value;
         if (maxTracked.HasValue) settings.MaxTracked = maxTracked.Value;
 
-        add(e => e.InMemoryIdempotency = settings);
+        add(e =>
+        {
+            e.InMemoryIdempotency = settings;
+            e.InMemoryIdempotencyOptedOut = false;
+        });
+        return this.As<TSelf>();
+    }
+
+    public TSelf WithoutInMemoryIdempotency()
+    {
+        add(e =>
+        {
+            e.InMemoryIdempotency = null;
+            e.InMemoryIdempotencyOptedOut = true;
+        });
         return this.As<TSelf>();
     }
 

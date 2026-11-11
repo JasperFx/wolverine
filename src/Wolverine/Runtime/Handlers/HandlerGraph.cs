@@ -19,6 +19,7 @@ using Wolverine.Persistence;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -49,6 +50,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     // HandlerFor(Type) answer with the relay, or throw, depending on whether a message had already arrived
     // somewhere from outside
     private ImHashMap<Type, IMessageHandler> _fanoutHandlers = ImHashMap<Type, IMessageHandler>.Empty;
+
+    // GH-5138. Every BatchMessagesOf<T>() batch by its element type, including the element types that have no handler
+    // chain of their own and therefore no group, and by the batch message type each one produces
+    private ImHashMap<Type, BatchingOptions> _batches = ImHashMap<Type, BatchingOptions>.Empty;
+    private BatchingOptions[] _allBatches = [];
 
     private bool _hasCompiled;
 
@@ -436,6 +442,119 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return null;
     }
 
+    /// <summary>
+    /// GH-5138. The <c>BatchMessagesOf&lt;T&gt;()</c> batch of an element type, whether or not the element type has a
+    /// handler chain of its own
+    /// </summary>
+    internal BatchingOptions? BatchFor(Type elementType)
+    {
+        return _batches.TryFind(elementType, out var batch) ? batch : null;
+    }
+
+    private void attachBatches(IEnumerable<BatchingOptions> batches)
+    {
+        _allBatches = batches.ToArray();
+        foreach (var batch in _allBatches)
+        {
+            // The first batch of an element type wins, as it always has
+            if (_batches.TryFind(batch.ElementType, out _)) continue;
+
+            _batches = _batches.AddOrUpdate(batch.ElementType, batch);
+
+            var group = GroupFor(batch.ElementType);
+            if (group != null) group.Batch = batch;
+        }
+    }
+
+    /// <summary>
+    /// GH-5138. The batch of a message type with handler chains of its own runs on a local queue of its own. By default
+    /// a batch executes on its element type's local queue, which is also where the element type's handler chain (or,
+    /// for several handler types, the relay of envelopes persisted before they were split) runs, and a local queue
+    /// runs one executor per message type. Unless the application already pointed the batch somewhere else, it moves
+    /// to <c>{queue}-batch</c>. Done before the transports start, so the queue still gets the local queue policies
+    /// </summary>
+    internal void BindBatchQueues(LocalTransport local)
+    {
+        foreach (var group in Groups)
+        {
+            if (group.Batch is not { } batch) continue;
+
+            var directQueue = local.FindQueueForMessageType(batch.ElementType);
+            if (!string.Equals(batch.LocalExecutionQueueName, directQueue.EndpointName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var batchQueue = local.QueueFor(directQueue.EndpointName + BatchQueueSuffix);
+            batchQueue.Mode = directQueue.Mode;
+
+            // Wolverine's own reassignment, not a user choice -- see SetDefaultLocalExecutionQueueName
+            batch.SetDefaultLocalExecutionQueueName(batchQueue.EndpointName);
+        }
+    }
+
+    /// <summary>
+    /// The suffix of the local queue a batch moves to when its element type has handler chains of its own
+    /// </summary>
+    internal const string BatchQueueSuffix = "-batch";
+
+    /// <summary>
+    /// GH-5138. What runs a message at <paramref name="endpoint"/> because of a batch, before any handler chain is
+    /// considered, or null when no batch is involved:
+    /// <list type="number">
+    /// <item>an element type received on its batch's own queue goes into the batch, even when the element type has
+    /// handler chains of its own</item>
+    /// <item>an element type with handler chains and a batch, received from outside the process, is relayed to the
+    /// local queue of every chain and to the batch's queue</item>
+    /// <item>an assembled batch message on the queue its batch runs on, when every chain of the batch message type is
+    /// bound to an endpoint of its own (several batch handler types, or a sticky one), is relayed to their local
+    /// queues</item>
+    /// </list>
+    /// Asked by the executor factory ahead of the partitioned message re-router, so a batch queue is never mistaken
+    /// for a stray copy of a partitioned message
+    /// </summary>
+    internal IMessageHandler? ResolveBatchMember(Type messageType, Endpoint endpoint, LocalTransport local,
+        Func<BatchingOptions, IMessageHandler> buildBatchHandler)
+    {
+        if (_allBatches.Length == 0) return null;
+
+        if (BatchFor(messageType) is { } batch)
+        {
+            if (isBatchQueue(batch, endpoint)) return buildBatchHandler(batch);
+
+            if (endpoint is not LocalQueue && GroupFor(messageType) is { Chains.Count: > 0 } group)
+            {
+                return BuildFanoutHandler(messageType, group.Chains[0], group.MemberLocalQueueUris(local));
+            }
+
+            return null;
+        }
+
+        if (endpoint is not LocalQueue) return null;
+
+        var producesTheBatch = _allBatches.Any(x => x.Batcher.BatchMessageType == messageType && isBatchQueue(x, endpoint));
+        if (!producesTheBatch) return null;
+
+        var batchGroup = GroupFor(messageType);
+        if (batchGroup == null || !batchGroup.BoundChains().Any() || batchGroup.UnboundChains().Any()) return null;
+
+        var boundQueues = batchGroup.BoundLocalQueueUris();
+        return boundQueues.Length == 0 ? null : BuildFanoutHandler(messageType, batchGroup.Chains[0], boundQueues);
+    }
+
+    private static bool isBatchQueue(BatchingOptions batch, Endpoint endpoint)
+    {
+        return string.Equals(endpoint.EndpointName, batch.LocalExecutionQueueName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// GH-5138. The compiled handler of one chain, without caching it as the handler of its message type
+    /// </summary>
+    internal IMessageHandler HandlerForChain(HandlerChain chain)
+    {
+        return resolveHandlerFromChain(chain.MessageType, chain, false)!;
+    }
+
     private IMessageHandler? resolveHandlerFromChain(Type messageType, HandlerChain chain, bool shouldCacheGlobally)
     {
         IMessageHandler handler;
@@ -533,6 +652,9 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         compileWithRuntimeScanning(options, logger);
 
         Group(options);
+
+        // GH-5138. A BatchMessagesOf<T>() batch is a member of T's group, next to its handler chains
+        attachBatches(options.BatchDefinitions);
 
         assignDeduplicationScopes();
 

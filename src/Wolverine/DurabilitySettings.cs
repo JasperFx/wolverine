@@ -875,7 +875,9 @@ public class DurabilitySettings : IDescribeMyself
 
     /// <summary>
     ///     GH-4720. Compress agent command payloads on the wire, under the separate
-    ///     <c>binary/wolverine+gzip</c> content type. Off by default.
+    ///     <c>binary/wolverine+gzip</c> content type. On by default as of Wolverine 7.0 (GH-5200), off in 6.x.
+    ///     <see cref="WolverineOptions.RestoreV6Defaults" /> turns it back off, and an explicit setting always
+    ///     wins over either default.
     /// </summary>
     /// <remarks>
     ///     <para>
@@ -886,11 +888,13 @@ public class DurabilitySettings : IDescribeMyself
     ///     poll, and it raises the ceiling under <c>Options.MaxIncomingEnvelopeDataSize</c>.
     ///     </para>
     ///     <para>
-    ///     <b>Turn this on only once every node in the cluster is running a version that can read it.</b>
-    ///     Reading is unconditional from this version forward, so the upgrade path is: deploy everywhere
-    ///     first, then enable. A node that predates the content type will reject the command rather than
-    ///     misread it — loudly, but it will still reject it, and agent assignment to that node stops until it
-    ///     is upgraded. It is off by default for exactly that reason; a rolling deploy is the normal case.
+    ///     <b>Every node in the cluster must run Wolverine 6.44 or later before the first 7.0 node starts.</b>
+    ///     Reading the compressed format has been unconditional since 6.44, whatever this setting says, so a
+    ///     6.44+ node reads what a 7.0 node writes. A node older than 6.44 does not know the content type and
+    ///     rejects the command rather than misreading it -- loudly, but agent assignment to that node stops
+    ///     until it is upgraded. If a rolling deploy has to go straight from an older 6.x to 7.0, set this to
+    ///     <see langword="false" /> (or call <see cref="WolverineOptions.RestoreV6Defaults" />) until every
+    ///     node is on 7.0, then remove the setting.
     ///     </para>
     ///     <para>
     ///     Compression does not REPLACE chunking by <see cref="AgentStartBatchSize" /> (GH-4718). It scales
@@ -898,7 +902,13 @@ public class DurabilitySettings : IDescribeMyself
     ///     back over the reader's limit.
     ///     </para>
     /// </remarks>
-    public bool CompressAgentCommands { get; set; }
+    public bool CompressAgentCommands
+    {
+        get => _compressAgentCommands ?? !V6DefaultsRestored;
+        set => _compressAgentCommands = value;
+    }
+
+    private bool? _compressAgentCommands;
 
     /// <summary>
     ///     GH-3604 / D3: the maximum number of agents a receiving node starts concurrently when it
