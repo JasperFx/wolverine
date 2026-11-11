@@ -514,12 +514,17 @@ public class WolverineHttpOptions
     /// </para>
     ///
     /// <para>
-    /// <b>On Marten or Polecat, call that store's own overload instead</b> --
-    /// <c>MapMartenConcurrencyFailuresToConflict()</c> or <c>MapPolecatConcurrencyFailuresToConflict()</c>.
-    /// Their <c>StreamLockedException</c>, which <c>FetchForExclusiveWriting</c> throws on a contended
-    /// stream, does <b>not</b> derive from <see cref="JasperFx.ConcurrencyException"/> and is not
-    /// referenceable from this assembly, so this method alone leaves the exclusive locking path returning
-    /// 500s. The store overloads call this one and add their own type.
+    /// GH-5142: also covers <see cref="JasperFx.Events.StreamLockedException"/>, which
+    /// <c>FetchForExclusiveWriting</c> throws on a contended stream and which does <b>not</b> derive from
+    /// <see cref="JasperFx.ConcurrencyException"/>. Polecat's and Fisher's lock exceptions derive from it, so
+    /// this one call is complete for those stores.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>On Marten, call <c>MapMartenConcurrencyFailuresToConflict()</c> instead.</b> Marten's
+    /// <c>StreamLockedException</c> still derives from <c>MartenException</c> rather than from the JasperFx
+    /// type, so this method alone leaves Marten's exclusive locking path returning 500s. The Marten overload
+    /// calls this one and adds Marten's type.
     /// </para>
     /// </summary>
     /// <param name="filter">

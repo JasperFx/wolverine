@@ -11,6 +11,12 @@ namespace Wolverine.Http.Marten;
 /// handler does not see it, and the type is not referenceable from Wolverine.Http.
 ///
 /// <para>
+/// GH-5142: the core mapping now catches <c>JasperFx.Events.StreamLockedException</c>, which Polecat's and
+/// Fisher's lock exceptions derive from. Marten's does not yet, so this middleware is still registered for
+/// Marten, and only while that stays true.
+/// </para>
+///
+/// <para>
 /// This is the exact trap the documentation already warns about: a recipe that catches only
 /// <c>ConcurrencyException</c> silently leaves the exclusive locking path returning 500s.
 /// </para>

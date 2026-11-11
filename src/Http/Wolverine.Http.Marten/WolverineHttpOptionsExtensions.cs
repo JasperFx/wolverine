@@ -1,3 +1,4 @@
+using Marten.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http.Runtime;
 
@@ -38,7 +39,14 @@ public static class WolverineHttpOptionsExtensions
         filter ??= ConflictMapping.IsTransactional;
 
         options.MapConcurrencyFailuresToConflict(filter, toProblemDetails);
-        options.AddMiddleware(typeof(MartenStreamLockedMiddleware), filter);
+
+        // GH-5142: the core mapping above catches JasperFx.Events.StreamLockedException. Marten's own type
+        // still derives from MartenException instead, so it needs this extra catch until Marten rebases it
+        // onto the JasperFx type; from then on the core catch covers it and this one is skipped.
+        if (!typeof(StreamLockedException).IsAssignableTo(typeof(global::JasperFx.Events.StreamLockedException)))
+        {
+            options.AddMiddleware(typeof(MartenStreamLockedMiddleware), filter);
+        }
     }
 
     /// <summary>
