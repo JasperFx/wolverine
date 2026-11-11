@@ -27,7 +27,7 @@ public class node_load_advertisement
 
     private const string SchemaName = "WOLVERINE";
 
-    private static async Task<OracleMessageStore> buildStoreAsync(bool capacityAware)
+    private static async Task<OracleMessageStore> buildStoreAsync(bool capacityAware, bool alwaysProvisionOptionalSchemaObjects = true)
     {
         var settings = new DatabaseSettings
         {
@@ -37,7 +37,10 @@ public class node_load_advertisement
         };
 
         var database = new OracleMessageStore(settings,
-            new DurabilitySettings { CapacityAwareAssignment = capacityAware },
+            new DurabilitySettings
+            {
+                CapacityAwareAssignment = capacityAware, AlwaysProvisionOptionalSchemaObjects = alwaysProvisionOptionalSchemaObjects
+            },
             new OracleDataSource(Servers.OracleConnectionString),
             NullLogger<OracleMessageStore>.Instance, Array.Empty<SagaTableDefinition>());
 
@@ -99,14 +102,19 @@ public class node_load_advertisement
         }
     }
 
-    [Fact]
-    public async Task no_column_and_a_working_agent_plane_when_the_flag_is_off()
+    // GH-5193: the column is always there since 7.0 (the 6.x layout, without it, is what
+    // AlwaysProvisionOptionalSchemaObjects = false and RestoreV6Defaults() put back), but with the flag off
+    // nothing reads or writes it either way
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task no_load_read_or_written_when_the_flag_is_off(bool alwaysProvisionOptionalSchemaObjects)
     {
-        var store = await buildStoreAsync(capacityAware: false);
+        var store = await buildStoreAsync(capacityAware: false, alwaysProvisionOptionalSchemaObjects);
 
         try
         {
-            (await loadFactorColumnCountAsync()).ShouldBe(0);
+            (await loadFactorColumnCountAsync()).ShouldBe(alwaysProvisionOptionalSchemaObjects ? 1 : 0);
 
             var node = newNode();
             node.AssignedNodeNumber = await store.Nodes.PersistAsync(node, Ct);

@@ -50,6 +50,11 @@ public sealed partial class WolverineOptions
     {
         V6DefaultsRestored = true;
 
+        // GH-5193: 7.0 always creates the inbox/outbox timestamp columns, the outbox stale index and
+        // wolverine_nodes.load_factor. Restored as the 6.x layout, each column only exists when its setting is
+        // on and the index is not created. Resolved through the flag so an explicit setting still wins.
+        Durability.V6DefaultsRestored = true;
+
         // Add one line here for each core default 7.x flips, a row to the 7.0 defaults
         // table in docs/guide/migration.md and an entry to restore_v6_defaults_tests.
         // Defaults owned by extension packages read V6DefaultsRestored instead.

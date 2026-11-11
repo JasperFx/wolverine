@@ -870,10 +870,10 @@ group by o.name, ps.index_id, i.name";
             nodeTable.AddColumn("version", "varchar(500)");
             nodeTable.AddColumn("capabilities", "nvarchar(max)").AllowNulls();
 
-            // GH-4593, mirroring the PostgreSQL gate from GH-3959: provisioned only behind the opt-in so
-            // an upgrade migrates nothing, and SqlServerNodePersistence gates every statement naming it on
-            // the same flag. `float` is T-SQL's IEEE double.
-            if (Durability.CapacityAwareAssignment)
+            // GH-4593, mirroring the PostgreSQL gate from GH-3959: always provisioned since 7.0 (GH-5193) unless
+            // AlwaysProvisionOptionalSchemaObjects is off, and SqlServerNodePersistence gates every statement naming it on
+            // CapacityAwareAssignment, so the behaviour stays opt-in. `float` is T-SQL's IEEE double.
+            if (Durability.ProvisionsNodeLoadFactor)
             {
                 nodeTable.AddColumn(DatabaseConstants.LoadFactor, "float").AllowNulls();
             }

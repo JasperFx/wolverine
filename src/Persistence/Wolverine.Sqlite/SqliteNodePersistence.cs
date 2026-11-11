@@ -55,7 +55,8 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
         _lockId = schemaName.GetDeterministicHashCode();
     }
 
-    // GH-4593: load_factor is only provisioned behind this flag (SqliteMessageStore.AllObjects), so every
+    // GH-4593 / GH-5193: load_factor is always provisioned since 7.0 (SqliteMessageStore.AllObjects), but advertising
+    // load stays opt-in, and with AlwaysProvisionOptionalSchemaObjects off the column only exists behind this flag, so every
     // statement naming it is gated on it too -- otherwise an un-migrated database (AutoCreate.None, or no
     // DDL rights) fails node startup on "no such column". Read live rather than captured: this is
     // constructed before the flag is reliably set.

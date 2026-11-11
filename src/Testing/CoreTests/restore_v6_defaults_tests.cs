@@ -28,6 +28,11 @@ public class restore_v6_defaults_tests
     private static readonly Dictionary<string, (Action<WolverineOptions> AssertV7Default, Action<WolverineOptions> AssertV6Value)>
         CoreRestorations = new()
         {
+            // GH-5193
+            ["`DurabilitySettings.AlwaysProvisionOptionalSchemaObjects`"] = (
+                o => o.Durability.AlwaysProvisionOptionalSchemaObjects.ShouldBeTrue(),
+                o => o.Durability.AlwaysProvisionOptionalSchemaObjects.ShouldBeFalse()),
+
             // e.g.
             // ["`WolverineOptions.Something`"] = (
             //     o => o.Something.ShouldBe(newValue),
@@ -43,6 +48,20 @@ public class restore_v6_defaults_tests
         options.RestoreV6Defaults();
 
         options.V6DefaultsRestored.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void an_explicit_AlwaysProvisionOptionalSchemaObjects_wins_over_RestoreV6Defaults(bool restoreFirst)
+    {
+        // GH-5193: whichever order the two are called in
+        var options = new WolverineOptions();
+        if (restoreFirst) options.RestoreV6Defaults();
+        options.Durability.AlwaysProvisionOptionalSchemaObjects = true;
+        if (!restoreFirst) options.RestoreV6Defaults();
+
+        options.Durability.AlwaysProvisionOptionalSchemaObjects.ShouldBeTrue();
     }
 
     [Fact]
