@@ -108,13 +108,19 @@ public sealed partial class WolverineOptions
     /// </summary>
     internal bool ApplyProductionCodeGenerationUnderTestRunner { get; set; }
 
+    // Narrower than IsTestRunnerAssembly on purpose: a false match here silently turns the 7.0 default off in a real
+    // production application, so nothing that ships at runtime (JetBrains.Annotations, say) may match.
+    private static readonly string[] TestFrameworkAssemblyPrefixes =
+    [
+        "xunit", "nunit", "MSTest", "TUnit", "testhost", "ReSharperTestRunner", "Microsoft.Testing.Platform"
+    ];
+
     private static bool isRunningUnderATestRunner()
     {
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
         {
             var name = assembly.GetName().Name;
-            if (name != null && (IsTestRunnerAssembly(name) ||
-                                 name.StartsWith("Microsoft.Testing.Platform", StringComparison.OrdinalIgnoreCase)))
+            if (name != null && TestFrameworkAssemblyPrefixes.Any(x => name.StartsWith(x, StringComparison.OrdinalIgnoreCase)))
             {
                 return true;
             }
