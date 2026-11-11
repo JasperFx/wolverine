@@ -135,6 +135,7 @@ opts.UseAzureServiceBus("connection string")
 ```
 
 The per-handler queues are known only to the process that holds those handlers. A publisher in another process
-publishes to the message type's queue alone, so the copies for the other handlers never happen. When several
+publishes to the message type's queue alone, and nothing listens on that queue when every handler type has a queue of
+its own, so none of the handlers receives the message. When several
 processes need the same message, use the [topic and subscription convention](#route-to-topics-and-subscriptions)
 instead; a topic is the Service Bus primitive for fan-out.

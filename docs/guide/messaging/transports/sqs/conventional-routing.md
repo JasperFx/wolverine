@@ -57,5 +57,6 @@ opts.UseAmazonSqsTransport()
 ```
 
 The per-handler queues are known only to the process that holds those handlers. A publisher in another process
-publishes to the message type's queue alone, so the copies for the other handlers never happen. Fan-out across
-processes on AWS needs an [SNS topic](../sns) in front of the queues.
+publishes to the message type's queue alone, and nothing listens on that queue when every handler type has a queue of
+its own, so none of the handlers receives the message. Fan-out across processes on AWS needs an [SNS topic](../sns)
+in front of the queues.
