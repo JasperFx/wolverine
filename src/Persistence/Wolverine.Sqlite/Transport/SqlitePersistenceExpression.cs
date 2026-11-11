@@ -35,14 +35,24 @@ public class SqlitePersistenceExpression
     }
 
     /// <summary>
-    ///     Opt into deterministic ordering for messages with the same timestamp in SQLite
-    ///     queues. This adds an index to each of the ready and scheduled queue tables. With
+    ///     Order messages with the same timestamp deterministically in SQLite queues, which adds an index to
+    ///     each of the ready and scheduled queue tables. This is the default from 7.0 (GH-5192). With
     ///     <c>AutoCreate.None</c>, apply the schema migration before starting listeners with this
     ///     option enabled. Configure this before startup; changing it at runtime is not supported.
     /// </summary>
     public SqlitePersistenceExpression EnableDeterministicQueueOrdering()
     {
         _transport.EnableDeterministicQueueOrdering = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     GH-5192. Turn off the rowid tie-breaker that is the default from 7.0, and dequeue in timestamp order
+    ///     only, as Wolverine 6.x did. Indexes it already added are kept. Configure this before startup.
+    /// </summary>
+    public SqlitePersistenceExpression DisableDeterministicQueueOrdering()
+    {
+        _transport.EnableDeterministicQueueOrdering = false;
         return this;
     }
 

@@ -24,9 +24,9 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
     private readonly DurabilitySettings _settings;
     private Task? _scheduledTask;
     private readonly SqlServerQueueSender _sender;
-    private readonly string _tryPopMessagesDirectlySql;
-    private readonly SqlServerDurablePop _durablePop;
-    private readonly string _moveScheduledToReadyQueueSql;
+    private string _tryPopMessagesDirectlySql = null!;
+    private SqlServerDurablePop _durablePop = null!;
+    private string _moveScheduledToReadyQueueSql = null!;
     private readonly string _deleteExpiredSql;
     private readonly TimeSpan _pollingInterval;
 
@@ -52,16 +52,22 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
         var queueTableIdentifier = queue.QueueTable.Identifier;
         var scheduledTableIdentifier = queue.ScheduledTable.Identifier;
 
-        // Ordering (seq under the high-throughput layout, else timestamp with the opt-in queue_order
-        // tie-breaker) and the reapplied order on the rows DELETE ... OUTPUT hands back live in
-        // SqlServerQueueSql, which the queue's own helper methods share. See GH-4862.
-        _tryPopMessagesDirectlySql = SqlServerQueueSql.TryPopDirectly(queue);
-        _durablePop = new SqlServerDurablePop(queue, _connectionString, Address);
-        _moveScheduledToReadyQueueSql =
-            SqlServerQueueSql.MoveScheduledToReadyQueue(queue, _settings.RecoveryBatchSize);
+        buildSql(queue.ConfiguredLayout);
 
         _deleteExpiredSql =
             $"delete from {queueTableIdentifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= SYSDATETIMEOFFSET();delete from {scheduledTableIdentifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= SYSDATETIMEOFFSET()";
+    }
+
+    // Ordering (seq under the high-throughput layout, else timestamp with the queue_order tie-breaker) and the
+    // reapplied order on the rows DELETE ... OUTPUT hands back live in SqlServerQueueSql, which the queue's own
+    // helper methods share. See GH-4862. GH-5192: the configured layout is only a first guess; StartAsync swaps
+    // in the layout this database's tables really have, because 7.0 adopts an existing table as it stands.
+    private void buildSql(SqlServerQueueLayout layout)
+    {
+        _tryPopMessagesDirectlySql = SqlServerQueueSql.TryPopDirectly(_queue, layout);
+        _durablePop = new SqlServerDurablePop(_queue, layout, _connectionString, Address);
+        _moveScheduledToReadyQueueSql =
+            SqlServerQueueSql.MoveScheduledToReadyQueue(_queue, layout, _settings.RecoveryBatchSize);
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
@@ -111,6 +117,8 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
         {
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _connectionString);
         }
+
+        buildSql(await _queue.ResolveLayoutAsync(_databaseName ?? string.Empty, _connectionString));
 
         _loop = new BackgroundReceiveLoop(Address, _logger, pollOnceAsync, _cancellation.Token, _pollingInterval);
         _loop.Start();

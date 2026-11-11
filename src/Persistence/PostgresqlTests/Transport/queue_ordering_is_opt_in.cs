@@ -25,7 +25,7 @@ public class queue_ordering_is_opt_in : PostgresqlContext
     private static CancellationToken ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task default_configuration_keeps_the_legacy_queue_schema()
+    public async Task disabling_ordering_keeps_the_legacy_queue_schema()
     {
         var schema = newSchema();
         IHost? host = null;
@@ -292,6 +292,11 @@ public class queue_ordering_is_opt_in : PostgresqlContext
                         {
                             expression.EnableDeterministicQueueOrdering();
                         }
+                        else
+                        {
+                            // GH-5192: ordering is the 7.0 default, so the classic schema has to opt out
+                            expression.DisableDeterministicQueueOrdering();
+                        }
                     });
                 }
                 else
@@ -304,6 +309,11 @@ public class queue_ordering_is_opt_in : PostgresqlContext
                     if (deterministicOrdering)
                     {
                         expression.EnableDeterministicQueueOrdering();
+                    }
+                    else
+                    {
+                        // GH-5192: ordering is the 7.0 default, so the classic schema has to opt out
+                        expression.DisableDeterministicQueueOrdering();
                     }
                 }
 
