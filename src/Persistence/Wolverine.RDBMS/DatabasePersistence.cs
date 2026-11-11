@@ -163,6 +163,8 @@ public static class DatabasePersistence
         appendValue(builder, envelope.Destination?.ToString());
         builder.Append(", ");
         appendValue(builder, envelope.KeepUntil);
+        builder.Append(", ");
+        appendValue(builder, DatabaseConstants.StorableGroupId(envelope));
         builder.Append(");");
     }
 

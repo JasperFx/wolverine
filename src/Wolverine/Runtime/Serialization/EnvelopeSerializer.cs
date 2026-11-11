@@ -321,6 +321,16 @@ public static class EnvelopeSerializer
         try
         {
             var envelope = Deserialize(body);
+
+            // GH-5167. A message scheduled for an endpoint without native scheduling is stored as a wrapper whose
+            // data is the real envelope, and the tenant and saga ids are the real envelope's
+            if (envelope.MessageType == Wolverine.Transports.TransportConstants.ScheduledEnvelope &&
+                envelope.Data is { Length: > 0 } inner)
+            {
+                var wrapped = Deserialize(inner);
+                return (envelope.TenantId ?? wrapped.TenantId, envelope.SagaId ?? wrapped.SagaId);
+            }
+
             return (envelope.TenantId, envelope.SagaId);
         }
         catch (Exception)

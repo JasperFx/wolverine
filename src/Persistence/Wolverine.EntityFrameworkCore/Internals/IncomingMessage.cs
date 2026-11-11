@@ -1,3 +1,4 @@
+using Wolverine.RDBMS;
 using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
@@ -19,6 +20,7 @@ public class IncomingMessage
         MessageType = envelope.MessageType!;
         ReceivedAt = envelope.Destination?.ToString();
         KeepUntil = envelope.KeepUntil;
+        GroupId = DatabaseConstants.StorableGroupId(envelope);
     }
 
     public DateTimeOffset? KeepUntil { get; set; }
@@ -31,4 +33,9 @@ public class IncomingMessage
     public byte[] Body { get; set; } = [];
     public string MessageType { get; set; } = string.Empty;
     public string? ReceivedAt { get; set; }
+
+    /// <summary>
+    /// GH-5167. The envelope's group id, for scheduled message management to query by
+    /// </summary>
+    public string? GroupId { get; set; }
 }

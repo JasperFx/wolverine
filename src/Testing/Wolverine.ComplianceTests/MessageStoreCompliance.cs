@@ -1675,6 +1675,187 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         results.Messages[0].ScheduledTime!.Value.ShouldBe(newTime.ToUniversalTime(), TimeSpan.FromSeconds(1));
     }
 
+    private static Envelope scheduledInGroup(string? groupId, int minutes)
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Scheduled;
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(minutes);
+        envelope.GroupId = groupId;
+        return envelope;
+    }
+
+    [Fact]
+    public async Task query_scheduled_messages_by_group_id()
+    {
+        // GH-5167. The booking's reminders are interleaved by execution time with another booking's, plus one
+        // stored on its own rather than in a batch, which goes through a different insert on several stores
+        var list = new List<Envelope>();
+        for (var i = 0; i < 6; i++)
+        {
+            list.Add(scheduledInGroup(i % 2 == 0 ? "booking/1" : "booking/2", 10 + i));
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list);
+
+        var single = scheduledInGroup("booking/1", 30);
+        await thePersistence.Inbox.StoreIncomingAsync(single);
+
+        // Not scheduled, so not scheduled message management's to find
+        var incoming = ObjectMother.Envelope();
+        incoming.Status = EnvelopeStatus.Incoming;
+        incoming.GroupId = "booking/1";
+        await thePersistence.Inbox.StoreIncomingAsync(incoming);
+
+        var expected = list.Where(x => x.GroupId == "booking/1").Select(x => x.Id).Append(single.Id).ToArray();
+
+        var all = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery { GroupId = "booking/1" }, CancellationToken.None);
+
+        all.TotalCount.ShouldBe(4);
+        all.Messages.Select(x => x.Id).ShouldBe(expected);
+        all.Messages.ShouldAllBe(x => x.GroupId == "booking/1");
+
+        var page2 = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery { GroupId = "booking/1", PageSize = 3, PageNumber = 2 }, CancellationToken.None);
+
+        page2.TotalCount.ShouldBe(4);
+        page2.Messages.Select(x => x.Id).ShouldBe([single.Id]);
+
+        var none = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery { GroupId = "booking/3" }, CancellationToken.None);
+        none.TotalCount.ShouldBe(0);
+        none.Messages.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task query_scheduled_messages_carries_each_envelopes_group_id()
+    {
+        var grouped = scheduledInGroup("booking/1", 10);
+        var ungrouped = scheduledInGroup(null, 11);
+
+        await thePersistence.Inbox.StoreIncomingAsync([grouped, ungrouped]);
+
+        var results = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery(), CancellationToken.None);
+
+        results.Messages.Single(x => x.Id == grouped.Id).GroupId.ShouldBe("booking/1");
+        results.Messages.Single(x => x.Id == ungrouped.Id).GroupId.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task query_scheduled_messages_by_group_id_and_tenant_id()
+    {
+        var mine = scheduledInGroup("booking/1", 10);
+        mine.TenantId = "tenant-a";
+
+        var otherTenant = scheduledInGroup("booking/1", 11);
+        otherTenant.TenantId = "tenant-b";
+
+        var otherGroup = scheduledInGroup("booking/2", 12);
+        otherGroup.TenantId = "tenant-a";
+
+        await thePersistence.Inbox.StoreIncomingAsync([mine, otherTenant, otherGroup]);
+
+        var results = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery { GroupId = "booking/1", TenantId = "tenant-a" }, CancellationToken.None);
+
+        results.TotalCount.ShouldBe(1);
+        results.Messages.Single().Id.ShouldBe(mine.Id);
+    }
+
+    [Fact]
+    public async Task cancel_scheduled_messages_by_group_id()
+    {
+        var list = new List<Envelope>();
+        for (var i = 0; i < 5; i++)
+        {
+            list.Add(scheduledInGroup(i < 2 ? "booking/1" : "booking/2", 10 + i));
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list);
+
+        var incoming = ObjectMother.Envelope();
+        incoming.Status = EnvelopeStatus.Incoming;
+        incoming.GroupId = "booking/1";
+        await thePersistence.Inbox.StoreIncomingAsync(incoming);
+
+        await thePersistence.ScheduledMessages.CancelAsync(
+            new ScheduledMessageQuery { GroupId = "booking/1" }, CancellationToken.None);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        counts.Scheduled.ShouldBe(3);
+
+        // Cancellation applies only to pending work: the incoming copy is left alone
+        counts.Incoming.ShouldBe(1);
+
+        var remaining = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery(), CancellationToken.None);
+        remaining.Messages.ShouldAllBe(x => x.GroupId == "booking/2");
+    }
+
+    [Fact]
+    public async Task reschedule_scheduled_messages_by_group_id()
+    {
+        var list = new List<Envelope>();
+        for (var i = 0; i < 5; i++)
+        {
+            list.Add(scheduledInGroup(i < 2 ? "booking/1" : "booking/2", 10 + i));
+        }
+
+        await thePersistence.Inbox.StoreIncomingAsync(list);
+
+        var newTime = DateTimeOffset.UtcNow.AddHours(5);
+        await thePersistence.ScheduledMessages.RescheduleAsync(
+            new ScheduledMessageQuery { GroupId = "booking/1" }, newTime, CancellationToken.None);
+
+        var results = await thePersistence.ScheduledMessages.QueryAsync(
+            new ScheduledMessageQuery(), CancellationToken.None);
+
+        results.TotalCount.ShouldBe(5);
+
+        foreach (var message in results.Messages)
+        {
+            if (message.GroupId == "booking/1")
+            {
+                message.ScheduledTime!.Value.ShouldBe(newTime.ToUniversalTime(), TimeSpan.FromSeconds(1));
+            }
+            else
+            {
+                var original = list.Single(x => x.Id == message.Id);
+                message.ScheduledTime!.Value.ShouldBe(original.ScheduledTime!.Value.ToUniversalTime(),
+                    TimeSpan.FromSeconds(1));
+            }
+        }
+    }
+
+    [Fact]
+    public async Task a_group_id_longer_than_the_column_does_not_break_the_inbox()
+    {
+        // GH-5167. Every inbox row writes group_id, and a group id can arrive from a broker, so one longer than the
+        // relational stores' column must not fail the insert
+        var tooLong = new string('x', 600);
+
+        var incoming = ObjectMother.Envelope();
+        incoming.Status = EnvelopeStatus.Incoming;
+        incoming.GroupId = tooLong;
+
+        var scheduled = scheduledInGroup(tooLong, 10);
+
+        await thePersistence.Inbox.StoreIncomingAsync(incoming);
+        await thePersistence.Inbox.StoreIncomingAsync([scheduled]);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        counts.Incoming.ShouldBe(1);
+        counts.Scheduled.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task reschedule_by_query_requires_a_filter()
+    {
+        await Should.ThrowAsync<ArgumentException>(() => thePersistence.ScheduledMessages.RescheduleAsync(
+            new ScheduledMessageQuery(), DateTimeOffset.UtcNow.AddHours(1), CancellationToken.None));
+    }
+
     [Fact]
     public async Task summarize_scheduled_messages()
     {

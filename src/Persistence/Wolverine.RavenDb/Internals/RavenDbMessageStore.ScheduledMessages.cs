@@ -11,7 +11,7 @@ public partial class RavenDbMessageStore : IScheduledMessages
 
     async Task<ScheduledMessageResults> IScheduledMessages.QueryAsync(ScheduledMessageQuery query, CancellationToken token)
     {
-        if (query.SagaId.IsNotEmpty())
+        if (ScheduledMessageSagaFilter.AppliesTo(query))
         {
             return await ScheduledMessageSagaFilter.QueryAsync(this, query, token);
         }
@@ -29,6 +29,11 @@ public partial class RavenDbMessageStore : IScheduledMessages
         if (query.MessageType.IsNotEmpty())
         {
             queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.MessageType == query.MessageType);
+        }
+
+        if (query.GroupId != null)
+        {
+            queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.GroupId == query.GroupId);
         }
 
         if (query.ExecutionTimeFrom.HasValue)
@@ -64,7 +69,8 @@ public partial class RavenDbMessageStore : IScheduledMessages
                     MessageType = m.MessageType,
                     ScheduledTime = m.ExecutionTime,
                     Destination = m.ReceivedAt?.ToString(),
-                    Attempts = m.Attempts
+                    Attempts = m.Attempts,
+                    GroupId = m.GroupId
                 };
 
                 summary.ReadEnvelopeIdentity(m.Body);
@@ -75,7 +81,7 @@ public partial class RavenDbMessageStore : IScheduledMessages
 
     async Task IScheduledMessages.CancelAsync(ScheduledMessageQuery query, CancellationToken token)
     {
-        if (query.SagaId.IsNotEmpty())
+        if (ScheduledMessageSagaFilter.AppliesTo(query))
         {
             var bySagaIds = await ScheduledMessageSagaFilter.ResolveCancellationAsync(this, query, token);
             if (bySagaIds == null) return;
@@ -112,6 +118,11 @@ public partial class RavenDbMessageStore : IScheduledMessages
         if (query.MessageType.IsNotEmpty())
         {
             queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.MessageType == query.MessageType);
+        }
+
+        if (query.GroupId != null)
+        {
+            queryable = (IRavenQueryable<IncomingMessage>)queryable.Where(x => x.GroupId == query.GroupId);
         }
 
         if (query.ExecutionTimeFrom.HasValue)

@@ -62,6 +62,30 @@ public class DatabaseConstants
     public const string SentAt = "sent_at"; // add to all
 
     public const string KeepUntil = "keep_until";
+
+    /// <summary>
+    /// GH-5167. The envelope's <see cref="Envelope.GroupId"/> on the incoming table, so scheduled message
+    /// management can find, cancel and reschedule the scheduled messages of one business identifier. Nullable,
+    /// and indexed for the scheduled slice.
+    /// </summary>
+    public const string GroupId = "group_id";
+
+    /// <summary>
+    /// GH-5167. The width of the <see cref="GroupId"/> column. Every inbox row writes it, and an envelope's group id
+    /// can arrive from a broker (a FIFO group, a session, a partitioning key), so a longer one is stored as null
+    /// rather than failing the insert: see <see cref="StorableGroupId"/>
+    /// </summary>
+    public const int GroupIdMaxLength = 500;
+
+    /// <summary>
+    /// GH-5167. The value to write to the <see cref="GroupId"/> column for this envelope: its
+    /// <see cref="Envelope.StoredGroupId"/>, or null when it has none or it is longer than <see cref="GroupIdMaxLength"/>
+    /// </summary>
+    public static string? StorableGroupId(Envelope envelope)
+    {
+        var groupId = envelope.StoredGroupId;
+        return groupId == null || groupId.Length > GroupIdMaxLength ? null : groupId;
+    }
     public const string NodeRecordTableName = "wolverine_node_records";
 
     public const string AgentRestrictionsTableName = "wolverine_agent_restrictions";
@@ -192,7 +216,7 @@ public class DatabaseConstants
     public const string LastUpdated = "last_updated";
 
     public static readonly string IncomingFields =
-        $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {MessageType}, {ReceivedAt}, {KeepUntil}";
+        $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {MessageType}, {ReceivedAt}, {KeepUntil}, {GroupId}";
 
     public static readonly string OutgoingFields =
         $"{Body}, {Id}, {OwnerId}, {Destination}, {DeliverBy}, {Attempts}, {MessageType}";
@@ -207,7 +231,7 @@ public class DatabaseConstants
     /// moving a chunk boundary. Outgoing is one fewer than its field list: <c>owner_id</c> is a single
     /// shared parameter reused by every values-clause.
     /// </remarks>
-    public const int IncomingParametersPerEnvelope = 9;
+    public const int IncomingParametersPerEnvelope = 10;
 
     /// <inheritdoc cref="IncomingParametersPerEnvelope" />
     public const int OutgoingParametersPerEnvelope = 6;
