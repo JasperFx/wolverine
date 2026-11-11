@@ -39,6 +39,7 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `DurabilitySettings.MessageDeduplicationMode` | `None`: no deduplication table | `CompareByHash`: every message store provisions `wolverine_deduplication_hashed` and its cleanup job | `opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None` | `restore_v6_defaults_tests` |
 | `DurabilitySettings.EnableDeduplicatedResponses` | `false` | `true`: every message store provisions `wolverine_deduplicated_responses` and its cleanup job | `opts.Durability.EnableDeduplicatedResponses = false` | `restore_v6_defaults_tests` |
 | `DurabilitySettings.AlwaysProvisionOptionalSchemaObjects` | not there (new in 7.0; `EnableOutgoingTimestampIndex` is removed): the inbox/outbox `timestamp` columns only exist with `InboxStaleTime`/`OutboxStaleTime`, `wolverine_nodes.load_factor` only with `CapacityAwareAssignment`, and the outbox stale index only with `EnableOutgoingTimestampIndex` | `true`: the relational stores always create all four, a one-time additive migration on first start; reading and writing them stays opt-in | `opts.Durability.AlwaysProvisionOptionalSchemaObjects = false` | `restore_v6_defaults_tests` |
+| `WolverineOptions.EnvelopeIdGeneration` | `NewId` (MassTransit NewId: machine identity, process id and a timestamp) | `GuidV7` (`Guid.CreateVersion7()`). Either way, a SQL Server-only (or Polecat-only) application still switches to `NewIdSqlServerOrder` at startup | `opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId` | `restore_v6_defaults_tests` |
 
 ### Wolverine.Http defaults that changed in 7.0
 
@@ -167,6 +168,31 @@ What to watch for on the upgrade:
 To keep the 6.x layout, call `opts.RestoreV6Defaults()` or set
 `opts.Durability.AlwaysProvisionOptionalSchemaObjects = false`. Each column is then only created when its setting is
 on, and the outgoing timestamp index isn't created.
+
+### `GuidV7` is the default envelope id in 7.0
+
+Wolverine 7 creates envelope ids with `Guid.CreateVersion7()` (`EnvelopeIdGeneration.GuidV7`) instead of MassTransit's
+NewId (GH-5197). NewId builds its ids from the machine's network identity, the process id and a timestamp, so
+containers, Cloud Run instances and serverless functions that share a network identity can draw the same ids. `GuidV7`
+ids carry a millisecond timestamp and RFC 9562 random bits, so they don't depend on anything about the machine. They
+still sort by time in a PostgreSQL `uuid` column, a MySQL `CHAR(36)` column and a SQLite `TEXT` column, and on Oracle's
+`RAW(16)` they are no worse than NewId was.
+
+SQL Server is the exception, and nothing changes there. When every message store in the application is SQL Server
+(including the SQL Server transport, EF Core on SQL Server and Polecat) and you haven't set `EnvelopeIdGeneration`
+yourself, Wolverine still switches to `EnvelopeIdGeneration.NewIdSqlServerOrder` at startup, which keeps SQL Server's
+clustered envelope tables in order. See [envelope IDs for SQL Server](/guide/messages#envelope-ids-for-sql-server).
+
+What to watch for on the upgrade:
+
+* There is no schema change. Envelope ids are still `Guid`s, and old and new ids live side by side in the same tables.
+* Ids created in the same millisecond are in random order, where NewId ids from one process were strictly sequential.
+  Nothing in Wolverine relies on that order, but check your own code if you sort envelopes by id.
+* `optimizeEnvelopeIdsForSqlServer: false` on the SQL Server and Polecat registrations now keeps `GuidV7`, the new
+  default, instead of `NewId`.
+
+To keep the 6.x ids, call `opts.RestoreV6Defaults()` or set `opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId`.
+An explicit setting always wins, over the default and over what the message stores prefer.
 
 ### `.NET 9.0` support dropped (BREAKING)
 
