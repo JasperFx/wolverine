@@ -293,7 +293,10 @@ placed on a slot when it belongs to one group.
 deliveries unacknowledged, so a restart or rolling deploy redelivers up to the broker's prefetch depth. That is the
 case `WithInMemoryIdempotency()` was built for, so it is now on for those listeners with the default 5 minute window
 and 100,000 id ceiling. Call `WithInMemoryIdempotency(window, maxTracked)` to change those, or
-`WithoutInMemoryIdempotency()` to turn the guard off on one listener. Buffered and inline listeners still have no guard
+`WithoutInMemoryIdempotency()` to turn the guard off on one listener, or
+`opts.Policies.AllListeners(x => x.WithoutInMemoryIdempotency())` for every listener. For the slot listeners a
+partitioned topology creates for you, use `topology.ConfigureListening(x => x.WithoutInMemoryIdempotency())` or the
+`AllListeners` policy. Buffered and inline listeners still have no guard
 unless they ask for one, and durable listeners keep deduplicating through the inbox.
 
 ### `.NET 9.0` support dropped (BREAKING)

@@ -237,6 +237,31 @@ public class core_default_flips_5200
     }
 
     [Fact]
+    public void an_all_listeners_policy_opts_native_ack_listeners_out()
+    {
+        // The opt-out for listeners the application never holds, such as a native-ack topology's slot listeners
+        using var host = Host.CreateDefaultBuilder().UseWolverine(opts =>
+        {
+            // IsListener set eagerly, as ListenForMessagesFrom() and the transports' ListenTo...() calls do
+            opts.Transports.GetOrCreate<StubTransport>().Endpoints["gh5200-policy"] =
+                new NativeAckCapableEndpoint("gh5200-policy", opts.Transports.GetOrCreate<StubTransport>())
+                    { IsListener = true };
+            new ListenerConfiguration(opts.Transports.GetOrCreate<StubTransport>().Endpoints["gh5200-policy"])
+                .ProcessInParallelWithNativeAcks();
+
+            opts.Policies.AllListeners(x => x.WithoutInMemoryIdempotency());
+        }).Build();
+
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        var endpoint = runtime.Options.Transports.GetOrCreate<StubTransport>().Endpoints["gh5200-policy"];
+        endpoint.Compile(runtime);
+
+        endpoint.Mode.ShouldBe(EndpointMode.NativeAck);
+        endpoint.InMemoryIdempotency.ShouldBeNull();
+        endpoint.IdempotencyGuard.ShouldBeNull();
+    }
+
+    [Fact]
     public void RestoreV6Defaults_leaves_a_native_ack_listener_without_the_guard()
     {
         var endpoint = compiledListener(opts => opts.RestoreV6Defaults(), x => x.ProcessInParallelWithNativeAcks());

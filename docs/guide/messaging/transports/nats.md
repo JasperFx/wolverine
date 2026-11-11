@@ -563,7 +563,7 @@ JetStream's `Nats-Msg-Id` duplicate window (see [JetStream Configuration](#jetst
 **publish**, at stream ingest. It does not deduplicate *redeliveries* — a redelivered message was already accepted
 into the stream, so the window never sees it again. Native acks are at-least-once by design and produce a burst of
 redeliveries on every rolling deploy, so if you want those suppressed, that is what `WithInMemoryIdempotency()` is
-for. The two are complementary, not alternatives.
+for, and as of Wolverine 7.0 it is on by default for native-ack listeners. The two are complementary, not alternatives.
 :::
 
 ### Named Endpoints
