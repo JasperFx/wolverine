@@ -19,7 +19,7 @@
          answered by NuGetAuditMode (GH-4773) at none of that cost. -->
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Alba" Version="9.0.0-rc.3" />
+    <PackageVersion Include="Alba" Version="9.0.0" />
     <!-- The .NET Aspire samples (src/Samples/AspireWithRabbitMq, src/Samples/AspireWithKafka). Keep these on
          the same version as the Aspire.AppHost.Sdk those AppHost projects declare. -->
     <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.6.5" />
