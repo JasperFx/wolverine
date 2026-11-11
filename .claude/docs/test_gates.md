@@ -149,7 +149,6 @@ own projects.
 | `CIPulsar` | Wolverine.Pulsar.Tests | pulsar, postgresql | |
 | `CIRedis` | Wolverine.Redis.Tests | postgresql | |
 | `CIMQTT` | Wolverine.MQTT.Tests | postgresql, sqlserver | |
-| `CIMQTT5` | Wolverine.Mqtt5.Tests | postgresql, sqlserver | |
 | `CIHttp` | Wolverine.Http.Tests | postgresql | |
 | `CIHttpAspVersioning` | Wolverine.Http.AspVersioning.Tests | none | net10.0 |
 | `CIHttpCompat` | Wolverine.Http.Compat.Tests | none | runs net10.0 and net11.0 itself (GH-5147) |

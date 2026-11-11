@@ -31,6 +31,8 @@ list.
 | `InvokeAsync<T>` / `StreamAsync<T>` for such a message type | ran the combined chain | run only the chain that returns `T`; none or several throw `AmbiguousHandlerChainException` *(BREAKING)* | Make exactly one handler type return `T` |
 | `LocalQueueFor<T>()` / `[LocalQueue]` on a message type with several handler types | the message type's queue received the message | the queue only drains rows left over from 6.x; each handler type's own queue receives the message *(BREAKING)* | Move the queue's settings to the handler types' queues |
 | New database queue tables (PostgreSQL, SQL Server, MySQL, Oracle, SQLite transports) | no ordering column; SQL Server classic layout | deterministic ordering, and SQL Server's throughput layout, **for new tables only** | None for existing tables; see [queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout) |
+| `WolverineFx.MQTT` client library | MQTTnet 4 + `MQTTnet.Extensions.ManagedClient` | **MQTTnet 5** *(BREAKING for code using MQTTnet types directly)* | See [MQTT runs on MQTTnet 5](#mqtt-transport-runs-on-mqttnet-5-wolverinefx-mqtt5-retired-breaking) |
+| `WolverineFx.Mqtt5` package | MQTTnet 5 flavor of the MQTT transport | **retired**; last published in 6.x *(BREAKING)* | Reference `WolverineFx.MQTT` instead; nothing else changes |
 | JasperFx / Weasel / Marten / Polecat / Fisher | 2.x / 9.x / 9.x / 5.x / 1.x | 3.0 / 10.0 / 10.0 / 6.0 / 2.0 *(BREAKING)* | Upgrade them together; see [dependency majors](#dependency-major-versions-in-7-0-breaking) |
 | Wolverine's OpenTelemetry `Meter` name | `Wolverine:{ServiceName}`, so only `AddMeter("Wolverine*")` collected it | exactly `Wolverine` *(BREAKING for exact-name meter filters)* | `AddMeter("Wolverine")` now works; `AddMeter("Wolverine*")` keeps working. See [meter and metric names](#opentelemetry-meter-and-metric-names-breaking) |
 | Wolverine metric instrument names | dashed (`wolverine-messages-sent`) | dotted (`wolverine.messages.sent`) *(BREAKING for dashboards and alerts)* | Rename the series in dashboards, alerts and recording rules; see [the full table](#opentelemetry-meter-and-metric-names-breaking) |
@@ -532,6 +534,46 @@ changed is what they do:
 * New store-agnostic side effects on `Storage`: `Storage.DeleteById<T>(id)`, `Storage.DeleteWhere<T>(filter)`,
   `Storage.ArchiveStream(id)` and `Storage.TombstoneStream(id)`.
 
+### MQTT transport runs on MQTTnet 5; `WolverineFx.Mqtt5` retired (BREAKING)
+
+In 6.x the MQTT transport came in two packages that shared one `Wolverine.MQTT` namespace: `WolverineFx.MQTT` on MQTTnet 4
+(through `MQTTnet.Extensions.ManagedClient`, whose last release is 4.3.7) and `WolverineFx.Mqtt5` on MQTTnet 5. In 7.0 there is
+one package:
+
+- **`WolverineFx.MQTT` is built on MQTTnet 5** (and `MQTTnet.Server` for `LocalMqttBroker`).
+- **`WolverineFx.Mqtt5` is retired.** It is not published for 7.0; its last versions are the 6.x releases
+  (6.64.0 when this was written). If you referenced it, reference `WolverineFx.MQTT` instead. The namespace, the types and
+  `UseMqtt(...)` are the same, so that is the whole migration.
+
+`UseMqtt(...)`, `UseMqttWithLocalBroker(...)`, the topic configuration and the `IManagedMqttClient` /
+`ManagedMqttClientOptionsBuilder` types keep their shape. MQTTnet 5 has no managed client, so Wolverine ships its own in the
+same `MQTTnet.Extensions.ManagedClient` namespace. It reconnects after `AutoReconnectDelay` (5 seconds by default) when the
+connection drops, re-subscribes to its topics on reconnect, and queues outgoing messages while disconnected, up to
+`MaxPendingMessages`. MQTT keep-alive is MQTTnet 5's own (`WithKeepAlivePeriod(...)` on the client options).
+
+Wolverine's managed client is smaller than MQTTnet 4's:
+
+- `ManagedMqttClientOptionsBuilder` has `WithClientOptions(...)`, `WithAutoReconnectDelay(...)` and
+  `WithMaxPendingMessages(...)`. MQTTnet 4's other builder methods (`WithStorage(...)`,
+  `WithPendingMessagesOverflowStrategy(...)` and the rest) are gone; remove the calls.
+- `WithClientOptions(...)` replaces the whole client options each time it is called, so configure the client in one call.
+- When `MaxPendingMessages` messages are already queued, enqueuing another throws `InvalidOperationException`. MQTTnet 4
+  dropped the new message by default.
+
+If you moved from `WolverineFx.MQTT` 6.x, code that touches MQTTnet types directly needs MQTTnet 5's names. In
+particular:
+
+| MQTTnet 4 | MQTTnet 5 |
+|---|---|
+| `using MQTTnet.Client;` (client options, builders, event args) | `using MQTTnet;` |
+| `new MqttFactory()` | `new MqttClientFactory()` (clients), `new MqttServerFactory()` (servers) |
+| `MqttApplicationMessage.PayloadSegment` (read) in a custom `IMqttEnvelopeMapper` | `Payload` (a `ReadOnlySequence<byte>`; `Payload.ToArray()` with `using System.Buffers;`) |
+| `new MqttClientTcpOptions { Server = "host", Port = 1883 }` | `new MqttClientTcpOptions { RemoteEndpoint = new DnsEndPoint("host", 1883) }`, or `WithTcpServer("host", 1883)` on the builder |
+| `MqttExtendedAuthenticationExchangeData`, `SendExtendedAuthenticationExchangeDataAsync` | `MqttEnhancedAuthenticationExchangeData`, `SendEnhancedAuthenticationExchangeDataAsync` |
+| `MQTTnet.Diagnostics` (`IMqttNetLogger`) | `MQTTnet.Diagnostics.Logger` |
+
+The wire format is unchanged: a 6.x node on either package and a 7.0 node exchange messages through the same broker.
+
 ### Dependency major versions in 7.0 (BREAKING)
 
 Wolverine 7 is part of the Critter Stack .NET 11 release, and its packages depend on the new majors of the rest of the
@@ -551,6 +593,7 @@ stack. Upgrade them together; mixing a Wolverine 7 package with Marten 9 or Weas
 | Swashbuckle.AspNetCore (Wolverine.Http samples and tests) | 6.x | 10.x on net10.0, 11.x on net11.0 |
 | OpenTelemetry | 1.15 | 1.20 |
 | Kafka client | Confluent.Kafka | Dekaf (see [above](#kafka-transport-now-runs-on-dekaf-breaking)) |
+| MQTT client (`WolverineFx.MQTT`) | MQTTnet 4.3 + MQTTnet.Extensions.ManagedClient | MQTTnet 5 (see [below](#mqtt-transport-runs-on-mqttnet-5-wolverinefx-mqtt5-retired-breaking)) |
 
 The Marten, Polecat and Fisher majors have their own migration guides; read them alongside this one. The RabbitMQ,
 Azure Service Bus, SQS/SNS, GCP Pub/Sub, NATS, Pulsar, Redis and Cosmos DB client libraries are unchanged.
