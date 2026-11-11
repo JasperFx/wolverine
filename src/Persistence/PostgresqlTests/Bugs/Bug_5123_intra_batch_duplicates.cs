@@ -42,6 +42,10 @@ public class Bug_5123_intra_batch_duplicate_at_the_durable_receiver : IAsyncLife
 
         await theHost.ResetResourceState();
 
+        // A real listener always has an address, and MarkReceived stamps it on the envelope as its destination.
+        // GH-5139: under IdAndDestination, the 7.0 default, the destination is part of the inbox key
+        theListener.Address.Returns(new Uri("stub://gh5123"));
+
         var runtime = theHost.GetRuntime();
         theReceiver = new DurableReceiver(new StubEndpoint("gh5123", new StubTransport()), runtime, thePipeline);
     }

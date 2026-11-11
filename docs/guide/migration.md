@@ -343,6 +343,19 @@ What to watch for on the upgrade:
   first start. If you manage the schema yourself, generate the migration with the `db-patch` command
   (`db-assert` tells you whether one is outstanding) and apply it before deploying. Changing a primary key rewrites the
   index under a lock, which is quick for a typical inbox but not for a large one.
+* **Backfill NULL `received_at` values first.** 6.x writes a NULL `received_at` for a dead letter whose envelope had no
+  destination, such as a locally published message that failed before it was routed. A primary key column can't hold
+  NULL, so the migration fails on a database that has any of these rows, and the application doesn't start (PostgreSQL
+  reports `23502: column "received_at" ... contains null values`). Before upgrading, give them the value Wolverine 7
+  writes for a destination-less dead letter, and which the dead letter tooling already shows for them:
+
+  ```sql
+  update wolverine.wolverine_dead_letters set received_at = 'unknown://none' where received_at is null;
+  update wolverine.wolverine_incoming_envelopes set received_at = 'unknown://none' where received_at is null;
+  ```
+
+  Use your own message storage schema name in place of `wolverine`, and run it against every database that holds
+  Wolverine envelope storage, including each tenant database.
 * **Drain the inbox first.** Upgrade with the inbox drained, so no message is in flight under the old identity. On
   RavenDB and Cosmos DB this matters most: their inbox documents are named by the identity, and a document written under
   the old identity is not found under the new one.

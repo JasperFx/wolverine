@@ -51,6 +51,14 @@ public class DatabaseConstants
     public const string Timestamp = "timestamp";
 
     public const string ReceivedAt = "received_at"; // add to all
+
+    /// <summary>
+    /// GH-3166 / GH-5139. The received_at written for a dead letter whose envelope had no destination. Under
+    /// MessageIdentity.IdAndDestination (the 7.0 default) received_at is part of the dead letter table's primary
+    /// key, and SQL Server's column is NOT NULL either way. The dead letter admin readers report a NULL received_at
+    /// written by 6.x as this same value
+    /// </summary>
+    public const string UnknownReceivedAt = "unknown://none";
     public const string SentAt = "sent_at"; // add to all
 
     public const string KeepUntil = "keep_until";
