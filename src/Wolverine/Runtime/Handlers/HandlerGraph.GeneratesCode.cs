@@ -50,33 +50,17 @@ public partial class HandlerGraph
                 .Select(x => x.VariableType));
             aotRootTypes.AddRange(aotRootsOf(chain));
             sideEffectTypes.AddRange(SideEffectAotRoots.Of(chain));
-            foreach (var handlerChain in chain.ByEndpoint)
-            {
-                responseAwareTypes.AddRange(handlerChain.ReturnVariablesOfType(typeof(IResponseAware))
-                    .Select(x => x.VariableType));
-                aotRootTypes.AddRange(aotRootsOf(handlerChain));
-                sideEffectTypes.AddRange(SideEffectAotRoots.Of(handlerChain));
-            }
 
+            // GH-5136. One generated file per handler chain, which is one per (message type, handler type)
             if (chain.Handlers.Any())
             {
                 generatedHandlerTypeNames.Add(chain.TypeName);
                 yield return chain;
             }
 
-            foreach (var handlerChain in chain.ByEndpoint)
-            {
-                generatedHandlerTypeNames.Add(handlerChain.TypeName);
-                yield return handlerChain;
-            }
-
             chainMessageTypes.Add(chain.MessageType);
 
             handlerTypes.AddRange(chain.HandlerCalls().Select(x => x.HandlerType));
-            foreach (var handlerChain in chain.ByEndpoint)
-            {
-                handlerTypes.AddRange(handlerChain.HandlerCalls().Select(x => x.HandlerType));
-            }
         }
 
         // Pre-generated handler registry for TypeLoadMode.Static cold-start (Wolverine#1577 Tier 1,
@@ -93,7 +77,7 @@ public partial class HandlerGraph
             : [];
 
         yield return new HandlerRegistryCodeFile(handlerTypes, messageTypes, generatedHandlerTypeNames,
-            chainMessageTypes, responseAwareTypes, aotRootTypes, sideEffectTypes);
+            chainMessageTypes.Distinct().ToList(), responseAwareTypes, aotRootTypes, sideEffectTypes);
     }
 
     /// <summary>

@@ -27,7 +27,7 @@ public class use_wrappers : CompilationContext
     {
         var message = new Message2();
 
-        await Execute(message);
+        await Execute(message, typeof(TransactionalHandler));
 
         theTracking.DisposedTheSession.ShouldBeTrue();
         theTracking.OpenedSession.ShouldBeTrue();
@@ -39,7 +39,7 @@ public class use_wrappers : CompilationContext
     {
         var message = new Message1();
 
-        await Execute(message);
+        await Execute(message, typeof(TransactionalHandler));
 
         theTracking.DisposedTheSession.ShouldBeTrue();
         theTracking.OpenedSession.ShouldBeTrue();

@@ -19,6 +19,7 @@ public class end_to_end : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.Services.AddSingleton<IChatClient>(_chat);
+                opts.Discovery.IncludeType(typeof(IncidentTriageHandler));
 
                 opts.AddLlmCallouts(ai =>
                 {

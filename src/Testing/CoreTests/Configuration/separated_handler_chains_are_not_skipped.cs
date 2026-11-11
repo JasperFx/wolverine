@@ -16,9 +16,8 @@ using Xunit;
 namespace CoreTests.Configuration;
 
 /// <summary>
-/// GH-5133. Under MultipleHandlerBehavior.Separated, a message type with more than one handler gets an empty
-/// placeholder root chain plus one chain per handler in <see cref="HandlerChain.ByEndpoint"/>. Anything that only
-/// reads <see cref="HandlerGraph.Chains"/> sees the placeholder and misses every handler.
+/// GH-5133 / GH-5136. A message type with more than one handler type gets one chain per handler type, and
+/// anything that inspects chain configuration has to see every one of them.
 /// </summary>
 public class separated_handler_chains_are_not_skipped : IAsyncLifetime
 {
@@ -55,12 +54,11 @@ public class separated_handler_chains_are_not_skipped : IAsyncLifetime
     private HandlerGraph theGraph => _host.GetRuntime().Handlers;
 
     [Fact]
-    public void the_root_chain_is_an_empty_placeholder()
+    public void there_is_one_chain_per_handler_type()
     {
         // The precondition for every test below
-        var root = theGraph.ChainFor<ModuleEvent>()!;
-        root.Handlers.ShouldBeEmpty();
-        root.ByEndpoint.Count.ShouldBe(2);
+        theGraph.Chains.Count(x => x.MessageType == typeof(ModuleEvent)).ShouldBe(2);
+        Should.Throw<AmbiguousHandlerChainException>(() => theGraph.ChainFor<ModuleEvent>());
     }
 
     [Fact]
@@ -76,23 +74,20 @@ public class separated_handler_chains_are_not_skipped : IAsyncLifetime
     [Fact]
     public void requeue_policy_on_a_separated_chain_is_seen_by_listener_validation()
     {
-        // Was false: the requeue validation only read the root chains
-        theGraph.Chains.Any(x => x.Failures.AnyRequeuePolicies()).ShouldBeFalse();
-
         theGraph.AnyRequeuePolicies().ShouldBeTrue();
     }
 
     [Fact]
     public void ConfigureHandlerForMessage_reaches_every_separated_chain()
     {
-        var root = theGraph.ChainFor<ModuleEvent>()!;
-        root.ByEndpoint.ShouldAllBe(x => x.SuccessLogLevel == LogLevel.Information);
+        theGraph.Chains.Where(x => x.MessageType == typeof(ModuleEvent))
+            .ShouldAllBe(x => x.SuccessLogLevel == LogLevel.Information);
     }
 
     [Fact]
     public void describe_routing_lists_the_separated_handlers()
     {
-        var lines = WolverineDiagnosticsCommand.DescribeLocalHandlers(theGraph.ChainFor<ModuleEvent>()!);
+        var lines = WolverineDiagnosticsCommand.DescribeLocalHandlers(theGraph.Chains.Where(x => x.MessageType == typeof(ModuleEvent)));
 
         lines.Count.ShouldBe(2);
         lines.ShouldContain(x => x.StartsWith(typeof(InventoryModuleHandler).FullNameInCode() + ".Handle") && x.Contains("local://"));
@@ -149,8 +144,7 @@ public class RequeueForHandlerType : IHandlerPolicy
 }
 
 /// <summary>
-/// GH-5133. Two saga types that handle the same messages: under Separated each gets its own chain in
-/// ByEndpoint and the root chain of each message type is routing-only.
+/// GH-5133 / GH-5136. Two saga types that handle the same messages: each gets its own chain.
 /// </summary>
 public class separated_saga_chains_are_not_skipped : IAsyncLifetime
 {
@@ -182,11 +176,6 @@ public class separated_saga_chains_are_not_skipped : IAsyncLifetime
     [Fact]
     public void saga_store_diagnostics_see_every_saga_type()
     {
-        // Was the bug: every message SecondSharedWorkSaga handles is shared with FirstSharedWorkSaga, so the
-        // root chains only ever name one of the two saga types
-        theRuntime.Handlers.Chains.OfType<SagaChain>().Select(x => x.SagaType).Distinct()
-            .ShouldNotContain(typeof(SecondSharedWorkSaga));
-
         // What the EF Core, RavenDB, RDBMS, Marten and CosmosDB saga diagnostics read now
         theRuntime.Handlers.SagaChains().Select(x => x.SagaType).Distinct()
             .ShouldBe([typeof(FirstSharedWorkSaga), typeof(SecondSharedWorkSaga)], ignoreOrder: true);

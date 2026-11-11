@@ -24,44 +24,22 @@ public class batch_handler_conflict_diagnostic
     }
 
     [Fact]
-    public async Task warns_by_default_when_a_direct_handler_shadows_a_batch_in_classic_mode()
+    public async Task no_conflict_by_default_because_the_direct_and_the_batch_handler_both_run()
     {
+        // GH-5136. Each handler type has its own chain, so the direct handler never shadows the batch handler:
+        // the batch moves to a queue of its own and both run. Nothing to warn about, even when opted in to
+        // throwing.
         var logger = new CapturingLogger();
 
         using var host = await buildHost(opts =>
         {
-            // default MultipleHandlerBehavior is ClassicCombineIntoOneLogicalHandler
             opts.Discovery.IncludeType<ConflictDirectHandler>();
             opts.Discovery.IncludeType<ConflictBatchHandler>();
             opts.BatchMessagesOf<ConflictMessage>();
+            opts.AssertNoBatchHandlerConflicts();
         }, logger).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        logger.Entries.ShouldContain(x =>
-            x.Level == LogLevel.Warning && x.Message.Contains("Batch handler conflict"));
-
-        var warning = logger.Entries
-            .Single(x => x.Level == LogLevel.Warning && x.Message.Contains("Batch handler conflict"));
-
-        // Names both roles and points at the fix
-        warning.Message.ShouldContain(nameof(ConflictDirectHandler));
-        warning.Message.ShouldContain("MultipleHandlerBehavior.Separated");
-    }
-
-    [Fact]
-    public async Task throws_when_opted_in_via_AssertNoBatchHandlerConflicts()
-    {
-        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
-        {
-            using var host = await buildHost(opts =>
-            {
-                opts.Discovery.IncludeType<ConflictDirectHandler>();
-                opts.Discovery.IncludeType<ConflictBatchHandler>();
-                opts.BatchMessagesOf<ConflictMessage>();
-                opts.AssertNoBatchHandlerConflicts();
-            }).StartAsync();
-        });
-
-        ex.Message.ShouldContain("Batch handler conflict");
+        logger.Entries.ShouldNotContain(x => x.Message.Contains("Batch handler conflict"));
     }
 
     [Fact]

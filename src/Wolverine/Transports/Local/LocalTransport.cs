@@ -170,8 +170,10 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         {
             foreach (var messageType in handledMessageTypes)
             {
-                var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
-                if (chain != null && chain.Handlers.Any())
+                // GH-5136. The message type's own queue is for a chain that is not bound to an endpoint of
+                // its own: the only chain of a message type with one handler type that is not sticky
+                var group = runtime.Options.HandlerGraph.GroupFor(messageType);
+                if (group != null && group.UnboundChains().Any(x => x.Handlers.Any()))
                 {
                     FindOrCreateQueueForMessageTypeByConvention(messageType);
                 }
@@ -215,7 +217,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
     internal IEnumerable<Endpoint> DiscoverSenders(Type messageType, IWolverineRuntime runtime)
     {
-        var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
+        var group = runtime.Options.HandlerGraph.GroupFor(messageType);
         
         // This only covers the default message type to local queue routing
         if (Assignments.TryGetValue(messageType, out var queue))
@@ -225,12 +227,12 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         
         // Now do "sticky" assignments too
 
-        if (chain == null)
+        if (group == null)
         {
             yield break;
         }
         
-        foreach (var endpoint in chain.ByEndpoint.SelectMany(x => x.Endpoints))
+        foreach (var endpoint in group.BoundChains().SelectMany(x => x.Endpoints))
         {
             // GH-4510. A sticky handler binding says "deliver this message type to this listener". It is NOT a
             // claim that anything can send to the endpoint, and conflating the two crashed host startup: an
@@ -274,12 +276,6 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         Justification = "Runtime-resolved handler types; AOT-clean apps in TypeLoadMode.Static have these baked into source-generated registration. See AOT guide.")]
     internal void ApplyConfiguration(HandlerChain chain)
     {
-        // Gotta go recursive
-        foreach (var handlerChain in chain.ByEndpoint)
-        {
-            ApplyConfiguration(handlerChain);
-        }
-
         var configured = chain.Handlers.Select(x => x.HandlerType)
             .Where(x => x.CanBeCastTo(typeof(IConfigureLocalQueue))).ToArray();
 

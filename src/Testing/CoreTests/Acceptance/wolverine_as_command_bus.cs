@@ -142,7 +142,9 @@ public class wolverine_as_command_bus : IntegrationContext
     {
         var tracked = await Host.InvokeMessageAndWaitAsync(new ForceAsyncEnumMessages());
 
-        tracked.Sent.MessagesOf<Message1>().Count().ShouldBe(3);
+        // GH-5136. Each Message1 is sent once to every local queue of a handler type of Message1, so count the
+        // messages rather than the envelopes
+        tracked.Sent.MessagesOf<Message1>().Distinct().Count().ShouldBe(3);
     }
 }
 

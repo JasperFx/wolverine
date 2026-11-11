@@ -47,7 +47,10 @@ public class configuring_deliver_within_rules
         var message = new Message1();
 
         var session = await host.SendMessageAndWaitAsync(message);
-        session.Sent.SingleEnvelope<Message1>()
+        // GH-5136. Message1 has several handler types in this assembly, each on its own local queue, so the
+        // message sent to "volatile" is relayed from there to each of them. The rule is about the one sent to
+        // "volatile"
+        session.Sent.Envelopes().Single(x => x.Message is Message1 && x.Destination == new Uri("local://volatile"))
             .DeliverWithin.ShouldBe(3.Seconds());
     }
 }

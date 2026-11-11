@@ -108,6 +108,15 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
     {
         return Handlers.HandlerFor<T>()!.As<MessageHandler>().Chain!;
     }
+
+    /// <summary>
+    /// GH-5136. The compiled chain of <typeparamref name="TMessage"/> that belongs to <typeparamref name="THandler"/>.
+    /// Each handler type has its own chain, and the shared messages are handled by several handler types here
+    /// </summary>
+    protected HandlerChain chainFor<TMessage, THandler>()
+    {
+        return Handlers.HandlerForHandlerType(typeof(TMessage), typeof(THandler))!.As<MessageHandler>().Chain!;
+    }
 }
 
 public record ExplicitMessage1;

@@ -763,11 +763,11 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
         AnsiConsole.WriteLine();
 
         // --- Handler chain ---
-        var chain = options.HandlerGraph.ChainFor(messageType);
-        if (chain != null)
+        var chains = options.HandlerGraph.GroupFor(messageType)?.Chains ?? [];
+        if (chains.Count > 0)
         {
             AnsiConsole.MarkupLine("[bold]Local Handler:[/]");
-            foreach (var line in DescribeLocalHandlers(chain))
+            foreach (var line in DescribeLocalHandlers(chains))
             {
                 AnsiConsole.MarkupLine($"  [cyan]{line.EscapeMarkup()}[/]");
             }
@@ -836,21 +836,19 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
     }
 
     /// <summary>
-    /// GH-5133. The handlers of a message type, one line each. Under MultipleHandlerBehavior.Separated (and for
-    /// sticky handlers) they live in the root chain's per-endpoint chains, so those are listed too, with the
-    /// endpoint(s) each one is bound to.
+    /// GH-5133 / GH-5136. The handlers of a message type, one line each: one per handler chain, which is one per
+    /// handler type, with the endpoint(s) each chain is bound to if it is bound to any.
     /// </summary>
-    internal static IReadOnlyList<string> DescribeLocalHandlers(HandlerChain chain)
+    internal static IReadOnlyList<string> DescribeLocalHandlers(IEnumerable<HandlerChain> chains)
     {
-        var lines = chain.Handlers
-            .Select(handler => $"{handler.HandlerType.FullNameInCode()}.{handler.Method.Name}")
-            .ToList();
+        var lines = new List<string>();
 
-        foreach (var separated in chain.ByEndpoint)
+        foreach (var chain in chains)
         {
-            var endpoints = separated.Endpoints.Select(x => x.Uri.ToString()).Join(", ");
-            lines.AddRange(separated.Handlers.Select(handler =>
-                $"{handler.HandlerType.FullNameInCode()}.{handler.Method.Name} ({endpoints})"));
+            var endpoints = chain.Endpoints.Select(x => x.Uri.ToString()).Join(", ");
+            var suffix = endpoints.IsEmpty() ? "" : $" ({endpoints})";
+            lines.AddRange(chain.Handlers.Select(handler =>
+                $"{handler.HandlerType.FullNameInCode()}.{handler.Method.Name}{suffix}"));
         }
 
         return lines;

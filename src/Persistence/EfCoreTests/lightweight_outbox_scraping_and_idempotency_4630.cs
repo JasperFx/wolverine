@@ -339,6 +339,10 @@ public class Cascade4630Handler
     public static void Handle(Item4630Created e) => Received.Add(e.Id);
 }
 
+// GH-5136. Hidden from conventional discovery (its own test includes it explicitly): it also handles the shared
+// ItemApproved, and every handler type of a message now gets its own chain, so leaking it into every other host in
+// this assembly would give ItemApproved a second handler there
+[Wolverine.Attributes.WolverineIgnore]
 public class Approve4630Handler
 {
     public static async Task Handle(Approve4630Item command, CleanDbContext db, CancellationToken cancellation)

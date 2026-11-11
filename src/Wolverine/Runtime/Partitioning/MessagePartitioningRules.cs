@@ -313,25 +313,25 @@ public class MessagePartitioningRules
     {
         if (!_useInferredGrouping) return;
 
-        foreach (var chain in handlerGraph.Chains)
+        foreach (var group in handlerGraph.Groups)
         {
-            // GH-5133. Under MultipleHandlerBehavior.Separated the root chain of a message type with several
-            // handlers is an empty placeholder, and the saga or aggregate that gives away the identity is in
-            // one of its per-endpoint chains. The first chain that can infer it wins.
-            foreach (var candidate in chain.ByEndpoint.Prepend(chain))
+            // GH-5133 / GH-5136. A message type with several handler types has one chain per handler type, and
+            // the saga or aggregate that gives away the identity is in one of them. The first chain that can
+            // infer it wins.
+            foreach (var candidate in group.Chains)
             {
                 if (candidate.TryInferMessageIdentity(out var property))
                 {
-                    ByMessage(chain.MessageType, property!);
+                    ByMessage(group.MessageType, property!);
                     break;
                 }
             }
 
             // For messages implementing SequencedMessage, use Order as the group id
             // so that messages with the same sequence number are partitioned together
-            if (chain.MessageType.CanBeCastTo<SequencedMessage>())
+            if (group.MessageType.CanBeCastTo<SequencedMessage>())
             {
-                _rules.Add(new SequencedMessageGroupingRule(chain.MessageType));
+                _rules.Add(new SequencedMessageGroupingRule(group.MessageType));
             }
         }
     }
