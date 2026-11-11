@@ -13,19 +13,34 @@ namespace Wolverine.Runtime.Serialization;
 /// <see cref="JsonSerializer"/> overloads (no <c>JsonTypeInfo</c> /
 /// <c>JsonSerializerContext</c>), so the <c>Write</c> / <c>ReadFromData</c>
 /// methods carry <c>[RequiresUnreferencedCode]</c> + <c>[RequiresDynamicCode]</c>.
-/// AOT-clean apps that want STJ should supply a custom <see cref="IMessageSerializer"/>
-/// implementation wrapping <c>JsonSerializer.Serialize&lt;T&gt;(value, JsonTypeInfo)</c>
-/// — see the Wolverine AOT publishing guide.
+/// When the options carry a <see cref="JsonSerializerOptions.TypeInfoResolver"/> — typically a
+/// source generated <see cref="JsonSerializerContext"/> supplied through
+/// <see cref="WolverineOptions.UseSystemTextJsonForSerialization(JsonSerializerContext, Action{JsonSerializerOptions}?)"/> —
+/// the serializer resolves each message type's <see cref="System.Text.Json.Serialization.Metadata.JsonTypeInfo"/>
+/// from that resolver and uses the <c>JsonTypeInfo</c> overloads instead, which is the trim and
+/// Native AOT safe path.
 /// </remarks>
 public class SystemTextJsonSerializer : IMessageSerializer
 {
     private readonly JsonSerializerOptions _options;
 
+    // True when the options name an explicit type info resolver (a source generated
+    // JsonSerializerContext, or a chain the application built). Serialization then goes through
+    // options.GetTypeInfo(type) and the JsonTypeInfo overloads, which never reach for reflection
+    // metadata the resolver didn't provide.
+    private readonly bool _useTypeInfo;
+
     public SystemTextJsonSerializer(JsonSerializerOptions options)
     {
         _options = options;
         _options.Converters.Add(new CustomJsonConverterForType());
+        _useTypeInfo = options.TypeInfoResolver is not null;
     }
+
+    /// <summary>
+    /// The options this serializer uses.
+    /// </summary>
+    public JsonSerializerOptions Options => _options;
 
     public string ContentType => EnvelopeConstants.JsonContentType;
 
@@ -46,7 +61,7 @@ public class SystemTextJsonSerializer : IMessageSerializer
         Justification = "Default JSON serializer; AOT consumers wrap JsonSerializer with JsonTypeInfo. See AOT guide.")]
     public byte[] Write(Envelope envelope)
     {
-        return JsonSerializer.SerializeToUtf8Bytes(envelope.Message, _options);
+        return WriteMessage(envelope.Message!);
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",
@@ -58,6 +73,11 @@ public class SystemTextJsonSerializer : IMessageSerializer
         // GH-4333: deserialize from the body span. Passing envelope.Data here would materialize the
         // whole payload into a fresh array first, which on a large message is exactly the LOH allocation
         // the pooled receive path exists to avoid -- and STJ only ever reads it.
+        if (_useTypeInfo)
+        {
+            return JsonSerializer.Deserialize(envelope.Body.Span, _options.GetTypeInfo(messageType))!;
+        }
+
         return JsonSerializer.Deserialize(envelope.Body.Span, messageType, _options)!;
     }
 
@@ -72,6 +92,11 @@ public class SystemTextJsonSerializer : IMessageSerializer
         Justification = "Default JSON serializer; AOT consumers wrap JsonSerializer with JsonTypeInfo. See AOT guide.")]
     public byte[] WriteMessage(object message)
     {
+        if (_useTypeInfo && message is not null)
+        {
+            return JsonSerializer.SerializeToUtf8Bytes(message, _options.GetTypeInfo(message.GetType()));
+        }
+
         return JsonSerializer.SerializeToUtf8Bytes(message, _options);
     }
 
