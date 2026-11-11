@@ -111,10 +111,9 @@ copying any messages over. See [Prefixing the Queue Tables](/guide/durability/sq
 in the SQLite guide for the rest of the details.
 
 ::: warning
-`FisherIntegration.TransportSchemaName` is now obsolete. It never did anything on Fisher, because there's no
-schema for it to name. Setting it now sets `PrefixName` instead, so if you had set it before, your queue
-tables will pick up that value as a prefix when you upgrade. Either switch to `PrefixName` deliberately, or
-remove the `TransportSchemaName` setting to keep your existing queue table names.
+`FisherIntegration.TransportSchemaName` was removed in Wolverine 7.0. It never named anything on Fisher, because
+there's no schema for it to name, and in 6.x setting it set `PrefixName`. If you set it, set `PrefixName` to the same
+value to keep your queue table names, or delete the line if you never meant to prefix them.
 :::
 
 ## Event Sourcing
