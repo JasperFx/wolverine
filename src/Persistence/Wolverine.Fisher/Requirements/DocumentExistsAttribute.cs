@@ -75,7 +75,10 @@ public class DocumentExistsAttribute<TDoc> : ModifyChainAttribute where TDoc : c
     internal static Type ResolveIdType(Type docType)
     {
         var idProp = docType.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
-        return idProp?.PropertyType ?? typeof(Guid);
+        if (idProp == null) return typeof(Guid);
+
+        // GH-3942 / GH-5142: unwrap Nullable<T>, in lockstep with FisherPersistenceFrameProvider.DetermineSagaIdType
+        return Nullable.GetUnderlyingType(idProp.PropertyType) ?? idProp.PropertyType;
     }
 
     internal static bool TryFindIdentityVariable(IChain chain, string? argumentName, Type docType, Type idType,

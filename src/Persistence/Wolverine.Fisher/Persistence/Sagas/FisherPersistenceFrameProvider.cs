@@ -34,7 +34,13 @@ internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvide
     public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
         var idProp = sagaType.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
-        return idProp?.PropertyType ?? typeof(Guid);
+        if (idProp == null) return typeof(Guid);
+
+        // GH-3942, which Polecat got and Fisher did not (GH-5142): unwrap Nullable<T> so the stores agree on an
+        // aggregate's id type. For `public AlertId? Id { get; set; }` the property verbatim is Nullable<AlertId>,
+        // which WriteModelAttribute.FindIdentity treats as non-primitive, so it skipped the IdentifiedBy<T>
+        // escape hatch and went looking for a Nullable<AlertId> member on the message that exists nowhere.
+        return Nullable.GetUnderlyingType(idProp.PropertyType) ?? idProp.PropertyType;
     }
 
     /// <inheritdoc />

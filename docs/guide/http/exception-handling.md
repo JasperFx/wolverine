@@ -236,7 +236,7 @@ There is a one line opt in for this:
 ```csharp
 app.MapWolverineEndpoints(opts =>
 {
-    // Marten. Also available as MapPolecatConcurrencyFailuresToConflict()
+    // Marten. On Polecat or Fisher, MapConcurrencyFailuresToConflict()
     opts.MapMartenConcurrencyFailuresToConflict();
 });
 ```
@@ -270,15 +270,16 @@ A `null` `Status` is filled in as 409.
 | Store | Call |
 | --- | --- |
 | Marten | `opts.MapMartenConcurrencyFailuresToConflict()` |
-| Polecat | `opts.MapPolecatConcurrencyFailuresToConflict()` |
-| Fisher, or no event store | `opts.MapConcurrencyFailuresToConflict()` |
+| Polecat, Fisher, or no event store | `opts.MapConcurrencyFailuresToConflict()` |
 
-The store specific calls exist because `Marten.Exceptions.StreamLockedException` and
-`Polecat.Exceptions.StreamLockedException` do **not** derive from `JasperFx.ConcurrencyException` and are not
-visible to `WolverineFx.Http` on its own. On Marten or Polecat, `MapConcurrencyFailuresToConflict()` alone
-would leave the `FetchForExclusiveWriting` path returning 500s. Fisher needs no equivalent -- its exclusive
-methods are optimistic and throw `EventStreamUnexpectedMaxEventIdException`, which is a
-`ConcurrencyException`.
+`MapConcurrencyFailuresToConflict()` maps both `JasperFx.ConcurrencyException` and
+`JasperFx.Events.StreamLockedException`, which `FetchForExclusiveWriting` throws on a contended stream and which
+is **not** a `ConcurrencyException`. Polecat's and Fisher's `StreamLockedException` derive from the JasperFx one,
+so the core call covers them. `MapPolecatConcurrencyFailuresToConflict()` still works and does the same thing.
+
+Marten is the exception for now: `Marten.Exceptions.StreamLockedException` derives from `MartenException`
+instead, so `MapConcurrencyFailuresToConflict()` alone would leave Marten's exclusive locking path returning
+500s. `MapMartenConcurrencyFailuresToConflict()` adds Marten's type.
 :::
 
 A commit that fails more than one version check at once -- two `[UseOptimisticConcurrency]` documents in one

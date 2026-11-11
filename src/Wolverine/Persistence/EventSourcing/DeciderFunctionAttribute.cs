@@ -103,7 +103,7 @@ public class DeciderFunctionAttribute : ModifyChainAttribute, IDataRequirement, 
         var provider = ResolveEventSourcingProvider(rules, container, aggregateType);
 
         (AggregateIdMember, VersionMember) =
-            AggregateHandling.DetermineAggregateIdAndVersion(AggregateType, CommandType, container, provider,
+            AggregateHandling.DetermineAggregateIdAndVersion(AggregateType, CommandType, chain, container, provider,
                 VersionSource);
 
         var aggregateFrame = new MemberAccessFrame(CommandType, AggregateIdMember,

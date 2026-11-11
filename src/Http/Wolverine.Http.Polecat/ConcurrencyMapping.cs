@@ -5,15 +5,14 @@ using Wolverine.Http.Runtime;
 namespace Wolverine.Http.Polecat;
 
 /// <summary>
-/// GH-4512. The Polecat half of the conflict mapping, for the same reason as Marten's:
-/// <see cref="StreamLockedException"/> -- what <c>FetchForExclusiveWriting</c> throws on a contended stream --
-/// does not derive from <c>JasperFx.ConcurrencyException</c>, so the core handler does not see it, and the
-/// type is not referenceable from Wolverine.Http.
+/// GH-4512. The Polecat half of the conflict mapping, from when Polecat's <see cref="StreamLockedException"/>
+/// was not visible to Wolverine.Http.
 ///
 /// <para>
-/// Fisher needs no equivalent: its exclusive methods are optimistic and throw
-/// <c>EventStreamUnexpectedMaxEventIdException</c>, which already derives from
-/// <c>JasperFx.ConcurrencyException</c> and is covered by the core mapping.
+/// GH-5142: no longer registered. Polecat's <see cref="StreamLockedException"/> derives from
+/// <c>JasperFx.Events.StreamLockedException</c>, which the core <c>ConcurrencyExceptionMiddleware</c> now maps
+/// itself, for Polecat and Fisher alike. The class stays public so existing references keep compiling;
+/// GH-5145 retires it.
 /// </para>
 /// </summary>
 public static class PolecatStreamLockedMiddleware
@@ -31,8 +30,9 @@ public static class PolecatWolverineHttpOptionsExtensions
     /// letting them escape as an unhandled 500, and advertise the 409 in the OpenAPI document.
     ///
     /// <para>
-    /// This is the call a Polecat application wants, because it covers <b>both</b> everything deriving from
-    /// <c>JasperFx.ConcurrencyException</c> <b>and</b> <see cref="StreamLockedException"/>, which does not.
+    /// Covers everything deriving from <c>JasperFx.ConcurrencyException</c> and <see cref="StreamLockedException"/>,
+    /// which does not. GH-5142: both are now mapped by the core <c>MapConcurrencyFailuresToConflict()</c>, so
+    /// this is the same call under the Polecat name.
     /// </para>
     /// </summary>
     /// <param name="options"></param>
@@ -49,6 +49,5 @@ public static class PolecatWolverineHttpOptionsExtensions
         filter ??= ConflictMapping.IsTransactional;
 
         options.MapConcurrencyFailuresToConflict(filter, toProblemDetails);
-        options.AddMiddleware(typeof(PolecatStreamLockedMiddleware), filter);
     }
 }
