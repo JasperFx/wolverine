@@ -33,7 +33,7 @@ list.
 | New database queue tables (PostgreSQL, SQL Server, MySQL, Oracle, SQLite transports) | no ordering column; SQL Server classic layout | deterministic ordering, and SQL Server's throughput layout, **for new tables only** | None for existing tables; see [queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout) |
 | `WolverineFx.MQTT` client library | MQTTnet 4 + `MQTTnet.Extensions.ManagedClient` | **MQTTnet 5** *(BREAKING for code using MQTTnet types directly)* | See [MQTT runs on MQTTnet 5](#mqtt-transport-runs-on-mqttnet-5-wolverinefx-mqtt5-retired-breaking) |
 | `WolverineFx.Mqtt5` package | MQTTnet 5 flavor of the MQTT transport | **retired**; last published in 6.x *(BREAKING)* | Reference `WolverineFx.MQTT` instead; nothing else changes |
-| Per-store `[DocumentExists<T>]` / `[DocumentDoesNotExist<T>]`, `IEventForwarding`, `EventForwardingTransform<T>` (Marten, Polecat, Fisher) | one copy per store | **`[Obsolete]`**: one core type each, same names; removed in 8.0 | See [obsolete in 7.0](#obsolete-in-7-0) |
+| Per-store `[DocumentExists<T>]` / `[DocumentDoesNotExist<T>]`, `IEventForwarding`, `EventForwardingTransform<T>` (Marten, Polecat, Fisher) | one copy per store | **`[Obsolete]`**: one core type each (`IEventForwardingConfiguration`, `EventForwardingTransformation<T>`, same-named attributes); removed in 8.0 | See [obsolete in 7.0](#obsolete-in-7-0) |
 | JasperFx / Weasel / Marten / Polecat / Fisher | 2.x / 9.x / 9.x / 5.x / 1.x | 3.0 / 10.0 / 10.0 / 6.0 / 2.0 *(BREAKING)* | Upgrade them together; see [dependency majors](#dependency-major-versions-in-7-0-breaking) |
 | Wolverine's OpenTelemetry `Meter` name | `Wolverine:{ServiceName}`, so only `AddMeter("Wolverine*")` collected it | exactly `Wolverine` *(BREAKING for exact-name meter filters)* | `AddMeter("Wolverine")` now works; `AddMeter("Wolverine*")` keeps working. See [meter and metric names](#opentelemetry-meter-and-metric-names-breaking) |
 | Wolverine metric instrument names | dashed (`wolverine-messages-sent`) | dotted (`wolverine.messages.sent`) *(BREAKING for dashboards and alerts)* | Rename the series in dashboards, alerts and recording rules; see [the full table](#opentelemetry-meter-and-metric-names-breaking) |
@@ -554,8 +554,8 @@ and are removed in 8.0.
 |---|---|
 | `Wolverine.Marten.Requirements.DocumentExistsAttribute<T>`, `Wolverine.Polecat.Requirements.DocumentExistsAttribute<T>`, `Wolverine.Fisher.Requirements.DocumentExistsAttribute<T>` | `Wolverine.Persistence.Requirements.DocumentExistsAttribute<T>` |
 | `Wolverine.Marten.Requirements.DocumentDoesNotExistAttribute<T>`, and the Polecat and Fisher copies | `Wolverine.Persistence.Requirements.DocumentDoesNotExistAttribute<T>` |
-| `Wolverine.Marten.IEventForwarding`, `Wolverine.Polecat.IEventForwarding`, `Wolverine.Fisher.IEventForwarding` | `Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding` |
-| `Wolverine.Marten.EventForwardingTransform<T>`, and the Polecat and Fisher copies | `Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<T>` |
+| `Wolverine.Marten.IEventForwarding`, `Wolverine.Polecat.IEventForwarding`, `Wolverine.Fisher.IEventForwarding` | `Wolverine.Persistence.EventSourcing.IEventForwardingConfiguration` |
+| `Wolverine.Marten.EventForwardingTransform<T>`, and the Polecat and Fisher copies | `Wolverine.Persistence.EventSourcing.EventForwardingTransformation<T>` |
 
 * **The core attributes keep the old names.** To migrate, swap `using Wolverine.Marten.Requirements;` (or the Polecat or Fisher
   one) for `using Wolverine.Persistence.Requirements;`. They work with all three stores. A chain routed to an ancillary
@@ -564,11 +564,10 @@ and are removed in 8.0.
   That means a file that also uses `IMartenDataRequirement` (from `Wolverine.Marten.Requirements`) should spell the
   attribute's full name.
 * **Event forwarding.** `MartenIntegration`, `PolecatIntegration` and `FisherIntegration` implement the core
-  `IEventForwarding`. Their public `SubscribeToEvent<T>()` keeps its signature until 8.0, and what it returns is already a
-  core `EventForwardingTransform<T>`. Code that never names these types (`x.SubscribeToEvent<T>().TransformedTo(...)`)
-  needs no change. Code that names the interface should alias it,
-  `using IEventForwarding = Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding;`, because `Wolverine.Marten`
-  still carries the obsolete name.
+  `IEventForwardingConfiguration`. Its names differ from the per-store types, so importing both namespaces is fine. Each
+  integration's public `SubscribeToEvent<T>()` keeps its signature until 8.0, and what it returns is already a core
+  `EventForwardingTransformation<T>`. Code that never names these types (`x.SubscribeToEvent<T>().TransformedTo(...)`)
+  needs no change.
 * The `DocumentStore()` extension methods (`Wolverine.Polecat.TestingExtensions`, `Wolverine.Fisher.TestingExtensions`
   and Marten's own) are **not** obsolete and stay as they are.
 * The `MartenOps`, `PolecatOps` and `FisherOps` facades are not obsolete in 7.0.

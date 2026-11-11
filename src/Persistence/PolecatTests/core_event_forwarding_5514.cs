@@ -4,20 +4,19 @@ using Microsoft.Extensions.Hosting;
 using Polecat;
 using Shouldly;
 using Wolverine;
-// The store's own namespace still carries the obsolete IEventForwarding until 8.0, so the core one is aliased
-using IEventForwarding = Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Polecat;
 using Wolverine.Tracking;
 
 namespace PolecatTests;
 
-// GH-5514: event forwarding configured once against the core IEventForwarding, applied to Polecat. The obsolete
+// GH-5514: event forwarding configured once against the core IEventForwardingConfiguration, applied to Polecat. The obsolete
 // Wolverine.Polecat.IEventForwarding / EventForwardingTransform<T> are still covered by
 // subscribe_to_event_requires_completion.
 public class core_event_forwarding_5514
 {
     // Store-agnostic configuration: nothing here names Polecat
-    private static void forwardHappenedAsTranslated(IEventForwarding forwarding)
+    private static void forwardHappenedAsTranslated(IEventForwardingConfiguration forwarding)
     {
         forwarding.SubscribeToEvent<PcCoreForwardedHappened>()
             .TransformedTo(e => new PcCoreForwardedTranslated(e.Data.Name));
@@ -41,10 +40,10 @@ public class core_event_forwarding_5514
     public void the_integration_is_the_core_event_forwarding_and_hands_back_the_core_transform()
     {
         var integration = new PolecatIntegration();
-        integration.ShouldBeAssignableTo<IEventForwarding>();
+        integration.ShouldBeAssignableTo<IEventForwardingConfiguration>();
 
         integration.SubscribeToEvent<PcCoreForwardedHappened>()
-            .ShouldBeAssignableTo<Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<PcCoreForwardedHappened>>();
+            .ShouldBeAssignableTo<EventForwardingTransformation<PcCoreForwardedHappened>>();
     }
 
     [Fact]
@@ -63,7 +62,7 @@ public class core_event_forwarding_5514
     public async Task a_bare_subscription_through_the_core_interface_fails_at_bootstrap()
     {
         var failure = await Should.ThrowAsync<InvalidOperationException>(() =>
-            hostFor(m => ((IEventForwarding)m).SubscribeToEvent<PcCoreForwardedHappened>())
+            hostFor(m => ((IEventForwardingConfiguration)m).SubscribeToEvent<PcCoreForwardedHappened>())
                 .StartAsync(TestContext.Current.CancellationToken));
 
         failure.Message.ShouldContain(nameof(PcCoreForwardedHappened));

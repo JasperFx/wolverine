@@ -5,19 +5,18 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Fisher;
-// The store's own namespace still carries the obsolete IEventForwarding until 8.0, so the core one is aliased
-using IEventForwarding = Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Tracking;
 
 namespace FisherTests;
 
-// GH-5514: event forwarding configured once against the core IEventForwarding, applied to Fisher. The obsolete
+// GH-5514: event forwarding configured once against the core IEventForwardingConfiguration, applied to Fisher. The obsolete
 // Wolverine.Fisher.IEventForwarding / EventForwardingTransform<T> are still covered by
 // subscribe_to_event_requires_completion.
 public class core_event_forwarding_5514
 {
     // Store-agnostic configuration: nothing here names Fisher
-    private static void forwardHappenedAsTranslated(IEventForwarding forwarding)
+    private static void forwardHappenedAsTranslated(IEventForwardingConfiguration forwarding)
     {
         forwarding.SubscribeToEvent<FiCoreForwardedHappened>()
             .TransformedTo(e => new FiCoreForwardedTranslated(e.Data.Name));
@@ -42,10 +41,10 @@ public class core_event_forwarding_5514
     public void the_integration_is_the_core_event_forwarding_and_hands_back_the_core_transform()
     {
         var integration = new FisherIntegration();
-        integration.ShouldBeAssignableTo<IEventForwarding>();
+        integration.ShouldBeAssignableTo<IEventForwardingConfiguration>();
 
         integration.SubscribeToEvent<FiCoreForwardedHappened>()
-            .ShouldBeAssignableTo<Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<FiCoreForwardedHappened>>();
+            .ShouldBeAssignableTo<EventForwardingTransformation<FiCoreForwardedHappened>>();
     }
 
     [Fact]
@@ -69,7 +68,7 @@ public class core_event_forwarding_5514
         using var database = Servers.CreateDatabase("core_forwarding_bare");
 
         var failure = await Should.ThrowAsync<InvalidOperationException>(() =>
-            hostFor(database, m => ((IEventForwarding)m).SubscribeToEvent<FiCoreForwardedHappened>())
+            hostFor(database, m => ((IEventForwardingConfiguration)m).SubscribeToEvent<FiCoreForwardedHappened>())
                 .StartAsync(TestContext.Current.CancellationToken));
 
         failure.Message.ShouldContain(nameof(FiCoreForwardedHappened));

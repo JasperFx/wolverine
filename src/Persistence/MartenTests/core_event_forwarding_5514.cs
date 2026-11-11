@@ -6,19 +6,18 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
-// The store's own namespace still carries the obsolete IEventForwarding until 8.0, so the core one is aliased
-using IEventForwarding = Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Tracking;
 
 namespace MartenTests;
 
-// GH-5514: event forwarding configured once against the core IEventForwarding, applied to Marten. The obsolete
+// GH-5514: event forwarding configured once against the core IEventForwardingConfiguration, applied to Marten. The obsolete
 // Wolverine.Marten.IEventForwarding / EventForwardingTransform<T> are still covered by event_streaming and
 // subscribe_to_event_requires_completion.
 public class core_event_forwarding_5514 : PostgresqlContext
 {
     // Store-agnostic configuration: nothing here names Marten
-    private static void forwardHappenedAsTranslated(IEventForwarding forwarding)
+    private static void forwardHappenedAsTranslated(IEventForwardingConfiguration forwarding)
     {
         forwarding.SubscribeToEvent<CoreForwardedHappened>()
             .TransformedTo(e => new CoreForwardedTranslated(e.Data.Name));
@@ -44,11 +43,11 @@ public class core_event_forwarding_5514 : PostgresqlContext
     public void the_integration_is_the_core_event_forwarding_and_hands_back_the_core_transform()
     {
         var integration = new MartenIntegration();
-        integration.ShouldBeAssignableTo<IEventForwarding>();
+        integration.ShouldBeAssignableTo<IEventForwardingConfiguration>();
 
         // The existing public method keeps its signature until 8.0, but its value is already the core type
         integration.SubscribeToEvent<CoreForwardedHappened>()
-            .ShouldBeAssignableTo<Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<CoreForwardedHappened>>();
+            .ShouldBeAssignableTo<EventForwardingTransformation<CoreForwardedHappened>>();
     }
 
     [Fact]
@@ -67,7 +66,7 @@ public class core_event_forwarding_5514 : PostgresqlContext
     public async Task a_bare_subscription_through_the_core_interface_fails_at_bootstrap()
     {
         var failure = await Should.ThrowAsync<InvalidOperationException>(() =>
-            hostFor(m => ((IEventForwarding)m).SubscribeToEvent<CoreForwardedHappened>())
+            hostFor(m => ((IEventForwardingConfiguration)m).SubscribeToEvent<CoreForwardedHappened>())
                 .StartAsync(TestContext.Current.CancellationToken));
 
         failure.Message.ShouldContain(nameof(CoreForwardedHappened));

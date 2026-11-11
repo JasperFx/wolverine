@@ -33,7 +33,7 @@ namespace Wolverine.Marten;
 
 // GH-5514: the per-store IEventForwarding stays implemented until 8.0, for compatibility
 #pragma warning disable CS0618
-public class MartenIntegration : IWolverineExtension, IEventForwarding, Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding
+public class MartenIntegration : IWolverineExtension, IEventForwarding, Wolverine.Persistence.EventSourcing.IEventForwardingConfiguration
 #pragma warning restore CS0618
 {
     private readonly List<Action<WolverineOptions>> _actions = [];
@@ -214,7 +214,7 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding, Wolverin
 
     /// <summary>
     /// Define a <em>transformation</em> of a forwarded event: complete the returned builder with
-    /// <see cref="Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform{TSource}.TransformedTo{TDestination}"/> to publish the
+    /// <see cref="Wolverine.Persistence.EventSourcing.EventForwardingTransformation{TSource}.TransformedTo{TDestination}"/> to publish the
     /// transformed message under Wolverine's normal routing rules. ⚠️ This is not an on-switch for
     /// event forwarding, and a bare call registers nothing (GH-4310 — the bootstrap rejects it):
     /// to simply have Wolverine handlers receive an event after commit, set
@@ -231,7 +231,7 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding, Wolverin
 
     // GH-5514: the core forwarding API. The public SubscribeToEvent<T>() above keeps its signature until 8.0, and
     // what it returns is already the core type
-    Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<T> Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding.SubscribeToEvent<T>()
+    Wolverine.Persistence.EventSourcing.EventForwardingTransformation<T> Wolverine.Persistence.EventSourcing.IEventForwardingConfiguration.SubscribeToEvent<T>()
     {
         return SubscribeToEvent<T>();
     }
@@ -327,7 +327,7 @@ internal class MartenOverrides<T> : MartenOverrides, IConfigureMarten<T> where T
     protected override Type? StoreType => typeof(T);
 }
 
-[Obsolete("Use Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding; this type will be removed in Wolverine 8.0")]
+[Obsolete("Use Wolverine.Persistence.EventSourcing.IEventForwardingConfiguration; this type will be removed in Wolverine 8.0")]
 public interface IEventForwarding
 {
     /// <summary>
@@ -339,11 +339,11 @@ public interface IEventForwarding
 }
 
 /// <summary>
-/// GH-5514: kept for compatibility. It is a <see cref="Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform{TSource}" />, so
+/// GH-5514: kept for compatibility. It is a <see cref="Wolverine.Persistence.EventSourcing.EventForwardingTransformation{TSource}" />, so
 /// the value <see cref="MartenIntegration.SubscribeToEvent{T}" /> returns can be used as the core type already.
 /// </summary>
-[Obsolete("Use Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<TSource>; this type will be removed in Wolverine 8.0")]
-public class EventForwardingTransform<TSource> : Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<TSource> where TSource : notnull
+[Obsolete("Use Wolverine.Persistence.EventSourcing.EventForwardingTransformation<TSource>; this type will be removed in Wolverine 8.0")]
+public class EventForwardingTransform<TSource> : Wolverine.Persistence.EventSourcing.EventForwardingTransformation<TSource> where TSource : notnull
 {
     internal EventForwardingTransform(EventForwardingRouter eventRouter) : base(eventRouter)
     {
