@@ -1,3 +1,4 @@
+using Dekaf.Consumer;
 using IntegrationTests;
 using JasperFx.Resources;
 using Microsoft.Extensions.Hosting;
@@ -50,7 +51,8 @@ public class configure_consumers_and_publishers : IAsyncLifetime
                     .TopicCreation(async (c, t) =>
                     {
                         t.Specification.NumPartitions = 4;
-                        await c.CreateTopicsAsync([t.Specification]);
+                        await c.CreateTopicsAsync([t.Specification.ToNewTopic()],
+                            new Dekaf.Admin.CreateTopicsOptions(), CancellationToken.None);
                     })
 
                     // Override the producer configuration for just this topic
@@ -152,13 +154,13 @@ public class configure_consumers_and_publishers : IAsyncLifetime
     public void default_commit_mode_wires_store_then_auto_flush()
     {
         // GH-3150: the default CommitMode is StoreThenAutoFlush, which relies on Kafka's background
-        // committer flushing manually-stored offsets — so EnableAutoCommit is on and offset storage
-        // is manual. (Replaces the previous blanket EnableAutoCommit=false for durable listeners.)
+        // committer flushing manually-stored offsets, so OffsetCommitMode is Auto and offset storage
+        // is manual.
         var blue = _host.GetRuntime().Endpoints.ActiveListeners()
             .Single(x => x.Uri.ToString().Contains("blue")).ShouldBeOfType<ListeningAgent>()
             .Listener.ShouldBeOfType<KafkaListener>();
 
-        blue.Config.EnableAutoCommit.ShouldBe(true);
+        blue.Config.OffsetCommitMode.ShouldBe(OffsetCommitMode.Auto);
         blue.Config.EnableAutoOffsetStore.ShouldBe(false);
     }
 

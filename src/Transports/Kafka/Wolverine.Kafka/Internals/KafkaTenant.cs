@@ -1,4 +1,3 @@
-using Confluent.Kafka;
 using JasperFx.Core;
 
 namespace Wolverine.Kafka.Internals;
@@ -6,7 +5,7 @@ namespace Wolverine.Kafka.Internals;
 /// <summary>
 /// Represents a single Wolverine tenant that is served by its own dedicated Kafka cluster/connection while
 /// sharing the topic topology declared on the parent transport. A Kafka "connection" is config-only (three
-/// Confluent config bags plus builder callbacks), so — mirroring the RabbitMQ tenant model — each tenant owns
+/// option bags plus builder callbacks), so — mirroring the RabbitMQ tenant model — each tenant owns
 /// a child <see cref="KafkaTransport"/> whose config is cloned from the parent and then re-pointed at the
 /// tenant's own <c>BootstrapServers</c>. Outbound routing is by <see cref="Envelope.TenantId"/> via the
 /// framework's <see cref="Wolverine.Transports.Sending.TenantedSender"/>; inbound the tenant's own listener
@@ -41,10 +40,10 @@ internal class KafkaTenant
     public Action<KafkaTransportExpression>? Configure { get; set; }
 
     /// <summary>
-    /// Clone the parent's three Confluent config bags, the three <c>Configure*Builders</c> callbacks, and the
+    /// Clone the parent's three option bags, the three <c>Configure*Builders</c> callbacks, and the
     /// DLQ topic name onto this tenant's child transport, then re-point it at the tenant's own cluster. The
-    /// child-transport approach inherits EOS / idempotence / static-membership flags and gets
-    /// <c>CreateProducer</c>/<c>CreateConsumer</c>/<c>CreateAdminClient</c> for free.
+    /// child-transport approach inherits EOS / idempotence / static-membership flags and gets the client
+    /// factories for free.
     ///
     /// NOTE (consumer group id): each tenant is a <em>separate</em> Kafka cluster, so offsets live in that
     /// cluster and the group id is intentionally cloned unchanged from the parent — it is <b>not</b> suffixed
@@ -52,9 +51,9 @@ internal class KafkaTenant
     /// </summary>
     public KafkaTransport Compile(KafkaTransport parent, WolverineOptions options)
     {
-        copyInto(parent.ProducerConfig, Transport.ProducerConfig);
-        copyInto(parent.ConsumerConfig, Transport.ConsumerConfig);
-        copyInto(parent.AdminClientConfig, Transport.AdminClientConfig);
+        Transport.ProducerConfig = parent.ProducerConfig.Clone();
+        Transport.ConsumerConfig = parent.ConsumerConfig.Clone();
+        Transport.AdminClientConfig = parent.AdminClientConfig.Clone();
 
         Transport.ConfigureProducerBuilders = parent.ConfigureProducerBuilders;
         Transport.ConfigureConsumerBuilders = parent.ConfigureConsumerBuilders;
@@ -83,16 +82,5 @@ internal class KafkaTenant
         Transport.ProducerConfig.ClientId ??= parent.ProducerConfig.ClientId ?? options.ServiceName;
 
         return Transport;
-    }
-
-    // Confluent's Producer/Consumer/AdminClient configs all derive from ClientConfig, which is an
-    // IEnumerable<KeyValuePair<string,string>> over its property bag with a public Set(key, val). Copying the
-    // raw property bag preserves every configured option (SASL/SSL/idempotence/static-membership/…) generically.
-    private static void copyInto(ClientConfig source, ClientConfig target)
-    {
-        foreach (var pair in source)
-        {
-            target.Set(pair.Key, pair.Value);
-        }
     }
 }

@@ -1,5 +1,4 @@
 using System.Text;
-using Confluent.Kafka;
 using Shouldly;
 using Wolverine.Kafka.Internals;
 
@@ -25,14 +24,11 @@ public class Bug_2838_receive_raw_json_honors_wolverine_ping
 
         var mapper = new JsonOnlyMapper(topic);
 
-        var incoming = new Message<string, byte[]>
-        {
-            Value = [1, 2, 3, 4], // mirrors Envelope.ForPing's body bytes
-            Headers = new Headers
+        var incoming = TestRecords.Incoming("ping-regression", null, [1, 2, 3, 4], // mirrors Envelope.ForPing's body bytes
+            new Dictionary<string, byte[]?>
             {
-                { EnvelopeConstants.MessageTypeKey, Encoding.UTF8.GetBytes(Envelope.PingMessageType) }
-            }
-        };
+                [EnvelopeConstants.MessageTypeKey] = Encoding.UTF8.GetBytes(Envelope.PingMessageType)
+            });
 
         var envelope = new Envelope();
         mapper.MapIncomingToEnvelope(envelope, incoming);
@@ -55,11 +51,8 @@ public class Bug_2838_receive_raw_json_honors_wolverine_ping
         var mapper = new JsonOnlyMapper(topic);
 
         var payload = Encoding.UTF8.GetBytes("{\"name\":\"hi\"}");
-        var incoming = new Message<string, byte[]>
-        {
-            Value = payload
-            // No headers — external producer.
-        };
+        // No headers — external producer.
+        var incoming = TestRecords.Incoming("json-regression", null, payload);
 
         var envelope = new Envelope();
         mapper.MapIncomingToEnvelope(envelope, incoming);

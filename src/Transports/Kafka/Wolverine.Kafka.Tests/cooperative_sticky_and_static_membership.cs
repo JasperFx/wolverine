@@ -1,12 +1,12 @@
-using Confluent.Kafka;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
 
 namespace Wolverine.Kafka.Tests;
 
-// GH-3139: cooperative-sticky assignment + static membership config surface. No broker required —
-// these assert the resolved ConsumerConfig and the instance-id resolution precedence.
+// GH-3139: static membership config surface. No broker required — these assert the resolved
+// consumer options and the instance-id resolution precedence. (Cooperative-sticky assignment is
+// gone: under the KIP-848-only Dekaf client, rebalances are always broker-driven and incremental.)
 public class cooperative_sticky_and_static_membership
 {
     private static KafkaTopic apply(Action<KafkaListenerConfiguration> configure)
@@ -20,15 +20,6 @@ public class cooperative_sticky_and_static_membership
     }
 
     // ---- transport scope ----
-
-    [Fact]
-    public void transport_cooperative_sticky_sets_assignment_strategy()
-    {
-        var transport = new KafkaTransport();
-        new KafkaTransportExpression(transport, new WolverineOptions()).UseCooperativeStickyAssignment();
-
-        transport.ConsumerConfig.PartitionAssignmentStrategy.ShouldBe(PartitionAssignmentStrategy.CooperativeSticky);
-    }
 
     [Fact]
     public void transport_static_membership_with_explicit_id()
@@ -61,14 +52,6 @@ public class cooperative_sticky_and_static_membership
     // ---- listener scope ----
 
     [Fact]
-    public void listener_cooperative_sticky_sets_assignment_strategy()
-    {
-        var topic = apply(c => c.UseCooperativeStickyAssignment());
-        topic.ConsumerConfig.ShouldNotBeNull();
-        topic.ConsumerConfig!.PartitionAssignmentStrategy.ShouldBe(PartitionAssignmentStrategy.CooperativeSticky);
-    }
-
-    [Fact]
     public void listener_static_membership_with_explicit_id()
     {
         var topic = apply(c => c.UseStaticMembership("node-9"));
@@ -88,11 +71,9 @@ public class cooperative_sticky_and_static_membership
     {
         var topic = apply(c => c
             .ConfigureConsumer(x => x.GroupId = "grp")
-            .UseCooperativeStickyAssignment()
             .UseStaticMembership("node-1"));
 
         topic.ConsumerConfig!.GroupId.ShouldBe("grp");
-        topic.ConsumerConfig.PartitionAssignmentStrategy.ShouldBe(PartitionAssignmentStrategy.CooperativeSticky);
         topic.ConsumerConfig.GroupInstanceId.ShouldBe("node-1");
     }
 

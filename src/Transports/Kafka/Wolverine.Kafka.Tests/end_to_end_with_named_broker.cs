@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;

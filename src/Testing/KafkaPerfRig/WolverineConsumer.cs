@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using IntegrationTests;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

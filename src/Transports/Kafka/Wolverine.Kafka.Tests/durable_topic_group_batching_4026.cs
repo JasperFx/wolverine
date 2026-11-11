@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Resources;

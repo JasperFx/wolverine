@@ -1,6 +1,6 @@
 using System.Text;
 using System.Text.Json;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -222,13 +222,13 @@ internal class CloudEventsOnlyMapper : IKafkaEnvelopeMapper
         _cloudEvents = cloudEvents;
     }
 
-    public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
+    public void MapEnvelopeToOutgoing(Envelope envelope, OutgoingKafkaRecord outgoing)
     {
         outgoing.Key = envelope.GroupId!;
         outgoing.Value = _cloudEvents.WriteToBytes(envelope);
     }
 
-    public void MapIncomingToEnvelope(Envelope envelope, Message<string, byte[]> incoming)
+    public void MapIncomingToEnvelope(Envelope envelope, ConsumeResult<string, byte[]> incoming)
     {
         throw new NotImplementedException();
     }

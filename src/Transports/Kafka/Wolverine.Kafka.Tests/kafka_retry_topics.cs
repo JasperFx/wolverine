@@ -37,7 +37,7 @@ public class kafka_retry_topics : IAsyncLifetime
                     .ConfigureConsumer(x =>
                     {
                         x.GroupId = Guid.NewGuid().ToString();
-                        x.AutoOffsetReset = AutoOffsetReset.Earliest;
+                        x.AutoOffsetReset = Dekaf.Consumer.AutoOffsetReset.Earliest;
                     });
 
                 // The tiered, non-blocking retry policy under test.

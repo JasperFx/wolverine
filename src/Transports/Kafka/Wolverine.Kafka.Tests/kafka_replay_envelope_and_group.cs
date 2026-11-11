@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,8 +9,7 @@ using Wolverine.Kafka.Internals;
 
 namespace Wolverine.Kafka.Tests;
 
-// GH-3147 follow-up: a replayed envelope must look to the pipeline like one the live listener received,
-// and the throwaway replay consumer must join a group the broker lets the application use.
+// GH-3147 follow-up: a replayed envelope must look to the pipeline like one the live listener received.
 public class kafka_replay_envelope_and_group
 {
     [Fact]
@@ -60,7 +59,7 @@ public class kafka_replay_envelope_and_group
     {
         var (_, transport) = buildTransport();
         var topic = transport.Topics["orders"];
-        topic.ConsumerConfig = new ConsumerConfig { GroupId = "tenant-a-orders" };
+        topic.ConsumerConfig = new KafkaConsumerOptions { GroupId = "tenant-a-orders" };
 
         KafkaReplay.LiveListeningEndpointFor(topic, transport).Uri.ShouldBe(topic.Uri);
     }
@@ -77,88 +76,6 @@ public class kafka_replay_envelope_and_group
         // carry the same one
         KafkaReplay.LiveListeningEndpointFor(topic, transport).Uri.ShouldBe(group.Uri);
         group.Uri.ShouldNotBe(topic.Uri);
-    }
-
-    [Fact]
-    public void replay_group_ignores_the_ephemeral_hot_tail_group()
-    {
-        var (options, transport) = buildTransport(transportGroupId: "tenant-a");
-        var topic = transport.Topics["orders"];
-
-        // The state ApplyHotTailConfig leaves behind once a TailFromLatest() listener has been built: the
-        // topic's own group id is a throwaway named after ServiceName, which is the one prefix the broker
-        // ACL that motivated all of this refuses
-        topic.IsHotTail = true;
-        topic.ConsumerConfig = new ConsumerConfig { GroupId = "OrderService-hot-tail-e6f1c2d3" };
-
-        KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName)
-            .ShouldStartWith("tenant-a-replay-");
-    }
-
-    [Fact]
-    public void replay_group_takes_the_prefix_of_the_topic_consumer_group()
-    {
-        var (options, transport) = buildTransport();
-        var topic = transport.Topics["orders"];
-        topic.ConsumerConfig = new ConsumerConfig { GroupId = "tenant-a-orders" };
-
-        KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName)
-            .ShouldStartWith("tenant-a-orders-replay-");
-    }
-
-    [Fact]
-    public void replay_group_takes_the_prefix_of_a_topic_group_subscribing_to_the_topic()
-    {
-        var (options, transport) = buildTransport(transportGroupId: "tenant-a");
-        options.ListenToKafkaTopics("payments", "orders");
-        transport.TopicGroups.Single().ConsumerConfig = new ConsumerConfig { GroupId = "tenant-a-billing" };
-        var topic = transport.Topics["orders"];
-
-        KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName)
-            .ShouldStartWith("tenant-a-billing-replay-");
-    }
-
-    [Fact]
-    public void replay_group_ignores_a_topic_group_that_does_not_subscribe_to_the_topic()
-    {
-        var (options, transport) = buildTransport(transportGroupId: "tenant-a");
-        options.ListenToKafkaTopics("payments", "refunds");
-        transport.TopicGroups.Single().ConsumerConfig = new ConsumerConfig { GroupId = "tenant-a-billing" };
-        var topic = transport.Topics["orders"];
-
-        KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName)
-            .ShouldStartWith("tenant-a-replay-");
-    }
-
-    [Fact]
-    public void replay_group_falls_back_to_the_transport_consumer_group()
-    {
-        var (options, transport) = buildTransport(transportGroupId: "tenant-a");
-        var topic = transport.Topics["orders"];
-
-        KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName)
-            .ShouldStartWith("tenant-a-replay-");
-    }
-
-    [Fact]
-    public void replay_group_falls_back_to_the_service_name_when_no_group_is_configured()
-    {
-        var (options, transport) = buildTransport();
-        options.ServiceName = "OrderService";
-        var topic = transport.Topics["orders"];
-
-        KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName)
-            .ShouldStartWith("OrderService-replay-");
-    }
-
-    [Fact]
-    public void every_replay_gets_its_own_group()
-    {
-        var (options, transport) = buildTransport(transportGroupId: "tenant-a");
-        var topic = transport.Topics["orders"];
-
-        KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName)
-            .ShouldNotBe(KafkaReplay.ReplayGroupIdFor(topic, transport, options.ServiceName));
     }
 
     private static (WolverineOptions Options, KafkaTransport Transport) buildTransport(string? transportGroupId = null)

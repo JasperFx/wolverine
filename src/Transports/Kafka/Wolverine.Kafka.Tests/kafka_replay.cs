@@ -19,7 +19,7 @@ public class kafka_replay
             .ConfigureConsumer(x =>
             {
                 x.GroupId = liveGroup;
-                x.AutoOffsetReset = AutoOffsetReset.Earliest;
+                x.AutoOffsetReset = Dekaf.Consumer.AutoOffsetReset.Earliest;
             });
         opts.Services.AddSingleton<NodeSink>();
         opts.Discovery.DisableConventionalDiscovery().IncludeType<HotTailHandler>();

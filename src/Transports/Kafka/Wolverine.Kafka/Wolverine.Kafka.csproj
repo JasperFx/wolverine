@@ -21,8 +21,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Confluent.SchemaRegistry.Serdes.Avro" />
-        <PackageReference Include="Confluent.SchemaRegistry.Serdes.Json" />
+        <PackageReference Include="Dekaf" />
+        <PackageReference Include="Dekaf.SchemaRegistry.Avro" />
+        <PackageReference Include="Dekaf.SchemaRegistry.Json" />
     </ItemGroup>
 
 </Project>

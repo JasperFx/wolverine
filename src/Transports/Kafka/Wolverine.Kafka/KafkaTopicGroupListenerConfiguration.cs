@@ -1,5 +1,4 @@
-using Confluent.Kafka;
-using Confluent.Kafka.Admin;
+using Dekaf.Admin;
 using Wolverine.Configuration;
 
 namespace Wolverine.Kafka;
@@ -16,11 +15,11 @@ public class KafkaTopicGroupListenerConfiguration : ListenerConfiguration<KafkaT
     /// </summary>
     /// <param name="configuration"></param>
     /// <returns></returns>
-    public KafkaTopicGroupListenerConfiguration ConfigureConsumer(Action<ConsumerConfig> configuration)
+    public KafkaTopicGroupListenerConfiguration ConfigureConsumer(Action<KafkaConsumerOptions> configuration)
     {
         add(group =>
         {
-            var config = new ConsumerConfig();
+            var config = new KafkaConsumerOptions();
             configuration(config);
             group.ConsumerConfig = config;
         });
@@ -72,7 +71,7 @@ public class KafkaTopicGroupListenerConfiguration : ListenerConfiguration<KafkaT
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public KafkaTopicGroupListenerConfiguration Specification(Action<TopicSpecification> configure)
+    public KafkaTopicGroupListenerConfiguration Specification(Action<KafkaTopicSpecification> configure)
     {
         if (configure == null) throw new ArgumentNullException(nameof(configure));
         add(group => group.SpecificationConfig = (_, spec) => configure(spec));
@@ -85,7 +84,7 @@ public class KafkaTopicGroupListenerConfiguration : ListenerConfiguration<KafkaT
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public KafkaTopicGroupListenerConfiguration Specification(Action<string, TopicSpecification> configure)
+    public KafkaTopicGroupListenerConfiguration Specification(Action<string, KafkaTopicSpecification> configure)
     {
         if (configure == null) throw new ArgumentNullException(nameof(configure));
         add(group => group.SpecificationConfig = configure);
