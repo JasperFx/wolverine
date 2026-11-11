@@ -496,7 +496,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
     {
         if (message.Attributes.Keys.Contains("batched"))
         {
-            return EnvelopeSerializer.ReadMany(message.Data.ToByteArray()).ToArray();
+            return EnvelopeSerializer.ReadMany(message.Data.Memory).ToArray();
         }
 
         return [readEnvelope(message)];
@@ -516,7 +516,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
     {
         if (message.Attributes.Keys.Contains("batched"))
         {
-            var batched = EnvelopeSerializer.ReadMany(message.Data.ToByteArray());
+            var batched = EnvelopeSerializer.ReadMany(message.Data.Memory);
 
             if (batched.Any())
             {

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization.Encryption;
@@ -14,7 +15,7 @@ internal sealed class FaultPublisher : IFaultPublisher
     private readonly IWolverineRuntime _runtime;
     private readonly ILogger<FaultPublisher> _logger;
     private readonly Counter<int> _publishFailedCounter;
-    private readonly ConcurrentDictionary<Type, Func<object, ExceptionInfo, Envelope, object>> _factories = new();
+    private readonly ConcurrentDictionary<Type, FaultShape> _shapes = new();
 
     public FaultPublisher(
         FaultPublishingPolicy policy,
@@ -44,9 +45,13 @@ internal sealed class FaultPublisher : IFaultPublisher
 
         var messageType = original.Message.GetType();
 
+        // GH-5146: everything that depends only on the message type -- the recursion guard, the value-type
+        // check, the Fault<T> constructor and the message type name -- is worked out once per type.
+        var shape = _shapes.GetOrAdd(messageType, FaultShape.For);
+
         // Recursion guard: never publish a Fault<Fault<T>>. A failed Fault<T>
         // subscriber falls through to the standard failure pipeline instead.
-        if (messageType.IsGenericType && messageType.GetGenericTypeDefinition() == typeof(Fault<>))
+        if (shape.IsFault)
         {
             _logger.LogDebug(
                 "Suppressed auto-publish of Fault<{MessageType}> — message is itself a Fault<T> (recursion guard); envelope {EnvelopeId}",
@@ -56,7 +61,7 @@ internal sealed class FaultPublisher : IFaultPublisher
         }
 
         // Silent no-op for value-type messages — Fault<T> requires `T : class`.
-        if (messageType.IsValueType) return;
+        if (shape.Constructor is null) return;
 
         var decision = _policy.Resolve(messageType);
 
@@ -69,13 +74,12 @@ internal sealed class FaultPublisher : IFaultPublisher
                 exception,
                 decision.IncludeExceptionMessage,
                 decision.IncludeStackTrace);
-            var factory = _factories.GetOrAdd(messageType, BuildFactory);
-            var faultMessage = factory(original.Message, exceptionInfo, original);
+            var faultMessage = shape.Create(original.Message, exceptionInfo, original);
 
             var options = new DeliveryOptions();
             options.Headers[FaultHeaders.AutoPublished] = "true";
             options.Headers[FaultHeaders.OriginalId] = original.Id.ToString();
-            options.Headers[FaultHeaders.OriginalType] = messageType.ToMessageTypeName();
+            options.Headers[FaultHeaders.OriginalType] = shape.MessageTypeName;
 
             var router = _runtime.RoutingFor(faultMessage.GetType());
             var outgoing = router.RouteForPublish(faultMessage, options);
@@ -112,21 +116,75 @@ internal sealed class FaultPublisher : IFaultPublisher
         }
     }
 
-    // Reflective construction is fine: this only fires on terminal failures, never on the hot path.
-    private static Func<object, ExceptionInfo, Envelope, object> BuildFactory(Type messageType)
+    /// <summary>
+    ///     What <see cref="PublishIfEnabledAsync" /> needs to know about one message type, worked out once.
+    ///     The Fault&lt;T&gt; constructor is bound once into a <see cref="ConstructorInvoker" /> rather than
+    ///     resolved again by <see cref="Activator.CreateInstance(Type, object[])" /> on every failure.
+    /// </summary>
+    private sealed class FaultShape
     {
-        var faultType = typeof(Fault<>).MakeGenericType(messageType);
-        return (msg, info, env) => Activator.CreateInstance(
-            faultType,
-            msg,
-            info,
-            env.Attempts,
-            DateTimeOffset.UtcNow,
-            env.CorrelationId,                                      // string?
-            env.ConversationId,                                     // Guid
-            env.TenantId,                                           // string?
-            env.Source,                                             // string?
-            FilterEncryptionHeaders(env.Headers))!;
+        private static readonly Type[] ConstructorArgumentTail =
+        [
+            typeof(ExceptionInfo), typeof(int), typeof(DateTimeOffset), typeof(string), typeof(Guid),
+            typeof(string), typeof(string), typeof(IReadOnlyDictionary<string, string?>)
+        ];
+
+        private FaultShape(bool isFault, ConstructorInvoker? constructor, string messageTypeName)
+        {
+            IsFault = isFault;
+            Constructor = constructor;
+            MessageTypeName = messageTypeName;
+        }
+
+        public bool IsFault { get; }
+
+        /// <summary>
+        ///     Null when no Fault&lt;T&gt; can be built for the type: a value type, or a Fault&lt;T&gt; itself.
+        /// </summary>
+        public ConstructorInvoker? Constructor { get; }
+
+        public string MessageTypeName { get; }
+
+        public static FaultShape For(Type messageType)
+        {
+            var name = messageType.ToMessageTypeName();
+
+            if (messageType.IsGenericType && messageType.GetGenericTypeDefinition() == typeof(Fault<>))
+            {
+                return new FaultShape(true, null, name);
+            }
+
+            if (messageType.IsValueType) return new FaultShape(false, null, name);
+
+            return new FaultShape(false, ConstructorInvoker.Create(findConstructor(messageType)), name);
+        }
+
+        // Reflective construction is fine: this only fires on terminal failures, never on the hot path.
+        private static ConstructorInfo findConstructor(Type messageType)
+        {
+            var faultType = typeof(Fault<>).MakeGenericType(messageType);
+            Type[] argumentTypes = [messageType, ..ConstructorArgumentTail];
+            return faultType.GetConstructor(argumentTypes)
+                   ?? throw new InvalidOperationException($"Unable to find the primary constructor of {faultType}");
+        }
+
+        public object Create(object message, ExceptionInfo info, Envelope envelope)
+        {
+            var arguments = new object?[]
+            {
+                message,
+                info,
+                envelope.Attempts,
+                DateTimeOffset.UtcNow,
+                envelope.CorrelationId, // string?
+                envelope.ConversationId, // Guid
+                envelope.TenantId, // string?
+                envelope.Source, // string?
+                FilterEncryptionHeaders(envelope.Headers)
+            };
+
+            return Constructor!.Invoke(arguments.AsSpan());
+        }
     }
 
     // Strip wolverine.encryption.* keys when materializing Fault<T>.Headers.

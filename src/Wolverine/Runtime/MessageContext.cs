@@ -413,7 +413,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             switch (MultiFlushMode)
             {
                 case MultiFlushMode.OnlyOnce:
-                    lock (_outstandingLock)
+                    // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+                    _outstandingLock.Enter();
+                    try
                     {
                         if (_outstanding.Count > 0)
                         {
@@ -423,6 +425,10 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                                 "MessageContext for {MessageType} has already flushed its outgoing messages, so {Count} envelope(s) enqueued after that flush will not be sent. This can happen when messages are enqueued after an explicit transaction commit (e.g. SaveChangesAsync()) has already drained the context. Consider MultiFlushMode.AllowMultiples if multiple flushes are expected",
                                 Envelope?.MessageType, _outstanding.Count);
                         }
+                    }
+                    finally
+                    {
+                        _outstandingLock.Exit();
                     }
 
                     return null;
@@ -448,10 +454,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         // Snapshot under lock so concurrent publishes from a Marten projection
         // (Block parallelism = 10 in AggregationRunner) cannot corrupt the list
         // while we're iterating it. GH-2529.
-        lock (_outstandingLock)
+        // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+        _outstandingLock.Enter();
+        try
         {
             if (_outstanding.Count == 0) return null;
             return _outstanding.ToArray();
+        }
+        finally
+        {
+            _outstandingLock.Exit();
         }
     }
 
@@ -530,10 +542,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         _sent ??= new();
-        lock (_outstandingLock)
+        // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+        _outstandingLock.Enter();
+        try
         {
             _sent.AddRange(_outstanding);
             _outstanding.Clear();
+        }
+        finally
+        {
+            _outstandingLock.Exit();
         }
 
         _hasFlushed = true;
@@ -550,9 +568,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                 var failureDescription = $"No response was created for expected response '{Envelope!.ReplyRequested}' back to reply-uri {Envelope.ReplyUri}. ";
 
                 Envelope[] outstandingSnapshot;
-                lock (_outstandingLock)
+                // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+                _outstandingLock.Enter();
+                try
                 {
                     outstandingSnapshot = _outstanding.ToArray();
+                }
+                finally
+                {
+                    _outstandingLock.Exit();
                 }
 
                 if (outstandingSnapshot.Length > 0)
@@ -932,7 +956,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     Task IEnvelopeTransaction.PersistOutgoingAsync(Envelope envelope)
     {
-        lock (_outstandingLock)
+        using (_outstandingLock.EnterScope())
         {
             _outstanding.Fill(envelope);
         }
@@ -941,7 +965,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     Task IEnvelopeTransaction.PersistOutgoingAsync(Envelope[] envelopes)
     {
-        lock (_outstandingLock)
+        using (_outstandingLock.EnterScope())
         {
             _outstanding.Fill(envelopes);
         }
@@ -1000,9 +1024,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     internal async Task CopyToAsync(IEnvelopeTransaction other)
     {
         Envelope[] snapshot;
-        lock (_outstandingLock)
+        // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+        _outstandingLock.Enter();
+        try
         {
             snapshot = _outstanding.ToArray();
+        }
+        finally
+        {
+            _outstandingLock.Exit();
         }
         await other.PersistOutgoingAsync(snapshot).ConfigureAwait(false);
 
@@ -1015,9 +1045,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     public async ValueTask ClearAllAsync()
     {
         Scheduled.Clear();
-        lock (_outstandingLock)
+        // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+        _outstandingLock.Enter();
+        try
         {
             _outstanding.Clear();
+        }
+        finally
+        {
+            _outstandingLock.Exit();
         }
 
         if (Transaction != null)
@@ -1286,7 +1322,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         _hasFlushed = false;
 
         _sent?.Clear();
-        lock (_outstandingLock)
+        using (_outstandingLock.EnterScope())
         {
             _outstanding.Clear();
         }
@@ -1362,7 +1398,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             var ackEnvelope = Runtime.RoutingFor(typeof(Acknowledgement))
                 .RouteToDestination(ack, Envelope.ReplyUri, null);
             TrackEnvelopeCorrelation(ackEnvelope, Activity.Current);
-            lock (_outstandingLock)
+            using (_outstandingLock.EnterScope())
             {
                 _outstanding.Add(ackEnvelope);
             }
