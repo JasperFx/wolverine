@@ -23,6 +23,13 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.EntityFrameworkCore"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design"/>
+        <!-- EF Core Design 10.0.4 brings Microsoft.CodeAnalysis.CSharp.Workspaces and Workspaces.MSBuild 5.0.0,
+             each requiring Workspaces.Common EXACTLY its own version. JasperFx.RuntimeCompiler 6.0.0 lifts
+             Microsoft.CodeAnalysis.Common to 5.9.0, so the Workspaces pair has to move with it or every
+             project that takes both fails restore with NU1608. Transitive pinning is off (see
+             Directory.Packages.props), so the lever is a direct reference here. -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
         <PackageReference Include="Weasel.EntityFrameworkCore" />
         <ProjectReference Include="..\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>

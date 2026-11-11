@@ -73,16 +73,11 @@ public class restore_v6_http_defaults
     }
 
     [Fact]
-    public async Task the_default_conflict_mapping_covers_martens_exclusive_lock_failure_once_it_is_the_jasperfx_type()
+    public async Task the_default_conflict_mapping_covers_martens_exclusive_lock_failure()
     {
-        // Under Marten 9.x, Marten's StreamLockedException derives from MartenException, so only an explicit
-        // MapMartenConcurrencyFailuresToConflict() maps it. Marten 10 rebases it onto the JasperFx type
-        // (marten#5858), and from then on the 7.0 default covers it with no Marten-specific call
-        Assert.SkipUnless(
-            typeof(global::Marten.Exceptions.StreamLockedException).IsAssignableTo(
-                typeof(global::JasperFx.Events.StreamLockedException)),
-            "Marten's StreamLockedException does not derive from JasperFx.Events.StreamLockedException before Marten 10");
-
+        // Under Marten 9.x, Marten's StreamLockedException derived from MartenException, so only an explicit
+        // MapMartenConcurrencyFailuresToConflict() mapped it. Marten 10 throws the shared JasperFx.Events type
+        // (marten#5858), so the 7.0 default covers it with no Marten-specific call
         await using var host = await startHostAsync();
 
         await host.Scenario(x =>
@@ -312,7 +307,7 @@ public static class V6DefaultsEndpoints
     [PretendTransactional]
     [WolverinePost("/v6defaults/marten-lock")]
     public static string MartenLock() =>
-        throw new global::Marten.Exceptions.StreamLockedException(Guid.NewGuid(), new Exception("Lock not available"));
+        throw new global::JasperFx.Events.StreamLockedException(Guid.NewGuid(), new Exception("Lock not available"));
 
     [RequiresTenant]
     [WolverineGet("/v6defaults/tenanted")]

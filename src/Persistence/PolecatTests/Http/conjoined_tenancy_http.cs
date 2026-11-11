@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Polecat;
-using Polecat.Exceptions;
+using JasperFx.Events;
 using Shouldly;
 using Wolverine;
 using Wolverine.Http;
