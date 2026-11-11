@@ -26,14 +26,14 @@ internal static class UnsendableOutgoingEnvelopes
         catch (Exception e)
         {
             logger.LogError(e,
-                "Unable to move outgoing message {Envelope} to {Destination}, which the transport can never send, to dead letter storage. It is left in the outbox",
-                envelope, envelope.Destination);
+                "Unable to move outgoing message {Name}#{Id} to {Destination}, which the transport can never send, to dead letter storage. It is left in the outbox",
+                envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
             return false;
         }
 
         logger.LogError(exception,
-            "Outgoing message {Envelope} to {Destination} failed to serialize for its transport, so it was moved to dead letter storage",
-            envelope, envelope.Destination);
+            "Outgoing message {Name}#{Id} to {Destination} failed to serialize for its transport, so it was moved to dead letter storage",
+            envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
         runtime.MessageTracking.MovedToErrorQueue(envelope, exception);
 
         return true;
