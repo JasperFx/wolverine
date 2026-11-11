@@ -64,7 +64,32 @@ public partial class NodeAgentController
         }, _cancellation.Token);
     }
 
+    // GH-5458: the Solo loop and an operator's ApplyRestrictionsAsync both run the pass below. Serialized so a
+    // loop tick that read the restrictions just before a pause was persisted cannot start the agent again
+    // after the operator's pass has stopped it.
+    private readonly SemaphoreSlim _soloPassLock = new(1, 1);
+
+    /// <summary>
+    ///     GH-5458. Carries the persisted restrictions out on a Solo node right away: stops every running agent
+    ///     that is paused and starts every known agent that is not. Solo has no assignment grid, so the
+    ///     evaluation that does this in Balanced mode issues nothing here.
+    /// </summary>
+    internal Task ApplySoloRestrictionsAsync() => startAllAgentsAsync();
+
     private async Task startAllAgentsAsync()
+    {
+        await _soloPassLock.WaitAsync(_cancellation.Token);
+        try
+        {
+            await startAllAgentsUnlockedAsync();
+        }
+        finally
+        {
+            _soloPassLock.Release();
+        }
+    }
+
+    private async Task startAllAgentsUnlockedAsync()
     {
         // GH-4672. Solo mode has no assignment grid, so nothing here enforced the paused restrictions that
         // AssignmentGrid.ApplyRestrictions enforces in Balanced. This loop runs every CheckAssignmentPeriod
@@ -77,6 +102,21 @@ public partial class NodeAgentController
         // Storage.Nodes is where ApplyRestrictionsAsync writes the durable row, so it is the one source
         // that agrees with what the operator was told was persisted.
         var paused = await loadPausedAgentUrisAsync();
+
+        // GH-5458: a pause stops the agent, as the assignment grid does in Balanced. Skipping the start alone
+        // was not enough: nothing else stops a paused agent in Solo -- ApplyRestrictionsAsync's evaluation has
+        // no grid to detach it from -- so a shard paused while running kept advancing indefinitely.
+        foreach (var uri in AllRunningAgentUris().Where(paused.Contains))
+        {
+            try
+            {
+                await StopAgentAsync(uri);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to stop paused agent {AgentUri}", uri);
+            }
+        }
 
         foreach (var controller in _agentFamilies.Values)
         {
@@ -95,9 +135,7 @@ public partial class NodeAgentController
             foreach (var uri in allAgents)
             {
                 // GH-4672: an operator's pause outranks the family's "everything I know about" answer.
-                // Deliberately only skips the START -- stopping an agent that is already running is
-                // StopLocallyAsync's job, and doing it from this loop would stop agents an operator
-                // paused while they were mid-work, without being asked to.
+                // A running paused agent was stopped above (GH-5458).
                 if (paused.Contains(uri))
                 {
                     continue;
