@@ -77,6 +77,26 @@ public class handler_for_an_endpoint_5137
     }
 
     [Fact]
+    public async Task configuring_the_message_types_local_queue_does_not_handle_a_message_twice()
+    {
+        using var host = await hostWith(opts => opts.LocalQueueFor<SplitMessage5137>().Sequential(),
+            typeof(FirstSplitHandler5137), typeof(SecondSplitHandler5137));
+
+        SplitHandlers5137.Received.Clear();
+        var message = new SplitMessage5137(Guid.NewGuid());
+
+        await host.SendMessageAndWaitAsync(message);
+
+        host.GetRuntime().RoutingFor(typeof(SplitMessage5137)).Routes
+            .OfType<Wolverine.Runtime.Routing.MessageRoute>().Select(x => x.Uri)
+            .ShouldBe([queueOf<FirstSplitHandler5137>(), queueOf<SecondSplitHandler5137>()], ignoreOrder: true);
+
+        SplitHandlers5137.Received.ShouldBe(
+            [(typeof(FirstSplitHandler5137), message.Id), (typeof(SecondSplitHandler5137), message.Id)],
+            ignoreOrder: true);
+    }
+
+    [Fact]
     public async Task a_message_from_outside_the_process_is_relayed_to_every_local_handler_type()
     {
         using var host = await hostWith(opts => opts.ListenAtPort(PortFinder.GetAvailablePort()).Named("arrival-5137"),
