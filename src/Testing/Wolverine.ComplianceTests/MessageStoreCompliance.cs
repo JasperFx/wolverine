@@ -1918,7 +1918,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
 
     /// <summary>
     /// GH-5139. An envelope can be dead-lettered without a destination -- a locally published message that fails
-    /// before routing, for one (GH-3166). Under <see cref="MessageIdentity.IdAndDestination"/>, the 7.0 default, the
+    /// before routing, for one (GH-3166). Under <see cref="MessageIdentity.IdAndDestination"/> the
     /// destination is part of the dead letter table's primary key, so storing it as NULL refused the dead letter
     /// </summary>
     [Fact]

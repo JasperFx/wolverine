@@ -68,10 +68,9 @@ public class WolverineOptionsTests
     }
     
     [Fact]
-    public void default_id_behavior_is_id_and_destination()
+    public void default_id_behavior_is_id_only()
     {
-        // GH-5139. IdOnly was the default through 6.x
-        new WolverineOptions().Durability.MessageIdentity.ShouldBe(MessageIdentity.IdAndDestination);
+        new WolverineOptions().Durability.MessageIdentity.ShouldBe(MessageIdentity.IdOnly);
     }
 
     [Fact]
