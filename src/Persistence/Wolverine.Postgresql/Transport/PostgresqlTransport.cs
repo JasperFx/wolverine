@@ -124,14 +124,38 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     public LightweightCache<string, PostgresqlQueue> Queues { get; }
 
+    private bool? _enableDeterministicQueueOrdering;
+
     /// <summary>
-    ///     Enables persistent sequence values to break timestamp ties when dequeueing PostgreSQL
-    ///     queue messages. This adds columns and indexes to the ready and scheduled queue tables.
-    ///     It applies to queues managed by this transport, including tenant databases, and is
-    ///     opt-in to avoid changing existing schemas automatically. Configure it before startup;
-    ///     changing it at runtime is not supported.
+    ///     Use persistent sequence values to break timestamp ties when dequeueing PostgreSQL queue
+    ///     messages, through a <c>queue_order</c> identity column and index on the ready and scheduled
+    ///     queue tables. It applies to queues managed by this transport, including tenant databases.
+    ///     Configure it before startup; changing it at runtime is not supported.
+    ///     <para>
+    ///         GH-5192: on by default from 7.0 for the queue tables Wolverine creates. An existing queue
+    ///         table without the column keeps its layout and is dequeued in timestamp order, because adding
+    ///         an identity to it rewrites the table under an exclusive lock. Setting this to <c>true</c>
+    ///         explicitly migrates existing tables as well, as in 6.x. <c>RestoreV6Defaults()</c> or
+    ///         <see cref="PostgresqlPersistenceExpression.DisableDeterministicQueueOrdering" /> turns it off.
+    ///     </para>
     /// </summary>
-    public bool EnableDeterministicQueueOrdering { get; set; }
+    public bool EnableDeterministicQueueOrdering
+    {
+        get => _enableDeterministicQueueOrdering ?? !QueueV6DefaultsRestored;
+        set => _enableDeterministicQueueOrdering = value;
+    }
+
+    /// <summary>
+    ///     GH-5192. Only an explicit <see cref="EnableDeterministicQueueOrdering" /> migrates an existing
+    ///     queue table; the 7.0 default adopts it as it stands.
+    /// </summary>
+    internal bool DeterministicQueueOrderingIsExplicit => _enableDeterministicQueueOrdering.HasValue;
+
+    /// <summary>
+    ///     GH-5192. Whether the application restored the Wolverine 6.x defaults for the queue tables. Named apart from
+    ///     <c>BrokerTransport.V6DefaultsRestored</c> (GH-5196), which this transport inherits.
+    /// </summary>
+    internal bool QueueV6DefaultsRestored { get; set; }
 
     protected override IEnumerable<PostgresqlQueue> endpoints()
     {

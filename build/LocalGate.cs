@@ -22,17 +22,17 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 //   ./build.sh LocalGate                              every suite, then the extras
 //   ./build.sh LocalGateSuites                        the supervised suites alone
 //   ./build.sh LocalGateSuites --gate-only Marten     only the suites whose project name contains "Marten"
-//   ./build.sh LocalGate --framework all              every framework a suite declares (EF Core 9 AND 10)
+//   ./build.sh LocalGate --framework all              every framework a suite declares (every framework, net10.0 AND net11.0)
 //
 // Release, as in CI, unless --configuration says otherwise. The framework is .nuke/parameters.json's
-// net9.0, as in CI; a suite that does not target it runs on its newest.
+// net10.0, as in CI; a suite that does not target it runs on its newest.
 //
 // What it does, in order:
 //
 //   1. Starts (or reuses) every docker-compose service a selected suite needs, without waiting.
 //   2. Builds ONCE, Release, while the containers boot: one `dotnet build` per framework over a
 //      generated solution of the selected test projects. Not the whole solution: `-f` on a
-//      solution applies to every project in it, and wolverine.slnx has net9.0-only and net10.0-only
+//      solution applies to every project in it, and wolverine.slnx has net10.0-only and net10.0;net11.0
 //      projects side by side (bobcat#774), while building it unpinned builds everything twice.
 //   3. Waits for the services' real readiness probes (AwaitDockerServices), then runs every suite as
 //      a unit of one Bobcat gate: longest first, concurrently, under one worker budget, never two
@@ -148,7 +148,7 @@ partial class Build
         // ─── Persistence ───
         new("src/Persistence/PersistenceTests/PersistenceTests.csproj", "CIPersistence")
         {
-            Postgres = ServerUse.Shared, SqlServer = ServerUse.Shared, Services = ["rabbitmq"], Frameworks = ["net9.0"]
+            Postgres = ServerUse.Shared, SqlServer = ServerUse.Shared, Services = ["rabbitmq"], Frameworks = ["net10.0"]
         },
         new("src/Persistence/PostgresqlTests/PostgresqlTests.csproj", "CIPersistence") { Postgres = ServerUse.Shared },
         new("src/Persistence/MartenTests/MartenTests.csproj", "CIMarten, CIMartenDistribution, CIMartenTenancy")
@@ -156,11 +156,11 @@ partial class Build
             Postgres = ServerUse.Shared
         },
         new("src/Persistence/MartenSubscriptionTests/MartenSubscriptionTests.csproj", "CIMarten") { Postgres = ServerUse.OwnDatabase },
-        new("src/Persistence/EfCoreTests/EfCoreTests.csproj", "CIEfCore, CIEfCoreNet10")
+        new("src/Persistence/EfCoreTests/EfCoreTests.csproj", "CIEfCore")
         {
             Postgres = ServerUse.Shared, SqlServer = ServerUse.Shared, Services = ["rabbitmq"]
         },
-        new("src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj", "CIEfCoreNet10")
+        new("src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj", "CIEfCore")
         {
             Postgres = ServerUse.Shared, SqlServer = ServerUse.Shared, Services = ["rabbitmq"]
         },
@@ -186,10 +186,10 @@ partial class Build
         {
             Holds = ["cosmos-emulator"]
         },
-        new("src/Persistence/RavenDbTests/RavenDbTests.csproj", "CIRavenDb") { Holds = ["ravendb"], Frameworks = ["net9.0"] },
+        new("src/Persistence/RavenDbTests/RavenDbTests.csproj", "CIRavenDb") { Holds = ["ravendb"], Frameworks = ["net10.0"] },
         new("src/Persistence/LeaderElection/RavenDbTests.LeaderElection/RavenDbTests.LeaderElection.csproj", "CIRavenDb")
         {
-            Holds = ["ravendb"], Frameworks = ["net9.0"]
+            Holds = ["ravendb"], Frameworks = ["net10.0"]
         },
         new("src/Persistence/Wolverine.ClaimCheck.Postgresql.Tests/Wolverine.ClaimCheck.Postgresql.Tests.csproj", "CIClaimCheck")
         {
@@ -466,7 +466,7 @@ partial class Build
 
     /// <summary>
     /// The frameworks a suite's project declares: its own TargetFramework(s), or the repository's
-    /// net9.0;net10.0 from Directory.Build.props when it declares none, which the gate's project-file
+    /// net10.0;net11.0 from Directory.Build.props when it declares none, which the gate's project-file
     /// reader cannot see.
     /// </summary>
     static string[] gateFrameworksOf(GateSuite suite)
@@ -498,7 +498,7 @@ partial class Build
                 .ToArray();
 
             // A solution of its own rather than a filter over wolverine.slnx: that marks its net10.0-only
-            // projects <Build Project="false" /> (Compile builds it pinned to net9.0), and a filter
+            // projects <Build Project="false" /> (Compile builds it pinned to one framework), and a filter
             // inherits the mark.
             File.WriteAllText(filter, "<Solution>\n" + string.Concat(projects.Select(p =>
                 $"  <Project Path=\"{Path.GetRelativePath(directory, RootDirectory / p).Replace('\\', '/')}\" />\n")) + "</Solution>\n");

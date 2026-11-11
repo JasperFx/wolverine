@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime.Agents;
@@ -30,10 +31,16 @@ internal class RecurringTimerAgentFamily : IStaticAgentFamily
     private readonly IWolverineRuntime _runtime;
     private readonly ConcurrentDictionary<string, RecurringTimerAgent> _agents = new();
     private readonly ConcurrentDictionary<string, bool> _locallyPaused = new();
+    private readonly Lazy<Counter<int>> _skippedCounter;
 
     public RecurringTimerAgentFamily(IWolverineRuntime runtime)
     {
         _runtime = runtime;
+
+        // GH-5320. One instrument for every timer agent of this runtime, tagged per schedule
+        _skippedCounter = new Lazy<Counter<int>>(() => runtime.Meter.CreateCounter<int>(
+            MetricsConstants.RecurringOccurrencesSkipped, MetricsConstants.Messages,
+            "Number of recurring occurrences skipped because the previous occurrence was still running"));
     }
 
     public string Scheme => SchemeName;
@@ -87,7 +94,8 @@ internal class RecurringTimerAgentFamily : IStaticAgentFamily
 
         return _agents.GetOrAdd(message.Name,
             _ => new RecurringTimerAgent(message, _runtime,
-                _runtime.LoggerFactory.CreateLogger<RecurringTimerAgent>()));
+                _runtime.LoggerFactory.CreateLogger<RecurringTimerAgent>(),
+                message.OverlapPolicy == RecurringOverlapPolicy.SkipWhileRunning ? _skippedCounter.Value : null));
     }
 
     public ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync()

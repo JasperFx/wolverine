@@ -10,7 +10,7 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFrameworks>net9.0</TargetFrameworks>
+        <TargetFrameworks>net10.0</TargetFrameworks>
         <IsPackable>false</IsPackable>
 
         <!-- F# project: clear the C#-oriented props inherited from Directory.Build.props. -->

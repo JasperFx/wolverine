@@ -177,6 +177,9 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
     {
         setDefaults(envelope);
 
+        // An outbox transaction may already have written this envelope's row
+        if (await tryDeadLetterUnknownTenantAsync(envelope, true)) return;
+
         var pooled = envelope.FromPool;
         if (pooled) _messageLogger.Sent(envelope);
 
@@ -189,6 +192,9 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
     public async ValueTask StoreAndForwardAsync(Envelope envelope)
     {
         setDefaults(envelope);
+
+        // Checked before the envelope is stored, so an unknown-tenant message never enters the outbox
+        if (await tryDeadLetterUnknownTenantAsync(envelope, false)) return;
 
         // GH-3709. Handing a POOLED envelope to the sending block publishes it to another thread that may
         // send it, succeed, and return it to the pool -- Envelope.Reset(), which nulls Destination and
@@ -315,11 +321,66 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
         Latched = false;
     }
 
+    /// <summary>
+    ///     GH-5196. Dead letter, rather than store or send, a message for a tenant id the transport does not know
+    ///     under <see cref="TenantedIdBehavior.DeadLetterUnknownTenants" />. Throws when there is no message
+    ///     store to hold the dead letter, so the publish call fails
+    /// </summary>
+    private async ValueTask<bool> tryDeadLetterUnknownTenantAsync(Envelope envelope, bool mayHaveOutboxRow)
+    {
+        var unknown = UnknownBrokerTenants.Check(_sender, envelope);
+        if (unknown == null) return false;
+
+        await UnknownBrokerTenants.DeadLetterAsync(_runtime, envelope, unknown, _logger);
+        if (mayHaveOutboxRow)
+        {
+            await afterDeadLetteringUnknownTenantAsync(envelope);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     GH-5196. From the send loop, for an unknown-tenant message that reached it without passing
+    ///     <see cref="EnqueueOutgoingAsync" /> or <see cref="StoreAndForwardAsync" />, like an outbox row
+    ///     recovered after a restart. Never retried: no retry would find the tenant
+    /// </summary>
+    private async Task deadLetterUnknownTenantFromSendLoopAsync(Envelope envelope, UnknownBrokerTenantException exception)
+    {
+        try
+        {
+            await UnknownBrokerTenants.DeadLetterAsync(_runtime, envelope, exception, _logger);
+        }
+        catch (Exception e)
+        {
+            // No message store, or the dead letter could not be written: leave any outbox row where it is
+            _logger.LogError(e,
+                "Unable to move outgoing message {Name}#{Id} to {Destination} for unknown tenant '{TenantId}' to dead letter storage",
+                envelope.MessageType, envelope.Id, Destination, exception.TenantId);
+            return;
+        }
+
+        await afterDeadLetteringUnknownTenantAsync(envelope);
+    }
+
+    /// <summary>
+    ///     GH-5196. A durable agent removes the envelope's outbox row, which a transaction may already have
+    ///     written, once its dead letter is written, so the durability agent never sends it
+    /// </summary>
+    protected virtual Task afterDeadLetteringUnknownTenantAsync(Envelope envelope)
+    {
+        return Task.CompletedTask;
+    }
+
     private async Task sendWithCallbackHandlingAsync(Envelope envelope, CancellationToken token)
     {
         try
         {
             await _sender.SendAsync(envelope);
+        }
+        catch (UnknownBrokerTenantException unknown)
+        {
+            await deadLetterUnknownTenantFromSendLoopAsync(envelope, unknown);
         }
         catch (Exception e)
         {
@@ -354,6 +415,10 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
         catch (NotSupportedException)
         {
             // Ignore it, most likely a failure ack that should not have been sent
+        }
+        catch (UnknownBrokerTenantException unknown)
+        {
+            await deadLetterUnknownTenantFromSendLoopAsync(envelope, unknown);
         }
         catch (Exception e)
         {

@@ -273,8 +273,9 @@ This queue is hardcoded to poll every second and should not be changed to ensure
 The queue tables store the time a message was enqueued in a `timestamp` column, and the listeners pull and hand over
 each batch in `timestamp` order. That column is a plain `DATETIME`, so it only has whole second precision: every message
 sent within the same second has the same timestamp, and so does every scheduled message promoted to the ready queue
-together. By default, messages with the same timestamp can be returned in any order. To persist a tie-breaker for those
-rows, opt into deterministic queue ordering:
+together, and messages with the same timestamp could otherwise be returned in any order. Deterministic queue ordering
+persists a tie-breaker for those rows. It is the default for new queue tables from Wolverine 7.0 (see
+[below](#new-queue-tables-only)); on 6.x, or to migrate an existing table, opt in:
 
 ```cs
 opts.UseMySqlPersistenceAndTransport(connectionString)
@@ -297,16 +298,38 @@ added in a single `ALTER TABLE`, which keeps the existing rows and gives each of
 order cannot be reconstructed when their timestamps already tie. This gives a stable order within each queue; it does not
 define a global commit order across concurrent senders, consumers, or different queues.
 
-The option is disabled by default so existing applications do not receive an automatic queue schema change. With
-`AutoCreate.None`, apply the Wolverine resource migration before starting with the option enabled. Configure the option
+An explicit `EnableDeterministicQueueOrdering()` migrates existing queue tables too. With `AutoCreate.None`, apply the Wolverine resource migration before starting with the option enabled, with `dotnet run -- resources setup` or `dotnet run -- db-apply` (see [Managing Message Storage](/guide/durability/managing#choosing-an-approach)). Configure the option
 consistently on every application using the same queue tables; once the schema has been upgraded, leaving the option
 disabled preserves the added column and indexes. The new indexes require additional storage and write maintenance, and
 the `ALTER TABLE` rebuilds the table, so expect it to take a while on a large backlog.
 
-For a safe rollout, deploy the compatible version with this option disabled to every application sharing the queue
-tables. Then apply the opt-in schema migration and enable the option on all consumers. Rolling back to a binary that
-predates this change requires suppressing its automatic queue schema migrations, because its older table model may try
-to remove the added column and indexes.
+#### New queue tables only <Badge type="tip" text="7.0" />
+
+From Wolverine 7.0, deterministic ordering is the default for the queue tables Wolverine **creates**. A queue
+table that already exists without the `queue_order` column keeps its layout: adding the `AUTO_INCREMENT` column rebuilds the table and numbers every row. Wolverine adopts the table as
+it is, no migration touches it, and the listeners dequeue it by timestamp alone, exactly as Wolverine 6.x did.
+This is decided per table and per database, so a tenant database created after the upgrade gets the new layout
+while the older ones keep theirs.
+
+To turn the tie-breaker off for new tables as well, use `DisableDeterministicQueueOrdering()` or
+`opts.RestoreV6Defaults()`:
+
+```cs
+opts.UseMySqlPersistenceAndTransport(connectionString)
+    .DisableDeterministicQueueOrdering();
+```
+
+#### Converting an existing queue table
+
+To move an existing table to the new layout, do it deliberately:
+
+1. Stop sending to the queue and let the listeners drain it, until both the ready and the scheduled queue
+   tables are empty.
+2. Either drop the two tables and let Wolverine create them again on the next start, or call
+   `EnableDeterministicQueueOrdering()` explicitly. An explicit call migrates existing tables, as it did in 6.x,
+   and adding the column to an empty table is cheap.
+3. Configure every application that shares the queue tables the same way.
+
 
 
 ### Resetting in Tests

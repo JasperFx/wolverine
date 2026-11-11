@@ -344,7 +344,16 @@ internal class PolecatOverrides<T> : IConfigurePolecat<T> where T : IDocumentSto
         // projection batch commits — parity with the primary store (PolecatOverrides above) and the
         // Marten ancillary side. Without this the ancillary store silently drops projection-published
         // messages.
-        options.Events.MessageOutbox = new PolecatToWolverineOutbox(services);
+        //
+        // GH-5143: pass the marker type so the batch enlists in THIS store's message store, as Marten's
+        // has since GH-2887. Without it the envelopes went to the main store's tables.
+        options.Events.MessageOutbox = new PolecatToWolverineOutbox(services, typeof(T));
+
+        // See PolecatOverrides
+        options.Listeners.Add(new FlushEnrolledOutboxOnCommit());
+
+        // GH-5390: a tracked session hears events committed through sessions Wolverine did not open too
+        options.Listeners.Add(new RecordEventsCommittedOutsideAMessage(services, typeof(T)));
 
         // GH-3290: mirror the primary store (PolecatOverrides) — the ancillary managed
         // distribution flag lives on the main PolecatIntegration (see the

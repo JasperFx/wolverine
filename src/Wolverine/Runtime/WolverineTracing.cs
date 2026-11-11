@@ -300,7 +300,26 @@ public static class WolverineTracing
 
     public static Activity? StartExecuting(Envelope envelope)
     {
-        return StartEnvelopeActivity(envelope.MessageType ?? "process", envelope);
+        var activity = StartEnvelopeActivity(envelope.MessageType ?? "process", envelope);
+
+        // GH-5310: remembered so the generated handler can tag this span even after a persistence
+        // integration has made its own activity current (see MessageActivity below)
+        envelope.ExecutingActivity = activity;
+        return activity;
+    }
+
+    /// <summary>
+    /// GH-5310. The span that the generated handler code tags with the handler type, saga id, stream id and
+    /// audited members: the span started for the envelope's current execution while it is still running,
+    /// otherwise <see cref="Activity.Current"/>. Reading <see cref="Activity.Current"/> alone is not enough,
+    /// because a persistence integration can make its own activity current part way through a handler (Marten's
+    /// <c>marten.connection</c> with <c>TrackConnections</c> on), and every tag after that point landed on it.
+    /// Public only because generated code calls it.
+    /// </summary>
+    public static Activity? MessageActivity(Envelope? envelope)
+    {
+        var activity = envelope?.ExecutingActivity;
+        return activity is { IsStopped: false } ? activity : Activity.Current;
     }
 
     public static Activity? StartEnvelopeActivity(string spanName, Envelope envelope,
@@ -355,6 +374,25 @@ public static class WolverineTracing
         {
             activity.AddLink(new ActivityLink(context));
         }
+    }
+
+    // GH-5311. Holds the exception last recorded on an activity, so the several catch blocks one
+    // failure can pass through (executor, pipeline, receiver) add the "exception" event only once.
+    private const string RecordedExceptionProperty = "wolverine.recorded_exception";
+
+    /// <summary>
+    /// GH-5311. Records the OpenTelemetry <c>exception</c> event (exception.type, exception.message,
+    /// exception.stacktrace) on <paramref name="activity"/>, unless <paramref name="enabled"/> is false,
+    /// no listener asked for the activity's data, or this exception is already recorded on it
+    /// </summary>
+    internal static void RecordException(this Activity? activity, Exception exception, bool enabled)
+    {
+        if (!enabled || activity is not { IsAllDataRequested: true }) return;
+
+        if (ReferenceEquals(activity.GetCustomProperty(RecordedExceptionProperty), exception)) return;
+
+        activity.SetCustomProperty(RecordedExceptionProperty, exception);
+        activity.AddException(exception);
     }
 
     internal static void MaybeSetTag<T>(this Activity activity, string tagName, T? value)

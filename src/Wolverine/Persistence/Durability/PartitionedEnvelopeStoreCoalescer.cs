@@ -23,7 +23,7 @@ internal sealed class PartitionedEnvelopeStoreCoalescer : IEnvelopeStoreCoalesce
     private readonly int _maximumBatchSize;
     private readonly Uri _uri;
     private readonly ILogger _logger;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private ImHashMap<object, EnvelopeStoreCoalescer> _lanes = ImHashMap<object, EnvelopeStoreCoalescer>.Empty;
 
     /// <param name="partitionFor">
@@ -71,7 +71,7 @@ internal sealed class PartitionedEnvelopeStoreCoalescer : IEnvelopeStoreCoalesce
 
     private EnvelopeStoreCoalescer addLane(object key)
     {
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             if (_lanes.TryFind(key, out var lane))
             {

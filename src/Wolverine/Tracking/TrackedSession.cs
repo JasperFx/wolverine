@@ -231,10 +231,7 @@ internal partial class TrackedSession : ITrackedSession
 
     public T FindSingleTrackedMessageOfType<T>()
     {
-        var messages = AllRecordsInOrder()
-            .Select(x => x.Envelope!.Message).Where(x => x != null)
-            .OfType<T>()
-            .Distinct().ToArray();
+        var messages = findPublishedMessagesOfType<T>(null);
 
         if (messages.Length == 0)
         {
@@ -248,19 +245,12 @@ internal partial class TrackedSession : ITrackedSession
                 $"Expected one message of type {typeof(T).FullNameInCode()}, but detected {messages.Length}: {messages.Select(x => x!.ToString())!.Join(", ")}");
         }
 
-        return messages
-            .Single();
+        return messages.Single();
     }
 
     public T FindSingleTrackedMessageOfType<T>(MessageEventType eventType)
     {
-        var messages = AllRecordsInOrder()
-            .Where(x => x.MessageEventType == eventType)
-            .Select(x => x.Envelope!.Message)
-            .Where(x => x != null)
-            .OfType<T>()
-            .Distinct().ToArray();
-
+        var messages = findPublishedMessagesOfType<T>(eventType);
 
         return messages.Length switch
         {
@@ -271,6 +261,47 @@ internal partial class TrackedSession : ITrackedSession
                     $"Expected one message of type {typeof(T).FullNameInCode()}, but detected {messages.Length}: {messages.Select(x => x!.ToString())!.Join(", ")}")),
             _ => messages.Single()
         };
+    }
+
+    // GH-5315: count published messages, not distinct message values. The old .Distinct() collapsed
+    // two value-equal records (a double publish) into one. Instead, every envelope id is one envelope,
+    // however many records it has (sent, received, execution started/finished, retries). Envelopes
+    // that carry the very same message instance came from one publish routed to several destinations,
+    // so they are counted once -- that keeps "one publish, two subscribers" passing. An envelope
+    // received over an external transport holds a deserialized copy, but its id matches the sent
+    // envelope, so it joins that publish through the sent record's instance.
+    private T[] findPublishedMessagesOfType<T>(MessageEventType? eventType)
+    {
+        var publishes = new List<(HashSet<object> Instances, EnvelopeRecord First)>();
+
+        foreach (var history in _envelopes)
+        {
+            var records = history.Records.Where(x => x.Envelope?.Message is T).OrderBy(x => x.Sequence).ToArray();
+
+            var first = records.FirstOrDefault(x => eventType == null || x.MessageEventType == eventType);
+            if (first == null) continue;
+
+            var instances = new HashSet<object>(records.Select(x => x.Envelope!.Message!),
+                ReferenceEqualityComparer.Instance);
+
+            var overlapping = publishes.Where(x => x.Instances.Overlaps(instances)).ToArray();
+            foreach (var publish in overlapping)
+            {
+                publishes.Remove(publish);
+                instances.UnionWith(publish.Instances);
+                if (publish.First.Sequence < first.Sequence)
+                {
+                    first = publish.First;
+                }
+            }
+
+            publishes.Add((instances, first));
+        }
+
+        return publishes
+            .OrderBy(x => x.First.Sequence)
+            .Select(x => (T)x.First.Envelope!.Message!)
+            .ToArray();
     }
 
     public EnvelopeRecord[] FindEnvelopesWithMessageType<T>(MessageEventType eventType)
@@ -720,7 +751,14 @@ internal partial class TrackedSession : ITrackedSession
             return _conditions.All(x => x.IsCompleted());
         }
 
-        return _envelopes.All(x => x.IsComplete());
+        // The envelope histories are a snapshot, so a handler can send cascading messages and then finish
+        // while this check runs. Histories are only ever added, so check again until none appeared meanwhile.
+        while (true)
+        {
+            var histories = _envelopes.ToArray();
+            if (!histories.All(x => x.IsComplete())) return false;
+            if (_envelopes.Count == histories.Length) return true;
+        }
     }
 
     public void LogException(Exception exception, string? serviceName, object? correlationId = null)

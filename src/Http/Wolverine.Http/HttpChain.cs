@@ -967,7 +967,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             key = att.Name;
         }
 
-        return UseDeclaredDefault(TryFindOrCreateFormValue(parameterType, parameterName!, key), parameter);
+        var variable = TryFindOrCreateFormValue(parameterType, parameterName!, key);
+
+        if (variable is not null)
+        {
+            variable.BoundParameter ??= parameter;
+        }
+
+        return UseDeclaredDefault(variable, parameter);
     }
 
     /// <summary>
@@ -1077,7 +1084,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             key = att.Name;
         }
 
-        return UseDeclaredDefault(TryFindOrCreateQuerystringValue(parameterType, parameterName!, key), parameter);
+        var variable = TryFindOrCreateQuerystringValue(parameterType, parameterName!, key);
+
+        if (variable is not null)
+        {
+            variable.BoundParameter ??= parameter;
+        }
+
+        return UseDeclaredDefault(variable, parameter);
     }
 
     public HttpElementVariable? TryFindOrCreateQuerystringValue(Type parameterType, string parameterName, string? key = null)
@@ -1281,7 +1295,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         var existing =
             _headerVariables.FirstOrDefault(x => x.Name == metadata.Name && x.VariableType == parameter.ParameterType);
 
-        if (existing != null) return existing;
+        if (existing != null)
+        {
+            existing.BoundParameter ??= parameter;
+            return existing;
+        }
 
         var frame = new ReadHttpFrame(BindingSource.Header, parameter.ParameterType, parameter.Name!,
             rejectUnparseableValue: _parent.RejectUnparseableHeaderValues)
@@ -1290,6 +1308,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         };
         
         frame.UseDeclaredDefaultOf(parameter);
+        frame.Variable.BoundParameter = parameter;
         _headerVariables.Add(frame.Variable);
         
         return frame.Variable;
@@ -1300,16 +1319,21 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         var existing =
             _headerVariables.FirstOrDefault(x => x.Name == metadata.Name && x.VariableType == property.PropertyType);
 
-        if (existing != null) return existing;
+        if (existing != null)
+        {
+            existing.BoundParameter ??= new PropertyAsParameterInfo(property);
+            return existing;
+        }
 
         var frame = new ReadHttpFrame(BindingSource.Header, property.PropertyType, property.Name,
             rejectUnparseableValue: _parent.RejectUnparseableHeaderValues)
         {
             Key = metadata.Name ?? property.Name
         };
-        
+
+        frame.Variable.BoundParameter = new PropertyAsParameterInfo(property);
         _headerVariables.Add(frame.Variable);
-        
+
         return frame.Variable;
     }
 

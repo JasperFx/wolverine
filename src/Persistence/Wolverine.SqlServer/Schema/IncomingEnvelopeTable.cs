@@ -29,7 +29,9 @@ internal class IncomingEnvelopeTable : Table
         
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
         
-        if (durability.InboxStaleTime.HasValue)
+        // GH-5193: always created (unless AlwaysProvisionOptionalSchemaObjects is off), whether or not
+        // InboxStaleTime is set; only the statements that read and write it follow InboxStaleTime
+        if (durability.ProvisionsIncomingTimestamp)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("GETUTCDATE()");
         }

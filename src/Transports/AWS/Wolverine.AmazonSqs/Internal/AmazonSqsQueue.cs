@@ -1038,8 +1038,21 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         return false;
     }
 
-    public override DeadLetterStorageMode DeadLetterStorage =>
-        DeadLetterQueueName.IsNotEmpty() && !_parent.DisableDeadLetterQueues
-            ? DeadLetterStorageMode.Native
-            : DeadLetterStorageMode.Durable;
+    // A configured native dead letter queue reports Native, promoted to NativeWithRecovery when
+    // EnableDeadLetterQueueRecovery() drains that dead letter queue, by the same rule
+    // SqsDeadLetterQueueListener uses to pick its queues (GH-5313).
+    public override DeadLetterStorageMode DeadLetterStorage
+    {
+        get
+        {
+            if (DeadLetterQueueName.IsEmpty() || _parent.DisableDeadLetterQueues)
+            {
+                return DeadLetterStorageMode.Durable;
+            }
+
+            return _parent.DeadLetterQueueRecovery?.Drains(this) == true
+                ? DeadLetterStorageMode.NativeWithRecovery
+                : DeadLetterStorageMode.Native;
+        }
+    }
 }

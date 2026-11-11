@@ -35,7 +35,7 @@ builder.Host.UseWolverine(opts =>
 
 Using the `IntegrateWithWolverine()` extension method behind your call to `AddPolecat()` will:
 
-* Register the necessary [inbox and outbox](/guide/durability/) database tables with Polecat's database schema management
+* Register the necessary [inbox and outbox](/guide/durability/) database tables with [Polecat's database schema management](https://polecat.jasperfx.net/schema/migrations.html), so `db-apply`, `db-patch` and `resources setup` migrate the Polecat schema and Wolverine's envelope storage together (see [Managing Message Storage](/guide/durability/managing))
 * Adds Wolverine's "DurabilityAgent" to your .NET application for the inbox and outbox
 * Makes Polecat the active [saga storage](/guide/durability/sagas) for Wolverine
 * Adds transactional middleware using Polecat to your Wolverine application

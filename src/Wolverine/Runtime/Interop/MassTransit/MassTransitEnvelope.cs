@@ -67,7 +67,9 @@ public abstract class MassTransitEnvelope
 
     public void TransferData(Envelope envelope)
     {
-        if (MessageId != null && Guid.TryParse(MessageId, out var id))
+        // An envelope already stored in the durable inbox is found by the id it was stored under -- on SQS that is
+        // derived from the SQS message, not the MassTransit messageId -- so reading it must not replace that id
+        if (!envelope.WasPersistedInInbox && MessageId != null && Guid.TryParse(MessageId, out var id))
         {
             envelope.Id = id;
         }

@@ -66,12 +66,24 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
     [IgnoreDescription]
     internal LightweightCache<string, PulsarTenant> Tenants { get; } = new();
 
+    private TenantedIdBehavior? _tenantedIdBehavior;
+    private bool _v6DefaultsRestored;
+
     /// <summary>
-    /// Controls how outbound messages whose <see cref="Envelope.TenantId"/> is null or does not match a
-    /// registered tenant are handled when broker-per-tenant multi-tenancy is in effect. Defaults to
-    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/>.
+    /// Controls how an outbound message whose tenant id is null or unregistered is routed when broker-per-tenant
+    /// multi-tenancy is in effect. A message with no tenant id always goes to the default broker. Defaults to
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.DeadLetterUnknownTenants"/> since Wolverine 7.0
+    /// (GH-5196): a message for an unregistered tenant id is dead lettered, never sent to the default broker.
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/> restores the 6.x default,
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/>. A value set here wins over both.
     /// </summary>
-    public TenantedIdBehavior TenantedIdBehavior { get; set; } = TenantedIdBehavior.FallbackToDefault;
+    public TenantedIdBehavior TenantedIdBehavior
+    {
+        get => _tenantedIdBehavior ?? (_v6DefaultsRestored
+            ? TenantedIdBehavior.FallbackToDefault
+            : TenantedIdBehavior.DeadLetterUnknownTenants);
+        set => _tenantedIdBehavior = value;
+    }
     /// <summary>
     /// Transport-wide default dead letter topic applied to every Pulsar endpoint that does not set
     /// its own <see cref="PulsarEndpoint.DeadLetterTopic"/>. Resolution is per-endpoint-override-wins:
@@ -161,6 +173,9 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
 
     public override ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
+        // GH-5196. Read when the transport starts, never at registration
+        _v6DefaultsRestored = runtime.Options.V6DefaultsRestored;
+
         Client = Builder.Build();
         configureRetryTopics(runtime);
 

@@ -207,6 +207,23 @@ app.MapWolverineEndpoints(opts =>
 });
 ```
 
+### More than one middleware catching the same exception type <Badge type="tip" text="6.62" />
+
+It's possible to end up with two middleware types that both have an `OnException` method for the same
+exception type, for example `MapMartenConcurrencyFailuresToConflict()` next to your own
+`ConcurrencyException` middleware. In that case Wolverine puts both `OnException` methods in the same
+`catch` block, in the order the middleware was registered. If the first one writes a response, returns a
+value that ends the request, or rethrows, the later ones never run, just as a `Before` method that stops the
+chain keeps the later middleware from running. The same applies to message handlers.
+
+::: tip
+If there is any doubt about which `OnException` method runs first, or how the catch blocks are ordered by
+exception type, don't depend on the conventions. Write an explicit `try/catch` in your handler or endpoint
+method instead, where the order is right there in your own code. Either way, the generated code is the final
+word on what actually happens. Use `dotnet run -- codegen preview` or `codegen write` to look at the
+`catch` blocks Wolverine generated for that chain. See [Working with Code Generation](/guide/codegen).
+:::
+
 ## Concurrency Conflicts as 409 <Badge type="tip" text="6.39" />
 
 An endpoint using `[WriteAggregate]`, `[Aggregate]`, or any chain that commits a session can lose an
@@ -214,12 +231,16 @@ optimistic concurrency race -- two clients posting to the same aggregate at the 
 the exception escapes the endpoint as an unhandled **500**, even though nothing went wrong with the data:
 optimistic concurrency did its job. **409 Conflict** is the honest status for that.
 
-There is a one line opt in for this:
+From Wolverine 7.0 this mapping is **on by default** for the transactional chains: Wolverine.Http applies
+`MapConcurrencyFailuresToConflict()` for you unless you configure it yourself. Opt out with
+`opts.DoNotMapConcurrencyFailuresToConflict()`, or call `opts.RestoreV6Defaults()` in `UseWolverine` for every 6.x
+default. In 6.x it was a one line opt in, and calling it yourself still works -- your call replaces the default,
+so its filter and ProblemDetails factory are the ones used:
 
 ```csharp
 app.MapWolverineEndpoints(opts =>
 {
-    // Marten. Also available as MapPolecatConcurrencyFailuresToConflict()
+    // Marten. On Polecat or Fisher, MapConcurrencyFailuresToConflict()
     opts.MapMartenConcurrencyFailuresToConflict();
 });
 ```
@@ -233,20 +254,47 @@ conflict. It takes the same optional predicate `AddMiddleware` does if you want 
 opts.MapMartenConcurrencyFailuresToConflict(chain => chain.Method.HandlerType == typeof(OrderEndpoints));
 ```
 
+By default `Detail` is the exception message, which carries stream or document ids and CLR type names. Pass a
+factory to shape the whole `ProblemDetails` yourself -- `Detail`, `Type`, extension members:
+
+```csharp
+opts.MapMartenConcurrencyFailuresToConflict(
+    toProblemDetails: ex => new ProblemDetails
+    {
+        Status = 409,
+        Title = "Conflict",
+        Detail = "The resource was modified by another request. Fetch the current version and retry."
+    });
+```
+
+The factory is also accepted by `MapPolecatConcurrencyFailuresToConflict()` and `MapConcurrencyFailuresToConflict()`.
+A `null` `Status` is filled in as 409.
+
 ::: tip Which call do I want?
 | Store | Call |
 | --- | --- |
 | Marten | `opts.MapMartenConcurrencyFailuresToConflict()` |
-| Polecat | `opts.MapPolecatConcurrencyFailuresToConflict()` |
-| Fisher, or no event store | `opts.MapConcurrencyFailuresToConflict()` |
+| Polecat, Fisher, or no event store | `opts.MapConcurrencyFailuresToConflict()` |
 
-The store specific calls exist because `Marten.Exceptions.StreamLockedException` and
-`Polecat.Exceptions.StreamLockedException` do **not** derive from `JasperFx.ConcurrencyException` and are not
-visible to `WolverineFx.Http` on its own. On Marten or Polecat, `MapConcurrencyFailuresToConflict()` alone
-would leave the `FetchForExclusiveWriting` path returning 500s. Fisher needs no equivalent -- its exclusive
-methods are optimistic and throw `EventStreamUnexpectedMaxEventIdException`, which is a
-`ConcurrencyException`.
+`MapConcurrencyFailuresToConflict()` maps both `JasperFx.ConcurrencyException` and
+`JasperFx.Events.StreamLockedException`, which `FetchForExclusiveWriting` throws on a contended stream. Marten 10,
+Polecat 6 and Fisher 2 all throw that shared type, so the core call covers every store, and the 7.0 default is the
+core call. `MapMartenConcurrencyFailuresToConflict()` and `MapPolecatConcurrencyFailuresToConflict()` still work
+and do the same thing.
+
+Before Marten 10, `Marten.Exceptions.StreamLockedException` derived from `MartenException` instead, so
+`MapConcurrencyFailuresToConflict()` alone left Marten's exclusive locking path returning 500s and
+`MapMartenConcurrencyFailuresToConflict()` added Marten's type.
 :::
+
+A commit that fails more than one version check at once -- two `[UseOptimisticConcurrency]` documents in one
+Marten session, say -- throws an `AggregateException` with one `ConcurrencyException` per failed check. The
+mapping covers that too, but only when *every* inner exception is a concurrency failure. It does so with an
+`OnExceptionFilter` method, which you can use yourself: a `public static bool OnExceptionFilter(TException)`
+declared next to an `OnException(TException)` method, on middleware or on a handler type, is generated as a
+`catch (TException ex) when (...)` clause. An exception the filter rejects is not swallowed or rethrown from
+inside the clause; it falls through to the sibling `OnException` clauses (an `OnException(Exception)`, for
+instance), exactly as if the filtered clause were not there.
 
 ## Unknown Tenants as 404 <Badge type="tip" text="6.39" />
 
@@ -258,7 +306,8 @@ There are two different tenancy failures on an HTTP request, and only one of the
 | **Unknown** tenant id | "the tenant you named does not exist" | was an unhandled **500** |
 
 An unknown tenant id throws `JasperFx.MultiTenancy.UnknownTenantIdException` from the store or from
-Wolverine's own tenant sources. That is a client side error, so:
+Wolverine's own tenant sources. That is a client side error, so from Wolverine 7.0 Wolverine.Http applies this
+mapping **by default** (it was opt-in in 6.x, and calling it yourself still works):
 
 ```csharp
 app.MapWolverineEndpoints(opts =>
@@ -267,7 +316,8 @@ app.MapWolverineEndpoints(opts =>
 });
 ```
 
-maps it to a 404 `ProblemDetails` titled `Unknown tenant`, and stamps `ProducesProblem(404)` on the tenanted
+Opt out with `opts.DoNotMapUnknownTenantToNotFound()`, or call `opts.RestoreV6Defaults()` in `UseWolverine` for
+every 6.x default. The mapping maps the exception to a 404 `ProblemDetails` titled `Unknown tenant`, and stamps `ProducesProblem(404)` on the tenanted
 chains so your OpenAPI document advertises it. It applies by default to chains declared `[RequiresTenant]` or
 `[MaybeTenanted]` -- a chain that resolves no tenant cannot fail to resolve one -- and takes the same optional
 predicate the other mappings do.
@@ -326,11 +376,12 @@ public static class MartenConcurrencyExceptionMiddleware
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/ConcurrencyEndpoints.cs#L32-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_marten_concurrency_exception_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-::: warning `StreamLockedException` is not a `ConcurrencyException`
+::: warning `StreamLockedException` before Marten 10
 `EventStreamUnexpectedMaxEventIdException` and Marten's document level concurrency violations derive from
-`JasperFx.ConcurrencyException`, so a single handler covers both. But `Marten.Exceptions.StreamLockedException`
--- what `FetchForExclusiveWriting` throws on a contended stream -- derives from `MartenException` instead.
-A recipe that catches only `ConcurrencyException` silently leaves the exclusive locking path returning 500s.
+`JasperFx.ConcurrencyException`, so a single handler covers both. Before Marten 10, `Marten.Exceptions.StreamLockedException`
+-- what `FetchForExclusiveWriting` throws on a contended stream -- derived from `MartenException` instead, and a
+recipe that caught only `ConcurrencyException` silently left the exclusive locking path returning 500s. Marten 10
+throws the shared `JasperFx.Events.StreamLockedException`, which does derive from `ConcurrencyException`.
 :::
 
 Register it across the endpoints that commit Marten sessions:

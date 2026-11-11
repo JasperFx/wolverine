@@ -43,7 +43,8 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
         _lockId = schemaName.GetDeterministicHashCode();
     }
 
-    // GH-3959: load_factor is only provisioned behind this flag (PostgresqlMessageStore.AllObjects),
+    // GH-3959 / GH-5193: load_factor is always provisioned since 7.0 (PostgresqlMessageStore.AllObjects), but advertising
+    // load stays opt-in, and with AlwaysProvisionOptionalSchemaObjects off the column only exists behind this flag,
     // so every statement naming it is gated on it too -- otherwise an un-migrated database
     // (AutoCreate.None, or no DDL rights) fails node startup with a bare 42703. Read live rather than
     // captured: this is constructed before the flag is reliably set.

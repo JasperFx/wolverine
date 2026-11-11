@@ -40,6 +40,12 @@ partial class Build : NukeBuild
     readonly Solution Solution;
     
     [Parameter]readonly string Framework;
+
+    /// <summary>Pack only: overrides the package version (e.g. 7.0.0-local.1) without editing Directory.Build.props.</summary>
+    [Parameter("Package version for Pack, overriding Directory.Build.props")] readonly string Version;
+
+    /// <summary>Pack only: the output directory (a local NuGet feed) that packages are written to. Defaults to ./artifacts.</summary>
+    [Parameter("Output directory / local NuGet feed for Pack")] readonly string Feed;
     [Parameter] readonly string PostgresConnectionString ="Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres";
 
     [Parameter] readonly string SqlServerConnectionString =
@@ -160,7 +166,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            // net10.0-only (Alba 9), so the net9.0-pinned Compile skips it
+            // net10.0-only (Alba 9), so a Compile pinned to another framework skips it
             BuildTestProjects(Solution.Http.Wolverine_Http_Tests);
             RunTestProject(Solution.Http.Wolverine_Http_Tests);
         });
@@ -287,7 +293,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            // net10.0-only (Alba 9), so the net9.0-pinned Compile skips it
+            // net10.0-only (Alba 9), so a Compile pinned to another framework skips it
             BuildTestProjects(Solution.Samples.TodoWebService.TodoWebServiceTests);
             RunTestProject(Solution.Samples.TodoWebService.TodoWebServiceTests);
         });
@@ -297,7 +303,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            // net10.0-only (Alba 9), so the net9.0-pinned Compile skips it
+            // net10.0-only (Alba 9), so a Compile pinned to another framework skips it
             BuildTestProjects(Solution.Samples.TestHarness.BankingService_Tests);
             RunTestProject(Solution.Samples.TestHarness.BankingService_Tests);
         });
@@ -307,7 +313,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            // net10.0-only (Alba 9), so the net9.0-pinned Compile skips it
+            // net10.0-only (Alba 9), so a Compile pinned to another framework skips it
             BuildTestProjects(Solution.Samples.Middleware.AppWithMiddleware_Tests);
             RunTestProject(Solution.Samples.Middleware.AppWithMiddleware_Tests);
         });
@@ -317,7 +323,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            // net10.0-only (Alba 9), so the net9.0-pinned Compile skips it
+            // net10.0-only (Alba 9), so a Compile pinned to another framework skips it
             BuildTestProjects(Solution.Samples.EFCoreSample.ItemService_Tests);
             RunTestProject(Solution.Samples.EFCoreSample.ItemService_Tests);
         });
@@ -427,10 +433,14 @@ partial class Build : NukeBuild
         {
             foreach (var project in NugetProjects)
             {
-                DotNetPack(s => s
-                    .SetProject(project)
-                    .SetOutputDirectory("./artifacts")
-                    .SetConfiguration(Configuration.Release));
+                DotNetPack(s =>
+                {
+                    s = s
+                        .SetProject(project)
+                        .SetOutputDirectory(string.IsNullOrEmpty(Feed) ? "./artifacts" : Feed)
+                        .SetConfiguration(Configuration.Release);
+                    return string.IsNullOrEmpty(Version) ? s : s.SetVersion(Version);
+                });
             }
         });
 

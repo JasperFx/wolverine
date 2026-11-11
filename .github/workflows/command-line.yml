@@ -37,12 +37,13 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
-
+          dotnet-version: |
+            10.0.x
+            11.0.x
       # GH-5125: the checks live in the CICommandLineSmoke target (build/CommandLineSmoke.cs), so
       # LocalGate runs the same ones on a developer machine.
       - name: wolverine-diagnostics describe-handlers + event-model smoke tests
-        run: ./build.sh CICommandLineSmoke --framework net9.0
+        run: ./build.sh CICommandLineSmoke --framework net10.0
 
   # GH-4486. Separate job from codegen-drift on purpose: both rewrite the generated tree, and this one
   # depends on building AFTER the wipe (see the note on CICodegenTest) while the drift gate builds
@@ -60,13 +61,14 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
-
+          dotnet-version: |
+            10.0.x
+            11.0.x
       # Runs `codegen test` against a handler-bearing project with no pre-generated code -- the path
       # that broke in 6.37.0 and that neither the drift gate (`codegen write`) nor AotSmoke (`publish`)
       # exercises. The target starts its own rabbitmq container.
       - name: Codegen test gate
-        run: ./build.sh CICodegenTest --framework net9.0
+        run: ./build.sh CICodegenTest --framework net10.0
 
       - name: Stop containers
         if: always()
@@ -85,14 +87,15 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
-
+          dotnet-version: |
+            10.0.x
+            11.0.x
       # GH-4421. Regenerates the committed `codegen write` output and fails on any diff. This is only
       # a believable gate as of JasperFx 2.69.2, which made the emitted statement order deterministic
       # (jasperfx#832); before that, a byte comparison could not tell real drift from per-process
       # hash-order noise. The target starts its own postgresql + rabbitmq containers.
       - name: Codegen drift gate
-        run: ./build.sh CICodegenDrift --framework net9.0
+        run: ./build.sh CICodegenDrift --framework net10.0
 
       # The target throws with the file list; this prints the content of the drift so a reviewer can
       # see WHAT moved without having to reproduce the run locally.

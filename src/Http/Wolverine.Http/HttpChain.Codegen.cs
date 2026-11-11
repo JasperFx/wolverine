@@ -82,6 +82,13 @@ public partial class HttpChain
                 handleMethod.Sources.Add(new RequestServicesVariableSource(serviceType));
             }
 
+            // GH-5310: the frames that tag the span (handler type, saga and stream ids, audited members)
+            // write to the request's span, not to Activity.Current, which a persistence span such as
+            // Marten's marten.connection (TrackConnections) takes over once a session is built.
+            var httpContextArgument = handleMethod.Arguments.First(x => x.VariableType == typeof(HttpContext));
+            handleMethod.DerivedVariables.Add(new MessageActivityVariable(httpContextArgument,
+                httpContext => $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.RequestActivity)}({httpContext})"));
+
             handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules));
         }
     }
@@ -132,6 +139,15 @@ public partial class HttpChain
 
     string ICodeFile.FileName => _fileName!;
 
+    private void moveSpanTagsToTheFront()
+    {
+        var tags = Middleware.OfType<TagHttpHandlerFrame>().FirstOrDefault();
+        if (tags == null || Middleware.IndexOf(tags) == 0) return;
+
+        Middleware.Remove(tags);
+        Middleware.Insert(0, tags);
+    }
+
     internal IEnumerable<Frame> DetermineFrames(GenerationRules rules)
     {
         // Add frames for any writers
@@ -177,6 +193,12 @@ public partial class HttpChain
         }
 
         bufferRequestForDeduplicatedWithResponse();
+
+        // GH-5406: the span tags go first, whatever inserted itself at index 0 after TagHttpHandlerPolicy ran
+        // (tenant detection, validation, request id, the body read). Any of those may short-circuit, and a
+        // rejected request is the one an operator most wants grouped by route. The tags are constants or read
+        // from the HttpContext, so they depend on nothing an earlier frame produces.
+        moveSpanTagsToTheFront();
 
         // Allow for immutable request types that get overwritten by middleware
         if (RequestBodyVariable != null)

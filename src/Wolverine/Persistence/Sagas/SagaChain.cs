@@ -189,6 +189,24 @@ public class SagaChain : HandlerChain
 
     public MethodCall[] NotFoundCalls { get; set; } = [];
 
+    /// <summary>
+    /// GH-5331. Every saga handler method on this chain, whether or not the chain has compiled.
+    /// DetermineFrames sorts the saga calls into StartingCalls / ExistingCalls / NotFoundCalls and then
+    /// clears Handlers, so anything describing the saga after the first message was handled has to read
+    /// the sorted calls as well
+    /// </summary>
+    internal MethodCall[] SagaHandlerCalls()
+    {
+        return Handlers
+            .Where(x => x.HandlerType.CanBeCastTo<Saga>())
+            .OfType<MethodCall>()
+            .Concat(StartingCalls)
+            .Concat(ExistingCalls)
+            .Concat(NotFoundCalls)
+            .Distinct()
+            .ToArray();
+    }
+
     public static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType, MethodInfo? sagaHandlerMethod = null)
     {
         return DetermineSagaIdMember(messageType, sagaType,
@@ -291,7 +309,7 @@ public class SagaChain : HandlerChain
         List<Frame> frames, MessageVariable? messageVariable = null)
     {
         var findSagaId = SagaIdMember == null
-            ? (Frame)new PullSagaIdFromEnvelopeFrame(SagaType, frameProvider.DetermineSagaIdType(SagaType, container))
+            ? (Frame)new PullSagaIdFromEnvelopeFrame(SagaType, frameProvider.DetermineSagaIdType(SagaType, this, container))
             : new PullSagaIdFromMessageFrame(MessageType, SagaType, SagaIdMember);
 
 

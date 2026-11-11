@@ -207,10 +207,12 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
 
         if (existing != null)
         {
+            Transport.DeadLetterQueueRecovery = existing;
             return existing;
         }
 
         var settings = new AmazonSqsDeadLetterQueueRecoverySettings();
+        Transport.DeadLetterQueueRecovery = settings;
         Options.Services.AddSingleton(settings);
         Options.Services.AddSingleton(Transport);
         Options.Services.AddHostedService<SqsDeadLetterQueueListener>();
@@ -345,7 +347,9 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     /// <summary>
     /// Override the sending behavior for unknown or missing tenant ids when using broker-per-tenant Amazon SQS
     /// multi-tenancy (GH-3304). See <see cref="TenantedIdBehavior"/>. Default is
-    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/> unless changed.
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.DeadLetterUnknownTenants"/> since Wolverine 7.0 (GH-5196):
+    /// an unknown tenant id is dead lettered rather than sent to the default broker. <c>RestoreV6Defaults()</c> restores
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/>.
     /// </summary>
     /// <param name="behavior"></param>
     /// <returns></returns>

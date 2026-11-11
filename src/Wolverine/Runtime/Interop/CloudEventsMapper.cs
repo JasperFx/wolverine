@@ -184,7 +184,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
 
     public void MapIncoming(Envelope envelope, JsonNode? node)
     {
-        mapIncoming(envelope, node, fallbackType: null);
+        mapIncoming(envelope, node, fallbackType: null, keepExistingId: false);
     }
 
     // Inbound CloudEvents JSON is parsed into a JsonNode tree, then the "data"
@@ -197,7 +197,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
         Justification = "CloudEvents interop default deserializer; AOT consumers supply a JsonSerializerContext-backed mapper. See AOT guide.")]
     [UnconditionalSuppressMessage("AOT", "IL3050",
         Justification = "CloudEvents interop default deserializer; AOT consumers supply a JsonSerializerContext-backed mapper. See AOT guide.")]
-    private void mapIncoming(Envelope envelope, JsonNode? node, Type? fallbackType)
+    private void mapIncoming(Envelope envelope, JsonNode? node, Type? fallbackType, bool keepExistingId)
     {
         if (node == null) return;
 
@@ -211,7 +211,7 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
             }
             else if (message.GetValueKind() == JsonValueKind.Object)
             {
-                mapIncoming(envelope, node["Message"], fallbackType);
+                mapIncoming(envelope, node["Message"], fallbackType, keepExistingId);
                 return;
             }
         }
@@ -245,11 +245,17 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
         {
             if (Guid.TryParse(raw, out var id))
             {
-                envelope.Id = id;
+                // An envelope already stored in the durable inbox is found by the id it was stored under, so
+                // reading it must not replace that id with the CloudEvent's
+                if (!(keepExistingId && envelope.WasPersistedInInbox))
+                {
+                    envelope.Id = id;
+                }
             }
-            else
+            else if (!keepExistingId || envelope.Id == Guid.Empty)
             {
-                envelope.Id = Envelope.IdGenerator();
+                // Stable, name-based id: source + id is unique per the CloudEvents spec
+                envelope.Id = stableId(source, raw);
             }
         }
 
@@ -319,6 +325,16 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
 
     public string ContentType { get; } = "application/json";
 
+    private static Guid stableId(string? source, string? id)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes($"{source}\n{id}"));
+        var bytes = hash.AsSpan(0, 16).ToArray();
+        bytes[7] = (byte)((bytes[7] & 0x0F) | 0x50); // version 5-style
+        bytes[8] = (byte)((bytes[8] & 0x3F) | 0x80); // RFC 4122 variant
+        return new Guid(bytes);
+    }
+
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "CloudEvents interop default serializer; AOT consumers supply a JsonSerializerContext-backed mapper. See AOT guide.")]
     [UnconditionalSuppressMessage("AOT", "IL3050",
@@ -331,7 +347,8 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
     public object ReadFromData(Type messageType, Envelope envelope)
     {
         var node = JsonNode.Parse(envelope.Data);
-        mapIncoming(envelope, node, fallbackType: messageType);
+        // The envelope was already loaded (e.g. from the durable inbox) and has its identity
+        mapIncoming(envelope, node, fallbackType: messageType, keepExistingId: true);
 
         return envelope.Message!;
     }

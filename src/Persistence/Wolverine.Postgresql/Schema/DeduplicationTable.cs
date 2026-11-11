@@ -7,7 +7,8 @@ namespace Wolverine.Postgresql.Schema;
 
 /// <summary>
 /// GH-4180. Storage for logical message deduplication claims. Provisioned only when
-/// <see cref="DurabilitySettings.EnableMessageDeduplication" /> is set.
+/// <see cref="DurabilitySettings.MessageDeduplicationMode" /> is
+/// <see cref="MessageDeduplicationMode.CompareByString" />.
 ///
 /// <para>
 /// Two columns and nothing else. The primary key on <c>deduplication_id</c> IS the guarantee —

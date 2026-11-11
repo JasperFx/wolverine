@@ -20,7 +20,7 @@ namespace Internal.Generated.WolverineHandlers
 
         public override System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotHttpResponseAwareEndpoint");
+            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "AotHttpResponseAwareEndpoint").SetTag("http.route", "/aot/response-aware").SetTag("http.request.method", "POST");
             
             // The actual HTTP request handler execution
             var aotHttpResponseMarker = AotHttpResponseAwareEndpoint.Post();

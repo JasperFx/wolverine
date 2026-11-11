@@ -69,6 +69,20 @@ public class MassTransitEnvelopeTests
     }
 
     [Fact]
+    public void an_envelope_held_in_the_inbox_keeps_the_id_it_was_stored_under()
+    {
+        var storedId = Guid.NewGuid();
+        var envelope = new Envelope { Id = storedId, WasPersistedInInbox = true };
+
+        theMassTransitEnvelope.TransferData(envelope);
+
+        envelope.Id.ShouldBe(storedId);
+
+        // everything else still comes across
+        envelope.CorrelationId.ShouldBe(theMassTransitEnvelope.CorrelationId);
+    }
+
+    [Fact]
     public void map_the_correlation_id()
     {
         theEnvelope.CorrelationId.ShouldBe(theMassTransitEnvelope.CorrelationId);

@@ -109,7 +109,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
 
         chain!.AuditedMembers.Single().MemberName.ShouldBe(nameof(RaiseABC.LetterAggregateId));
 
-        chain.SourceCode!.ShouldContain("System.Diagnostics.Activity.Current?.SetTag(\"letter.aggregate.id\", raiseABC.LetterAggregateId);");
+        chain.SourceCode!.ShouldContain("Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag(\"letter.aggregate.id\", raiseABC.LetterAggregateId);");
     }
 
     [Fact]

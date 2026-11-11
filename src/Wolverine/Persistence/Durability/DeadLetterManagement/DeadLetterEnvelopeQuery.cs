@@ -84,6 +84,7 @@ public class DeadLetterEnvelopeQuery
             Archived = Archived,
             Replayable = Replayable,
             Range = Range,
+            RangeOn = RangeOn,
             MessageIds = MessageIds,
             Headers = Headers == null ? null : new Dictionary<string, string>(Headers),
             QueryId = QueryId
@@ -145,6 +146,14 @@ public class DeadLetterEnvelopeQuery
     public bool? Replayable { get; set; }
 
     public TimeRange Range { get; set; } = TimeRange.AllTime();
+
+    /// <summary>
+    /// Which timestamp <see cref="Range"/> filters on. The default, <see cref="DeadLetterTimeField.SentAt"/>, is
+    /// when the producer sent the message; <see cref="DeadLetterTimeField.FailedAt"/> is when it was dead lettered,
+    /// which is what "dead letters of the last 24 hours" means for a message read again from a broker topic.
+    /// Honored by every dead letter store
+    /// </summary>
+    public DeadLetterTimeField RangeOn { get; set; } = DeadLetterTimeField.SentAt;
 
     /// <summary>
     /// If set, this takes precedence over all other options

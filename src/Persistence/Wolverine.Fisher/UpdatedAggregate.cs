@@ -117,7 +117,7 @@ internal static class UpdatedAggregateIdentity
     ///     are searched too and the results deduplicated by signature. Note also that
     ///     <c>JasperFx.Events.IEventOperations</c> is NOT a base of <c>IEventStoreOperations</c> and carries
     ///     no <c>FetchLatest</c> at all, which is why this targets the latter. Fisher already registers a
-    ///     variable source for it (<c>SharedEventStoreOperationsSource</c>), so the frame resolves
+    ///     variable source for it (core's <c>DocumentSessionContractSource</c>, GH-5141), so the frame resolves
     ///     <c>session.Events</c> with no new wiring.</para>
     ///     <para>The generic-arity guard matters: <c>FetchLatest</c> has a two-parameter overload
     ///     (<c>FetchLatest&lt;T1, T2&gt;(T2, CancellationToken)</c>) for strong typed identifiers, and

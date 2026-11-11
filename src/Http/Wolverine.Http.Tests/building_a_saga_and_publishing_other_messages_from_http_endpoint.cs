@@ -40,4 +40,19 @@ public class building_a_saga_and_publishing_other_messages_from_http_endpoint : 
         var @event = await result.ReadAsJsonAsync<ReservationBooked>();
         @event.ReservationId.ShouldBe("dinner");
     }
+
+    [Fact]
+    public async Task returned_saga_marked_response_only_is_not_inserted_again()
+    {
+        await Store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(Reservation), TestContext.Current.CancellationToken);
+
+        var result = await Host.Scenario(x =>
+        {
+            x.Post.Json(new StartReservation("lunch")).ToUrl("/reservation3");
+            x.StatusCodeShouldBeOk();
+        });
+
+        var body = await result.ReadAsJsonAsync<Reservation>();
+        body.Id.ShouldBe("lunch");
+    }
 }

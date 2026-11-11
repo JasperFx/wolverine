@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Out-of-process crash rig for the durability agents: worker and producer processes are killed with
+         SIGKILL at random and restarted, then a ledger of what was sent and processed is checked for lost,
+         duplicated and stuck messages. Deliberately NOT part of either .slnx solution or CI; see README.md. -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
+        <ProjectReference Include="..\..\Persistence\MySql\Wolverine.MySql\Wolverine.MySql.csproj" />
+        <ProjectReference Include="..\..\Persistence\Oracle\Wolverine.Oracle\Wolverine.Oracle.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Sqlite\Wolverine.Sqlite.csproj" />
+        <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    </ItemGroup>
+
+</Project>

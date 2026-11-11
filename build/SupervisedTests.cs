@@ -363,7 +363,7 @@ partial class Build
     /// <summary>
     /// The framework to build and run <paramref name="projectPath"/> for: the override, else the pinned
     /// <c>Framework</c> -- unless the project does not target it. The Alba-based test projects are
-    /// net10.0-only (Alba 9 has no net9.0 target), and every workflow passes <c>--framework net9.0</c>,
+    /// net10.0-only (Alba 9 has no net11.0 target), and a workflow may pass a <c>--framework</c> a project lacks,
     /// so such a project builds and runs at the highest framework it declares instead of failing
     /// NETSDK1005.
     /// </summary>

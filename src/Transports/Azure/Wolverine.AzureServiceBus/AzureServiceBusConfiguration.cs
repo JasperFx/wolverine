@@ -260,10 +260,12 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
 
         if (existing != null)
         {
+            Transport.DeadLetterQueueRecovery = existing;
             return existing;
         }
 
         var settings = new AzureServiceBusDeadLetterQueueRecoverySettings();
+        Transport.DeadLetterQueueRecovery = settings;
         Options.Services.AddSingleton(settings);
         Options.Services.AddSingleton(Transport);
         Options.Services.AddHostedService<AzureServiceBusDeadLetterQueueListener>();

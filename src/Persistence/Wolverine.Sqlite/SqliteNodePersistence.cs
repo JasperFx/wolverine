@@ -55,7 +55,8 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
         _lockId = schemaName.GetDeterministicHashCode();
     }
 
-    // GH-4593: load_factor is only provisioned behind this flag (SqliteMessageStore.AllObjects), so every
+    // GH-4593 / GH-5193: load_factor is always provisioned since 7.0 (SqliteMessageStore.AllObjects), but advertising
+    // load stays opt-in, and with AlwaysProvisionOptionalSchemaObjects off the column only exists behind this flag, so every
     // statement naming it is gated on it too -- otherwise an un-migrated database (AutoCreate.None, or no
     // DDL rights) fails node startup on "no such column". Read live rather than captured: this is
     // constructed before the flag is reliably set.
@@ -91,14 +92,25 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
+        // GH-5430: the store assigns the number, as every other store does with a sequence or identity column.
+        // This used to write back node.AssignedNodeNumber, which is WolverineNode's default of 1, so every node in a
+        // Balanced cluster was node 1: each one owned every other node's envelopes and none was ever ejected as
+        // stale. One INSERT ... SELECT is atomic here because SQLite has a single writer.
+        //
+        // A number must not be handed out again while its old owner may come back: a node ejected as stale keeps
+        // its number when it resumes and re-registers (ReregisterNodeAsync), so taking only the live rows' max
+        // would give a newcomer the number of a frozen node that had the highest one. The node event records keep
+        // every node's NodeStarted number (pruned oldest first, by count), so the max over both tables only moves
+        // forward, like a sequence. The upper bound skips records from before GH-3698, which could carry a
+        // random hash
         await using var cmd = conn.CreateCommand(
-                $"insert into {_nodeTable} (id, uri, capabilities, description, version, node_number) values (@id, @uri, @capabilities, @description, @version, @node_number)")
+                $"insert into {_nodeTable} (id, uri, capabilities, description, version, node_number) select @id, @uri, @capabilities, @description, @version, " +
+                $"coalesce((select max(n) from (select max(node_number) as n from {_nodeTable} union all select max(node_number) from {_nodeRecordTable} where node_number < 1000000)), 0) + 1")
             .With("id", node.NodeId.ToString())
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
             .With("description", node.Description)
             .With("version", node.Version.ToString())
-            .With("capabilities", capabilitiesJson)
-            .With("node_number", node.AssignedNodeNumber);
+            .With("capabilities", capabilitiesJson);
 
         await cmd.ExecuteNonQueryAsync(cancellationToken);
 
@@ -452,7 +464,7 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
             {
                 NodeNumber = Convert.ToInt32(await reader.GetFieldValueAsync<long>(0)),
                 RecordType = Enum.Parse<NodeRecordType>(await reader.GetFieldValueAsync<string>(1)),
-                Timestamp = DateTimeOffset.Parse(await reader.GetFieldValueAsync<string>(2)),
+                Timestamp = parseUtc(await reader.GetFieldValueAsync<string>(2)),
                 Description = await reader.GetFieldValueAsync<string>(3)
             });
         }
@@ -489,6 +501,17 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
         return _database.AdvisoryLock.ReleaseLockAsync(_lockId);
     }
 
+    /// <summary>
+    /// GH-5430: datetime('now') is UTC text with no offset. DateTimeOffset.Parse alone gave it the machine's offset,
+    /// so west of Greenwich every health check looked hours in the future and no node was ever stale. Text written
+    /// with an offset (OverwriteHealthCheckTimeAsync writes ISO 8601) keeps its own.
+    /// </summary>
+    private static DateTimeOffset parseUtc(string raw)
+    {
+        return DateTimeOffset.Parse(raw, System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal);
+    }
+
     private async Task<WolverineNode> readNodeAsync(DbDataReader reader)
     {
         var nodeIdStr = await reader.GetFieldValueAsync<string>(0);
@@ -498,8 +521,8 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
             AssignedNodeNumber = Convert.ToInt32(await reader.GetFieldValueAsync<long>(1)),
             Description = await reader.GetFieldValueAsync<string>(2),
             ControlUri = (await reader.GetFieldValueAsync<string>(3)).ToUri(),
-            Started = DateTimeOffset.Parse(await reader.GetFieldValueAsync<string>(4)),
-            LastHealthCheck = DateTimeOffset.Parse(await reader.GetFieldValueAsync<string>(5))
+            Started = parseUtc(await reader.GetFieldValueAsync<string>(4)),
+            LastHealthCheck = parseUtc(await reader.GetFieldValueAsync<string>(5))
         };
 
         if (!(await reader.IsDBNullAsync(6)))

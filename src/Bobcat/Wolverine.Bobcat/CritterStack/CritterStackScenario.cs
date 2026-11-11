@@ -265,7 +265,7 @@ public class CritterStackScenario
     /// ancillary store unless told otherwise — is used instead.
     /// </remarks>
     /// <exception cref="InvalidOperationException">No store is registered under <typeparamref name="TStore" />.</exception>
-    public CritterStackScenario In<TStore>() where TStore : class => createView(resolveStore(typeof(TStore)));
+    public CritterStackScenario In<TStore>() where TStore : class => view(resolveStore(typeof(TStore)));
 
     /// <summary>
     /// bobcat#504. The same Given/Then vocabulary against the event store whose <see cref="IEventStore.Identity" />
@@ -276,19 +276,23 @@ public class CritterStackScenario
     public CritterStackScenario In(string storeName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(storeName);
-        return createView(Services.EventStore(storeName));
+        return view(Services.EventStore(storeName));
+    }
+
+    // A view's store is one the specification touched, so AfterAsyncDaemonsCatchUpAsync() waits on it: counted here, not
+    // in createView, which a derived scenario overrides (WolverineScenario, WolverineHttpScenario)
+    private CritterStackScenario view(IEventStore store)
+    {
+        _state.Touched.Add(store);
+        return createView(store);
     }
 
     /// <summary>
     /// bobcat#504. Build the view <see cref="In{TStore}" /> and <see cref="In(string)" /> hand out, pinned to
     /// <paramref name="store" />. A derived scenario whose own steps should be on the view overrides this and
-    /// returns its own type, built with the protected view constructor.
+    /// returns its own type, built with the protected view constructor. The store already counts as touched.
     /// </summary>
-    protected virtual CritterStackScenario createView(IEventStore store)
-    {
-        _state.Touched.Add(store);
-        return new(this, store);
-    }
+    protected virtual CritterStackScenario createView(IEventStore store) => new(this, store);
 
     private IEventStore resolveStore(Type marker)
     {

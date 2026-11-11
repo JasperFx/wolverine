@@ -23,6 +23,26 @@ public enum RecurringExecutionPath
 }
 
 /// <summary>
+/// GH-5320. What a recurring schedule does when an occurrence comes due while the previous one is
+/// still being handled.
+/// </summary>
+public enum RecurringOverlapPolicy
+{
+    /// <summary>
+    /// Publish every occurrence as it comes due, whether or not the previous one has finished. The
+    /// behavior of every schedule before GH-5320, and the default.
+    /// </summary>
+    Allow,
+
+    /// <summary>
+    /// Skip any occurrence that comes due while the previous one is still being handled. The timer
+    /// agent invokes each occurrence and waits for it instead of publishing it and moving on; see
+    /// <see cref="RecurringMessage.SkipWhileRunning" /> for exactly what that means.
+    /// </summary>
+    SkipWhileRunning
+}
+
+/// <summary>
 /// One registered recurring message: a named <see cref="CronSchedule" /> plus the factory that
 /// builds the message for each occurrence. Registered through <c>opts.Schedules</c>. Long-cadence
 /// schedules are executed by Wolverine's recurring-message agent, which keeps exactly the NEXT
@@ -89,6 +109,9 @@ public sealed class RecurringMessage
         {
             if (ExecutionPathOverride.HasValue) return ExecutionPathOverride.Value;
 
+            // GH-5320. Only the timer agent can tell whether the previous occurrence is still running
+            if (OverlapPolicy == RecurringOverlapPolicy.SkipWhileRunning) return RecurringExecutionPath.Timer;
+
             var threshold = _parent?.TimerThreshold ?? RecurringMessageCollection.DefaultTimerThreshold;
             if (_classified is { } cached && cached.Threshold == threshold) return cached.Path;
 
@@ -104,9 +127,14 @@ public sealed class RecurringMessage
     /// </summary>
     internal static RecurringExecutionPath ClassifyByCadence(CronSchedule schedule, TimeSpan threshold)
     {
+        // GH-5320. A schedule faster than the scheduled-job poller can honour runs on a timer whatever
+        // the threshold says -- even a threshold of zero, which would otherwise mean "never".
+        var floor = CronSchedule.MinimumScheduledMessagesCadence;
+        var gap = schedule.MinimumGapOverAWeek(threshold > floor ? threshold : floor);
+        if (gap.HasValue && gap.Value < floor) return RecurringExecutionPath.Timer;
+
         if (threshold <= TimeSpan.Zero) return RecurringExecutionPath.ScheduledMessages;
 
-        var gap = schedule.MinimumGapOverAWeek(threshold);
         return gap.HasValue && gap.Value < threshold
             ? RecurringExecutionPath.Timer
             : RecurringExecutionPath.ScheduledMessages;
@@ -125,10 +153,84 @@ public sealed class RecurringMessage
     /// <summary>
     /// GH-5168. Always pre-schedule this schedule's next occurrence through the scheduled-message
     /// machinery, whatever its cadence -- the behavior of every schedule before GH-5168.
+    /// <para>
+    /// GH-5320. Refused for a schedule that fires more often than
+    /// <see cref="CronSchedule.MinimumScheduledMessagesCadence" />, which the scheduled-job poller
+    /// cannot honour, and for a schedule set to <see cref="SkipWhileRunning" />.
+    /// </para>
     /// </summary>
     public RecurringMessage UseScheduledMessages()
     {
+        var floor = CronSchedule.MinimumScheduledMessagesCadence;
+        var gap = Schedule.MinimumGapOverAWeek(floor);
+        if (gap.HasValue && gap.Value < floor)
+        {
+            throw new InvalidOperationException(
+                $"Recurring message '{Name}' ({Schedule}) fires more often than every {floor.TotalSeconds:0} seconds, " +
+                $"which the scheduled-message path cannot honour: durable scheduled messages replay on " +
+                $"{nameof(DurabilitySettings.ScheduledJobPollingTime)} (5 seconds by default). " +
+                "Leave this schedule on its timer agent.");
+        }
+
+        if (OverlapPolicy == RecurringOverlapPolicy.SkipWhileRunning)
+        {
+            throw new InvalidOperationException(
+                $"Recurring message '{Name}' is set to {nameof(SkipWhileRunning)}(), which only the timer path " +
+                "supports. A pre-scheduled occurrence fires from the scheduled-job poller with nothing " +
+                "waiting on the previous one.");
+        }
+
         ExecutionPathOverride = RecurringExecutionPath.ScheduledMessages;
+        return this;
+    }
+
+    /// <summary>
+    /// GH-5320. What this schedule does when an occurrence comes due while the previous one is still
+    /// being handled. <see cref="RecurringOverlapPolicy.Allow" /> unless
+    /// <see cref="SkipWhileRunning" /> was called.
+    /// </summary>
+    public RecurringOverlapPolicy OverlapPolicy { get; private set; } = RecurringOverlapPolicy.Allow;
+
+    /// <summary>
+    /// GH-5320. Skip any occurrence that comes due while the previous one is still being handled, and
+    /// pick the schedule back up with the first occurrence after it finishes. Skipped occurrences are
+    /// never back-filled. They are logged at debug level, summarized at information level when the
+    /// schedule resumes, and counted on the <c>wolverine-recurring-occurrences-skipped</c> counter
+    /// tagged with <c>schedule.name</c>.
+    /// <para>
+    /// This runs the schedule on its timer agent (implying <see cref="UseTimer" />), and changes how
+    /// each occurrence is delivered: the agent <b>invokes</b> the occurrence and waits for it, with the
+    /// semantics of <c>IMessageBus.InvokeAsync()</c>, instead of publishing it.
+    /// </para>
+    /// <list type="bullet">
+    /// <item>With a local handler, the occurrence runs inline on the node that owns the schedule's
+    /// timer agent. There is one such agent per schedule in the cluster, so occurrences of the schedule
+    /// do not overlap anywhere in the cluster -- except for the brief double run while the agent moves
+    /// between nodes.</item>
+    /// <item>With no local handler, the occurrence goes to the single endpoint it routes to by
+    /// request/reply, and the agent waits for the acknowledgement, at most
+    /// <see cref="WolverineOptions.DefaultRemoteInvocationTimeout" />. After that timeout the next
+    /// occurrence can start even if the remote handler is still running.</item>
+    /// <item>Other subscribers do not receive the occurrence, and it does not go through a local queue:
+    /// there is no inbox row, no queue-level error policy, no dead letter queue. A failed occurrence is
+    /// logged and the next one runs on schedule. A handler that never returns stops the schedule
+    /// until it does.</item>
+    /// <item>A manual <see cref="IRecurringScheduleControl.TriggerAsync" /> still publishes, and is not
+    /// covered by the overlap check.</item>
+    /// </list>
+    /// Refused for a schedule set to <see cref="UseScheduledMessages" />.
+    /// </summary>
+    public RecurringMessage SkipWhileRunning()
+    {
+        if (ExecutionPathOverride == RecurringExecutionPath.ScheduledMessages)
+        {
+            throw new InvalidOperationException(
+                $"Recurring message '{Name}' is set to {nameof(UseScheduledMessages)}(), and " +
+                $"{nameof(SkipWhileRunning)}() only works on the timer path. A pre-scheduled occurrence fires " +
+                "from the scheduled-job poller with nothing waiting on the previous one.");
+        }
+
+        OverlapPolicy = RecurringOverlapPolicy.SkipWhileRunning;
         return this;
     }
 

@@ -243,7 +243,7 @@ Without this, the `codegen write` verb is unreachable and the build-stage step b
 ### A multi-stage Dockerfile
 
 ```dockerfile
-FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
 WORKDIR /src
 
 COPY ["Application/Application.csproj", "Application/"]
@@ -260,7 +260,7 @@ WORKDIR "/src/Application"
 RUN dotnet run -- codegen write
 RUN dotnet publish "Application.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 ENV DOTNET_RUNNING_IN_CONTAINER=1
 ENV DOTNET_NOLOGO=1
 ENV DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
@@ -276,7 +276,7 @@ USER nonroot
 ENTRYPOINT ["dotnet", "Application.dll"]
 ```
 
-The base image tags above (`9.0-alpine`) match Wolverine 6.0's minimum TFM (`net9.0`). Pick whichever LTS your app targets — `10.0-alpine` works the same way once you're on `net10.0`.
+The base image tags above (`10.0-alpine`) match Wolverine 7.0's minimum TFM (`net10.0`); use `11.0-alpine` on `net11.0`.
 
 ### The `codegen write` step has no runtime resources
 

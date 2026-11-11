@@ -199,7 +199,9 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     /// <summary>
     /// Override the sending behavior for unknown or missing tenant ids when using broker-per-tenant Kafka
     /// multi-tenancy (GH-3303). See <see cref="TenantedIdBehavior"/>. Default is
-    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/> unless changed.
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.DeadLetterUnknownTenants"/> since Wolverine 7.0 (GH-5196):
+    /// an unknown tenant id is dead lettered rather than sent to the default broker. <c>RestoreV6Defaults()</c> restores
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/>.
     /// </summary>
     public KafkaTransportExpression TenantIdBehavior(TenantedIdBehavior behavior)
     {

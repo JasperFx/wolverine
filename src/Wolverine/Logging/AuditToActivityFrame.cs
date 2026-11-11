@@ -12,6 +12,7 @@ public class AuditToActivityFrame : SyncFrame
     private readonly Type _inputType;
     private readonly List<AuditedMember> _members;
     private Variable? _input;
+    private MessageActivityVariable? _activity;
 
     public AuditToActivityFrame(IChain chain) : this(chain, null)
     {
@@ -33,15 +34,20 @@ public class AuditToActivityFrame : SyncFrame
     {
         _input = chain.FindVariable(_inputType);
         yield return _input;
+
+        // GH-5310: tag the message's own span rather than whatever Activity.Current has become.
+        _activity = MessageActivityVariable.TryFind(chain);
+        foreach (var variable in MessageActivityVariable.Uses(_activity)) yield return variable;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("Application-specific Open Telemetry auditing");
+        var activity = MessageActivityVariable.UsageFor(_activity);
         foreach (var member in _members)
         {
             writer.WriteLine(
-                $"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {_input!.Usage}.{member.Member.Name});");
+                $"{activity}?.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {_input!.Usage}.{member.Member.Name});");
         }
 
         Next?.GenerateCode(method, writer);
@@ -56,7 +62,7 @@ public class AuditToActivityFrame : SyncFrame
         // there are no audited members so the `if` body is never empty.
         if (_members.Count > 0)
         {
-            var current = $"{typeof(Activity).FSharpName()}.{nameof(Activity.Current)}";
+            var current = MessageActivityVariable.FSharpUsageFor(_activity);
             writer.Write($"BLOCK:if not (isNull {current}) then");
             foreach (var member in _members)
             {

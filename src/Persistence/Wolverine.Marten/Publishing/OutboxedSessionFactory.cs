@@ -4,6 +4,7 @@ using Marten;
 using Marten.Services;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
+using Wolverine.RDBMS.Outbox;
 
 namespace Wolverine.Marten.Publishing;
 
@@ -164,32 +165,17 @@ public class OutboxedSessionFactory
     {
         context.OverrideStorage(MessageStore);
 
-        // Per-message CausationId override supplied via
-        // DeliveryOptions.CausationId (envelope header "causation-id") takes
-        // precedence over the default Wolverine ConversationId-based causation
-        // chain. This is how a projection that calls
-        // slice.PublishMessage(cmd, metadata with CausationId = ...) gets the
-        // overridden id onto the events the command's handler writes.
-        if (context.Envelope is { } env
-            && env.Headers.TryGetValue(EnvelopeConstants.CausationIdKey, out var headerCausationId)
-            && !string.IsNullOrEmpty(headerCausationId))
+        // GH-5144: what the session stamps on its writes comes from one place for every store
+        if (DocumentSessionOutboxSupport.CausationIdFor(context) is { } causationId)
         {
-            session.CausationId = headerCausationId;
-        }
-        else if (context.ConversationId != Guid.Empty)
-        {
-            session.CausationId = context.ConversationId.ToString();
+            session.CausationId = causationId;
         }
 
         session.CorrelationId = context.CorrelationId;
 
-        if (context.Envelope?.UserName is not null)
+        if (DocumentSessionOutboxSupport.UserNameFor(context) is { } userName)
         {
-            session.LastModifiedBy = context.Envelope.UserName;
-        }
-        else if (context.UserName is not null)
-        {
-            session.LastModifiedBy = context.UserName;
+            session.LastModifiedBy = userName;
         }
 
         var transaction = new MartenEnvelopeTransaction(session, context);

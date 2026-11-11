@@ -108,7 +108,12 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
             // IChannelCallback for the whole block -- which is all BufferedReceiver ever needed, since its
             // completions are no-ops -- would ack the wrong delivery under ListenerCount > 1.
             _sharded = sharded;
-            _receivingBlock = sharded.DeserializeFirst(pipeline, runtime, channelFor);
+
+            // GH-5443. A deserialization failure is settled by its continuation inside DeserializeFirst and
+            // never reaches executeAsync, whose finally is otherwise the only place a delivery's lease and
+            // idempotency claim are released. Without this hook such an envelope sat in the lease tracker until
+            // the ceiling and then logged a false "unsettled for 59 minutes" warning.
+            _receivingBlock = sharded.DeserializeFirst(pipeline, runtime, channelFor, stoppedUpstream);
         }
 
         _receivingBlock.OnError = onBlockError;
@@ -435,6 +440,18 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
             // lane on a lease Wolverine has to keep alive.
             _leases?.Untrack(envelope);
         }
+    }
+
+    /// <summary>
+    /// GH-5443. The counterpart to executeAsync's finally for an envelope that the partitioned deserialization
+    /// stage settled (or failed to settle) without posting it to a lane. Releasing the lease is right either way:
+    /// a settled delivery has nothing left to keep alive, and an unsettled one is nobody's to process now, so
+    /// letting the lease lapse is how the broker gets it back.
+    /// </summary>
+    private void stoppedUpstream(Envelope envelope)
+    {
+        _leases?.Untrack(envelope);
+        recordOutcome(envelope);
     }
 
     private void recordOutcome(Envelope envelope)

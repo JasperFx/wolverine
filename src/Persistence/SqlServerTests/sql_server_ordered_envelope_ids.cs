@@ -19,14 +19,14 @@ public class sql_server_ordered_envelope_ids : IDisposable
     public void Dispose()
     {
         // The id generator is static, so put the default back for every other test in this assembly
-        Envelope.IdGenerator = NewId.NextSequentialGuid;
+        Envelope.IdGenerator = EnvelopeIds.NextSequentialGuid;
     }
 
     private static readonly System.Reflection.MethodInfo SqlServerOrder =
-        typeof(NewId).GetMethod(nameof(NewId.NextGuid), Type.EmptyTypes)!;
+        typeof(EnvelopeIds).GetMethod(nameof(EnvelopeIds.NextGuid), Type.EmptyTypes)!;
 
     private static readonly System.Reflection.MethodInfo DefaultOrder =
-        typeof(NewId).GetMethod(nameof(NewId.NextSequentialGuid), Type.EmptyTypes)!;
+        typeof(EnvelopeIds).GetMethod(nameof(EnvelopeIds.NextSequentialGuid), Type.EmptyTypes)!;
 
     [Fact]
     public async Task a_sql_server_only_application_switches_automatically()

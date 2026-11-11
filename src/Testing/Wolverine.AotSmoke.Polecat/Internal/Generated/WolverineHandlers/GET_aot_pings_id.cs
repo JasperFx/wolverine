@@ -20,7 +20,7 @@ namespace Internal.Generated.WolverineHandlers
 
         public override System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotPolecatEndpoints");
+            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "AotPolecatEndpoints").SetTag("http.route", "/aot/pings/{id}").SetTag("http.request.method", "GET");
             string id_rawValue = (string?)httpContext.GetRouteValue("id");
             System.Guid id = default;
 

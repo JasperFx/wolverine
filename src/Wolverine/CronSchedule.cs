@@ -24,12 +24,25 @@ namespace Wolverine;
 public readonly struct CronSchedule : IEquatable<CronSchedule>
 {
     /// <summary>
-    /// The minimum spacing between occurrences a schedule may declare. Durable scheduled messages
-    /// replay on <see cref="DurabilitySettings.ScheduledJobPollingTime" /> (5 seconds by default),
-    /// so a faster cadence cannot be honoured through that path — the registration is refused as
-    /// unsatisfiable rather than accepted and quietly delivered late.
+    /// The minimum spacing between occurrences a schedule may declare: one second, the finest a cron
+    /// expression can express (GH-5320). Sub-second cadences are refused.
+    /// <para>
+    /// Before GH-5320 this was 5 seconds, because every schedule ran on the scheduled-message path.
+    /// A schedule faster than <see cref="MinimumScheduledMessagesCadence" /> now always runs on a timer
+    /// agent of its own, which publishes each occurrence the moment it comes due.
+    /// </para>
     /// </summary>
-    public static readonly TimeSpan MinimumCadence = TimeSpan.FromSeconds(5);
+    public static readonly TimeSpan MinimumCadence = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// GH-5320. The fastest cadence the scheduled-message path
+    /// (<see cref="RecurringExecutionPath.ScheduledMessages" />) can honour. Durable scheduled messages
+    /// replay on <see cref="DurabilitySettings.ScheduledJobPollingTime" /> (5 seconds by default), so a
+    /// schedule with a shorter gap always runs on a timer agent, whatever
+    /// <see cref="RecurringMessageCollection.TimerThreshold" /> says, and
+    /// <see cref="RecurringMessage.UseScheduledMessages" /> refuses it.
+    /// </summary>
+    public static readonly TimeSpan MinimumScheduledMessagesCadence = TimeSpan.FromSeconds(5);
 
     private readonly CronExpression? _expression;
 
@@ -142,9 +155,9 @@ public readonly struct CronSchedule : IEquatable<CronSchedule>
 
     private void assertSatisfiableCadence()
     {
-        // Sample the first gap from a fixed anchor. Not a proof over every gap the expression can
-        // produce, but it deterministically catches the every-second / every-other-second shapes
-        // that can never be honoured, at the moment they are written.
+        // Sample the first gap from a fixed anchor. A cron expression has no field finer than a
+        // second, so this is defensive: it pins the floor at the line that wrote the schedule should
+        // the parser ever grow a sub-second grammar.
         var anchor = new DateTimeOffset(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var first = NextOccurrence(anchor);
         if (first == null) return;
@@ -155,10 +168,8 @@ public readonly struct CronSchedule : IEquatable<CronSchedule>
         if (second.Value - first.Value < MinimumCadence)
         {
             throw new ArgumentException(
-                $"'{Expression}' fires more often than every {MinimumCadence.TotalSeconds:0} seconds, " +
-                $"which cannot be honoured: durable scheduled messages replay on " +
-                $"{nameof(DurabilitySettings.ScheduledJobPollingTime)} (default 5s), so a faster cadence " +
-                "would be accepted and then quietly delivered late.");
+                $"'{Expression}' fires more often than every {MinimumCadence.TotalSeconds:0} second, " +
+                "which cannot be honoured. Recurring schedules are limited to a one second cadence.");
         }
     }
 

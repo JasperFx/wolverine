@@ -316,6 +316,27 @@ public static class PostgresqlConfigurationExtensions
     }
 
     /// <summary>
+    /// Shard message publishing across a set of PostgreSQL queues named baseName1, baseName2, and so on,
+    /// but never listen to them on this node. Use this when another application consumes the queues.
+    /// <see cref="PartitionedMessageTopology{TListener,TSubscriber}.ConfigureListening" /> and
+    /// MaxDegreeOfParallelism have no effect on a publish-only topology.
+    /// </summary>
+    public static MessagePartitioningRules PublishOnlyToShardedPostgresqlQueues(this MessagePartitioningRules rules,
+        string baseName, int numberOfEndpoints, Action<PartitionedMessageTopologyWithDatabaseQueues> configure)
+    {
+        rules.AddPublishingTopology((opts, _) =>
+        {
+            var topology = new PartitionedMessageTopologyWithDatabaseQueues(opts, baseName, numberOfEndpoints, true);
+            configure(topology);
+            topology.AssertValidity();
+
+            return topology;
+        });
+
+        return rules;
+    }
+
+    /// <summary>
     /// Use sharded PostgreSQL queues for global partitioned message processing.
     /// Queues will be named baseName1, baseName2, etc.
     /// </summary>

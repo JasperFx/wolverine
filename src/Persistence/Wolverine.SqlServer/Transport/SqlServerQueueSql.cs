@@ -22,32 +22,40 @@ internal static class SqlServerQueueSql
 
     /// <summary>
     ///     Dequeue order for the ready table: <c>seq</c> under the high-throughput layout, otherwise
-    ///     <c>timestamp</c> with <c>queue_order</c> as the tie-breaker when that column is enabled.
+    ///     <c>timestamp</c> with <c>queue_order</c> as the tie-breaker when the table has that column.
     /// </summary>
-    internal static string[] ReadyOrdering(SqlServerQueue queue)
+    internal static string[] ReadyOrdering(SqlServerTableLayout layout)
     {
-        if (queue.OptimizeThroughput) return [Seq];
+        if (layout.Seq) return [Seq];
 
-        return queue.UsesQueueOrderColumn ? ["timestamp", QueueTable.QueueOrderColumn] : ["timestamp"];
+        return layout.QueueOrder ? ["timestamp", QueueTable.QueueOrderColumn] : ["timestamp"];
     }
 
     /// <summary>
     ///     Promotion order for the scheduled table: <c>execution_time</c>, with the table's identity
-    ///     (<c>seq</c> or the opt-in <c>queue_order</c>) as the tie-breaker when there is one.
+    ///     (<c>seq</c> or <c>queue_order</c>) as the tie-breaker when there is one.
     /// </summary>
-    internal static string[] ScheduledOrdering(SqlServerQueue queue)
+    internal static string[] ScheduledOrdering(SqlServerTableLayout layout)
     {
-        if (queue.OptimizeThroughput) return [DatabaseConstants.ExecutionTime, Seq];
+        if (layout.Seq) return [DatabaseConstants.ExecutionTime, Seq];
 
-        return queue.UsesQueueOrderColumn
+        return layout.QueueOrder
             ? [DatabaseConstants.ExecutionTime, QueueTable.QueueOrderColumn]
             : [DatabaseConstants.ExecutionTime];
     }
 
-    internal static string TryPopDirectly(SqlServerQueue queue)
+    internal static string TryPopDirectly(SqlServerQueue queue) => TryPopDirectly(queue, queue.ConfiguredLayout);
+
+    internal static string TryPopToInbox(SqlServerQueue queue, Uri receivedAt, MessageIdentity identity) =>
+        TryPopToInbox(queue, queue.ConfiguredLayout, receivedAt, identity);
+
+    internal static string MoveScheduledToReadyQueue(SqlServerQueue queue, int batchSize) =>
+        MoveScheduledToReadyQueue(queue, queue.ConfiguredLayout, batchSize);
+
+    internal static string TryPopDirectly(SqlServerQueue queue, SqlServerQueueLayout layout)
     {
         var table = queue.QueueTable.Identifier;
-        var ordering = ReadyOrdering(queue);
+        var ordering = ReadyOrdering(layout.Ready);
 
         return $@"
 DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
@@ -69,11 +77,12 @@ IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
 IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
     }
 
-    internal static string TryPopToInbox(SqlServerQueue queue, Uri receivedAt)
+    internal static string TryPopToInbox(SqlServerQueue queue, SqlServerQueueLayout layout, Uri receivedAt,
+        MessageIdentity identity)
     {
         var table = queue.QueueTable.Identifier;
         var incoming = $"{queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable}";
-        var ordering = ReadyOrdering(queue);
+        var ordering = ReadyOrdering(layout.Ready);
 
         return $@"
 DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
@@ -93,10 +102,18 @@ WITH message AS (
 DELETE FROM message
 OUTPUT deleted.id, deleted.body, deleted.message_type, deleted.keep_until, {columns(ordering, "deleted")} INTO @popped;
 
+-- GH-5411: an envelope the inbox already holds (say, handled after being received at another address) is
+-- dropped from the batch instead of failing the whole INSERT with a primary key violation, which rolled every
+-- envelope of the batch back onto the queue on every poll. The probe matches the inbox's identity.
+DECLARE @duplicates TABLE (id uniqueidentifier);
+INSERT INTO @duplicates (id)
+ SELECT p.id FROM @popped p WHERE EXISTS (SELECT 1 FROM {incoming} existing WHERE existing.id = p.id{(identity == MessageIdentity.IdAndDestination ? $" AND existing.{DatabaseConstants.ReceivedAt} = '{receivedAt}'" : "")});
+
 INSERT INTO {incoming}
 (id, status, owner_id, body, message_type, received_at, keep_until)
- SELECT id, 'Incoming', @node, body, message_type, '{receivedAt}', keep_until FROM @popped;
-select id, body from @popped ORDER BY {columns(ordering)};
+ SELECT id, 'Incoming', @node, body, message_type, '{receivedAt}', keep_until FROM @popped WHERE id NOT IN (SELECT id FROM @duplicates);
+select p.id, p.body, CASE WHEN d.id IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END
+ from @popped p LEFT JOIN @duplicates d ON d.id = p.id ORDER BY {columns(ordering, "p")};
 
 IF (@NOCOUNT = 'ON') SET NOCOUNT ON;
 IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
@@ -107,11 +124,11 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
     ///     due backlog is promoted in bounded batches rather than one enormous lock-holding
     ///     transaction.
     /// </summary>
-    internal static string MoveScheduledToReadyQueue(SqlServerQueue queue, int batchSize)
+    internal static string MoveScheduledToReadyQueue(SqlServerQueue queue, SqlServerQueueLayout layout, int batchSize)
     {
         var queueTable = queue.QueueTable.Identifier;
         var scheduledTable = queue.ScheduledTable.Identifier;
-        var ordering = ScheduledOrdering(queue);
+        var ordering = ScheduledOrdering(layout.Scheduled);
 
         return $@"
 DECLARE @moved TABLE (id uniqueidentifier, body varbinary(max), message_type varchar(250), keep_until datetimeoffset, {declarations(ordering)});

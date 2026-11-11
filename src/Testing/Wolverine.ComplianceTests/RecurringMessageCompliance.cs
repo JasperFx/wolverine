@@ -519,8 +519,9 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
     {
         // A host that never registers a schedule must migrate EXACTLY as it did before the
         // feature existed: no recurring tracking table, no deduplication table (that flag rides
-        // the same registration), and the null store on the extension point.
-        var without = await buildHost(_ => { });
+        // the same registration), and the null store on the extension point. GH-5194: deduplication storage is on
+        // by default in 7.0, so both hosts start from the 6.x "off" to see what the registration turns on.
+        var without = await buildHost(opts => opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None);
 
         var store = without.Services.GetRequiredService<IMessageStore>();
         store.RecurringMessages.Enabled.ShouldBeFalse();
@@ -540,6 +541,7 @@ public abstract class RecurringMessageCompliance : IAsyncLifetime
         // provisions both.
         var with = await buildHost(opts =>
         {
+            opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None;
             opts.Schedules.ScheduleRecurring<RecurringComplianceMessage>("neutrality-compliance", "0 * * * *",
                 _ => new RecurringComplianceMessage());
         });

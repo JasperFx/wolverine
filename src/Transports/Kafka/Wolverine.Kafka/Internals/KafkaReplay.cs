@@ -9,10 +9,10 @@ using Wolverine.Util;
 namespace Wolverine.Kafka.Internals;
 
 /// <summary>
-/// Executes a bounded, one-shot Kafka replay (GH-3147): a separate manually-assigned consumer (no
-/// consumer group, no commits) seeks to the requested start on each partition, reads forward to the
-/// end boundary, and feeds every record through the normal Wolverine handler pipeline. The live
-/// consumer group's committed offsets are never touched.
+/// Executes a bounded, one-shot Kafka replay (GH-3147): a separate <c>Assign()</c>-based consumer (with
+/// either the requested group id or a unique throwaway group id, and no commits or offset stores) seeks to the
+/// requested start on each partition, reads forward to the end boundary, and feeds every record through the
+/// normal Wolverine handler pipeline. The live consumer group's committed offsets are never touched.
 /// </summary>
 internal sealed class KafkaReplay
 {
@@ -47,9 +47,10 @@ internal sealed class KafkaReplay
         // which is not always the topic itself.
         var liveEndpoint = LiveListeningEndpointFor(topic, _transport);
 
-        // Manual-assignment consumer: no consumer group at all, no commits, no offset store.
+        // Assign-only consumer: use the requested group id when configured, otherwise a unique group sharing the
+        // live group's prefix. It never commits or stores offsets.
         var config = _transport.ConsumerConfig.Clone();
-        config.GroupId = null;
+        config.GroupId = ReplayGroupIdFor(topic, _transport, _runtime.Options.ServiceName, request.GroupId);
         config.GroupInstanceId = null;
         config.OffsetCommitMode = OffsetCommitMode.Manual;
         config.EnableAutoOffsetStore = false;
@@ -143,6 +144,42 @@ internal sealed class KafkaReplay
             request.Topic, replayed);
 
         return new KafkaReplayResult { RecordsReplayed = replayed, PartitionsReplayed = ends.Count };
+    }
+
+    /// <summary>
+    /// The throwaway replay group is named after the group the topic's live listener consumes under —
+    /// see <see cref="LiveListeningEndpointFor" /> for which endpoint that is — else the transport's, else
+    /// the service name. Brokers commonly grant consumer groups by prefix (Confluent Cloud ACLs are the
+    /// usual case), and the live group is the one prefix the application is known to hold; the service
+    /// name alone defaults to the entry assembly name, which such an ACL refuses with "Group
+    /// authorization failed". A requested group id overrides this generated id verbatim.
+    ///
+    /// <para>A hot-tail listener's group is deliberately not borrowed; see <see cref="liveGroupIdOf" />.</para>
+    /// </summary>
+    internal static string ReplayGroupIdFor(KafkaTopic topic, KafkaTransport transport, string serviceName,
+        string? requestedGroupId = null)
+    {
+        if (!string.IsNullOrWhiteSpace(requestedGroupId))
+        {
+            return requestedGroupId;
+        }
+
+        var liveGroupId = liveGroupIdOf(LiveListeningEndpointFor(topic, transport));
+
+        if (string.IsNullOrEmpty(liveGroupId))
+        {
+            liveGroupId = transport.ConsumerConfig.GroupId;
+        }
+
+        if (string.IsNullOrEmpty(liveGroupId))
+        {
+            // Unreachable from a started host: KafkaTransport.tryBuildSystemEndpoints does
+            // ConsumerConfig.GroupId ??= Options.ServiceName at bootstrap, so the transport branch above has
+            // already answered. Kept for a replay resolved before that runs.
+            liveGroupId = serviceName;
+        }
+
+        return $"{liveGroupId}-replay-{Guid.NewGuid():N}";
     }
 
     /// <summary>
@@ -258,5 +295,22 @@ internal sealed class KafkaReplay
         public IHandlerPipeline? Pipeline => null;
         public ValueTask CompleteAsync(Envelope envelope) => ValueTask.CompletedTask;
         public ValueTask DeferAsync(Envelope envelope) => ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// The group id a replay may borrow a prefix from, or null when the endpoint has none worth borrowing.
+    /// </summary>
+    private static string? liveGroupIdOf(KafkaTopic endpoint)
+    {
+        // A hot-tail listener joins an ephemeral, per-process {ServiceName}-hot-tail-{guid} group, and
+        // ApplyHotTailConfig stamps that onto this very ConsumerConfig when the listener is built. Borrowing
+        // it would nest one throwaway group inside another and still leave the replay on the ServiceName
+        // prefix this method exists to get off, so fall through to the transport's group instead.
+        if (endpoint.IsHotTail)
+        {
+            return null;
+        }
+
+        return endpoint.ConsumerConfig?.GroupId;
     }
 }

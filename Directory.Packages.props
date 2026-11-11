@@ -24,9 +24,9 @@
          the same version as the Aspire.AppHost.Sdk those AppHost projects declare. -->
     <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.6.3" />
     <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.6.3" />
-    <PackageVersion Include="Asp.Versioning.Abstractions" Version="[10.0.0,11.0.0)" />
-    <PackageVersion Include="Asp.Versioning.Http" Version="[10.0.0,11.0.0)" />
-    <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="[10.0.0,11.0.0)" />
+    <PackageVersion Include="Asp.Versioning.Abstractions" Version="[10.0.0,12.0.0)" />
+    <PackageVersion Include="Asp.Versioning.Http" Version="[10.0.0,12.0.0)" />
+    <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="[10.0.0,12.0.0)" />
     <PackageVersion Include="AWSSDK.S3" Version="4.0.22.1" />
     <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.0.2.14" />
     <PackageVersion Include="AWSSDK.SQS" Version="4.0.2.14" />
@@ -76,24 +76,24 @@
     <PackageVersion Include="Bobcat.EventModel" Version="1.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="JasperFx" Version="2.97.0" />
-    <PackageVersion Include="JasperFx.Events" Version="2.97.0" />
-    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.97.0" />
-    <PackageVersion Include="JasperFx.Events.InMemory" Version="2.97.0" />
-    <!-- RuntimeCompiler is on its own 5.x line (the Roslyn compiler package), not the 2.1.x
-         family. 5.0.1: jasperfx#1086, AssemblyGenerator shares one Roslyn MetadataReference per
-         assembly path across compilations instead of re-reading every referenced PE image into
-         native memory for each one. -->
-    <PackageVersion Include="JasperFx.RuntimeCompiler" Version="5.0.1" />
-    <PackageVersion Include="JasperFx.SourceGenerator" Version="2.97.0" />
+    <PackageVersion Include="JasperFx" Version="3.0.1" />
+    <PackageVersion Include="JasperFx.Events" Version="3.0.1" />
+    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="3.0.1" />
+    <PackageVersion Include="JasperFx.Events.InMemory" Version="3.0.1" />
+    <!-- RuntimeCompiler is on its own line (the Roslyn compiler package), not the JasperFx one:
+         6.0.0 goes with JasperFx 3.0 (net10.0;net11.0, Roslyn 5.9). 5.0.1 was jasperfx#1086,
+         AssemblyGenerator sharing one Roslyn MetadataReference per assembly path across
+         compilations instead of re-reading every referenced PE image into native memory each time. -->
+    <PackageVersion Include="JasperFx.RuntimeCompiler" Version="6.0.0" />
+    <PackageVersion Include="JasperFx.SourceGenerator" Version="3.0.1" />
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="16.0.0" />
-    <PackageVersion Include="Marten" Version="9.54.1" />
-    <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.3" />
-    <PackageVersion Include="Polecat" Version="5.46.1" />
-    <PackageVersion Include="Fisher" Version="1.24.1" />
+    <PackageVersion Include="Marten" Version="10.0.0-alpha.1" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
+    <PackageVersion Include="Polecat" Version="6.0.0-alpha.1" />
+    <PackageVersion Include="Fisher" Version="2.0.0-alpha.1" />
     <PackageVersion Include="Microsoft.Azure.Cosmos" Version="3.63.2" />
-    <PackageVersion Include="Marten.AspNetCore" Version="9.54.1" />
-    <PackageVersion Include="Marten.Newtonsoft" Version="9.54.1" />
+    <PackageVersion Include="Marten.AspNetCore" Version="10.0.0-alpha.1" />
+    <PackageVersion Include="Marten.Newtonsoft" Version="10.0.0-alpha.1" />
     <PackageVersion Include="MemoryPack" Version="1.21.3" />
     <PackageVersion Include="MessagePack" Version="3.1.12" />
     <PackageVersion Include="Meziantou.Extensions.Logging.Xunit" Version="1.0.15" />
@@ -101,8 +101,8 @@
     <!-- GHSA-334f-vvp4-7g6p / CVE-2026-70159 (HIGH, NU1903): SignalR.Client 9.0.8 brings
          Microsoft.AspNetCore.SignalR.Common 9.0.8, patched in 9.0.21 and 10.0.13. Each TFM takes
          its own servicing line. -->
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.21" Condition="'$(TargetFramework)' != 'net10.0'" />
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="11.0.0" Condition="'$(TargetFramework)' == 'net11.0'" />
     <PackageVersion Include="Microsoft.Azure.SignalR" Version="1.32.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.9.0" />
@@ -119,7 +119,11 @@
     <PackageVersion Include="MQTTnet.Extensions.ManagedClient" Version="4.3.7.1207" />
     <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
     <PackageVersion Include="MQTTnet.Server" Version="5.2.0.1603" />
-    <PackageVersion Include="MySqlConnector" Version="2.4.0" />
+    <!-- 2.6.1, not 2.4.0, and this is REQUIRED rather than tidy: Weasel.MySql 9.48.0 declares
+         MySqlConnector >= 2.6.1, so at 2.4.0 the restore fails with NU1605, a package downgrade
+         promoted to an error. Weasel took it for GHSA-473q-m89c-ghf8 (weasel#767), so the advisory
+         closes for WolverineFx.MySql here too. -->
+    <PackageVersion Include="MySqlConnector" Version="2.6.1" />
     <PackageVersion Include="NATS.Net" Version="2.8.2" />
     <!-- The cron EXPRESSION PARSER behind opts.Schedules (recurring messages). A parser, not a
          scheduling engine — Wolverine's own scheduled-message machinery is the engine. MIT, zero
@@ -128,7 +132,7 @@
     <PackageVersion Include="Cronos" Version="0.11.0" />
     <PackageVersion Include="NewId" Version="4.0.1" />
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageVersion Include="Npgsql" Version="9.0.3" />
+    <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
     <PackageVersion Include="NuGet.Packaging" Version="6.14.3" />
     <PackageVersion Include="Nuke.Common" Version="10.1.0" />
@@ -141,7 +145,7 @@
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
-    <PackageVersion Include="Oracle.ManagedDataAccess.Core" Version="23.7.0" />
+    <PackageVersion Include="Oracle.ManagedDataAccess.Core" Version="23.26.400" />
     <PackageVersion Include="protobuf-net.BuildTools" Version="3.2.52" />
     <PackageVersion Include="protobuf-net.Grpc" Version="1.2.2" />
     <PackageVersion Include="protobuf-net.Grpc.AspNetCore" Version="1.2.2" />
@@ -157,7 +161,9 @@
     <PackageVersion Include="StackExchange.Redis" Version="2.9.17" />
     <PackageVersion Include="StronglyTypedId" Version="1.0.0-beta08" />
     <!-- Swashbuckle 9.x and Microsoft.AspNetCore.OpenApi 10.x pull Microsoft.OpenApi 2.0.0, which
-         carries a high severity advisory (GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). The projects that
+         carries a high severity advisory (GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). The Microsoft.OpenApi
+         pin itself is per-TFM, in the TFM-conditional groups at the bottom of this file: 2.13.x on net10.0,
+         3.11.x on net11.0 (Microsoft.AspNetCore.OpenApi 11 floors Microsoft.OpenApi at >= 3.10.2; GH-5132). The projects that
          need it reference Microsoft.AspNetCore.OpenApi directly, so this pin wins there without
          transitive pinning (which is off — see the note at the top of the file).
 
@@ -166,40 +172,11 @@
          advisory explicitly does not cover the 1.x line, which could not resolve a reference
          pointing at another reference. Lifting those to 2.x would be a major-version jump against
          libraries compiled for the 1.x API, for no security benefit. -->
-    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore.Swagger" Version="9.0.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.1" />
     <PackageVersion Include="System.ComponentModel" Version="4.3.0" />
-    <!-- System.Formats.Asn1 7.0.0 carries GHSA-447r-wph3-92pm / CVE-2024-38095 (HIGH, NU1903: DoS
-         parsing a malicious X.509 certificate; affects 7.0.0-preview through 8.0.0, patched in
-         8.0.1). It arrives purely transitively as
-            Wolverine.EntityFrameworkCore (net9.0 group)
-              -> Microsoft.CodeAnalysis.Workspaces.MSBuild 4.14.0
-              -> System.Security.Cryptography.Pkcs 7.0.2
-              -> System.Formats.Asn1 7.0.0
-         so no default restore ever reported it - NuGetAuditMode was "direct" (see the note in
-         Directory.Build.props, now "all").
-
-         It survives in exactly four project/TFM pairs, and the reason is package pruning: SDK 10
-         enables pruning for any project that targets net10.0, INCLUDING its net9.0 group when it
-         multi-targets, and pruning drops a framework-superseded package like this one. The 51
-         single-TFM net9.0 projects get no pruning, so the four of them that reach
-         Wolverine.EntityFrameworkCore keep the stale 7.0.0:
-           src/Http/WolverineWebApi
-           src/Persistence/EFCore/DomainEventsWithEfCore/BackLogService
-           src/Samples/WolverineFSharpSample
-           src/Testing/Wolverine.EfCore.FSharpTests
-         Transitive pinning is off repo-wide, so each of those four references this DIRECTLY - a
-         PackageVersion on its own would be inert here.
-
-         9.0.0, not 8.0.1: it is the net9.0 servicing baseline and is already what the rest of the
-         solution resolves (Microsoft.EntityFrameworkCore.SqlServer 9.0.0 asks for it, and
-         Wolverine.Http.Tests has been running Pkcs 7.0.2 against Asn1 9.0.0 all along), so this
-         lifts four outliers onto the version everything else was already on instead of introducing
-         a new one. See GH-4773. -->
-    <PackageVersion Include="System.Formats.Asn1" Version="9.0.0" />
     <!-- 10.0.7 carries a known HIGH severity advisory (NU1903). -->
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.12" />
     <!-- GHSA-846f-f764-76mx / CVE-2026-84008 (HIGH, NU1903: .NET denial of service) covers
@@ -212,8 +189,8 @@
          Weasel 9.45.1 and Polecat 5.40.2 now carry the same patched floor themselves, but these
          pins stay: Wolverine references Microsoft.Data.SqlClient and Oracle.ManagedDataAccess.Core
          directly, and neither driver depends on a patched Pkcs yet. -->
-    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="9.0.21" Condition="'$(TargetFramework)' != 'net10.0'" />
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="11.0.0" Condition="'$(TargetFramework)' == 'net11.0'" />
     <!-- Testcontainers pulls SSH.NET [2025.1.0, ); everything through 2025.1.0 carries
          GHSA-q939-rpr3-3284. The test projects that use Testcontainers reference this directly so
          the patched version wins. -->
@@ -240,13 +217,61 @@
          rest of the migration with it. A schema name carrying uppercase broke identically. Inert for
          a lower-case unquoted schema, where relname and the rendering name the same table. Nothing
          public added, removed or changed. -->
-    <PackageVersion Include="Weasel.Core" Version="9.47.1" />
-    <PackageVersion Include="Weasel.EntityFrameworkCore" Version="9.47.1" />
-    <PackageVersion Include="Weasel.MySql" Version="9.47.1" />
-    <PackageVersion Include="Weasel.Oracle" Version="9.47.1" />
-    <PackageVersion Include="Weasel.Postgresql" Version="9.47.1" />
-    <PackageVersion Include="Weasel.SqlServer" Version="9.47.1" />
-    <PackageVersion Include="Weasel.Sqlite" Version="9.47.1" />
+    <!-- Weasel 9.48.0 (from 9.47.1). ADOPTED as-is, no Wolverine code changes. Wolverine pins all
+
+         The JasperFx floor: Weasel.Core 9.48.0 declares JasperFx >= 2.98.0 and Weasel.Storage
+         declares JasperFx.Events >= 2.98.0, both read from the published nuspec. Already satisfied
+         here, because the JasperFx 2.98.0 bump landed on its own ahead of this one; at 2.97.0 the
+         restore fails outright with NU1605, a package downgrade promoted to an error, rather than
+         resolving quietly upward.
+         eight packages, so it has the widest surface of the four consumers, but most of this release
+         lands on paths Wolverine does not take.
+
+         weasel#758/#759: the parameter-type catch-all. A private helper in five providers ended in
+         `?? <catch-all>`, which can never return null, so every fall-through branch after the first
+         was dead code. On SQL Server the catch-all went out as sql_variant, which outranks every
+         ordinary type in data type precedence, so comparing one against a column converted THE COLUMN
+         once per row. Wolverine does not call ToParameterType itself; it hands
+         SqlServerProvider.Instance and PostgresqlProvider.Instance to the Weasel base classes, so
+         what it gets is the corrected resolution underneath. Worth knowing: on SQL Server, Guid was
+         already mapped, but short, byte, float, char, DateOnly and TimeOnly were not, and DateTime
+         resolved to SqlDbType.Date, which dropped the time of day on a bound value. Both are fixed,
+         and the generated datetime COLUMN type is unchanged, so no envelope table produces a schema
+         diff.
+
+         weasel#766: sp_getapplock was told its wait through @LockTimeout but ran under the
+         connection's CommandTimeout, 30 seconds by default, so a requested wait of 30s or more
+         silently had no effect and at exactly 30s a busy lock threw a raw SqlException instead of
+         returning a failed AttainLockResult. Latent rather than live for Wolverine as it stands:
+         SqlServerMessageStore.DurabilityPass passes lockTimeoutMs 0, and the other SQL Server call
+         sites take the 1000ms default, so none of them was anywhere near the cap. It matters if
+         SharedLockExtensions.DefaultLockTimeoutMilliseconds is ever raised past 30 seconds, which
+         before this release would have had no effect.
+
+         weasel#763: DateOnly and TimeOnly now map on MySQL (Date / Time, verified by round trip) and
+         are REFUSED on Oracle, where ODP.NET has no conversion for either CLR type against any
+         OracleDbType. Wolverine.MySql and Wolverine.Oracle bind neither type, so this is inert here;
+         it is a new NotSupportedException on a path that previously sent a culture-dependent string.
+
+         weasel#761: an enum parameter resolves by EnumStorage now, defaulting to the integer type,
+         and arrays defer to the driver on SQL Server, SQLite, MySQL and Oracle instead of binding as
+         a character type. PostgreSQL and Firebird keep Integer for an int-backed enum. Nothing in
+         Wolverine routes an enum or an array through the provider seam.
+
+         INERT: weasel#762 (SQL Server string Unicode precedence, documentation only), weasel#764 and
+         weasel#765 (SQL Server and PostgreSQL partitioning; Wolverine partitions nothing).
+
+         MySqlConnector moves to 2.6.1 as part of this, and not optionally: Weasel.MySql 9.48.0
+         declares a floor of 2.6.1, so the restore fails with NU1605 at the 2.4.0 this repo pinned.
+         Weasel took it for GHSA-473q-m89c-ghf8 (weasel#767), so that advisory closes for
+         WolverineFx.MySql here too. -->
+    <PackageVersion Include="Weasel.Core" Version="10.0.0-alpha.1" />
+    <PackageVersion Include="Weasel.EntityFrameworkCore" Version="10.0.0-alpha.1" />
+    <PackageVersion Include="Weasel.MySql" Version="10.0.0-alpha.1" />
+    <PackageVersion Include="Weasel.Oracle" Version="10.0.0-alpha.1" />
+    <PackageVersion Include="Weasel.Postgresql" Version="10.0.0-alpha.1" />
+    <PackageVersion Include="Weasel.SqlServer" Version="10.0.0-alpha.1" />
+    <PackageVersion Include="Weasel.Sqlite" Version="10.0.0-alpha.1" />
     <!-- The eighth Weasel package, and the only one nothing referenced directly. Marten, Polecat and
          Fisher each request the Weasel.Storage matching their own Weasel line, which trails the
          version pinned for the seven siblings — so before this pin the solution ran Weasel.Storage
@@ -254,7 +279,7 @@
          siblings whenever that line moves. Wolverine.Marten/.Polecat/.Fisher/.ClaimCheck.Marten
          reference it directly so the pin actually wins; without transitive pinning a PackageVersion
          on its own would be inert here, since nothing else references it. -->
-    <PackageVersion Include="Weasel.Storage" Version="9.47.1" />
+    <PackageVersion Include="Weasel.Storage" Version="10.0.0-alpha.1" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <!-- xUnit v3. Test projects use xunit.v3 and must set <OutputType>Exe</OutputType>.
          Shared/base-class libraries that are referenced by test projects (notably
@@ -276,26 +301,26 @@
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.2" />
   </ItemGroup>
   <!-- TFM-conditional Microsoft.Extensions.* for Wolverine core (version ranges for NuGet compatibility) -->
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net9.0' ">
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="[9.0.0,11.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="[9.0.12,11.0.0)" />
+  <!-- net11.0 (GH-5134). Microsoft.OpenApi 3.x is a different object model from 2.x (GH-5132), and
+       Microsoft.AspNetCore.OpenApi 11 requires >= 3.10.2. Npgsql.EntityFrameworkCore.PostgreSQL has no
+       11.0 GA on nuget.org yet, so net11.0 takes its newest release candidate. -->
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net11.0' ">
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="3.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="11.0.0" />
   </ItemGroup>
   <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0' ">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
@@ -306,36 +331,29 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="10.0.2" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <!-- Roslyn is per-TFM, because JasperFx.RuntimeCompiler 5.0.0 asks for a different line in each
-         of its own dependency groups. On net10.0 it asks for Microsoft.CodeAnalysis exactly 5.0.0,
-         and EF Core Design 10.0.4 brings Workspaces.MSBuild 5.0.0, so 5.0.0 is the line here. See
-         the net9.0 group below for the 4.14.0 half and why these pins are TFM-scoped at all. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="5.0.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.0.0" />
   </ItemGroup>
-  <!-- TFM-conditional EF Core ecosystem -->
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net9.0' ">
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
-    <!-- On net9.0 the Roslyn line is 4.14.0: JasperFx.RuntimeCompiler 5.0.0 asks for
-         Microsoft.CodeAnalysis [4.14.0, 6.0.0) in its net9.0 group and NuGet takes the floor. These
-         pins unify EF Core Design 9.0.5's transitive CSharp.Workspaces 4.8.0 up to that line — it
-         used to be masked by core WolverineFx's own JasperFx.RuntimeCompiler reference, removed in
-         #2876. Wolverine.EntityFrameworkCore references CSharp.Workspaces and Workspaces.MSBuild
-         directly from its *net9.0-conditional* ItemGroup, so the unification flows to the EF
-         sample/test projects — and that conditional scope is the reason these four pins live in a
-         TFM group rather than the unconditional one. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.Build.Tasks.Core" Version="18.4.0" />
+  <!-- EF Core, its Npgsql provider and Roslyn stay on the 10.x line on net11.0 too (GH-5134).
+       Npgsql.EntityFrameworkCore.PostgreSQL has only an 11.0.0 release candidate, which pins
+       Microsoft.EntityFrameworkCore to the exact RC build and so cannot sit beside the GA 11.0.0 that
+       published WolverineFx.EntityFrameworkCore would need (and NU5104 refuses a stable package with a
+       prerelease dependency); EF Core 11's Design package also brings Roslyn 5.9.0 against the exact
+       5.0.0 JasperFx.RuntimeCompiler asks for. The 10.x packages run on the net11.0 runtime. Moving this
+       group to EF Core 11 is a follow-up once Npgsql ships 11.0 GA. -->
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0' Or '$(TargetFramework)' == 'net11.0' ">
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- JasperFx.RuntimeCompiler 6.0.0 asks for Microsoft.CodeAnalysis 5.9.0 on these frameworks.
+         EF Core Design 10.0.4 brings CSharp.Workspaces and Workspaces.MSBuild 5.0.0, each requiring
+         Workspaces.Common at EXACTLY its own version, so the Workspaces pair is lifted to 5.9.0 with
+         it; Wolverine.EntityFrameworkCore references both directly so these pins reach them (transitive
+         pinning is off, see the top of this file). -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.9.0" />
   </ItemGroup>
 </Project>

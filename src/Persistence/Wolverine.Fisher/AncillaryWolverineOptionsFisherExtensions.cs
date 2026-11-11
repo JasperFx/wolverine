@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Fisher.Distribution;
 using Wolverine.Runtime.Agents;
+using ManagedDistributionDaemonModeValidator = Wolverine.Persistence.EventSourcing.Distribution.ManagedDistributionDaemonModeValidator;
 using Wolverine.Fisher.Publishing;
 using Wolverine.Fisher.Subscriptions;
 using Wolverine.Persistence;
@@ -114,7 +115,11 @@ public static class AncillaryWolverineOptionsFisherExtensions
 
             return new ProjectionCoordinator<T>(store, s.GetRequiredService<ILogger<IProjectionCoordinator>>());
         });
-        expression.Services.AddSingleton<IHostedService, ManagedDistributionDaemonModeValidator<T>>();
+        ManagedDistributionDaemonModeValidator.Register(expression.Services, s =>
+            s.GetService<FisherIntegration>() is { UseWolverineManagedEventSubscriptionDistribution: true }
+            && s.GetServices<JasperFx.Events.Daemon.IProjectionCoordinator<T>>().Any()
+                ? FisherDaemonConflict.MessageFor($"Fisher's async daemon for the ancillary store {typeof(T).Name}")
+                : null);
 
         expression.Services.AddSingleton<OutboxedSessionFactory<T>>();
 
@@ -309,7 +314,13 @@ internal class FisherOverrides<T> : IConfigureFisher<T> where T : IDocumentStore
         // projection batch commits — parity with the primary store (FisherOverrides above) and the
         // Marten ancillary side. Without this the ancillary store silently drops projection-published
         // messages.
-        options.Events.MessageOutbox = new FisherToWolverineOutbox(services);
+        //
+        // GH-5143: pass the marker type so the batch enlists in THIS store's message store, as Marten's
+        // has since GH-2887. Without it the envelopes went to the main store's tables.
+        options.Events.MessageOutbox = new FisherToWolverineOutbox(services, typeof(T));
+
+        // GH-5390: a tracked session hears events committed through sessions Wolverine did not open too
+        options.Listeners.Add(new RecordEventsCommittedOutsideAMessage(services, typeof(T)));
 
         // No DaemonSettings.AsyncMode nudge, unlike the Marten and Polecat twins: Fisher has no such
         // setting, and the caller's own AddAsyncDaemon() choice for this ancillary store is left alone.

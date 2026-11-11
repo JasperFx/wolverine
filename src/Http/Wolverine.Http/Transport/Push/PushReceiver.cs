@@ -311,6 +311,7 @@ public class PushReceiver : IHandlerPipeline
                 envelope.Id, envelope.MessageType, Address);
             _runtime.MessageTracking.MessageFailed(envelope, e);
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            activity.RecordException(e, _runtime.Options.Tracking.RecordExceptionsOnSpans);
             channel.Fail();
         }
         finally

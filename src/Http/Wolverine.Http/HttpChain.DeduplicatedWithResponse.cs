@@ -3,6 +3,7 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -92,6 +93,12 @@ public partial class HttpChain
         {
             throw new NotSupportedException(
                 $"[DeduplicatedWithResponse] on {Description} returns no resource, so a repeat has no response to replay. Use [Deduplicated] instead. See GH-4742");
+        }
+
+        if (typeof(IResult).IsAssignableFrom(ResourceType) && !HttpHandler.CanReplayResultOf(ResourceType!))
+        {
+            throw new NotSupportedException(
+                $"{Description} has [DeduplicatedWithResponse], which replays the response as its status, System.Text.Json body and Location, but this endpoint returns {ResourceType!.FullNameInCode()}, which writes its response another way. Return Ok, Created, Accepted, NoContent, StatusCode or Empty results, or a resource written as JSON. See GH-4742");
         }
 
         if (BindsFormValues)
@@ -288,8 +295,11 @@ public partial class HttpChain
     /// <summary>Called from DetermineFrames once the response writer is chosen.</summary>
     private void assertDeduplicatedWithResponseIsJson()
     {
-        // The stored body is System.Text.Json; any other writer would replay different bytes.
-        if (DeduplicatedWithResponse != null && !Postprocessors.OfType<WriteJsonFrame>().Any())
+        // The stored body is System.Text.Json; any other writer would replay different bytes. An IResult counts only
+        // when ResultWriterPolicy wrote it: a custom IResourceWriterPolicy runs first and may write it another way.
+        if (DeduplicatedWithResponse != null && !Postprocessors.OfType<WriteJsonFrame>().Any() &&
+            !Postprocessors.OfType<MethodCall>().Any(x =>
+                x.Method.DeclaringType == typeof(IResult) && x.Method.Name == nameof(IResult.ExecuteAsync)))
         {
             throw new NotSupportedException(
                 $"{Description} has [DeduplicatedWithResponse], which replays the response as System.Text.Json, but this endpoint writes its response another way. See GH-4742");

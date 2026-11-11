@@ -34,8 +34,8 @@ public class auditing_determination : IntegrationContext
         var chain = chainFor<AuditedMessage>();
         var lines = chain.SourceCode!.ReadLines();
 
-        lines.Any(x => x.Contains("Activity.Current?.SetTag(\"name\", auditedMessage.Name)")).ShouldBeTrue();
-        lines.Any(x => x.Contains("Activity.Current?.SetTag(\"account.id\", auditedMessage.AccountId)")).ShouldBeTrue();
+        lines.Any(x => x.Contains("Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag(\"name\", auditedMessage.Name)")).ShouldBeTrue();
+        lines.Any(x => x.Contains("Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag(\"account.id\", auditedMessage.AccountId)")).ShouldBeTrue();
     }
 
     [Fact]

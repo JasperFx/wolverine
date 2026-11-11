@@ -11,6 +11,8 @@ using Wolverine.Fisher.Codegen;
 using Wolverine.Fisher.Persistence.Sagas;
 using Wolverine.Fisher.Publishing;
 using Wolverine.Persistence;
+using Wolverine.Persistence.EventSourcing;
+using Wolverine.Persistence.DocumentStores.Codegen;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -54,14 +56,7 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
         // without event forwarding, the "subscription" is silently dead: no forwarding occurs, the
         // handler never fires, and nothing anywhere says so. Fail at bootstrap with the two real
         // options instead.
-        if (EventRouter.BareSubscriptions.Any() && !UseFastEventForwarding)
-        {
-            var names = EventRouter.BareSubscriptions.Select(x => x.Name).Join(", ");
-            throw new InvalidOperationException(
-                $"SubscribeToEvent<T>() was called for [{names}] but nothing completes the subscription, so these events would never reach a handler. " +
-                $"SubscribeToEvent<T>() only defines a transformation of a forwarded event — either finish it with .TransformedTo(...), " +
-                $"or, to simply have Wolverine handlers receive the event after commit, set {nameof(UseFastEventForwarding)} = true on this integration instead.");
-        }
+        EventRouter.AssertNoBareSubscriptions(UseFastEventForwarding, nameof(UseFastEventForwarding));
 
         // Duplicate incoming messages. SQLite reports a unique / primary-key violation through
         // SqliteException.SqliteExtendedErrorCode as SQLITE_CONSTRAINT_PRIMARYKEY (1555) or
@@ -86,27 +81,16 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
             new PrimeScopedSessionFrame<IDocumentSession, ScopedDocumentSessionHolder>());
 
         options.CodeGeneration.InsertFirstPersistenceStrategy<FisherPersistenceFrameProvider>();
-        options.CodeGeneration.Sources.Add(new SessionVariableSource());
-        options.CodeGeneration.Sources.Add(new DocumentOperationsSource());
-        options.CodeGeneration.Sources.Add(new EventOperationsSource());
-        options.CodeGeneration.Sources.Add(new SharedEventOperationsSource());
-        options.CodeGeneration.Sources.Add(new SharedEventStoreOperationsSource());
-        options.CodeGeneration.Sources.Add(new SharedDocumentOperationsSource());
+        // GH-5141: Wolverine core's session and session-contract sources, given this store's types
+        options.CodeGeneration.Sources.Add(new DocumentSessionVariableSource(SessionTypes));
+        options.CodeGeneration.Sources.Add(new DocumentSessionContractSource(SessionTypes));
 
         options.Policies.Add<FisherAggregateHandlerStrategy>();
 
-        // GH-4439: pre-populate chain.AncillaryStoreType for [FisherStore]-attributed handlers, so the
-        // ancillary-store map built later in WolverineRuntime.HostService sees it. See
-        // FisherStoreEagerPolicy for the Phase A vs Phase B ordering trap this addresses (GH-2944), and
-        // MartenIntegration/PolecatIntegration for the twins.
-        //
-        // The policy class shipped with the Fisher integration but was never registered, so it was dead
-        // code: [FisherStore] handlers reached codegen with a null AncillaryStoreType. That silently
-        // routed interop messages to the MAIN store's inbox, and it is why a [FisherStore] handler taking
-        // a natural-key aggregate could not find the store its key is registered on. [Storage(typeof(X))]
-        // was unaffected throughout -- core always registers StorageAttributeEagerPolicy -- which is
-        // exactly why the existing ancillary coverage, all written against [Storage], never caught it.
-        options.Policies.Add<FisherStoreEagerPolicy>();
+        // GH-4439: [FisherStore] chains get chain.AncillaryStoreType pre-populated by core's
+        // StorageAttributeEagerPolicy (GH-5141), which Wolverine always registers. The Fisher copy of that
+        // policy once shipped unregistered, which silently routed interop messages to the MAIN store's
+        // inbox -- one policy over IAncillaryStoreAttribute leaves no per-store copy to forget.
 
         options.Discovery.CustomizeHandlerDiscovery(x =>
         {
@@ -143,7 +127,21 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
     /// </summary>
     public string? MainDatabaseConnectionString { get; set; }
 
-    internal FisherEventRouter EventRouter { get; } = new();
+    /// <summary>
+    ///     GH-5141: Fisher's session types, as Wolverine core's codegen sources need them
+    /// </summary>
+    internal static readonly DocumentSessionTypes SessionTypes = new()
+    {
+        StoreName = "Fisher",
+        DocumentSession = typeof(global::Fisher.IDocumentSession),
+        QuerySession = typeof(global::Fisher.IQuerySession),
+        OutboxedSessionFactory = typeof(Wolverine.Fisher.Publishing.OutboxedSessionFactory),
+        NativeSessionFactory = typeof(global::Fisher.ISessionFactory),
+        DocumentOperations = typeof(global::Fisher.IDocumentOperations),
+        EventOperations = typeof(global::Fisher.Events.EventOperations)
+    };
+
+    internal EventForwardingRouter EventRouter { get; } = new();
 
     private string? _prefixName;
 
@@ -214,7 +212,7 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
     /// </summary>
     public EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull
     {
-        EventRouter.BareSubscriptions.Add(typeof(T));
+        EventRouter.StartTransformation<T>();
         return new EventForwardingTransform<T>(EventRouter);
     }
 }
@@ -234,86 +232,13 @@ internal class FisherOverrides : IConfigureFisher
         // the Marten side at MartenIntegration.cs:153. See wolverine#2774.
         options.Events.MessageOutbox = new FisherToWolverineOutbox(services);
 
+        // GH-5390: a tracked session hears events committed through sessions Wolverine did not open too
+        options.Listeners.Add(new RecordEventsCommittedOutsideAMessage(services));
+
         // The Marten and Polecat twins nudge DaemonSettings.AsyncMode to ExternallyManaged when
         // Wolverine takes over hosting the daemon. Fisher has no such setting: AddAsyncDaemon() registers
         // its hosted daemon or nothing, so under UseWolverineManagedEventSubscriptionDistribution (GH-5094)
         // ManagedDistributionDaemonModeValidator refuses an AddAsyncDaemon(DaemonMode.Solo) at host start.
-    }
-}
-
-internal class EventWrapperForwarder : IHandledTypeRule
-{
-    public bool TryFindHandledType(Type concreteType, [NotNullWhen(true)] out Type? handlerType)
-    {
-        handlerType = concreteType.FindInterfaceThatCloses(typeof(IEvent<>));
-        return handlerType != null;
-    }
-}
-
-internal class FisherEventRouter : IMessageRouteSource
-{
-    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
-    {
-        if (messageType.Closes(typeof(IEvent<>)))
-        {
-            var eventType = messageType.GetGenericArguments().Single();
-            var wrappedType = typeof(IEvent<>).MakeGenericType(eventType);
-
-            if (messageType.IsConcrete())
-            {
-                return runtime.RoutingFor(wrappedType).Routes;
-            }
-
-            MessageRoute[] innerRoutes = [];
-            if (messageType.IsConcrete())
-            {
-                var inner = runtime.RoutingFor(wrappedType);
-                innerRoutes = inner.Routes.Concat(new LocalRouting().FindRoutes(wrappedType, runtime)).OfType<MessageRoute>().ToArray();
-            }
-            else
-            {
-                innerRoutes = new ExplicitRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
-                if (!innerRoutes.Any())
-                {
-                    innerRoutes = new LocalRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
-                }
-            }
-
-            // First look for explicit transformations
-            var transformers = Transformers.Where(x => x.SourceType == wrappedType);
-            var transformed = transformers.SelectMany(x =>
-                runtime.RoutingFor(x.DestinationType).Routes.Select(x.CreateRoute));
-
-            var forEventType = runtime.RoutingFor(eventType).Routes.Select(route =>
-                typeof(EventUnwrappingMessageRoute<>).CloseAndBuildAs<IMessageRoute>(route, eventType));
-
-            var candidates = forEventType.Concat(transformed).Concat(innerRoutes).ToArray();
-            return candidates;
-        }
-
-        return [];
-    }
-
-    public bool IsAdditive => false;
-    public List<IMessageTransformation> Transformers { get; } = [];
-
-    /// <summary>
-    /// GH-4310: SubscribeToEvent&lt;T&gt;() calls whose transformation was never completed with
-    /// TransformedTo(). Checked at bootstrap — bare entries with no event forwarding enabled are
-    /// a configuration error, because nothing would ever deliver those events.
-    /// </summary>
-    internal List<Type> BareSubscriptions { get; } = [];
-}
-
-internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T>, T> where T : notnull
-{
-    public EventUnwrappingMessageRoute(IMessageRoute inner) : base(e => e.Data, inner)
-    {
-    }
-
-    public override string ToString()
-    {
-        return $"Unwrap event wrapper to " + typeof(T).FullNameInCode();
     }
 }
 
@@ -329,19 +254,15 @@ public interface IEventForwarding
 
 public class EventForwardingTransform<TSource> where TSource : notnull
 {
-    private readonly FisherEventRouter _eventRouter;
+    private readonly EventForwardingRouter _eventRouter;
 
-    internal EventForwardingTransform(FisherEventRouter eventRouter)
+    internal EventForwardingTransform(EventForwardingRouter eventRouter)
     {
         _eventRouter = eventRouter;
     }
 
     public void TransformedTo<TDestination>(Func<IEvent<TSource>, TDestination> transformer)
     {
-        // The subscription is now completed — see FisherEventRouter.BareSubscriptions (GH-4310).
-        _eventRouter.BareSubscriptions.Remove(typeof(TSource));
-
-        var transformation = new MessageTransformation<IEvent<TSource>, TDestination>(transformer);
-        _eventRouter.Transformers.Add(transformation);
+        _eventRouter.CompleteTransformation(transformer);
     }
 }

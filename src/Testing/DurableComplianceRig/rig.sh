@@ -23,9 +23,9 @@ mkdir -p "$logs"
 log="$logs/run-$(date +%Y%m%d-%H%M%S)${RIG_SUFFIX:+-$RIG_SUFFIX}.log"
 
 export MSBUILDDISABLENODEREUSE=1
-dotnet build -f net9.0 >"$log.build" 2>&1 || { echo "build failed, see $log.build"; exit 1; }
+dotnet build -f net10.0 >"$log.build" 2>&1 || { echo "build failed, see $log.build"; exit 1; }
 
-dotnet test --project . -f net9.0 --no-build --filter "$filter" >"$log" 2>&1
+dotnet test --project . -f net10.0 --no-build --filter "$filter" >"$log" 2>&1
 status=$?
 
 grep -E '^  (total|succeeded|failed):' "$log"

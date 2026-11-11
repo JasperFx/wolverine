@@ -1,5 +1,6 @@
 using System.Data.Common;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Oracle.ManagedDataAccess.Client;
 using Weasel.Oracle;
 using Wolverine.Oracle.Util;
@@ -160,11 +161,14 @@ internal partial class OracleMessageStore
             await using var cmd = conn.CreateCommand(
                 $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
                 $"{DatabaseConstants.ExecutionTime} = :time, {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}', " +
-                $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+                $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode}, " +
+                $"{DatabaseConstants.Body} = :body " +
                 $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri AND {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'");
             cmd.With("id", envelope.Id);
             cmd.Parameters.Add(new OracleParameter("time", OracleDbType.TimeStampTZ) { Value = envelope.ScheduledTime!.Value });
             cmd.With("attempts", envelope.Attempts);
+            // GH-5312: rewrite the stored envelope so the headers the retry changed (the GH-4398 link) survive
+            cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = EnvelopeSerializer.Serialize(envelope) });
             cmd.With("uri", envelope.Destination?.ToString() ?? string.Empty);
             rowsAffected = await cmd.ExecuteNonQueryAsync(_cancellation);
             await conn.CloseAsync();
@@ -191,11 +195,14 @@ internal partial class OracleMessageStore
         await using var cmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
             $"{DatabaseConstants.ExecutionTime} = :time, {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}', " +
-            $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+            $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode}, " +
+            $"{DatabaseConstants.Body} = :body " +
             $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri AND {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'");
         cmd.With("id", envelope.Id);
         cmd.Parameters.Add(new OracleParameter("time", OracleDbType.TimeStampTZ) { Value = envelope.ScheduledTime!.Value });
         cmd.With("attempts", envelope.Attempts);
+        // GH-5312: rewrite the stored envelope so the headers the retry changed (the GH-4398 link) survive
+        cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = EnvelopeSerializer.Serialize(envelope) });
         cmd.With("uri", envelope.Destination?.ToString() ?? string.Empty);
         var rowsAffected = await cmd.ExecuteNonQueryAsync(_cancellation);
         await conn.CloseAsync();
@@ -221,6 +228,17 @@ internal partial class OracleMessageStore
 
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
+        // GH-5410: never dead-letter work the inbox says is done. A handler transaction can commit on the server
+        // and still fail on the client; the delete below then removed the Handled row that commit had written,
+        // and a replay of the dead letter ran the committed work a second time
+        if (envelope.Destination != null && await IsHandledAsync(envelope, _cancellation))
+        {
+            _logger.LogWarning(exception,
+                "Envelope {EnvelopeId} at {Uri} was not moved to dead letter storage because the inbox already shows it handled",
+                envelope.Id, envelope.Destination);
+            return;
+        }
+
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         var tx = (OracleTransaction)await conn.BeginTransactionAsync(_cancellation);
 
@@ -333,22 +351,54 @@ internal partial class OracleMessageStore
     /// Matches the whole inbox identity (id and received_at), like the other mark-as-handled statements in
     /// this store.
     /// </summary>
+    /// <remarks>
+    /// GH-5429: carries the GH-5423 fence that <c>MessageDatabase&lt;T&gt;</c> has. The UPDATE leaves a Handled row
+    /// alone, and when it changed nothing and a Handled row is there, another execution already finished this
+    /// message: a node ejected as stale that resumed after its rows were recovered and handled elsewhere. That
+    /// throws <see cref="DuplicateIncomingEnvelopeException"/> so the caller's transaction rolls back instead of
+    /// committing the work twice. A missing row passes, as before, and so does eager idempotency, whose own
+    /// Handled row this execution wrote earlier.
+    /// </remarks>
     public async Task MarkIncomingEnvelopeAsHandledInTransactionAsync(DbConnection conn, DbTransaction? tx,
         Envelope envelope, DateTimeOffset keepUntil, CancellationToken cancellation)
     {
-        await using var cmd = ((OracleConnection)conn).CreateCommand(
-            $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
-            $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
-            $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
-        if (tx != null)
+        var oracle = (OracleConnection)conn;
+        var uri = envelope.Destination?.ToString() ?? string.Empty;
+
+        int updated;
+        await using (var cmd = oracle.CreateCommand(
+                         $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
+                         $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+                         $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri AND {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'"))
         {
-            cmd.Transaction = (OracleTransaction)tx;
+            if (tx != null)
+            {
+                cmd.Transaction = (OracleTransaction)tx;
+            }
+
+            cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = keepUntil });
+            cmd.With("id", envelope.Id);
+            cmd.With("uri", uri);
+            updated = await cmd.ExecuteNonQueryAsync(cancellation);
         }
 
-        cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = keepUntil });
-        cmd.With("id", envelope.Id);
-        cmd.With("uri", envelope.Destination?.ToString() ?? string.Empty);
-        await cmd.ExecuteNonQueryAsync(cancellation);
+        if (updated > 0 || envelope.Status == EnvelopeStatus.Handled) return;
+
+        await using var check = oracle.CreateCommand(
+            $"SELECT COUNT(*) FROM {SchemaName}.{DatabaseConstants.IncomingTable} " +
+            $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri AND {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'");
+        if (tx != null)
+        {
+            check.Transaction = (OracleTransaction)tx;
+        }
+
+        check.With("id", envelope.Id);
+        check.With("uri", uri);
+
+        if (Convert.ToInt64(await check.ExecuteScalarAsync(cancellation)) > 0)
+        {
+            throw new DuplicateIncomingEnvelopeException(envelope);
+        }
     }
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)

@@ -1,3 +1,4 @@
+using System.Data.Common;
 using FailureGroupSamples;
 using JasperFx.Core;
 using JasperFx.Resources;
@@ -107,6 +108,22 @@ public abstract class DeadLetterFailureGroupCompliance : IAsyncLifetime
         var builder = database.ToCommandBuilder();
         builder.Append(
             $"update {database.TableNameFor(DatabaseConstants.DeadLetterTable)} set {DatabaseConstants.FailureGroup} = null, {DatabaseConstants.FailureTitle} = null");
+
+        await using var conn = await database.DataSource.OpenConnectionAsync();
+        await using var cmd = builder.Compile();
+        cmd.Connection = conn;
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Simulate dead letters recorded before the failure time was kept
+    /// </summary>
+    protected virtual async Task clearFailedAtAsync()
+    {
+        var database = (IMessageDatabase)thePersistence;
+        var builder = database.ToCommandBuilder();
+        builder.Append(
+            $"update {database.TableNameFor(DatabaseConstants.DeadLetterTable)} set {DatabaseConstants.FailedAt} = null");
 
         await using var conn = await database.DataSource.OpenConnectionAsync();
         await using var cmd = builder.Compile();
@@ -472,6 +489,75 @@ public abstract class DeadLetterFailureGroupCompliance : IAsyncLifetime
         other.ReplayCount.ShouldBe(0);
         other.LastReplayedAt.ShouldBeNull();
     }
+
+    // Dead letters sent ten days ago and failed just now, like messages read again from the start of a topic
+    private async Task oldMessagesThatFailedJustNow(int count)
+    {
+        theGenerator.StartingTime = DateTimeOffset.UtcNow.AddDays(-10);
+        await deadLetters(count, i => Failures.CardDeclined(i.ToString()));
+    }
+
+    private static DeadLetterEnvelopeQuery lastDay(DeadLetterTimeField rangeOn) =>
+        new(new TimeRange(DateTimeOffset.UtcNow.AddDays(-1), null)) { RangeOn = rangeOn };
+
+    [Fact]
+    public async Task range_filters_on_the_failure_time_when_asked_to()
+    {
+        await oldMessagesThatFailedJustNow(3);
+
+        (await all(lastDay(DeadLetterTimeField.SentAt))).ShouldBeEmpty();
+        (await all(lastDay(DeadLetterTimeField.FailedAt))).Count.ShouldBe(3);
+
+        // The upper bound applies to the failure time too
+        var longAgo = new DeadLetterEnvelopeQuery(new TimeRange(null, DateTimeOffset.UtcNow.AddDays(-1)))
+            { RangeOn = DeadLetterTimeField.FailedAt };
+        (await all(longAgo)).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task replay_honors_the_range_field()
+    {
+        if (!supports(DeadLetterCapabilities.OperationCounts)) return;
+
+        await oldMessagesThatFailedJustNow(3);
+
+        (await theDeadLetters.ReplayMatchingAsync(lastDay(DeadLetterTimeField.SentAt), CancellationToken.None))
+            .Affected.ShouldBe(0);
+        (await theDeadLetters.ReplayMatchingAsync(lastDay(DeadLetterTimeField.FailedAt), CancellationToken.None))
+            .Affected.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task discard_honors_the_range_field()
+    {
+        if (!supports(DeadLetterCapabilities.OperationCounts)) return;
+
+        await oldMessagesThatFailedJustNow(3);
+
+        (await theDeadLetters.DiscardMatchingAsync(lastDay(DeadLetterTimeField.SentAt), CancellationToken.None))
+            .Affected.ShouldBe(0);
+        (await all()).Count.ShouldBe(3);
+
+        (await theDeadLetters.DiscardMatchingAsync(lastDay(DeadLetterTimeField.FailedAt), CancellationToken.None))
+            .Affected.ShouldBe(3);
+        (await all()).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task a_dead_letter_without_a_failure_time_falls_back_to_the_sent_time()
+    {
+        // One sent recently, one sent long ago, neither with a failure time
+        theGenerator.StartingTime = DateTimeOffset.UtcNow.AddHours(-2);
+        await deadLetter(Failures.CardDeclined("recent"));
+        theGenerator.StartingTime = DateTimeOffset.UtcNow.AddDays(-10);
+        await deadLetter(Failures.CardDeclined("old"));
+
+        await clearFailedAtAsync();
+
+        var found = await all(lastDay(DeadLetterTimeField.FailedAt));
+        found.Count.ShouldBe(1);
+        found[0].ExceptionMessage.ShouldContain("recent");
+    }
 }
 
 /// <summary>
@@ -519,5 +605,94 @@ public abstract class RelationalDeadLetterFailureGroupCompliance : DeadLetterFai
 
         await thePersistence.Inbox.MoveToDeadLetterStorageAsync(envelope, Failures.CardDeclined("again"));
         (await theDeadLetters.DeadLetterEnvelopeByIdAsync(envelope.Id))!.ReplayCount.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// GH-5395. Hold a lock that blocks writes to the dead letter history table until the result is disposed,
+    /// or null for a store that cannot open the race window this way
+    /// </summary>
+    protected virtual Task<IAsyncDisposable?> blockDeadLetterHistoryWritesAsync() =>
+        Task.FromResult<IAsyncDisposable?>(null);
+
+    /// <summary>
+    /// Run <paramref name="lockSql"/> on a connection of its own and keep it open until disposed. A
+    /// transactional lock is released by the commit, any other by <paramref name="releaseSql"/>
+    /// </summary>
+    protected async Task<IAsyncDisposable?> holdLockAsync(string lockSql, string? releaseSql = null)
+    {
+        var database = (IMessageDatabase)thePersistence;
+        var conn = await database.DataSource.OpenConnectionAsync();
+        var tx = releaseSql == null ? await conn.BeginTransactionAsync() : null;
+
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = lockSql;
+            cmd.Transaction = tx;
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        return new HeldLock(conn, tx, releaseSql);
+    }
+
+    private sealed class HeldLock(DbConnection conn, DbTransaction? tx, string? releaseSql) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            if (tx != null)
+            {
+                await tx.CommitAsync();
+            }
+            else
+            {
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = releaseSql;
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            await conn.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task a_dead_letter_marked_replayable_while_the_move_is_running_is_not_lost()
+    {
+        var envelope = await deadLetter(Failures.CardDeclined("raced"));
+
+        var held = await blockDeadLetterHistoryWritesAsync();
+        if (held == null) Assert.Skip("This store has no way to hold the move between its statements");
+
+        Task moving;
+        Task marking;
+        await using (held)
+        {
+            // The move copies the replayable dead letters (none yet) to the inbox, then stops on the history table
+            moving = moveReplayableDeadLettersAsync();
+            await Task.Delay(1.Seconds());
+            moving.IsCompleted.ShouldBeFalse("The move should be waiting on the history table lock");
+
+            // Marked after the copy and before the delete. Some databases block this until the move commits,
+            // so give it a moment and carry on
+            marking = theDeadLetters.ReplayMatchingAsync(new DeadLetterEnvelopeQuery([envelope.Id]),
+                CancellationToken.None);
+            await Task.WhenAny(marking, Task.Delay(1.Seconds()));
+        }
+
+        await moving.WaitAsync(30.Seconds());
+        await marking.WaitAsync(30.Seconds());
+
+        // Wherever the move left it, it has to be somewhere
+        var inbox = await thePersistence.Admin.AllIncomingAsync();
+        var stillDeadLettered = await theDeadLetters.DeadLetterEnvelopeByIdAsync(envelope.Id);
+        (inbox.Any(x => x.Id == envelope.Id) || stillDeadLettered != null)
+            .ShouldBeTrue("The replayed message is in neither the inbox nor the dead letter queue");
+
+        // and the next pass delivers it, recording one replay
+        await moveReplayableDeadLettersAsync();
+
+        (await thePersistence.Admin.AllIncomingAsync()).ShouldContain(x => x.Id == envelope.Id);
+        (await theDeadLetters.DeadLetterEnvelopeByIdAsync(envelope.Id)).ShouldBeNull();
+
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(envelope, Failures.CardDeclined("again"));
+        (await theDeadLetters.DeadLetterEnvelopeByIdAsync(envelope.Id))!.ReplayCount.ShouldBe(1);
     }
 }

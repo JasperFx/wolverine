@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using IntegrationTests;
 using JasperFx;
 using JasperFx.Core;
@@ -71,6 +72,9 @@ public class restriction_changes_report_unconfirmed_agents_4871 : IAsyncDisposab
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "bug4871");
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
                 opts.Services.AddResourceSetupOnStartup();
+
+                // GH-5334: a receiving endpoint whose own URI can be paused, and which no agent family owns
+                opts.LocalQueue("queue-a").UseDurableInbox();
 
                 opts.Durability.Mode = DurabilityMode.Balanced;
 
@@ -172,6 +176,35 @@ public class restriction_changes_report_unconfirmed_agents_4871 : IAsyncDisposab
 
         _runtime.Agents.AllRunningAgentUris().ShouldContain(uri);
         (await persistedRunningAgentsAsync()).ShouldContain(uri);
+    }
+
+    [Fact]
+    public async Task lifting_a_pause_on_a_uri_that_is_not_an_agent_returns_without_waiting()
+    {
+        await startHostAsync();
+
+        // GH-5334. Pausing a receiving endpoint by its own URI is supported, but no agent family owns that URI,
+        // so no assignment row will ever appear for it. The lift used to wait out the whole confirmation
+        // timeout for one and then throw, after the restriction had already been removed.
+        var queue = new Uri("local://queue-a/");
+
+        var pause = new AgentRestrictions([]);
+        pause.PauseAgent(queue);
+        await _runtime.Agents.ApplyRestrictionsAsync(pause, CancellationToken.None);
+        _runtime.Restrictions.FindPausedAgentUris().ShouldContain(queue);
+
+        var release = new AgentRestrictions([]);
+        release.Current = [new AgentRestriction(Guid.NewGuid(), queue, AgentRestrictionType.None, 0)];
+
+        var stopwatch = Stopwatch.StartNew();
+        await _runtime.Agents.ApplyRestrictionsAsync(release, CancellationToken.None);
+        stopwatch.Stop();
+
+        stopwatch.Elapsed.ShouldBeLessThan(_runtime.Options.Durability.AgentRestrictionConfirmationTimeout);
+
+        _runtime.Restrictions.FindPausedAgentUris().ShouldNotContain(queue);
+        var (_, persisted) = await _runtime.Storage.Nodes.LoadNodeAgentStateAsync(TestContext.Current.CancellationToken);
+        persisted.FindPausedAgentUris().ShouldNotContain(queue);
     }
 }
 

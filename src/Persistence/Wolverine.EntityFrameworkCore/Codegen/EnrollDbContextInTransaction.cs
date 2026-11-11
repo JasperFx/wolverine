@@ -18,10 +18,14 @@ internal class EnrollDbContextInTransaction : AsyncFrame, IFlushesMessages
     private Variable? _context;
     private Variable _scrapers = null!;
 
-    public EnrollDbContextInTransaction(Type dbContextType, IdempotencyStyle idempotencyStyle)
+    private readonly System.Data.IsolationLevel? _isolationLevel;
+
+    public EnrollDbContextInTransaction(Type dbContextType, IdempotencyStyle idempotencyStyle,
+        System.Data.IsolationLevel? isolationLevel = null)
     {
         _dbContextType = dbContextType;
         _idempotencyStyle = idempotencyStyle;
+        _isolationLevel = isolationLevel;
 
         _envelopeTransaction = new Variable(typeof(EfCoreEnvelopeTransaction), this);
     }
@@ -38,7 +42,7 @@ internal class EnrollDbContextInTransaction : AsyncFrame, IFlushesMessages
 
         writer.WriteComment("Start the actual database transaction if one does not already exist");
         writer.Write($"BLOCK:if ({_dbContext.Usage}.Database.CurrentTransaction == null)");
-        writer.Write($"await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
+        writer.Write($"await {IsolationLevelCode.CSharpBeginTransaction(_dbContext.Usage, _isolationLevel, _cancellation.Usage)}.ConfigureAwait(false);");
         writer.FinishBlock();
         writer.Write("BLOCK:try");
 
@@ -78,7 +82,7 @@ internal class EnrollDbContextInTransaction : AsyncFrame, IFlushesMessages
         // F# has no `== null`; use `isNull`. BeginTransactionAsync returns Task<IDbContextTransaction>,
         // so bind-and-discard with `let! _ =` (then `()` makes the then-branch unit, as `if/then` requires).
         writer.Write($"BLOCK:if isNull {_dbContext.FSharpUsage}.Database.CurrentTransaction then");
-        writer.Write($"let! _ = {_dbContext.FSharpUsage}.Database.BeginTransactionAsync({_cancellation.FSharpUsage})");
+        writer.Write($"let! _ = {IsolationLevelCode.FSharpBeginTransaction(_dbContext.FSharpUsage, _isolationLevel, _cancellation.FSharpUsage)}");
         writer.Write("()");
         writer.FinishBlock();
 

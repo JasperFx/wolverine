@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http.Runtime;
 
 namespace Wolverine.Http.Marten;
@@ -12,9 +13,11 @@ public static class WolverineHttpOptionsExtensions
     /// This is the call a Marten application wants, because it covers <b>both</b> halves:
     /// everything deriving from <c>JasperFx.ConcurrencyException</c> (<c>EventStreamUnexpectedMaxEventIdException</c>,
     /// document revision/version violations, <c>SagaConcurrencyException</c>) <b>and</b>
-    /// <see cref="global::Marten.Exceptions.StreamLockedException"/>, which <c>FetchForExclusiveWriting</c>
-    /// throws on a contended stream and which does <b>not</b> derive from <c>ConcurrencyException</c>.
-    /// Catching only the former silently leaves the exclusive locking path returning 500s.
+    /// <see cref="global::JasperFx.Events.StreamLockedException"/>, which <c>FetchForExclusiveWriting</c>
+    /// throws on a contended stream. Before Marten 10 that was <c>Marten.Exceptions.StreamLockedException</c>,
+    /// which did <b>not</b> derive from <c>ConcurrencyException</c>, and catching only the former silently left
+    /// the exclusive locking path returning 500s. GH-5142: both are now mapped by the core
+    /// <c>MapConcurrencyFailuresToConflict()</c>, so this is the same call under the Marten name.
     /// </para>
     ///
     /// <para>
@@ -27,13 +30,18 @@ public static class WolverineHttpOptionsExtensions
     /// Which chains the mapping applies to. Defaults to the transactional chains -- the only ones that commit
     /// a unit of work, and so the only ones that can raise a commit-time concurrency failure.
     /// </param>
+    /// <param name="toProblemDetails">
+    /// Optional factory that builds the ProblemDetails returned for the exception, replacing the default
+    /// (which puts the exception message in <c>Detail</c>). A null <c>Status</c> is filled in as 409.
+    /// </param>
     public static void MapMartenConcurrencyFailuresToConflict(this WolverineHttpOptions options,
-        Func<HttpChain, bool>? filter = null)
+        Func<HttpChain, bool>? filter = null, Func<Exception, ProblemDetails>? toProblemDetails = null)
     {
         filter ??= ConflictMapping.IsTransactional;
 
-        options.MapConcurrencyFailuresToConflict(filter);
-        options.AddMiddleware(typeof(MartenStreamLockedMiddleware), filter);
+        // GH-5142: the core mapping catches JasperFx.Events.StreamLockedException, which is what Marten 10
+        // throws from FetchForExclusiveWriting (marten#5858), so no Marten-specific catch is registered any more.
+        options.MapConcurrencyFailuresToConflict(filter, toProblemDetails);
     }
 
     /// <summary>

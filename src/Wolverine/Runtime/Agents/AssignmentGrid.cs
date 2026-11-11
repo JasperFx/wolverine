@@ -255,6 +255,12 @@ public partial class AssignmentGrid
     internal bool HasWarmupNodes => _nodes.Any(x => x.IsWarmup);
 
     /// <summary>
+    ///     Whether some agent family owns this URI. A restriction may name one that no family does -- a
+    ///     receiving endpoint paused application-wide -- and the grid never holds an agent for it.
+    /// </summary>
+    internal bool HasAgent(Uri agentUri) => _agents.ContainsKey(agentUri);
+
+    /// <summary>
     ///     Find information about a single agent by its Uri
     /// </summary>
     /// <param name="agentUri"></param>

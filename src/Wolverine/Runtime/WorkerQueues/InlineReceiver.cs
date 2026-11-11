@@ -13,6 +13,7 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
     private readonly Endpoint _endpoint;
     private readonly IHandlerPipeline _pipeline;
     private readonly DurabilitySettings _settings;
+    private readonly bool _recordExceptions;
 
     /// <summary>
     /// GH-3710. Null unless the endpoint opted in with WithInMemoryIdempotency().
@@ -29,6 +30,7 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
         _pipeline = pipeline;
         _logger = runtime.LoggerFactory.CreateLogger<InlineReceiver>();
         _settings = runtime.DurabilitySettings;
+        _recordExceptions = runtime.Options.Tracking.RecordExceptionsOnSpans;
         _idempotency = endpoint.IdempotencyGuard;
     }
 
@@ -209,6 +211,7 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
             _idempotency?.Release(envelope);
 
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            activity.RecordException(e, _recordExceptions);
             _logger.LogError(e, "Failure to receive an incoming message for envelope {EnvelopeId}", envelope.Id);
 
             try

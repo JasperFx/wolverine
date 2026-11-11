@@ -391,15 +391,19 @@ internal partial class OracleMessageStore
     private void writeDeadLetterWhereClause(DeadLetterEnvelopeQuery query, Weasel.Oracle.CommandBuilder builder,
         DeadLetterArchiveFilter archived)
     {
+        var rangeColumn = query.RangeOn == DeadLetterTimeField.FailedAt
+            ? $"COALESCE({DatabaseConstants.FailedAt}, {DatabaseConstants.SentAt})"
+            : DatabaseConstants.SentAt;
+
         if (query.Range.From.HasValue)
         {
-            builder.Append($" AND {DatabaseConstants.SentAt} >= ");
+            builder.Append($" AND {rangeColumn} >= ");
             builder.AppendParameter(query.Range.From.Value.ToUniversalTime());
         }
 
         if (query.Range.To.HasValue)
         {
-            builder.Append($" AND {DatabaseConstants.SentAt} <= ");
+            builder.Append($" AND {rangeColumn} <= ");
             builder.AppendParameter(query.Range.To.Value.ToUniversalTime());
         }
 

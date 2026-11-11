@@ -22,6 +22,21 @@ public class AzureServiceBusDeadLetterQueueRecoverySettings
     /// sub-queue is drained.
     /// </summary>
     public List<string> EndpointNames { get; } = new();
+
+    /// <summary>
+    /// Does the recovery listener drain the dead letter source with this name? The single rule shared
+    /// by the listener when it picks its sources and by the endpoints when they report
+    /// <see cref="Wolverine.Configuration.DeadLetterStorageMode.NativeWithRecovery"/> (GH-5313): with no
+    /// <see cref="EndpointNames"/> every source is drained, otherwise only the named ones, compared after
+    /// sanitizing both sides.
+    /// </summary>
+    internal bool Drains(AzureServiceBusTransport transport, string sourceName)
+    {
+        if (EndpointNames.Count == 0) return true;
+
+        var sanitized = transport.SanitizeIdentifier(sourceName);
+        return EndpointNames.Any(x => transport.SanitizeIdentifier(x) == sanitized);
+    }
 }
 
 /// <summary>
@@ -130,13 +145,7 @@ public class AzureServiceBusDeadLetterQueueListener : BackgroundService
                     new ServiceBusReceiverOptions { SubQueue = SubQueue.DeadLetter })));
         }
 
-        if (_settings.EndpointNames.Count > 0)
-        {
-            var allowed = _settings.EndpointNames.Select(x => _transport.SanitizeIdentifier(x)).ToHashSet();
-            sources = sources.Where(x => allowed.Contains(_transport.SanitizeIdentifier(x.Name))).ToList();
-        }
-
-        return sources;
+        return sources.Where(x => _settings.Drains(_transport, x.Name)).ToList();
     }
 
     private async Task drainLoopAsync(DrainSource source, CancellationToken stoppingToken)

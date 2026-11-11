@@ -109,8 +109,9 @@ public enum EnvelopeIdGeneration
 {
     /// <summary>
     /// Default. Uses MassTransit's NewId algorithm (<c>NewId.NextSequentialGuid()</c>), which builds
-    /// GUIDs from machine identity (MAC/DNS) and a timestamp, laid out so they sort in time order the way
-    /// .NET and PostgreSQL compare GUIDs. SQL Server compares a <c>uniqueidentifier</c> starting from its
+    /// GUIDs from machine identity (MAC/DNS), the process id and a timestamp, laid out so they sort in time
+    /// order the way .NET and PostgreSQL compare GUIDs. Wolverine adds the process id to NewId's own layout
+    /// so that several processes on one machine cannot draw the same ids. SQL Server compares a <c>uniqueidentifier</c> starting from its
     /// last six bytes, so these ids arrive in effectively random order there and fragment SQL Server's
     /// clustered envelope tables; see <see cref="NewIdSqlServerOrder"/>. Can produce duplicates in cloud
     /// environments where multiple instances share network identity (containers, Cloud Run, serverless).
@@ -208,8 +209,9 @@ public class MetricsOptions
 /// Opt-in tracking and tracing diagnostics. Each of the boolean flags controls a
 /// separate slice of structured tracing surface — handler-execution events / tags,
 /// the deserialization span, and outbox-flush events around
-/// <c>FlushOutgoingMessages</c>. All default to <c>false</c>; users opt into the
-/// extra emission only when they want to pay for it.
+/// <c>FlushOutgoingMessages</c>. All of those default to <c>false</c>; users opt into the
+/// extra emission only when they want to pay for it. <see cref="RecordExceptionsOnSpans"/> is
+/// the exception: it defaults to <c>true</c> and is an opt-out.
 /// </summary>
 public class TrackingOptions
 {
@@ -261,6 +263,17 @@ public class TrackingOptions
     /// when profiling a transactional handler. Default is <c>false</c>.
     /// </summary>
     public bool OutboxDiagnosticsEnabled { get; set; }
+
+    /// <summary>
+    /// When enabled, a failed handler attempt records the OpenTelemetry <c>exception</c>
+    /// <see cref="System.Diagnostics.ActivityEvent"/> (<c>exception.type</c>,
+    /// <c>exception.message</c> and <c>exception.stacktrace</c>) on the attempt's span, in addition
+    /// to the <c>Error</c> status. Exception messages can carry application data, and this sends
+    /// them to every trace exporter, so set this to <c>false</c> to keep only the exception's type
+    /// name in the span status. Nothing is recorded when no listener samples the span.
+    /// Default is <c>true</c>.
+    /// </summary>
+    public bool RecordExceptionsOnSpans { get; set; } = true;
 
     internal Wolverine.Tracking.TrackingIgnoreRules IgnoreRules { get; } = new();
 
@@ -388,9 +401,9 @@ public sealed partial class WolverineOptions
         Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
 
-        // Phase-A pre-population of IChain.AncillaryStoreType for [Storage]-attributed handlers so the
-        // ancillary-store inbox routing map sees them eagerly at startup. Mirrors the per-provider
-        // eager policies (e.g. Marten's MartenStoreEagerPolicy). See StorageAttributeEagerPolicy.
+        // Phase-A pre-population of IChain.AncillaryStoreType for handlers carrying any ancillary-store
+        // routing attribute ([Storage], [MartenStore], [PolecatStore], [FisherStore]) so the
+        // ancillary-store inbox routing map sees them eagerly at startup. See StorageAttributeEagerPolicy.
         Policies.Add<StorageAttributeEagerPolicy>();
 
         // GH-4180. Weaves logical deduplication frames into handler chains that opted in with

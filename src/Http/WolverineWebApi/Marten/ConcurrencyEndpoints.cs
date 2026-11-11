@@ -1,6 +1,7 @@
 using JasperFx;
 using Marten;
-using Marten.Exceptions;
+using JasperFx.Events;
+using Marten.Schema;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 
@@ -29,6 +30,16 @@ public class SeatHold
     }
 }
 
+public record SeatNoteIds(Guid[] Ids);
+
+// GH-5355. Documents under optimistic concurrency, so one commit can fail more than one version check
+[UseOptimisticConcurrency]
+public class SeatNote
+{
+    public Guid Id { get; set; }
+    public string Text { get; set; } = null!;
+}
+
 #region sample_marten_concurrency_exception_middleware
 
 /// <summary>
@@ -50,7 +61,7 @@ public static class MartenConcurrencyExceptionMiddleware
         };
     }
 
-    // StreamLockedException does NOT derive from ConcurrencyException -- it is a MartenException --
+    // Before Marten 10, StreamLockedException did NOT derive from ConcurrencyException (it was a MartenException);
     // so the FetchForExclusiveWriting path needs its own handler. Catching only ConcurrencyException
     // silently misses it
     public static ProblemDetails OnException(StreamLockedException ex)
@@ -107,5 +118,65 @@ public static class ConcurrencyEndpoints
         await session.SaveChangesAsync();
 
         return "locked and written";
+    }
+
+    /// <summary>
+    /// GH-5142. Throws the store-agnostic lock failure that Polecat's and Fisher's StreamLockedException
+    /// derive from. Marten's own type does not, so only the core conflict mapping can catch this one
+    /// </summary>
+    [WolverinePost("/seatholds/{id}/store-agnostic-lock")]
+    public static string StoreAgnosticLock(Guid id)
+    {
+        throw new global::JasperFx.Events.StreamLockedException(id, null);
+    }
+
+    [WolverinePost("/seatnotes/create")]
+    public static async Task<Guid[]> CreateNotes(IDocumentSession session)
+    {
+        var notes = new[] { new SeatNote { Id = Guid.NewGuid(), Text = "a" }, new SeatNote { Id = Guid.NewGuid(), Text = "b" } };
+        session.Store(notes);
+        await session.SaveChangesAsync();
+        return notes.Select(x => x.Id).ToArray();
+    }
+
+    /// <summary>
+    /// GH-5355. Loads two optimistic concurrency documents, lets another session change both underneath
+    /// this one, then saves -- one commit failing two version checks, so Marten throws an AggregateException
+    /// of ConcurrencyExceptions
+    /// </summary>
+    [WolverinePost("/seatnotes/aggregate-conflict")]
+    public static async Task<string> AggregateConflict(SeatNoteIds command, IDocumentSession session, IDocumentStore store)
+    {
+        var ids = command.Ids;
+        var notes = await session.LoadManyAsync<SeatNote>(ids);
+
+        await using (var other = store.LightweightSession())
+        {
+            foreach (var note in await other.LoadManyAsync<SeatNote>(ids))
+            {
+                note.Text = "changed elsewhere";
+                other.Store(note);
+            }
+
+            await other.SaveChangesAsync();
+        }
+
+        foreach (var note in notes)
+        {
+            note.Text = "stale";
+            session.Store(note);
+        }
+
+        await session.SaveChangesAsync();
+        return "no conflict";
+    }
+
+    /// <summary>
+    /// GH-5355. An aggregate that is NOT all concurrency failures must not be claimed by the 409 mapping
+    /// </summary>
+    [WolverinePost("/seatnotes/mixed-aggregate")]
+    public static string MixedAggregate()
+    {
+        throw new AggregateException(new ConcurrencyException("lost"), new InvalidOperationException("bug"));
     }
 }

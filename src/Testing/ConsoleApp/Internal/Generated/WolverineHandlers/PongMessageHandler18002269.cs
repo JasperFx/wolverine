@@ -12,8 +12,8 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var pongMessage = (Wolverine.ComplianceTests.Compliance.PongMessage)context.Envelope.Message;
 
-            System.Diagnostics.Activity.Current?.SetTag("message.handler", "ConsoleApp.PongHandler");
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "ConsoleApp.PongHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("message.handler", "ConsoleApp.PongHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("handler.type", "ConsoleApp.PongHandler");
             var pongHandler = new ConsoleApp.PongHandler();
             
             // The actual message execution

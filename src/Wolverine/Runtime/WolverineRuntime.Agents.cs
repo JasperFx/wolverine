@@ -199,7 +199,7 @@ public partial class WolverineRuntime : IAgentRuntime
                 failures);
         }
 
-        await assertReleasedAgentsAreRunningAsync(changes, cancellationToken);
+        await assertReleasedAgentsAreRunningAsync(changes, NodeController.LastAssignments, cancellationToken);
     }
 
     /// <summary>
@@ -228,9 +228,16 @@ public partial class WolverineRuntime : IAgentRuntime
     ///     after a release is exactly the condition this exists to report. Balanced only: a Solo node has no
     ///     leader and never persists assignments, so there is nothing to read there.
     ///     </para>
+    ///
+    ///     <para>
+    ///     GH-5334: only URIs that some agent family owns. Pausing a receiving endpoint by its own URI is
+    ///     supported -- the grid skips it and <c>ListeningAgent</c> honors the pause directly -- but no family
+    ///     assigns that URI, so no assignment row can ever appear for it. Waiting for one ran the full timeout
+    ///     and then threw on every lift, after the row was already gone, for a change that had worked.
+    ///     </para>
     /// </summary>
     private async Task assertReleasedAgentsAreRunningAsync(IReadOnlyList<AgentRestriction> changes,
-        CancellationToken cancellationToken)
+        AssignmentGrid? grid, CancellationToken cancellationToken)
     {
         if (Options.Durability.Mode != DurabilityMode.Balanced)
         {
@@ -238,9 +245,11 @@ public partial class WolverineRuntime : IAgentRuntime
         }
 
         // None covers both a lifted pause and a removed pin; either way the agent should be running somewhere.
+        // The grid is the evaluation's own, built from every family's known agents.
         var shouldRun = changes
             .Where(x => x.Type is AgentRestrictionType.None or AgentRestrictionType.Pinned)
             .Select(x => x.AgentUri)
+            .Where(x => grid == null || grid.HasAgent(x))
             .Distinct()
             .ToArray();
 

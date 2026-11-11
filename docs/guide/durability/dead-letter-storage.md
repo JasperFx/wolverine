@@ -55,7 +55,13 @@ Every endpoint declares its effective destination through a single transport-agn
 |-------|---------|
 | `Durable` | Dead letters go to Wolverine's durable store (`wolverine_dead_letters`) — queryable and replayable through `IDeadLetters`. |
 | `Native` | Dead letters go to a native broker dead letter queue and are **not** bridged into durable storage. |
-| `NativeWithRecovery` | Dead letters go to a native broker dead letter queue **and** are bridged back into durable storage via [`EnableDeadLetterQueueRecovery()`](/guide/messaging/transports/rabbitmq/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage). |
+| `NativeWithRecovery` | Dead letters go to a native broker dead letter queue **and** are bridged back into durable storage via `EnableDeadLetterQueueRecovery()` ([RabbitMQ](/guide/messaging/transports/rabbitmq/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage), [Amazon SQS](/guide/messaging/transports/sqs/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage), [Azure Service Bus](/guide/messaging/transports/azureservicebus/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage)). |
+
+For Amazon SQS and Azure Service Bus, an endpoint reports `NativeWithRecovery` only when the recovery
+listener actually drains it: a listening endpoint when recovery was enabled with no names, or one whose
+dead letter destination is among the names given to `EnableDeadLetterQueueRecovery(...)`. For Azure Service
+Bus that destination is the queue's own `$DeadLetterQueue` sub-queue for an inline queue or a subscription,
+and the managed dead letter queue (`wolverine-dead-letter-queue` by default) for a buffered or durable queue.
 
 It is exposed two ways:
 
@@ -200,6 +206,7 @@ applies the same criteria:
 | `Archived` | `Exclude` archived dead letters (the default), `Only` archived dead letters, or `Any` <Badge type="tip" text="6.54" /> |
 | `TenantId` | Scope the query to one tenant. Dead letters are stored per database, so for a multi-tenanted message store this routes the query to the tenant's database <Badge type="tip" text="6.54" /> |
 | `MessageType`, `ExceptionType`, `ReceivedAt`, `Replayable`, `Range` | Exact match filters on the stored columns |
+| `RangeOn` | Which timestamp `Range` filters on. `DeadLetterTimeField.SentAt` (the default) is when the producer sent the message, which can be days old for a message read again from a broker topic. `DeadLetterTimeField.FailedAt` is when it was dead lettered, refreshed after a failed replay, and falls back to the sent time for dead letters recorded before failure fingerprinting |
 | `MessageIds` | Only these dead letters |
 | `Headers` | Only dead letters carrying these header values. This is applied in memory after the other criteria |
 

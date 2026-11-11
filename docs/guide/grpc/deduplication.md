@@ -5,7 +5,7 @@
 ::: tip
 This is the gRPC half of Wolverine's [logical message
 deduplication](/guide/durability/idempotency#logical-message-deduplication). Read that page first
-for the storage, the retention window, and why this is opt-in.
+for the storage, the retention window, and how to turn it off.
 :::
 
 A unary RPC that creates something has the same at-most-once problem as an HTTP `POST`: the client

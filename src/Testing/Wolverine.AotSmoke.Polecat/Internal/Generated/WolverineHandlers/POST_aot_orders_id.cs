@@ -27,9 +27,10 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
             // Building the Polecat session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotPolecatEndpoints");
+            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "AotPolecatEndpoints").SetTag("http.route", "/aot/orders/{id}").SetTag("http.request.method", "POST");
             string id_rawValue = (string?)httpContext.GetRouteValue("id");
             System.Guid id = default;
 

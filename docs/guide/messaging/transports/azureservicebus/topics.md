@@ -47,6 +47,24 @@ that work, Wolverine tries to build out a queue called `wolverine.response.[Your
 requeues from subscription listening. If your Wolverine application doesn't have permissions to create queues at runtime,
 you may want to build that queue manually or forgo using "Requeue" as an error handling technique.
 
+## Topics Owned by Another Application <Badge type="tip" text="6.62" />
+
+When you listen to a subscription on a topic that another service owns, you want Wolverine to provision your
+subscription and its rule, but never the topic: a topic created by the consumer gets default `CreateTopicOptions`, and
+settings like partitioning and duplicate detection can't be changed afterwards. Mark the topic as externally owned:
+
+```csharp
+opts.ListenToAzureServiceBusSubscription("my-sub")
+    .FromTopic("orders")
+    .TopicIsExternallyOwned();
+
+// or, when publishing to it
+opts.PublishMessage<OrderPlaced>().ToAzureServiceBusTopic("orders").ExternallyOwned();
+```
+
+Wolverine will never create or delete an externally owned topic, regardless of `AutoProvision()`. Subscriptions on it
+are still provisioned, and if the topic does not exist the error names the topic.
+
 ## Topic Filters
 
 If Wolverine is provisioning the subscriptions for you, you can customize the subscription filter being created.

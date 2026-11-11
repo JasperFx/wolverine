@@ -111,16 +111,47 @@ ON DUPLICATE KEY UPDATE {DatabaseConstants.Body} = @body, {DatabaseConstants.Mes
 
     public async Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellationToken)
     {
+        // GH-5426. The retry is fenced on the inbox row's owner. A node ejected as stale while it held the envelope in
+        // memory resumes and fails it again after another node has recovered the row; unfenced, it deleted whatever
+        // inbox row the other execution held for the id and wrote a second scheduled copy, and both copies ran the
+        // retry. The scheduled row is written only if this node's inbox row was deleted, in the same transaction.
+        // Only the durable receiver calls this, and every envelope it holds from a database queue has an inbox row
+        // owned by this node -- the durable pop, inbox recovery and dead letter replay all write one -- so the fence
+        // does not depend on WasPersistedInInbox, which the pop does not set.
+        var owner = _queue.Parent.Store?.Durability.AssignedNodeNumber;
+
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         try
         {
-            await conn.CreateCommand($"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} WHERE id = @id;" + _writeDirectlyToTheScheduledTable)
+            // The inbox delete and the scheduled write commit together or not at all: autocommitted one by one, a
+            // failed scheduled write left the inbox row deleted with nothing scheduled
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+
+            var delete = $"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} WHERE id = @id";
+            if (owner.HasValue) delete += $" AND {DatabaseConstants.OwnerId} = @owner";
+
+            await using (var deleteCmd = conn.CreateCommand(delete).With("id", envelope.Id))
+            {
+                if (owner.HasValue) deleteCmd.With("owner", owner.Value);
+                deleteCmd.Transaction = tx;
+
+                if (await deleteCmd.ExecuteNonQueryAsync(cancellationToken) == 0 && owner.HasValue)
+                {
+                    // Another execution owns the message now: drop this stale copy
+                    await tx.RollbackAsync(cancellationToken);
+                    return;
+                }
+            }
+
+            await using var cmd = conn.CreateCommand(_writeDirectlyToTheScheduledTable)
                 .With("id", envelope.Id)
                 .With("body", EnvelopeSerializer.Serialize(envelope))
                 .With("type", envelope.MessageType)
                 .With("expires", envelope.DeliverBy)
-                .With("time", envelope.ScheduledTime)
-                .ExecuteNonQueryAsync(cancellationToken);
+                .With("time", envelope.ScheduledTime);
+            cmd.Transaction = tx;
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
         }
         finally
         {
@@ -192,11 +223,17 @@ ON DUPLICATE KEY UPDATE {DatabaseConstants.Body} = @body, {DatabaseConstants.Mes
 
         try
         {
-            var count = await conn.CreateCommand(_moveFromOutgoingToQueueSql)
-                .With("id", envelope.Id)
-                .ExecuteNonQueryAsync(cancellationToken);
+            // GH-5438. The INSERT and the DELETE commit together. Autocommitted one by one, a process killed or a
+            // command timed out between them left the envelope in the queue AND the outbox, and outbox recovery
+            // sent it a second time
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+            var cmd = conn.CreateCommand(_moveFromOutgoingToQueueSql).With("id", envelope.Id);
+            cmd.Transaction = tx;
+            var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
             if (count == 0) throw new InvalidOperationException("No matching outgoing envelope");
+
+            await tx.CommitAsync(cancellationToken);
         }
         catch (MySqlException e)
         {
@@ -219,12 +256,17 @@ ON DUPLICATE KEY UPDATE {DatabaseConstants.Body} = @body, {DatabaseConstants.Mes
 
         try
         {
-            var count = await conn.CreateCommand(_moveFromOutgoingToScheduledSql)
+            // GH-5438: the INSERT and the DELETE commit together, as in MoveFromOutgoingToQueueAsync
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+            var cmd = conn.CreateCommand(_moveFromOutgoingToScheduledSql)
                 .With("id", envelope.Id)
-                .With("time", envelope.ScheduledTime!.Value)
-                .ExecuteNonQueryAsync(cancellationToken);
+                .With("time", envelope.ScheduledTime!.Value);
+            cmd.Transaction = tx;
+            var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
             if (count == 0) throw new InvalidOperationException($"No matching outgoing envelope for {envelope}");
+
+            await tx.CommitAsync(cancellationToken);
         }
         catch (MySqlException e)
         {

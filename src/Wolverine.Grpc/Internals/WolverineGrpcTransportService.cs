@@ -25,14 +25,14 @@ internal class WolverineGrpcTransportService : WolverineTransport.WolverineTrans
 
     public override async Task<Ack> Send(WolverineMessage request, ServerCallContext context)
     {
-        var envelope = EnvelopeSerializer.Deserialize(request.Data.ToByteArray());
+        var envelope = EnvelopeSerializer.Deserialize(request.Data.Memory);
         await _receiver.ReceivedAsync(_listener, envelope);
         return new Ack { Success = true };
     }
 
     public override async Task<Ack> SendBatch(WolverineMessageBatch request, ServerCallContext context)
     {
-        var envelopes = EnvelopeSerializer.ReadMany(request.Data.ToByteArray());
+        var envelopes = EnvelopeSerializer.ReadMany(request.Data.Memory);
         await _receiver.ReceivedAsync(_listener, envelopes);
         return new Ack { Success = true };
     }
@@ -51,7 +51,7 @@ internal class WolverineGrpcTransportService : WolverineTransport.WolverineTrans
         Envelope envelope;
         try
         {
-            envelope = EnvelopeSerializer.Deserialize(request.Data.ToByteArray());
+            envelope = EnvelopeSerializer.Deserialize(request.Data.Memory);
         }
         catch (Exception e)
         {

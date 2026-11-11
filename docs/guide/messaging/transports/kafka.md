@@ -489,6 +489,30 @@ Because the replay consumer joins no group, it needs no consumer group ACL on br
 prefix (the usual Confluent Cloud setup). Replayed envelopes carry the `Destination` the live listener would
 have stamped: the topic's own Uri, or that of a `ListenToKafkaTopics(...)` group subscribing to the topic.
 
+If your brokers authorize consumer groups by **literal name only** — no prefixed or wildcard ACLs — a
+generated `{live group}-replay-{guid}` name can never be granted ahead of time. In that case, tell the replay
+exactly which group id to use with `GroupId`, and Wolverine will use that value verbatim:
+
+```csharp
+await host.ReplayKafkaTopicAsync(new KafkaReplayRequest
+{
+    Topic = "orders",
+    FromOffset = 0,
+
+    // Used exactly as given. Leave it null to get the generated name described above
+    GroupId = "orders-service-replay"
+});
+```
+
+or from the command line:
+
+```bash
+dotnet run -- kafka-replay orders --from-offset 0 --group-id orders-service-replay
+```
+
+The replay consumer still only uses `Assign()` and never commits offsets, so a fixed group id does not join
+a consumer group or disturb any committed offsets, and you can reuse the same name for every replay.
+
 Replay reads forward to the end boundary and stops cleanly. It is a discrete operation — for *live* seek of
 a running listener, or a CritterWatch control-pane, see the follow-up issues.
 
@@ -882,7 +906,7 @@ using var host = await Host.CreateDefaultBuilder()
             .AutoProvision()
 
             // How should Wolverine route a message whose TenantId is null or
-            // unknown? FallbackToDefault (the default) uses the shared cluster;
+            // unknown? FallbackToDefault (the 6.x default) uses the shared cluster;
             // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
             .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
@@ -931,7 +955,8 @@ tenant* based on the runtime tenant id. They are independent features and can be
 
 `TenantIdBehavior(...)` controls what happens when a message has a null or unregistered tenant id:
 
-* `FallbackToDefault` (the default) — route it to the shared/default cluster (the one passed to `UseKafka`).
+* `DeadLetterUnknownTenants` (the default since 7.0) — a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
+* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) — route it to the shared/default cluster (the one passed to `UseKafka`).
 * `TenantIdRequired` — throw; every message must carry a known tenant id.
 * `IgnoreUnknownTenants` — silently drop the message.
 

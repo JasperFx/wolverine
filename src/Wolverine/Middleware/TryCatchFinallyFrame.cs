@@ -32,7 +32,53 @@ public class TryCatchFinallyFrame : Frame
 
     public void AddCatchBlock(Type exceptionType, Frame[] frames)
     {
-        _catchBlocks.Add(new CatchBlock(exceptionType, frames));
+        AddCatchBlock(exceptionType, frames, null);
+    }
+
+    /// <summary>
+    /// Add a catch block, optionally guarded by a C# exception filter
+    /// (<c>catch (T ex) when (Filter(ex))</c>). A filtered clause that does not match leaves the
+    /// exception to propagate to the sibling clauses, which a rethrow from inside the clause cannot do.
+    /// </summary>
+    /// <param name="exceptionType"></param>
+    /// <param name="frames"></param>
+    /// <param name="filter">A public static bool method taking the exception as its only argument</param>
+    public void AddCatchBlock(Type exceptionType, Frame[] frames, MethodInfo? filter)
+    {
+        if (filter != null && (!filter.IsStatic || filter.ReturnType != typeof(bool) ||
+                               filter.GetParameters().Length != 1 ||
+                               !filter.GetParameters()[0].ParameterType.IsAssignableFrom(exceptionType)))
+        {
+            throw new ArgumentException(
+                $"Catch filter '{filter.DeclaringType?.FullName}.{filter.Name}' must be a static method returning bool that takes the {exceptionType.Name} as its only argument",
+                nameof(filter));
+        }
+
+        // C# rejects a second unfiltered catch clause for the same type (CS0160). Clauses with different
+        // filters stay separate (filtered ones sort ahead of the unfiltered one); only an identical
+        // type + filter pair joins the existing clause.
+        var existing = _catchBlocks.FirstOrDefault(x => x.ExceptionType == exceptionType && Equals(x.Filter, filter));
+        if (existing != null)
+        {
+            // The merged handlers share one scope, so a variable can't reuse an earlier handler's name (CS0128).
+            var used = existing.Frames.SelectMany(x => x.Creates).Select(x => x.Usage).ToHashSet();
+            foreach (var variable in frames.SelectMany(x => x.Creates).Where(x => !x.VariableType.IsValueTuple()))
+            {
+                var name = variable.Usage;
+                for (var i = 1; used.Contains(name); i++)
+                {
+                    name = $"{variable.Usage}{i}";
+                }
+
+                variable.OverrideName(name);
+                used.Add(name);
+            }
+
+            existing.Frames = [..existing.Frames, ..frames];
+            return;
+        }
+
+        _catchBlocks.Add(new CatchBlock(exceptionType, frames) { Filter = filter });
         SortCatchBlocks();
     }
 
@@ -44,7 +90,18 @@ public class TryCatchFinallyFrame : Frame
     private void SortCatchBlocks()
     {
         // Sort by inheritance depth descending - most specific exception types first
-        _catchBlocks.Sort((a, b) => InheritanceDepth(b.ExceptionType).CompareTo(InheritanceDepth(a.ExceptionType)));
+        // Within one exception type, filtered clauses go first (and the sort is stable): an unfiltered clause
+        // of the same type ahead of a filtered one would make the filtered one unreachable (CS0160).
+        var sorted = _catchBlocks
+            .Select((block, index) => (block, index))
+            .OrderByDescending(x => InheritanceDepth(x.block.ExceptionType))
+            .ThenByDescending(x => x.block.Filter != null)
+            .ThenBy(x => x.index)
+            .Select(x => x.block)
+            .ToList();
+
+        _catchBlocks.Clear();
+        _catchBlocks.AddRange(sorted);
     }
 
     internal static int InheritanceDepth(Type type)
@@ -68,7 +125,10 @@ public class TryCatchFinallyFrame : Frame
         foreach (var catchBlock in _catchBlocks)
         {
             var exceptionVarName = catchBlock.ExceptionVariable.Usage;
-            writer.Write($"BLOCK:catch ({catchBlock.ExceptionType.FullNameInCode()} {exceptionVarName})");
+            var whenClause = catchBlock.Filter == null
+                ? string.Empty
+                : $" when ({catchBlock.Filter.DeclaringType!.FullNameInCode()}.{catchBlock.Filter.Name}({exceptionVarName}))";
+            writer.Write($"BLOCK:catch ({catchBlock.ExceptionType.FullNameInCode()} {exceptionVarName}){whenClause}");
 
             // Chain the catch frames together
             if (catchBlock.Frames.Length > 1)
@@ -212,7 +272,13 @@ public class CatchBlock
     }
 
     public Type ExceptionType { get; }
-    public Frame[] Frames { get; }
+
+    /// <summary>
+    /// Optional static bool method rendered as a <c>when (...)</c> exception filter on the clause
+    /// </summary>
+    public MethodInfo? Filter { get; init; }
+
+    public Frame[] Frames { get; internal set; }
     public Variable ExceptionVariable { get; }
 
     internal static string DefaultExceptionVariableName(Type exceptionType)

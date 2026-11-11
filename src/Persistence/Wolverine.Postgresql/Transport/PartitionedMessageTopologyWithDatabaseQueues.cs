@@ -16,6 +16,18 @@ public class PartitionedMessageTopologyWithDatabaseQueues : PartitionedMessageTo
         MaxDegreeOfParallelism = PartitionSlots.Five;
     }
 
+    /// <summary>
+    /// Build a publish-only topology: the shard queues are provisioned and published to, but this
+    /// node never listens to them, so another application can consume them.
+    /// </summary>
+    public PartitionedMessageTopologyWithDatabaseQueues(WolverineOptions options, string baseName,
+        int numberOfEndpoints, bool publishOnly) : base(options, publishOnly ? null : PartitionSlots.Five, baseName,
+        numberOfEndpoints)
+    {
+        PublishOnly = publishOnly;
+        if (!publishOnly) MaxDegreeOfParallelism = PartitionSlots.Five;
+    }
+
     protected override Endpoint buildEndpoint(WolverineOptions options, string name)
     {
         var transport = options.PostgresqlTransport();

@@ -185,7 +185,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
         if (_rejectUnparseableValue)
         {
             throw new NotSupportedException(
-                "F# code generation does not yet support strict query string or header binding (WolverineHttpOptions.RejectUnparseableQueryValues / RejectUnparseableHeaderValues).");
+                "F# code generation does not yet support strict query string or header binding (WolverineHttpOptions.RejectUnparseableQueryValues / RejectUnparseableHeaderValues). RejectUnparseableQueryValues is true by default from Wolverine 7.0, so set it to false to generate F# code for an endpoint that binds a parsed query string value.");
         }
 
         if (_isNullable || _isOptional)

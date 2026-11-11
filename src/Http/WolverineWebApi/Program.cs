@@ -384,6 +384,11 @@ public class Program
 
             opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();
 
+            // GH-5195: strict query string binding is the default from 7.0. This application keeps the 6.x
+            // lenient binding explicitly, because its tests pin what an unparseable value binds to in that
+            // mode; strict_query_string_binding covers the strict mode with its own host.
+            opts.RejectUnparseableQueryValues = false;
+
             #region sample_adding_custom_parameter_handling
             // Customizing parameter handling
             opts.AddParameterHandlingStrategy<NowParameterStrategy>();

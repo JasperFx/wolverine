@@ -541,8 +541,8 @@ group by o.name, ps.index_id, i.name";
     /// <c>PostgresqlMessageStore._reassignIncomingSql</c>, which does the same job through
     /// <c>unnest(@ids, @uris)</c>. See GH-4209 for the incident that first exposed the shape.
     ///
-    /// Under IdOnly the procedure is still exactly right and is still what runs -- an id is the whole identity
-    /// there -- so this path is the composite key's alone.
+    /// Under IdOnly the received_at in each pair is the row's own, so the statement is exactly right there too.
+    /// GH-5412 made it the only promotion: matching by primary key keeps the update off rows it never selected.
     /// </summary>
     private string writePromotionSql(DbCommand command, IReadOnlyList<Envelope> envelopes)
     {
@@ -569,7 +569,12 @@ group by o.name, ps.index_id, i.name";
 
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
-        builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
+        // GH-5412: the poll must never wait on a lock. Without hints it read the inbox under shared page locks
+        // and, holding one, waited for the next page, while handlers marking their own rows Handled held intent
+        // locks on those pages and waited to convert. Under ordinary multi-node load that cycle made the poll,
+        // or worse a handler's commit, a deadlock victim several times a minute. READPAST skips any row or page
+        // another transaction holds (the next poll picks it up) and ROWLOCK keeps the read off page locks.
+        builder.Append( $"select TOP {Durability.RecoveryBatchSize} {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} WITH (READPAST, ROWLOCK) where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
         builder.AppendParameter(utcNow);
         builder.Append(" order by execution_time");
         builder.Append(';');
@@ -697,22 +702,13 @@ group by o.name, ps.index_id, i.name";
                     return;
                 }
 
-                // GH-5022: the stored procedure cannot restart the InboxStaleTime clock, so a store that keeps
-                // one promotes with the inline statement instead
-                if (Durability.MessageIdentity == MessageIdentity.IdOnly && !Durability.InboxStaleTime.HasValue)
+                // GH-5412: always the inline statement, which matches each selected row by its primary key. The
+                // uspMarkIncomingOwnership procedure joined a table-valued parameter, which has no statistics, so
+                // SQL Server scanned the Scheduled rows and waited on any row a handler held, including rows the
+                // poll never selected. That wait is the other half of the deadlock with handlers. (GH-5022: the
+                // procedure could not restart the InboxStaleTime clock either.)
+                await using (var reassign = conn.CreateCommand("", tx))
                 {
-                    await using var reassign =
-                        conn.CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership", tx);
-                    reassign.CommandType = CommandType.StoredProcedure;
-
-                    await reassign
-                        .WithIdList(this, envelopes)
-                        .With("owner", durabilitySettings.AssignedNodeNumber)
-                        .ExecuteNonQueryAsync(_cancellation);
-                }
-                else
-                {
-                    await using var reassign = conn.CreateCommand("", tx);
                     reassign.CommandText = writePromotionSql(reassign, envelopes);
                     await reassign
                         .With("owner", durabilitySettings.AssignedNodeNumber)
@@ -874,10 +870,10 @@ group by o.name, ps.index_id, i.name";
             nodeTable.AddColumn("version", "varchar(500)");
             nodeTable.AddColumn("capabilities", "nvarchar(max)").AllowNulls();
 
-            // GH-4593, mirroring the PostgreSQL gate from GH-3959: provisioned only behind the opt-in so
-            // an upgrade migrates nothing, and SqlServerNodePersistence gates every statement naming it on
-            // the same flag. `float` is T-SQL's IEEE double.
-            if (Durability.CapacityAwareAssignment)
+            // GH-4593, mirroring the PostgreSQL gate from GH-3959: always provisioned since 7.0 (GH-5193) unless
+            // AlwaysProvisionOptionalSchemaObjects is off, and SqlServerNodePersistence gates every statement naming it on
+            // CapacityAwareAssignment, so the behaviour stays opt-in. `float` is T-SQL's IEEE double.
+            if (Durability.ProvisionsNodeLoadFactor)
             {
                 nodeTable.AddColumn(DatabaseConstants.LoadFactor, "float").AllowNulls();
             }

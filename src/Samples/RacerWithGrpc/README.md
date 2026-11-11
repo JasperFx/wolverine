@@ -21,13 +21,13 @@ streaming), so the per-item bridge is still the bidi pattern.
 In one terminal:
 
 ```sh
-dotnet run --project src/Samples/RacerWithGrpc/RacerServer --framework net9.0
+dotnet run --project src/Samples/RacerWithGrpc/RacerServer --framework net10.0
 ```
 
 In another:
 
 ```sh
-dotnet run --project src/Samples/RacerWithGrpc/RacerClient --framework net9.0
+dotnet run --project src/Samples/RacerWithGrpc/RacerClient --framework net10.0
 ```
 
 Expected output on the client (Ctrl+C to stop):

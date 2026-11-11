@@ -5,6 +5,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.SqlServer.Persistence;
 using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
+using Wolverine.RDBMS.Outbox;
 
 namespace Wolverine.Polecat.Publishing;
 
@@ -157,51 +158,36 @@ public class OutboxedSessionFactory
     /// </summary>
     private SqlServerMessageStore resolveSqlServerMessageStore()
     {
-        return MessageStore switch
-        {
-            SqlServerMessageStore store => store,
-            MultiTenantedMessageStore { Main: SqlServerMessageStore mainStore } => mainStore,
-            _ => throw new InvalidOperationException(
+        return DocumentSessionOutboxSupport.TryResolveMessageStore<SqlServerMessageStore>(MessageStore)
+               ?? throw new InvalidOperationException(
                 "Wolverine.Polecat requires a SQL Server-backed message store. " +
                 $"The configured store was {MessageStore?.GetType().FullName ?? "null"}. " +
-                "Call PersistMessagesWithSqlServer(...) on WolverineOptions to wire one up.")
-        };
+                "Call PersistMessagesWithSqlServer(...) on WolverineOptions to wire one up.");
     }
 
     private void configureSession(MessageContext context, IDocumentSession session)
     {
         context.OverrideStorage(MessageStore);
 
-        // A per-message CausationId override supplied via DeliveryOptions.CausationId (envelope header
-        // "causation-id") takes precedence over the default ConversationId-based causation chain, as it does
-        // for Marten (GH-4931: the same causation on every store, so events can be traced to what caused them)
-        if (context.Envelope is { } env
-            && env.Headers.TryGetValue(EnvelopeConstants.CausationIdKey, out var headerCausationId)
-            && !string.IsNullOrEmpty(headerCausationId))
+        // GH-5144: what the session stamps on its writes comes from one place for every store
+        if (DocumentSessionOutboxSupport.CausationIdFor(context) is { } causationId)
         {
-            session.CausationId = headerCausationId;
-        }
-        else if (context.ConversationId != Guid.Empty)
-        {
-            session.CausationId = context.ConversationId.ToString();
+            session.CausationId = causationId;
         }
 
         session.CorrelationId = context.CorrelationId;
 
-        if (context.Envelope?.UserName is not null)
+        if (DocumentSessionOutboxSupport.UserNameFor(context) is { } userName)
         {
-            session.LastModifiedBy = context.Envelope.UserName;
-        }
-        else if (context.UserName is not null)
-        {
-            session.LastModifiedBy = context.UserName;
+            session.LastModifiedBy = userName;
         }
 
         var transaction = new PolecatEnvelopeTransaction(session, context);
         context.EnlistInOutbox(transaction);
 
-        // Now register the transaction participant for flushing outgoing messages
-        session.AddTransactionParticipant(new FlushOutgoingMessagesParticipant(context, transaction.Store));
+        // The FlushOutgoingMessagesOnCommit listener from buildSessionOptions marks the envelope and flushes;
+        // this only makes sure a save with nothing else in it gets that far
+        session.AddTransactionParticipant(new KeepSaveChangesRunning());
     }
 
     /// <summary>Build new instances of IDocumentSession on demand</summary>

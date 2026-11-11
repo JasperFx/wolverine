@@ -30,6 +30,9 @@ internal class TracingExecutor : IExecutor
     private readonly TimeSpan _timeout;
     private readonly string _messageTypeName;
 
+    // GH-5311. Tracking.RecordExceptionsOnSpans
+    private readonly bool _recordExceptions;
+
     private readonly Action<ILogger, string, string, Guid, Exception?> _executionStarted;
     private readonly Action<ILogger, string, string, Guid, long, Exception?> _executionFinished;
     private readonly Action<ILogger, string, Guid, string, Exception?> _messageSucceeded;
@@ -38,13 +41,15 @@ internal class TracingExecutor : IExecutor
     public TracingExecutor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime,
         IMessageHandler handler, FailureRuleCollection rules, TimeSpan timeout)
         : this(contextPool, runtime.LoggerFactory.CreateLogger(handler.MessageType), handler,
-            runtime.MessageTracking, rules, timeout)
+            runtime.MessageTracking, rules, timeout, runtime.Options.Tracking.RecordExceptionsOnSpans)
     {
     }
 
     public TracingExecutor(ObjectPool<MessageContext> contextPool, ILogger logger,
-        IMessageHandler handler, IMessageTracker tracker, FailureRuleCollection rules, TimeSpan timeout)
+        IMessageHandler handler, IMessageTracker tracker, FailureRuleCollection rules, TimeSpan timeout,
+        bool recordExceptions = true)
     {
+        _recordExceptions = recordExceptions;
         _contextPool = contextPool;
         Handler = handler;
         _tracker = tracker;
@@ -100,6 +105,7 @@ internal class TracingExecutor : IExecutor
         catch (Exception e)
         {
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            activity.RecordException(e, _recordExceptions);
             _tracker.ExecutionFinished(envelope, e);
             _messageFailed(_logger, _messageTypeName, envelope.Id,
                 envelope.Destination?.ToString() ?? "local", e);
@@ -194,7 +200,9 @@ internal class TracingExecutor : IExecutor
 
             await context.ClearAllAsync();
 
-            Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            var current = Activity.Current;
+            current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            current.RecordException(e, _recordExceptions);
             return _rules.DetermineExecutionContinuation(e, envelope);
         }
         finally
@@ -224,6 +232,10 @@ internal class TracingExecutor : IExecutor
         catch (Exception e)
         {
             _logger.Log(Handler.FailureLogLevel, e, "Invocation of {Message} failed!", context.Envelope.Message);
+
+            // GH-5311. An inline retry reuses this span for its next attempt, so the failure is recorded
+            // now; a rethrow reaches the caller's catch with the same exception, which is not recorded twice
+            Activity.Current.RecordException(e, _recordExceptions);
 
             var retry = _rules.TryFindInlineContinuation(e, context.Envelope);
             if (retry == null)
@@ -281,6 +293,7 @@ internal class TracingExecutor : IExecutor
         catch (Exception e)
         {
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+            activity.RecordException(e, _recordExceptions);
             _tracker.ExecutionFinished(envelope, e);
             _messageFailed(_logger, _messageTypeName, envelope.Id,
                 envelope.Destination?.ToString() ?? "local", e);
@@ -325,6 +338,7 @@ internal class TracingExecutor : IExecutor
                 catch (Exception e)
                 {
                     activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+                    activity.RecordException(e, _recordExceptions);
                     _tracker.ExecutionFinished(envelope, e);
                     _messageFailed(_logger, _messageTypeName, envelope.Id,
                         envelope.Destination?.ToString() ?? "local", e);

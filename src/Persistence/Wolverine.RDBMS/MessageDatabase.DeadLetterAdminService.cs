@@ -255,15 +255,20 @@ public abstract partial class MessageDatabase<T>
     private void writeDeadLetterWhereClause(DeadLetterEnvelopeQuery query, DbCommandBuilder builder,
         DeadLetterArchiveFilter archived)
     {
+        // Dead letters recorded before failure fingerprinting have no failed_at, so fall back to sent_at
+        var rangeColumn = query.RangeOn == DeadLetterTimeField.FailedAt
+            ? $"coalesce({DatabaseConstants.FailedAt}, {DatabaseConstants.SentAt})"
+            : DatabaseConstants.SentAt;
+
         if (query.Range.From.HasValue)
         {
-            builder.Append($" and {DatabaseConstants.SentAt} >= ");
+            builder.Append($" and {rangeColumn} >= ");
             builder.AppendParameter(query.Range.From.Value.ToUniversalTime());
         }
         
         if (query.Range.To.HasValue)
         {
-            builder.Append($" and {DatabaseConstants.SentAt} <= ");
+            builder.Append($" and {rangeColumn} <= ");
             builder.AppendParameter(query.Range.To.Value.ToUniversalTime());
         }
 

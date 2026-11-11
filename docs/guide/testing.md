@@ -203,6 +203,83 @@ yourself:
 acknowledgement APIs depend on them.
 :::
 
+### Messages fanned out by the broker
+
+A tracked session follows each message by its envelope id. When a broker fans one message out to several
+queues, as a RabbitMQ exchange with several bound queues does, every copy arrives with the **same** envelope
+id. That is the usual shape with `MultipleHandlerBehavior.Separated` and conventional routing by handler type,
+where each handler gets its own queue. The session cannot see the broker's bindings, so it does not know how
+many copies to expect. With `IncludeExternalTransports()` it can report `Completed` as soon as the first copy
+is handled, while another queue's handler is still running.
+
+Tell the session what to wait for with a custom `ITrackedCondition`. This one holds the session open until the
+message has been handled at a given number of queues:
+
+<!-- snippet: sample_tracked_condition_for_a_message_fanned_out_by_the_broker -->
+<a id='snippet-sample_tracked_condition_for_a_message_fanned_out_by_the_broker'></a>
+```cs
+/// <summary>
+/// Holds a tracked session open until a message of type T has been handled successfully at
+/// the expected number of distinct receiving endpoints
+/// </summary>
+public class MessageSucceededAtEveryQueue<T> : ITrackedCondition
+{
+    private readonly int _expected;
+    private readonly HashSet<Uri> _queues = new();
+    private readonly object _lock = new();
+
+    public MessageSucceededAtEveryQueue(int expected)
+    {
+        _expected = expected;
+    }
+
+    public void Record(EnvelopeRecord record)
+    {
+        if (record.MessageEventType != MessageEventType.MessageSucceeded) return;
+        if (record.Message is not T) return;
+        if (record.Envelope?.Destination is not { } queue) return;
+
+        lock (_lock)
+        {
+            _queues.Add(queue);
+        }
+    }
+
+    public bool IsCompleted()
+    {
+        lock (_lock)
+        {
+            return _queues.Count >= _expected;
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Bugs/Bug_5416_tracked_session_waits_for_every_fanned_out_copy.cs#L63-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tracked_condition_for_a_message_fanned_out_by_the_broker' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Then add it to the session with `WaitForCondition()`:
+
+<!-- snippet: sample_waiting_for_a_message_fanned_out_by_the_broker -->
+<a id='snippet-sample_waiting_for_a_message_fanned_out_by_the_broker'></a>
+```cs
+var message = new FanOut5416(Guid.NewGuid());
+
+var tracked = await host.TrackActivity()
+    .IncludeExternalTransports()
+    .Timeout(30.Seconds())
+
+    // RabbitMQ delivers one copy of the message to each queue bound to the exchange, and
+    // the tracked session has no way to know how many queues that is. Tell it instead:
+    // keep waiting until the message has been handled successfully at both queues
+    .WaitForCondition(new MessageSucceededAtEveryQueue<FanOut5416>(2))
+    .SendMessageAndWaitAsync(message);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Bugs/Bug_5416_tracked_session_waits_for_every_fanned_out_copy.cs#L42-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_waiting_for_a_message_fanned_out_by_the_broker' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`WaitForExecutionOf<T>(count)` is a simpler option when you only need a count of executions of the message
+type across every queue.
+
 ### Scoping a session by envelope
 
 `IgnoreMessageType<T>()` and `IgnoreMessagesMatchingType()` can only separate traffic by *message type*,
@@ -360,6 +437,35 @@ HTTP endpoints compile on their first request in the same way; `WarmUpRoutes = R
 [the HTTP docs](/guide/http/#eager-warmup)) builds them at startup instead. Pre-generated code
 (`TypeLoadMode.Static`) does no compilation at runtime at all.
 
+### Reusing compiled assemblies across hosts
+
+In `Dynamic` mode every host compiles its own generated code as it starts, so a process that starts many hosts of one
+application (a test suite on Alba 9's host pools, say) compiles identical source once per host. Opt in to a
+process-wide cache of the compiled assemblies:
+
+```csharp
+builder.UseWolverine(opts =>
+{
+    // A host whose generated source and referenced assemblies match an
+    // earlier compilation in this process is handed that assembly
+    opts.CodeGeneration.ReuseCompiledAssemblies = true;
+});
+```
+
+It is off by default and only matters when something compiles: `Dynamic` mode, or `Auto` when it falls back to
+compiling. `Static` mode never compiles. The cached assemblies live for the life of the process, as compiled assemblies
+already do.
+
+The flag is proven by tests for message handler chains in `Dynamic` and `Auto` modes, for HTTP endpoint chains in
+`Dynamic` and `Auto` modes, and for hosts started after the `codegen test` and `codegen write` commands have run with
+the flag on: in each case, hosts in one process share one compiled assembly per chain and the chains still behave
+correctly.
+
+It helps most when you start many hosts, or compile chains at startup (the warm-up above, or eager HTTP route
+warm-up). JasperFx measured a 585-test suite on three pooled hosts going from 513 compilations to 158, and from about
+17-18 s to 11 s. It barely helps when chains compile lazily per test host, which is the case for Wolverine's own test
+suite: there it measured 2-6% of a run's CPU.
+
 ### Forcing projection catch-up outside a tracked session
 
 Under `UseWolverineManagedEventSubscriptionDistribution` the Marten store runs in
@@ -383,6 +489,15 @@ This is the standalone equivalent of the `PauseThenCatchUpOnMartenDaemonActivity
 shown above, for suites that are not driving the work through `TrackActivity()`. It covers every
 locally reachable daemon, including per-(database, tenant) shards.
 
+Both forms start by pausing the async daemon, and on JasperFx.Events versions before
+[jasperfx#1100](https://github.com/JasperFx/jasperfx/pull/1100) that pause has a floor. Stopping the daemon
+stops its high water agent, and the agent's poll loop only noticed the stop once its current wait ran out.
+That wait is `FastPollingTime` (250ms by default) right after events were appended and `SlowPollingTime`
+(1 second by default) once the daemon has caught up, so every call can carry up to that much extra time,
+and more of it after a quiet spell. That time is spent in the pause, not in the catch-up, so a slow call
+does not mean your projections were slow to catch up. The fix is in JasperFx.Events, and the floor goes away
+once your application is on a version that includes it (see [GH-5318](https://github.com/JasperFx/wolverine/issues/5318)).
+
 ::: warning
 Do **not** hand-roll this by pausing the coordinator and then calling `IProjectionDaemon.CatchUpAsync()` on
 each daemon. That introduces a *second* writer of each projection's progression row alongside the shard's
@@ -391,6 +506,58 @@ try to process the projection") and `23505: duplicate key value violates unique 
 "pk_mt_event_progression"` errors. Wolverine's helper never calls `CatchUpAsync` — it resumes the agents
 that already own those shards and waits for non-stale data, so there is only ever one writer.
 :::
+
+### Catching up every Marten store at once <Badge type="tip" text="6.61" />
+
+With ancillary stores, the helpers above take one store at a time, so a test helper has to know every
+store type. `PauseThenCatchUpOnAllMartenDaemonActivityAsync()` catches up the main store and every
+ancillary store that was integrated with `IntegrateWithWolverine()`, one store after another:
+
+<!-- snippet: sample_pause_then_catch_up_on_all_marten_daemon_activity -->
+<a id='snippet-sample_pause_then_catch_up_on_all_marten_daemon_activity'></a>
+```cs
+// Catches up the main Marten store and every ancillary store
+// integrated with Wolverine, without naming the ancillary store types
+await _host.PauseThenCatchUpOnAllMartenDaemonActivityAsync(
+    cancellation: TestContext.Current.CancellationToken);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/TestHelpers/catch_up_on_all_marten_stores.cs#L97-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pause_then_catch_up_on_all_marten_daemon_activity' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The tracked session version is `PauseThenCatchUpOnAllMartenDaemonActivity()`:
+
+<!-- snippet: sample_tracked_session_pause_then_catch_up_on_all_marten_daemon_activity -->
+<a id='snippet-sample_tracked_session_pause_then_catch_up_on_all_marten_daemon_activity'></a>
+```cs
+await _host.TrackActivity()
+    .Timeout(30.Seconds())
+    .PauseThenCatchUpOnAllMartenDaemonActivity()
+    .ExecuteAndWaitAsync(async Task (IMessageContext _) =>
+    {
+        await using var main = _host.DocumentStore().LightweightSession();
+        main.Events.StartStream<LetterCounts>(mainId, "AAB".ToLetterEvents());
+        await main.SaveChangesAsync();
+
+        await using var first = _host.DocumentStore<ILetterStore>().LightweightSession();
+        first.Events.StartStream<LetterCounts>(firstId, "ABBB".ToLetterEvents());
+        await first.SaveChangesAsync();
+
+        await using var second = _host.DocumentStore<ISecondLetterStore>().LightweightSession();
+        second.Events.StartStream<LetterCounts>(secondId, "CCD".ToLetterEvents());
+        await second.SaveChangesAsync();
+    });
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/TestHelpers/catch_up_on_all_marten_stores.cs#L146-L166' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tracked_session_pause_then_catch_up_on_all_marten_daemon_activity' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Both take the same `CatchUpMode` as the single-store helpers. A few differences from calling those
+one store at a time:
+
+- A store, or a tenant database, with no events at all is skipped. The single-store helpers wait out
+  their timeout and throw in that case.
+- The standalone version applies `timeout` to each store, not to the whole call.
+- An ancillary store added with `AddMartenStore<T>()` but never integrated with `IntegrateWithWolverine()`
+  is not included. Use `PauseThenCatchUpOnMartenDaemonActivityAsync<T>()` for that store.
 
 The samples shown above inlcude `Sent` message records, but there are more properties available in the `TrackedSession` object.
 In accordance with the `MessageEventType` enum, you can access these properties on the `TrackedSession` object:
@@ -653,7 +820,8 @@ A few things to know:
   say yet, it just waits on every database before reading through the tenant. An act that carried no tenant at all is
   looked for in every database. That's still exact, because a correlation id only ever belongs to one act.
 * For an HTTP act, `WhenPosted()` sends the act's correlation id as the `X-Correlation-ID` header. For the events an
-  endpoint appends to record it, turn on `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` -- see
+  endpoint appends to record it, `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` has to be on, which
+  it is by default from Wolverine 7.0 -- see
   [applying the correlation id to every endpoint](/guide/http/middleware#applying-the-correlation-id-to-every-endpoint).
   If you make your own HTTP call inside `WhenTracked()`, send `ActCorrelationId` as that header yourself.
 
@@ -1221,6 +1389,42 @@ tables registered on the message store — SQL Server's rate-limit table, for ex
 It is safe to call on a host with no message store and no database-backed queues, so you can put it in a
 shared test fixture base class without breaking your storeless tests.
 
+## Circuit Breakers and Error Policies in Tests
+
+A [circuit breaker](/guide/handlers/error-handling#circuit-breaker) belongs to its listener, so its failure counts
+belong to the host, not to one test. A failure stays counted for the breaker's `TrackingPeriod` (10 minutes by
+default), and a pause clears the counts. When tests share a host, failures that one test scripts on purpose count toward the next
+test's breaker. The breaker can then pause the queue part way through a test that did nothing wrong. A pause from
+an error policy such as `AndPauseProcessing()` carries over the same way.
+
+::: tip
+Give each test that trips a breaker, or relies on one not tripping, a host of its own, with a short `PauseTime` and
+`TrackingPeriod`. Wolverine's own circuit breaker tests do this: see `CircuitBreakerIntegrationContext` in
+[src/Transports/RabbitMQ/CircuitBreakingTests](https://github.com/JasperFx/wolverine/tree/main/src/Transports/RabbitMQ/CircuitBreakingTests).
+:::
+
+To assert on a trip or a resume, wait on `IWolverineRuntime.Tracker` for the listener's status rather than sleeping
+for the `PauseTime`. In this sample every `ProcessOrder` fails. A breaker doesn't trip until it has seen
+`MinimumThreshold` messages (10 by default), so the test sends that many:
+
+```cs
+// Start waiting before the messages go out, so a trip that happens
+// quickly is not missed
+var tripped = runtime.Tracker.WaitForListenerStatusAsync(
+    queueUri, ListeningStatus.Paused, 30.Seconds());
+
+for (var i = 0; i < 10; i++)
+{
+    await host.MessageBus().PublishAsync(new ProcessOrder(i));
+}
+
+await tripped;
+```
+
+`WaitForListenerStatusAsync()` also takes an endpoint name. It completes at once if the last status the tracker
+recorded for that listener already matches. The tracker records a change slightly after the listener makes it, so
+that status can trail the listener's own.
+
 ## Running Wolverine in "Solo" Mode <Badge type="tip" text="3.0" />
 
 Wolverine's [leadership election](/guide/durability/leadership-and-troubleshooting.html#troubleshooting-and-leadership-election) process is necessary for distributing several background tasks in real life production,
@@ -1258,7 +1462,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L53-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L54-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you're using something like [WebHostFactory](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests?view=aspnetcore-8.0) to 

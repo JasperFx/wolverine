@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Weasel.Core;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 
 namespace Wolverine.RDBMS;
@@ -50,8 +51,11 @@ public abstract partial class MessageDatabase<T>
     {
         var table = MarkAsHandledTableName;
 
+        // GH-5312: the body is rewritten too. It is the serialized envelope, headers included, and a retry changes
+        // the headers -- the failed attempt's activity id (GH-4398) rides in one -- so a body left as it was on
+        // arrival lost that header when the scheduled row came due and was read back
         var set =
-            $"update {table} set execution_time = @time, status = '{EnvelopeStatus.Scheduled}', attempts = @attempts, owner_id = {TransportConstants.AnyNode}";
+            $"update {table} set execution_time = @time, status = '{EnvelopeStatus.Scheduled}', attempts = @attempts, owner_id = {TransportConstants.AnyNode}, {DatabaseConstants.Body} = @body";
         var identity = $"where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
 
         // GH-4216, the decision the note below used to defer: a retry booking that lands AFTER the message was
@@ -92,6 +96,7 @@ public abstract partial class MessageDatabase<T>
         var rowsAffected = await CreateCommand(_scheduleExecutionSql)
             .With("time", envelope.ScheduledTime!.Value)
             .With("attempts", envelope.Attempts)
+            .With("body", EnvelopeSerializer.Serialize(envelope))
             .With("id", envelope.Id)
             .With("uri", envelope.Destination!.ToString(), AddressParameterType)
             .ExecuteNonQueryAsync(_cancellation).ConfigureAwait(false);
@@ -127,6 +132,7 @@ public abstract partial class MessageDatabase<T>
         var rowsAffected = await CreateCommand(_scheduleExecutionSql)
             .With("time", envelope.ScheduledTime!.Value)
             .With("attempts", envelope.Attempts)
+            .With("body", EnvelopeSerializer.Serialize(envelope))
             .With("id", envelope.Id)
             .With("uri", envelope.Destination!.ToString(), AddressParameterType)
             .ExecuteNonQueryAsync(_cancellation);

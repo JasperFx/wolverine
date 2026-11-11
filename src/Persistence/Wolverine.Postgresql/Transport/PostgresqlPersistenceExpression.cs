@@ -30,14 +30,27 @@ public class PostgresqlPersistenceExpression : BrokerExpression<PostgresqlTransp
     }
 
     /// <summary>
-    ///     Opt into deterministic ordering for messages with the same timestamp in PostgreSQL
-    ///     queues. This changes the ready and scheduled queue schemas. With <c>AutoCreate.None</c>,
-    ///     apply the schema migration before starting listeners with this option enabled. Configure
-    ///     this before startup; changing it at runtime is not supported.
+    ///     Order messages with the same timestamp deterministically in PostgreSQL queues, and add the
+    ///     <c>queue_order</c> column to queue tables that already exist without it. Deterministic ordering
+    ///     is the default from 7.0 for the queue tables Wolverine creates; call this only to migrate
+    ///     existing tables too. Adding the identity rewrites each table under an exclusive lock, so
+    ///     drain the queue first. With <c>AutoCreate.None</c>, apply the schema migration before starting
+    ///     listeners. Configure this before startup; changing it at runtime is not supported.
     /// </summary>
     public PostgresqlPersistenceExpression EnableDeterministicQueueOrdering()
     {
         Transport.EnableDeterministicQueueOrdering = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     GH-5192. Turn off the <c>queue_order</c> tie-breaker that 7.0 adds to the queue tables it creates,
+    ///     and dequeue in timestamp order only, as Wolverine 6.x did. Tables that already have the column
+    ///     keep it. Configure this before startup.
+    /// </summary>
+    public PostgresqlPersistenceExpression DisableDeterministicQueueOrdering()
+    {
+        Transport.EnableDeterministicQueueOrdering = false;
         return this;
     }
 

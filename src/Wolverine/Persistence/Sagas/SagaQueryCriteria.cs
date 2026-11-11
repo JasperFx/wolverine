@@ -59,7 +59,22 @@ public static class SagaQueryCriteria
     {
         RefuseUnsupported(options);
         var ordered = string.IsNullOrWhiteSpace(options.OrderBy) ? options with { OrderBy = idMember } : options;
-        return ordered.ApplyCriteriaTo(source, idMember);
+
+        // GH-5142: no tie-breaker when the ordering already names the identity. Appending it anyway rendered
+        // "order by id, id", which PostgreSQL accepts and SQL Server refuses ("A column has been specified more
+        // than once in the order by list"), so every default-ordered saga listing failed on Polecat.
+        var tieBreaker = OrdersBy(ordered.OrderBy!, idMember) ? null : idMember;
+        return ordered.ApplyCriteriaTo(source, tieBreaker);
+    }
+
+    /// <summary>
+    /// Whether an ordering text such as <c>"Note desc, Id"</c> already orders by <paramref name="member"/>.
+    /// </summary>
+    internal static bool OrdersBy(string orderBy, string member)
+    {
+        return orderBy.Split(',')
+            .Select(clause => clause.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault())
+            .Any(name => string.Equals(name, member, StringComparison.OrdinalIgnoreCase));
     }
 
     private static void refuse(object? value, string criterion, string? hint = null)

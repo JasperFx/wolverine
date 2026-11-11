@@ -24,7 +24,8 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "TestEndpoint");
+            Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
+            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "TestEndpoint").SetTag("http.route", "test").SetTag("http.request.method", "POST");
             Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
             
             // The actual HTTP request handler execution

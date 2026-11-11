@@ -12,8 +12,8 @@ namespace Internal.Generated.WolverineHandlers
             // The actual message body
             var aotPublishResponseAwarePing = (AotPublishResponseAwarePing)context.Envelope.Message;
 
-            System.Diagnostics.Activity.Current?.SetTag("message.handler", "AotPublishResponseAwareHandler");
-            System.Diagnostics.Activity.Current?.SetTag("handler.type", "AotPublishResponseAwareHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("message.handler", "AotPublishResponseAwareHandler");
+            Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("handler.type", "AotPublishResponseAwareHandler");
             
             // The actual message execution
             var outgoing1 = AotPublishResponseAwareHandler.Handle(aotPublishResponseAwarePing);

@@ -80,3 +80,15 @@ public static Reservation Post2(StartReservation start)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L32-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_start_saga_from_http_endpoint_empty_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+
+## Returning a Saga as the Response Only
+
+Wolverine treats *any* returned `Saga` as a new saga to insert. If the endpoint has already started the saga (say through
+`IMessageBus.InvokeAsync()`) and only wants to hand the saga back as the response body, the second insert fails. Mark
+the endpoint with `[SagaIsResponseOnly]` and Wolverine will skip the saga persistence for that method's return values:
+
+```cs
+[WolverinePost("/reservation3")]
+[SagaIsResponseOnly]
+public static async Task<Reservation> Post3(StartReservation start, IMessageBus bus) { ... }
+```

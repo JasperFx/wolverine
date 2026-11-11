@@ -124,8 +124,8 @@ internal class OutgoingSnsBatch
             catch (Exception e)
             {
                 logger.LogError(e,
-                    "Error while mapping envelope {Envelope} to an SNS PublishBatchRequestEntry. It can never be sent, so it is reported as a serialization failure",
-                    envelope);
+                    "Error while mapping envelope {Name}#{Id} to an SNS PublishBatchRequestEntry. It can never be sent, so it is reported as a serialization failure",
+                    envelope.MessageType, envelope.Id);
                 _mappingFailures.Add(envelope);
             }
         }

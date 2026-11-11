@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization.Encryption;
@@ -14,7 +15,7 @@ internal sealed class FaultPublisher : IFaultPublisher
     private readonly IWolverineRuntime _runtime;
     private readonly ILogger<FaultPublisher> _logger;
     private readonly Counter<int> _publishFailedCounter;
-    private readonly ConcurrentDictionary<Type, Func<object, ExceptionInfo, Envelope, object>> _factories = new();
+    private readonly ConcurrentDictionary<Type, FaultShape> _shapes = new();
 
     public FaultPublisher(
         FaultPublishingPolicy policy,
@@ -65,17 +66,20 @@ internal sealed class FaultPublisher : IFaultPublisher
 
         try
         {
+            // GH-5146: the Fault<T> constructor and the message type name are worked out once per message
+            // type, and only once a fault is actually going to be published
+            var shape = _shapes.GetOrAdd(messageType, FaultShape.For);
+
             var exceptionInfo = ExceptionInfo.From(
                 exception,
                 decision.IncludeExceptionMessage,
                 decision.IncludeStackTrace);
-            var factory = _factories.GetOrAdd(messageType, BuildFactory);
-            var faultMessage = factory(original.Message, exceptionInfo, original);
+            var faultMessage = shape.Create(original.Message, exceptionInfo, original);
 
             var options = new DeliveryOptions();
             options.Headers[FaultHeaders.AutoPublished] = "true";
             options.Headers[FaultHeaders.OriginalId] = original.Id.ToString();
-            options.Headers[FaultHeaders.OriginalType] = messageType.ToMessageTypeName();
+            options.Headers[FaultHeaders.OriginalType] = shape.MessageTypeName;
 
             var router = _runtime.RoutingFor(faultMessage.GetType());
             var outgoing = router.RouteForPublish(faultMessage, options);
@@ -112,21 +116,62 @@ internal sealed class FaultPublisher : IFaultPublisher
         }
     }
 
-    // Reflective construction is fine: this only fires on terminal failures, never on the hot path.
-    private static Func<object, ExceptionInfo, Envelope, object> BuildFactory(Type messageType)
+    /// <summary>
+    ///     What <see cref="PublishIfEnabledAsync" /> needs to know about one message type, worked out once.
+    ///     The Fault&lt;T&gt; constructor is bound once into a <see cref="ConstructorInvoker" /> rather than
+    ///     resolved again by <see cref="Activator.CreateInstance(Type, object[])" /> on every failure.
+    /// </summary>
+    private sealed class FaultShape
     {
-        var faultType = typeof(Fault<>).MakeGenericType(messageType);
-        return (msg, info, env) => Activator.CreateInstance(
-            faultType,
-            msg,
-            info,
-            env.Attempts,
-            DateTimeOffset.UtcNow,
-            env.CorrelationId,                                      // string?
-            env.ConversationId,                                     // Guid
-            env.TenantId,                                           // string?
-            env.Source,                                             // string?
-            FilterEncryptionHeaders(env.Headers))!;
+        private static readonly Type[] ConstructorArgumentTail =
+        [
+            typeof(ExceptionInfo), typeof(int), typeof(DateTimeOffset), typeof(string), typeof(Guid),
+            typeof(string), typeof(string), typeof(IReadOnlyDictionary<string, string?>)
+        ];
+
+        private readonly ConstructorInvoker _constructor;
+
+        private FaultShape(ConstructorInvoker constructor, string messageTypeName)
+        {
+            _constructor = constructor;
+            MessageTypeName = messageTypeName;
+        }
+
+        public string MessageTypeName { get; }
+
+        // Only called for a reference type that is not itself a Fault<T>; PublishIfEnabledAsync filters both
+        public static FaultShape For(Type messageType)
+        {
+            return new FaultShape(ConstructorInvoker.Create(findConstructor(messageType)),
+                messageType.ToMessageTypeName());
+        }
+
+        // Reflective construction is fine: this only fires on terminal failures, never on the hot path.
+        private static ConstructorInfo findConstructor(Type messageType)
+        {
+            var faultType = typeof(Fault<>).MakeGenericType(messageType);
+            Type[] argumentTypes = [messageType, ..ConstructorArgumentTail];
+            return faultType.GetConstructor(argumentTypes)
+                   ?? throw new InvalidOperationException($"Unable to find the primary constructor of {faultType}");
+        }
+
+        public object Create(object message, ExceptionInfo info, Envelope envelope)
+        {
+            var arguments = new object?[]
+            {
+                message,
+                info,
+                envelope.Attempts,
+                DateTimeOffset.UtcNow,
+                envelope.CorrelationId, // string?
+                envelope.ConversationId, // Guid
+                envelope.TenantId, // string?
+                envelope.Source, // string?
+                FilterEncryptionHeaders(envelope.Headers)
+            };
+
+            return _constructor.Invoke(arguments.AsSpan());
+        }
     }
 
     // Strip wolverine.encryption.* keys when materializing Fault<T>.Headers.

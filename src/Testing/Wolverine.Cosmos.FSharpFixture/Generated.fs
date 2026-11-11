@@ -21,14 +21,14 @@ type ContinueThingHandler603355368(container: Microsoft.Azure.Cosmos.Container) 
             let continueThing = context.Envelope.Message :?> WolverineCosmosFSharpSample.ContinueThing
 
             // Application-specific Open Telemetry auditing
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("SagaId", continueThing.SagaId) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("SagaId", continueThing.SagaId) |> ignore
 
             // Enlist in CosmosDB outbox transaction
             context.EnlistInOutbox(Wolverine.CosmosDb.Internals.CosmosDbEnvelopeTransaction(_container, context))
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("message.handler", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
-                System.Diagnostics.Activity.Current.SetTag("handler.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
             let sagaId = if isNull continueThing.SagaId then context.Envelope.SagaId else continueThing.SagaId
             if System.String.IsNullOrEmpty(sagaId) then
                 raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope, typeof<WolverineCosmosFSharpSample.ThingSaga>, "SagaId"))
@@ -47,9 +47,9 @@ type ContinueThingHandler603355368(container: Microsoft.Azure.Cosmos.Container) 
                 raise (Wolverine.Persistence.Sagas.UnknownSagaException(typeof<WolverineCosmosFSharpSample.ThingSaga>, sagaId))
             else
                 context.SetSagaId(sagaId)
-                if not (isNull System.Diagnostics.Activity.Current) then
-                    System.Diagnostics.Activity.Current.SetTag("wolverine.saga.id", sagaId.ToString()) |> ignore
-                    System.Diagnostics.Activity.Current.SetTag("wolverine.saga.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
+                if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                    (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.id", sagaId.ToString()) |> ignore
+                    (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
                 
                 // The actual message execution
                 thingSaga.Handle(continueThing)
@@ -87,9 +87,9 @@ type CreateThingHandler2004325667(container: Microsoft.Azure.Cosmos.Container, f
             // The actual message body
             let createThing = context.Envelope.Message :?> WolverineCosmosFSharpSample.CreateThing
 
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("message.handler", "WolverineCosmosFSharpSample.CreateThingHandler") |> ignore
-                System.Diagnostics.Activity.Current.SetTag("handler.type", "WolverineCosmosFSharpSample.CreateThingHandler") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineCosmosFSharpSample.CreateThingHandler") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineCosmosFSharpSample.CreateThingHandler") |> ignore
             do! Wolverine.FluentValidation.Internals.FluentValidationExecutor.ExecuteOne<WolverineCosmosFSharpSample.CreateThing>(createThingValidator, _failureActionOfCreateThing, createThing)
 
             // Enlist in CosmosDB outbox transaction
@@ -120,22 +120,22 @@ type StartThingSagaHandler963364493(container: Microsoft.Azure.Cosmos.Container)
             let startThingSaga = context.Envelope.Message :?> WolverineCosmosFSharpSample.StartThingSaga
 
             // Application-specific Open Telemetry auditing
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("Id", startThingSaga.Id) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("Id", startThingSaga.Id) |> ignore
 
             // Enlist in CosmosDB outbox transaction
             context.EnlistInOutbox(Wolverine.CosmosDb.Internals.CosmosDbEnvelopeTransaction(_container, context))
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("message.handler", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
-                System.Diagnostics.Activity.Current.SetTag("handler.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
             
             // The actual message execution
             let outgoing1 = WolverineCosmosFSharpSample.ThingSaga.Start(startThingSaga)
 
             context.SetSagaId(startThingSaga.Id)
-            if not (isNull System.Diagnostics.Activity.Current) then
-                System.Diagnostics.Activity.Current.SetTag("wolverine.saga.id", startThingSaga.Id.ToString()) |> ignore
-                System.Diagnostics.Activity.Current.SetTag("wolverine.saga.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.id", startThingSaga.Id.ToString()) |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
             if not (outgoing1.IsCompleted()) then
                 try
                     let! _ = _container.CreateItemAsync(outgoing1)

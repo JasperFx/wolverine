@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Wolverine;
 using Wolverine.Http;
+using Wolverine.Persistence.Sagas;
 
 namespace WolverineWebApi;
 
@@ -39,6 +40,23 @@ public static class ReservationEndpoint
     public static Reservation Post2(StartReservation start)
     {
         return new Reservation { Id = start.ReservationId };
+    }
+
+    #endregion
+
+    #region sample_saga_returned_as_response_only
+    [WolverinePost("/reservation3")]
+
+    // The saga is started elsewhere (here by the Marten session), so this
+    // directs Wolverine to treat the returned Reservation as the response body only
+    [SagaIsResponseOnly]
+    public static async Task<Reservation> Post3(StartReservation start, IMessageBus bus,
+        global::Marten.IDocumentSession session)
+    {
+        var reservation = new Reservation { Id = start.ReservationId };
+        session.Store(reservation);
+        await session.SaveChangesAsync();
+        return reservation;
     }
 
     #endregion

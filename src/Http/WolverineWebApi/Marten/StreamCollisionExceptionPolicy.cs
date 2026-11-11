@@ -2,7 +2,7 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
-using Marten.Exceptions;
+using JasperFx.Events;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 using Wolverine.Marten;

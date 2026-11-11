@@ -279,13 +279,55 @@ public class DurabilitySettings : IDescribeMyself
         : AssignedNodeNumber;
 
     /// <summary>
-    /// GH-5016. Opt in to an index on the outgoing envelope table's <c>timestamp</c> column, for the stale
-    /// <c>owner_id = 0</c> predicate a <see cref="DurabilityMode.ServerlessWithOutbox"/> durability pass
-    /// uses to find the outbox rows whose inline send failed. Only applies where the column exists, which
-    /// is whenever <see cref="OutboxStaleTime"/> has a value. Default is false, so there is no schema
-    /// change unless you ask for one
+    /// GH-5193. When true (the default since 7.0), the relational message stores always create three small,
+    /// additive schema objects whether or not the feature that reads them is turned on: the <c>timestamp</c>
+    /// column on the incoming and outgoing envelope tables, the partial index on the outgoing <c>timestamp</c>
+    /// column for the stale <c>owner_id = 0</c> predicate of a <see cref="DurabilityMode.ServerlessWithOutbox"/>
+    /// durability pass, and the nullable <c>load_factor</c> column on the <c>wolverine_nodes</c> table. Turning
+    /// on <see cref="InboxStaleTime"/>, <see cref="OutboxStaleTime"/> or <see cref="CapacityAwareAssignment"/>
+    /// later is then a configuration change only, with no schema migration.
     /// </summary>
-    public bool EnableOutgoingTimestampIndex { get; set; }
+    /// <remarks>
+    /// Only the schema is unconditional; the behaviour stays opt-in, and no statement reads or writes these
+    /// objects unless its own setting is on. Set this to false, or call
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/>, for the Wolverine 6.x layout: each column is created
+    /// only when its setting is on, and the outgoing timestamp index is not created. A value set explicitly wins
+    /// over <see cref="WolverineOptions.RestoreV6Defaults"/>, whichever is called first. The document stores
+    /// have no schema to provision and ignore this setting.
+    /// </remarks>
+    public bool AlwaysProvisionOptionalSchemaObjects
+    {
+        get => _alwaysProvisionOptionalSchemaObjects ?? !V6DefaultsRestored;
+        set => _alwaysProvisionOptionalSchemaObjects = value;
+    }
+
+    private bool? _alwaysProvisionOptionalSchemaObjects;
+
+    /// <summary>
+    /// Set by <see cref="WolverineOptions.RestoreV6Defaults"/>, so the durability defaults Wolverine 7.0
+    /// flipped resolve to their 6.x values unless they were set explicitly
+    /// </summary>
+    internal bool V6DefaultsRestored { get; set; }
+
+    /// <summary>
+    /// Whether the relational stores create the incoming envelope table's <c>timestamp</c> column
+    /// </summary>
+    internal bool ProvisionsIncomingTimestamp => AlwaysProvisionOptionalSchemaObjects || InboxStaleTime.HasValue;
+
+    /// <summary>
+    /// Whether the relational stores create the outgoing envelope table's <c>timestamp</c> column
+    /// </summary>
+    internal bool ProvisionsOutgoingTimestamp => AlwaysProvisionOptionalSchemaObjects || OutboxStaleTime.HasValue;
+
+    /// <summary>
+    /// Whether the relational stores create the partial index on the outgoing <c>timestamp</c> column (GH-5016)
+    /// </summary>
+    internal bool ProvisionsOutgoingTimestampIndex => AlwaysProvisionOptionalSchemaObjects;
+
+    /// <summary>
+    /// Whether the relational stores create the <c>load_factor</c> column on <c>wolverine_nodes</c> (GH-3959)
+    /// </summary>
+    internal bool ProvisionsNodeLoadFactor => AlwaysProvisionOptionalSchemaObjects || CapacityAwareAssignment;
 
     /// <summary>
     /// GH-5279. Opt in to a transaction-scoped durability pass lock for the message stores that support one, which
@@ -446,72 +488,98 @@ public class DurabilitySettings : IDescribeMyself
     /// </summary>
     public int HandledMessageCleanupMaxBatchesPerCycle { get; set; } = 20;
 
+    private MessageDeduplicationMode? _messageDeduplicationMode;
+    private bool? _enableDeduplicatedResponses;
+    private bool _v6DeduplicationDefaultsRestored;
+
     /// <summary>
-    ///     GH-4180. Opt in to storage for <b>logical</b> message deduplication ids — the
+    ///     GH-4757. Storage for <b>logical</b> message deduplication ids — the
     ///     <see cref="Envelope.DeduplicationId" /> an application sets to say "this is the same intent",
-    ///     as opposed to <see cref="Envelope.Id" />, which identifies one delivery.
+    ///     as opposed to <see cref="Envelope.Id" />, which identifies one delivery — and how those ids
+    ///     are compared for equality.
     ///
     ///     <para>
-    ///     Off by default, and deliberately so: enabling it provisions a new
-    ///     <c>wolverine_deduplication</c> table, and forcing a schema change on every existing
-    ///     deployment is not something a patch upgrade should do. Nothing in the read or write path of
-    ///     the transactional inbox changes either way — the deduplication markers live in their own
-    ///     table (see <see cref="Persistence.Durability.IDeduplicationStore" /> for why).
+    ///     The default is <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" /> as of 7.0
+    ///     (GH-5194), so every message store provisions the <c>wolverine_deduplication_hashed</c> table
+    ///     and its cleanup job. It was <see cref="Wolverine.MessageDeduplicationMode.None" /> in 6.x.
+    ///     <see cref="WolverineOptions.RestoreV6Defaults" /> puts the 6.x default back, and so does
+    ///     setting this to <see cref="Wolverine.MessageDeduplicationMode.None" />, which provisions
+    ///     nothing. An explicit setting always wins over either default.
     ///     </para>
     ///
     ///     <para>
-    ///     Turning this on provisions storage; it does not by itself deduplicate anything. Individual
-    ///     message handlers, HTTP endpoints and gRPC methods opt in with <c>[Deduplicated]</c> or via
+    ///     The comparison is a binary one with
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" />, and therefore identical on
+    ///     every engine. <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> preserves the
+    ///     original GH-4180 table and comparison exactly, for an application that cannot take the schema
+    ///     change.
+    ///     </para>
+    ///
+    ///     <para>
+    ///     Storage on its own does not deduplicate anything. Individual message handlers, HTTP endpoints
+    ///     and gRPC methods opt in with <c>[Deduplicated]</c> or via
     ///     <c>Policies.RequireDeduplicationId()</c>.
     ///     </para>
     /// </summary>
     /// <remarks>
-    ///     GH-4757. A boolean cannot say HOW the ids are compared, and the original string comparison
-    ///     behaves differently on SQL Server and MySQL than on PostgreSQL and SQLite — see
-    ///     <see cref="MessageDeduplicationMode" />. Kept as a pass-through so existing configuration code
-    ///     keeps compiling: <c>true</c> now means
-    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" />, the engine-independent
-    ///     comparison. An application that needs the old table and the old comparison sets
-    ///     <see cref="MessageDeduplicationMode" /> to
-    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> explicitly.
+    ///     GH-5194. Why a default rather than "provision the table only when a chain uses it": the
+    ///     message stores decide which tables they own when they are constructed and initialized, and
+    ///     that happens before handler discovery at startup. The <c>resources setup</c> /
+    ///     <c>db-apply</c> commands build the schema without discovering handlers at all, and HTTP
+    ///     endpoints can be discovered after the storage has migrated. Usage is not known in time.
     /// </remarks>
-    [Obsolete(
-        "Use DurabilitySettings.MessageDeduplicationMode instead. 'true' maps to MessageDeduplicationMode.CompareByHash and 'false' to MessageDeduplicationMode.None. GH-4757")]
-    public bool EnableMessageDeduplication
+    public MessageDeduplicationMode MessageDeduplicationMode
     {
-        get => MessageDeduplicationMode != MessageDeduplicationMode.None;
-        set => MessageDeduplicationMode =
-            value ? MessageDeduplicationMode.CompareByHash : MessageDeduplicationMode.None;
+        get => _messageDeduplicationMode ?? (_v6DeduplicationDefaultsRestored
+            ? MessageDeduplicationMode.None
+            : MessageDeduplicationMode.CompareByHash);
+        set => _messageDeduplicationMode = value;
     }
 
     /// <summary>
-    ///     GH-4757. Opt in to storage for <b>logical</b> message deduplication ids, and choose how those
-    ///     ids are compared for equality. <see cref="Wolverine.MessageDeduplicationMode.None" /> — the
-    ///     default — provisions nothing, so an upgrade migrates nothing.
-    ///
-    ///     <para>
-    ///     Prefer <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" />: the comparison is a
-    ///     binary one and therefore identical on every engine.
-    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> preserves the original
-    ///     GH-4180 table and comparison exactly, for an application that cannot take the schema change.
-    ///     </para>
-    ///
-    ///     <para>
-    ///     Setting this provisions storage; it does not by itself deduplicate anything. Individual
-    ///     message handlers, HTTP endpoints and gRPC methods opt in with <c>[Deduplicated]</c> or via
-    ///     <c>Policies.RequireDeduplicationId()</c>.
-    ///     </para>
-    /// </summary>
-    public MessageDeduplicationMode MessageDeduplicationMode { get; set; } = MessageDeduplicationMode.None;
-
-    /// <summary>
-    ///     GH-4742. Opt in to storage for <c>[DeduplicatedWithResponse]</c> HTTP endpoints, which answer a repeat
+    ///     GH-4742. Storage for <c>[DeduplicatedWithResponse]</c> HTTP endpoints, which answer a repeat
     ///     of a request with its first response. Provisions a separate <c>wolverine_deduplicated_responses</c>
-    ///     table, so it is independent of <see cref="EnableMessageDeduplication" />. Claims expire after
+    ///     table, so it is independent of <see cref="MessageDeduplicationMode" />. Claims expire after
     ///     <see cref="DeduplicationWindow" /> unless the endpoint sets its own, and are reaped on
     ///     <see cref="DeduplicationCleanupPollingTime" />.
+    ///
+    ///     <para>
+    ///     On by default as of 7.0 (GH-5194), off in 6.x. <see cref="WolverineOptions.RestoreV6Defaults" />
+    ///     turns it back off, and so does setting it to <see langword="false" />. An explicit setting
+    ///     always wins over either default.
+    ///     </para>
     /// </summary>
-    public bool EnableDeduplicatedResponses { get; set; }
+    public bool EnableDeduplicatedResponses
+    {
+        get => _enableDeduplicatedResponses ?? !_v6DeduplicationDefaultsRestored;
+        set => _enableDeduplicatedResponses = value;
+    }
+
+    /// <summary>
+    ///     GH-5194. Called by <see cref="WolverineOptions.RestoreV6Defaults" />: the deduplication defaults go
+    ///     back to <see cref="Wolverine.MessageDeduplicationMode.None" /> and no deduplicated responses.
+    ///     Values the application set explicitly, before or after, are left alone.
+    /// </summary>
+    internal void RestoreV6DeduplicationDefaults()
+    {
+        _v6DeduplicationDefaultsRestored = true;
+    }
+
+    /// <summary>
+    ///     GH-5194. Make sure logical deduplication storage is on, for a feature that depends on it
+    ///     (registering a recurring message). Leaves an explicit
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> alone, promotes an explicit
+    ///     <see cref="Wolverine.MessageDeduplicationMode.None" />, and pins
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" /> when nothing was set, so a later
+    ///     <see cref="WolverineOptions.RestoreV6Defaults" /> cannot take it away again.
+    /// </summary>
+    internal void RequireMessageDeduplication()
+    {
+        if (_messageDeduplicationMode is null or MessageDeduplicationMode.None)
+        {
+            _messageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
+        }
+    }
 
     /// <summary>
     ///     GH-4180. How long a logical deduplication claim is honoured before the reaper removes it.
@@ -959,12 +1027,15 @@ public class DurabilitySettings : IDescribeMyself
     ///         take the entire partition — a shard database's agents are never split to relieve pressure.
     ///     </para>
     ///     <para>
-    ///         On a relational store, enabling this provisions a <c>load_factor</c> column on the
-    ///         <c>wolverine_nodes</c> table. With <c>AutoCreate.None</c> — or a process without DDL
-    ///         rights — apply the schema migration before turning this on; otherwise every heartbeat
-    ///         fails against the missing column. Every statement naming the column is gated on this same
-    ///         flag, so leaving it off migrates nothing and reads nothing. The document stores have no
-    ///         schema to migrate: an absent property simply reads back as "not advertising".
+    ///         On a relational store, the nullable <c>load_factor</c> column on the <c>wolverine_nodes</c>
+    ///         table is always created (GH-5193, see <see cref="AlwaysProvisionOptionalSchemaObjects" />),
+    ///         so turning this on needs no schema migration. Every statement naming the column is gated on
+    ///         this flag, so leaving it off reads and writes nothing. With
+    ///         <see cref="AlwaysProvisionOptionalSchemaObjects" /> turned off the column is only created when
+    ///         this is on; with <c>AutoCreate.None</c> — or a process without DDL rights — apply the schema
+    ///         migration before turning it on, otherwise every heartbeat fails against the missing column.
+    ///         The document stores have no schema to migrate: an absent property simply reads back as
+    ///         "not advertising".
     ///     </para>
     /// </summary>
     public bool CapacityAwareAssignment { get; set; }
@@ -1248,7 +1319,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(EnableRecurringMessages), EnableRecurringMessages);
 
         if (OutboxStaleTime.HasValue) desc.AddValue(nameof(OutboxStaleTime), OutboxStaleTime.Value);
-        if (EnableOutgoingTimestampIndex) desc.AddValue(nameof(EnableOutgoingTimestampIndex), EnableOutgoingTimestampIndex);
+        desc.AddValue(nameof(AlwaysProvisionOptionalSchemaObjects), AlwaysProvisionOptionalSchemaObjects);
         if (UseTransactionScopedDurabilityPassLock) desc.AddValue(nameof(UseTransactionScopedDurabilityPassLock), UseTransactionScopedDurabilityPassLock);
         if (InboxStaleTime.HasValue) desc.AddValue(nameof(InboxStaleTime), InboxStaleTime.Value);
         if (MessageStorageSchemaName != null) desc.AddValue(nameof(MessageStorageSchemaName), MessageStorageSchemaName);
