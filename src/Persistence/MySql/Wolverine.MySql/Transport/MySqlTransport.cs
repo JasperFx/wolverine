@@ -83,7 +83,9 @@ public class MySqlTransport : BrokerTransport<MySqlQueue>
     /// <summary>
     ///     GH-5192. Whether the application restored the Wolverine 6.x defaults.
     /// </summary>
-    internal bool V6DefaultsRestored { get; set; }
+    // Hides BrokerTransport.V6DefaultsRestored (GH-5196), which is only read when the transport initializes:
+    // the queue table layout is decided earlier, by the message store setup that sets this one (GH-5192)
+    internal new bool V6DefaultsRestored { get; set; }
 
     protected override IEnumerable<MySqlQueue> endpoints()
     {

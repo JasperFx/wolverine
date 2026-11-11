@@ -290,11 +290,24 @@ public class DurabilitySettings : IDescribeMyself
     /// <remarks>
     /// Only the schema is unconditional; the behaviour stays opt-in, and no statement reads or writes these
     /// objects unless its own setting is on. Set this to false, or call
-    /// <c>WolverineOptions.RestoreV6Defaults()</c>, for the Wolverine 6.x layout: each column is created
-    /// only when its setting is on, and the outgoing timestamp index is not created. The document stores have
-    /// no schema to provision and ignore this setting.
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/>, for the Wolverine 6.x layout: each column is created
+    /// only when its setting is on, and the outgoing timestamp index is not created. A value set explicitly wins
+    /// over <see cref="WolverineOptions.RestoreV6Defaults"/>, whichever is called first. The document stores
+    /// have no schema to provision and ignore this setting.
     /// </remarks>
-    public bool AlwaysProvisionOptionalSchemaObjects { get; set; } = true;
+    public bool AlwaysProvisionOptionalSchemaObjects
+    {
+        get => _alwaysProvisionOptionalSchemaObjects ?? !V6DefaultsRestored;
+        set => _alwaysProvisionOptionalSchemaObjects = value;
+    }
+
+    private bool? _alwaysProvisionOptionalSchemaObjects;
+
+    /// <summary>
+    /// Set by <see cref="WolverineOptions.RestoreV6Defaults"/>, so the durability defaults Wolverine 7.0
+    /// flipped resolve to their 6.x values unless they were set explicitly
+    /// </summary>
+    internal bool V6DefaultsRestored { get; set; }
 
     /// <summary>
     /// Whether the relational stores create the incoming envelope table's <c>timestamp</c> column
