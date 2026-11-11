@@ -58,6 +58,10 @@ public sealed partial class WolverineOptions
         // on and the index is not created. Resolved through the flag so an explicit setting still wins.
         Durability.V6DefaultsRestored = true;
 
+        // GH-5197: 7.0 creates envelope ids with EnvelopeIdGeneration.GuidV7, 6.x with NewId. Nothing to assign:
+        // the EnvelopeIdGeneration getter reads V6DefaultsRestored, so an explicit setting still wins and a SQL
+        // Server-only application still switches to NewIdSqlServerOrder at startup, as it did in 6.x.
+
         // Add one line here for each core default 7.x flips, a row to the 7.0 defaults
         // table in docs/guide/migration.md and an entry to restore_v6_defaults_tests.
         // Defaults owned by extension packages read V6DefaultsRestored instead.

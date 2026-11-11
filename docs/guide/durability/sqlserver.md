@@ -43,7 +43,7 @@ schema change.
 :::
 
 Wolverine's SQL Server inbox, outbox, and dead letter tables are clustered on the envelope id. Wolverine's default
-envelope ids are created in an order that .NET and PostgreSQL see as sequential, but SQL Server compares a
+envelope ids (`GuidV7` as of 7.0) are created in an order that .NET and PostgreSQL see as sequential, but SQL Server compares a
 `uniqueidentifier` starting from its *last* six bytes, so as far as SQL Server is concerned those ids arrive in random
 order. On a busy system that means constant page splits. One user
 [measured](https://github.com/JasperFx/wolverine/issues/4902) a production inbox that was 99% fragmented with its
@@ -58,13 +58,14 @@ So this plain registration is all it takes:
 // EnvelopeIdGeneration.NewIdSqlServerOrder at startup all by itself
 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "ordered_ids");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L37-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_only_application_gets_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L41-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_only_application_gets_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Under the covers, every message store tells Wolverine which envelope id layout it would like, and if they *all*
 agree, Wolverine uses it. The SQL Server message store -- which also backs the SQL Server transport, EF Core with SQL
 Server, and Polecat -- asks for `EnvelopeIdGeneration.NewIdSqlServerOrder`, which is the same NewId algorithm and
-uniqueness as the default with the timestamp moved to where SQL Server sorts on it. If any other message store in the
+uniqueness as Wolverine 6.x's default with the timestamp moved to where SQL Server sorts on it. That still holds in
+7.0, where the plain default is `GuidV7`, and after `RestoreV6Defaults()`. If any other message store in the
 application doesn't agree, say a PostgreSQL ancillary store, Wolverine keeps the default ids. You'll see a log
 message at startup when the switch happens.
 
@@ -78,15 +79,16 @@ index even worse than completely random GUIDs. In that case, opt out by setting 
 <a id='snippet-sample_opting_out_of_sql_server_ordered_ids_explicitly'></a>
 ```cs
 // This application sends messages to Wolverine services that store
-// their envelopes in PostgreSQL, so keep the default ids
-opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId;
+// their envelopes in PostgreSQL, so use the time-ordered GuidV7 ids
+opts.EnvelopeIdGeneration = EnvelopeIdGeneration.GuidV7;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L72-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_out_of_sql_server_ordered_ids_explicitly' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L76-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_out_of_sql_server_ordered_ids_explicitly' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 :::
 
 The `PersistMessagesWithSqlServer()` and `UseSqlServerPersistenceAndTransport()` registrations also have an overload
-that takes `optimizeEnvelopeIdsForSqlServer`. Passing `false` is another way to opt out:
+that takes `optimizeEnvelopeIdsForSqlServer`. Passing `false` is another way to opt out, and keeps the default ids
+(`GuidV7`, or `NewId` after `RestoreV6Defaults()`):
 
 <!-- snippet: sample_persist_messages_with_sql_server_opting_out_of_sql_server_ordered_ids -->
 <a id='snippet-sample_persist_messages_with_sql_server_opting_out_of_sql_server_ordered_ids'></a>
@@ -94,7 +96,7 @@ that takes `optimizeEnvelopeIdsForSqlServer`. Passing `false` is another way to 
 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString,
     optimizeEnvelopeIdsForSqlServer: false, schema: "ordered_ids");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L94-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_persist_messages_with_sql_server_opting_out_of_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L98-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_persist_messages_with_sql_server_opting_out_of_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 <!-- snippet: sample_sql_server_persistence_and_transport_and_sql_server_ordered_ids -->
@@ -103,7 +105,7 @@ opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString,
 opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString,
     optimizeEnvelopeIdsForSqlServer: false, schema: "ordered_ids");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L136-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_persistence_and_transport_and_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L176-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_persistence_and_transport_and_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and passing `true` forces the SQL Server-ordered ids even when some other message store in your application has no
@@ -116,7 +118,7 @@ opinion:
 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString,
     optimizeEnvelopeIdsForSqlServer: true, schema: "ordered_ids");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L114-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_persist_messages_with_sql_server_and_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L154-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_persist_messages_with_sql_server_and_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 An explicit `opts.EnvelopeIdGeneration` always wins over all of this. See

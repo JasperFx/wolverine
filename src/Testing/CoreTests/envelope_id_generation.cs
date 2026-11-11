@@ -14,13 +14,22 @@ public class envelope_id_generation : IDisposable
     public void Dispose()
     {
         // Reset to default after each test
-        Envelope.IdGenerator = EnvelopeIds.NextSequentialGuid;
+        Envelope.IdGenerator = Guid.CreateVersion7;
+    }
+
+    // GH-5197. GuidV7 is the 7.0 default; NewId is the 6.x default RestoreV6Defaults() puts back
+    [Fact]
+    public void default_envelope_id_generation_is_guid_v7()
+    {
+        var options = new WolverineOptions();
+        options.EnvelopeIdGeneration.ShouldBe(EnvelopeIdGeneration.GuidV7);
     }
 
     [Fact]
-    public void default_envelope_id_generation_is_new_id()
+    public void restore_v6_defaults_brings_back_new_id()
     {
         var options = new WolverineOptions();
+        options.RestoreV6Defaults();
         options.EnvelopeIdGeneration.ShouldBe(EnvelopeIdGeneration.NewId);
     }
 
