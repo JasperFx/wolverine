@@ -56,7 +56,7 @@ public class PubsubPushEnvelopeMapper : IPushEnvelopeMapper
         if (message.Attributes.ContainsKey("batched"))
         {
             // Wolverine's own batching sender, which marks every message it publishes as a batch, even a batch of one
-            envelopes = EnvelopeSerializer.ReadMany(message.Data.ToByteArray());
+            envelopes = EnvelopeSerializer.ReadMany(message.Data.Memory);
         }
         else
         {

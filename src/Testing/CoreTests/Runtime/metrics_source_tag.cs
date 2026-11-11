@@ -5,6 +5,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Tracking;
+using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Runtime;
@@ -103,6 +104,32 @@ public class metrics_source_tag : IAsyncLifetime
             {
                 tags.ContainsKey(MetricsConstants.SourceKey).ShouldBeTrue($"instrument {name} missing source");
                 tags[MetricsConstants.SourceKey].ShouldBe(TheServiceName, $"instrument {name} wrong source");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task a_failed_execution_tags_only_the_failure_counter_with_the_exception_type()
+    {
+        // GH-5146: the failure path builds one tag set for both the execution-time histogram and the
+        // execution-failure counter. The exception type belongs on the failure counter alone.
+        await _host.TrackActivity()
+            .DoNotAssertOnExceptionsDetected()
+            .SendMessageAndWaitAsync(new MetricFail());
+
+        var failures = _measurements[MetricsConstants.MessagesFailed].ToArray();
+        failures.ShouldNotBeEmpty();
+        foreach (var tags in failures)
+        {
+            tags[MetricsConstants.ExceptionType].ShouldBe(nameof(InvalidOperationException));
+            tags[MetricsConstants.MessageTypeKey].ShouldBe(typeof(MetricFail).ToMessageTypeName());
+        }
+
+        if (_measurements.TryGetValue(MetricsConstants.ExecutionTime, out var executions))
+        {
+            foreach (var tags in executions)
+            {
+                tags.ContainsKey(MetricsConstants.ExceptionType).ShouldBeFalse();
             }
         }
     }

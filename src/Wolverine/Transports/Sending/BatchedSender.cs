@@ -52,7 +52,7 @@ public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativ
             }
             catch (Exception? ex)
             {
-                _logger.LogError(ex, "Error while trying to serialize envelope {Envelope}", e);
+                _logger.LogError(ex, "Error while trying to serialize envelope {Name}#{Id}", e.GetMessageTypeName(), e.Id);
             }
 
             return e;
