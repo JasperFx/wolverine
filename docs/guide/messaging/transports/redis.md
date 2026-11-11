@@ -337,7 +337,8 @@ Outbound sends are routed by tenant id through the framework's `TenantedSender`;
 listener per tenant connection and stamps each received envelope with its tenant id. `ConfigureMultiTenancy`
 controls what happens for a message whose tenant id is unknown:
 
-* `FallbackToDefault` (the default) — use the shared/default connection.
+* `DeadLetterUnknownTenants` (the default since 7.0) — a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
+* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) — use the shared/default connection.
 * `TenantIdRequired` — reject a message that has no tenant id.
 * `IgnoreUnknownTenants` — silently drop messages for tenants that were never registered.
 

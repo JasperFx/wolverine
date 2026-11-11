@@ -141,8 +141,9 @@ public class multi_tenanted_brokers
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString)
 
-                // This is the default, if there is no tenant id on an outgoing message,
-                // use the default broker
+                // This was the 6.x default: an outgoing message with no tenant id, or an
+                // unrecognized one, uses the default broker. Since 7.0 the default is
+                // DeadLetterUnknownTenants, which dead letters an unrecognized tenant id
                 .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
                 // Or tell Wolverine instead to just quietly ignore messages sent
