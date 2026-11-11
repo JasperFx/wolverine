@@ -67,9 +67,9 @@ public class unknown_tenant_problem_details_4516
     }
 
     [Fact]
-    public async Task without_the_opt_in_the_unknown_tenant_is_not_mapped_to_404()
+    public async Task opted_out_the_unknown_tenant_is_not_mapped_to_404()
     {
-        // The point of this control is that MapUnknownTenantToNotFound() is what produces the 404, rather
+        // The point of this control is that the unknown tenant mapping is what produces the 404, rather
         // than something else in the pipeline. It is NOT a claim about how the unmapped failure surfaces,
         // and the first version of this test accidentally made one: it asked Alba to assert a 404 inside a
         // scenario it expected to throw, which is self contradictory. Locally the UnknownTenantIdException
@@ -77,7 +77,7 @@ public class unknown_tenant_problem_details_4516
         // 500 first, so Alba's own 404 assertion failed and raised ScenarioAssertionException instead --
         // red on every PR until this fix.
         //
-        // Assert only what the opt in owns: without it, the response is not a mapped 404.
+        // Assert only what the mapping owns: opted out of it, the response is not a mapped 404.
         await using var host = await startHostAsync(mapUnknownTenant: false);
 
         try
@@ -143,6 +143,11 @@ public class unknown_tenant_problem_details_4516
             if (mapUnknownTenant)
             {
                 opts.MapUnknownTenantToNotFound();
+            }
+            else
+            {
+                // GH-5195: the mapping is on by default from 7.0, so the control has to opt out of it
+                opts.DoNotMapUnknownTenantToNotFound();
             }
 
             opts.CustomizeHttpEndpointDiscovery(q =>

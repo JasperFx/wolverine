@@ -833,7 +833,8 @@ clusters. Do not conflate the two.
 
 `TenantIdBehavior(...)` controls what happens when a message has a null or unregistered tenant id:
 
-* `FallbackToDefault` (the default) — route it to the default cluster passed to `UsePulsar`.
+* `DeadLetterUnknownTenants` (the default since 7.0) — a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
+* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) — route it to the default cluster passed to `UsePulsar`.
 * `TenantIdRequired` — throw; every message must carry a known tenant id.
 * `IgnoreUnknownTenants` — silently drop the message.
 

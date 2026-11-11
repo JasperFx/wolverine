@@ -1,5 +1,7 @@
 using ImTools;
 using JasperFx.Core;
+using JasperFx;
+using JasperFx.MultiTenancy;
 
 namespace Wolverine.Transports.Sending;
 
@@ -18,9 +20,48 @@ public enum TenantedIdBehavior
     
     /// <summary>
     /// Messages to an unknown tenant id will use a supplied default
-    /// pathway
+    /// pathway. This was the default in Wolverine 6.x, and
+    /// <see cref="WolverineOptions.RestoreV6Defaults" /> brings it back
     /// </summary>
-    FallbackToDefault
+    FallbackToDefault,
+
+    /// <summary>
+    /// The Wolverine 7.0 default (GH-5196): a broker is a trust boundary. A message with no
+    /// tenant id goes to the default broker, a message for a registered tenant goes to that
+    /// tenant's broker only, and a message for a tenant id no registered tenant matches is
+    /// never sent anywhere. It is moved to the dead letter storage of the main message store
+    /// with an <see cref="UnknownBrokerTenantException" /> naming the tenant id, the message
+    /// type and the endpoint, or, with no message store to hold it, the send throws that
+    /// exception
+    /// </summary>
+    DeadLetterUnknownTenants
+}
+
+/// <summary>
+/// GH-5196. The reason a message for a tenant id that no tenant registered with a tenanted
+/// broker transport matches is dead lettered rather than sent. Derives from JasperFx's
+/// <see cref="UnknownTenantIdException" /> so an existing <c>catch (UnknownTenantIdException)</c>
+/// keeps catching it
+/// </summary>
+public class UnknownBrokerTenantException : UnknownTenantIdException
+{
+    public UnknownBrokerTenantException(string tenantId, string? messageType, Uri endpoint) : base(
+        $"Unknown tenant id '{tenantId}' for message type '{messageType}' at endpoint {endpoint}. No tenant with this id is registered with the transport, and a broker is a trust boundary, so the message was not sent to the default broker or any other tenant's. Register the tenant, or choose TenantedIdBehavior.FallbackToDefault for the transport to send it to the default broker as Wolverine 6.x did",
+        tenantId)
+    {
+        MessageType = messageType;
+        Endpoint = endpoint;
+    }
+
+    /// <summary>
+    /// The message type name of the message that was not sent
+    /// </summary>
+    public string? MessageType { get; }
+
+    /// <summary>
+    /// The endpoint the message was addressed to
+    /// </summary>
+    public Uri Endpoint { get; }
 }
 
 internal class InvalidTenantSender : ISender
@@ -43,6 +84,30 @@ internal class InvalidTenantSender : ISender
     public ValueTask SendAsync(Envelope envelope)
     {
         throw new InvalidOperationException($"Unknown tenant id '{_tenantId}'");
+    }
+}
+
+internal class UnknownTenantSender : ISender
+{
+    private readonly string _tenantId;
+
+    public UnknownTenantSender(Uri destination, string tenantId)
+    {
+        _tenantId = tenantId;
+        Destination = destination;
+    }
+
+    public Uri Destination { get; }
+    public bool SupportsNativeScheduledSend => false;
+
+    public Task<bool> PingAsync()
+    {
+        return Task.FromResult(true);
+    }
+
+    public ValueTask SendAsync(Envelope envelope)
+    {
+        throw new UnknownBrokerTenantException(_tenantId, envelope.MessageType, Destination);
     }
 }
 
@@ -70,10 +135,10 @@ public class TenantedSender : ISender, IDisposable, IAsyncDisposable, ICondition
         TenantedIdBehavior = tenantedIdBehavior;
         _defaultSender = defaultSender!;
 
-        if (tenantedIdBehavior == TenantedIdBehavior.FallbackToDefault && _defaultSender == null)
+        if ((tenantedIdBehavior is TenantedIdBehavior.FallbackToDefault or TenantedIdBehavior.DeadLetterUnknownTenants) && _defaultSender == null)
         {
             throw new ArgumentNullException(nameof(defaultSender),
-                "A default sender is required if using the FallbackToDefault behavior");
+                $"A default sender is required if using the {tenantedIdBehavior} behavior");
         }
     }
 
@@ -128,6 +193,28 @@ public class TenantedSender : ISender, IDisposable, IAsyncDisposable, ICondition
     /// </summary>
     internal ISender SenderFor(Envelope envelope) => senderForTenantId(envelope.TenantId!);
 
+    /// <summary>
+    ///     GH-5196. True when <paramref name="envelope" /> carries a tenant id that no registered tenant
+    ///     matches and this sender's behavior is <see cref="TenantedIdBehavior.DeadLetterUnknownTenants" />,
+    ///     so it must be dead lettered rather than sent. Tenant ids are matched exactly (ordinal, case
+    ///     sensitive, no trimming), the same rule a tenant-aware listener uses to stamp its tenant id
+    /// </summary>
+    public bool IsUnknownTenantToDeadLetter(Envelope envelope)
+    {
+        if (TenantedIdBehavior != TenantedIdBehavior.DeadLetterUnknownTenants) return false;
+        if (isUntenanted(envelope.TenantId)) return false;
+
+        return !_senders.TryFind(envelope.TenantId!, out _);
+    }
+
+    // The default tenant's ids mean "no tenant" here: a message from a default-tenant session goes to the default
+    // broker, as one with no tenant id does
+    private static bool isUntenanted(string? tenantId)
+    {
+        return tenantId.IsEmpty() || tenantId == StorageConstants.DefaultTenantId ||
+               tenantId == TransportConstants.Default;
+    }
+
     private ISender senderForTenantId(string tenantId)
     {
         if (tenantId.IsEmpty())
@@ -137,6 +224,7 @@ public class TenantedSender : ISender, IDisposable, IAsyncDisposable, ICondition
                 case TenantedIdBehavior.TenantIdRequired:
                     throw new ArgumentNullException(nameof(tenantId));
                 case TenantedIdBehavior.FallbackToDefault:
+                case TenantedIdBehavior.DeadLetterUnknownTenants:
                     return _defaultSender;
             }
         }
@@ -159,6 +247,15 @@ public class TenantedSender : ISender, IDisposable, IAsyncDisposable, ICondition
                 var invalid = new InvalidTenantSender(Destination, tenantId);
                 _senders = _senders.AddOrUpdate(tenantId, invalid);
                 return invalid;
+
+            case TenantedIdBehavior.DeadLetterUnknownTenants:
+                if (isUntenanted(tenantId)) return _defaultSender;
+
+                // The sending agents divert these to dead letter storage before they get this far
+                // (UnknownBrokerTenants). Reaching here means a caller sent straight through the
+                // sender, so refuse rather than fall back. Not cached, so a tenant registered later
+                // is still found
+                return new UnknownTenantSender(Destination, tenantId);
         }
 
         return _defaultSender;

@@ -235,8 +235,25 @@ public static class EnvelopeSerializer
 
     public static Envelope[] ReadMany(byte[] buffer)
     {
-        using var ms = new MemoryStream(buffer);
+        using var ms = new MemoryStream(buffer, false);
         using var br = new BinaryReader(ms);
+        return readMany(br, buffer.Length);
+    }
+
+    /// <summary>
+    ///     GH-5146. Read a batch of envelopes straight off <paramref name="buffer" /> without copying it into
+    ///     a <c>byte[]</c> first. Each envelope's <see cref="Envelope.Data" /> is still its own copy, so the
+    ///     caller may reuse the memory once this returns.
+    /// </summary>
+    public static Envelope[] ReadMany(ReadOnlyMemory<byte> buffer)
+    {
+        using var ms = new ReadOnlyMemoryStream(buffer);
+        using var br = new BinaryReader(ms);
+        return readMany(br, buffer.Length);
+    }
+
+    private static Envelope[] readMany(BinaryReader br, int bufferLength)
+    {
         var limits = Limits;
         var numberOfMessages = br.ReadInt32();
         if (numberOfMessages < 0 || numberOfMessages > limits.MaxBatchSize)
@@ -249,10 +266,10 @@ public static class EnvelopeSerializer
         // headerCount int32 + byteCount int32). Reject claims that can't fit
         // in the buffer we actually received.
         const int MinBytesPerEnvelope = 16;
-        if ((long)numberOfMessages * MinBytesPerEnvelope > buffer.Length)
+        if ((long)numberOfMessages * MinBytesPerEnvelope > bufferLength)
         {
             throw new InvalidEnvelopeException(
-                $"Envelope batch size {numberOfMessages} is impossible for a {buffer.Length}-byte buffer.");
+                $"Envelope batch size {numberOfMessages} is impossible for a {bufferLength}-byte buffer.");
         }
 
         var messages = new Envelope[numberOfMessages];
@@ -266,7 +283,19 @@ public static class EnvelopeSerializer
 
     public static Envelope Deserialize(byte[] buffer)
     {
-        using var ms = new MemoryStream(buffer);
+        using var ms = new MemoryStream(buffer, false);
+        using var br = new BinaryReader(ms);
+        return readSingle(br);
+    }
+
+    /// <summary>
+    ///     GH-5146. Read one envelope straight off <paramref name="buffer" /> without copying it into a
+    ///     <c>byte[]</c> first. The envelope's <see cref="Envelope.Data" /> is still its own copy, so the
+    ///     caller may reuse the memory once this returns.
+    /// </summary>
+    public static Envelope Deserialize(ReadOnlyMemory<byte> buffer)
+    {
+        using var ms = new ReadOnlyMemoryStream(buffer);
         using var br = new BinaryReader(ms);
         return readSingle(br);
     }
@@ -302,7 +331,19 @@ public static class EnvelopeSerializer
 
     public static void ReadEnvelopeData(Envelope envelope, byte[] buffer)
     {
-        using var ms = new MemoryStream(buffer);
+        using var ms = new MemoryStream(buffer, false);
+        using var br = new BinaryReader(ms);
+        envelope.SentAt = DateTime.FromBinary(br.ReadInt64());
+        readEnvelopeBody(br, envelope, Limits);
+    }
+
+    /// <summary>
+    ///     GH-5146. <see cref="ReadEnvelopeData(Envelope, byte[])" /> over memory, without copying it into a
+    ///     <c>byte[]</c> first.
+    /// </summary>
+    public static void ReadEnvelopeData(Envelope envelope, ReadOnlyMemory<byte> buffer)
+    {
+        using var ms = new ReadOnlyMemoryStream(buffer);
         using var br = new BinaryReader(ms);
         envelope.SentAt = DateTime.FromBinary(br.ReadInt64());
         readEnvelopeBody(br, envelope, Limits);

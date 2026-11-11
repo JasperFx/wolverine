@@ -29,12 +29,30 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
 
     public abstract Uri ResourceUri { get; }
 
+    private TenantedIdBehavior? _tenantedIdBehavior;
+    private bool _v6DefaultsRestored;
+
+    /// <summary>
+    /// <see cref="WolverineOptions.V6DefaultsRestored" /> as the transport saw it when it started, for a transport
+    /// default that 7.0 flipped (GH-5196). False until <see cref="InitializeAsync" /> runs
+    /// </summary>
+    protected bool V6DefaultsRestored => _v6DefaultsRestored;
+
     /// <summary>
     /// In the case of using multi-tenancy support at the transport level (generally, a separate message broker or namespace or whatever per tenant),
-    /// this governs the behavior of message sending in regards to a tenant id. Default behavior is to fall back to the default
-    /// connection in the case of no tenant id
+    /// this governs the behavior of message sending in regards to a tenant id. A message with no tenant id always goes to the
+    /// default connection. The default since Wolverine 7.0 is <see cref="Sending.TenantedIdBehavior.DeadLetterUnknownTenants" />:
+    /// a message for a tenant id no registered tenant matches is dead lettered, never sent to the default broker (GH-5196).
+    /// <see cref="WolverineOptions.RestoreV6Defaults" /> restores the 6.x default,
+    /// <see cref="Sending.TenantedIdBehavior.FallbackToDefault" />. A value set here wins over both
     /// </summary>
-    public TenantedIdBehavior TenantedIdBehavior { get; set; } = TenantedIdBehavior.FallbackToDefault;
+    public TenantedIdBehavior TenantedIdBehavior
+    {
+        get => _tenantedIdBehavior ?? (_v6DefaultsRestored
+            ? TenantedIdBehavior.FallbackToDefault
+            : TenantedIdBehavior.DeadLetterUnknownTenants);
+        set => _tenantedIdBehavior = value;
+    }
 
 
     /// <summary>
@@ -91,6 +109,9 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
 
     public sealed override async ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
+        // GH-5196. Read when the transport starts, never at registration: RestoreV6Defaults() may come after UseRabbitMq()
+        _v6DefaultsRestored = runtime.Options.V6DefaultsRestored;
+
         runtime.Logger.LogInformation("Initializing the Wolverine {TransportName}", GetType().Name);
 
         await InitializeEndpointsAsync(runtime);

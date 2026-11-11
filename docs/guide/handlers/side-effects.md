@@ -317,6 +317,30 @@ public static (AppendEvents, InvoiceApprovalNoticed) Handle(ApproveInvoiceAndNot
         new InvoiceApprovalNoticed(command.Id));
 ```
 
+### Deleting Documents and Retiring Streams <Badge type="tip" text="7.0" />
+
+The same mechanism covers the document and stream operations that used to need `MartenOps`,
+`PolecatOps` or `FisherOps`. These are written against the JasperFx document and event store
+contracts, so they also run unchanged on Marten, Polecat, or Fisher:
+
+```cs
+// Delete a document by its Guid or string identity
+Storage.DeleteById<Invoice>(invoiceId);
+
+// Delete every document matching an expression
+Storage.DeleteWhere<Invoice>(x => x.Status == InvoiceStatus.Void);
+
+// Mark a stream as archived
+Storage.ArchiveStream(streamId);
+
+// Permanently delete a stream and all of its events
+Storage.TombstoneStream(streamId);
+```
+
+The return types are `DeleteById<T>`, `DeleteWhere<T>`, `ArchiveEventStream` and `TombstoneEventStream`.
+Unlike the store-specific operations, these don't take a tenant id. They act on the session the
+message is already handled in.
+
 ### Ancillary Stores
 
 Returning one of these from a handler marked with `[Storage(typeof(IMyStore))]` appends to that

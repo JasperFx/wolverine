@@ -123,7 +123,7 @@ public partial class WolverineRuntime
         {
             _runtime.ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _runtime._serviceName,
                 _runtime._uniqueNodeId);
-            _movedToErrorQueue(_runtime.Logger, envelope, ex);
+            _movedToErrorQueue(_runtime.Logger, envelope.GetMessageTypeName(), envelope.Id, ex);
         }
 
         public void DiscardedEnvelope(Envelope envelope)

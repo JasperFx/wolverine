@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
@@ -258,15 +259,27 @@ public class WolverineHttpOptions
     ///     Wolverine.HTTP endpoint, applied where the endpoint's message context is created -- before any Marten,
     ///     Polecat or Fisher session is opened from it -- so the events the endpoint appends record it too.
     ///     <para>
-    ///     By default the header is applied by <c>RequestIdMiddleware</c>, and only to an endpoint that uses
+    ///     When false, the header is applied by <c>RequestIdMiddleware</c>, and only to an endpoint that uses
     ///     <c>IMessageBus</c> or <c>IMessageContext</c>. The messages such an endpoint sends carry it, but its event
     ///     store session is opened before that middleware runs, and an endpoint that only uses a session never gets
     ///     the middleware at all, so the events record an Activity id or a new Guid instead of the request's.
     ///     </para>
-    ///     Turn this on when a caller's correlation id has to reach the events an endpoint appends, as when a test
-    ///     finds what a request caused by its correlation id. Off by default. See GH-4939.
+    ///     <para>
+    ///     With this on, a caller's correlation id reaches the events an endpoint appends, so a test (or an
+    ///     operator) can find what a request caused by its correlation id. See GH-4939.
+    ///     </para>
+    ///     <para>
+    ///     <b>On by default from Wolverine 7.0</b> (GH-5195). Set it to false, or call
+    ///     <c>WolverineOptions.RestoreV6Defaults()</c>, for the 6.x behaviour; an explicit setting wins over both.
+    ///     </para>
     /// </summary>
-    public bool ApplyCorrelationIdHeaderToAllEndpoints { get; set; }
+    public bool ApplyCorrelationIdHeaderToAllEndpoints
+    {
+        get => _applyCorrelationIdHeaderToAllEndpoints ?? true;
+        set => _applyCorrelationIdHeaderToAllEndpoints = value;
+    }
+
+    private bool? _applyCorrelationIdHeaderToAllEndpoints;
 
     /// <summary>
     /// Potentially control how the Wolverine HTTP routes are "warmed up" at runtime
@@ -283,12 +296,18 @@ public class WolverineHttpOptions
     /// either mode. Applies to query string binding for endpoint method arguments and for
     /// [AsParameters] members bound from the query string, including collection parameters
     /// (arrays, List&lt;T&gt;, IEnumerable&lt;T&gt;, etc.) where a single unparseable element rejects the
-    /// entire binding. This is currently opt-in
-    /// (default false) to preserve the previous lenient behavior, but the default flips
-    /// to true (strict) in Wolverine 7.0. See https://github.com/JasperFx/wolverine/issues/3372
-    /// and https://github.com/JasperFx/wolverine/issues/3398
+    /// entire binding. <b>True by default from Wolverine 7.0</b> (GH-5195); it was opt-in throughout 6.x. Set it
+    /// to false, or call <c>WolverineOptions.RestoreV6Defaults()</c>, for the old lenient behavior, where the
+    /// parameter binds its default value and the request proceeds; an explicit setting wins over both.
+    /// See https://github.com/JasperFx/wolverine/issues/3372 and https://github.com/JasperFx/wolverine/issues/3398
     /// </summary>
-    public bool RejectUnparseableQueryValues { get; set; }
+    public bool RejectUnparseableQueryValues
+    {
+        get => _rejectUnparseableQueryValues ?? true;
+        set => _rejectUnparseableQueryValues = value;
+    }
+
+    private bool? _rejectUnparseableQueryValues;
 
     /// <summary>
     /// When true, a <c>[FromHeader]</c> value that is <b>present</b> but cannot be parsed to the expected
@@ -514,12 +533,17 @@ public class WolverineHttpOptions
     /// </para>
     ///
     /// <para>
-    /// <b>On Marten or Polecat, call that store's own overload instead</b> --
-    /// <c>MapMartenConcurrencyFailuresToConflict()</c> or <c>MapPolecatConcurrencyFailuresToConflict()</c>.
-    /// Their <c>StreamLockedException</c>, which <c>FetchForExclusiveWriting</c> throws on a contended
-    /// stream, does <b>not</b> derive from <see cref="JasperFx.ConcurrencyException"/> and is not
-    /// referenceable from this assembly, so this method alone leaves the exclusive locking path returning
-    /// 500s. The store overloads call this one and add their own type.
+    /// GH-5142: also covers <see cref="JasperFx.Events.StreamLockedException"/>, which
+    /// <c>FetchForExclusiveWriting</c> throws on a contended stream and which does <b>not</b> derive from
+    /// <see cref="JasperFx.ConcurrencyException"/>. Polecat's and Fisher's lock exceptions derive from it, so
+    /// this one call is complete for those stores.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>On Marten, call <c>MapMartenConcurrencyFailuresToConflict()</c> instead.</b> Marten's
+    /// <c>StreamLockedException</c> still derives from <c>MartenException</c> rather than from the JasperFx
+    /// type, so this method alone leaves Marten's exclusive locking path returning 500s. The Marten overload
+    /// calls this one and adds Marten's type.
     /// </para>
     /// </summary>
     /// <param name="filter">
@@ -537,9 +561,26 @@ public class WolverineHttpOptions
         filter ??= ConflictMapping.IsTransactional;
         if (toProblemDetails != null) ConflictProblemDetailsFactory = toProblemDetails;
 
-        AddMiddleware(typeof(ConcurrencyExceptionMiddleware), filter);
+        // GH-5195: an explicit call replaces the 7.0 default mapping rather than adding a second one
+        _concurrencyFailureMapping = true;
+
+        addBuiltInMiddleware(typeof(ConcurrencyExceptionMiddleware), filter);
         Policies.Add(new ConflictProblemPolicy(filter));
     }
+
+    /// <summary>
+    /// GH-5195. Opt out of the Wolverine 7.0 default that maps concurrency failures onto a 409 ProblemDetails
+    /// on the transactional chains, so they escape as unhandled exceptions (a 500) as they did in 6.x.
+    /// <c>WolverineOptions.RestoreV6Defaults()</c> does the same. An explicit
+    /// <see cref="MapConcurrencyFailuresToConflict"/> call (or a store's variant of it) still applies.
+    /// </summary>
+    public void DoNotMapConcurrencyFailuresToConflict()
+    {
+        _concurrencyFailureMapping ??= false;
+    }
+
+    // null = the 7.0 default decides, true = mapped explicitly, false = opted out
+    private bool? _concurrencyFailureMapping;
 
     /// <summary>
     /// GH-4516. Map an <b>unknown</b> tenant id onto a 404 ProblemDetails instead of letting it escape as an
@@ -573,8 +614,59 @@ public class WolverineHttpOptions
     {
         filter ??= TenancyProblemMapping.IsTenanted;
 
-        AddMiddleware(typeof(UnknownTenantMiddleware), filter);
+        // GH-5195: an explicit call replaces the 7.0 default mapping rather than adding a second one
+        _unknownTenantMapping = true;
+
+        addBuiltInMiddleware(typeof(UnknownTenantMiddleware), filter);
         Policies.Add(new UnknownTenantProblemPolicy(filter));
+    }
+
+    /// <summary>
+    /// GH-5195. Opt out of the Wolverine 7.0 default that maps an unknown tenant id onto a 404 ProblemDetails
+    /// on the tenanted chains, so <see cref="JasperFx.MultiTenancy.UnknownTenantIdException"/> escapes as an
+    /// unhandled exception (a 500) as it did in 6.x. <c>WolverineOptions.RestoreV6Defaults()</c> does the same.
+    /// An explicit <see cref="MapUnknownTenantToNotFound"/> call still applies.
+    /// </summary>
+    public void DoNotMapUnknownTenantToNotFound()
+    {
+        _unknownTenantMapping ??= false;
+    }
+
+    // null = the 7.0 default decides, true = mapped explicitly, false = opted out
+    private bool? _unknownTenantMapping;
+
+    // GH-5195: the conflict and unknown tenant middleware are registered on every application by default from 7.0,
+    // and MiddlewarePolicy finds their OnException methods by reflection. Under Native AOT the trimmer removes
+    // methods nothing references statically, so the annotation here roots their public methods.
+    private void addBuiltInMiddleware(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] Type middlewareType,
+        Func<HttpChain, bool> filter)
+    {
+        AddMiddleware(middlewareType, filter);
+    }
+
+    /// <summary>
+    /// GH-5195. Settle the Wolverine.Http defaults that flipped in 7.0, once the user's configuration has run.
+    /// Anything set explicitly is left alone; everything else takes the 7.0 default, or the 6.x value when
+    /// <see cref="WolverineOptions.V6DefaultsRestored"/> is set. Read here rather than earlier because
+    /// <c>RestoreV6Defaults()</c> may be called after <c>AddWolverineHttp()</c>.
+    /// </summary>
+    internal void ResolveVersionDefaults(bool v6DefaultsRestored)
+    {
+        var v7 = !v6DefaultsRestored;
+
+        _rejectUnparseableQueryValues ??= v7;
+        _applyCorrelationIdHeaderToAllEndpoints ??= v7;
+
+        if (_concurrencyFailureMapping == null && v7)
+        {
+            MapConcurrencyFailuresToConflict();
+        }
+
+        if (_unknownTenantMapping == null && v7)
+        {
+            MapUnknownTenantToNotFound();
+        }
     }
 
     /// <summary>

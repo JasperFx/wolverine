@@ -31,12 +31,17 @@ internal class SqlServerDurablePop
     private UnconfirmedPop? _unconfirmedPop;
 
     public SqlServerDurablePop(SqlServerQueue queue, string connectionString, Uri address)
+        : this(queue, queue.ConfiguredLayout, connectionString, address)
+    {
+    }
+
+    public SqlServerDurablePop(SqlServerQueue queue, SqlServerQueueLayout layout, string connectionString, Uri address)
     {
         _connectionString = connectionString;
         _address = address;
         _queueName = queue.Name;
-        _popSql = SqlServerQueueSql.TryPopToInbox(queue, address, MessageIdentity.IdOnly);
-        _popSqlByDestination = SqlServerQueueSql.TryPopToInbox(queue, address, MessageIdentity.IdAndDestination);
+        _popSql = SqlServerQueueSql.TryPopToInbox(queue, layout, address, MessageIdentity.IdOnly);
+        _popSqlByDestination = SqlServerQueueSql.TryPopToInbox(queue, layout, address, MessageIdentity.IdAndDestination);
         _incomingTable = $"{queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable}";
     }
 

@@ -83,6 +83,54 @@ public class NatsTenantIdHeaderTests
         (tenant ?? "").ShouldBe(expectedTenant);
     }
 
+    // GH-5196. Left unset, the header is not trusted in 7.0: a producer on tenant a's subject claiming tenant b
+    // stays tenant a. RestoreV6Defaults() puts back the 6.x default, which trusted it
+    [Theory]
+    [InlineData(false, "a")]
+    [InlineData(true, "b")]
+    public async Task the_tenant_id_header_is_not_trusted_by_default(bool restoreV6Defaults, string expectedTenant)
+    {
+        var subject = $"tenantdefault.{Guid.NewGuid():N}";
+        var id = Guid.NewGuid().ToString("N");
+        TenantHeaderProbeHandler.Reset();
+
+        using var host = await Host.CreateDefaultBuilder()
+            .ConfigureLogging(l => l.AddXunitLogging(_output))
+            .UseWolverine(opts =>
+            {
+                if (restoreV6Defaults) opts.RestoreV6Defaults();
+
+                opts.ServiceName = "TenantHeaderDefault";
+                opts.UseNats(_fixture.ConnectionString)
+                    .AddTenant("a")
+                    .AddTenant("b");
+
+                opts.Policies.DisableConventionalLocalRouting();
+                opts.ListenToNatsSubject(subject);
+            })
+            .StartAsync(TestContext.Current.CancellationToken);
+
+        await using var producer = new NatsConnection(new NatsOpts { Url = _fixture.ConnectionString });
+        await producer.PublishAsync($"a.{subject}",
+            Encoding.UTF8.GetBytes($"{{\"Id\":\"{id}\"}}"),
+            headers: new NatsHeaders
+            {
+                ["message-type"] = typeof(TenantHeaderProbe).ToMessageTypeName(),
+                ["tenant-id"] = "b"
+            },
+            cancellationToken: TestContext.Current.CancellationToken);
+
+        var deadline = DateTimeOffset.UtcNow.Add(15.Seconds());
+        string? tenant = null;
+        while (DateTimeOffset.UtcNow < deadline && !TenantHeaderProbeHandler.Received.TryGetValue(id, out tenant))
+        {
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
+
+        TenantHeaderProbeHandler.Received.ContainsKey(id).ShouldBeTrue();
+        (tenant ?? "").ShouldBe(expectedTenant);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

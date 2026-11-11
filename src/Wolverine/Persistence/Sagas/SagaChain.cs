@@ -237,7 +237,7 @@ public class SagaChain : HandlerChain
         List<Frame> frames, MessageVariable? messageVariable = null)
     {
         var findSagaId = SagaIdMember == null
-            ? (Frame)new PullSagaIdFromEnvelopeFrame(SagaType, frameProvider.DetermineSagaIdType(SagaType, container))
+            ? (Frame)new PullSagaIdFromEnvelopeFrame(SagaType, frameProvider.DetermineSagaIdType(SagaType, this, container))
             : new PullSagaIdFromMessageFrame(MessageType, SagaType, SagaIdMember);
 
 

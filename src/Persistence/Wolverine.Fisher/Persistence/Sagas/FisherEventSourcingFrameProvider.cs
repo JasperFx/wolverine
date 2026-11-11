@@ -52,6 +52,14 @@ internal partial class FisherPersistenceFrameProvider : IEventSourcingFrameProvi
         => container.Services.GetRequiredService<StoreOptions>().Events.StreamIdentity;
 
     /// <summary>
+    /// The stream identity of the store this chain writes to. GH-5142: an ancillary store can be keyed
+    /// differently from the default one.
+    /// </summary>
+    public StreamIdentity DetermineStreamIdentity(IChain chain, IServiceContainer container)
+        => (resolveStoreOptions(chain, container) ?? container.Services.GetRequiredService<StoreOptions>())
+            .Events.StreamIdentity;
+
+    /// <summary>
     /// The natural-key type this aggregate is identified by on the store this chain writes to. GH-4439.
     /// </summary>
     /// <remarks>

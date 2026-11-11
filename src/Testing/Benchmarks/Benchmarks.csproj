@@ -15,6 +15,15 @@
         <!-- Core WolverineFx no longer ships the Roslyn runtime compiler (GH-2876); the
              GlobalSetup host runs in TypeLoadMode.Dynamic and needs it registered. -->
         <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj"/>
+        <!-- GH-5146: IncomingMaterializerBenchmarks reads inbox rows through DatabasePersistence over Npgsql -->
+        <ProjectReference Include="..\..\Persistence\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
+        <PackageReference Include="Npgsql"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
     </ItemGroup>
 
     <ItemGroup>
