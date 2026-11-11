@@ -436,6 +436,14 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return null;
     }
 
+    /// <summary>
+    /// GH-5138. The compiled handler of one chain, without caching it as the handler of its message type
+    /// </summary>
+    internal IMessageHandler HandlerForChain(HandlerChain chain)
+    {
+        return resolveHandlerFromChain(chain.MessageType, chain, false)!;
+    }
+
     private IMessageHandler? resolveHandlerFromChain(Type messageType, HandlerChain chain, bool shouldCacheGlobally)
     {
         IMessageHandler handler;

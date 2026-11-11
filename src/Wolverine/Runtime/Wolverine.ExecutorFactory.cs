@@ -26,6 +26,13 @@ public partial class WolverineRuntime : IExecutorFactory
             }
         }
 
+        // GH-5138. A message type with one handler chain per handler type is invoked chain by chain
+        if (Handlers.GroupFor(messageType) is { Chains.Count: > 1 } group)
+        {
+            return new MultipleChainInvoker(group,
+                chain => Executor.Build(this, ExecutionPool, Handlers, Handlers.HandlerForChain(chain), MessageTracking));
+        }
+
         var executor = Executor.Build(this, ExecutionPool, Handlers, messageType);
 
         return executor;

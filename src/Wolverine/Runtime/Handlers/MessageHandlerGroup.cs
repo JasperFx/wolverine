@@ -96,5 +96,11 @@ public class AmbiguousHandlerChainException : Exception
         MessageType = messageType;
     }
 
+    // GH-5138. The same ambiguity, met by a request for one response from a message type with several chains
+    internal AmbiguousHandlerChainException(Type messageType, string message) : base(message)
+    {
+        MessageType = messageType;
+    }
+
     public Type MessageType { get; }
 }
