@@ -1,10 +1,9 @@
-using JasperFx.Core;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
 using Fisher;
-using Fisher.Services;
 using Fisher.Subscriptions;
 using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Persistence.EventSourcing.Subscriptions;
 using Wolverine.Runtime;
 
 namespace Wolverine.Fisher.Subscriptions;
@@ -30,37 +29,24 @@ internal class ScopedWolverineSubscriptionRunner<T> : SubscriptionBase where T :
     public override async Task<IDaemonChangeListener> ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentSession operations,
         CancellationToken cancellationToken)
     {
-        var context = new MessageContext(_runtime);
-        await context.EnlistInOutboxAsync(new FisherEnvelopeTransaction(operations, context));
+        // GH-5143: the same tenant as the singleton runner. This runner used to set none.
+        var context = await SubscriptionMessageContext.StartAsync(_runtime, operations.TenantId,
+            c => new FisherEnvelopeTransaction(operations, c));
 
+        // Disposed by the callback, after the commit's flush
         var scope = _services.CreateScope();
-        var subscription = scope.ServiceProvider.GetRequiredService<T>();
-        await subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);
-
-        return new ScopedWolverineCallbackForCascadingMessages(scope, context);
-    }
-}
-
-internal class ScopedWolverineCallbackForCascadingMessages : IDaemonChangeListener
-{
-    private readonly IServiceScope _scope;
-    private readonly MessageContext _context;
-
-    public ScopedWolverineCallbackForCascadingMessages(IServiceScope scope, MessageContext context)
-    {
-        _scope = scope;
-        _context = context;
-    }
-
-    public async Task AfterCommitAsync(CancellationToken token)
-    {
         try
         {
-            await _context.FlushOutgoingMessagesAsync();
+            var subscription = scope.ServiceProvider.GetRequiredService<T>();
+            await subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);
         }
-        finally
+        catch
         {
-            _scope.Dispose();
+            // No commit will follow, so no callback will dispose it
+            scope.Dispose();
+            throw;
         }
+
+        return new WolverineCallbackForCascadingMessages(context, scope);
     }
 }
