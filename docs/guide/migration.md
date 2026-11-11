@@ -595,7 +595,8 @@ Wolverine's metrics move to the OpenTelemetry naming conventions in 7.0 (GH-5128
   `service.name` from `OTEL_SERVICE_NAME`, and every Wolverine measurement still carries the `source` tag with
   `WolverineOptions.ServiceName`.
 * **`WolverineOptions.ServiceName` defaults from `OTEL_SERVICE_NAME`** when it is set (an Aspire AppHost sets it for
-  every project resource), and otherwise from the entry assembly as before. An explicit `opts.ServiceName` still wins.
+  every project resource), and otherwise from the entry assembly as before. An explicit `opts.ServiceName`, or a
+  `JasperFxOptions.ServiceName` set through `CritterStackDefaults()`, still wins.
   The name is also what node records, CritterWatch and the Event Model use, so if a service ran with
   `OTEL_SERVICE_NAME` set to something other than its assembly name, set `opts.ServiceName` explicitly to keep the
   old name.

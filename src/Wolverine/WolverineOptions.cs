@@ -768,9 +768,10 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support, and as the
-    ///     <c>source</c> tag on every Wolverine metric. When not set explicitly, it defaults to the
-    ///     <c>OTEL_SERVICE_NAME</c> environment variable if that is set (which is what an Aspire AppHost sets for
-    ///     each resource), and otherwise to the application's entry assembly name.
+    ///     <c>source</c> tag on every Wolverine metric. When not set explicitly (here or on
+    ///     <c>JasperFxOptions.ServiceName</c>), it defaults to the <c>OTEL_SERVICE_NAME</c> environment variable if
+    ///     that is set (which is what an Aspire AppHost sets for each resource), and otherwise to the application's
+    ///     entry assembly name.
     /// </summary>
     public string ServiceName { get; set; } = null!;
 
@@ -932,6 +933,9 @@ public sealed partial class WolverineOptions
     }
 
     internal void ReadJasperFxOptions(JasperFxOptions jasperfx)
+        => ReadJasperFxOptions(jasperfx, Environment.GetEnvironmentVariable(OtelServiceNameVariable));
+
+    internal void ReadJasperFxOptions(JasperFxOptions jasperfx, string? otelServiceName)
     {
         // GH-4448: the exchange runs BOTH ways, and it used to run only one. `??=` makes JasperFx's value
         // the fallback for Wolverine's — which already says an explicit WolverineOptions.ServiceName
@@ -950,10 +954,14 @@ public sealed partial class WolverineOptions
         // Captured before the `??=` because afterwards there is no telling a value the user set from
         // one just adopted from JasperFx — and adopting is precisely the case that must NOT write back.
         //
-        // GH-5128 (7.0): OTEL_SERVICE_NAME, which an Aspire AppHost sets per resource, ranks between the two.
-        // A name taken from it is written back like an explicit one, for the same GH-4448 reason: JasperFx
-        // would otherwise go on naming the service after the entry assembly.
-        var namedHere = ResolveServiceName(ServiceName, Environment.GetEnvironmentVariable(OtelServiceNameVariable));
+        // GH-5128 (7.0): OTEL_SERVICE_NAME, which an Aspire AppHost sets per resource, replaces the entry
+        // assembly default, but not a name set explicitly on either side. JasperFx can't tell us whether its
+        // name was set, so a name other than its application assembly's counts as set. A name taken from
+        // OTEL_SERVICE_NAME is written back like an explicit one, for the same GH-4448 reason: JasperFx would
+        // otherwise go on naming the service after the entry assembly.
+        var jasperFxNamedExplicitly = jasperfx.ServiceName.IsNotEmpty() &&
+                                      jasperfx.ServiceName != jasperfx.ApplicationAssembly?.GetName().Name;
+        var namedHere = ResolveServiceName(ServiceName, jasperFxNamedExplicitly ? null : otelServiceName);
 
         ServiceName = namedHere ?? jasperfx.ServiceName;
 

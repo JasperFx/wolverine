@@ -1,3 +1,4 @@
+using JasperFx;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -78,5 +79,62 @@ public class otel_naming_5128
     public void the_variable_is_the_standard_opentelemetry_one()
     {
         WolverineOptions.OtelServiceNameVariable.ShouldBe("OTEL_SERVICE_NAME");
+    }
+
+    // The GH-4448 exchange with JasperFx, with OTEL_SERVICE_NAME in play. The variable is passed in rather than
+    // set on the process, because tests run in parallel and other hosts would pick it up.
+    private static JasperFxOptions jasperFxNamedByDefault()
+    {
+        var jasperfx = new JasperFxOptions { ApplicationAssembly = typeof(otel_naming_5128).Assembly };
+        jasperfx.ServiceName = typeof(otel_naming_5128).Assembly.GetName().Name!;
+        return jasperfx;
+    }
+
+    [Fact]
+    public void otel_service_name_replaces_the_entry_assembly_default_and_reaches_jasperfx()
+    {
+        var jasperfx = jasperFxNamedByDefault();
+        var options = new WolverineOptions();
+
+        options.ReadJasperFxOptions(jasperfx, "aspire-res");
+
+        options.ServiceName.ShouldBe("aspire-res");
+        jasperfx.ServiceName.ShouldBe("aspire-res");
+    }
+
+    [Fact]
+    public void an_explicit_wolverine_name_beats_otel_service_name_on_both_sides()
+    {
+        var jasperfx = jasperFxNamedByDefault();
+        var options = new WolverineOptions { ServiceName = "Ledgers" };
+
+        options.ReadJasperFxOptions(jasperfx, "aspire-res");
+
+        options.ServiceName.ShouldBe("Ledgers");
+        jasperfx.ServiceName.ShouldBe("Ledgers");
+    }
+
+    [Fact]
+    public void an_explicit_jasperfx_name_beats_otel_service_name()
+    {
+        var jasperfx = jasperFxNamedByDefault();
+        jasperfx.ServiceName = "Special";
+        var options = new WolverineOptions();
+
+        options.ReadJasperFxOptions(jasperfx, "aspire-res");
+
+        options.ServiceName.ShouldBe("Special");
+        jasperfx.ServiceName.ShouldBe("Special");
+    }
+
+    [Fact]
+    public void without_otel_service_name_the_entry_assembly_default_stands()
+    {
+        var jasperfx = jasperFxNamedByDefault();
+        var options = new WolverineOptions();
+
+        options.ReadJasperFxOptions(jasperfx, null);
+
+        options.ServiceName.ShouldBe(typeof(otel_naming_5128).Assembly.GetName().Name);
     }
 }
