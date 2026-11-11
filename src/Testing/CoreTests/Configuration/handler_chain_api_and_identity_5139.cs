@@ -13,7 +13,7 @@ namespace CoreTests.Configuration;
 
 /// <summary>
 /// GH-5139. HandlerChain 1:1, steps 7-8: looking up the chains of a message type handled by several handler
-/// types, the handler type on the capabilities descriptor, and the startup error for durable broker fan-out
+/// types, the handler type on the capabilities descriptor, and the startup warning for durable broker fan-out
 /// under MessageIdentity.IdOnly
 /// </summary>
 public class handler_chain_api_and_identity_5139
@@ -108,7 +108,7 @@ public class handler_chain_api_and_identity_5139
     }
 
     [Fact]
-    public async Task two_handler_types_on_durable_external_listeners_under_IdOnly_is_an_error()
+    public async Task two_handler_types_on_durable_external_listeners_under_IdOnly_are_warned_about()
     {
         using var host = await startHost(opts =>
         {
@@ -133,7 +133,7 @@ public class handler_chain_api_and_identity_5139
     }
 
     [Fact]
-    public async Task buffered_external_listeners_are_not_an_error()
+    public async Task buffered_external_listeners_are_not_warned_about()
     {
         using var host = await startHost(opts =>
         {
@@ -148,7 +148,7 @@ public class handler_chain_api_and_identity_5139
     }
 
     [Fact]
-    public async Task durable_local_queues_are_not_an_error()
+    public async Task durable_local_queues_are_not_warned_about()
     {
         // No sticky listeners at all: each handler type gets its own local queue, and a local route always
         // sends an envelope with an id of its own

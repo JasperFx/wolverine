@@ -361,9 +361,10 @@ What to watch for on the upgrade:
   the old identity is not found under the new one.
 * **Duplicate detection is per endpoint.** The same envelope id arriving at two *different* endpoints is now handled at
   both. The same id arriving twice at the *same* endpoint is still a duplicate.
-* **A startup check guards `IdOnly`.** If you keep `IdOnly` and a message type has handler chains bound to more than one
-  durable listening endpoint of an external transport, Wolverine refuses to start and names the message types, because
-  that is exactly the setup where the inbox would drop messages.
+* **A startup warning guards `IdOnly`.** If you keep `IdOnly` and a message type has handler chains bound to more than
+  one durable listening endpoint of an external transport, Wolverine logs a warning at startup naming the message types
+  and endpoints. If your broker can deliver one message to more than one of those endpoints, that's exactly the setup
+  where the inbox would drop messages.
 
 To keep the 6.x identity, and the 6.x schema, call `opts.RestoreV6Defaults()` or set
 `opts.Durability.MessageIdentity = MessageIdentity.IdOnly`. An explicit setting always wins.

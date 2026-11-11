@@ -1,6 +1,9 @@
 using IntegrationTests;
+using System.Collections.Concurrent;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
@@ -15,13 +18,17 @@ namespace PostgresqlTests;
 /// GH-5139. With one handler chain per handler type, two handler types of one message type bound to two durable
 /// listeners of an external transport receive the same envelope id whenever the broker fans one message out to
 /// both queues. IdAndDestination, the 7.0 default, tells the copies apart. Under an explicit MessageIdentity.IdOnly
-/// the durable inbox would reject the second copy as a duplicate, so Wolverine refuses to start.
+/// the durable inbox would reject the second copy as a duplicate, so Wolverine warns at startup. Only a warning:
+/// whether the broker really copies one message into both queues is not something Wolverine can see.
 /// </summary>
 public class durable_fan_out_needs_id_and_destination_5139
 {
-    private static Task<IHost> startHost(MessageIdentity? identity, bool restoreV6Defaults = false)
+    private readonly WarningCapture theWarnings = new();
+
+    private Task<IHost> startHost(MessageIdentity? identity, bool restoreV6Defaults = false)
     {
         return Host.CreateDefaultBuilder()
+            .ConfigureLogging(x => x.AddProvider(theWarnings))
             .UseWolverine(opts =>
             {
                 if (restoreV6Defaults) opts.RestoreV6Defaults();
@@ -49,31 +56,55 @@ public class durable_fan_out_needs_id_and_destination_5139
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task startup_fails_under_IdOnly(bool throughRestoreV6Defaults)
+    public async Task warns_at_startup_under_IdOnly(bool throughRestoreV6Defaults)
     {
-        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
-        {
-            using var host = throughRestoreV6Defaults
-                ? await startHost(null, restoreV6Defaults: true)
-                : await startHost(MessageIdentity.IdOnly);
-        });
+        using var host = throughRestoreV6Defaults
+            ? await startHost(null, restoreV6Defaults: true)
+            : await startHost(MessageIdentity.IdOnly);
 
-        ex.Message.ShouldContain(typeof(FanOutOrderPlaced).FullNameInCode());
-        ex.Message.ShouldContain("MessageIdentity.IdAndDestination");
+        var warning = theWarnings.Messages.ShouldHaveSingleItem();
+        warning.ShouldContain(typeof(FanOutOrderPlaced).FullNameInCode());
+        warning.ShouldContain("MessageIdentity.IdAndDestination");
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
-    public async Task starts_under_the_7_0_default()
+    public async Task no_warning_under_the_7_0_default()
     {
         using var host = await startHost(null);
+        theWarnings.Messages.ShouldBeEmpty();
         await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
-    public async Task starts_with_an_explicit_IdAndDestination()
+    public async Task no_warning_with_an_explicit_IdAndDestination()
     {
         using var host = await startHost(MessageIdentity.IdAndDestination);
+        theWarnings.Messages.ShouldBeEmpty();
         await host.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    // Only the GH-5139 warning, which is the one naming the durable listening endpoints
+    private sealed class WarningCapture : ILoggerProvider, ILogger
+    {
+        private readonly ConcurrentQueue<string> _messages = new();
+
+        public IReadOnlyList<string> Messages => _messages.ToArray();
+
+        public ILogger CreateLogger(string categoryName) => this;
+        public void Dispose() { }
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => logLevel == LogLevel.Warning;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel != LogLevel.Warning) return;
+
+            var message = formatter(state, exception);
+            if (message.Contains("durable listening endpoint of an external transport")) _messages.Enqueue(message);
+        }
     }
 }
 

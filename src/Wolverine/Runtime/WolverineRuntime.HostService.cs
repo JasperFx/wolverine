@@ -956,11 +956,13 @@ public partial class WolverineRuntime
 
         ListenerConfigurationValidator.AssertValid(listeners, Logger, requeuePoliciesConfigured);
 
-        // GH-5139. Needs the compiled endpoints above, because endpoint policies are what settle the durable mode
+        // GH-5139. Needs the compiled endpoints above, because endpoint policies are what settle the durable mode.
+        // A warning rather than a startup failure: the envelope ids only collide when the BROKER copies one message
+        // into several of these queues, which Wolverine cannot see from here
         if (Storage is not NullMessageStore)
         {
             var message = DurableFanOutWithoutMessageIdentity(Handlers.Groups, Options.Durability.MessageIdentity);
-            if (message != null) throw new InvalidOperationException(message);
+            if (message != null) Logger.LogWarning(message);
         }
     }
 
@@ -970,8 +972,8 @@ public partial class WolverineRuntime
     /// into two of those queues -- a topic with two subscriptions, an exchange bound to two queues, an upstream
     /// publisher -- both copies carry the same envelope id. <see cref="MessageIdentity.IdAndDestination"/>, the
     /// 7.0 default, tells them apart. Under <see cref="MessageIdentity.IdOnly"/>, which an application can still
-    /// choose (or get from RestoreV6Defaults()), the second durable inbox insert is a duplicate, and that handler type never runs the message. Returns
-    /// the startup error for that configuration, or null.
+    /// choose (or get from RestoreV6Defaults()), the second durable inbox insert is a duplicate, and that handler
+    /// type never runs the message. Returns the startup warning for that configuration, or null.
     /// </summary>
     /// <remarks>
     /// Local queues are exempt: a local route always sends a new envelope with an id of its own. So is a
@@ -1005,8 +1007,9 @@ public partial class WolverineRuntime
                "handler chains bound to more than one durable listening endpoint of an external transport. When the broker " +
                "delivers one message to several of those queues, every copy has the same envelope id, and with " +
                "DurabilitySettings.MessageIdentity = MessageIdentity.IdOnly (set explicitly, or by RestoreV6Defaults()) " +
-               "the durable inbox rejects all but the first as a duplicate, so the other handler types never run it. " +
-               "Use opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination, the Wolverine 7 default, which " +
+               "the durable inbox rejects all but the first as a duplicate, so the other handler types never run it. If your " +
+               "broker can deliver one message to more than one of these endpoints, " +
+               "use opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination, the Wolverine 7 default, which " +
                "makes the inbox identity the envelope id and the receiving endpoint (and changes the inbox table's " +
                "primary key), or make those endpoints non-durable. Message types:" + string.Concat(lines);
     }
