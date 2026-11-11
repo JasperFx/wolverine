@@ -103,9 +103,23 @@ partial class Build
         {
             foreach (var framework in frameworksBuiltFor(projectPath, frameworkOverride))
             {
-                if (!runSupervised(projectPath, framework, testFilter, TestWorkers ?? workers,
-                        postgresDatabasePerLane, sqlServerDatabasePerLane))
-                    failedProjects.Add($"{projectPath} ({framework})");
+                bool passed;
+                try
+                {
+                    passed = runSupervised(projectPath, framework, testFilter, TestWorkers ?? workers,
+                        postgresDatabasePerLane, sqlServerDatabasePerLane);
+                }
+                catch (Exception e)
+                {
+                    // A supervisor that throws (a worker that never became usable, say) fails this
+                    // project, not every project after it: TestAllTransports lost Pulsar, RabbitMQ,
+                    // Redis and SignalR to one Pulsar worker that stalled at startup.
+                    Log.Error(e, "=== {Project} ({Framework}): the supervised run threw ===",
+                        Path.GetFileNameWithoutExtension(projectPath), framework);
+                    passed = false;
+                }
+
+                if (!passed) failedProjects.Add($"{projectPath} ({framework})");
             }
         }
 
