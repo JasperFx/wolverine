@@ -105,6 +105,43 @@ public static class Storage
     public static StartStream StartStream<T>(string streamKey, params object[] events) where T : class
         => new(streamKey, typeof(T), events);
 
+    /// <summary>
+    /// Delete every document of type T matching the expression. Runs on Marten, Polecat or Fisher.
+    /// </summary>
+    public static DeleteWhere<T> DeleteWhere<T>(System.Linq.Expressions.Expression<Func<T, bool>> expression)
+        where T : notnull
+        => new(expression);
+
+    /// <summary>
+    /// Delete one document of type T by its Guid identity. Runs on Marten, Polecat or Fisher.
+    /// </summary>
+    public static DeleteById<T> DeleteById<T>(Guid id) where T : notnull => new(id);
+
+    /// <summary>
+    /// Delete one document of type T by its string identity. Runs on Marten, Polecat or Fisher.
+    /// </summary>
+    public static DeleteById<T> DeleteById<T>(string id) where T : notnull => new(id);
+
+    /// <summary>
+    /// Mark the event stream with this Guid identity as archived.
+    /// </summary>
+    public static ArchiveEventStream ArchiveStream(Guid streamId) => new(streamId);
+
+    /// <summary>
+    /// Mark the event stream with this string key as archived.
+    /// </summary>
+    public static ArchiveEventStream ArchiveStream(string streamKey) => new(streamKey);
+
+    /// <summary>
+    /// Permanently delete the event stream with this Guid identity and all of its events.
+    /// </summary>
+    public static TombstoneEventStream TombstoneStream(Guid streamId) => new(streamId);
+
+    /// <summary>
+    /// Permanently delete the event stream with this string key and all of its events.
+    /// </summary>
+    public static TombstoneEventStream TombstoneStream(string streamKey) => new(streamKey);
+
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "Variable.VariableType returns the effect's runtime Type without DAM annotation; TypeExtensions.Closes inspects the generic-interface graph for IStorageAction<>. The entity type is application-rooted (handler return type), preserved in any practical setup; AOT consumers register effect entity types via the persistence-frame provider registration.")]
     internal static bool TryApply(Variable effect, GenerationRules rules, IServiceContainer container, IChain chain)
