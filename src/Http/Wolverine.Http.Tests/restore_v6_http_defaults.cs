@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using Alba;
+using FluentValidation;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using Microsoft.AspNetCore.Mvc;
@@ -7,12 +9,14 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
+using Wolverine.FluentValidation;
+using Wolverine.Http.FluentValidation;
 using Xunit;
 
 namespace Wolverine.Http.Tests;
 
 /// <summary>
-/// GH-5195. The Wolverine.Http defaults that flipped in 7.0, each against its 6.x value after
+/// GH-5195 and GH-5520. The Wolverine.Http defaults that flipped in 7.0, each against its 6.x value after
 /// <see cref="WolverineOptions.RestoreV6Defaults"/> and against an explicit setting, which always wins.
 /// The push receiver's inbox deduplication default is covered in <c>push_receiver_5016</c>, beside the
 /// rest of the push receiver's tests.
@@ -242,6 +246,241 @@ public class restore_v6_http_defaults
             .ApplyCorrelationIdHeaderToAllEndpoints.ShouldBeFalse();
     }
 
+    // GH-5520: RejectUnparseableHeaderValues, the pair of RejectUnparseableQueryValues
+
+    [Fact]
+    public async Task an_unparseable_header_value_is_a_400_by_default()
+    {
+        await using var host = await startHostAsync();
+
+        await host.Scenario(x =>
+        {
+            x.Get.Url("/v6defaults/header");
+            x.WithRequestHeader("x-count", "abc");
+            x.StatusCodeShouldBe(400);
+        });
+
+        host.Services.GetRequiredService<WolverineHttpOptions>().RejectUnparseableHeaderValues.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task restoring_the_v6_defaults_binds_an_unparseable_header_value_leniently_again()
+    {
+        await using var host = await startHostAsync(restoreV6Defaults: true);
+
+        var result = await host.Scenario(x =>
+        {
+            x.Get.Url("/v6defaults/header");
+            x.WithRequestHeader("x-count", "abc");
+            x.StatusCodeShouldBe(200);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldBe("count 0");
+    }
+
+    [Fact]
+    public async Task an_explicit_reject_unparseable_header_values_wins_over_restoring_the_v6_defaults()
+    {
+        await using var host = await startHostAsync(restoreV6Defaults: true,
+            configure: opts => opts.RejectUnparseableHeaderValues = true);
+
+        await host.Scenario(x =>
+        {
+            x.Get.Url("/v6defaults/header");
+            x.WithRequestHeader("x-count", "abc");
+            x.StatusCodeShouldBe(400);
+        });
+    }
+
+    [Fact]
+    public async Task an_explicit_false_turns_the_strict_header_default_off()
+    {
+        await using var host = await startHostAsync(configure: opts => opts.RejectUnparseableHeaderValues = false);
+
+        var result = await host.Scenario(x =>
+        {
+            x.Get.Url("/v6defaults/header");
+            x.WithRequestHeader("x-count", "abc");
+            x.StatusCodeShouldBe(200);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldBe("count 0");
+    }
+
+    // GH-5520: FluentValidation ProblemDetails is automatic once UseFluentValidation() is called
+
+    [Fact]
+    public async Task fluent_validation_problem_details_are_automatic_with_use_fluent_validation()
+    {
+        await using var host = await startHostAsync(useFluentValidation: true);
+
+        var result = await host.Scenario(x =>
+        {
+            x.Post.Json(new V6ValidatedRequest("")).ToUrl("/v6defaults/validated");
+            x.StatusCodeShouldBe(400);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+
+        (await result.ReadAsTextAsync()).ShouldContain("Name");
+
+        await host.Scenario(x =>
+        {
+            x.Post.Json(new V6ValidatedRequest("Han")).ToUrl("/v6defaults/validated");
+            x.StatusCodeShouldBe(200);
+        });
+    }
+
+    [Fact]
+    public async Task no_fluent_validation_problem_details_without_use_fluent_validation()
+    {
+        await using var host = await startHostAsync();
+
+        await host.Scenario(x =>
+        {
+            x.Post.Json(new V6ValidatedRequest("")).ToUrl("/v6defaults/validated");
+            x.StatusCodeShouldBe(200);
+        });
+    }
+
+    [Fact]
+    public async Task restoring_the_v6_defaults_leaves_fluent_validation_problem_details_off()
+    {
+        await using var host = await startHostAsync(restoreV6Defaults: true, useFluentValidation: true);
+
+        await host.Scenario(x =>
+        {
+            x.Post.Json(new V6ValidatedRequest("")).ToUrl("/v6defaults/validated");
+            x.StatusCodeShouldBe(200);
+        });
+    }
+
+    [Fact]
+    public async Task opting_out_leaves_fluent_validation_problem_details_off()
+    {
+        await using var host = await startHostAsync(useFluentValidation: true,
+            configure: opts => opts.DoNotUseFluentValidationProblemDetailMiddleware());
+
+        await host.Scenario(x =>
+        {
+            x.Post.Json(new V6ValidatedRequest("")).ToUrl("/v6defaults/validated");
+            x.StatusCodeShouldBe(200);
+        });
+    }
+
+    [Fact]
+    public async Task an_explicit_fluent_validation_middleware_wins_over_restoring_the_v6_defaults()
+    {
+        await using var host = await startHostAsync(restoreV6Defaults: true, useFluentValidation: true,
+            configure: opts => opts.UseFluentValidationProblemDetailMiddleware());
+
+        await host.Scenario(x =>
+        {
+            x.Post.Json(new V6ValidatedRequest("")).ToUrl("/v6defaults/validated");
+            x.StatusCodeShouldBe(400);
+        });
+    }
+
+    [Fact]
+    public async Task the_explicit_fluent_validation_middleware_and_the_default_apply_it_once()
+    {
+        // Two copies would put two validation frames on the chain
+        await using var host = await startHostAsync(useFluentValidation: true,
+            configure: opts => opts.UseFluentValidationProblemDetailMiddleware());
+
+        await host.Scenario(x =>
+        {
+            x.Post.Json(new V6ValidatedRequest("")).ToUrl("/v6defaults/validated");
+            x.StatusCodeShouldBe(400);
+        });
+
+        host.Services.GetRequiredService<WolverineHttpOptions>().Policies
+            .Count(x => x.GetType().Name == "HttpChainFluentValidationPolicy").ShouldBe(1);
+
+        chainFor(host, nameof(V6DefaultsEndpoints.Validated)).SourceCode.ShouldNotBeNull()
+            .Split("FluentValidationHttpExecutor.ExecuteOne").Length.ShouldBe(2);
+    }
+
+    // GH-5520: EnableRelayOfUserName, and the claim that names the user
+
+    [Fact]
+    public async Task the_user_name_is_relayed_by_default()
+    {
+        await using var host = await startHostAsync();
+
+        await whoAmIShouldBe(host, namedUser("han@rebellion.org"), "han@rebellion.org");
+    }
+
+    [Fact]
+    public async Task restoring_the_v6_defaults_does_not_relay_the_user_name()
+    {
+        await using var host = await startHostAsync(restoreV6Defaults: true);
+
+        await whoAmIShouldBe(host, namedUser("han@rebellion.org"), "nobody");
+    }
+
+    [Fact]
+    public async Task an_explicit_relay_of_the_user_name_wins_over_restoring_the_v6_defaults()
+    {
+        await using var host = await startHostAsync(restoreV6Defaults: true,
+            configureWolverine: opts => opts.EnableRelayOfUserName = true);
+
+        await whoAmIShouldBe(host, namedUser("han@rebellion.org"), "han@rebellion.org");
+    }
+
+    [Fact]
+    public async Task an_explicit_false_turns_the_user_name_relay_off()
+    {
+        await using var host = await startHostAsync(configureWolverine: opts => opts.EnableRelayOfUserName = false);
+
+        await whoAmIShouldBe(host, namedUser("han@rebellion.org"), "nobody");
+    }
+
+    [Fact]
+    public async Task a_principal_with_no_name_relays_nothing_by_default()
+    {
+        // An Auth0 access token: a subject, but nothing mapped to Identity.Name
+        await using var host = await startHostAsync();
+
+        await whoAmIShouldBe(host, subjectOnly("auth0|12345"), "nobody");
+    }
+
+    [Fact]
+    public async Task the_user_name_claim_type_names_the_claim_that_is_relayed()
+    {
+        await using var host = await startHostAsync(configure: opts => opts.UserNameClaimType = "sub");
+
+        await whoAmIShouldBe(host, subjectOnly("auth0|12345"), "auth0|12345");
+
+        chainFor(host, nameof(V6DefaultsEndpoints.WhoAmI)).SourceCode.ShouldNotBeNull()
+            .ShouldContain("UserNameMiddleware.Apply(httpContext, messageContext, \"sub\")");
+    }
+
+    [Fact]
+    public async Task the_user_name_claim_type_relays_nothing_when_the_principal_lacks_the_claim()
+    {
+        await using var host = await startHostAsync(configure: opts => opts.UserNameClaimType = "sub");
+
+        await whoAmIShouldBe(host, namedUser("han@rebellion.org"), "nobody");
+    }
+
+    private static ClaimsPrincipal namedUser(string name) =>
+        new(new ClaimsIdentity([new Claim(ClaimTypes.Name, name)], "TestAuth"));
+
+    private static ClaimsPrincipal subjectOnly(string subject) =>
+        new(new ClaimsIdentity([new Claim("sub", subject)], "TestAuth"));
+
+    private static async Task whoAmIShouldBe(IAlbaHost host, ClaimsPrincipal user, string expected)
+    {
+        var result = await host.Scenario(x =>
+        {
+            x.ConfigureHttpContext(c => c.User = user);
+            x.Get.Url("/v6defaults/whoami");
+            x.StatusCodeShouldBe(200);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldBe(expected);
+    }
+
     private static HttpChain chainFor(IAlbaHost host, string methodName)
     {
         return host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.Chains
@@ -280,7 +519,8 @@ public class restore_v6_http_defaults
     }
 
     private static async Task<IAlbaHost> startHostAsync(bool restoreV6Defaults = false,
-        Action<WolverineHttpOptions>? configure = null)
+        Action<WolverineHttpOptions>? configure = null, bool useFluentValidation = false,
+        Action<WolverineOptions>? configureWolverine = null)
     {
         var builder = WebApplication.CreateBuilder([]);
 
@@ -294,6 +534,14 @@ public class restore_v6_http_defaults
             opts.Durability.Mode = DurabilityMode.MediatorOnly;
             opts.Discovery.DisableConventionalDiscovery();
             opts.Discovery.IncludeAssembly(typeof(restore_v6_http_defaults).Assembly);
+
+            if (useFluentValidation)
+            {
+                opts.UseFluentValidation(RegistrationBehavior.ExplicitRegistration);
+                opts.Services.AddSingleton<IValidator<V6ValidatedRequest>, V6ValidatedRequestValidator>();
+            }
+
+            configureWolverine?.Invoke(opts);
         });
 
         builder.Services.AddWolverineHttp();
@@ -344,4 +592,23 @@ public static class V6DefaultsEndpoints
     [RequiresTenant]
     [WolverineGet("/v6defaults/tenanted")]
     public static string Tenanted(IMessageBus bus) => throw new UnknownTenantIdException(bus.TenantId!);
+
+    [WolverineGet("/v6defaults/header")]
+    public static string Header([FromHeader(Name = "x-count")] int count) => $"count {count}";
+
+    [WolverinePost("/v6defaults/validated")]
+    public static string Validated(V6ValidatedRequest request) => "ok";
+
+    [WolverineGet("/v6defaults/whoami")]
+    public static string WhoAmI(IMessageContext context) => context.UserName ?? "nobody";
+}
+
+public record V6ValidatedRequest(string Name);
+
+public class V6ValidatedRequestValidator : AbstractValidator<V6ValidatedRequest>
+{
+    public V6ValidatedRequestValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty();
+    }
 }

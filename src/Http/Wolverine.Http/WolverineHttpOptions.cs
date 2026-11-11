@@ -316,10 +316,27 @@ public class WolverineHttpOptions
     /// header sent more than once, whose values bind as one comma-joined string such as <c>"1,2"</c>.
     /// A <b>missing</b> header still binds the parameter's default value in either mode, and string headers
     /// are never rejected. Applies to header binding for endpoint and middleware method arguments and for
-    /// [AsParameters] members. Opt-in (default false) to preserve the previous lenient behavior, where an
-    /// unparseable header silently binds the parameter's default.
+    /// [AsParameters] members. <b>True by default from Wolverine 7.0</b> (GH-5520), matching
+    /// <see cref="RejectUnparseableQueryValues"/>; it was opt-in throughout 6.x. Set it to false, or call
+    /// <c>WolverineOptions.RestoreV6Defaults()</c>, for the old lenient behavior, where an unparseable header
+    /// silently binds the parameter's default; an explicit setting wins over both.
     /// </summary>
-    public bool RejectUnparseableHeaderValues { get; set; }
+    public bool RejectUnparseableHeaderValues
+    {
+        get => _rejectUnparseableHeaderValues ?? true;
+        set => _rejectUnparseableHeaderValues = value;
+    }
+
+    private bool? _rejectUnparseableHeaderValues;
+
+    /// <summary>
+    /// The claim type whose value is relayed as the user name when <c>WolverineOptions.EnableRelayOfUserName</c>
+    /// is on (GH-5520). When null, the default, the user name is <c>ClaimsPrincipal.Identity.Name</c>, which is
+    /// whatever claim the authentication handler maps to the name. Set it when that is null, for example
+    /// <c>"sub"</c> for an Auth0 access token, which carries no name claim. When the principal has no claim of
+    /// this type, no user name is relayed.
+    /// </summary>
+    public string? UserNameClaimType { get; set; }
 
     /// <summary>
     ///     The application wide default for what status code is written when an endpoint's response body is null.
@@ -688,6 +705,7 @@ public class WolverineHttpOptions
         var v7 = !v6DefaultsRestored;
 
         _rejectUnparseableQueryValues ??= v7;
+        _rejectUnparseableHeaderValues ??= v7;
         _applyCorrelationIdHeaderToAllEndpoints ??= v7;
 
         if (_concurrencyFailureMapping == null && v7)

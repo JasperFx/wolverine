@@ -79,6 +79,11 @@ public sealed partial class WolverineOptions
         // it starts, before its first queue table is built, so an explicit setting still wins and an existing table is
         // never rebuilt by the default either way.
 
+        // GH-5520: 7.0 relays the authenticated user name (EnableRelayOfUserName) by default. Nothing to assign: the
+        // getter reads V6DefaultsRestored, so an explicit setting still wins. Wolverine.Http's
+        // RejectUnparseableHeaderValues and automatic FluentValidation ProblemDetails read the flag when the
+        // endpoints are mapped.
+
         // Add one line here for each core default 7.x flips, a row to the 7.0 defaults
         // table in docs/guide/migration.md and an entry to restore_v6_defaults_tests.
         // Defaults owned by extension packages read V6DefaultsRestored instead.
