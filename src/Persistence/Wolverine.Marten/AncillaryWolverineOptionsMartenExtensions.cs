@@ -133,20 +133,20 @@ public static class AncillaryWolverineOptionsMartenExtensions
 
         // The concrete family already takes IEnumerable<IEventStore>, so one instance manages every
         // registered store including the ancillaries.
-        expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
+        expression.Services.TryAddSingleton<EventSubscriptionAgentFamily>();
 
         // GH-3438: the main-store integration aliases the family to IAgentFamily /
         // IEventSubscriptionAgentFamily, but an ancillary-only host has no main integration to do that,
         // so managed distribution and any tooling resolving the family through those interfaces get
-        // nothing. Register the aliases from here too when managed distribution is opted in. TryAdd so
-        // that a main store which already aliased them wins and we don't double-register (one family
-        // instance covers all stores either way). Gated on the flag because NodeAgentController
+        // nothing. Register the aliases from here too when managed distribution is opted in. GH-5141: through
+        // core's AddEventSubscriptionAgentFamily(), which registers them once per host whichever integration
+        // gets there first -- the TryAddSingleton<IAgentFamily> this used before also skipped the alias when
+        // any OTHER agent family was already registered. Gated on the flag because NodeAgentController
         // distributes the agents of every registered IAgentFamily — an ancillary host that never asked
         // for managed distribution must not suddenly start distributing.
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {
-            expression.Services.TryAddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
-            expression.Services.TryAddSingleton<IEventSubscriptionAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
+            expression.Services.AddEventSubscriptionAgentFamily();
         }
 
         expression.Services.AddSingleton<IProjectionCoordinator<T>>(s =>

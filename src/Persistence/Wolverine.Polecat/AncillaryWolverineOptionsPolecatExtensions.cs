@@ -5,6 +5,7 @@ using JasperFx.Events;
 using JasperFx.Events.Subscriptions;
 using Polecat;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Polecat.Distribution;
@@ -100,7 +101,8 @@ public static class AncillaryWolverineOptionsPolecatExtensions
             return BuildSingleSqlServerMessageStore<T>(schemaName, integration.AutoCreate, store, runtime, logger);
         });
 
-        expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
+        // GH-5141: TryAdd, so this and the main integration's registration share one family instance
+        expression.Services.TryAddSingleton<EventSubscriptionAgentFamily>();
 
         expression.Services.AddSingleton<IProjectionCoordinator<T>>(s =>
         {
