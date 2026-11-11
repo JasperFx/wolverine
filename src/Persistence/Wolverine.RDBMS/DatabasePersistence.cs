@@ -343,7 +343,7 @@ public static class DatabasePersistence
     /// <summary>
     /// GH-5139. The received_at of a dead letter: its destination, or <see cref="DatabaseConstants.UnknownReceivedAt"/>
     /// when it has none (a locally published message that failed before routing, GH-3166). received_at is part of the
-    /// primary key under MessageIdentity.IdAndDestination, the 7.0 default, and NOT NULL on SQL Server either way, so a
+    /// primary key under MessageIdentity.IdAndDestination, and NOT NULL on SQL Server either way, so a
     /// NULL here refused the dead letter
     /// </summary>
     public static string DeadLetterReceivedAt(Envelope envelope)
