@@ -84,7 +84,7 @@ public class exception_event_on_failed_attempt_span_5311
         new WolverineOptions().Tracking.RecordExceptionsOnSpans.ShouldBeTrue();
     }
 
-    [Fact(Skip = "GH-: captures no spans on CI since CoreTests runs on net10.0; green locally in isolation. Quarantined for the .NET 11 train, the skip comes off with the fix.")]
+    [Fact(Skip = "GH-5470: captures no spans on CI since CoreTests runs on net10.0; green locally in isolation. Quarantined for the .NET 11 train, the skip comes off with the fix.")]
     public async Task each_attempt_of_a_retried_then_dead_lettered_message_records_its_exception()
     {
         var (host, captured, listener) = await startAsync();
