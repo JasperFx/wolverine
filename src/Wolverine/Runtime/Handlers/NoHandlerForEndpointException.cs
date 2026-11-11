@@ -27,5 +27,15 @@ public class NoHandlerForEndpointException : Exception
         MessageType = messageType;
     }
 
+    // GH-5137. Received at an endpoint none of the message type's chains is bound to, with nothing to relay it to
+    internal NoHandlerForEndpointException(Type messageType, Uri endpointUri, MessageHandlerGroup group) : base(
+        $"No handler for message type {messageType.FullNameInCode()} at endpoint {endpointUri}. It is handled by " +
+        $"{group.DescribeBindings()}, and a sticky handler runs only at the endpoints it is sticky to. " +
+        "See https://wolverinefx.net/guide/messaging/subscriptions.html")
+    {
+        MessageType = messageType;
+        Uri = endpointUri;
+    }
+
     public Uri? Uri { get; set; }
 }

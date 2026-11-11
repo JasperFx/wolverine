@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Configuration.Capabilities;
@@ -173,7 +174,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
                 // GH-5136. The message type's own queue is for a chain that is not bound to an endpoint of
                 // its own: the only chain of a message type with one handler type that is not sticky
                 var group = runtime.Options.HandlerGraph.GroupFor(messageType);
-                if (group != null && group.UnboundChains().Any(x => x.Handlers.Any()))
+                if (group != null && hasUnboundChain(group))
                 {
                     FindOrCreateQueueForMessageTypeByConvention(messageType);
                 }
@@ -184,6 +185,26 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         foreach (var delayedConfiguration in _delayedConfigurations)
         {
             delayedConfiguration.Apply();
+        }
+
+        warnAboutMessageTypeQueuesNothingRoutesTo(runtime);
+    }
+
+    private static bool hasUnboundChain(MessageHandlerGroup group) => group.UnboundChains().Any(x => x.Handlers.Any());
+
+    // GH-5137. LocalQueueFor<T>() or [LocalQueue] on a message type with several handler types configures a queue
+    // that only drains envelopes persisted before the handler types were split: each handler type runs on a
+    // queue of its own
+    private void warnAboutMessageTypeQueuesNothingRoutesTo(IWolverineRuntime runtime)
+    {
+        foreach (var (messageType, queue) in Assignments)
+        {
+            var group = runtime.Options.HandlerGraph.GroupFor(messageType);
+            if (group == null || group.Chains.Count == 0 || hasUnboundChain(group)) continue;
+
+            runtime.Logger.LogWarning(
+                "Local queue {Queue} is configured for message type {MessageType}, but that message type is handled by {HandlerTypes}, each on a local queue of its own, so nothing routes to {Queue}. Configure the handler types' queues instead",
+                queue.Uri, messageType.FullNameInCode(), group.DescribeBindings(), queue.Uri);
         }
     }
 
@@ -219,8 +240,11 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
     {
         var group = runtime.Options.HandlerGraph.GroupFor(messageType);
         
-        // This only covers the default message type to local queue routing
-        if (Assignments.TryGetValue(messageType, out var queue))
+        // This only covers the default message type to local queue routing. GH-5137: when every chain of the
+        // message type is bound to a queue of its own, the message type's queue -- created anyway by
+        // LocalQueueFor<T>() or [LocalQueue] -- only drains what was persisted to it before the handler types
+        // were split. Routing there too would relay a second copy to every handler type
+        if (Assignments.TryGetValue(messageType, out var queue) && (group == null || hasUnboundChain(group)))
         {
             yield return queue;
         }

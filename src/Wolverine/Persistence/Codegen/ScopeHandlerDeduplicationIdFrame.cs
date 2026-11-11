@@ -7,8 +7,7 @@ namespace Wolverine.Persistence.Codegen;
 
 /// <summary>
 /// GH-5133. Scopes a message handler's logical deduplication id to its own handler chain when the message type
-/// has more than one chain -- one per handler type under <c>MultipleHandlerBehavior.Separated</c>, or sticky
-/// handlers. Without it every chain claims the same id, the first claim wins, and the other handlers drop the
+/// has more than one chain -- one per handler type. Without it every chain claims the same id, the first claim wins, and the other handlers drop the
 /// message as a duplicate of work they never did.
 /// </summary>
 /// <remarks>

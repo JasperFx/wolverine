@@ -1345,6 +1345,9 @@ public partial class WolverineRuntime
         }
 
         Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
+
+        // GH-5137. Every listener is bound to its chains by now
+        Handlers.AssertOneChainPerEndpoint();
     }
 
     internal Task StartLightweightAsync()

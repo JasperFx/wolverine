@@ -35,11 +35,11 @@ public class AzureServiceBusMessageRoutingConvention
     }
 
     /// <summary>
-    /// GH-4525. Under <see cref="MultipleHandlerBehavior.Separated"/> every handler of a message type past the
-    /// first listens on its own queue, named from the handler type the way RabbitMQ names its per-handler queue
-    /// and the topic convention names its per-handler subscription. A queue does not fan out, so the sender
-    /// publishes to each of those queues itself (see <see cref="FindOrCreateAdditionalSubscribers"/>). The first
-    /// handler keeps the message type's own queue.
+    /// GH-4525 / GH-5137. When a message type has several handler types, each one -- with its own handler chain --
+    /// listens on its own queue, named from the handler type the way RabbitMQ names its per-handler queue and the
+    /// topic convention names its per-handler subscription. A queue does not fan out, so the sender publishes to
+    /// each of those queues itself (see <see cref="FindOrCreateAdditionalSubscribers"/>). A message type with one
+    /// handler type keeps the message type's own queue.
     /// </summary>
     protected override (AzureServiceBusQueueListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifierUsingSeparatedHandler(
         string identifier, AzureServiceBusTransport transport, Type messageType, Type handlerType)

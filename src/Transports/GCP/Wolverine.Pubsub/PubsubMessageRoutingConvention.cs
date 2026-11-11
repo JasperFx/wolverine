@@ -28,8 +28,8 @@ public class PubsubMessageRoutingConvention : MessageRoutingConvention<
     }
 
     /// <summary>
-    /// GH-4526. Under <see cref="MultipleHandlerBehavior.Separated"/> every handler of a message type past the
-    /// first listens on its own subscription to the message type's topic, named from the handler type -- the same
+    /// GH-4526 / GH-5137. When a message type has several handler types, each one -- with its own handler chain --
+    /// listens on its own subscription to the message type's topic, named from the handler type -- the same
     /// shape as a RabbitMQ queue per handler bound to the message type's exchange, or an Azure Service Bus
     /// subscription per handler on the message type's topic. The topic fans out, so the sender is untouched.
     /// </summary>
