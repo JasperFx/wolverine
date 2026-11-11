@@ -160,6 +160,51 @@ public class inbox_partitioning_migration_5519 : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_partitioned_inbox_goes_back_to_unpartitioned_after_restoring_the_v6_defaults()
+    {
+        // Opting out after a 7.0 start partitioned the inbox. Weasel's own script changed the primary key of the
+        // partitioned table first, which PostgreSQL refuses (0A000), and the host did not start
+        const string schema = "inbox_part_back";
+        await dropSchemaAsync(schema);
+
+        using (var v7 = await hostAsync(schema, _ => { }))
+        {
+        }
+
+        (await isPartitionedAsync(schema)).ShouldBeTrue();
+
+        var incoming = Guid.NewGuid();
+        var scheduled = Guid.NewGuid();
+        var both = Guid.NewGuid();
+        await insertRowAsync(schema, incoming, "Incoming");
+        await insertRowAsync(schema, scheduled, "Scheduled");
+
+        // One identity as both Incoming and Scheduled, which the unpartitioned key cannot hold
+        await insertRowAsync(schema, both, "Incoming");
+        await insertRowAsync(schema, both, "Scheduled");
+
+        using (var v6 = await hostAsync(schema, opts => opts.RestoreV6Defaults()))
+        {
+        }
+
+        (await isPartitionedAsync(schema)).ShouldBeFalse();
+        (await rowExistsAsync(schema, incoming)).ShouldBeTrue();
+        (await rowExistsAsync(schema, scheduled)).ShouldBeTrue();
+
+        // The Incoming row supersedes the scheduled copy, as the scheduled message poller would have decided
+        (await rowExistsAsync(schema, both)).ShouldBeTrue();
+        (await statusOfAsync(schema, both)).ShouldBe("Incoming");
+        (await tableExistsAsync(schema, DatabaseConstants.IncomingTable + "_temp")).ShouldBeFalse();
+
+        // And it does not thrash: a second start finds nothing to change
+        using (var again = await hostAsync(schema, opts => opts.RestoreV6Defaults()))
+        {
+        }
+
+        (await isPartitionedAsync(schema)).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task one_message_can_be_both_incoming_and_scheduled_in_the_partitioned_inbox()
     {
         // The documented trade-off of partitioning: status joins the primary key, so uniqueness only holds within a
@@ -275,6 +320,16 @@ public class inbox_partitioning_migration_5519 : IAsyncLifetime
             $"select count(*) from {schema}.{DatabaseConstants.IncomingTable} where id = :id");
         cmd.Parameters.AddWithValue("id", id);
         return Convert.ToInt64(await cmd.ExecuteScalarAsync(ct)) == 1;
+    }
+
+    private static async Task<string?> statusOfAsync(string schema, Guid id)
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(ct);
+        await using var cmd = conn.CreateCommand(
+            $"select status from {schema}.{DatabaseConstants.IncomingTable} where id = :id");
+        cmd.Parameters.AddWithValue("id", id);
+        return (string?)await cmd.ExecuteScalarAsync(ct);
     }
 
     private static async Task<bool> isPartitionedAsync(string schema)

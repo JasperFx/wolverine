@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Shouldly;
+using Weasel.Core;
 using Wolverine;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
@@ -96,7 +97,7 @@ public class durability_default_flips_with_a_store_5519
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync(ct);
-        await using var cmd = conn.CreateCommand(
+        await using var cmd = (NpgsqlCommand)conn.CreateCommand(
             "select count(*) from information_schema.columns where table_schema = :schema and table_name = :table and column_name = :column");
         cmd.Parameters.AddWithValue("schema", schema);
         cmd.Parameters.AddWithValue("table", table);
@@ -108,7 +109,7 @@ public class durability_default_flips_with_a_store_5519
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync(ct);
-        await using var cmd = conn.CreateCommand(
+        await using var cmd = (NpgsqlCommand)conn.CreateCommand(
             "select count(*) from pg_partitioned_table p join pg_class c on c.oid = p.partrelid " +
             "join pg_namespace n on n.oid = c.relnamespace where n.nspname = :schema and c.relname = :table");
         cmd.Parameters.AddWithValue("schema", schema);

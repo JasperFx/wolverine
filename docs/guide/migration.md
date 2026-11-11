@@ -421,8 +421,9 @@ Plan the rollout around it:
   `EnableInboxPartitioning` has the details.
 
 To keep the 6.x unpartitioned inbox, set `opts.Durability.EnableInboxPartitioning = false` or call
-`RestoreV6Defaults()`. Setting it back to `false` later rebuilds a partitioned inbox as an unpartitioned one the same
-way.
+`RestoreV6Defaults()`. Doing that after a 7.0 start has partitioned the inbox rebuilds it unpartitioned again, under the
+same exclusive lock. Where one message is stored more than once, it keeps the row that supersedes the others: the
+Handled row, then the Incoming one, then the Scheduled one.
 
 ### Dead and obsolete flags removed (BREAKING)
 
