@@ -1,8 +1,6 @@
-using ImTools;
 using JasperFx;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
-using JasperFx.MultiTenancy;
 using Marten;
 using Marten.Storage;
 using Microsoft.Extensions.Logging;
@@ -28,192 +26,61 @@ internal class MartenMessageDatabaseSource<T> : MartenMessageDatabaseSource wher
     }
 }
 
-internal class MartenMessageDatabaseSource : ITenantedMessageSource
+/// <summary>
+///     One Wolverine message store per Marten tenant database. Marten makes it legal to store multiple tenants
+///     in one database, so it's not 1 to 1 on tenant to database.
+/// </summary>
+internal class MartenMessageDatabaseSource : TenantedMessageDatabaseSource<IMartenDatabase>
 {
-    private readonly AutoCreate _autoCreate;
-
-    private readonly List<Func<IMessageDatabase, ValueTask>> _configurations = new();
-    private readonly object _locker = new();
-    private readonly IWolverineRuntime _runtime;
     private readonly string _schemaName;
     private readonly IDocumentStore _store;
-    private ImHashMap<string, IMessageStore> _databases = ImHashMap<string, IMessageStore>.Empty;
-    private ImHashMap<string, IMessageStore> _stores = ImHashMap<string, IMessageStore>.Empty;
 
     public MartenMessageDatabaseSource(
         string schemaName,
         AutoCreate autoCreate,
         IDocumentStore store,
-        IWolverineRuntime runtime)
+        IWolverineRuntime runtime) : base(autoCreate, runtime)
     {
         _schemaName = schemaName;
-        _autoCreate = autoCreate;
         _store = store;
-        _runtime = runtime;
     }
 
-    public DatabaseCardinality Cardinality => _store.Options.Tenancy.Cardinality;
+    public override DatabaseCardinality Cardinality => _store.Options.Tenancy.Cardinality;
 
-    public async ValueTask<IMessageStore> FindAsync(string tenantId)
+    protected override ValueTask<IMartenDatabase> findDatabaseAsync(string tenantId)
     {
-        if (_stores.TryFind(tenantId, out var store))
-        {
-            return store;
-        }
-
-        // Remember, Marten makes it legal to store multiple tenants in one database
-        // so it's not 1 to 1 on tenant to database
-        var database = await _store.Storage.FindOrCreateDatabase(tenantId);
-
-        if (_databases.TryFind(database.Identifier, out store))
-        {
-            lock (_locker)
-            {
-                if (!_stores.Contains(tenantId))
-                {
-                    _stores = _stores.AddOrUpdate(tenantId, store);
-                }
-            }
-
-            return store;
-        }
-
-        lock (_locker)
-        {
-            // Try again to see if some other thread built it
-            if (_stores.TryFind(tenantId, out store))
-            {
-                return store;
-            }
-
-            if (_databases.TryFind(database.Identifier, out store))
-            {
-                _stores = _stores.AddOrUpdate(tenantId, store);
-                return store;
-            }
-
-            store = createTenantWolverineStore(database);
-            store.Initialize(_runtime);
-
-            _stores = _stores.AddOrUpdate(tenantId, store);
-            _databases = _databases.AddOrUpdate(database.Identifier, store);
-        }
-
-        foreach (var configuration in _configurations) await configuration((IMessageDatabase)store);
-
-        // TODO -- add some resiliency here
-        if (_autoCreate != AutoCreate.None)
-        {
-            await store.Admin.MigrateAsync();
-        }
-        else
-        {
-            _runtime.LoggerFactory.CreateLogger<MartenMessageDatabaseSource>().LogInformation(
-                "Skipping message storage migration for tenant message database {Database} because AutoCreate is None",
-                database.Identifier);
-        }
-
-        return store;
+        return _store.Storage.FindOrCreateDatabase(tenantId);
     }
 
-    public Task RefreshAsync()
+    protected override async ValueTask<IReadOnlyList<IMartenDatabase>> allDatabasesAsync()
     {
-        return RefreshAsync(true);
+        return await _store.Storage.AllDatabases();
     }
 
-    public Task RefreshLiteAsync()
+    protected override string identifierFor(IMartenDatabase database)
     {
-        return RefreshAsync(false);
+        return database.Identifier;
     }
 
-    public async Task RefreshAsync(bool withMigration)
-    {
-        var martenDatabases = await _store.Storage.AllDatabases();
-        foreach (var martenDatabase in martenDatabases)
-        {
-            if (!_databases.Contains(martenDatabase.Identifier))
-            {
-                var wolverineStore = createTenantWolverineStore(martenDatabase);
-                if (withMigration && _runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
-                {
-                    await wolverineStore.Admin.MigrateAsync();
-                }
-                
-                _databases = _databases.AddOrUpdate(martenDatabase.Identifier, wolverineStore);
-            }
-        }
-    }
-
-    public IReadOnlyList<IMessageStore> AllActive()
-    {
-        return _databases.Enumerate().Select(x => x.Value).ToList();
-    }
-
-    public IReadOnlyList<Assignment<IMessageStore>> AllActiveByTenant()
-    {
-        return _databases.Enumerate().Select(x => new Assignment<IMessageStore>(x.Key, x.Value)).ToList();
-    }
-
-    /// <summary>
-    /// Evict and dispose the cached Wolverine message store for a given tenant.
-    /// Called when a tenant is disabled or removed from dynamic tenancy.
-    /// </summary>
-    public async ValueTask RemoveTenantStoreAsync(string tenantId)
-    {
-        IMessageStore? storeToDispose = null;
-
-        lock (_locker)
-        {
-            if (_stores.TryFind(tenantId, out var store))
-            {
-                _stores = _stores.Remove(tenantId);
-
-                // Also remove from _databases if this store is cached there
-                foreach (var entry in _databases.Enumerate())
-                {
-                    if (ReferenceEquals(entry.Value, store))
-                    {
-                        _databases = _databases.Remove(entry.Key);
-                        break;
-                    }
-                }
-
-                storeToDispose = store;
-            }
-        }
-
-        if (storeToDispose != null)
-        {
-            await storeToDispose.DisposeAsync();
-        }
-    }
-
-    public async ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase)
-    {
-        foreach (var database in AllActive().OfType<IMessageDatabase>()) await configureDatabase(database);
-
-        _configurations.Add(configureDatabase);
-    }
-
-    private PostgresqlMessageStore createTenantWolverineStore(IMartenDatabase database)
+    protected override IMessageStore buildMessageStore(IMartenDatabase database)
     {
         var settings = new DatabaseSettings
         {
             SchemaName = _schemaName,
             Role = MessageStoreRole.Tenant,
-            AutoCreate = _autoCreate,
+            AutoCreate = AutoCreate,
             CommandQueuesEnabled = false,
             DataSource = database.As<PostgresqlDatabase>().DataSource
         };
 
         // The tenant database's data source is Marten's, so Marten disposes it when it should
-        var store = new PostgresqlMessageStore(settings, _runtime.Options.Durability,
+        var store = new PostgresqlMessageStore(settings, Runtime.Options.Durability,
             database.As<PostgresqlDatabase>().DataSource,
-            _runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>(), ownsDataSource: false)
+            Runtime.LoggerFactory.CreateLogger<PostgresqlMessageStore>(), ownsDataSource: false)
         {
             Name = database.Identifier ?? new NpgsqlConnectionStringBuilder(settings.ConnectionString).Database!
         };
-        
+
         store.TenantIds.AddRange(database.TenantIds.Distinct());
 
         return store;

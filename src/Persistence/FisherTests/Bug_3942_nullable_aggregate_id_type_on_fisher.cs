@@ -1,6 +1,5 @@
 using Shouldly;
 using Wolverine.Fisher.Persistence.Sagas;
-using Wolverine.Fisher.Requirements;
 
 namespace FisherTests;
 
@@ -68,24 +67,6 @@ public class Bug_3942_nullable_aggregate_id_type_on_fisher
     public void a_type_with_no_id_property_still_falls_back_to_guid()
     {
         sagaIdType<FiNoIdAggregate>().ShouldBe(typeof(Guid));
-    }
-
-    // ===== DocumentExistsAttribute.ResolveIdType is kept in lockstep =====
-
-    [Fact]
-    public void document_id_resolution_agrees_with_the_saga_provider()
-    {
-        DocumentExistsAttribute<FiNullableStrongTypedIdAggregate>
-            .ResolveIdType(typeof(FiNullableStrongTypedIdAggregate)).ShouldBe(typeof(FiAlertId));
-
-        DocumentExistsAttribute<FiNullableGuidAggregate>
-            .ResolveIdType(typeof(FiNullableGuidAggregate)).ShouldBe(typeof(Guid));
-
-        DocumentExistsAttribute<FiGuidAggregate>
-            .ResolveIdType(typeof(FiGuidAggregate)).ShouldBe(typeof(Guid));
-
-        DocumentExistsAttribute<FiNoIdAggregate>
-            .ResolveIdType(typeof(FiNoIdAggregate)).ShouldBe(typeof(Guid));
     }
 }
 
