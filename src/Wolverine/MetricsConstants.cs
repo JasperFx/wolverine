@@ -53,7 +53,10 @@ public class MetricsConstants
     public const string DuplicatesSuppressed = "wolverine.duplicates.suppressed";
     public const string IdempotencyEarlyRotation = "wolverine.idempotency.early_rotation";
 
-    public const string MessageTypeKey = "message.type";
+    // GH-5450. Namespaced because the bare "message.type" is an old OpenTelemetry RPC semantic-convention
+    // attribute (now rpc.message.type), and backends that migrate old semconv names on ingest (Dash0) renamed
+    // Wolverine's tag to rpc_message_type. The tracing tag (WolverineTracing.MessageType) is unaffected.
+    public const string MessageTypeKey = "wolverine.message.type";
     public const string MessageDestinationKey = "message.destination";
     public const string TenantIdKey = "tenant.id";
     public const string MessagesReceived = "wolverine.messages.received";

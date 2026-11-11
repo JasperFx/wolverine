@@ -655,7 +655,16 @@ Wolverine's metrics move to the OpenTelemetry naming conventions in 7.0 (GH-5128
 * **Instrument names are dotted.** Backends that keep OpenTelemetry names as they are (OTLP into the Aspire
   dashboard, Honeycomb, Datadog and so on) see the new names, so rename those series in dashboards, alerts and
   queries. Only the separators changed, so a Prometheus exporter, which turns both `-` and `.` into `_`, produces the
-  same `wolverine_messages_sent` style names as before. Units and tag keys are unchanged.
+  same `wolverine_messages_sent` style names as before. Units are unchanged.
+* **The message type tag is `wolverine.message.type`** (GH-5450), where it was the bare `message.type`
+  (`MetricsConstants.MessageTypeKey`). `message.type` is an old OpenTelemetry RPC semantic-convention attribute, so
+  backends that migrate old semantic-convention names on ingest (Dash0 by default) renamed Wolverine's tag to
+  `rpc_message_type`, and anything grouping by message type found nothing. Unlike the instrument names, this one
+  changes under a Prometheus exporter too: `message_type` becomes `wolverine_message_type`, so update every
+  `by (message_type, ...)` grouping and `{message_type="..."}` selector in dashboards, alerts and queries. The other
+  tag keys (`message.destination`, `tenant.id`, `source`, `schedule.name`, `exception.type`) are unchanged, and so
+  is the tracing tag `messaging.message_type`. There is no `RestoreV6Defaults()` switch for this, the same as for
+  the instrument names.
 
 | 6.x instrument | 7.0 instrument |
 |---|---|
@@ -678,6 +687,10 @@ Wolverine's metrics move to the OpenTelemetry naming conventions in 7.0 (GH-5128
 | `wolverine-messages-received` | `wolverine.messages.received` |
 | `wolverine-execution-failure` | `wolverine.execution.failure` |
 | `wolverine-recurring-occurrences-skipped` | `wolverine.recurring.occurrences_skipped` |
+
+| 6.x tag key | 7.0 tag key | Prometheus label (6.x → 7.0) |
+|---|---|---|
+| `message.type` | `wolverine.message.type` | `message_type` → `wolverine_message_type` |
 
 ### Changed during 6.x without a flag
 
