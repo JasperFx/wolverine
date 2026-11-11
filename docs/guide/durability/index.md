@@ -173,8 +173,9 @@ you can "bump" a persisted record in the `wolverine_outgoing_envelopes` to be re
 setting the `owner_id` field to zero.
 
 ::: info
-Just be aware that opting into the `OutboxStaleTime` or `InboxStaleTime` threshold will require database changes through Wolverine's database
-migration subsystem
+Since 7.0 both thresholds default to 1 hour (outside `ServerlessWithOutbox`, which has its own defaults), and the
+`timestamp` columns they need are always created. Set either to `null` to turn it off, or call `opts.RestoreV6Defaults()`
+for the 6.x behaviour, where they were off and opting in required a database migration.
 :::
 
 You also have this setting to force Wolverine to automatically "bump" and older messages that seem to be stalled in

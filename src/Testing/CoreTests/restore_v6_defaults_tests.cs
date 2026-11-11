@@ -47,6 +47,28 @@ public class restore_v6_defaults_tests
                 o => o.Durability.CompressAgentCommands.ShouldBeTrue(),
                 o => o.Durability.CompressAgentCommands.ShouldBeFalse()),
 
+            // GH-5519
+            ["`DurabilitySettings.AlwaysMakeScheduledMessagesDurable`"] = (
+                o => o.Durability.AlwaysMakeScheduledMessagesDurable.ShouldBeTrue(),
+                o => o.Durability.AlwaysMakeScheduledMessagesDurable.ShouldBeFalse()),
+            ["`DurabilitySettings.EnableInboxPartitioning`"] = (
+                o => o.Durability.EnableInboxPartitioning.ShouldBeTrue(),
+                o => o.Durability.EnableInboxPartitioning.ShouldBeFalse()),
+            ["`DurabilitySettings.DeadLetterQueueExpirationEnabled`"] = (
+                o => o.Durability.DeadLetterQueueExpirationEnabled.ShouldBeTrue(),
+                o => o.Durability.DeadLetterQueueExpirationEnabled.ShouldBeFalse()),
+            ["`DurabilitySettings.InboxStaleTime` / `OutboxStaleTime`"] = (
+                o =>
+                {
+                    o.Durability.InboxStaleTime.ShouldBe(TimeSpan.FromHours(1));
+                    o.Durability.OutboxStaleTime.ShouldBe(TimeSpan.FromHours(1));
+                },
+                o =>
+                {
+                    o.Durability.InboxStaleTime.ShouldBeNull();
+                    o.Durability.OutboxStaleTime.ShouldBeNull();
+                }),
+
             // e.g.
             // ["`WolverineOptions.Something`"] = (
             //     o => o.Something.ShouldBe(newValue),
