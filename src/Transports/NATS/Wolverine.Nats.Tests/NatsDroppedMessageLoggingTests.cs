@@ -8,8 +8,8 @@ using Xunit;
 namespace Wolverine.Nats.Tests;
 
 /// <summary>
-/// A core NATS subscription buffers incoming messages in a bounded channel (1,024 messages by default), and NATS.Net
-/// drops the newest message once that channel is full. Core NATS has no redelivery, so the message is gone; NATS.Net
+/// A core NATS subscription buffers incoming messages in a bounded channel (16,384 messages by default since NATS.Net 3),
+/// and NATS.Net drops the newest message once that channel is full. Core NATS has no redelivery, so the message is gone; NATS.Net
 /// only reports it through connection events. Wolverine has to make that loss visible in its own logs.
 /// </summary>
 [Collection("NATS Integration")]
@@ -37,7 +37,10 @@ public class NatsDroppedMessageLoggingTests
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "DropsReceiver";
-                opts.UseNats(_fixture.ConnectionString);
+                // Pin the pending channel rather than lean on the client default, which NATS.Net 3 raised from 1,024
+                // to 16,384 (GH-5517)
+                opts.UseNats(_fixture.ConnectionString)
+                    .ConfigureNatsOpts(o => o with { SubPendingChannelCapacity = 1_024 });
 
                 // Inline, so a handler that does not return holds up the subscription
                 opts.ListenToNatsSubject(subject).ProcessInline();

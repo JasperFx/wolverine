@@ -125,7 +125,8 @@ public class NatsClientOptionsTests
 
         var opts = host.GetRuntime().Options.Transports.GetOrCreate<NatsTransport>().Connection.Opts;
 
-        opts.SubPendingChannelCapacity.ShouldBe(1024);
+        // NATS.Net 3 raised the pending channel from 1,024 to 16,384 messages (GH-5517); the NATS docs quote it
+        opts.SubPendingChannelCapacity.ShouldBe(16_384);
         opts.SubPendingChannelFullMode.ShouldBe(BoundedChannelFullMode.DropNewest);
         opts.PingInterval.ShouldBe(2.Minutes());
         opts.MaxPingOut.ShouldBe(2);

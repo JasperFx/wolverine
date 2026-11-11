@@ -1,7 +1,8 @@
 # Using NATS
 
 ::: tip
-Wolverine uses the official [NATS.Net client](https://github.com/nats-io/nats.net) to connect to NATS.
+Wolverine uses the official [NATS.Net client](https://github.com/nats-io/nats.net) to connect to NATS. Wolverine 7
+is built on NATS.Net 3.x; Wolverine 6 used NATS.Net 2.x.
 :::
 
 ## Installing
@@ -193,14 +194,14 @@ opts.UseNats("nats://localhost:4222")
     {
         // Core NATS subscriptions buffer up to SubPendingChannelCapacity messages per subscription
         // and, by default, drop the newest ones once that buffer is full
-        SubPendingChannelCapacity = 4096,
+        SubPendingChannelCapacity = 65_536,
 
         // Notice a dead connection sooner than the client default of 2 minutes x 2 missed pings
         PingInterval = TimeSpan.FromSeconds(10)
     });
 ```
 
-Without the hook the NATS.Net defaults apply unchanged: a pending channel of 1,024 messages per subscription
+Without the hook the NATS.Net defaults apply unchanged: a pending channel of 16,384 messages per subscription
 that drops the newest message when full (`BoundedChannelFullMode.DropNewest`), and a ping every two minutes with
 two outstanding pings allowed. Think twice before switching `SubPendingChannelFullMode` to `Wait`: a full channel
 then stalls the connection's read loop instead of dropping, so one slow core NATS listener holds up every
@@ -219,13 +220,14 @@ opts.UseNats("nats://shared:4222")
     .AddTenant("tenant-a", cfg =>
     {
         cfg.ConnectionString = "nats://tenant-a-host:4222";
-        cfg.ConfigureNatsOpts = o => o with { SubPendingChannelCapacity = 10_000 };
+        cfg.ConfigureNatsOpts = o => o with { SubPendingChannelCapacity = 65_536 };
     });
 ```
 
 ### Dropped Core NATS Messages <Badge type="tip" text="6.47" />
 
-A core NATS subscription buffers incoming messages in a pending channel of 1,024 messages, and NATS.Net drops the
+A core NATS subscription buffers incoming messages in a pending channel of 16,384 messages (1,024 before NATS.Net 3,
+which Wolverine 7 uses), and NATS.Net drops the
 newest message once that channel is full. Core NATS never redelivers it. Wolverine logs a warning from
 `NatsTransport` for every dropped message (subject, subscription, connection) and one for each slow-consumer
 episode of a subscription, on the shared and on the tenant connections. If you see them, raise

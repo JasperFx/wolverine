@@ -633,9 +633,28 @@ stack. Upgrade them together; mixing a Wolverine 7 package with Marten 9 or Weas
 | OpenTelemetry | 1.15 | 1.20 |
 | Kafka client | Confluent.Kafka | Dekaf (see [above](#kafka-transport-now-runs-on-dekaf-breaking)) |
 | MQTT client (`WolverineFx.MQTT`) | MQTTnet 4.3 + MQTTnet.Extensions.ManagedClient | MQTTnet 5 (see [below](#mqtt-transport-runs-on-mqttnet-5-wolverinefx-mqtt5-retired-breaking)) |
+| NATS client (`WolverineFx.Nats`, `WolverineFx.ClaimCheck.Nats`) | NATS.Net 2.x | NATS.Net 3.x (see [below](#nats-transport-runs-on-nats-net-3)) |
 
 The Marten, Polecat and Fisher majors have their own migration guides; read them alongside this one. The RabbitMQ,
-Azure Service Bus, SQS/SNS, GCP Pub/Sub, NATS, Pulsar, Redis and Cosmos DB client libraries are unchanged.
+Azure Service Bus, SQS/SNS, GCP Pub/Sub, Pulsar, Redis and Cosmos DB client libraries are unchanged.
+
+#### NATS transport runs on NATS.Net 3
+
+`WolverineFx.Nats` and `WolverineFx.ClaimCheck.Nats` move from NATS.Net 2.x to 3.x. No Wolverine NATS API changed
+shape: the NATS.Net types Wolverine's public surface takes or exposes keep their names and namespaces in 3.x, and now
+come from the 3.x assemblies. They are `NatsOpts` (`ConfigureNatsOpts`), `NatsAuthCred` (`AuthCallback`),
+`NatsJSPubOpts` (`ConfigureJetStreamPublish`), `StreamConfigRetention` / `StreamConfigStorage` /
+`StreamConfigDiscard` / `StreamSource` / `Placement` (`StreamConfiguration`), `ConsumerConfigDeliverPolicy` (`DeliverFrom`),
+`NatsConnection` / `INatsJSContext` (`NatsTransport.Connection` / `JetStreamContext`),
+`NatsMsg<byte[]>` / `INatsJSMsg<byte[]>` (`NatsEnvelope`), and `INatsConnection` / `INatsObjContext`
+(`NatsObjectStoreClaimCheckStore`). Code that uses them compiles unchanged, but an application that also references
+NATS.Net directly must move to 3.x with Wolverine. Behaviour that differs, from the NATS.Net 3 upgrade notes:
+
+- A core NATS subscription's pending channel holds 16,384 messages before it drops the newest, up from 1,024. Set
+  `SubPendingChannelCapacity` through `ConfigureNatsOpts()` to keep the old bound.
+- NATS.Net's own request-reply defaults to `NatsRequestReplyMode.Direct`. Wolverine's request-reply does not use it;
+  your own `RequestAsync` calls on Wolverine's connection do.
+- `NatsOpts.SkipSubjectValidation` is `[Obsolete]`.
 
 ### Schema changes when the first 7.0 node starts
 
