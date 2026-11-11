@@ -1,4 +1,4 @@
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Shouldly;
 
 namespace WolverineWebApi.TestSupport;
@@ -16,13 +16,13 @@ public class ExpectProducesAttribute : OpenApiExpectationAttribute
         ContentType = contentType;
     }
 
-    public override void Validate(OpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
+    public override void Validate(IOpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
     {
-        op.Responses.Keys.ShouldContain(StatusCode.ToString());
+        op.Responses!.Keys.ShouldContain(StatusCode.ToString());
 
         op.Responses.TryGetValue(StatusCode.ToString(), out var response).ShouldBeTrue();
 
-        response.Content.Keys.ShouldContain(ContentType);
+        response!.Content!.Keys.ShouldContain(ContentType);
 
     }
 }

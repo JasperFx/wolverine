@@ -1,4 +1,4 @@
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Shouldly;
 
 namespace WolverineWebApi.TestSupport;
@@ -40,10 +40,10 @@ public class ExpectRequestBodyAttribute : OpenApiExpectationAttribute
         Properties = properties;
     }
 
-    public override void Validate(OpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
+    public override void Validate(IOpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
     {
         op.RequestBody.ShouldNotBeNull("Expected a request body, but the operation has none");
-        op.RequestBody.Content.Keys.ShouldContain(ContentType,
+        op.RequestBody.Content!.Keys.ShouldContain(ContentType,
             $"Expected request body content type '{ContentType}'. Actual: {string.Join(", ", op.RequestBody.Content.Keys)}");
 
         if (RequiredSet)

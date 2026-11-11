@@ -3,7 +3,7 @@ using Marten;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Shouldly;
 using Swashbuckle.AspNetCore.Swagger;
 using Wolverine.Tracking;
@@ -154,20 +154,20 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
         return endpoint;
     }
 
-    protected (OpenApiPathItem, OpenApiOperation) FindOpenApiDocument(string path)
+    protected (IOpenApiPathItem, OpenApiOperation) FindOpenApiDocument(string path)
     {
         var swagger = Host.Services.GetRequiredService<ISwaggerProvider>();
         var document = swagger.GetSwagger("default");
 
         if (document.Paths.TryGetValue(path, out var item))
         {
-            return (item, item.Operations.Values.Single());
+            return (item, item.Operations!.Values.Single());
         }
 
         throw new Exception($"Unable to find {path}");
     }
 
-    public (OpenApiPathItem, OpenApiOperation) FindOpenApiDocument(OperationType httpMethod, string path)
+    public (IOpenApiPathItem, OpenApiOperation) FindOpenApiDocument(OperationType httpMethod, string path)
     {
         var document = GetOpenApiDocument();
 
@@ -181,7 +181,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
                 .FirstOrDefault(kv => StripRouteConstraints(kv.Key) == normalized).Value;
         }
 
-        if (item != null && item.Operations.TryGetValue(httpMethod, out var operation))
+        if (item != null && item.Operations != null && item.Operations.TryGetValue(httpMethod.ToHttpMethod(), out var operation))
         {
             return (item, operation);
         }

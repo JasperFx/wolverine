@@ -19,7 +19,7 @@
          answered by NuGetAuditMode (GH-4773) at none of that cost. -->
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Alba" Version="9.0.0-rc.2" />
+    <PackageVersion Include="Alba" Version="9.0.0-rc.3" />
     <!-- The .NET Aspire samples (src/Samples/AspireWithRabbitMq, src/Samples/AspireWithKafka). Keep these on
          the same version as the Aspire.AppHost.Sdk those AppHost projects declare. -->
     <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.6.5" />
@@ -44,7 +44,6 @@
     <PackageVersion Include="Dekaf.SchemaRegistry.Avro" Version="1.25.0" />
     <PackageVersion Include="Dekaf.SchemaRegistry.Json" Version="1.25.0" />
     <PackageVersion Include="DotPulsar" Version="5.1.2" />
-    <PackageVersion Include="FluentAssertions" Version="6.12.2" />
     <PackageVersion Include="FluentResults" Version="3.16.0" />
     <PackageVersion Include="FluentValidation" Version="12.0.0" />
     <PackageVersion Include="FSharp.Core" Version="9.0.303" />
@@ -137,14 +136,14 @@
     <PackageVersion Include="NuGet.Packaging" Version="6.14.3" />
     <PackageVersion Include="Nuke.Common" Version="10.1.0" />
     <PackageVersion Include="NSwag.AspNetCore" Version="14.0.0" />
-    <PackageVersion Include="OpenTelemetry" Version="1.15.3" />
-    <PackageVersion Include="OpenTelemetry.Api" Version="1.15.3" />
-    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.15.3" />
-    <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.15.3" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.2" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.1" />
+    <PackageVersion Include="OpenTelemetry" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.InMemory" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.20.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.2" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.20.2" />
     <PackageVersion Include="Oracle.ManagedDataAccess.Core" Version="23.26.400" />
     <PackageVersion Include="protobuf-net.BuildTools" Version="3.2.52" />
     <PackageVersion Include="protobuf-net.Grpc" Version="1.2.2" />
@@ -160,22 +159,16 @@
     <PackageVersion Include="Spectre.Console" Version="0.55.0" />
     <PackageVersion Include="StackExchange.Redis" Version="2.9.17" />
     <PackageVersion Include="StronglyTypedId" Version="1.0.0-beta08" />
-    <!-- Swashbuckle 9.x and Microsoft.AspNetCore.OpenApi 10.x pull Microsoft.OpenApi 2.0.0, which
-         carries a high severity advisory (GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). The Microsoft.OpenApi
-         pin itself is per-TFM, in the TFM-conditional groups at the bottom of this file: 2.13.x on net10.0,
-         3.11.x on net11.0 (Microsoft.AspNetCore.OpenApi 11 floors Microsoft.OpenApi at >= 3.10.2; GH-5132). The projects that
-         need it reference Microsoft.AspNetCore.OpenApi directly, so this pin wins there without
-         transitive pinning (which is off — see the note at the top of the file).
-
-         On net9.0, Microsoft.AspNetCore.OpenApi 9.0.5 resolves Microsoft.OpenApi 1.6.17 and
-         Swashbuckle.AspNetCore.Swagger 6.5.0 resolves 1.2.3. That is fine and must stay: the
-         advisory explicitly does not cover the 1.x line, which could not resolve a reference
-         pointing at another reference. Lifting those to 2.x would be a major-version jump against
-         libraries compiled for the 1.x API, for no security benefit. -->
-    <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-    <PackageVersion Include="Swashbuckle.AspNetCore.Swagger" Version="9.0.1" />
-    <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
-    <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.1" />
+    <!-- Swashbuckle.AspNetCore and Microsoft.OpenApi are pinned PER TFM, in the TFM-conditional groups at
+         the bottom of this file, because the two lines must move together (GH-5149):
+           net10.0: Swashbuckle 10.x on the Microsoft.OpenApi 2.x object model (Swashbuckle 10 floors it at
+                    2.7.5, the GHSA-v5pm-xwqc-g5wc fix; the repo pins 2.13.x)
+           net11.0: Swashbuckle 11.x on the Microsoft.OpenApi 3.x object model (Microsoft.AspNetCore.OpenApi 11
+                    floors it at >= 3.10.2 and Swashbuckle 11 at 3.11.0; GH-5132)
+         Swashbuckle 10 has no net11.0 build and is compiled against 2.x, so it must not reach net11.0, and
+         Swashbuckle 11 asks for 3.11.0 on net10.0 too, which the 2.x pin there would refuse as a downgrade.
+         The projects that reference Microsoft.AspNetCore.OpenApi get the Microsoft.OpenApi pin directly
+         from Directory.Build.targets; Swashbuckle-only projects resolve its floor transitively. -->
     <PackageVersion Include="System.ComponentModel" Version="4.3.0" />
     <!-- 10.0.7 carries a known HIGH severity advisory (NU1903). -->
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.12" />
@@ -307,6 +300,7 @@
   <ItemGroup Condition=" '$(TargetFramework)' == 'net11.0' ">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0" />
     <PackageVersion Include="Microsoft.OpenApi" Version="3.11.0" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="11.0.0" />
@@ -321,6 +315,7 @@
   <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0' ">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.3.1" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />

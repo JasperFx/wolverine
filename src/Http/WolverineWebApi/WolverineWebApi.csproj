@@ -3,18 +3,11 @@
     <PropertyGroup>
         <TargetFrameworks>net10.0</TargetFrameworks>
         <OpenApiGenerateDocumentsOnBuild>false</OpenApiGenerateDocumentsOnBuild>
-        <!-- GH-5134: this fixture, Wolverine.Http.Tests and the Swashbuckle filters in here are written against
-             the Microsoft.OpenApi 1.x object model (Swashbuckle 6.5.0). It was net9.0 only, where
-             Microsoft.AspNetCore.OpenApi 9.0.5 resolves 1.6.17; moving to net10.0 must not drag in the 2.x
-             model, so it holds Microsoft.AspNetCore.OpenApi at 9.0.5 and Directory.Build.targets skips its
-             Microsoft.OpenApi pin. Porting to the 2.x/3.x model (Swashbuckle 10) is the Swashbuckle/OpenApi
-             upgrade issue, not this one. -->
-        <HoldMicrosoftOpenApi1x>true</HoldMicrosoftOpenApi1x>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" VersionOverride="9.0.5" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
         <PackageReference Include="Scalar.AspNetCore" />
         <PackageReference Include="Shouldly" />
         <PackageReference Include="StronglyTypedId" />

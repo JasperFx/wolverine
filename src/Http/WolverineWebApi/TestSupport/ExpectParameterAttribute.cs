@@ -1,4 +1,4 @@
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Shouldly;
 
 namespace WolverineWebApi.TestSupport;
@@ -40,7 +40,7 @@ public class ExpectParameterAttribute : OpenApiExpectationAttribute
         In = @in;
     }
 
-    public override void Validate(OpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
+    public override void Validate(IOpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
     {
         var parameter = op.Parameters?.FirstOrDefault(x => x.Name == Name && x.In == In);
         parameter.ShouldNotBeNull($"Expected a parameter '{Name}' in '{In}'. Actual parameters: " +
@@ -51,7 +51,7 @@ public class ExpectParameterAttribute : OpenApiExpectationAttribute
         if (Type != null)
         {
             parameter.Schema.ShouldNotBeNull($"Parameter '{Name}' has no schema");
-            parameter.Schema.Type.ShouldBe(Type, $"Parameter '{Name}' schema type");
+            OpenApiSchemaResolver.TypeName(parameter.Schema).ShouldBe(Type, $"Parameter '{Name}' schema type");
         }
 
         if (Format != null)

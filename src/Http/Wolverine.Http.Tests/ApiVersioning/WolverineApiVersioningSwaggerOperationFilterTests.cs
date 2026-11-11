@@ -1,7 +1,6 @@
 using Asp.Versioning;
-using Microsoft.OpenApi.Any;
-using Microsoft.OpenApi.Interfaces;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
+using System.Text.Json.Nodes;
 using Shouldly;
 using Wolverine.Http.ApiVersioning;
 using WolverineWebApi.ApiVersioning;
@@ -36,7 +35,7 @@ public class WolverineApiVersioningSwaggerOperationFilterTests
         WolverineApiVersioningSwaggerOperationFilter.ApplyFromMetadata(operation, metadata);
 
         operation.Deprecated.ShouldBeFalse();
-        ((IDictionary<string, IOpenApiExtension>)operation.Extensions).ShouldNotContainKey("x-api-versioning");
+        (operation.Extensions?.ContainsKey("x-api-versioning") ?? false).ShouldBeFalse();
     }
 
     [Fact]
@@ -53,11 +52,11 @@ public class WolverineApiVersioningSwaggerOperationFilterTests
 
         WolverineApiVersioningSwaggerOperationFilter.ApplyFromMetadata(operation, metadata);
 
-        var extensions = (IDictionary<string, IOpenApiExtension>)operation.Extensions;
+        var extensions = operation.Extensions.ShouldNotBeNull();
         extensions.ShouldContainKey("x-api-versioning");
-        var ext = (OpenApiObject)extensions["x-api-versioning"];
-        ((IDictionary<string, IOpenApiAny>)ext).ShouldContainKey("sunset");
-        var sunsetStr = ((OpenApiString)ext["sunset"]).Value;
+        var ext = extensions["x-api-versioning"].ShouldBeOfType<JsonNodeExtension>().Node.AsObject();
+        ext.ContainsKey("sunset").ShouldBeTrue();
+        var sunsetStr = ext["sunset"]!.GetValue<string>();
         sunsetStr.ShouldBe(sunsetDate.UtcDateTime.ToString("R"));
     }
 
@@ -75,14 +74,14 @@ public class WolverineApiVersioningSwaggerOperationFilterTests
 
         WolverineApiVersioningSwaggerOperationFilter.ApplyFromMetadata(operation, metadata);
 
-        var extensions = (IDictionary<string, IOpenApiExtension>)operation.Extensions;
+        var extensions = operation.Extensions.ShouldNotBeNull();
         extensions.ShouldContainKey("x-api-versioning");
-        var ext = (OpenApiObject)extensions["x-api-versioning"];
-        ((IDictionary<string, IOpenApiAny>)ext).ShouldContainKey("links");
-        var links = (OpenApiArray)ext["links"];
+        var ext = extensions["x-api-versioning"].ShouldBeOfType<JsonNodeExtension>().Node.AsObject();
+        ext.ContainsKey("links").ShouldBeTrue();
+        var links = ext["links"]!.AsArray();
         links.Count.ShouldBe(1);
-        var firstLink = (OpenApiObject)links[0];
-        ((IDictionary<string, IOpenApiAny>)firstLink).ShouldContainKey("href");
-        ((OpenApiString)firstLink["href"]).Value.ShouldBe(linkUri.ToString());
+        var firstLink = links[0]!.AsObject();
+        firstLink.ContainsKey("href").ShouldBeTrue();
+        firstLink["href"]!.GetValue<string>().ShouldBe(linkUri.ToString());
     }
 }

@@ -460,9 +460,11 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
             string? type = null;
             string? format = null;
 
-            if (x.TryGetProperty("schema", out var schema))
+            if (x.TryGetProperty("schema", out var rawSchema))
             {
-                type = schema.TryGetProperty("type", out var t) ? t.GetString() : null;
+                // Microsoft.AspNetCore.OpenApi 10 moves an enum parameter's schema into components and refers to it
+                var schema = resolveSchema(rawSchema);
+                type = schema.TryGetProperty("type", out var t) ? typeName(t) : null;
                 format = schema.TryGetProperty("format", out var f) ? f.GetString() : null;
             }
 
@@ -471,6 +473,28 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
             return new ParameterShape(x.GetProperty("name").GetString()!, x.GetProperty("in").GetString()!,
                 required, type, format);
         }).ToList();
+    }
+
+    /// <summary>
+    /// The schema's <c>type</c> keyword as one JSON Schema type name. Microsoft.AspNetCore.OpenApi 10 writes
+    /// OpenAPI 3.1, where <c>type</c> may be an array: a nullable value adds "null", and a number that
+    /// System.Text.Json will also read from a string adds "string" beside "integer" or "number". Neither
+    /// changes what the parameter is, so both are left out here.
+    /// </summary>
+    private static string? typeName(JsonElement type)
+    {
+        if (type.ValueKind != JsonValueKind.Array)
+        {
+            return type.GetString();
+        }
+
+        var names = type.EnumerateArray().Select(x => x.GetString()!).Where(x => x != "null").ToList();
+        if (names.Count > 1)
+        {
+            names.Remove("string");
+        }
+
+        return names.FirstOrDefault();
     }
 
     private (JsonElement Properties, List<string> Required) formSchemaFor(string path)
