@@ -34,6 +34,7 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, I
     private bool _hasInitialized;
     private ISqlServerQueueSender? _sender;
     private ImHashMap<string, bool> _checkedDatabases = ImHashMap<string, bool>.Empty;
+    private ImHashMap<string, SqlServerQueueLayout> _layouts = ImHashMap<string, SqlServerQueueLayout>.Empty;
     private readonly Lazy<QueueTable> _queueTable;
     private readonly Lazy<ScheduledMessageTable> _scheduledTable;
 
@@ -50,9 +51,9 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, I
         BrokerRole = "queue";
 
         // Gotta be lazy so the schema names and OptimizeThroughput get set
-        _queueTable = new Lazy<QueueTable>(() => new QueueTable(Parent, _queueTableName, OptimizeThroughput));
+        _queueTable = new Lazy<QueueTable>(() => new QueueTable(Parent, _queueTableName, TableShape));
         _scheduledTable =
-            new Lazy<ScheduledMessageTable>(() => new ScheduledMessageTable(Parent, _scheduledTableName, OptimizeThroughput));
+            new Lazy<ScheduledMessageTable>(() => new ScheduledMessageTable(Parent, _scheduledTableName, TableShape));
     }
 
     public string Name { get; }
@@ -79,7 +80,75 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, I
     ///     high-throughput layout never does: its <c>seq</c> identity already orders the queue, and
     ///     SQL Server allows only one identity column per table.
     /// </summary>
-    internal bool UsesQueueOrderColumn => Parent.EnableDeterministicQueueOrdering && !OptimizeThroughput;
+    internal bool UsesQueueOrderColumn => TableShape.QueueOrder;
+
+    /// <summary>
+    ///     GH-5192. The layout this queue's tables are created with. Only the parts set explicitly change an
+    ///     existing table; see <see cref="QueueTableShape" />.
+    /// </summary>
+    internal QueueTableShape TableShape => new(OptimizeThroughput, Parent.EnableDeterministicQueueOrdering,
+        AdoptLayout: !(_optimizeThroughput.HasValue || Parent.OptimizeQueueThroughputIsExplicit),
+        AdoptOrdering: !Parent.DeterministicQueueOrderingIsExplicit);
+
+    /// <summary>
+    ///     The layout of tables built from this queue's own configuration.
+    /// </summary>
+    internal SqlServerQueueLayout ConfiguredLayout => new(
+        new SqlServerTableLayout(OptimizeThroughput, UsesQueueOrderColumn),
+        new SqlServerTableLayout(OptimizeThroughput, UsesQueueOrderColumn));
+
+    /// <summary>
+    ///     GH-5192. The layout this queue's tables really have in one database. 7.0 adopts an existing table on
+    ///     the layout it has, so a database may hold a classic table next to one created after the upgrade, and
+    ///     each tenant database may differ. A table that does not exist yet is created from the configuration.
+    /// </summary>
+    internal async Task<SqlServerQueueLayout> ResolveLayoutAsync(string identifier, string connectionString)
+    {
+        if (_layouts.TryFind(identifier, out var known)) return known;
+
+        var configured = ConfiguredLayout;
+        var ready = configured.Ready;
+        var scheduled = configured.Scheduled;
+
+        await using var conn = new SqlConnection(connectionString);
+        await conn.OpenAsync();
+        try
+        {
+            await using var cmd = conn.CreateCommand(
+                $"select TABLE_NAME, max(case when COLUMN_NAME = '{QueueTableShape.SeqColumn}' then 1 else 0 end), " +
+                $"max(case when COLUMN_NAME = '{Transport.QueueTable.QueueOrderColumn}' then 1 else 0 end) " +
+                "from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = @schema and TABLE_NAME in (@ready, @scheduled) " +
+                "group by TABLE_NAME");
+            cmd.With("schema", QueueTable.Identifier.Schema);
+            cmd.With("ready", QueueTable.Identifier.Name);
+            cmd.With("scheduled", ScheduledTable.Identifier.Name);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var seq = reader.GetInt32(1) == 1;
+                var layout = new SqlServerTableLayout(seq,
+                    !seq && reader.GetInt32(2) == 1 && Parent.EnableDeterministicQueueOrdering);
+
+                if (reader.GetString(0).Equals(QueueTable.Identifier.Name, StringComparison.OrdinalIgnoreCase))
+                {
+                    ready = layout;
+                }
+                else
+                {
+                    scheduled = layout;
+                }
+            }
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+
+        var resolved = new SqlServerQueueLayout(ready, scheduled);
+        _layouts = _layouts.AddOrUpdate(identifier, resolved);
+        return resolved;
+    }
 
     internal Table QueueTable => _queueTable.Value;
 
@@ -227,16 +296,10 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, I
 
             try
             {
-                var queueDelta = await QueueTable.FindDeltaAsync(conn);
-                if (queueDelta.HasChanges())
-                {
-                    returnValue = false;
-                    return;
-                }
-
-                var scheduledDelta = await ScheduledTable.FindDeltaAsync(conn);
-
-                returnValue = returnValue && !scheduledDelta.HasChanges();
+                // GH-5192: through CreateDeltaAsync, not Table.FindDeltaAsync, so an adopted table is not
+                // reported as a pending change
+                var migration = await SchemaMigration.DetermineAsync(conn, CancellationToken.None, QueueTable, ScheduledTable);
+                returnValue = returnValue && migration.Difference == SchemaPatchDifference.None;
             }
             finally
             {

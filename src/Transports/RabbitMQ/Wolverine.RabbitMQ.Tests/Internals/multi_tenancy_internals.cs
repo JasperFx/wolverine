@@ -38,7 +38,8 @@ public class multi_tenancy_internals
     public void default_tenant_id_behavior()
     {
         var transport = new RabbitMqTransport();
-        transport.TenantedIdBehavior.ShouldBe(TenantedIdBehavior.FallbackToDefault);
+        // GH-5196: dead letter unknown tenants is the 7.0 default
+        transport.TenantedIdBehavior.ShouldBe(TenantedIdBehavior.DeadLetterUnknownTenants);
     }
 
     [Fact]

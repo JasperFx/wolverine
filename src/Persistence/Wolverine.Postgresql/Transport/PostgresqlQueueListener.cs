@@ -28,13 +28,13 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
     private readonly DurabilitySettings _settings;
     private Task? _scheduledTask;
     private readonly PostgresqlQueueSender _sender;
-    private readonly string _tryPopMessagesDirectlySql;
+    private string _tryPopMessagesDirectlySql = null!;
     private readonly string _queueTableName;
     private readonly string _queueName;
     private readonly string _quotedSchemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
-    private readonly bool _deterministicQueueOrdering;
+    private bool _deterministicQueueOrdering;
     private readonly string _queueNotificationKey;
     private IAsyncDisposable? _notificationRegistration;
 
@@ -61,6 +61,14 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
         _quotedSchemaName = _queue.Parent.MessageStorageSchemaName.QuoteIdentifier();
         _queueNotificationKey = PostgresqlQueueNotification.Key(queue);
 
+        buildTryPopMessagesDirectlySql();
+        _queueName = _queue.Name;
+    }
+
+    // GH-5192: the configured value is only a first guess. StartAsync swaps in the layout this database's
+    // queue tables really have, because 7.0 adopts an existing table without queue_order as it stands.
+    private void buildTryPopMessagesDirectlySql()
+    {
         // DELETE ... RETURNING does not preserve the ordering of the selected rows. Always reapply
         // timestamp order; the sequence tie-breaker is only referenced when its schema is enabled.
         var queueOrderInOrderBy = _deterministicQueueOrdering ? $", {_queueTableName}.{QueueTable.QueueOrderColumn}" : string.Empty;
@@ -79,7 +87,6 @@ WITH message AS (
 )
 SELECT message.{DatabaseConstants.Body} from message ORDER BY message.timestamp{queueOrderInResultOrderBy};
 ";
-        _queueName = _queue.Name;
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
@@ -552,6 +559,9 @@ WHERE {DatabaseConstants.Id} = ANY(?)
         {
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _dataSource);
         }
+
+        _deterministicQueueOrdering = await _queue.UsesQueueOrderingAsync(_databaseName ?? string.Empty, _dataSource);
+        buildTryPopMessagesDirectlySql();
 
         if (_queue.Parent.EnableQueueNotifications)
         {

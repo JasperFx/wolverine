@@ -2,7 +2,7 @@ using System.Text.Json;
 using Alba;
 using JasperFx;
 using Marten;
-using Marten.Exceptions;
+using JasperFx.Events;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using WolverineWebApi.Marten;
@@ -16,8 +16,10 @@ namespace Wolverine.Http.Tests.Marten;
 ///
 /// <para>The fix is the OnException middleware convention rather than anything in the codegen
 /// pipeline, so these tests exercise the documented recipe end to end. The second one matters
-/// most: StreamLockedException is a MartenException, NOT a ConcurrencyException, so a recipe that
-/// catches only ConcurrencyException silently misses the FetchForExclusiveWriting path.</para>
+/// most: before Marten 10, StreamLockedException was a MartenException, NOT a ConcurrencyException,
+/// so a recipe that caught only ConcurrencyException silently missed the FetchForExclusiveWriting
+/// path. Marten 10 throws the shared JasperFx.Events.StreamLockedException, which derives from
+/// ConcurrencyException, and the explicit lock-timeout handler stays beside the shared one.</para>
 /// </summary>
 public class marten_concurrency_problem_details(AppFixture fixture) : IntegrationContext(fixture)
 {
@@ -77,7 +79,7 @@ public class marten_concurrency_problem_details(AppFixture fixture) : Integratio
     public async Task store_agnostic_stream_locked_failure_becomes_a_409_problem_details()
     {
         // GH-5142. JasperFx.Events.StreamLockedException is what Polecat's and Fisher's lock failures derive
-        // from. Marten's does not, so the only catch that can turn this into a 409 is the core one
+        // from, and Marten 10's does too. Before Marten 10 the core catch was the only one that could turn this into a 409
         var id = Guid.NewGuid();
 
         var result = await Host.Scenario(x =>
@@ -117,12 +119,13 @@ public class marten_concurrency_problem_details(AppFixture fixture) : Integratio
     }
 
     [Fact]
-    public void the_two_exception_types_are_unrelated_which_is_why_both_handlers_exist()
+    public void stream_locked_now_derives_from_concurrency_exception_and_both_handlers_still_coexist()
     {
-        // Pins the reason the middleware needs two OnException methods. If Marten ever moves
-        // StreamLockedException under ConcurrencyException this test should fail loudly rather
-        // than leaving a redundant handler in the docs
-        typeof(StreamLockedException).IsAssignableTo(typeof(ConcurrencyException)).ShouldBeFalse();
+        // Marten 10 did what the earlier version of this test said should fail loudly: it moved
+        // StreamLockedException under ConcurrencyException (the shared JasperFx.Events type, jasperfx#1169).
+        // The explicit StreamLockedException handler is kept so the public recipe keeps its shape;
+        // generated catch blocks are ordered most-specific first, so the two never collide (CS0160).
+        typeof(StreamLockedException).IsAssignableTo(typeof(ConcurrencyException)).ShouldBeTrue();
         typeof(global::JasperFx.Events.EventStreamUnexpectedMaxEventIdException)
             .IsAssignableTo(typeof(ConcurrencyException)).ShouldBeTrue();
     }

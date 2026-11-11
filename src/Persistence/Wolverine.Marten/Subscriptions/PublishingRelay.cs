@@ -1,7 +1,5 @@
-using ImTools;
 using JasperFx;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using JasperFx.Events;
 using JasperFx.MultiTenancy;
 using JasperFx.Events.Daemon;
@@ -11,6 +9,8 @@ using Marten.Events;
 using Marten.Events.Daemon;
 using Marten.Events.Daemon.Internals;
 using Marten.Storage;
+
+using Wolverine.Persistence.EventSourcing.Subscriptions;
 
 namespace Wolverine.Marten.Subscriptions;
 
@@ -58,34 +58,26 @@ public interface IPublishingRelay
     void FilterIncomingEventsOnStreamType(Type streamType);
 }
 
+/// <summary>
+/// The Marten subscription behind PublishEventsToWolverine(). The behavior is the shared
+/// <see cref="EventRelay"/> (GH-5143).
+/// </summary>
 internal class PublishingRelay : BatchSubscription, IPublishingRelay
 {
-    private ImHashMap<Type, IPublisher> _publishers = ImHashMap<Type, IPublisher>.Empty;
-    private readonly Func<IEvent, IMessageBus, ValueTask> _relay;
+    private readonly EventRelay _relay;
 
     public PublishingRelay(string subscriptionName, TenancyStyle tenancyStyle) : base(subscriptionName)
     {
-        // Bind the per-event publish path once at construction so the hot loop in
-        // ProcessEventsAsync needs neither a TenancyStyle comparison nor a downcast
-        // through IDocumentSession.DocumentStore. Under conjoined tenancy
-        // IEvent<T>.TenantId is the authoritative attribution (the tenant lives in
-        // the row, not the database) and must reach the outbound envelope verbatim
-        // — including StorageConstants.DefaultTenantId for default-tenant events,
-        // otherwise WolverineSubscriptionRunner's bus.TenantId
-        // (= operations.Database.Identifier) silently misroutes them. For
-        // non-conjoined stores the legacy fallthrough is preserved so any setup
-        // relying on the database identifier as the message tenant keeps working.
-        // See GH-2675.
-        _relay = tenancyStyle == TenancyStyle.Conjoined
-            ? RelayWithEventTenant
-            : RelayWithLegacyFallthrough;
+        // Under conjoined tenancy IEvent<T>.TenantId is the authoritative attribution (the tenant lives in
+        // the row, not the database) and must reach the outbound envelope verbatim. See GH-2675 and
+        // EventRelay.
+        _relay = new EventRelay(tenancyStyle == TenancyStyle.Conjoined);
     }
 
     public void PublishEvent<T>(Func<IEvent<T>, IMessageBus, ValueTask> publish) where T : notnull
     {
         IncludeType<T>();
-        var publisher = typeof(LambdaPublisher<>).CloseAndBuildAs<IPublisher>( publish, typeof(T));
-        _publishers = _publishers.AddOrUpdate(typeof(T), publisher);
+        _relay.PublishEvent(publish);
     }
 
     public void PublishEvent<T>()
@@ -98,50 +90,10 @@ internal class PublishingRelay : BatchSubscription, IPublishingRelay
         IncludeType(eventType);
     }
 
-    public override async Task ProcessEventsAsync(EventRange page, ISubscriptionController controller,
+    public override Task ProcessEventsAsync(EventRange page, ISubscriptionController controller,
         IDocumentOperations operations, IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        foreach (var e in page.Events)
-        {
-            if (_publishers.TryFind(e.EventType, out var publisher))
-            {
-                await publisher.PublishAsync(e, bus);
-            }
-            else
-            {
-                await _relay(e, bus);
-            }
-        }
-    }
-
-    private static ValueTask RelayWithEventTenant(IEvent e, IMessageBus bus)
-        => bus.PublishAsync(e, new DeliveryOptions { TenantId = e.TenantId });
-
-    private static ValueTask RelayWithLegacyFallthrough(IEvent e, IMessageBus bus)
-        => e.TenantId != StorageConstants.DefaultTenantId
-            ? bus.PublishAsync(e, new DeliveryOptions { TenantId = e.TenantId })
-            : bus.PublishAsync(e);
-
-    internal interface IPublisher
-    {
-        ValueTask PublishAsync(object e, IMessageBus bus);
-    }
-
-    internal class LambdaPublisher<T> : IPublisher where T : notnull
-    {
-        private readonly Func<IEvent<T>, IMessageBus, ValueTask> _publish;
-
-        public LambdaPublisher(Func<IEvent<T>, IMessageBus, ValueTask> publish)
-        {
-            _publish = publish;
-        }
-
-        public ValueTask PublishAsync(object e, IMessageBus bus)
-        {
-            if (e is IEvent<T> typed) return _publish(typed, bus);
-
-            return new ValueTask();
-        }
+        return _relay.RelayAsync(page.Events, bus);
     }
 }

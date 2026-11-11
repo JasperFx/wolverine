@@ -133,13 +133,14 @@ public class AmazonSnsPerTenantConfigurationTests
     }
 
     [Fact]
-    public void tenant_id_behavior_defaults_to_fallback_and_is_overridable()
+    public void tenant_id_behavior_defaults_to_dead_letter_unknown_tenants_and_is_overridable()
     {
         var options = new WolverineOptions();
         var sns = options.UseAmazonSnsTransport();
 
+        // GH-5196: the 7.0 default. RestoreV6Defaults() restores FallbackToDefault
         var transport = options.AmazonSnsTransport();
-        transport.TenantedIdBehavior.ShouldBe(TenantedIdBehavior.FallbackToDefault);
+        transport.TenantedIdBehavior.ShouldBe(TenantedIdBehavior.DeadLetterUnknownTenants);
 
         sns.TenantIdBehavior(TenantedIdBehavior.TenantIdRequired);
         transport.TenantedIdBehavior.ShouldBe(TenantedIdBehavior.TenantIdRequired);

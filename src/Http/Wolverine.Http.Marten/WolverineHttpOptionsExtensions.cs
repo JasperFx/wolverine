@@ -1,4 +1,3 @@
-using Marten.Exceptions;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http.Runtime;
 
@@ -14,9 +13,11 @@ public static class WolverineHttpOptionsExtensions
     /// This is the call a Marten application wants, because it covers <b>both</b> halves:
     /// everything deriving from <c>JasperFx.ConcurrencyException</c> (<c>EventStreamUnexpectedMaxEventIdException</c>,
     /// document revision/version violations, <c>SagaConcurrencyException</c>) <b>and</b>
-    /// <see cref="global::Marten.Exceptions.StreamLockedException"/>, which <c>FetchForExclusiveWriting</c>
-    /// throws on a contended stream and which does <b>not</b> derive from <c>ConcurrencyException</c>.
-    /// Catching only the former silently leaves the exclusive locking path returning 500s.
+    /// <see cref="global::JasperFx.Events.StreamLockedException"/>, which <c>FetchForExclusiveWriting</c>
+    /// throws on a contended stream. Before Marten 10 that was <c>Marten.Exceptions.StreamLockedException</c>,
+    /// which did <b>not</b> derive from <c>ConcurrencyException</c>, and catching only the former silently left
+    /// the exclusive locking path returning 500s. GH-5142: both are now mapped by the core
+    /// <c>MapConcurrencyFailuresToConflict()</c>, so this is the same call under the Marten name.
     /// </para>
     ///
     /// <para>
@@ -38,15 +39,9 @@ public static class WolverineHttpOptionsExtensions
     {
         filter ??= ConflictMapping.IsTransactional;
 
+        // GH-5142: the core mapping catches JasperFx.Events.StreamLockedException, which is what Marten 10
+        // throws from FetchForExclusiveWriting (marten#5858), so no Marten-specific catch is registered any more.
         options.MapConcurrencyFailuresToConflict(filter, toProblemDetails);
-
-        // GH-5142: the core mapping above catches JasperFx.Events.StreamLockedException. Marten's own type
-        // still derives from MartenException instead, so it needs this extra catch until Marten rebases it
-        // onto the JasperFx type; from then on the core catch covers it and this one is skipped.
-        if (!typeof(StreamLockedException).IsAssignableTo(typeof(global::JasperFx.Events.StreamLockedException)))
-        {
-            options.AddMiddleware(typeof(MartenStreamLockedMiddleware), filter);
-        }
     }
 
     /// <summary>

@@ -228,11 +228,13 @@ See [Azure Service Bus Multi-Tenancy](/guide/messaging/transports/azureservicebu
 
 ### Tenant ID Behavior Policies
 
-Both RabbitMQ and Azure Service Bus support three policies for handling messages with unrecognized tenant ids:
+Both RabbitMQ and Azure Service Bus support four policies for handling messages with unrecognized tenant ids. A
+message with no tenant id goes to the default broker under all but `TenantIdRequired`:
 
 | Policy | Behavior |
 |--------|----------|
-| `TenantedIdBehavior.FallbackToDefault` | Falls back to the default broker |
+| `TenantedIdBehavior.DeadLetterUnknownTenants` | The default since 7.0. Moves the message to dead letter storage in the main message store and sends it nowhere; with no message store, the send throws |
+| `TenantedIdBehavior.FallbackToDefault` | Falls back to the default broker (the 6.x default, restored by `RestoreV6Defaults()`) |
 | `TenantedIdBehavior.IgnoreUnknownTenants` | Silently ignores the message |
 | `TenantedIdBehavior.TenantIdRequired` | Throws an exception |
 

@@ -231,14 +231,15 @@ returns `400 Bad Request` for the same input, and the lenient behavior makes a t
 indistinguishable from an absent one (not even FluentValidation can catch it downstream, because
 the bound value looks legitimate).
 
-You can opt into the strict, minimal-API-compatible behavior with
-`WolverineHttpOptions.RejectUnparseableQueryValues`:
+From Wolverine 7.0 the strict, minimal-API-compatible behavior is the default, governed by
+`WolverineHttpOptions.RejectUnparseableQueryValues` (`true` by default; it was opt-in throughout 6.x):
 
 ```cs
 app.MapWolverineEndpoints(opts =>
 {
-    // Return 400 with a ProblemDetails body naming the offending parameter
-    // when a query string value is present but unparseable
+    // true (the default) returns 400 with a ProblemDetails body naming the offending
+    // parameter when a query string value is present but unparseable; false puts back
+    // the 6.x lenient binding
     opts.RejectUnparseableQueryValues = true;
 });
 ```
@@ -246,7 +247,7 @@ app.MapWolverineEndpoints(opts =>
 The behavior matrix for a bound query string member (for example
 `[FromQuery] public SortField SortBy { get; set; } = SortField.Date;` on `GET /search`):
 
-| Request | Flag off (default) | Flag on |
+| Request | Flag off | Flag on (default) |
 | --- | --- | --- |
 | `GET /search?SortBy=Name` | `200` — binds `Name` | `200` — binds `Name` |
 | `GET /search` (missing) | `200` — keeps the initializer (`Date`) | `200` — keeps the initializer (`Date`) |
@@ -270,7 +271,7 @@ rejects the whole request with a `400` naming the parameter, rather than silentl
 element and keeping the good ones. For
 `[FromQuery] public Colour[]? Colours { get; set; }` on `GET /widgets`:
 
-| Request | Flag off (default) | Flag on |
+| Request | Flag off | Flag on (default) |
 | --- | --- | --- |
 | `GET /widgets?Colours=Red&Colours=Blue` | `200` — binds `[Red, Blue]` | `200` — binds `[Red, Blue]` |
 | `GET /widgets` (missing) | `200` — keeps the initializer (`null`) | `200` — keeps the initializer (`null`) |
@@ -280,9 +281,10 @@ element and keeping the good ones. For
 String collections are unaffected in both modes, as there is nothing to parse.
 
 ::: warning
-`RejectUnparseableQueryValues` is opt-in (defaults to `false`) throughout Wolverine 6.x to preserve
-the previous lenient behavior, but the default flips to `true` (strict) in Wolverine 7.0. If you
-depend on the lenient behavior, set the flag explicitly to be ready for 7.0.
+`RejectUnparseableQueryValues` was opt-in (defaulting to `false`) throughout Wolverine 6.x, and the
+default flipped to `true` (strict) in Wolverine 7.0. If you depend on the lenient behavior, set the
+flag to `false` explicitly, or call `opts.RestoreV6Defaults()`. See the
+[migration guide](/guide/migration#wolverine-http-defaults-that-changed-in-7-0).
 :::
 
 The [Fluent Validation middleware](./fluentvalidation) for Wolverine.HTTP is able to validate against request types

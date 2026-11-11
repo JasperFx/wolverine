@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.Persistence.Durability;
 
@@ -31,9 +32,18 @@ internal static class UnsendableOutgoingEnvelopes
             return false;
         }
 
-        logger.LogError(exception,
-            "Outgoing message {Name}#{Id} to {Destination} failed to serialize for its transport, so it was moved to dead letter storage",
-            envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
+        if (exception is UnknownBrokerTenantException unknownTenant)
+        {
+            logger.LogError(exception,
+                "Outgoing message {Name}#{Id} to {Destination} is addressed to unknown tenant '{TenantId}', so it was moved to dead letter storage instead of being sent",
+                envelope.GetMessageTypeName(), envelope.Id, envelope.Destination, unknownTenant.TenantId);
+        }
+        else
+        {
+            logger.LogError(exception,
+                "Outgoing message {Name}#{Id} to {Destination} failed to serialize for its transport, so it was moved to dead letter storage",
+                envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
+        }
         runtime.MessageTracking.MovedToErrorQueue(envelope, exception);
 
         return true;

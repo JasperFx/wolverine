@@ -2,6 +2,103 @@
 
 ## Key Changes in 7.0
 
+### Defaults that changed in 7.0: `RestoreV6Defaults()`
+
+To take Wolverine 7 without its new runtime defaults, call `opts.RestoreV6Defaults()` once at the top of your
+`UseWolverine` lambda:
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    opts.RestoreV6Defaults();
+    // … the rest of your configuration
+});
+```
+
+That puts back the Wolverine 6.x value of every default in the table below, including the ones that belong to
+Wolverine.Http, the transports and the message stores, wherever in your configuration those are set up. Anything you
+set explicitly still wins. Treat it as a temporary step: remove the call, then adopt each new default when you are
+ready for it.
+
+`RestoreV5Defaults()` is gone in 7.0. The one 6.0 default it covered, `ServiceLocationPolicy.NotAllowed`, is the 6.x
+value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Defaults()`, replace it with
+`opts.ServiceLocationPolicy = ServiceLocationPolicy.AllowedButWarn;`.
+
+<!-- Every 7.0 default flip adds a row here. `Restore test` names the test class proving that RestoreV6Defaults()
+     puts the 6.x value back; CoreTests.restore_v6_defaults_tests checks every row against it. -->
+
+| Setting | 6.x | 7.0 | Opt-out | Restore test |
+|---|---|---|---|---|
+| `WolverineHttpOptions.RejectUnparseableQueryValues` | `false`: an unparseable query string value binds the parameter's default | `true`: it answers 400 with ProblemDetails | `opts.RejectUnparseableQueryValues = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `WolverineHttpOptions.MapConcurrencyFailuresToConflict()` | off: a concurrency failure escapes as a 500 | on for the transactional endpoints: 409 with ProblemDetails, advertised in OpenAPI (under Marten 9.x, the exclusive-lock failure only with `MapMartenConcurrencyFailuresToConflict()`) | `opts.DoNotMapConcurrencyFailuresToConflict()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `WolverineHttpOptions.MapUnknownTenantToNotFound()` | off: `UnknownTenantIdException` escapes as a 500 | on for the tenanted endpoints: 404 with ProblemDetails, advertised in OpenAPI | `opts.DoNotMapUnknownTenantToNotFound()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` | `false` | `true`: the `X-Correlation-ID` header reaches every endpoint, and the events it appends | `opts.ApplyCorrelationIdHeaderToAllEndpoints = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `PushReceiverOptions.DeduplicateWithInbox` | `false` | `true` when the application has a message store | `o.DeduplicateWithInbox = false` in `MapWolverinePushReceiver()` | `push_receiver_5016` |
+| `BrokerTransport.TenantedIdBehavior` (RabbitMQ, Azure Service Bus, SQS, SNS, Kafka, GCP Pub/Sub, Redis, NATS; also MQTT, MQTT 5 and Pulsar) | `FallbackToDefault`: a message for an unregistered tenant id goes to the default broker | `DeadLetterUnknownTenants`: it goes to dead letter storage and is sent nowhere | `.TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)` (`ConfigureMultiTenancy(...)` on Redis and NATS) | `restore_v6_broker_tenancy_defaults` |
+| `NatsTransportConfiguration.TrustTenantIdHeader` | `true`: a tenant-aware listener takes the tenant from the `tenant-id` header | not trusted: the tenant comes from the connection or subject prefix the message arrived on | `nats.TrustTenantIdHeader = true` | `NatsTenantIdHeaderTests` |
+| `DurabilitySettings.MessageDeduplicationMode` | `None`: no deduplication table | `CompareByHash`: every message store provisions `wolverine_deduplication_hashed` and its cleanup job | `opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.EnableDeduplicatedResponses` | `false` | `true`: every message store provisions `wolverine_deduplicated_responses` and its cleanup job | `opts.Durability.EnableDeduplicatedResponses = false` | `restore_v6_defaults_tests` |
+
+### Wolverine.Http defaults that changed in 7.0
+
+Five Wolverine.Http defaults flipped in 7.0 (GH-5195). They are the rows of the table above that name
+`WolverineHttpOptions` or `PushReceiverOptions`, and `RestoreV6Defaults()` puts back all five:
+
+- **Strict query string binding.** A query string value that is present but cannot be parsed, such as `?page=abc` on an
+  `int page` parameter, now answers 400 with a ProblemDetails naming the parameter, as MVC and minimal APIs do. In 6.x it
+  bound the parameter's default value and the request went ahead. A missing value still binds the default in both
+  modes. See [query string binding](/guide/http/querystring). F# code generation does not support strict binding yet,
+  so an application that pre-generates F# code for an endpoint with a parsed query string parameter has to set
+  `RejectUnparseableQueryValues = false`.
+- **Concurrency failures answer 409.** The commit-time concurrency failures (`JasperFx.ConcurrencyException` and
+  everything deriving from it, plus `JasperFx.Events.StreamLockedException`) on a transactional endpoint now answer 409
+  with ProblemDetails instead of escaping as a 500, and the OpenAPI document advertises the 409. If you call
+  `MapConcurrencyFailuresToConflict()`, `MapMartenConcurrencyFailuresToConflict()` or
+  `MapPolecatConcurrencyFailuresToConflict()` yourself, your call replaces the default, so a custom filter or
+  ProblemDetails factory still applies. With Marten 9.x, Marten's own `StreamLockedException` (from
+  `FetchForExclusiveWriting`) does not derive from the JasperFx type yet, so keep calling
+  `MapMartenConcurrencyFailuresToConflict()` if you want that one mapped to a 409 too. Marten 10 rebases it onto the
+  JasperFx type, and from then on the default covers it. See
+  [exception handling](/guide/http/exception-handling).
+- **An unknown tenant answers 404.** An `UnknownTenantIdException` on an endpoint marked `[RequiresTenant]` or
+  `[MaybeTenanted]` now answers 404 with ProblemDetails instead of escaping as a 500. A *missing* tenant id still
+  answers 400.
+- **The correlation id reaches every endpoint.** The request's `X-Correlation-ID` header is now applied wherever an
+  endpoint's message context is created, so the events an endpoint appends record the caller's correlation id, not
+  just the messages it sends. See [middleware](/guide/http/middleware).
+- **Push receivers deduplicate with the inbox.** When the application has a message store, a push receiver now claims
+  each message id in the durable inbox, so a redelivery is recognized instead of run again. See
+  [serverless](/guide/serverless).
+
+Two related behaviors need no action. `DefaultClaimInTransaction` stays opt-in. And since 6.51.2, a query string, header
+or form value that is omitted binds the parameter's declared default (`int limit = 50` binds 50, not 0); that change
+shipped without a flag, so there is nothing for `RestoreV6Defaults()` to restore (GH-5099).
+
+### Broker-per-tenant tenancy is strict in 7.0
+
+A broker is a trust boundary in 7.0 (GH-5196). Two defaults flipped, and `RestoreV6Defaults()` puts back both:
+
+- **An unknown tenant id is dead lettered, not sent to the default broker.** With tenants registered on a transport
+  (`AddTenant()`), a message with no tenant id still goes to the default broker and a message for a registered tenant
+  goes to that tenant's broker only. A message for a tenant id that no registered tenant matches is moved to dead
+  letter storage with an `UnknownBrokerTenantException` naming the tenant id, the message type and the endpoint, and
+  is sent nowhere: not to the default broker, not to another tenant's. The exception derives from
+  `UnknownTenantIdException`. The dead letter goes to the **main** message store (there is no tenant database for a
+  tenant nobody registered) and keeps the envelope's tenant id. With the durable outbox, a message the outbox already
+  holds is removed from it once its dead letter is written, so the durability agent never sends it. With **no message
+  store** there is nowhere to dead letter it, so the send throws `UnknownBrokerTenantException` instead. Tenant ids
+  match exactly (ordinal, case sensitive, no trimming). Explicit `FallbackToDefault`, `TenantIdRequired` and
+  `IgnoreUnknownTenants` behave as they did in 6.x. `ConfigureMultiTenancy()` on Redis and NATS no longer pins
+  `FallbackToDefault` when called without an argument.
+- **NATS does not trust the `tenant-id` header.** A tenant-aware NATS listener takes the tenant from the tenant's own
+  connection, or from the subject's tenant prefix, so a producer with publish rights on tenant A's subjects can no
+  longer stamp a message as tenant B. `NatsTransportConfiguration.TrustTenantIdHeader` is now a `bool?`; null means
+  the default. The unused `NatsTransportConfiguration.TenantIdResolver` property and `ITenantIdResolver` interface
+  were removed.
+
+During a rolling upgrade, 6.x nodes in the same cluster still send unknown tenant ids to the default broker until they
+are upgraded.
+
 ### Deduplication storage is on by default; `EnableMessageDeduplication` removed (BREAKING)
 
 `Durability.MessageDeduplicationMode` now defaults to `CompareByHash` (it was `None`), and
@@ -56,7 +153,7 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 
 | Setting / API | 5.x | 6.0 | Migration action |
 |---|---|---|---|
-| `WolverineOptions.ServiceLocationPolicy` | `AllowedButWarn` | **`NotAllowed`** *(BREAKING)* | Restructure registrations or [allow-list per type](#servicelocationpolicy-notallowed-is-the-default-breaking); or call [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) |
+| `WolverineOptions.ServiceLocationPolicy` | `AllowedButWarn` | **`NotAllowed`** *(BREAKING)* | Restructure registrations or [allow-list per type](#servicelocationpolicy-notallowed-is-the-default-breaking); or set `ServiceLocationPolicy.AllowedButWarn` (`opts.RestoreV5Defaults()` did this in 6.x and was removed in 7.0) |
 | `WolverineOptions.UseNewtonsoftForSerialization(...)` | instance method on core `WolverineFx` | extension method in `WolverineFx.Newtonsoft` *(BREAKING)* | Install `WolverineFx.Newtonsoft`; add `using Wolverine.Newtonsoft;` |
 | `IEndpointConfiguration<T>.CustomNewtonsoftJsonSerialization(...)` | instance method on the interface | extension method in `WolverineFx.Newtonsoft` *(BREAKING)* | Same |
 | `IMassTransitInterop.UseNewtonsoftForSerialization(...)` | interface method | extension method in `WolverineFx.Newtonsoft` *(BREAKING)* | Same |
@@ -76,10 +173,10 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | `RedisTransport.BuildRedisStreamUri(...)` | static helper on `RedisTransport` *(`[Obsolete]`)* | **removed** *(BREAKING)* | Call [`RedisEndpointUri.Stream(...)`](#redistransport-buildredisstreamuri-removed-breaking) — identical signature, drop the helper |
 | `PulsarEndpoint.UriFor(...)` | static helpers on `PulsarEndpoint` *(both overloads `[Obsolete]`)* | **removed** *(BREAKING)* | For the Wolverine-URI form, call [`PulsarEndpointUri.Topic(...)`](#pulsarendpoint-urifor-removed-breaking); the native-topic-path form (`persistent://...`) was an internal-only seam now covered by `PulsarEndpoint.NativeTopicPath` |
 | Runtime code generation (Roslyn) | bundled in core `WolverineFx` (via `JasperFx.RuntimeCompiler`) | **moved to the opt-in `WolverineFx.RuntimeCompilation` package** *(BREAKING for `TypeLoadMode.Dynamic`/`Auto`)* | Reference [`WolverineFx.RuntimeCompilation`](#runtime-code-generation-moved-to-the-wolverinefxruntimecompilation-package-breaking) (it auto-registers), or pre-generate with `TypeLoadMode.Static` |
-| **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) | Flip every runtime default this method covers back to its 5.x value |
+| **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults-removed-in-7-0) *(removed in 7.0)* | Flip every runtime default this method covers back to its 5.x value |
 
 ::: tip
-If you just want to adopt the 6.0 API surface and bug fixes without simultaneously adopting the new runtime defaults, call [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) once at the top of your `UseWolverine` lambda. Then opt into each new default at your own pace.
+If you just want to adopt the 6.0 API surface and bug fixes without simultaneously adopting the new runtime defaults, call [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults-removed-in-7-0) once at the top of your `UseWolverine` lambda. Then opt into each new default at your own pace.
 :::
 
 ---
@@ -201,7 +298,11 @@ Use this for services with genuinely opaque lambda factory registrations (Refit 
 
 See [Code Generation](/guide/codegen.html) for the full IoC + service-location story, including the LOUD callout at the top of that page.
 
-### One-line revert: `RestoreV5Defaults()`
+### One-line revert: `RestoreV5Defaults()` (removed in 7.0)
+
+::: warning
+`RestoreV5Defaults()` was removed in Wolverine 7.0. Set `opts.ServiceLocationPolicy = ServiceLocationPolicy.AllowedButWarn;` instead, and see [`RestoreV6Defaults()`](#defaults-that-changed-in-7-0-restorev6defaults) for the 7.0 defaults.
+:::
 
 For applications that want to adopt Wolverine 6's API surface, NuGet line, target frameworks, and bug fixes — without simultaneously adopting its new runtime defaults — Wolverine 6.0 adds a one-line escape hatch:
 

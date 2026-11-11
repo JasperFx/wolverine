@@ -408,8 +408,71 @@ public class push_receiver_5016
     }
 
     [Fact]
+    public async Task with_a_message_store_the_inbox_deduplicates_by_default()
+    {
+        // GH-5195: on by default from 7.0 when there is a message store
+        await using var host = await hostWith(opts => persistInPostgres(opts, "push_dedupe"));
+        await host.ResetResourceState(TestContext.Current.CancellationToken);
+
+        var id = Guid.NewGuid();
+        await push(host, "once", id);
+        await push(host, "once", id);
+
+        recorderFor(host).Handled.ShouldBe(["once"]);
+    }
+
+    [Fact]
+    public async Task restoring_the_v6_defaults_turns_inbox_deduplication_back_off()
+    {
+        await using var host = await hostWith(opts =>
+        {
+            opts.RestoreV6Defaults();
+            persistInPostgres(opts, "push_dedupe");
+        });
+        await host.ResetResourceState(TestContext.Current.CancellationToken);
+
+        var id = Guid.NewGuid();
+        await push(host, "twice", id);
+        await push(host, "twice", id);
+
+        recorderFor(host).Handled.ShouldBe(["twice", "twice"]);
+    }
+
+    [Fact]
+    public async Task an_explicit_false_turns_inbox_deduplication_off_with_a_message_store()
+    {
+        await using var host = await hostWith(opts => persistInPostgres(opts, "push_dedupe"),
+            o => o.DeduplicateWithInbox = false);
+        await host.ResetResourceState(TestContext.Current.CancellationToken);
+
+        var id = Guid.NewGuid();
+        await push(host, "twice", id);
+        await push(host, "twice", id);
+
+        recorderFor(host).Handled.ShouldBe(["twice", "twice"]);
+    }
+
+    [Fact]
+    public async Task an_explicit_true_wins_over_restoring_the_v6_defaults()
+    {
+        await using var host = await hostWith(opts =>
+        {
+            opts.RestoreV6Defaults();
+            persistInPostgres(opts, "push_dedupe");
+        }, o => o.DeduplicateWithInbox = true);
+        await host.ResetResourceState(TestContext.Current.CancellationToken);
+
+        var id = Guid.NewGuid();
+        await push(host, "once", id);
+        await push(host, "once", id);
+
+        recorderFor(host).Handled.ShouldBe(["once"]);
+    }
+
+    [Fact]
     public async Task without_deduplication_a_redelivery_is_handled_again()
     {
+        // No message store, so the 7.0 default leaves deduplication off
         await using var host = await hostWith();
 
         var id = Guid.NewGuid();

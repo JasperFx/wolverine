@@ -133,7 +133,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         }
 
         logger.LogWarning(
-            "WolverineHttpOptions.RejectUnparseableQueryValues is false, so a query string value that is present but cannot be parsed binds the parameter's default value and the request proceeds -- '?page=abc' on an int parameter runs with page = 0, and nothing is logged. Set WolverineHttpOptions.RejectUnparseableQueryValues = true to answer 400 with ProblemDetails instead, which is what MVC and minimal APIs do. This default flips to true in Wolverine 7.");
+            "WolverineHttpOptions.RejectUnparseableQueryValues is false, so a query string value that is present but cannot be parsed binds the parameter's default value and the request proceeds -- '?page=abc' on an int parameter runs with page = 0, and nothing is logged. Set WolverineHttpOptions.RejectUnparseableQueryValues = true to answer 400 with ProblemDetails instead, which is what MVC and minimal APIs do. It defaults to true from Wolverine 7.0; this application set it to false explicitly or called WolverineOptions.RestoreV6Defaults().");
     }
 
     internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _optionsWriterPolicies.Concat(_builtInWriterPolicies);

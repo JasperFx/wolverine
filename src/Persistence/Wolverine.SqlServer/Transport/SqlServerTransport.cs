@@ -78,27 +78,64 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
         }
     }
 
-    /// <summary>
-    /// Opt into the higher-throughput queue table storage layout: queue and scheduled tables are
-    /// clustered on a monotonic <c>seq</c> identity column (for FIFO dequeue and contiguous deletes)
-    /// with a unique non-clustered index on the message id, instead of a clustered primary key on a
-    /// random Guid. Off by default. Enable via <see cref="SqlServerPersistenceExpression.OptimizeQueueThroughput"/>.
-    /// This is the default for every queue in this transport; an individual queue can opt in or out
-    /// through <see cref="SqlServerQueue.OptimizeThroughput"/> (sharded topology queues opt in).
-    /// </summary>
-    public bool OptimizeQueueThroughput { get; set; }
+    private bool? _optimizeQueueThroughput;
+    private bool? _enableDeterministicQueueOrdering;
 
     /// <summary>
-    ///     Enables persistent identity values to break timestamp ties when dequeueing Sql Server
-    ///     queue messages. This adds a <c>queue_order</c> column and indexes to the ready and scheduled
-    ///     queue tables of every queue using the default storage layout. Queues using the
+    /// Use the higher-throughput queue table storage layout: queue and scheduled tables are
+    /// clustered on a monotonic <c>seq</c> identity column (for FIFO dequeue and contiguous deletes)
+    /// with a unique non-clustered index on the message id, instead of a clustered primary key on a
+    /// random Guid. This is the default for every queue in this transport; an individual queue can opt in or out
+    /// through <see cref="SqlServerQueue.OptimizeThroughput"/> (sharded topology queues opt in).
+    /// <para>
+    /// GH-5192: on by default from 7.0 for the queue tables Wolverine creates. A queue table that already exists
+    /// keeps the layout it has, because moving it to the other layout rebuilds it under an exclusive lock.
+    /// Setting this explicitly, through <see cref="SqlServerPersistenceExpression.OptimizeQueueThroughput"/> or
+    /// <see cref="SqlServerPersistenceExpression.UseClassicQueueLayout"/>, rebuilds an existing table on the
+    /// other layout, as in 6.x. <c>RestoreV6Defaults()</c> makes the classic layout the default again.
+    /// </para>
+    /// </summary>
+    public bool OptimizeQueueThroughput
+    {
+        get => _optimizeQueueThroughput ?? !QueueV6DefaultsRestored;
+        set => _optimizeQueueThroughput = value;
+    }
+
+    /// <summary>
+    ///     GH-5192. Only an explicit <see cref="OptimizeQueueThroughput" /> rebuilds an existing queue table.
+    /// </summary>
+    internal bool OptimizeQueueThroughputIsExplicit => _optimizeQueueThroughput.HasValue;
+
+    /// <summary>
+    ///     Use persistent identity values to break timestamp ties when dequeueing Sql Server
+    ///     queue messages, through a <c>queue_order</c> column and index on the ready and scheduled
+    ///     queue tables of every queue on the classic storage layout. Queues using the
     ///     <see cref="OptimizeQueueThroughput" /> layout already have a <c>seq</c> identity column that
     ///     is used as the tie-breaker instead, so their schema is not changed. It applies to queues
-    ///     managed by this transport, including tenant databases, and is opt-in to avoid changing
-    ///     existing schemas automatically. Configure it before startup; changing it at runtime is not
-    ///     supported.
+    ///     managed by this transport, including tenant databases. Configure it before startup; changing
+    ///     it at runtime is not supported.
+    ///     <para>
+    ///         GH-5192: on by default from 7.0 for the queue tables Wolverine creates. An existing classic
+    ///         table without the column keeps its layout and is dequeued in timestamp order. Setting this to
+    ///         <c>true</c> explicitly adds the column to existing tables as well, as in 6.x.
+    ///     </para>
     /// </summary>
-    public bool EnableDeterministicQueueOrdering { get; set; }
+    public bool EnableDeterministicQueueOrdering
+    {
+        get => _enableDeterministicQueueOrdering ?? !QueueV6DefaultsRestored;
+        set => _enableDeterministicQueueOrdering = value;
+    }
+
+    /// <summary>
+    ///     GH-5192. Only an explicit <see cref="EnableDeterministicQueueOrdering" /> migrates an existing table.
+    /// </summary>
+    internal bool DeterministicQueueOrderingIsExplicit => _enableDeterministicQueueOrdering.HasValue;
+
+    /// <summary>
+    ///     GH-5192. Whether the application restored the Wolverine 6.x defaults for the queue tables. Named apart from
+    ///     <c>BrokerTransport.V6DefaultsRestored</c> (GH-5196), which this transport inherits.
+    /// </summary>
+    internal bool QueueV6DefaultsRestored { get; set; }
 
     protected override IEnumerable<SqlServerQueue> endpoints()
     {

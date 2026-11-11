@@ -247,9 +247,10 @@ every message sent to a queue within the same second gets the same timestamp. Sc
 promoted to the ready queue together also share one timestamp. Ties are the normal case on SQLite, not an
 edge case.
 
-By default, the listeners read rows in timestamp order and hand each batch to the handlers in that order,
-and scheduled messages are promoted in `execution_time` order. Neither requires a schema change. Rows with
-the same timestamp have no defined order, though. To break those ties deterministically, opt in:
+The listeners read rows in timestamp order and hand each batch to the handlers in that order, and
+scheduled messages are promoted in `execution_time` order. Rows with the same timestamp have no defined
+order without a tie-breaker. Deterministic queue ordering breaks those ties, and it is on by default from
+Wolverine 7.0. On 6.x, opt in:
 
 ```cs
 opts.UseSqlitePersistenceAndTransport(connectionString)
@@ -273,8 +274,16 @@ Messages that are resent to a queue, for example when a listener defers one, are
 to the back of the queue. The order is stable within a queue; it does not define a global order across
 different queues or different SQLite files.
 
-The option is disabled by default so existing applications do not receive an automatic queue schema
-change. With `AutoCreate.None`, apply the Wolverine resource migration before starting with the option enabled, with `dotnet run -- resources setup` or `dotnet run -- db-apply` (see [Managing Message Storage](/guide/durability/managing#choosing-an-approach)). Configure the option consistently on every application using the same SQLite file; once the
+Because nothing but an index is added, SQLite applies the 7.0 default to existing queue tables too: they
+gain the two indexes on the next schema migration, without a rebuild. To keep the Wolverine 6.x behaviour,
+use `DisableDeterministicQueueOrdering()` or `opts.RestoreV6Defaults()`:
+
+```cs
+opts.UseSqlitePersistenceAndTransport(connectionString)
+    .DisableDeterministicQueueOrdering();
+```
+
+With `AutoCreate.None`, apply the Wolverine resource migration before starting with the option enabled, with `dotnet run -- resources setup` or `dotnet run -- db-apply` (see [Managing Message Storage](/guide/durability/managing#choosing-an-approach)). Configure the option consistently on every application using the same SQLite file; once the
 schema has been upgraded, leaving the option disabled keeps the added indexes. Rolling back to a version
 that predates this option may drop the indexes again, which loses no messages.
 
