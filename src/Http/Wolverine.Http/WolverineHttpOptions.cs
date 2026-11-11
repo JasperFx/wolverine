@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
@@ -563,7 +564,7 @@ public class WolverineHttpOptions
         // GH-5195: an explicit call replaces the 7.0 default mapping rather than adding a second one
         _concurrencyFailureMapping = true;
 
-        AddMiddleware(typeof(ConcurrencyExceptionMiddleware), filter);
+        addBuiltInMiddleware(typeof(ConcurrencyExceptionMiddleware), filter);
         Policies.Add(new ConflictProblemPolicy(filter));
     }
 
@@ -616,7 +617,7 @@ public class WolverineHttpOptions
         // GH-5195: an explicit call replaces the 7.0 default mapping rather than adding a second one
         _unknownTenantMapping = true;
 
-        AddMiddleware(typeof(UnknownTenantMiddleware), filter);
+        addBuiltInMiddleware(typeof(UnknownTenantMiddleware), filter);
         Policies.Add(new UnknownTenantProblemPolicy(filter));
     }
 
@@ -633,6 +634,16 @@ public class WolverineHttpOptions
 
     // null = the 7.0 default decides, true = mapped explicitly, false = opted out
     private bool? _unknownTenantMapping;
+
+    // GH-5195: the conflict and unknown tenant middleware are registered on every application by default from 7.0,
+    // and MiddlewarePolicy finds their OnException methods by reflection. Under Native AOT the trimmer removes
+    // methods nothing references statically, so the annotation here roots their public methods.
+    private void addBuiltInMiddleware(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] Type middlewareType,
+        Func<HttpChain, bool> filter)
+    {
+        AddMiddleware(middlewareType, filter);
+    }
 
     /// <summary>
     /// GH-5195. Settle the Wolverine.Http defaults that flipped in 7.0, once the user's configuration has run.
