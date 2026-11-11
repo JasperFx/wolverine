@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Fisher.Distribution;
 using Wolverine.Runtime.Agents;
+using ManagedDistributionDaemonModeValidator = Wolverine.Persistence.EventSourcing.Distribution.ManagedDistributionDaemonModeValidator;
 using Wolverine.Fisher.Publishing;
 using Wolverine.Fisher.Subscriptions;
 using Wolverine.Persistence;
@@ -114,7 +115,11 @@ public static class AncillaryWolverineOptionsFisherExtensions
 
             return new ProjectionCoordinator<T>(store, s.GetRequiredService<ILogger<IProjectionCoordinator>>());
         });
-        expression.Services.AddSingleton<IHostedService, ManagedDistributionDaemonModeValidator<T>>();
+        ManagedDistributionDaemonModeValidator.Register(expression.Services, s =>
+            s.GetService<FisherIntegration>() is { UseWolverineManagedEventSubscriptionDistribution: true }
+            && s.GetServices<JasperFx.Events.Daemon.IProjectionCoordinator<T>>().Any()
+                ? FisherDaemonConflict.MessageFor($"Fisher's async daemon for the ancillary store {typeof(T).Name}")
+                : null);
 
         expression.Services.AddSingleton<OutboxedSessionFactory<T>>();
 

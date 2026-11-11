@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Fisher.Distribution;
 using Wolverine.Runtime.Agents;
+using ManagedDistributionDaemonModeValidator = Wolverine.Persistence.EventSourcing.Distribution.ManagedDistributionDaemonModeValidator;
 using Wolverine.Fisher.Publishing;
 using Wolverine.Fisher.Subscriptions;
 using Wolverine.Persistence;
@@ -61,7 +62,7 @@ public static class WolverineOptionsFisherExtensions
         // GH-3956: Fisher registers its own interfaces, never the store-agnostic
         // JasperFx.Events.Documents contracts its session types already implement, so a service depending
         // on one of those could not be resolved at all on a stock host. Handler PARAMETERS are satisfied by
-        // codegen (SharedDocumentOperationsSource); these registrations cover everything codegen does not
+        // codegen (DocumentSessionContractSource, GH-5141); these registrations cover everything codegen does not
         // see -- a service-located contract, or one injected into a class that a handler depends on.
         //
         // Deliberately delegating to IDocumentSession / IQuerySession rather than to a fresh session, so
@@ -139,15 +140,19 @@ public static class WolverineOptionsFisherExtensions
         // Polecat.
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {
+            // GH-5141: the agent family, coordinator and validator are Wolverine core's, shared with Marten
+            // and Polecat.
+            expression.Services.AddEventSubscriptionAgentFamily();
             expression.Services.AddSingleton<WolverineProjectionCoordinator>();
-            expression.Services.TryAddSingleton<EventSubscriptionAgentFamily>();
-            expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
-            expression.Services.AddSingleton<IEventSubscriptionAgentFamily>(s =>
-                s.GetRequiredService<EventSubscriptionAgentFamily>());
             expression.Services.AddSingleton<IProjectionCoordinator>(s =>
                 s.GetRequiredService<WolverineProjectionCoordinator>());
 
-            expression.Services.AddSingleton<IHostedService, ManagedDistributionDaemonModeValidator>();
+            // Fisher's Solo mode hosts its own daemon as JasperFx's IProjectionCoordinator, and Wolverine's agents
+            // would run the same projections against the same SQLite file beside it.
+            ManagedDistributionDaemonModeValidator.Register(expression.Services, s =>
+                s.GetServices<JasperFx.Events.Daemon.IProjectionCoordinator>().Any()
+                    ? FisherDaemonConflict.MessageFor("Fisher's async daemon")
+                    : null);
         }
 
         return expression;

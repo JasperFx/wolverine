@@ -33,15 +33,18 @@ internal partial class FisherPersistenceFrameProvider : IEventSourcingFrameProvi
     // Core never writes "session.Events.FetchForWriting<T>(...)" itself. Handing back a finished frame
     // is what keeps that spelling on this side of the seam - and lets Fisher's frame stay a plain
     // AsyncFrame where Marten's also implements IBatchableFrame.
-    public Frame BuildLoadAggregateFrame(AggregateLoadRequest request) => new LoadAggregateFrame(request);
+    public Frame BuildLoadAggregateFrame(AggregateLoadRequest request)
+        => new Wolverine.Persistence.EventSourcing.Codegen.LoadAggregateFrame(request, typeof(IDocumentSession), StoreName);
 
     // GH-3627. Fisher's spelling of the raw stream reads.
-    public Frame BuildFetchStreamStateFrame(Variable identity) => new Codegen.FetchStreamStateFrame(identity);
+    public Frame BuildFetchStreamStateFrame(Variable identity)
+        => new Wolverine.Persistence.EventSourcing.Codegen.FetchStreamStateFrame(identity, typeof(IDocumentSession));
 
-    public Frame BuildFetchStreamFrame(Variable identity) => new Codegen.FetchStreamFrame(identity);
+    public Frame BuildFetchStreamFrame(Variable identity)
+        => new Wolverine.Persistence.EventSourcing.Codegen.FetchStreamFrame(identity, typeof(IDocumentSession));
 
     public Frame BuildFetchLatestFrame(Type aggregateType, Variable identity)
-        => new FetchLatestAggregateFrame(aggregateType, identity);
+        => new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestAggregateFrame(aggregateType, identity, typeof(IDocumentSession));
 
     public Frame BuildLoadBoundaryFrame(Type modelType) => new LoadBoundaryFrame(modelType);
 

@@ -1,11 +1,21 @@
 using JasperFx.Core.Reflection;
 using JasperFx.Events;
-using JasperFx.Events.Daemon;
 using Polecat;
 using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Polecat.Distribution;
 
+/// <summary>
+///     The projection coordinator of a Polecat store under
+///     <see cref="PolecatIntegration.UseWolverineManagedEventSubscriptionDistribution" />. Wolverine's
+///     <see cref="EventSubscriptionAgentFamily" /> runs each projection and subscription as an agent, so
+///     operator tooling pauses, restarts and rewinds them the same way on Marten, Polecat and Fisher.
+/// </summary>
+/// <remarks>
+///     GH-5141: the coordinator itself is Wolverine core's, written once against JasperFx's
+///     <see cref="JasperFx.Events.Daemon.IProjectionCoordinator" />. This type only adds Polecat's own
+///     <see cref="IProjectionCoordinator" />, whose members the core coordinator already has.
+/// </remarks>
 internal class WolverineProjectionCoordinator<T> : WolverineProjectionCoordinator, IProjectionCoordinator<T>
     where T : IDocumentStore
 {
@@ -14,57 +24,11 @@ internal class WolverineProjectionCoordinator<T> : WolverineProjectionCoordinato
     }
 }
 
-internal class WolverineProjectionCoordinator : IProjectionCoordinator
+internal class WolverineProjectionCoordinator :
+    Wolverine.Persistence.EventSourcing.Distribution.WolverineProjectionCoordinator, IProjectionCoordinator
 {
-    private readonly EventSubscriptionAgentFamily _agents;
-    private readonly EventStoreIdentity _identity;
-    private readonly EventStoreAgents _storeAgents;
-
     public WolverineProjectionCoordinator(EventSubscriptionAgentFamily agents, IDocumentStore store)
+        : base(agents, store.As<IEventStore>())
     {
-        _agents = agents;
-        _identity = store.As<IEventStore>().Identity;
-        _storeAgents = _agents.FindStore(_identity);
-    }
-
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
-        return _storeAgents.StartAllAsync(cancellationToken);
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        return _storeAgents.StopAllAsync(cancellationToken);
-    }
-
-    public ValueTask<IProjectionDaemon> DaemonForMainDatabaseAsync()
-    {
-        return _storeAgents.DaemonForMainDatabaseAsync();
-    }
-
-    // GH-5092: the JasperFx IProjectionCoordinator member, now that this interface extends it
-    public IProjectionDaemon DaemonForMainDatabase()
-    {
-        return _storeAgents.DaemonForMainDatabase();
-    }
-
-    public ValueTask<IProjectionDaemon> DaemonForDatabase(string databaseIdentifier)
-    {
-        return _storeAgents.DaemonForDatabase(databaseIdentifier);
-    }
-
-    public ValueTask<IReadOnlyList<IProjectionDaemon>> AllDaemonsAsync()
-    {
-        return _storeAgents.AllDaemonsAsync();
-    }
-
-    public Task PauseAsync()
-    {
-        return StopAsync(CancellationToken.None);
-    }
-
-    public Task ResumeAsync()
-    {
-        return StartAsync(CancellationToken.None);
     }
 }
