@@ -245,7 +245,7 @@ using var host = await Host.CreateDefaultBuilder()
             .AutoProvision()
 
             // How should Wolverine route a message whose TenantId is null or
-            // unknown? FallbackToDefault (the default) uses the shared connection;
+            // unknown? FallbackToDefault (the 6.x default) uses the shared connection;
             // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
             .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
@@ -304,7 +304,8 @@ tenant only re-points the axes it actually sets and inherits everything else.
 
 `TenantIdBehavior(...)` controls what happens when a message has a null or unregistered tenant id:
 
-* `FallbackToDefault` (the default) — route it to the shared/default connection (the one passed to `UseAmazonSqsTransport`).
+* `DeadLetterUnknownTenants` (the default since 7.0) — a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
+* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) — route it to the shared/default connection (the one passed to `UseAmazonSqsTransport`).
 * `TenantIdRequired` — throw; every message must carry a known tenant id.
 * `IgnoreUnknownTenants` — silently drop the message.
 

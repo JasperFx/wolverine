@@ -68,15 +68,30 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
 
     public LightweightCache<string, SqliteQueue> Queues { get; }
 
+    private bool? _enableDeterministicQueueOrdering;
+
     /// <summary>
     ///     Uses SQLite's implicit rowid to break timestamp ties when dequeueing SQLite queue
     ///     messages, and promotes scheduled messages in execution time order with the same
     ///     tie-breaker. No column is added, but this adds an index to each of the ready and
     ///     scheduled queue tables. It applies to queues managed by this transport, including
-    ///     tenant databases, and is opt-in to avoid changing existing schemas automatically.
-    ///     Configure it before startup; changing it at runtime is not supported.
+    ///     tenant databases. Configure it before startup; changing it at runtime is not supported.
+    ///     <para>
+    ///         GH-5192: on by default from 7.0. Every SQLite table already has a rowid, so unlike the other
+    ///         databases nothing is rebuilt: an existing queue table only gains the index.
+    ///         <c>RestoreV6Defaults()</c> or <c>DisableDeterministicQueueOrdering()</c> turns it off.
+    ///     </para>
     /// </summary>
-    public bool EnableDeterministicQueueOrdering { get; set; }
+    public bool EnableDeterministicQueueOrdering
+    {
+        get => _enableDeterministicQueueOrdering ?? !V6DefaultsRestored;
+        set => _enableDeterministicQueueOrdering = value;
+    }
+
+    /// <summary>
+    ///     GH-5192. Whether the application restored the Wolverine 6.x defaults.
+    /// </summary>
+    internal bool V6DefaultsRestored { get; set; }
 
     /// <summary>
     ///     GH-3947: an optional prefix for the native SQLite queue and scheduled-message tables.

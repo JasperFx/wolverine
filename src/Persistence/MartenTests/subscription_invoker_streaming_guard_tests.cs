@@ -1,5 +1,5 @@
 using Shouldly;
-using Wolverine.Marten.Subscriptions;
+using Wolverine.Persistence.EventSourcing.Subscriptions;
 using Xunit;
 
 namespace MartenTests;

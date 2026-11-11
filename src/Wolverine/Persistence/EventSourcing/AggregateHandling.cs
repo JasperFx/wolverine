@@ -260,7 +260,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
     [UnconditionalSuppressMessage("AOT", "IL3050",
         Justification = "Event<> is closed over the command's own event body type at codegen time; the command type comes from handler discovery. AOT consumers pre-generate via TypeLoadMode.Static. See docs/guide/aot.md.")]
     internal static (MemberInfo, MemberInfo?) DetermineAggregateIdAndVersion(Type aggregateType, Type commandType,
-        IServiceContainer container, IEventSourcingFrameProvider provider, string? versionSource = null)
+        IChain chain, IServiceContainer container, IEventSourcingFrameProvider provider, string? versionSource = null)
     {
         if (commandType.Closes(typeof(IEvent<>)))
         {
@@ -271,7 +271,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             //VersionMember = concreteEventType.GetProperty(nameof(IEvent.Version));
 
             var flattenHierarchy = BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy;
-            var member = provider.DetermineStreamIdentity(container) == StreamIdentity.AsGuid
+            var member = provider.DetermineStreamIdentity(chain, container) == StreamIdentity.AsGuid
                 ? concreteEventType.GetProperty(nameof(IEvent.StreamId), flattenHierarchy)
                 : concreteEventType.GetProperty(nameof(IEvent.StreamKey), flattenHierarchy);
 

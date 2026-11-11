@@ -177,12 +177,15 @@ public static class WolverineOptionsMartenExtensions
 
         // CritterWatch / saga-explorer diagnostic surface — Marten owns
         // every saga whose state class is a Marten document, so register
-        // a Marten-backed ISagaStoreDiagnostics that the runtime
-        // aggregator fans out to.
+        // the document-store ISagaStoreDiagnostics that the runtime
+        // aggregator fans out to. GH-5142: one implementation shared with
+        // Polecat and Fisher.
         expression.Services.AddSingleton<ISagaStoreDiagnostics>(s =>
-            new MartenSagaStoreDiagnostics(
+            new DocumentStoreSagaStoreDiagnostics(
                 s.GetRequiredService<IWolverineRuntime>(),
-                s.GetRequiredService<IDocumentStore>()));
+                s.GetRequiredService<IDocumentStore>(),
+                typeof(MartenPersistenceFrameProvider),
+                "Marten"));
 
         return expression;
     }

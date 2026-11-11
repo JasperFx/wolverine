@@ -29,7 +29,7 @@ public class queue_ordering_is_opt_in : OracleContext
     private static CancellationToken ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task default_configuration_keeps_the_legacy_queue_schema()
+    public async Task disabling_ordering_keeps_the_legacy_queue_schema()
     {
         var queueName = newQueueName();
         IHost? host = null;
@@ -410,6 +410,11 @@ public class queue_ordering_is_opt_in : OracleContext
                     if (deterministicOrdering)
                     {
                         x.EnableDeterministicQueueOrdering();
+                    }
+                    else
+                    {
+                        // GH-5192: ordering is the 7.0 default, so the classic schema has to opt out
+                        x.DisableDeterministicQueueOrdering();
                     }
                 });
             }).StartAsync(ct);

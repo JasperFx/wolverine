@@ -67,6 +67,12 @@ internal static class BrokerAcceptedSend
                     await groupSender.SendAsync(envelope).ConfigureAwait(false);
                     result.Accept(envelope);
                 }
+                catch (UnknownBrokerTenantException e)
+                {
+                    // GH-5196. No retry can find a tenant nobody registered, so this is dead lettered like an
+                    // envelope the transport can never send
+                    result.FailSerialization(envelope, e);
+                }
                 catch (Exception e)
                 {
                     result.Fail(envelope, e);

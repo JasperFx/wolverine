@@ -25,18 +25,9 @@ internal class NotifyObserverOfAppendedEvents : DocumentSessionListenerBase
 
     public override Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {
-        var events = commit.GetEvents().ToList();
-        if (events.Count != 0 && _context.Runtime.Options.Tracking.EnableEventAppendTracking)
-        {
-            _context.Runtime.Observer.EventsAppended(events);
-        }
-
-        if (_context.Runtime is WolverineRuntime runtime)
-        {
-            // GH-4977: which store, so an act on a host with ancillary stores knows which ones it heard from
-            runtime.RecordAppendedEvents(_context, commit.GetStreams().ToList(),
-                (session.DocumentStore as JasperFx.Events.IEventStore)?.Identity);
-        }
+        // GH-4977: the store, so an act on a host with ancillary stores knows which ones it heard from
+        CommittedEventsReport.Report(_context, commit.GetStreams().ToList(),
+            (session.DocumentStore as JasperFx.Events.IEventStore)?.Identity);
 
         return Task.CompletedTask;
     }

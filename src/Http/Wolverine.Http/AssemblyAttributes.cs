@@ -25,4 +25,9 @@ using JasperFx.Core.TypeScanning;
 // only acknowledges the System.Text.Json default. The grant is intentional
 // and scoped to this one consumer.
 [assembly: InternalsVisibleTo("Wolverine.Http.Newtonsoft")]
+// GH-5142: the store HTTP packages share one implementation of their aggregate chain extensions
+// (AggregateChainLookups) instead of carrying three identical copies.
+[assembly: InternalsVisibleTo("Wolverine.Http.Marten")]
+[assembly: InternalsVisibleTo("Wolverine.Http.Polecat")]
+[assembly: InternalsVisibleTo("Wolverine.Http.Fisher")]
 [assembly: IgnoreAssembly]
