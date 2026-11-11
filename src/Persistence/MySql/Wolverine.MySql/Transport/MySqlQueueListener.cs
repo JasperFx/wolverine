@@ -25,15 +25,15 @@ internal class MySqlQueueListener : IListener
     private readonly DurabilitySettings _settings;
     private Task? _scheduledTask;
     private readonly MySqlQueueSender _sender;
-    private readonly string _tryPopMessagesDirectlySql;
+    private string _tryPopMessagesDirectlySql = null!;
     private readonly string _queueTableName;
     private readonly string _queueName;
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
-    private readonly bool _deterministicQueueOrdering;
-    private readonly string _queueOrderBy;
-    private readonly string _scheduledOrderBy;
+    private bool _deterministicQueueOrdering;
+    private string _queueOrderBy = null!;
+    private string _scheduledOrderBy = null!;
     private readonly string _tempPopTable;
     private readonly string _tempMoveTable;
 
@@ -61,19 +61,26 @@ internal class MySqlQueueListener : IListener
         _schemaName = _queue.Parent.MessageStorageSchemaName;
         _queueName = _queue.Name;
 
-        // GH-4862: the queue_order tie-breaker is only referenced when its schema is enabled. Without it,
-        // rows are still handed over in timestamp (and execution_time) order, but ties stay arbitrary.
-        _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
-        var tieBreaker = _deterministicQueueOrdering ? $", {QueueOrdering.QueueOrderColumn}" : string.Empty;
-        _queueOrderBy = $"timestamp{tieBreaker}";
-        _scheduledOrderBy = $"{DatabaseConstants.ExecutionTime}{tieBreaker}";
-
         // These temporary tables carry the ordering columns so the batch can be read back in order. They
         // have new names because a pooled connection keeps the temporary tables of an earlier session,
         // and CREATE TEMPORARY TABLE IF NOT EXISTS would silently reuse the older temp_pop_* /
         // temp_move_* shape that has no ordering columns.
         _tempPopTable = MySqlIdentifier.Shorten($"temp_pop_ordered_{_queueName}");
         _tempMoveTable = MySqlIdentifier.Shorten($"temp_move_ordered_{_queueName}");
+
+        useQueueOrdering(queue.Parent.EnableDeterministicQueueOrdering);
+    }
+
+    // GH-5192: the configured value is only a first guess. StartAsync swaps in what this database's queue tables
+    // really have, because 7.0 adopts an existing table without queue_order as it stands.
+    private void useQueueOrdering(bool deterministicQueueOrdering)
+    {
+        // GH-4862: the queue_order tie-breaker is only referenced when its schema is enabled. Without it,
+        // rows are still handed over in timestamp (and execution_time) order, but ties stay arbitrary.
+        _deterministicQueueOrdering = deterministicQueueOrdering;
+        var tieBreaker = _deterministicQueueOrdering ? $", {QueueOrdering.QueueOrderColumn}" : string.Empty;
+        _queueOrderBy = $"timestamp{tieBreaker}";
+        _scheduledOrderBy = $"{DatabaseConstants.ExecutionTime}{tieBreaker}";
 
         // MySQL doesn't have CTID, so we use a different approach:
         // Select rows with FOR UPDATE SKIP LOCKED, delete them, and return the bodies
@@ -680,6 +687,8 @@ AND {DatabaseConstants.KeepUntil} <= UTC_TIMESTAMP(6)")
         {
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _dataSource);
         }
+
+        useQueueOrdering(await _queue.UsesQueueOrderingAsync(_databaseName ?? string.Empty, _dataSource));
 
         _task = Task.Run(listenForMessagesAsync, _cancellation.Token);
         _scheduledTask = Task.Run(lookForScheduledMessagesAsync, _cancellation.Token);
