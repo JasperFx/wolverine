@@ -231,7 +231,11 @@ optimistic concurrency race -- two clients posting to the same aggregate at the 
 the exception escapes the endpoint as an unhandled **500**, even though nothing went wrong with the data:
 optimistic concurrency did its job. **409 Conflict** is the honest status for that.
 
-There is a one line opt in for this:
+From Wolverine 7.0 this mapping is **on by default** for the transactional chains: Wolverine.Http applies
+`MapConcurrencyFailuresToConflict()` for you unless you configure it yourself. Opt out with
+`opts.DoNotMapConcurrencyFailuresToConflict()`, or call `opts.RestoreV6Defaults()` in `UseWolverine` for every 6.x
+default. In 6.x it was a one line opt in, and calling it yourself still works -- your call replaces the default,
+so its filter and ProblemDetails factory are the ones used:
 
 ```csharp
 app.MapWolverineEndpoints(opts =>
@@ -279,7 +283,9 @@ so the core call covers them. `MapPolecatConcurrencyFailuresToConflict()` still 
 
 Marten is the exception for now: `Marten.Exceptions.StreamLockedException` derives from `MartenException`
 instead, so `MapConcurrencyFailuresToConflict()` alone would leave Marten's exclusive locking path returning
-500s. `MapMartenConcurrencyFailuresToConflict()` adds Marten's type.
+500s. `MapMartenConcurrencyFailuresToConflict()` adds Marten's type. That includes the 7.0 default, which is the
+core call, so a Marten application that wants the exclusive-lock failure mapped too still calls
+`MapMartenConcurrencyFailuresToConflict()`.
 :::
 
 A commit that fails more than one version check at once -- two `[UseOptimisticConcurrency]` documents in one
@@ -301,7 +307,8 @@ There are two different tenancy failures on an HTTP request, and only one of the
 | **Unknown** tenant id | "the tenant you named does not exist" | was an unhandled **500** |
 
 An unknown tenant id throws `JasperFx.MultiTenancy.UnknownTenantIdException` from the store or from
-Wolverine's own tenant sources. That is a client side error, so:
+Wolverine's own tenant sources. That is a client side error, so from Wolverine 7.0 Wolverine.Http applies this
+mapping **by default** (it was opt-in in 6.x, and calling it yourself still works):
 
 ```csharp
 app.MapWolverineEndpoints(opts =>
@@ -310,7 +317,8 @@ app.MapWolverineEndpoints(opts =>
 });
 ```
 
-maps it to a 404 `ProblemDetails` titled `Unknown tenant`, and stamps `ProducesProblem(404)` on the tenanted
+Opt out with `opts.DoNotMapUnknownTenantToNotFound()`, or call `opts.RestoreV6Defaults()` in `UseWolverine` for
+every 6.x default. The mapping maps the exception to a 404 `ProblemDetails` titled `Unknown tenant`, and stamps `ProducesProblem(404)` on the tenanted
 chains so your OpenAPI document advertises it. It applies by default to chains declared `[RequiresTenant]` or
 `[MaybeTenanted]` -- a chain that resolves no tenant cannot fail to resolve one -- and takes the same optional
 predicate the other mappings do.

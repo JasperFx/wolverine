@@ -29,6 +29,46 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 
 | Setting | 6.x | 7.0 | Opt-out | Restore test |
 |---|---|---|---|---|
+| `WolverineHttpOptions.RejectUnparseableQueryValues` | `false`: an unparseable query string value binds the parameter's default | `true`: it answers 400 with ProblemDetails | `opts.RejectUnparseableQueryValues = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `WolverineHttpOptions.MapConcurrencyFailuresToConflict()` | off: a concurrency failure escapes as a 500 | on for the transactional endpoints: 409 with ProblemDetails, advertised in OpenAPI (under Marten 9.x, the exclusive-lock failure only with `MapMartenConcurrencyFailuresToConflict()`) | `opts.DoNotMapConcurrencyFailuresToConflict()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `WolverineHttpOptions.MapUnknownTenantToNotFound()` | off: `UnknownTenantIdException` escapes as a 500 | on for the tenanted endpoints: 404 with ProblemDetails, advertised in OpenAPI | `opts.DoNotMapUnknownTenantToNotFound()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` | `false` | `true`: the `X-Correlation-ID` header reaches every endpoint, and the events it appends | `opts.ApplyCorrelationIdHeaderToAllEndpoints = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `PushReceiverOptions.DeduplicateWithInbox` | `false` | `true` when the application has a message store | `o.DeduplicateWithInbox = false` in `MapWolverinePushReceiver()` | `push_receiver_5016` |
+
+### Wolverine.Http defaults that changed in 7.0
+
+Five Wolverine.Http defaults flipped in 7.0 (GH-5195). They are the rows of the table above that name
+`WolverineHttpOptions` or `PushReceiverOptions`, and `RestoreV6Defaults()` puts back all five:
+
+- **Strict query string binding.** A query string value that is present but cannot be parsed, such as `?page=abc` on an
+  `int page` parameter, now answers 400 with a ProblemDetails naming the parameter, as MVC and minimal APIs do. In 6.x it
+  bound the parameter's default value and the request went ahead. A missing value still binds the default in both
+  modes. See [query string binding](/guide/http/querystring). F# code generation does not support strict binding yet,
+  so an application that pre-generates F# code for an endpoint with a parsed query string parameter has to set
+  `RejectUnparseableQueryValues = false`.
+- **Concurrency failures answer 409.** The commit-time concurrency failures (`JasperFx.ConcurrencyException` and
+  everything deriving from it, plus `JasperFx.Events.StreamLockedException`) on a transactional endpoint now answer 409
+  with ProblemDetails instead of escaping as a 500, and the OpenAPI document advertises the 409. If you call
+  `MapConcurrencyFailuresToConflict()`, `MapMartenConcurrencyFailuresToConflict()` or
+  `MapPolecatConcurrencyFailuresToConflict()` yourself, your call replaces the default, so a custom filter or
+  ProblemDetails factory still applies. With Marten 9.x, Marten's own `StreamLockedException` (from
+  `FetchForExclusiveWriting`) does not derive from the JasperFx type yet, so keep calling
+  `MapMartenConcurrencyFailuresToConflict()` if you want that one mapped to a 409 too. Marten 10 rebases it onto the
+  JasperFx type, and from then on the default covers it. See
+  [exception handling](/guide/http/exception-handling).
+- **An unknown tenant answers 404.** An `UnknownTenantIdException` on an endpoint marked `[RequiresTenant]` or
+  `[MaybeTenanted]` now answers 404 with ProblemDetails instead of escaping as a 500. A *missing* tenant id still
+  answers 400.
+- **The correlation id reaches every endpoint.** The request's `X-Correlation-ID` header is now applied wherever an
+  endpoint's message context is created, so the events an endpoint appends record the caller's correlation id, not
+  just the messages it sends. See [middleware](/guide/http/middleware).
+- **Push receivers deduplicate with the inbox.** When the application has a message store, a push receiver now claims
+  each message id in the durable inbox, so a redelivery is recognized instead of run again. See
+  [serverless](/guide/serverless).
+
+Two related behaviors need no action. `DefaultClaimInTransaction` stays opt-in. And since 6.51.2, a query string, header
+or form value that is omitted binds the parameter's declared default (`int limit = 50` binds 50, not 0); that change
+shipped without a flag, so there is nothing for `RestoreV6Defaults()` to restore (GH-5099).
 
 ### `.NET 9.0` support dropped (BREAKING)
 
