@@ -562,21 +562,20 @@ public class WolverineHttpOptions
     /// <para>
     /// Covers everything deriving from <see cref="JasperFx.ConcurrencyException"/>:
     /// <c>EventStreamUnexpectedMaxEventIdException</c>, document revision/version violations,
-    /// <c>DcbConcurrencyException</c> and <c>SagaConcurrencyException</c>.
+    /// <c>DcbConcurrencyException</c>, <c>SagaConcurrencyException</c> and
+    /// <see cref="JasperFx.Events.StreamLockedException"/>, which <c>FetchForExclusiveWriting</c> throws on a
+    /// contended stream (a <see cref="JasperFx.ConcurrencyException"/> since JasperFx 3.0).
     /// </para>
     ///
     /// <para>
-    /// GH-5142: also covers <see cref="JasperFx.Events.StreamLockedException"/>, which
-    /// <c>FetchForExclusiveWriting</c> throws on a contended stream and which does <b>not</b> derive from
-    /// <see cref="JasperFx.ConcurrencyException"/>. Polecat's and Fisher's lock exceptions derive from it, so
-    /// this one call is complete for those stores.
+    /// GH-5459: also covers <see cref="JasperFx.Events.ExistingStreamIdCollisionException"/>, which
+    /// <c>StartStream</c> throws when the stream id is already taken.
     /// </para>
     ///
     /// <para>
-    /// <b>On Marten, call <c>MapMartenConcurrencyFailuresToConflict()</c> instead.</b> Marten's
-    /// <c>StreamLockedException</c> still derives from <c>MartenException</c> rather than from the JasperFx
-    /// type, so this method alone leaves Marten's exclusive locking path returning 500s. The Marten overload
-    /// calls this one and adds Marten's type.
+    /// Marten, Polecat and Fisher all throw these shared JasperFx.Events types, so this one call is complete for
+    /// every store. <c>MapMartenConcurrencyFailuresToConflict()</c> and
+    /// <c>MapPolecatConcurrencyFailuresToConflict()</c> are the same call under the store's name.
     /// </para>
     /// </summary>
     /// <param name="filter">

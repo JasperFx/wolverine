@@ -59,7 +59,9 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         // options instead.
         EventRouter.AssertNoBareSubscriptions(UseFastEventForwarding, nameof(UseFastEventForwarding));
 
-        // Duplicate incoming messages
+        // Duplicate incoming messages. GH-5459 reviewed this and it stays Marten-only: it matches a Postgres
+        // primary key violation on Wolverine's incoming envelope table, which is specific to this store, and
+        // JasperFx deliberately has no store-neutral command-failure base type to hang it on.
         options.OnException<MartenCommandException>(e =>
             {
                 if (e.InnerException is PostgresException pg)

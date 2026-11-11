@@ -93,11 +93,31 @@ public class marten_concurrency_problem_details(AppFixture fixture) : Integratio
     }
 
     [Fact]
-    public async Task marten_adds_its_own_lock_handler_only_while_its_type_is_not_the_jasperfx_one()
+    public async Task duplicate_stream_start_becomes_a_409_problem_details()
     {
-        // GH-5142. The core catch for JasperFx.Events.StreamLockedException is always there. The Marten-specific
-        // catch is added by MapMartenConcurrencyFailuresToConflict() only while Marten's StreamLockedException
-        // does not derive from the JasperFx one, so this holds on both sides of Marten rebasing the type
+        // GH-5459. StartStream with an id that is already taken throws the shared
+        // JasperFx.Events.ExistingStreamIdCollisionException on Marten 10, Polecat and Fisher alike
+        var id = await createSeatHoldAsync();
+
+        var result = await Host.Scenario(x =>
+        {
+            x.Post.Url($"/seatholds/{id}/start-again");
+            x.StatusCodeShouldBe(409);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+
+        // Assert on the collision's own text, so this cannot quietly pass on the optimistic concurrency
+        // failure a quick append also raises for a stream that already exists
+        var body = await result.ReadAsTextAsync();
+        body.ShouldContain(id.ToString());
+        body.ShouldContain("already exists");
+    }
+
+    [Fact]
+    public async Task one_mapping_over_the_jasperfx_events_types_and_nothing_marten_specific()
+    {
+        // GH-5459. The conflict mapping catches the shared JasperFx.Events exception types once, for every
+        // store. Nothing Marten-specific is registered any more
 
         // The chain's code is generated on its first request
         await Host.Scenario(x =>
@@ -112,10 +132,9 @@ public class marten_concurrency_problem_details(AppFixture fixture) : Integratio
         var code = chain.SourceCode.ShouldNotBeNull();
 
         code.ShouldContain("JasperFx.Events.StreamLockedException");
-
-        var martenNeedsItsOwnCatch = !typeof(StreamLockedException)
-            .IsAssignableTo(typeof(global::JasperFx.Events.StreamLockedException));
-        code.Contains("Marten.Exceptions.StreamLockedException").ShouldBe(martenNeedsItsOwnCatch);
+        code.ShouldContain("JasperFx.Events.ExistingStreamIdCollisionException");
+        code.ShouldContain("JasperFx.ConcurrencyException");
+        code.ShouldNotContain("Marten.Exceptions.");
     }
 
     [Fact]
@@ -126,6 +145,10 @@ public class marten_concurrency_problem_details(AppFixture fixture) : Integratio
         // The explicit StreamLockedException handler is kept so the public recipe keeps its shape;
         // generated catch blocks are ordered most-specific first, so the two never collide (CS0160).
         typeof(StreamLockedException).IsAssignableTo(typeof(ConcurrencyException)).ShouldBeTrue();
+
+        // GH-5459: the stream id collision is not a concurrency failure by type, which is why the conflict
+        // mapping carries its own handler for it
+        typeof(ExistingStreamIdCollisionException).IsAssignableTo(typeof(ConcurrencyException)).ShouldBeFalse();
         typeof(global::JasperFx.Events.EventStreamUnexpectedMaxEventIdException)
             .IsAssignableTo(typeof(ConcurrencyException)).ShouldBeTrue();
     }
