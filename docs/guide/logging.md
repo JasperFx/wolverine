@@ -12,9 +12,9 @@ to selectively filter logging levels in your application, rely on the message ty
 ## Configuring Message Logging Levels
 
 Wolverine automatically logs the execution start and stop of all message handling with `LogLevel.Debug`. Likewise, Wolverine
-logs the successful completion of all messages (including the capture of cascading messages and all middleware) with `LogLevel.Information`.
-However, many folks have found this logging to be too intrusive. Not to worry, you can quickly override the log levels
-within Wolverine for your system like so:
+logs the successful completion of all messages (including the capture of cascading messages and all middleware) with `LogLevel.Debug`.
+That success log was `LogLevel.Information` before 6.21 (GH-3490); call `opts.Policies.MessageSuccessLogLevel(LogLevel.Information)`
+if you want it back. You can override either log level for your whole system like so:
 
 <!-- snippet: sample_turning_down_message_logging -->
 <a id='snippet-sample_turning_down_message_logging'></a>
@@ -26,9 +26,9 @@ using var host = await Host.CreateDefaultBuilder()
         // The default is Debug
         opts.Policies.MessageExecutionLogLevel(LogLevel.None);
 
-        // Turn down Wolverine's built in logging of all successful
-        // message processing
-        opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
+        // Turn off Wolverine's built in logging of all successful
+        // message processing. The default is Debug
+        opts.Policies.MessageSuccessLogLevel(LogLevel.None);
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LoggingUsage.cs#L25-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_turning_down_message_logging' title='Start of snippet'>anchor</a></sup>
@@ -90,7 +90,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 When `InvokeTracingMode.Full` is enabled, `InvokeAsync()` will emit:
 - **Execution started** — logged at the configured `MessageExecutionLogLevel` (default `Debug`)
-- **Message succeeded** — logged at the configured `MessageSuccessLogLevel` (default `Information`)
+- **Message succeeded** — logged at the configured `MessageSuccessLogLevel` (default `Debug`)
 - **Message failed** — logged at `Error` level with the exception
 - **Execution finished** — logged at the configured `MessageExecutionLogLevel`
 

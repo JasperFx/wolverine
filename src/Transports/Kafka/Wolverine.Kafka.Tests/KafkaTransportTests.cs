@@ -536,12 +536,4 @@ public class UseKafkaUsingNamedConnectionTests
         var expression = options.UseKafkaUsingNamedConnection("kafka");
         expression.ShouldNotBeNull();
     }
-
-    [Fact]
-    public void disables_automatic_failure_acks()
-    {
-        var options = new WolverineOptions();
-        options.UseKafkaUsingNamedConnection("kafka");
-        options.EnableAutomaticFailureAcks.ShouldBeFalse();
-    }
 }

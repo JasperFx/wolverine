@@ -25,8 +25,6 @@ public static class KafkaTransportExtensions
         string connectionStringName, Action<KafkaConsumerOptions>? configureConsumers = null,
         Action<KafkaProducerOptions>? configureProducers = null)
     {
-        // Automatic failure acks do not work with Kafka serialization failures
-        options.EnableAutomaticFailureAcks = false;
         var transport = options.KafkaTransport();
 
         // GH-4527: declare the dependency so the runtime validates it -- together with every other named
@@ -73,8 +71,6 @@ public static class KafkaTransportExtensions
     /// <returns></returns>
     public static KafkaTransportExpression UseKafka(this WolverineOptions options, string bootstrapServers)
     {
-        // Automatic failure acks do not work with Kafka serialization failures
-        options.EnableAutomaticFailureAcks = false;
         var transport = options.KafkaTransport();
         transport.ConsumerConfig.BootstrapServers = bootstrapServers;
         transport.ProducerConfig.BootstrapServers = bootstrapServers;

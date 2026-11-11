@@ -694,7 +694,6 @@ through Kafka and Wolverine by using the options shown below in test harness cod
 _receiver = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        //opts.EnableAutomaticFailureAcks = false;
         opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
         opts.ListenToKafkaTopic("json")
 
@@ -730,7 +729,7 @@ _sender = await Host.CreateDefaultBuilder()
             .PublishRawJson(new JsonSerializerOptions());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L22-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L22-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
