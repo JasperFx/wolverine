@@ -1,15 +1,10 @@
-using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
-using JasperFx.CodeGeneration.Frames;
-using JasperFx.CodeGeneration.Model;
-using JasperFx.Core;
-using JasperFx.Core.Reflection;
-using Microsoft.Extensions.Logging;
-using Fisher;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
+using Wolverine.Persistence.DocumentStores;
+using Wolverine.Fisher.Persistence.Sagas;
 
 namespace Wolverine.Fisher.Requirements;
 
@@ -49,61 +44,8 @@ public class DocumentExistsAttribute<TDoc> : ModifyChainAttribute where TDoc : c
 
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
-        var idType = ResolveIdType(typeof(TDoc));
-
-        if (!TryFindIdentityVariable(chain, _argumentName, typeof(TDoc), idType, out var identity))
-        {
-            throw new InvalidOperationException(
-                $"Could not find an identity variable for {typeof(TDoc).FullNameInCode()} on chain {chain}. " +
-                $"Expected a property named '{typeof(TDoc).Name}Id' or 'Id' on the input type, " +
-                $"or specify the property name explicitly in the attribute constructor.");
-        }
-
-        if (identity.Creator != null)
-        {
-            chain.Middleware.Add(identity.Creator);
-        }
-
-        chain.Middleware.Add(new DocumentExistenceCheckFrame(typeof(TDoc), idType, identity, mustExist: true));
-    }
-
-    /// <summary>
-    /// Resolve the identity type for a Fisher document type by reflecting on the public
-    /// instance <c>Id</c> property. Falls back to <see cref="Guid"/> when the property is
-    /// missing — matching <see cref="Wolverine.Fisher.Persistence.Sagas.FisherPersistenceFrameProvider.DetermineSagaIdType"/>.
-    /// </summary>
-    internal static Type ResolveIdType(Type docType)
-    {
-        var idProp = docType.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
-        if (idProp == null) return typeof(Guid);
-
-        // GH-3942 / GH-5142: unwrap Nullable<T>, in lockstep with FisherPersistenceFrameProvider.DetermineSagaIdType
-        return Nullable.GetUnderlyingType(idProp.PropertyType) ?? idProp.PropertyType;
-    }
-
-    internal static bool TryFindIdentityVariable(IChain chain, string? argumentName, Type docType, Type idType,
-        out Variable variable)
-    {
-        if (argumentName.IsNotEmpty())
-        {
-            if (chain.TryFindVariable(argumentName, ValueSource.Anything, idType, out variable))
-            {
-                return true;
-            }
-        }
-
-        if (chain.TryFindVariable(docType.Name + "Id", ValueSource.Anything, idType, out variable))
-        {
-            return true;
-        }
-
-        if (chain.TryFindVariable("Id", ValueSource.Anything, idType, out variable))
-        {
-            return true;
-        }
-
-        variable = default!;
-        return false;
+        DocumentExistenceRequirement.Apply(chain, container, new FisherPersistenceFrameProvider(),
+            FisherIntegration.SessionTypes, typeof(TDoc), _argumentName, mustExist: true);
     }
 }
 
@@ -143,101 +85,7 @@ public class DocumentDoesNotExistAttribute<TDoc> : ModifyChainAttribute where TD
 
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
     {
-        var idType = DocumentExistsAttribute<TDoc>.ResolveIdType(typeof(TDoc));
-
-        if (!DocumentExistsAttribute<TDoc>.TryFindIdentityVariable(chain, _argumentName, typeof(TDoc), idType,
-                out var identity))
-        {
-            throw new InvalidOperationException(
-                $"Could not find an identity variable for {typeof(TDoc).FullNameInCode()} on chain {chain}. " +
-                $"Expected a property named '{typeof(TDoc).Name}Id' or 'Id' on the input type, " +
-                $"or specify the property name explicitly in the attribute constructor.");
-        }
-
-        if (identity.Creator != null)
-        {
-            chain.Middleware.Add(identity.Creator);
-        }
-
-        chain.Middleware.Add(new DocumentExistenceCheckFrame(typeof(TDoc), idType, identity, mustExist: false));
-    }
-}
-
-/// <summary>
-/// Code generation frame that checks whether a Fisher document exists (or does not exist)
-/// and throws <see cref="RequiredDataMissingException"/> on failure. Generates a single
-/// <see cref="IQuerySession.CheckExistsAsync{T}(System.Guid,System.Threading.CancellationToken)"/>
-/// call (overload-resolved on the identity type), so no runtime dispatch overhead.
-/// </summary>
-internal class DocumentExistenceCheckFrame : AsyncFrame
-{
-    private static int _count;
-
-    private readonly Type _docType;
-    private readonly Type _idType;
-    private readonly Variable _identity;
-    private readonly bool _mustExist;
-    private readonly int _id;
-
-    private Variable? _session;
-    private Variable? _logger;
-    private Variable? _cancellation;
-
-    public DocumentExistenceCheckFrame(Type docType, Type idType, Variable identity, bool mustExist)
-    {
-        _docType = docType;
-        _idType = idType;
-        _identity = identity;
-        _mustExist = mustExist;
-        _id = ++_count;
-        uses.Add(identity);
-    }
-
-    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
-    {
-        _session = chain.FindVariable(typeof(IDocumentSession));
-        yield return _session;
-
-        _logger = chain.FindVariable(typeof(ILogger));
-        yield return _logger;
-
-        _cancellation = chain.FindVariable(typeof(CancellationToken));
-        yield return _cancellation;
-    }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        var docTypeName = _docType.FullNameInCode();
-        var existsVar = $"docExists{_id}";
-
-        writer.WriteComment(_mustExist
-            ? $"Verify that {docTypeName} exists"
-            : $"Verify that {docTypeName} does not exist");
-
-        writer.WriteLine(
-            $"var {existsVar} = await {_session!.Usage}.CheckExistsAsync<{docTypeName}>({_identity.Usage}, {_cancellation!.Usage}).ConfigureAwait(false);");
-
-        if (_mustExist)
-        {
-            writer.Write($"BLOCK:if (!{existsVar})");
-            var msg = $"No {_docType.Name} with the specified identity exists";
-            writer.WriteLine(
-                $"{_logger!.Usage}.LogWarning(\"Fisher data requirement failure: {{Message}}\", \"{msg}\");");
-            writer.WriteLine(
-                $"throw new {typeof(RequiredDataMissingException).FullNameInCode()}(\"{msg}\");");
-            writer.FinishBlock();
-        }
-        else
-        {
-            writer.Write($"BLOCK:if ({existsVar})");
-            var msg = $"A {_docType.Name} with the specified identity already exists";
-            writer.WriteLine(
-                $"{_logger!.Usage}.LogWarning(\"Fisher data requirement failure: {{Message}}\", \"{msg}\");");
-            writer.WriteLine(
-                $"throw new {typeof(RequiredDataMissingException).FullNameInCode()}(\"{msg}\");");
-            writer.FinishBlock();
-        }
-
-        Next?.GenerateCode(method, writer);
+        DocumentExistenceRequirement.Apply(chain, container, new FisherPersistenceFrameProvider(),
+            FisherIntegration.SessionTypes, typeof(TDoc), _argumentName, mustExist: false);
     }
 }
