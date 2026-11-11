@@ -314,7 +314,10 @@ internal class FisherOverrides<T> : IConfigureFisher<T> where T : IDocumentStore
         // projection batch commits — parity with the primary store (FisherOverrides above) and the
         // Marten ancillary side. Without this the ancillary store silently drops projection-published
         // messages.
-        options.Events.MessageOutbox = new FisherToWolverineOutbox(services);
+        //
+        // GH-5143: pass the marker type so the batch enlists in THIS store's message store, as Marten's
+        // has since GH-2887. Without it the envelopes went to the main store's tables.
+        options.Events.MessageOutbox = new FisherToWolverineOutbox(services, typeof(T));
 
         // GH-5390: a tracked session hears events committed through sessions Wolverine did not open too
         options.Listeners.Add(new RecordEventsCommittedOutsideAMessage(services, typeof(T)));
