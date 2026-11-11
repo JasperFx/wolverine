@@ -3,16 +3,13 @@
 The `WolverineFx.HealthChecks` package adds Wolverine-aware
 [`IHealthCheck`](https://learn.microsoft.com/aspnet/core/host-and-deploy/health-checks)
 implementations so you can plug Wolverine straight into the standard
-ASP.NET Core health-check pipeline. Two checks ship in the box:
+ASP.NET Core health-check pipeline. Three checks ship in the box:
 
 | Check | What it covers |
 | --- | --- |
 | `WolverineBusHealthCheck` | The Wolverine runtime itself — has it started? Is it cancelling? |
 | `WolverineListenerHealthCheck` | Listening agents — are they accepting, too busy, latched, or stopped? |
-
-Per-broker connectivity checks (RabbitMQ, Azure Service Bus, etc.) are
-intentionally out of scope here and will be addressed by transport-specific
-health-check helpers.
+| `WolverineTransportsHealthCheck` | Broker connections of every transport that reports its health (RabbitMQ, Kafka, Azure Service Bus...) |
 
 ## Install
 
@@ -22,7 +19,7 @@ dotnet add package WolverineFx.HealthChecks
 
 ## Register
 
-Both checks are registered through the conventional `IHealthChecksBuilder`
+The checks are registered through the conventional `IHealthChecksBuilder`
 extension shape, just like any other ASP.NET Core health check:
 
 ```csharp
@@ -33,7 +30,8 @@ builder.Host.UseWolverine();
 
 builder.Services.AddHealthChecks()
     .AddWolverine()           // bus check, name: "wolverine"
-    .AddWolverineListeners(); // listener check, name: "wolverine-listeners"
+    .AddWolverineListeners()  // listener check, name: "wolverine-listeners"
+    .AddWolverineTransports(); // broker connections, name: "wolverine-transports"
 
 var app = builder.Build();
 
@@ -80,6 +78,30 @@ maps the per-listener status to the overall health-check status:
 Per-listener status counts and a URI-keyed map are surfaced through
 `HealthCheckResult.Data` so dashboards (CritterWatch, Grafana, etc.) can render
 detail without needing a second probe.
+
+## Transport connections <Badge type="tip" text="7.0" />
+
+`AddWolverineTransports()` registers one check, named `wolverine-transports`, over every transport that reports its
+broker connection (RabbitMQ, Kafka, Azure Service Bus, Amazon SQS, NATS, Redis, Pulsar, MQTT...). The worst
+transport wins:
+
+| Transport mix | Reported status |
+| --- | --- |
+| All `Healthy`, or no transport reports its health | `Healthy` |
+| Any `Degraded` | `Degraded` |
+| Any `Unhealthy`, or a transport check throws | `Unhealthy` (uses the registered failure status) |
+| The Wolverine runtime hasn't started yet | `Unhealthy` (uses the registered failure status) |
+
+Each transport's status is in `HealthCheckResult.Data`, keyed by `{protocol}:{transport name}`. Since it fails
+before startup, put it on a readiness probe, not a liveness probe:
+
+```csharp
+builder.Services.AddHealthChecks()
+    .AddWolverineTransports(tags: new[] { "ready" });
+```
+
+The [`WolverineFx.ServiceDefaults`](/guide/aspire#wolverinefx-servicedefaults) package registers all three Wolverine
+checks, tagged for Aspire's `/health` and `/alive` endpoints.
 
 ## Filtering listeners
 
