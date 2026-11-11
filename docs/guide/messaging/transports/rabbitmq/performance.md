@@ -109,6 +109,10 @@ longer than it used to, so check that your platform gives the process enough tim
 the pod's `terminationGracePeriodSeconds` (30 seconds by default), which has to cover the drain of every listener
 plus anything else your application does at shutdown.
 
+Two stops never wait. One is a stop made by a handler on the listener's own delivery, such as an inline listener's
+`PauseThenRequeue()`: the broker's confirmation can't be dispatched until that handler returns. The other is a stop on
+a channel that has already closed, which can't confirm anything. Both cancel the 6.x way.
+
 It is only a hard guarantee at `ConsumerDispatchConcurrency` of 1, the default. At higher concurrency the client
 handles deliveries and the cancel confirmation in parallel, so some deliveries may still be redelivered, but fewer
 than without waiting.
