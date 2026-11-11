@@ -16,8 +16,10 @@
         * Swashbuckle-only web apps resolve Microsoft.OpenApi 1.2.x — forcing 2.x would break
           Swashbuckle 6.5.0, and they aren't vulnerable, so leave them too.
       Non-web test projects that reference these web apps inherit the pin transitively.
+      A project that sets HoldMicrosoftOpenApi1x (WolverineWebApi, GH-5134) is written against the 1.x
+      object model and holds Microsoft.AspNetCore.OpenApi at 9.0.5 instead.
     -->
-    <ItemGroup Condition=" ('$(TargetFramework)' == 'net10.0' Or '$(TargetFramework)' == 'net11.0') And @(PackageReference->AnyHaveMetadataValue('Identity', 'Microsoft.AspNetCore.OpenApi')) ">
+    <ItemGroup Condition=" ('$(TargetFramework)' == 'net10.0' Or '$(TargetFramework)' == 'net11.0') And @(PackageReference->AnyHaveMetadataValue('Identity', 'Microsoft.AspNetCore.OpenApi')) And '$(HoldMicrosoftOpenApi1x)' != 'true' ">
         <PackageReference Include="Microsoft.OpenApi" />
     </ItemGroup>
 

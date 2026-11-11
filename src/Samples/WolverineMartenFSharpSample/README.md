@@ -29,7 +29,7 @@ compile-gate is). Start the repo's docker-compose infrastructure first:
 
 ```bash
 docker compose up -d          # Postgres on :5433
-dotnet run --project src/Samples/WolverineMartenFSharpSample --framework net9.0
+dotnet run --project src/Samples/WolverineMartenFSharpSample --framework net10.0
 ```
 
 Expected output: `Created a Product through the F# Wolverine + Marten handler.`

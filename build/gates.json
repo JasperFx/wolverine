@@ -29,7 +29,7 @@
       "ciTargets": "CIPersistence",
       "workers": 1,
       "frameworks": [
-        "net9.0"
+        "net10.0"
       ],
       "postgres": "Shared",
       "sqlServer": "Shared",
@@ -84,7 +84,7 @@
     {
       "name": "EfCoreTests",
       "path": "src/Persistence/EfCoreTests/EfCoreTests.csproj",
-      "ciTargets": "CIEfCore, CIEfCoreNet10",
+      "ciTargets": "CIEfCore",
       "workers": 1,
       "postgres": "Shared",
       "sqlServer": "Shared",
@@ -102,7 +102,7 @@
     {
       "name": "EfCoreTests.MultiTenancy",
       "path": "src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj",
-      "ciTargets": "CIEfCoreNet10",
+      "ciTargets": "CIEfCore",
       "workers": 1,
       "postgres": "Shared",
       "sqlServer": "Shared",
@@ -234,7 +234,7 @@
       "ciTargets": "CIRavenDb",
       "workers": 1,
       "frameworks": [
-        "net9.0"
+        "net10.0"
       ],
       "services": [],
       "tracks": [
@@ -247,7 +247,7 @@
       "ciTargets": "CIRavenDb",
       "workers": 1,
       "frameworks": [
-        "net9.0"
+        "net10.0"
       ],
       "services": [],
       "tracks": [

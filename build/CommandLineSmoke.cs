@@ -24,7 +24,7 @@ partial class Build
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            var framework = string.IsNullOrEmpty(Framework) ? "net9.0" : Framework;
+            var framework = string.IsNullOrEmpty(Framework) ? "net10.0" : Framework;
 
             Log.Information("describe-handlers: a known handler is discovered");
             var known = runQuickstart(framework, "wolverine-diagnostics describe-handlers CreateIssueHandler", expectSuccess: true);

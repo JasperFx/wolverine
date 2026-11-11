@@ -11,13 +11,13 @@ Minimal Wolverine gRPC sample using the code-first style (protobuf-net.Grpc):
 In one terminal:
 
 ```sh
-dotnet run --project src/Samples/PingPongWithGrpc/Ponger --framework net9.0
+dotnet run --project src/Samples/PingPongWithGrpc/Ponger --framework net10.0
 ```
 
 In another:
 
 ```sh
-dotnet run --project src/Samples/PingPongWithGrpc/Pinger --framework net9.0
+dotnet run --project src/Samples/PingPongWithGrpc/Pinger --framework net10.0
 ```
 
 Expected output on the client:

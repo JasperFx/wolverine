@@ -1,5 +1,17 @@
 # Migration Guide
 
+## Key Changes in 7.0
+
+### `.NET 9.0` support dropped (BREAKING)
+
+Wolverine 7.0 targets **net10.0 and net11.0**. Move your application to .NET 10 or later, or stay on the latest
+Wolverine 6.x release, which still targets net9.0.
+
+Wolverine's own background services (the heartbeat publisher, the claim check sweeper and the broker dead letter queue
+listeners) catch everything except cancellation, so none of them faults. .NET 11's `IHost.RunAsync()` and
+`IHost.StopAsync()` now throw when *any* `BackgroundService` in the host has faulted, so a faulted service of your own
+will surface there where earlier frameworks swallowed it; Wolverine still stops cleanly either way.
+
 ## Key Changes in 6.0
 
 ::: warning

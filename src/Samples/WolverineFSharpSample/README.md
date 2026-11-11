@@ -29,7 +29,7 @@ Wolverine's EF Core outbox needs a durable message store, so the runnable sample
 
 ```bash
 docker compose up -d          # Postgres on :5433
-dotnet run --project src/Samples/WolverineFSharpSample --framework net9.0
+dotnet run --project src/Samples/WolverineFSharpSample --framework net10.0
 ```
 
 Expected output: `Created an Item through the F# Wolverine + EF Core handler.`
