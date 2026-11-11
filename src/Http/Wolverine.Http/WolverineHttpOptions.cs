@@ -485,16 +485,47 @@ public class WolverineHttpOptions
     #endregion
 
     /// <summary>
+    /// Whether Wolverine applies antiforgery (CSRF) validation to form data and file upload endpoints
+    /// when the application says nothing: on for .NET 11, off for .NET 10. GH-5147.
+    /// </summary>
+    /// <remarks>
+    /// ASP.NET Core 11 injects its own CSRF protection middleware, so an endpoint that requires validation
+    /// works without <c>app.UseAntiforgery()</c> and without tokens: same-origin requests (by
+    /// <c>Sec-Fetch-Site</c>, or <c>Origin</c> for older clients) pass, cross-site browser requests are
+    /// refused. That matches what Minimal API does for its own form endpoints. On .NET 10 the same metadata
+    /// makes ASP.NET Core throw on every request unless the application calls <c>app.UseAntiforgery()</c>,
+    /// so the default stays off there.
+    /// </remarks>
+    public const bool AutoAntiforgeryOnFormEndpointsByDefault =
+#if NET11_0_OR_GREATER
+        true;
+#else
+        false;
+#endif
+
+    /// <summary>
     /// Automatically apply antiforgery token validation to form data and file upload
     /// endpoints. Individual endpoints can opt out with <see cref="DisableAntiforgeryAttribute"/>.
-    /// Requires <c>app.UseAntiforgery()</c> in the middleware pipeline.
+    /// The default on .NET 11 (see <see cref="AutoAntiforgeryOnFormEndpointsByDefault"/>); on .NET 10 this
+    /// requires <c>app.UseAntiforgery()</c> in the middleware pipeline.
     /// </summary>
     public void AutoAntiforgeryOnFormEndpoints()
     {
         _autoAntiforgeryOnFormEndpoints = true;
     }
 
-    internal bool _autoAntiforgeryOnFormEndpoints;
+    /// <summary>
+    /// Stop Wolverine from applying antiforgery (CSRF) validation to form data and file upload endpoints by
+    /// default, which it does on .NET 11. Endpoints marked <see cref="ValidateAntiforgeryAttribute"/> still
+    /// require it. GH-5147.
+    /// </summary>
+    public void DisableAutoAntiforgeryOnFormEndpoints()
+    {
+        _autoAntiforgeryOnFormEndpoints = false;
+    }
+
+    internal bool _autoAntiforgeryOnFormEndpoints = AutoAntiforgeryOnFormEndpointsByDefault;
+    internal bool _requireAntiforgeryOnAll;
 
     /// <summary>
     /// Require antiforgery token validation on all Wolverine HTTP endpoints,
@@ -504,7 +535,9 @@ public class WolverineHttpOptions
     public void RequireAntiforgeryOnAll()
     {
         _autoAntiforgeryOnFormEndpoints = true;
-        ConfigureEndpoints(e => e.WithMetadata(WolverineAntiforgeryMetadata.Required));
+        // Applied per chain (HttpChain.AntiforgeryRequirement) rather than as an endpoint convention, so that
+        // [DisableAntiforgery] still wins and the generated code knows to check the result. GH-5147.
+        _requireAntiforgeryOnAll = true;
     }
 
     /// <summary>

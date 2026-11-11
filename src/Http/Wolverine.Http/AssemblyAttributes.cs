@@ -11,6 +11,8 @@ using JasperFx.Core.TypeScanning;
 [assembly: InternalsVisibleTo("Wolverine.Http.AspVersioning.Tests")]
 
 [assembly: InternalsVisibleTo("Wolverine.Http.Tests")]
+// GH-5147: the net10.0;net11.0 ASP.NET Core 11 compatibility suite reads chains and the OpenAPI document provider
+[assembly: InternalsVisibleTo("Wolverine.Http.Compat.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.Http.FSharpTests")]
 // GH-4605: the Polecat and Fisher HTTP deduplication mirrors assert on the generated source of an
 // endpoint, which means reaching WolverineHttpOptions.Endpoints. They live in the store test projects

@@ -25,15 +25,28 @@ internal class HttpChainDataAnnotationsValidationPolicy : IHttpPolicy
         if (validatedType == null) return;
 
         // ONLY apply if there are ValidationAttributes
-        if (!validatedType.GetProperties().Any(x => x.GetAllAttributes<ValidationAttribute>().Any()) && !validatedType.CanBeCastTo<IValidatableObject>())
+        if (!validatedType.GetProperties().Any(x => x.GetAllAttributes<ValidationAttribute>().Any()) && !validatedType.CanBeCastTo<IValidatableObject>()
+#if NET11_0_OR_GREATER
+            && !validatedType.CanBeCastTo<IAsyncValidatableObject>()
+#endif
+           )
         {
             return;
         }
         
         chain.Metadata.ProducesValidationProblem();
 
+        var methodName = nameof(DataAnnotationsHttpValidationExecutor.Validate);
+#if NET11_0_OR_GREATER
+        // GH-5147: .NET 11's async validation members, only where the request type has something async to run
+        if (DataAnnotationsHttpValidationExecutor.RequiresAsyncValidation(validatedType))
+        {
+            methodName = nameof(DataAnnotationsHttpValidationExecutor.ValidateAsync);
+        }
+#endif
+
         var method =
-            typeof(DataAnnotationsHttpValidationExecutor).GetMethod(nameof(DataAnnotationsHttpValidationExecutor.Validate))!
+            typeof(DataAnnotationsHttpValidationExecutor).GetMethod(methodName)!
                 .MakeGenericMethod(validatedType);
 
         var methodCall = new MethodCall(typeof(DataAnnotationsHttpValidationExecutor), method)
@@ -54,6 +67,12 @@ internal class HttpChainDataAnnotationsValidationPolicy : IHttpPolicy
         // hands to a ValidationContext.
         methodCall.TrySetArgument(
             new Variable(typeof(IServiceProvider), $"httpContext.{nameof(HttpContext.RequestServices)}"));
+
+        if (method.GetParameters().Any(x => x.ParameterType == typeof(CancellationToken)))
+        {
+            methodCall.TrySetArgument(
+                new Variable(typeof(CancellationToken), $"httpContext.{nameof(HttpContext.RequestAborted)}"));
+        }
 
         var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
         chain.Middleware.InsertRange(0, [methodCall, maybeResult]);

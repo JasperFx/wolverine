@@ -256,6 +256,31 @@ or which implements the `IValidatableObject` interface.
 
 Any validation errors detected will cause the HTTP request to fail with a `ProblemDetails` response.
 
+### Async validation on .NET 11
+
+On .NET 11 the middleware also picks up DataAnnotations' asynchronous rules: a request type with an
+`AsyncValidationAttribute` (on the type or a property), or one that implements `IAsyncValidatableObject`, is validated
+with `Validator.TryValidateObjectAsync`, so the async members run (`IsValidAsync`, `ValidateAsync`) with the request's
+`RequestAborted` token instead of their synchronous fallbacks. Request types without async rules keep the synchronous
+path. Error messages go through `ValidationAttribute.FormatErrorMessage`, so an attribute that overrides .NET 11's
+`FormatMessage` hook shows its own wording in the `ProblemDetails`.
+
+```csharp
+public class NotTakenAttribute : AsyncValidationAttribute
+{
+    protected override ValidationResult? IsValid(object? value, ValidationContext context) => ValidationResult.Success;
+
+    protected override async Task<ValidationResult?> IsValidAsync(object? value, ValidationContext context,
+        CancellationToken cancellationToken)
+    {
+        var users = context.GetRequiredService<IUserDirectory>();
+        return await users.IsTakenAsync((string)value!, cancellationToken)
+            ? new ValidationResult($"'{value}' is already taken", [context.MemberName!])
+            : ValidationResult.Success;
+    }
+}
+```
+
 For an example, consider this input model that will be a request type in your application:
 
 <!-- snippet: sample_validated_createaccount -->

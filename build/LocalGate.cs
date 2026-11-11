@@ -275,6 +275,7 @@ partial class Build
 
         // ─── http.yml ───
         new("src/Http/Wolverine.Http.Tests/Wolverine.Http.Tests.csproj", "CIHttp") { Postgres = ServerUse.OwnDatabase },
+        new("src/Http/Wolverine.Http.Compat.Tests/Wolverine.Http.Compat.Tests.csproj", "CIHttpCompat"),
         new("src/Http/Wolverine.Http.AspVersioning.Tests/Wolverine.Http.AspVersioning.Tests.csproj", "CIHttpAspVersioning")
         {
             Frameworks = ["net10.0"]
