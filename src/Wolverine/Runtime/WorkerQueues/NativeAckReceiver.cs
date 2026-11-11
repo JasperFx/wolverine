@@ -50,8 +50,9 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
     private readonly DurabilitySettings _settings;
 
     /// <summary>
-    /// GH-3710. Null unless the endpoint opted in with WithInMemoryIdempotency(), which is what makes the
-    /// guard zero-cost by default: one null check per delivery and nothing else. Owned by the endpoint rather
+    /// GH-3710. Built by default for a NativeAck endpoint as of 7.0 (GH-5200); null after
+    /// WithoutInMemoryIdempotency() or RestoreV6Defaults(), and then it costs one null check per delivery
+    /// and nothing else. Owned by the endpoint rather
     /// than by this receiver, so its contents survive the receiver rebuilds -- back pressure recovery, listener
     /// restart -- that are themselves a source of redeliveries.
     /// </summary>

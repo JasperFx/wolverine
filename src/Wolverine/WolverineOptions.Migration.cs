@@ -62,6 +62,11 @@ public sealed partial class WolverineOptions
         // the EnvelopeIdGeneration getter reads V6DefaultsRestored, so an explicit setting still wins and a SQL
         // Server-only application still switches to NewIdSqlServerOrder at startup, as it did in 6.x.
 
+        // GH-5200: three more core defaults read the flags set above when they are resolved, so an explicit setting
+        // still wins: Durability.CompressAgentCommands (on in 7.0), GroupByGroupId() for a batch whose element type
+        // is in a partitioned topology (resolved at startup) and the in-memory idempotency guard on NativeAck
+        // endpoints (resolved in Endpoint.Compile()).
+
         // Add one line here for each core default 7.x flips, a row to the 7.0 defaults
         // table in docs/guide/migration.md and an entry to restore_v6_defaults_tests.
         // Defaults owned by extension packages read V6DefaultsRestored instead.

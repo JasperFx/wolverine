@@ -1159,6 +1159,16 @@ public partial class WolverineRuntime
 
         foreach (var batch in Options.BatchDefinitions)
         {
+            // GH-5200. 7.0 groups the batches of any element type in a partitioned topology by group id, wherever
+            // they execute. Without it a batch envelope has no group id and draws a random slot downstream, so the
+            // batch silently gives up the ordering its unbatched siblings keep. Non-partitioned batching is left
+            // alone, and so is a batcher the application supplied.
+            if (!Options.V6DefaultsRestored && !batch.GroupByGroupIdOptedOut && batch.UsesDefaultBatcher &&
+                belongsToPartitionedTopology(batch.ElementType))
+            {
+                batch.GroupByGroupId();
+            }
+
             // Naming a queue, or asking for a dedicated one outright, is an explicit choice to run
             // the batches somewhere of your own choosing. Respect it.
             if (batch.IsLocalQueueExplicit || batch.ForcesDedicatedQueue)
@@ -1185,12 +1195,17 @@ public partial class WolverineRuntime
             // Slotting a batch requires the batch to belong to exactly one group, which the default
             // tenant-only batcher cannot promise. Swap it for the group-id batcher — but leave a
             // batcher the application supplied alone, since it may stamp group ids itself.
-            var batcherType = batch.Batcher.GetType();
-            if (batcherType.IsGenericType && batcherType.GetGenericTypeDefinition() == typeof(DefaultMessageBatcher<>))
+            if (batch.UsesDefaultBatcher)
             {
                 batch.GroupByGroupId();
             }
         }
+    }
+
+    private bool belongsToPartitionedTopology(Type elementType)
+    {
+        var partitioning = Options.MessagePartitioning;
+        return partitioning.TryFindGlobalTopology(elementType, out _) || partitioning.TryFindTopology(elementType, out _);
     }
 
     /// <summary>

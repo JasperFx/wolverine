@@ -42,6 +42,10 @@ public class restore_v6_defaults_tests
             ["`WolverineOptions.EnvelopeIdGeneration`"] = (
                 o => o.EnvelopeIdGeneration.ShouldBe(EnvelopeIdGeneration.GuidV7),
                 o => o.EnvelopeIdGeneration.ShouldBe(EnvelopeIdGeneration.NewId)),
+            // GH-5200
+            ["`DurabilitySettings.CompressAgentCommands`"] = (
+                o => o.Durability.CompressAgentCommands.ShouldBeTrue(),
+                o => o.Durability.CompressAgentCommands.ShouldBeFalse()),
 
             // e.g.
             // ["`WolverineOptions.Something`"] = (
