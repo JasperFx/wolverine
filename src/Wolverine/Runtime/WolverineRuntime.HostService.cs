@@ -218,14 +218,10 @@ public partial class WolverineRuntime
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
-            // A message type may have BOTH a direct
-            // Handle(T) handler AND a BatchMessagesOf<T>() batch handler. By default the batch
-            // local queue is the element type's convention queue — the SAME queue the direct
-            // handler uses — so the two collide (a local queue resolves a single executor per
-            // message type) and the batch is silently shadowed. Move the batch onto a dedicated
-            // queue so both can run independently. Done before the messaging transports start so
+            // GH-5138. A BatchMessagesOf<T>() batch is a member of T's handler group. When T has handler chains of its
+            // own, the batch gets a local queue of its own next to theirs. Done before the messaging transports start so
             // the new queue still receives the durable/local-queue endpoint policies.
-            reassignBatchQueuesThatCollideWithHandlers();
+            Handlers.BindBatchQueues(Options.Transports.GetOrCreate<LocalTransport>());
 
             // GH-5133. ClassicCombineIntoOneLogicalHandler is obsolete and gone in 7.0. Say which message
             // types it actually combined (once), or throw if the application opted into the assertion.
@@ -1049,46 +1045,6 @@ public partial class WolverineRuntime
         }
     }
 
-    // Suffix appended to the element type's convention queue name to host the batch processor
-    // when the same element type also has a direct handler.
-    internal const string BatchQueueSuffix = "-batch";
-
-    private void reassignBatchQueuesThatCollideWithHandlers()
-    {
-        if (Options.BatchDefinitions.Count == 0)
-        {
-            return;
-        }
-
-        var local = Options.Transports.GetOrCreate<LocalTransport>();
-
-        foreach (var batch in Options.BatchDefinitions)
-        {
-            // No direct Handle(T) handler for the element type -> the batch owns the element
-            // type's queue and the existing fallback routing/executor behavior is correct.
-            if (Handlers.GroupFor(batch.ElementType) == null)
-            {
-                continue;
-            }
-
-            // The user explicitly pointed the batch at a distinct queue already -> respect it.
-            var directQueue = local.FindQueueForMessageType(batch.ElementType);
-            if (!string.Equals(batch.LocalExecutionQueueName, directQueue.EndpointName,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            // Move the batch onto a dedicated queue distinct from the direct handler's queue.
-            var batchQueueName = directQueue.EndpointName + BatchQueueSuffix;
-            var batchQueue = local.QueueFor(batchQueueName);
-            batchQueue.Mode = directQueue.Mode;
-
-            // Wolverine's own reassignment, not a user choice — see SetDefaultLocalExecutionQueueName.
-            batch.SetDefaultLocalExecutionQueueName(batchQueue.EndpointName);
-        }
-    }
-
     private void warnOrAssertCombinedHandlers()
     {
         var combined = Handlers.CombinedHandlerChains();
@@ -1149,17 +1105,17 @@ public partial class WolverineRuntime
             return;
         }
 
-        foreach (var batch in Options.BatchDefinitions)
+        // GH-5138. Only a group with both handler chains and a batch has a second writer: an element type with no
+        // unbatched handler has no group, or a group with no batch
+        foreach (var directGroup in Handlers.Groups)
         {
-            // Sequenced onto a shared partitioned topology by GH-3867 -- single writer per group id.
-            if (batch.ExecutionSlots is { Count: > 0 })
+            if (directGroup.Batch is not { } batch || directGroup.Chains.Count == 0)
             {
                 continue;
             }
 
-            // No unbatched sibling means no second writer.
-            var directGroup = Handlers.GroupFor(batch.ElementType);
-            if (directGroup == null)
+            // Sequenced onto a shared partitioned topology by GH-3867 -- single writer per group id.
+            if (batch.ExecutionSlots is { Count: > 0 })
             {
                 continue;
             }

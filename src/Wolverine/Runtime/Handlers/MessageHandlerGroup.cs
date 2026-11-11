@@ -34,6 +34,30 @@ internal class MessageHandlerGroup
     internal void Add(HandlerChain chain) => _chains.Add(chain);
 
     /// <summary>
+    /// GH-5138. The <c>BatchMessagesOf&lt;T&gt;()</c> batch of this message type, if it has one. The batch is one more
+    /// subscriber of the message type next to its handler chains: it runs on a local queue of its own, and a message
+    /// that reaches the group from outside the process is relayed to it as well as to the chains
+    /// </summary>
+    public Batching.BatchingOptions? Batch { get; internal set; }
+
+    /// <summary>
+    /// GH-5138. The local queues a message of this type is relayed to so that every chain and the batch get it: the
+    /// message type's own queue for a chain bound to no endpoint, the local queue of each bound chain, and the batch's
+    /// queue
+    /// </summary>
+    internal Uri[] MemberLocalQueueUris(LocalTransport local)
+    {
+        var uris = new List<Uri>();
+        if (UnboundChains().Any()) uris.Add(local.FindQueueForMessageType(MessageType).Uri);
+
+        uris.AddRange(BoundLocalQueueUris());
+
+        if (Batch?.LocalExecutionQueueName is { } batchQueueName) uris.Add(local.QueueFor(batchQueueName).Uri);
+
+        return uris.Distinct().ToArray();
+    }
+
+    /// <summary>
     /// The chains bound to one or more endpoints, either by a sticky handler declaration or, when there is
     /// more than one chain, by the per handler type local queue
     /// </summary>
