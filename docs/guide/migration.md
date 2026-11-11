@@ -25,6 +25,13 @@ list.
 | `ISenderRequiresCallback` | extends `IDisposable` | does not *(BREAKING)* | Implement disposal on the sender itself if it needs it |
 | `UseAutomaticForwarderDiscovery()`, `WolverineOptions.EnableMessageCausationTracking`, `Policies.PublishAgentEvents`, `AgentAssignmentsChanged`, `ApplyDeduplication(IChain)`, Fisher `TransportSchemaName`, `MqttEnvelope.ShouldRequeue` | `[Obsolete]` or unused | **removed** *(BREAKING)* | See [dead and obsolete flags removed](#dead-and-obsolete-flags-removed-breaking) |
 | `INodeAgentPersistence.HasLeadershipLock()` | synchronous, pinged the lock's database session with blocking I/O | `HasLeadershipLockAsync(CancellationToken)` *(BREAKING for custom node persistence)* | See [leadership lock probe is asynchronous](#the-leadership-lock-probe-is-asynchronous-breaking) |
+| Several handler types for one message type | combined into one chain and one transaction by default (`ClassicCombineIntoOneLogicalHandler`) | **one chain per handler type**, each with its own transaction, local queue and generated type *(BREAKING)* | See [one handler chain per handler type](#one-handler-chain-per-handler-type-breaking); regenerate pre-generated code |
+| `WolverineOptions.MultipleHandlerBehavior` | `ClassicCombineIntoOneLogicalHandler` (default, `[Obsolete]` in 6.52) or `Separated` | ignored: 7.0 always behaves like `Separated` | Delete the setting |
+| `InvokeAsync(msg)` for a message type with several handler types | ran the one combined chain in one transaction | runs each chain in turn, each in its own transaction; the first failure throws `HandlerInvocationException` *(BREAKING)* | See [InvokeAsync with several handler types](#invokeasync-and-streamasync-with-several-handler-types) |
+| `InvokeAsync<T>` / `StreamAsync<T>` for such a message type | ran the combined chain | run only the chain that returns `T`; none or several throw `AmbiguousHandlerChainException` *(BREAKING)* | Make exactly one handler type return `T` |
+| `LocalQueueFor<T>()` / `[LocalQueue]` on a message type with several handler types | the message type's queue received the message | the queue only drains rows left over from 6.x; each handler type's own queue receives the message *(BREAKING)* | Move the queue's settings to the handler types' queues |
+| New database queue tables (PostgreSQL, SQL Server, MySQL, Oracle, SQLite transports) | no ordering column; SQL Server classic layout | deterministic ordering, and SQL Server's throughput layout, **for new tables only** | None for existing tables; see [queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout) |
+| JasperFx / Weasel / Marten / Polecat / Fisher | 2.x / 9.x / 9.x / 5.x / 1.x | 3.0 / 10.0 / 10.0 / 6.0 / 2.0 *(BREAKING)* | Upgrade them together; see [dependency majors](#dependency-major-versions-in-7-0-breaking) |
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 
@@ -242,6 +249,42 @@ To keep the 6.x layout, call `opts.RestoreV6Defaults()` or set
 `opts.Durability.AlwaysProvisionOptionalSchemaObjects = false`. Each column is then only created when its setting is
 on, and the outgoing timestamp index isn't created.
 
+### New queue tables get deterministic ordering and SQL Server's throughput layout
+
+The database transports (PostgreSQL, SQL Server, MySQL, Oracle and SQLite) create **new** queue tables with
+deterministic ordering in 7.0 (GH-5192). On PostgreSQL, MySQL, Oracle and SQL Server that is a `queue_order` identity
+column plus composite indexes. On SQLite it is an index over the rowid, with no new column. On SQL Server, new tables
+also get the [throughput layout](/guide/durability/sqlserver#optimizing-queue-throughput): a clustered `seq` identity
+with a unique non-clustered index on the message id.
+
+**Existing queue tables keep the layout they have.** No migration path adds the identity column or rebuilds an existing
+table: not queue setup, not `resources setup` or `db-apply`, and not the schema check. Each listener reads the layout
+of the table it actually finds, per database and per tenant database. So a tenant database created before the upgrade
+and one created after it work side by side. The one exception is SQLite, where existing tables gain the two indexes on
+the next migration, without a rebuild.
+
+An explicit setting still behaves as it did in 6.x, so it **does** change existing tables:
+
+* `EnableDeterministicQueueOrdering()` adds the identity column to existing tables. On PostgreSQL and MySQL that
+  rewrites the table under an exclusive lock, and on SQL Server it numbers every row.
+* `OptimizeQueueThroughput()` and `UseClassicQueueLayout()` on SQL Server rebuild an existing table that is on the
+  other layout, under an exclusive lock. SQL Server's layout-switch rebuild (GH-4989) now only fires when you set the
+  layout explicitly, which ends the rebuild ping-pong between two applications that disagree about the default.
+
+To keep the 6.x layout for new tables too, call `DisableDeterministicQueueOrdering()` on the persistence registration
+(`PersistMessagesWithPostgresql(...)`, `PersistMessagesWithSqlServer(...)` and so on). Tables that already have the
+column keep it. On SQL Server, `UseClassicQueueLayout()` also keeps new tables on the classic layout. Because that one
+is explicit, it rebuilds any existing throughput-layout table back to classic, so drain the queues first.
+
+::: warning
+`RestoreV6Defaults()` does **not** restore these two defaults yet. Use `DisableDeterministicQueueOrdering()` (and
+`UseClassicQueueLayout()` on SQL Server) to keep the 6.x layout for new queue tables.
+:::
+
+To convert an existing table on purpose, follow "Converting an existing queue table" on the page for your database,
+for example [SQL Server](/guide/durability/sqlserver#converting-an-existing-queue-table). Every application that
+shares the queue tables has to be configured the same way.
+
 ### `GuidV7` is the default envelope id in 7.0
 
 Wolverine 7 creates envelope ids with `Guid.CreateVersion7()` (`EnvelopeIdGeneration.GuidV7`) instead of MassTransit's
@@ -371,6 +414,174 @@ listener waits for the broker's cancel confirmation, so those deliveries reach t
 listener, the inbox before the channel closes. The wait is bounded by `opts.Durability.DrainTimeout`, but it does slow
 the drain. On Kubernetes, check that the pod's `terminationGracePeriodSeconds` (30 seconds by default) covers it. To
 turn it off on one listener, call `.DoNotDrainWaitForPrefetch()`.
+
+### One handler chain per handler type (BREAKING)
+
+In 6.x, when several handler classes handled the same message type, Wolverine combined them by default
+(`MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler`) into one handler chain, run in one transaction. In 7.0
+there is always **one handler chain per handler type**, which is what `MultipleHandlerBehavior.Separated` did in 6.x
+(GH-5136, GH-5137, GH-5138). There is no way back to combined handlers, and `RestoreV6Defaults()` doesn't change this.
+`WolverineOptions.MultipleHandlerBehavior` is still there, but it is ignored, so delete the line. In 6.52 and later,
+`opts.AssertNoCombinedHandlers()` lists the message types that 6.x still combines, so run it on 6.x first to see what
+will change.
+
+A message type with a single handler class is not affected by anything in this section.
+
+**Each handler type runs on its own.** Every chain gets its own service scope, transaction, error policies and
+deduplication scope. Handlers of the same message no longer commit together, and one failing no longer rolls back the
+others.
+
+**Sagas:**
+
+* One saga type's `Start`, `Handle` and `NotFound` methods for a message are still one saga chain.
+* A saga and a plain handler for the same message are two chains. In 6.x the plain handler could be silently dropped.
+* Several saga types for one message no longer need any opt-in.
+
+**New startup errors:**
+
+* Two methods on one non-saga handler class for the same message type. Merge them into one method or move one to
+  another class.
+* Two handler types sticky to the same endpoint for one message type.
+
+**Sticky handlers always apply.** 6.x only honoured `[StickyHandler]` (and the other ways of making a handler sticky)
+when a message type had more than one handler. A lone sticky handler is now bound only to its endpoint as well.
+
+**Local queues.** When a message type has more than one handler type, each non-sticky chain gets its own local queue
+named after the handler type, `local://{handler type's full name, lower case}`. Publishing the message puts one copy
+on each of those queues. A message arriving from a broker on an endpoint with no chain bound to it is relayed to every
+handler type's local queue. If no chain can take a message at an endpoint, Wolverine throws
+`NoHandlerForEndpointException`, naming where each handler type runs. A message type with one handler type keeps its
+message-type queue, as before.
+
+`LocalQueueFor<T>()` or `[LocalQueue]` on a message type with several handler types still creates that queue, but only
+so it can drain rows persisted to it under 6.x, which it relays to every handler type's queue. Nothing routes to it any
+more, and Wolverine logs a warning at startup saying so. **Settings you put on that queue (parallelism, durability,
+ordering) no longer apply**, so move them to the handler types' queues, for example with
+`opts.LocalQueue("{handler type's full name, lower case}")`.
+
+With conventional broker routing, a listener for such a message type is now named for the handler type, as it was with
+`Separated` in 6.x, so expect new broker queues or subscriptions.
+
+**Batching.** A `BatchMessagesOf<T>()` batch is now one more subscriber of `T` next to its handler chains, and its
+queue name (`{queue}-batch`) is unchanged. `opts.AssertNoBatchHandlerConflicts()` is a no-op.
+
+#### InvokeAsync and StreamAsync with several handler types
+
+* **`InvokeAsync(message)`** runs every chain inline, one after another in discovery order, each with its own envelope,
+  scope, transaction and error handling. The first failure stops the run and is rethrown as
+  `Wolverine.Runtime.Handlers.HandlerInvocationException` (with `MessageType` and `HandlerType`). Its message lists the
+  handler types that already completed and committed, and those that did not run. **The chains that ran before the
+  failing one are not rolled back.**
+* **`InvokeAsync<T>(message)`** and **`StreamAsync<T>(message)`** run only the one chain whose handler returns `T`
+  (`Task<T>`, `ValueTask<T>`, a tuple containing `T`, or `IAsyncEnumerable<T>` for streaming). The other chains do not
+  run. If no chain or more than one chain returns `T`, they throw `AmbiguousHandlerChainException`.
+* The HTTP transport's invoke endpoint used to answer 400 for these message types. A request that asks for a reply now
+  runs the one chain that produces it, and any other request runs every chain.
+
+#### Generated code and handler graph APIs
+
+A message type with one handler class keeps its generated type name. With several handler classes, the 6.x combined
+chain's class (named for the message type) disappears and each chain gets a class named for its handler type, falling
+back to `{Message}_{HandlerType}Handler` when two names collide. **If you pre-generate code (`codegen write`,
+`TypeLoadMode.Static`), regenerate it** after upgrading.
+
+For code that inspects the handler graph:
+
+* `HandlerGraph.ChainFor(Type)` and `ChainFor<T>()` throw `AmbiguousHandlerChainException` when a message type has
+  several chains.
+* `HandlerGraph.Chains` and `AllChains()` are one flat list of every chain. There are no more per-endpoint child chains,
+  and `HandlerChain.ByEndpoint` is gone.
+
+### Store integrations share one implementation in 7.0
+
+Wolverine.Marten, Wolverine.Polecat and Wolverine.Fisher (and their HTTP packages) now run on one shared
+implementation in Wolverine's core for their outbox, event forwarding, aggregate handling, saga diagnostics and
+`[DocumentExists]` code (GH-5141 to GH-5145). The public types you use keep their names and namespaces. What
+changed is what they do:
+
+* **The observer hears about appended events only after the commit.** Polecat and Fisher used to report appended events
+  to `IWolverineObserver.EventsAppended` (which CritterWatch listens to) before the commit, so a failed commit was still
+  reported. All three stores now report after the commit, as Marten already did.
+* **The saga explorer works on Polecat and Fisher.** It used to read relational saga tables those stores never write
+  to, so it showed nothing.
+* **Polecat refuses `Solo` or `HotCold` daemon modes combined with Wolverine-managed event subscription distribution**
+  at startup instead of hanging, as Marten already did.
+* **Projection side effects on an ancillary Polecat or Fisher store** enlist in that store's own message store, not the
+  main one.
+* **Scoped subscription runners** (`SubscribeToEventsWithServices`) set the tenant, and Marten's keeps its service scope
+  until the after-commit flush.
+* **A string-keyed ancillary store next to a Guid-keyed main store** now builds its chains, and Fisher unwraps nullable
+  aggregate and saga ids as Polecat already did.
+* **`[DocumentExists]` / `[DocumentDoesNotExist]`** check the chain's own store, so a chain routed to an ancillary Marten
+  store no longer asks the main `IDocumentStore`.
+* **`MapConcurrencyFailuresToConflict()`** maps `JasperFx.Events.StreamLockedException` to 409, which covers Polecat's and
+  Fisher's lock exceptions. Under Marten 9.x, Marten's own `StreamLockedException` doesn't derive from it, so keep
+  calling `MapMartenConcurrencyFailuresToConflict()` for that one (see the
+  [Wolverine.Http defaults](#wolverine-http-defaults-that-changed-in-7-0)).
+* New store-agnostic side effects on `Storage`: `Storage.DeleteById<T>(id)`, `Storage.DeleteWhere<T>(filter)`,
+  `Storage.ArchiveStream(id)` and `Storage.TombstoneStream(id)`.
+
+### Dependency major versions in 7.0 (BREAKING)
+
+Wolverine 7 is part of the Critter Stack .NET 11 release, and its packages depend on the new majors of the rest of the
+stack. Upgrade them together; mixing a Wolverine 7 package with Marten 9 or Weasel 9 does not work.
+
+| Package | Wolverine 6.x | Wolverine 7.0 |
+|---|---|---|
+| JasperFx, JasperFx.Events | 2.x | 3.0 |
+| JasperFx.RuntimeCompiler (used by `WolverineFx.RuntimeCompilation`) | 5.x | 6.0 |
+| Weasel | 9.x | 10.0 |
+| Marten | 9.x | 10.0 |
+| Polecat | 5.x | 6.0 |
+| Fisher | 1.x | 2.0 |
+| Microsoft.Extensions.*, EF Core, ASP.NET Core OpenAPI | 9.x / 10.x | 10.x on net10.0, 11.x on net11.0 |
+| Npgsql | 9.x | 10.x |
+| Microsoft.Data.SqlClient | 6.x | 7.x |
+| Swashbuckle.AspNetCore (Wolverine.Http samples and tests) | 6.x | 10.x on net10.0, 11.x on net11.0 |
+| OpenTelemetry | 1.15 | 1.20 |
+| Kafka client | Confluent.Kafka | Dekaf (see [above](#kafka-transport-now-runs-on-dekaf-breaking)) |
+
+The Marten, Polecat and Fisher majors have their own migration guides; read them alongside this one. The RabbitMQ,
+Azure Service Bus, SQS/SNS, GCP Pub/Sub, NATS, Pulsar, Redis and Cosmos DB client libraries are unchanged.
+
+### Schema changes when the first 7.0 node starts
+
+Several 7.0 defaults add schema objects to an existing message database. With the default
+`AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate`, **the first 7.0 node to start runs that DDL** against
+the main message database and every tenant database. Everything it adds is additive:
+
+* the `wolverine_deduplication_hashed` and `wolverine_deduplicated_responses` tables
+  ([deduplication storage](#deduplication-storage-is-on-by-default-enablemessagededuplication-removed-breaking))
+* the inbox/outbox `timestamp` columns, the outbox stale index and `wolverine_nodes.load_factor`
+  ([optional schema objects](#optional-message-storage-schema-objects-are-always-created-in-7-0))
+* the ordering indexes on existing SQLite queue tables
+  ([queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout))
+
+Before the first 7.0 node starts:
+
+* **Every application sharing the message storage schema must be on 6.50 or later.** Wolverine only stopped dropping
+  unknown columns from its envelope and queue tables in 6.50, so an older node could drop the new columns again.
+* **If you run with `AutoCreate.None`**, apply the migration yourself (`dotnet run -- resources setup`, `db-apply`, or
+  your own migration process) against every message database, including each tenant database.
+* **On PostgreSQL**, adding the outgoing `timestamp` column rewrites the outbox table under an exclusive lock. Migrate
+  while a large outbox is drained.
+
+`RestoreV6Defaults()` turns off the deduplication tables and the optional schema objects, so it avoids all of this
+except the SQLite queue indexes.
+
+### Changed during 6.x without a flag
+
+These changed in 6.x minor releases with no setting to put the old behaviour back in place, so `RestoreV6Defaults()`
+doesn't touch them. If you are coming from an early 6.x release, check each one:
+
+| Change | Shipped in | What to do |
+|---|---|---|
+| **Kafka `CommitMode` default** became `StoreThenAutoFlush` (GH-3150): offsets are stored per finished message and committed by the client's background committer, where earlier releases committed synchronously after every message | 6.13 | Nothing, unless you need strict per-message commits: then call `.CommitOffsets(CommitMode.PerMessage)`. See [Kafka behaviour changes](#kafka-behaviour-changes) for how commits run on Dekaf |
+| **GCP Pub/Sub competing consumers share one subscription** (GH-4615), named after the topic, where each node used to create its own `{subscription}.{node number}` and handle every message | 6.41 | Let the old nodes drain their per-node subscriptions, then delete them by hand; Wolverine doesn't. Expect duplicates during a rolling deploy unless the listener is durable. `.SubscriptionPerNode()` on a listener keeps the old behaviour. See [GCP Pub/Sub listening](/guide/messaging/transports/gcp-pubsub/listening) |
+| **NATS named consumers are created or updated on startup**: an existing JetStream consumer is brought in line with the listener's ack, `AckWait`, `MaxDeliver`, filter subject and `MaxAckPending` settings, where it used to be reused as it was | 6.47 | If you manage consumers outside the application, call `.Provisioning(NatsProvisioning.CreateOnly)` on `UseNats(...)`. See [NATS](/guide/messaging/transports/nats) |
+| **SQL Server-ordered envelope ids** (GH-4902): when every message store is SQL Server (including the SQL Server transport, EF Core on SQL Server and Polecat) and `EnvelopeIdGeneration` isn't set, Wolverine switches to `NewIdSqlServerOrder` at startup | 6.49 | Nothing; no schema change. Set `EnvelopeIdGeneration` yourself, or pass `optimizeEnvelopeIdsForSqlServer: false`, to opt out. See [`GuidV7`](#guidv7-is-the-default-envelope-id-in-7-0) |
+| **Cosmos DB inbox documents are partitioned by message identity** (GH-5059) under `MessageIdentity.IdOnly`, where they were partitioned by destination, so the same id arriving at two addresses is now recognized as a duplicate | 6.51 | Nothing; the container and partition key path are unchanged, and documents written by older versions still drain. Until they have, a redelivery of one of them isn't rejected. See [Cosmos DB](/guide/durability/cosmosdb) |
+| **Omitted HTTP values bind the declared default** (GH-5099): an omitted query string, header or form value binds the parameter's default (`int limit = 50` binds 50, not 0) | 6.51.2 | Nothing; see [Wolverine.Http defaults](#wolverine-http-defaults-that-changed-in-7-0) |
 
 ### `.NET 9.0` support dropped (BREAKING)
 
