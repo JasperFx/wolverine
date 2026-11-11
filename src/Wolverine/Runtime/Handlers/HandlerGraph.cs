@@ -629,15 +629,13 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     // Compile is the bootstrap-time handler-graph build. The remaining IL2026
     // here comes from registerMessageTypes' MakeGenericType / GetInterfaces walks
-    // (pre-population work tracked in #2769) and from the opt-in
-    // Forwarders.FindForwards path that runs only when
-    // options.AutomaticForwarderDiscoveryEnabled is true (the 6.0 explicit
-    // RegisterMessageForwarder API replaced the unconditional scan — see #2757).
+    // (pre-population work tracked in #2769). The opt-in Forwarders.FindForwards
+    // assembly scan (UseAutomaticForwarderDiscovery) was removed in 7.0 (GH-5198).
     // Suppress at the Compile boundary: a single annotation here keeps
     // WolverineRuntime.StartAsync (the public bootstrap entry point) free of
     // the cascade.
     [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Bootstrap-time handler-graph build; per-message-type cache population (#2769) plus opt-in Forwarders.FindForwards assembly scan (#2757). See AOT guide.")]
+        Justification = "Bootstrap-time handler-graph build; per-message-type cache population (#2769). See AOT guide.")]
     internal void Compile(WolverineOptions options, IServiceContainer container)
     {
         if (_hasCompiled)
@@ -692,22 +690,15 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         Container = container;
 
-        // 6.0 forwarder registration: drain the explicit
+        // Forwarder registration: drain the explicit
         // WolverineOptions.RegisterMessageForwarder<TFrom, TTo>() registrations
-        // first (AOT-clean — no reflective assembly walk), then optionally
-        // run the legacy Forwarders.FindForwards(ApplicationAssembly) scan
-        // when the user opted in via UseAutomaticForwarderDiscovery(). The
-        // pre-6.0 unconditional scan is gone — see #2757 and
-        // docs/guide/migration.md.
+        // (AOT-clean, no reflective assembly walk). The pre-6.0 assembly scan
+        // went away in 6.0 (#2757) and its UseAutomaticForwarderDiscovery()
+        // opt-in was removed in 7.0 (GH-5198).
         var forwarders = new Forwarders();
         foreach (var pair in options.ExplicitMessageForwarders)
         {
             forwarders.Relationships[pair.Key] = pair.Value;
-        }
-
-        if (options.AutomaticForwarderDiscoveryEnabled && options.ApplicationAssembly is not null)
-        {
-            forwarders.FindForwards(options.ApplicationAssembly);
         }
 
         AddForwarders(forwarders);

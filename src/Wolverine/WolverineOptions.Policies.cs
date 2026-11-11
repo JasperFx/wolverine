@@ -32,15 +32,6 @@ public sealed partial class WolverineOptions : IPolicies
 {
     internal List<IWolverinePolicy> RegisteredPolicies { get; } = [new TagHandlerPolicy()];
 
-    internal bool PublishAgentEvents { get; set; } 
-    
-    bool IPolicies.PublishAgentEvents
-    {
-        get => PublishAgentEvents;
-        set => PublishAgentEvents = value;
-    }
-
-
     void IPolicies.AutoApplyTransactions()
     {
         RegisteredPolicies.Insert(0, new AutoApplyTransactions());

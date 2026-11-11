@@ -25,12 +25,6 @@ public class WolverineOptionsTests
     private readonly WolverineOptions theSettings = new();
 
     [Fact]
-    public void publish_agent_events_should_be_false_by_default()
-    {
-        new WolverineOptions().Policies.PublishAgentEvents.ShouldBeFalse();
-    }
-
-    [Fact]
     public void envelope_reader_limit_defaults_match_the_record()
     {
         var opts = new WolverineOptions();

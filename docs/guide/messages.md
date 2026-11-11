@@ -435,9 +435,8 @@ automatically. That scan is gone in 6.0 because it is not trim/AOT-clean. Regist
 opts.RegisterMessageForwarder<PersonBorn, PersonBornV2>();
 ```
 
-If you need the legacy behavior temporarily while migrating, opt back into the assembly scan with
-`opts.UseAutomaticForwarderDiscovery()`. That method is `[Obsolete]` and slated for removal in 7.0; new code should prefer
-the explicit `RegisterMessageForwarder<TFrom, TTo>()` API. See `docs/guide/migration.md` and issue #2757.
+The 6.x `opts.UseAutomaticForwarderDiscovery()` opt-in back into the assembly scan was removed in 7.0, so register
+each forwarder with `RegisterMessageForwarder<TFrom, TTo>()`. See `docs/guide/migration.md` and issue #2757.
 :::
 
 ## "Self Serializing" Messages

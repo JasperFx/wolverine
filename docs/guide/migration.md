@@ -23,6 +23,7 @@ list.
 | `BackgroundReceiveLoop.UsesBlockingIteration` | opt-in dedicated thread for blocking iterations | **removed** *(BREAKING)* | Make the iteration async; see [transport author changes](#disposal-and-receive-loop-changes-for-transport-authors-breaking) |
 | `BatchedSender`, `InlineSendingAgent`, `ListeningAgent` | `IDisposable` | `IAsyncDisposable` only *(BREAKING)* | Call `await DisposeAsync()` |
 | `ISenderRequiresCallback` | extends `IDisposable` | does not *(BREAKING)* | Implement disposal on the sender itself if it needs it |
+| `UseAutomaticForwarderDiscovery()`, `WolverineOptions.EnableMessageCausationTracking`, `Policies.PublishAgentEvents`, `AgentAssignmentsChanged`, `ApplyDeduplication(IChain)`, Fisher `TransportSchemaName`, `MqttEnvelope.ShouldRequeue` | `[Obsolete]` or unused | **removed** *(BREAKING)* | See [dead and obsolete flags removed](#dead-and-obsolete-flags-removed-breaking) |
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 
@@ -299,6 +300,22 @@ partitioned topology creates for you, use `topology.ConfigureListening(x => x.Wi
 `AllListeners` policy. Buffered and inline listeners still have no guard
 unless they ask for one, and durable listeners keep deduplicating through the inbox.
 
+### Dead and obsolete flags removed (BREAKING)
+
+7.0 deletes a handful of settings and types that were `[Obsolete]`, or that nothing in Wolverine read any more
+(GH-5198). They were removed rather than changed, so there's no default for `RestoreV6Defaults()` to put back. If your
+code used one of them, it won't compile against 7.0 until you make the change below:
+
+| Removed | What to do instead |
+|---|---|
+| `opts.UseAutomaticForwarderDiscovery()` | Register each `IForwardsTo<T>` type with `opts.RegisterMessageForwarder<TFrom, TTo>()` or `opts.RegisterMessageForwarder<TFrom>()`. See [`IForwardsTo<T>` discovery is now explicit](#iforwardsto-discovery-is-now-explicit-breaking) |
+| `WolverineOptions.EnableMessageCausationTracking` | `opts.Tracking.EnableMessageCausationTracking`. The old property just forwarded to it |
+| `opts.Policies.PublishAgentEvents` | Delete the line. Nothing read it |
+| `AgentAssignmentsChanged` | Nothing published it after GH-5078. Wrap the runtime's `Observer` and handle `IWolverineObserver.AssignmentsChanged(AssignmentGrid, AgentCommands)` instead |
+| `ChainDeduplicationExtensions.ApplyDeduplication(this IChain)` | Call `ApplyDeduplication(rules, container)`, so a store that can write the deduplication claim inside its own transaction gets to |
+| `FisherIntegration.TransportSchemaName` | `FisherIntegration.PrefixName`. In 6.x setting `TransportSchemaName` set `PrefixName`, so set `PrefixName` to the same value to keep your queue table names |
+| `MqttEnvelope.ShouldRequeue` | Delete it. Nothing read it, so setting it never requeued anything |
+
 ### `.NET 9.0` support dropped (BREAKING)
 
 Wolverine 7.0 targets **net10.0 and net11.0**. Move your application to .NET 10 or later, or stay on the latest
@@ -338,7 +355,7 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | Lightweight relational saga serialization | `JsonSerializerOptions.Default`, not configurable | configurable via `UseSagaSerializerOptions(...)` | None unless publishing Native AOT, where it is now **required** — see [below](#sagas-work-under-native-aot) |
 | Target framework | `net8.0;net9.0;net10.0` | `net9.0;net10.0` *(BREAKING)* | Move to .NET 9+ or pin Wolverine 5.x |
 | Critter-stack package versions | 1.x line | 2.0-alpha line | Bump in lockstep across JasperFx, Marten, Polecat — full table below |
-| `IForwardsTo<T>` discovery | implicit assembly scan at startup | **explicit `opts.RegisterMessageForwarder<TFrom, TTo>()`** *(BREAKING)* | Register each forwarder explicitly; or temporarily call [`opts.UseAutomaticForwarderDiscovery()`](#iforwardsto-discovery-is-now-explicit-breaking) (`[Obsolete]`, removed in 7.0) |
+| `IForwardsTo<T>` discovery | implicit assembly scan at startup | **explicit `opts.RegisterMessageForwarder<TFrom, TTo>()`** *(BREAKING)* | Register each forwarder explicitly; in 6.x you could temporarily call [`opts.UseAutomaticForwarderDiscovery()`](#iforwardsto-discovery-is-now-explicit-breaking) (`[Obsolete]`, removed in 7.0) |
 | `MartenConfigurationExpression.EventForwardingToWolverine(...)` | extension method on the Marten configuration expression *(both overloads `[Obsolete]` since 3.x)* | **removed** *(BREAKING)* | Move the flag into the `IntegrateWithWolverine` callback: [`IntegrateWithWolverine(x => x.UseFastEventForwarding = true)`](#eventforwardingtowolverine-removed-breaking) |
 | `RedisTransport.BuildRedisStreamUri(...)` | static helper on `RedisTransport` *(`[Obsolete]`)* | **removed** *(BREAKING)* | Call [`RedisEndpointUri.Stream(...)`](#redistransport-buildredisstreamuri-removed-breaking) — identical signature, drop the helper |
 | `PulsarEndpoint.UriFor(...)` | static helpers on `PulsarEndpoint` *(both overloads `[Obsolete]`)* | **removed** *(BREAKING)* | For the Wolverine-URI form, call [`PulsarEndpointUri.Topic(...)`](#pulsarendpoint-urifor-removed-breaking); the native-topic-path form (`persistent://...`) was an internal-only seam now covered by `PulsarEndpoint.NativeTopicPath` |
@@ -579,13 +596,13 @@ opts.RegisterMessageForwarder<PersonBorn>(); // resolves to <PersonBorn, PersonB
 
 Both forms feed `WolverineOptions.ExplicitMessageForwarders`, which is drained inside `HandlerGraph.Compile` — exactly where `Forwarders.FindForwards(Assembly)` used to run. The on-the-wire dispatch behavior (the older message type's `Transform()` builds the newer message, the newer message's handler runs) is unchanged.
 
-**Escape hatch — opt back into the legacy scan:**
+**Escape hatch (6.x only) — opt back into the legacy scan:**
 
 ```csharp
 opts.UseAutomaticForwarderDiscovery();
 ```
 
-This re-enables the 5.x assembly scan against `WolverineOptions.ApplicationAssembly`. It is marked `[Obsolete]` and `[RequiresUnreferencedCode]` because the underlying scan walks exported types and the trimmer cannot prove which forwarder types are reachable. It is provided as a backward-compatibility escape valve for the 6.0 release cycle and is **slated for removal in 7.0** — migrate to `RegisterMessageForwarder<TFrom, TTo>()` before then.
+This re-enables the 5.x assembly scan against `WolverineOptions.ApplicationAssembly`. It is marked `[Obsolete]` and `[RequiresUnreferencedCode]` because the underlying scan walks exported types and the trimmer cannot prove which forwarder types are reachable. It was a backward-compatibility escape valve for the 6.0 release cycle and **was removed in 7.0** — see [obsolete flags removed in 7.0](#dead-and-obsolete-flags-removed-breaking).
 
 If you don't use `IForwardsTo<T>` at all, no change is needed.
 

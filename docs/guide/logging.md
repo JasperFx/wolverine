@@ -751,7 +751,7 @@ builder.UseWolverine(opts =>
 });
 ```
 
-Each flag is independent. The runtime checks each flag at code-generation time only — when a flag is `false`, the corresponding annotations are not emitted into the generated handler at all, so there is **zero per-message runtime cost** for any feature you haven't enabled. That codegen-time gating is the whole point: in tight production hot paths you want a flag that costs literally nothing when it's off, not one guarded by a runtime `if`. The legacy `WolverineOptions.EnableMessageCausationTracking` property is preserved as an `[Obsolete]` shim that delegates to `Tracking.EnableMessageCausationTracking`.
+Each flag is independent. The runtime checks each flag at code-generation time only — when a flag is `false`, the corresponding annotations are not emitted into the generated handler at all, so there is **zero per-message runtime cost** for any feature you haven't enabled. That codegen-time gating is the whole point: in tight production hot paths you want a flag that costs literally nothing when it's off, not one guarded by a runtime `if`. The legacy `WolverineOptions.EnableMessageCausationTracking` property was removed in 7.0; use `Tracking.EnableMessageCausationTracking`.
 
 ### `HandlerExecutionDiagnosticsEnabled`
 

@@ -855,19 +855,6 @@ public sealed partial class WolverineOptions
     /// </summary>
     public bool EnableAutomaticFailureAcks { get; set; } = false;
 
-    /// <summary>
-    /// Legacy flag for message-causation tracking. Reads and writes flow through
-    /// <see cref="TrackingOptions.EnableMessageCausationTracking"/> on the
-    /// <see cref="Tracking"/> sub-config. Use the new property directly going
-    /// forward.
-    /// </summary>
-    [Obsolete("Use Tracking.EnableMessageCausationTracking instead")]
-    public bool EnableMessageCausationTracking
-    {
-        get => Tracking.EnableMessageCausationTracking;
-        set => Tracking.EnableMessageCausationTracking = value;
-    }
-
     private void deriveServiceName()
     {
         if (GetType() == typeof(WolverineOptions))

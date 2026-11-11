@@ -102,9 +102,8 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
         options.Policies.ForwardHandledTypes(new EventWrapperForwarder());
 
         // GH-3947: SQLite has no schemas, so the queue tables take PrefixName as a table name prefix.
-        // Opt in only: nothing is stamped unless PrefixName (or the obsolete TransportSchemaName that
-        // forwards to it) was set explicitly, so an application that never set it keeps the historical
-        // unprefixed queue table names and the messages already sitting in them.
+        // Opt in only: nothing is stamped unless PrefixName was set explicitly, so an application that
+        // never set it keeps the historical unprefixed queue table names and the messages already in them.
         if (PrefixName != null)
         {
             foreach (var transport in options.Transports.OfType<SqliteTransport>())
@@ -165,17 +164,6 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
             SchemaNameValidation.AssertValid(value, nameof(PrefixName));
             _prefixName = value?.ToLowerInvariant();
         }
-    }
-
-    /// <summary>
-    ///     Obsolete. SQLite has no schemas, so this never named a schema; setting it now sets
-    ///     <see cref="PrefixName"/>, which prefixes the SQLite queue table names.
-    /// </summary>
-    [Obsolete("SQLite has no schemas. Use PrefixName, which this property now sets, to prefix the SQLite queue table names. See GH-3947.")]
-    public string TransportSchemaName
-    {
-        get => PrefixName ?? "wolverine_queues";
-        set => PrefixName = value;
     }
 
     private string? _messageStorageSchemaName;

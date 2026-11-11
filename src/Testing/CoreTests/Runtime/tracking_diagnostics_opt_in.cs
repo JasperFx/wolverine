@@ -417,25 +417,6 @@ public class tracking_diagnostics_opt_in
     // is verified by inspection of the codegen path in HandlerChain.
 
     #endregion
-
-    #region [Obsolete] shim
-
-    [Fact]
-    public void obsolete_message_causation_shim_round_trips_through_tracking()
-    {
-        var options = new WolverineOptions();
-
-#pragma warning disable CS0618
-        options.EnableMessageCausationTracking.ShouldBeFalse();
-        options.EnableMessageCausationTracking = true;
-        options.Tracking.EnableMessageCausationTracking.ShouldBeTrue();
-
-        options.Tracking.EnableMessageCausationTracking = false;
-        options.EnableMessageCausationTracking.ShouldBeFalse();
-#pragma warning restore CS0618
-    }
-
-    #endregion
 }
 
 public record TrackingDiagnosticsMessage(string Text);
