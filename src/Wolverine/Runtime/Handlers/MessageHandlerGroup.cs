@@ -68,6 +68,13 @@ internal class MessageHandlerGroup
 
     internal string DescribeHandlerTypes() => Describe(_chains);
 
+    /// <summary>
+    /// GH-5137. Each handler type of this message type and the endpoints its chain is bound to
+    /// </summary>
+    internal string DescribeBindings() => _chains
+        .Select(x => $"{HandlerTypeOf(x).FullNameInCode()} ({(x.Endpoints.Count == 0 ? "anywhere" : x.Endpoints.Select(e => e.Uri.ToString()).Join(", "))})")
+        .Join(", ");
+
     internal static string Describe(IEnumerable<HandlerChain> chains) => chains
         .Select(HandlerTypeOf)
         .Select(x => x.FullNameInCode())

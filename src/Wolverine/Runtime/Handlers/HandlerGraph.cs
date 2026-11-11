@@ -44,6 +44,12 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     private ImHashMap<Type, IMessageHandler?> _handlers = ImHashMap<Type, IMessageHandler?>.Empty;
 
+    // GH-5137. The relay of a message type with several chains from an endpoint none of them is bound to. Kept
+    // apart from _handlers, which HandlerFor(Type) reads first: a fan-out handler cached there made
+    // HandlerFor(Type) answer with the relay, or throw, depending on whether a message had already arrived
+    // somewhere from outside
+    private ImHashMap<Type, IMessageHandler> _fanoutHandlers = ImHashMap<Type, IMessageHandler>.Empty;
+
     private bool _hasCompiled;
 
     private bool _hasGrouped;
@@ -301,12 +307,35 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         if (group == null || group.Chains.Count == 0) return null;
 
-        // GH-5136. The chain bound to this endpoint -- a sticky handler, or one of several handler types on its
-        // own local queue -- is the one that runs here
-        var bound = group.Chains.FirstOrDefault(x => x.Endpoints.Contains(endpoint));
-        if (bound != null)
+        return resolveHandlerFromGroup(messageType, group, endpoint);
+    }
+
+    /// <summary>
+    /// GH-5137. What runs a message of a type with at least one chain when it is received at
+    /// <paramref name="endpoint"/>, in order:
+    /// <list type="number">
+    /// <item>the chain bound to this endpoint -- a sticky handler, or one of several handler types on its own
+    /// local queue. <see cref="AssertOneChainPerEndpoint"/> makes sure there is at most one at startup</item>
+    /// <item>the message type's only chain, when it is not bound to any endpoint</item>
+    /// <item>a relay to the local queues of the group's chains: from an endpoint outside the process (or a
+    /// sharded slot), when every chain is on a local queue, to all of them; from anywhere else -- the message
+    /// type's own local queue still holding envelopes from before the handler types were split, a broker
+    /// queue next to a handler sticky to another broker queue, or a queue the message was explicitly sent
+    /// to -- to the queues of the handler types that are not sticky</item>
+    /// <item>otherwise a <see cref="NoHandlerForEndpointException"/> that says where each chain runs</item>
+    /// </list>
+    /// </summary>
+    private IMessageHandler? resolveHandlerFromGroup(Type messageType, MessageHandlerGroup group, Endpoint endpoint)
+    {
+        var bound = group.Chains.Where(x => x.Endpoints.Contains(endpoint)).ToArray();
+        if (bound.Length > 1)
         {
-            return resolveHandlerFromChain(messageType, bound, false);
+            throw new InvalidOperationException(describeEndpointCollision(messageType, endpoint, bound));
+        }
+
+        if (bound.Length == 1)
+        {
+            return resolveHandlerFromChain(messageType, bound[0], false);
         }
 
         // The message type's only chain, when it is not bound to any endpoint, runs wherever it is received
@@ -315,38 +344,59 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             return HandlerFor(messageType);
         }
 
-        // Every chain is bound to some other endpoint. If they are all local queues, relay the message from
-        // this endpoint to each of them
+        // Every chain is bound to some other endpoint. If they are all local queues, a message from outside the
+        // process is relayed to each of them
         var allLocal = group.Chains.All(c => c.Endpoints.All(e => e is LocalQueue));
-
-        if (allLocal)
+        if (allLocal && (endpoint is not LocalQueue || endpoint.UsedInShardedTopology))
         {
-            if (endpoint is not LocalQueue)
-            {
-                return getOrBuildFanoutHandler(messageType, group);
-            }
-
-            // Also fanout when the incoming local queue is part of a sharded/global
-            // partition topology rather than a sticky handler's own queue
-            if (endpoint.UsedInShardedTopology)
-            {
-                return getOrBuildFanoutHandler(messageType, group);
-            }
-
-            // GH-5136. Any other local queue -- the message type's own queue holding envelopes from before the
-            // handler types were split, or a queue the message was explicitly sent to -- relays the message to
-            // the queues of the handler types that are not sticky, so each still gets it. A sticky handler runs
-            // only at its own endpoints, so a message type whose chains are all sticky still has no handler here.
-            var unstickyQueues = group.Chains.Where(x => !x.IsSticky)
-                .SelectMany(x => x.Endpoints).OfType<LocalQueue>().Select(x => x.Uri).Distinct().ToArray();
-
-            if (unstickyQueues.Length > 0)
-            {
-                return BuildFanoutHandler(messageType, group.Chains[0], unstickyQueues);
-            }
+            return getOrBuildFanoutHandler(messageType, group);
         }
 
-        throw new NoHandlerForEndpointException(messageType, endpoint.Uri);
+        // GH-5136 / GH-5137. Anywhere else the message is relayed to the queues of the handler types that are not
+        // sticky, so each still gets it. That is how envelopes persisted to the message type's own local queue
+        // before an upgrade split its handler types drain. A sticky handler runs only at its own endpoints, so a
+        // message type whose chains are all sticky still has no handler here.
+        var unstickyQueues = group.Chains.Where(x => !x.IsSticky)
+            .SelectMany(x => x.Endpoints).OfType<LocalQueue>().Select(x => x.Uri).Distinct().ToArray();
+
+        if (unstickyQueues.Length > 0)
+        {
+            return BuildFanoutHandler(messageType, group.Chains[0], unstickyQueues);
+        }
+
+        throw new NoHandlerForEndpointException(messageType, endpoint.Uri, group);
+    }
+
+    /// <summary>
+    /// GH-5137. The invariant every executor relies on: at most one handler chain of a message type is bound to
+    /// any one endpoint, so the chain that runs a message received there is never a matter of discovery order.
+    /// Checked at startup, once the routing conventions have bound their listeners to chains
+    /// </summary>
+    internal void AssertOneChainPerEndpoint()
+    {
+        foreach (var group in Groups)
+        {
+            if (group.Chains.Count < 2) continue;
+
+            var collision = group.Chains
+                .SelectMany(chain => chain.Endpoints.Select(endpoint => (endpoint, chain)))
+                .GroupBy(x => x.endpoint)
+                .FirstOrDefault(x => x.Select(pair => pair.chain).Distinct().Count() > 1);
+
+            if (collision != null)
+            {
+                throw new InvalidOperationException(describeEndpointCollision(group.MessageType, collision.Key,
+                    collision.Select(x => x.chain).Distinct().ToArray()));
+            }
+        }
+    }
+
+    private static string describeEndpointCollision(Type messageType, Endpoint endpoint, IReadOnlyList<HandlerChain> chains)
+    {
+        return $"Handler types {MessageHandlerGroup.Describe(chains)} each handle message type {messageType.FullNameInCode()} " +
+               $"at endpoint {endpoint.Uri}. Wolverine runs one handler chain per handler type, and at most one of them " +
+               "may be bound to any one endpoint, so it is clear which one runs a message received there. Make the handlers " +
+               "sticky to different endpoints, or merge them into one handler type if they have to run together.";
     }
 
     public IMessageHandler? HandlerFor(Type messageType)
@@ -426,27 +476,27 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     // Closes FanoutMessageHandler<> over the runtime-resolved messageType
     // and Activator.CreateInstance's the result. Per-message-type lazy-init
-    // (cached in _handlers ImHashMap after first call). Same chunk J
+    // (cached in _fanoutHandlers ImHashMap after first call). Same chunk J
     // (RoutingFor) pattern: AOT-clean apps in TypeLoadMode.Static pre-
     // populate _handlers at HandlerGraph.Compile time so the steady-state
     // hot path is pure cache lookups. The pre-population work is tracked in
     // #2769 (CloseAndBuildAs elimination).
     private IMessageHandler getOrBuildFanoutHandler(Type messageType, MessageHandlerGroup group)
     {
-        if (_handlers.TryFind(messageType, out var cached) && cached != null)
+        if (_fanoutHandlers.TryFind(messageType, out var cached))
         {
             return cached;
         }
 
         var handler = BuildFanoutHandler(messageType, group.Chains[0], group.BoundLocalQueueUris());
 
-        _handlers = _handlers.AddOrUpdate(messageType, handler);
+        _fanoutHandlers = _fanoutHandlers.AddOrUpdate(messageType, handler);
         return handler;
     }
 
     // Closes FanoutMessageHandler<> over the runtime-resolved messageType and
     // Activator.CreateInstance's the result. Used both for sticky-handler fanout
-    // (getOrBuildFanoutHandler, cached in _handlers) and for relaying an externally-
+    // (getOrBuildFanoutHandler, cached in _fanoutHandlers) and for relaying an externally-
     // arriving element type to its direct + batch local queues (NOT cached — the
     // _handlers[messageType] slot belongs to the direct handler). AOT-clean apps in
     // TypeLoadMode.Static pre-populate handlers at Compile time. See #2769.
