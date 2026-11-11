@@ -349,7 +349,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         return comma >= 0 && int.TryParse(serverName[(comma + 1)..].Trim(), out var port) ? port : null;
     }
     
-    public IAdvisoryLock AdvisoryLock { get; protected set; } = null!;
+    public IWolverineAdvisoryLock AdvisoryLock { get; protected set; } = null!;
 
     public ILogger Logger { get; }
 

@@ -400,9 +400,9 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             .ExecuteNonQueryAsync();
     }
 
-    public bool HasLeadershipLock()
+    public Task<bool> HasLeadershipLockAsync(CancellationToken token)
     {
-        return _database.AdvisoryLock.HasLock(_lockId);
+        return _database.AdvisoryLock.HasLockAsync(_lockId, token);
     }
 
     public Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)
@@ -466,7 +466,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     }
 }
 
-internal class AdvisoryLock : IAdvisoryLock
+internal class AdvisoryLock : IWolverineAdvisoryLock
 {
     // GH-4261. Everything below shares ONE long-lived NpgsqlConnection, and Npgsql does not support
     // concurrent use of a connection. Nothing used to stop that: HasLock ran SYNCHRONOUS I/O on _conn
@@ -475,7 +475,7 @@ internal class AdvisoryLock : IAdvisoryLock
     // run on the runtime-wide Cancellation token, which shutdownAsync only cancels AFTER
     // teardownAgentsAsync has returned; teardownAgentsAsync "stops" them with Task.SafeDispose(), which
     // disposes the Task object and does nothing to the running loop. So a health check already past its
-    // own cancellation guard runs ejectStaleNodes -> HasLeadershipLock() -> the ping below at the same
+    // own cancellation guard runs ejectStaleNodes -> HasLeadershipLockAsync() -> the ping below at the same
     // moment teardown runs NodeAgentController.StopAsync -> ReleaseLeadershipLockAsync.
     //
     // When they interleave the protocol desyncs: the second caller consumes the messages the first
@@ -494,7 +494,7 @@ internal class AdvisoryLock : IAdvisoryLock
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _locksLock = new();
 
-    // Short on purpose. HasLock is synchronous and sits on the health-check tick, so it must not block
+    // Short on purpose. HasLock / HasLockAsync sit on the health-check tick, so they must not wait
     // behind a slow release; a quarter second covers an ordinary round-trip and nothing more.
     private static readonly TimeSpan GateTimeout = 250.Milliseconds();
 
@@ -514,6 +514,10 @@ internal class AdvisoryLock : IAdvisoryLock
         _databaseName = databaseName;
     }
 
+    /// <summary>
+    /// The synchronous probe the JasperFx <see cref="IAdvisoryLock" /> contract requires. Wolverine's own
+    /// callers use <see cref="HasLockAsync" />, which does the same ping without blocking a thread (GH-5135).
+    /// </summary>
     public bool HasLock(int lockId)
     {
         // Cheap negative outside the gate. An id we never took cannot be held no matter what any
@@ -522,17 +526,7 @@ internal class AdvisoryLock : IAdvisoryLock
 
         if (!_gate.Wait(GateTimeout))
         {
-            // GH-4261: the gate is busy only because another advisory-lock operation on THIS node is in
-            // flight -- a release during shutdown, or the re-attain from this same health-check tick.
-            // That is not evidence the server dropped our session, and a wrong `false` here is not
-            // cheap: NodeAgentController.DoHealthChecksInternalAsync reads it as lost leadership and
-            // calls stepDownAsync, which is precisely the churn GH-2602 and GH-3604 were fighting. So
-            // report the last state we actually established and skip the keepalive for this tick. The
-            // next tick pings.
-            _logger.LogDebug(
-                "Advisory lock connection for database {Database} was busy; reporting the last known state of lock {LockId} without pinging",
-                _databaseName, lockId);
-            return true;
+            return reportBusyGate(lockId);
         }
 
         try
@@ -545,6 +539,62 @@ internal class AdvisoryLock : IAdvisoryLock
         }
     }
 
+    public async Task<bool> HasLockAsync(int lockId, CancellationToken token)
+    {
+        // Cheap negative outside the gate. An id we never took cannot be held no matter what any
+        // concurrent operation is doing.
+        if (!holdsId(lockId)) return false;
+
+        // The token bounds only this wait. If it is cancelled, the caller is shutting down, which says
+        // nothing about our session, so the OperationCanceledException goes back to the caller and no
+        // held id is touched.
+        if (!await _gate.WaitAsync(GateTimeout, token).ConfigureAwait(false))
+        {
+            return reportBusyGate(lockId);
+        }
+
+        try
+        {
+            return await hasLockUnsafeAsync(lockId).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private bool reportBusyGate(int lockId)
+    {
+        // GH-4261: the gate is busy only because another advisory-lock operation on THIS node is in
+        // flight -- a release during shutdown, or the re-attain from this same health-check tick.
+        // That is not evidence the server dropped our session, and a wrong `false` here is not
+        // cheap: NodeAgentController.DoHealthChecksInternalAsync reads it as lost leadership and
+        // calls stepDownAsync, which is precisely the churn GH-2602 and GH-3604 were fighting. So
+        // report the last state we actually established and skip the keepalive for this tick. The
+        // next tick pings.
+        _logger.LogDebug(
+            "Advisory lock connection for database {Database} was busy; reporting the last known state of lock {LockId} without pinging",
+            _databaseName, lockId);
+        return true;
+    }
+
+    // Postgres releases session-level advisory locks the moment the
+    // backend session ends — network blip, idle-connection cull,
+    // pg_terminate_backend, Postgres failover, Azure flexserver
+    // maintenance. Npgsql's NpgsqlConnection.State stays Open until
+    // we actually try to use it, so without this ping HasLock keeps
+    // claiming the lock long after another session has acquired it,
+    // and two nodes both believe they're the leader. See GH-2602.
+    //
+    // GH-3664 / GH-5135 (D5): this ping is only safe because it runs on the dedicated lock connection,
+    // which never has an open transaction — the session reads state='idle' with xact_start NULL in
+    // pg_stat_activity, so Marten's event-gap liveness gate (marten#4953/#5057) never counts it as a
+    // possible sequence reserver. Never route it through the data source, a pooled connection, or any
+    // code path that holds an open transaction: bumping state_change inside a transaction makes the
+    // session look active and legitimately re-promotes it to candidate reserver, freezing async-daemon
+    // progress behind dead gaps. advisory_lock_session_hygiene pins this down.
+    private const string LivenessPingSql = "select 1";
+
     /// <summary>
     /// The GH-2602 liveness ping. Callers MUST hold <c>_gate</c> -- it does synchronous I/O on the
     /// shared connection and may replace it.
@@ -554,49 +604,63 @@ internal class AdvisoryLock : IAdvisoryLock
         if (_conn is null) return false;
         if (!holdsId(lockId)) return false;
 
-        // Postgres releases session-level advisory locks the moment the
-        // backend session ends — network blip, idle-connection cull,
-        // pg_terminate_backend, Postgres failover, Azure flexserver
-        // maintenance. Npgsql's NpgsqlConnection.State stays Open until
-        // we actually try to use it, so without this ping HasLock keeps
-        // claiming the lock long after another session has acquired it,
-        // and two nodes both believe they're the leader. See GH-2602.
-        //
-        // GH-3664: this ping is only safe because the connection never has
-        // an open transaction — the session reads state='idle' with
-        // xact_start NULL in pg_stat_activity, so Marten's event-gap
-        // liveness gate (marten#4953/#5057) never counts it as a possible
-        // sequence reserver. Do NOT copy this keepalive pattern into any
-        // code path that holds an open transaction: bumping state_change
-        // inside a transaction makes the session look active and
-        // legitimately re-promotes it to candidate reserver, freezing
-        // async-daemon progress behind dead gaps.
         try
         {
             using var cmd = _conn.CreateCommand();
-            cmd.CommandText = "select 1";
+            cmd.CommandText = LivenessPingSql;
             cmd.CommandTimeout = 2;
             cmd.ExecuteScalar();
             return true;
         }
         catch (Exception e)
         {
-            _logger.LogWarning(e,
-                "Lost advisory-lock connection for database {Database}; clearing held lock ids {Locks}",
-                _databaseName, heldIds());
-
-            clearIds();
-            try
-            {
-                _conn.Dispose();
-            }
-            catch
-            {
-                // Already broken; nothing to do.
-            }
-            _conn = null;
-            return false;
+            return onLostSession(e);
         }
+    }
+
+    /// <summary>
+    /// The GH-2602 liveness ping, asynchronously (GH-5135). Callers MUST hold <c>_gate</c> -- it does I/O
+    /// on the shared connection and may replace it.
+    /// </summary>
+    private async Task<bool> hasLockUnsafeAsync(int lockId)
+    {
+        if (_conn is null) return false;
+        if (!holdsId(lockId)) return false;
+
+        try
+        {
+            // Deliberately no cancellation token: CommandTimeout bounds the ping, and a cancelled ping
+            // would land in the catch below and be read as a lost session.
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandText = LivenessPingSql;
+            cmd.CommandTimeout = 2;
+            await cmd.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception e)
+        {
+            return onLostSession(e);
+        }
+    }
+
+    private bool onLostSession(Exception e)
+    {
+        _logger.LogWarning(e,
+            "Lost advisory-lock connection for database {Database}; clearing held lock ids {Locks}",
+            _databaseName, heldIds());
+
+        clearIds();
+        try
+        {
+            // Synchronous on purpose: an awaited DisposeAsync on a broken connection is the GH-4261 hang.
+            _conn?.Dispose();
+        }
+        catch
+        {
+            // Already broken; nothing to do.
+        }
+        _conn = null;
+        return false;
     }
 
     private bool holdsId(int lockId)
@@ -679,9 +743,9 @@ internal class AdvisoryLock : IAdvisoryLock
             // once, leaving the lock still held server-side and silently
             // blocking failover (no error logged, just a stalled election).
             //
-            // GH-4261: hasLockUnsafe, not HasLock — we already hold the gate, and SemaphoreSlim is not
-            // reentrant.
-            if (hasLockUnsafe(lockId))
+            // GH-4261: hasLockUnsafeAsync, not HasLockAsync — we already hold the gate, and SemaphoreSlim
+            // is not reentrant.
+            if (await hasLockUnsafeAsync(lockId).ConfigureAwait(false))
             {
                 return true;
             }

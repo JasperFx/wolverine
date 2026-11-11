@@ -24,6 +24,7 @@ list.
 | `BatchedSender`, `InlineSendingAgent`, `ListeningAgent` | `IDisposable` | `IAsyncDisposable` only *(BREAKING)* | Call `await DisposeAsync()` |
 | `ISenderRequiresCallback` | extends `IDisposable` | does not *(BREAKING)* | Implement disposal on the sender itself if it needs it |
 | `UseAutomaticForwarderDiscovery()`, `WolverineOptions.EnableMessageCausationTracking`, `Policies.PublishAgentEvents`, `AgentAssignmentsChanged`, `ApplyDeduplication(IChain)`, Fisher `TransportSchemaName`, `MqttEnvelope.ShouldRequeue` | `[Obsolete]` or unused | **removed** *(BREAKING)* | See [dead and obsolete flags removed](#dead-and-obsolete-flags-removed-breaking) |
+| `INodeAgentPersistence.HasLeadershipLock()` | synchronous, pinged the lock's database session with blocking I/O | `HasLeadershipLockAsync(CancellationToken)` *(BREAKING for custom node persistence)* | See [leadership lock probe is asynchronous](#the-leadership-lock-probe-is-asynchronous-breaking) |
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 
@@ -318,6 +319,23 @@ code used one of them, it won't compile against 7.0 until you make the change be
 | `ChainDeduplicationExtensions.ApplyDeduplication(this IChain)` | Call `ApplyDeduplication(rules, container)`, so a store that can write the deduplication claim inside its own transaction gets to |
 | `FisherIntegration.TransportSchemaName` | `FisherIntegration.PrefixName`. In 6.x setting `TransportSchemaName` set `PrefixName`, so set `PrefixName` to the same value to keep your queue table names |
 | `MqttEnvelope.ShouldRequeue` | Delete it. Nothing read it, so setting it never requeued anything |
+
+### The leadership lock probe is asynchronous (BREAKING)
+
+Each database store answers "does this node still hold the leadership lock?" by pinging the database session that
+holds the lock, because PostgreSQL, SQL Server and MySQL drop a session-level lock the moment that session ends, and
+the client can't tell until it uses the connection. In 6.x that ping was blocking I/O on the leadership health check.
+7.0 makes it asynchronous (GH-5135):
+
+- `INodeAgentPersistence.HasLeadershipLock()` is replaced by `Task<bool> HasLeadershipLockAsync(CancellationToken)`.
+  Only code that implements `INodeAgentPersistence` itself, or stubs it in tests, has to change.
+- `IMessageDatabase.AdvisoryLock` is now an `IWolverineAdvisoryLock`, which adds
+  `HasLockAsync(int lockId, CancellationToken)` to JasperFx's `IAdvisoryLock`. The synchronous `HasLock` is still
+  there, because `IAdvisoryLock` requires it.
+
+The cancellation token only bounds the wait for the lock's own connection, and cancelling it never counts as losing
+the lock. On PostgreSQL the ping still runs on the lock's dedicated connection and never inside a transaction, so the
+session keeps reading as idle with no open transaction, as Marten's async daemon needs.
 
 ### SQS inline heartbeat, Kafka idempotent producers and RabbitMQ prefetch drain are on in 7.0
 
