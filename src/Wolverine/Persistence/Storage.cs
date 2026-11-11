@@ -106,39 +106,48 @@ public static class Storage
         => new(streamKey, typeof(T), events);
 
     /// <summary>
-    /// Delete every document of type T matching the expression. Runs on Marten, Polecat or Fisher.
+    /// Delete every document of type T that matches the expression. Works against any registered document
+    /// store -- Marten, Polecat or Fisher -- because it is expressed purely in terms of
+    /// <see cref="JasperFx.Events.Documents.IDocumentWriteOperations"/>.
     /// </summary>
     public static DeleteWhere<T> DeleteWhere<T>(System.Linq.Expressions.Expression<Func<T, bool>> expression)
         where T : notnull
         => new(expression);
 
     /// <summary>
-    /// Delete one document of type T by its Guid identity. Runs on Marten, Polecat or Fisher.
+    /// Delete the document of type T with this Guid identity. Works against any registered document
+    /// store -- Marten, Polecat or Fisher.
     /// </summary>
     public static DeleteById<T> DeleteById<T>(Guid id) where T : notnull => new(id);
 
     /// <summary>
-    /// Delete one document of type T by its string identity. Runs on Marten, Polecat or Fisher.
+    /// Delete the document of type T with this string identity. Works against any registered document
+    /// store -- Marten, Polecat or Fisher.
     /// </summary>
     public static DeleteById<T> DeleteById<T>(string id) where T : notnull => new(id);
 
     /// <summary>
-    /// Mark the event stream with this Guid identity as archived.
+    /// Archive the event stream identified by a Guid. Works against any registered event store -- Marten,
+    /// Polecat or Fisher -- because it is expressed purely in terms of
+    /// <see cref="JasperFx.Events.IEventStoreOperations"/>.
     /// </summary>
     public static ArchiveEventStream ArchiveStream(Guid streamId) => new(streamId);
 
     /// <summary>
-    /// Mark the event stream with this string key as archived.
+    /// Archive the event stream identified by a string key. Works against any registered event store --
+    /// Marten, Polecat or Fisher.
     /// </summary>
     public static ArchiveEventStream ArchiveStream(string streamKey) => new(streamKey);
 
     /// <summary>
-    /// Permanently delete the event stream with this Guid identity and all of its events.
+    /// Permanently delete the event stream identified by a Guid, and all of its events. Works against any
+    /// registered event store -- Marten, Polecat or Fisher.
     /// </summary>
     public static TombstoneEventStream TombstoneStream(Guid streamId) => new(streamId);
 
     /// <summary>
-    /// Permanently delete the event stream with this string key and all of its events.
+    /// Permanently delete the event stream identified by a string key, and all of its events. Works against
+    /// any registered event store -- Marten, Polecat or Fisher.
     /// </summary>
     public static TombstoneEventStream TombstoneStream(string streamKey) => new(streamKey);
 
