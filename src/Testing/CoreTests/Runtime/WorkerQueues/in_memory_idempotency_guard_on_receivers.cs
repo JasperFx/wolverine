@@ -47,6 +47,11 @@ public class in_memory_idempotency_guard_on_receivers : IAsyncLifetime
         {
             endpoint.InMemoryIdempotency = new InMemoryIdempotencySettings();
         }
+        else
+        {
+            // GH-5200: a NativeAck endpoint gets the guard by default in 7.0, so "no guard" is an opt-out
+            endpoint.InMemoryIdempotencyOptedOut = true;
+        }
 
         endpoint.Mode = EndpointMode.NativeAck;
         endpoint.Compile(theRuntime);
@@ -86,7 +91,7 @@ public class in_memory_idempotency_guard_on_receivers : IAsyncLifetime
     }
 
     [Fact]
-    public void the_guard_is_off_unless_you_ask_for_it()
+    public void the_guard_is_off_when_the_endpoint_opts_out()
     {
         nativeAckEndpoint(false).IdempotencyGuard.ShouldBeNull();
         nativeAckEndpoint(true).IdempotencyGuard.ShouldNotBeNull();

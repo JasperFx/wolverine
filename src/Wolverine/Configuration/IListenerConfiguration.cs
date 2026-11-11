@@ -132,6 +132,14 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     /// <param name="maxTracked">Ceiling on remembered ids, after which the oldest generation is evicted early. Defaults to 100,000.</param>
     T WithInMemoryIdempotency(TimeSpan? window = null, int? maxTracked = null);
 
+    /// <summary>
+    /// GH-5200. Do not build the in-memory idempotency guard for this endpoint. As of Wolverine 7.0 a
+    /// <c>ProcessInParallelWithNativeAcks()</c> endpoint gets the guard by default, with the default window and
+    /// ceiling; this turns it off again for one endpoint. <c>RestoreV6Defaults()</c> turns it off for all of them.
+    /// Every other endpoint mode has no guard unless it calls <see cref="WithInMemoryIdempotency"/>.
+    /// </summary>
+    T WithoutInMemoryIdempotency();
+
     T UseDurableInbox(BufferingLimits limits);
 
     /// <summary>

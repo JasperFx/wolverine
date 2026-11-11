@@ -231,6 +231,13 @@ opts.ListenToRabbitQueue("webhooks")
     .WithInMemoryIdempotency(window: 5.Minutes(), maxTracked: 100_000);
 ```
 
+::: tip On by default for native-ack listeners in 7.0
+As of Wolverine 7.0 a `ProcessInParallelWithNativeAcks()` listener gets this guard without asking, with the default
+window and ceiling. Call `WithInMemoryIdempotency(window, maxTracked)` to change them, or `WithoutInMemoryIdempotency()`
+to turn the guard off on that listener. `RestoreV6Defaults()` turns it off for every native-ack listener. Buffered and
+inline listeners still opt in.
+:::
+
 To turn it on everywhere rather than endpoint by endpoint, use a policy:
 
 ```csharp
@@ -281,7 +288,7 @@ minutes — and leave `maxTracked` alone unless you are running a flood at a sus
 
 | Mode | Guard |
 | --- | --- |
-| `NativeAck` | ✔️ — the primary use case |
+| `NativeAck` | ✔️ — the primary use case, and on by default as of 7.0 |
 | `BufferedInMemory` | ✔️ |
 | `Inline` | ✔️ |
 | `Durable` | ignored (warns at startup) — the inbox already deduplicates, and does it better |
@@ -507,7 +514,7 @@ callback. Settings that size or shard that block therefore do nothing on an `Inl
 | `ListenWithStrictOrdering()` / `ListenOnlyAtLeader()` | ✔️ (exclusivity only) | ✔️ | ✔️ | ✔️ |
 | `ExclusiveNodeWithParallelism(n)` | ✔️ exclusivity, parallelism ignored (warns) | ✔️ | ✔️ | ✔️ |
 | `CircuitBreaker()` | ✔️ | ✔️ | ✔️ (a [local queue](/guide/messaging/transports/local#circuit-breakers-on-local-queues) **throws at startup**) | ✔️ |
-| [`WithInMemoryIdempotency()`](#in-memory-idempotency-guard) | ✔️ | ✔️ | ✔️ | ignored (warns) |
+| [`WithInMemoryIdempotency()`](#in-memory-idempotency-guard) | ✔️ | ✔️ (on by default in 7.0) | ✔️ | ignored (warns) |
 
 As of Wolverine 6.30, these combinations are no longer silently accepted:
 

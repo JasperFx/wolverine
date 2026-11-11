@@ -105,6 +105,9 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `DurabilitySettings.EnableDeduplicatedResponses` | `false` | `true`: every message store provisions `wolverine_deduplicated_responses` and its cleanup job | `opts.Durability.EnableDeduplicatedResponses = false` | `restore_v6_defaults_tests` |
 | `DurabilitySettings.AlwaysProvisionOptionalSchemaObjects` | not there (new in 7.0; `EnableOutgoingTimestampIndex` is removed): the inbox/outbox `timestamp` columns only exist with `InboxStaleTime`/`OutboxStaleTime`, `wolverine_nodes.load_factor` only with `CapacityAwareAssignment`, and the outbox stale index only with `EnableOutgoingTimestampIndex` | `true`: the relational stores always create all four, a one-time additive migration on first start; reading and writing them stays opt-in | `opts.Durability.AlwaysProvisionOptionalSchemaObjects = false` | `restore_v6_defaults_tests` |
 | `WolverineOptions.EnvelopeIdGeneration` | `NewId` (MassTransit NewId: machine identity, process id and a timestamp) | `GuidV7` (`Guid.CreateVersion7()`). Either way, a SQL Server-only (or Polecat-only) application still switches to `NewIdSqlServerOrder` at startup | `opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.CompressAgentCommands` | `false`: agent commands travel under the plain intrinsic content type | `true`: agent commands are gzipped under `binary/wolverine+gzip`. **Every node in the cluster must run 6.44 or later before the first 7.0 node starts**; a node older than 6.44 rejects the command and stops taking agent assignments | `opts.Durability.CompressAgentCommands = false` | `restore_v6_defaults_tests` |
+| `BatchingOptions.GroupByGroupId()` for a batched message type in a partitioned topology | off unless the batch executes on the topology's local slots: a batch envelope has no group id and draws a random slot downstream | on whenever the element type is in a partitioned topology (`GlobalPartitioned`, `PublishToPartitionedLocalMessaging` or a sharded listener topology), including with `ExecuteOnDedicatedLocalQueue()` or a named queue. Non-partitioned batching and a custom `IMessageBatcher` are unchanged | `batching.DoNotGroupByGroupId()` in `BatchMessagesOf<T>()` | `core_default_flips_5200` |
+| `WithInMemoryIdempotency()` on `ProcessInParallelWithNativeAcks()` endpoints | off: no guard unless the listener asks for one | on, with the default 5 minute window and 100,000 id ceiling. Every other endpoint mode still opts in | `.WithoutInMemoryIdempotency()` on the listener | `core_default_flips_5200` |
 
 ### Wolverine.Http defaults that changed in 7.0
 
@@ -258,6 +261,43 @@ What to watch for on the upgrade:
 
 To keep the 6.x ids, call `opts.RestoreV6Defaults()` or set `opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId`.
 An explicit setting always wins, over the default and over what the message stores prefer.
+
+### Agent command compression, batch grouping and native-ack idempotency are on in 7.0
+
+Three core defaults that were opt-in through 6.x are on in 7.0 (GH-5200). `RestoreV6Defaults()` turns all three off
+again, and an explicit setting wins either way.
+
+**Agent commands are compressed.** `opts.Durability.CompressAgentCommands` is `true`, so the leader's agent commands
+(lists of agent URIs, often thousands long) are gzipped under the `binary/wolverine+gzip` content type. Every node has
+been able to read that content type since 6.44, whatever the setting, so the one rule is:
+
+::: warning Every node must run 6.44 or later before the first 7.0 node starts
+A node older than 6.44 doesn't know the compressed content type. It rejects the command rather than misreading it, and
+it stops receiving agent assignments until it is upgraded. If a rolling deploy has to go straight from an older 6.x to
+7.0, set `opts.Durability.CompressAgentCommands = false` until every node is on 7.0, then remove the setting.
+:::
+
+CritterWatch's agent doesn't use this wire path and isn't affected.
+
+**Batches in a partitioned topology are grouped by group id.** When the element type of `BatchMessagesOf<T>()` belongs
+to a partitioned topology (`GlobalPartitioned`, `PublishToPartitionedLocalMessaging` or a sharded listener topology),
+Wolverine now calls `GroupByGroupId()` for you. Without it a batch envelope carries no group id, lands on a random
+slot, and silently gives up the ordering guarantee the unbatched messages of the same type keep. 6.25 already did this
+when the batch executed on the topology's local slots; 7.0 also does it when you named the execution queue, called
+`ExecuteOnDedicatedLocalQueue()`, or the topology runs over an external transport. Batching outside a partitioned
+topology is unchanged, and so is a batch with your own `IMessageBatcher`. To keep the tenant-only batcher, call
+`batching.DoNotGroupByGroupId()`. A batch that executes on the topology's slots is still grouped, because it can only be
+placed on a slot when it belongs to one group.
+
+**`ProcessInParallelWithNativeAcks()` listeners get the in-memory idempotency guard.** A native-ack listener holds
+deliveries unacknowledged, so a restart or rolling deploy redelivers up to the broker's prefetch depth. That is the
+case `WithInMemoryIdempotency()` was built for, so it is now on for those listeners with the default 5 minute window
+and 100,000 id ceiling. Call `WithInMemoryIdempotency(window, maxTracked)` to change those, or
+`WithoutInMemoryIdempotency()` to turn the guard off on one listener, or
+`opts.Policies.AllListeners(x => x.WithoutInMemoryIdempotency())` for every listener. For the slot listeners a
+partitioned topology creates for you, use `topology.ConfigureListening(x => x.WithoutInMemoryIdempotency())` or the
+`AllListeners` policy. Buffered and inline listeners still have no guard
+unless they ask for one, and durable listeners keep deduplicating through the inbox.
 
 ### `.NET 9.0` support dropped (BREAKING)
 
