@@ -6,6 +6,12 @@
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+        <!-- The .NET 11 SDK registers a Blazor hot-reload JS module for every Web SDK project in
+             Debug, and this test host (itself Web SDK, referencing the Web SDK OtelWebApi and
+             subscribers) then failed StaticWebAssets with "scoped css bundles do not have matching
+             endpoints: _framework/Microsoft.NET.Sdk.BlazorWeb.HotReload...". A test host has no
+             browser to hot reload. -->
+        <EnableHotReloadInRuntimeConfigDevFile>false</EnableHotReloadInRuntimeConfigDevFile>
     </PropertyGroup>
 
     <ItemGroup>
