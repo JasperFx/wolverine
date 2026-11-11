@@ -151,7 +151,8 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
     /// <summary>
     /// When enabled, listener shutdown waits for prefetched messages in the RabbitMQ client's dispatch
     /// buffer to be delivered before closing the channel, preventing silent redeliveries of
-    /// prefetched-but-unprocessed messages. Default is false.
+    /// prefetched-but-unprocessed messages. On by default since Wolverine 7.0 (GH-5201), so this only
+    /// matters after <see cref="WolverineOptions.RestoreV6Defaults" />.
     ///
     /// Only a hard guarantee at <c>ConsumerDispatchConcurrency</c> of 1 (the default); at higher
     /// concurrency it degrades to best-effort as deliveries and cancel-ok are handled in parallel.
@@ -159,6 +160,18 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
     public RabbitMqListenerConfiguration DrainWaitForPrefetch()
     {
         add(e => e.DrainWaitForPrefetch = true);
+        return this;
+    }
+
+    /// <summary>
+    /// GH-5201. Turn off the shutdown wait for prefetched messages that is on by default since Wolverine 7.0, the
+    /// 6.x behaviour: the listener cancels its consumer without waiting, and the messages still sitting in the
+    /// client's prefetch buffer are redelivered by the broker after the channel closes. Stops faster, at the cost
+    /// of those redeliveries.
+    /// </summary>
+    public RabbitMqListenerConfiguration DoNotDrainWaitForPrefetch()
+    {
+        add(e => e.DrainWaitForPrefetch = false);
         return this;
     }
 

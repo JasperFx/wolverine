@@ -17,6 +17,12 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 {
     public const string ProtocolName = "rabbitmq";
     public const string ResponseEndpointName = "RabbitMqResponses";
+
+    /// <summary>
+    /// GH-5201. <see cref="WolverineOptions.V6DefaultsRestored" /> as this transport read it when it started, for
+    /// the queue defaults 7.0 flipped
+    /// </summary>
+    internal bool V6DefaultsRestoredAtStartup => V6DefaultsRestored;
     public const string DeadLetterQueueName = DeadLetterQueueConstants.DefaultQueueName;
     public const string DeadLetterQueueHeader = "x-dead-letter-exchange";
     public const string QueueTypeHeader = "x-queue-type";

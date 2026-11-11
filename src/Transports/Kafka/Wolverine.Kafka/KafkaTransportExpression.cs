@@ -129,13 +129,26 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     /// <summary>
     /// Pin every Kafka producer on this node to the idempotent producer
     /// (<c>enable.idempotence = true</c>, which implies <c>acks=all</c> and bounded in-flight requests),
-    /// so producer-side retries can't write duplicates to the broker. Dekaf producers are idempotent by
-    /// default, so this only matters when other configuration turns idempotence off.
+    /// so producer-side retries can't write duplicates to the broker. Producers are idempotent by default
+    /// since Wolverine 7.0, so this only matters when other configuration, or
+    /// <see cref="WolverineOptions.RestoreV6Defaults" />, turns idempotence off.
     /// This is producer→broker de-duplication only, not transactional exactly-once. See GH-3149.
     /// </summary>
     public KafkaTransportExpression UseIdempotentProducer()
     {
         _transport.ProducerConfig.EnableIdempotence = true;
+        return this;
+    }
+
+    /// <summary>
+    /// GH-5201. Opt every Kafka producer on this node out of the idempotent producer that is the default since
+    /// Wolverine 7.0 (<c>enable.idempotence = false</c>), as Confluent.Kafka producers were in 6.x. Needed to use
+    /// <see cref="KafkaProducerOptions.Acks" /> below <c>Acks.All</c>. A topic's own producer options are not
+    /// changed; use <see cref="KafkaSubscriberConfiguration.DisableIdempotentProducer" /> for those.
+    /// </summary>
+    public KafkaTransportExpression DisableIdempotentProducer()
+    {
+        _transport.ProducerConfig.EnableIdempotence = false;
         return this;
     }
 

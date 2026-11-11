@@ -13,7 +13,7 @@ list.
 |---|---|---|---|
 | `WolverineFx.Kafka` client library | Confluent.Kafka (librdkafka) | **Dekaf** (pure C#, KIP-848-only) *(BREAKING for custom config, mappers, schema-registry serializers; requires Kafka 4.0+)* | Swap Confluent config types for [Wolverine's Kafka option classes](#kafka-transport-now-runs-on-dekaf-breaking); wire format is unchanged |
 | `UseCooperativeStickyAssignment()`, `UseNextGenerationRebalanceProtocol()` | rebalance opt-ins | **removed** *(BREAKING)* | Delete the calls; KIP-848 rebalances are always incremental |
-| `KafkaProducerOptions.Acks` below `All` | accepted (librdkafka producers were not idempotent by default) | **startup fails** unless `EnableIdempotence = false` *(BREAKING)* | Set `EnableIdempotence = false` alongside the acks, or use `Acks.All`; see [Kafka behaviour changes](#kafka-behaviour-changes) |
+| `KafkaProducerOptions.Acks` below `All` | accepted (librdkafka producers were not idempotent by default) | **startup fails** unless idempotence is off *(BREAKING)* | Call `DisableIdempotentProducer()` (or set `EnableIdempotence = false`) alongside the acks, or use `Acks.All`; `RestoreV6Defaults()` also turns idempotence off. See [Kafka behaviour changes](#kafka-behaviour-changes) |
 | `CommitMode.PerMessage` | committed before the handler's completion returned | committed on the listener's next consume pass, at most about a second later, one commit per pass | None |
 | `OffsetCommitMode.Auto` offset storage | stored when the record is delivered | stored once the listener asks for the next record (`AfterProcessing`) | None; inline listeners and one-at-a-time durable listeners now redeliver after a crash instead of losing the record |
 | Kafka client option names | Confluent's (`SecurityProtocol`, `EnableAutoCommit`, `*Ms` integers) | Dekaf's (`UseTls`, `OffsetCommitMode`, `TimeSpan`s) *(BREAKING)* | Rename the properties; see [the mapping](#kafka-transport-now-runs-on-dekaf-breaking) |
@@ -47,7 +47,7 @@ See the [Kafka transport docs](/guide/messaging/transports/kafka) for the full c
 
 ### Kafka behaviour changes
 
-- **Producers are idempotent by default, and acks are checked at startup.** Dekaf producers are idempotent unless `EnableIdempotence = false`, and an idempotent producer always waits for every in-sync replica. A producer configured with `Acks.None` or `Acks.Leader` and idempotence left on now stops the host from starting with an explanation, rather than failing every send (`Acks.None`) or being silently raised to `Acks.All` (`Acks.Leader`).
+- **Producers are idempotent by default, and acks are checked at startup.** Dekaf producers are idempotent unless `EnableIdempotence = false`, and an idempotent producer always waits for every in-sync replica. A producer configured with `Acks.None` or `Acks.Leader` and idempotence left on now stops the host from starting with an explanation that names `DisableIdempotentProducer()`, rather than failing every send (`Acks.None`) or being silently raised to `Acks.All` (`Acks.Leader`). See [the transport defaults below](#sqs-inline-heartbeat-kafka-idempotent-producers-and-rabbitmq-prefetch-drain-are-on-in-7-0).
 - **Offsets are committed by the listener's consume loop.** Handlers queue each finished offset, and the loop commits or stores them before it next polls, at least once a second. `CommitMode.PerMessage` therefore commits shortly after a message finishes rather than before its completion returns, and a pass commits every partition that advanced in one call. `BatchInterval` now commits as soon as its interval passes, instead of waiting for the next message to finish. When partitions are revoked, the offsets finished on them are committed before they are handed to another consumer.
 - **`OffsetCommitMode.Auto` stores offsets after processing.** The offset of a record becomes committable once the listener asks for the next record, instead of when the record is delivered. Inline listeners, and durable listeners receiving one record at a time, now redeliver their in-flight record after a crash instead of losing it. Buffered listeners and durable micro-batches ask for the next record before processing finishes, so they behave as before.
 - **A retry-tier record that is not due yet only holds back its own partition.** The listener pauses that partition and rewinds it to the record until the record's delay has passed, rather than waiting inside the consume loop, so the other partitions the consumer owns keep flowing.
@@ -108,6 +108,9 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `WolverineOptions.EnvelopeIdGeneration` | `NewId` (MassTransit NewId: machine identity, process id and a timestamp) | `GuidV7` (`Guid.CreateVersion7()`). Either way, a SQL Server-only (or Polecat-only) application still switches to `NewIdSqlServerOrder` at startup | `opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId` | `restore_v6_defaults_tests` |
 | `DurabilitySettings.CompressAgentCommands` | `false`: agent commands travel under the plain intrinsic content type | `true`: agent commands are gzipped under `binary/wolverine+gzip`. **Every node in the cluster must run 6.44 or later before the first 7.0 node starts**; a node older than 6.44 rejects the command and stops taking agent assignments | `opts.Durability.CompressAgentCommands = false` | `restore_v6_defaults_tests` |
 | `BatchingOptions.GroupByGroupId()` for a batched message type in a partitioned topology | off unless the batch executes on the topology's local slots: a batch envelope has no group id and draws a random slot downstream | on whenever the element type is in a partitioned topology (`GlobalPartitioned`, `PublishToPartitionedLocalMessaging` or a sharded listener topology), including with `ExecuteOnDedicatedLocalQueue()` or a named queue. Non-partitioned batching and a custom `IMessageBatcher` are unchanged | `batching.DoNotGroupByGroupId()` in `BatchMessagesOf<T>()` | `core_default_flips_5200` |
+| `AmazonSqsQueue.ExtendVisibilityWhileHandling` (SQS `ProcessInline()` listeners) | `false`: the visibility timeout is set once on receive, and the later messages of a batch that outlives it are redelivered while still being handled | `true`: the visibility of every unsettled message in the batch is extended every half `VisibilityTimeout`. Needs the `sqs:ChangeMessageVisibility` IAM permission | `.DoNotExtendVisibilityWhileHandling()` on the listener | `inline_visibility_heartbeat_4019` |
+| `KafkaProducerOptions.EnableIdempotence` | off: Confluent.Kafka producers were not idempotent unless `UseIdempotentProducer()` | on: Dekaf's idempotent producer (`acks=all`). `Acks.None` or `Acks.Leader` stops the host unless idempotence is off | `kafka.DisableIdempotentProducer()`, or `.DisableIdempotentProducer()` on a topic | `kafka_idempotent_producer_default_5201` |
+| `RabbitMqQueue.DrainWaitForPrefetch` | `false`: a stopping listener cancels without waiting, and the broker redelivers its prefetched deliveries | `true`: the listener waits for its prefetched deliveries, bounded by `DrainTimeout`, before closing the channel | `.DoNotDrainWaitForPrefetch()` on the listener | `drain_wait_for_prefetch_turned_off` |
 | `WithInMemoryIdempotency()` on `ProcessInParallelWithNativeAcks()` endpoints | off: no guard unless the listener asks for one | on, with the default 5 minute window and 100,000 id ceiling. Every other endpoint mode still opts in | `.WithoutInMemoryIdempotency()` on the listener | `core_default_flips_5200` |
 
 ### Wolverine.Http defaults that changed in 7.0
@@ -315,6 +318,41 @@ code used one of them, it won't compile against 7.0 until you make the change be
 | `ChainDeduplicationExtensions.ApplyDeduplication(this IChain)` | Call `ApplyDeduplication(rules, container)`, so a store that can write the deduplication claim inside its own transaction gets to |
 | `FisherIntegration.TransportSchemaName` | `FisherIntegration.PrefixName`. In 6.x setting `TransportSchemaName` set `PrefixName`, so set `PrefixName` to the same value to keep your queue table names |
 | `MqttEnvelope.ShouldRequeue` | Delete it. Nothing read it, so setting it never requeued anything |
+
+### SQS inline heartbeat, Kafka idempotent producers and RabbitMQ prefetch drain are on in 7.0
+
+Three transport defaults that were opt-in through 6.x are on in 7.0 (GH-5201). `RestoreV6Defaults()` turns all three
+off again, wherever in your configuration you call it, and an explicit setting wins either way.
+
+**SQS inline listeners extend visibility while handling.** A `ProcessInline()` listener works through the up to ten
+messages of a receive one at a time, so the last one ages against the visibility timeout through every handler before
+it. In 6.x a batch that outlived the timeout had its later messages redelivered, and executed a second time, while
+they were still being handled. 7.0 turns on `ExtendVisibilityWhileHandling()`: every half `VisibilityTimeout`,
+Wolverine extends the visibility of every message of the batch that is still unsettled, for at most 12 hours. A batch
+that finishes inside half the timeout costs nothing extra. One that doesn't makes `ChangeMessageVisibilityBatch` calls,
+which SQS bills, and each one needs the **`sqs:ChangeMessageVisibility`** IAM permission. A
+`ProcessInParallelWithNativeAcks()` listener already needed that permission in 6.x, because it always renews. An
+inline listener needs it now too. Without it the calls fail, Wolverine logs a warning, and the messages are redelivered
+at their visibility timeout as they were in 6.x. Buffered and durable listeners delete the message before the handler
+runs and don't renew anything. To turn it off on one listener, call `.DoNotExtendVisibilityWhileHandling()`.
+
+**Kafka producers are idempotent.** Wolverine 7's Kafka transport runs on Dekaf, whose producers are idempotent
+(`enable.idempotence = true`, which implies `acks=all`), and Wolverine keeps that default. Java clients have defaulted to
+it since Kafka 3.0. Idempotent writes need no extra broker permission on the Kafka 4.0+ brokers Wolverine 7 requires.
+Brokers older than 2.8 also wanted the `IdempotentWrite` ACL. A producer that sets `Acks.None` or `Acks.Leader` with
+idempotence on stops the host at startup, with a message that names the opt-out. Use
+`opts.UseKafka(...).DisableIdempotentProducer()` for every producer, or `.DisableIdempotentProducer()` on one topic's
+publishing configuration, which is also where a topic with its own `ConfigureProducer(...)` options has to opt out.
+`RestoreV6Defaults()` turns idempotence off on every producer that doesn't set `EnableIdempotence` itself, so 6.x
+`Acks.Leader` configurations keep working.
+
+**RabbitMQ listeners wait for prefetched deliveries when they stop.** In 6.x a stopping, pausing or restarting listener
+cancelled its consumer without waiting, and the broker redelivered everything still in the client's prefetch buffer,
+counting each one against a Rabbit MQ 4 quorum queue's delivery limit. 7.0 turns on `DrainWaitForPrefetch()`: the
+listener waits for the broker's cancel confirmation, so those deliveries reach the listener and, for a durable
+listener, the inbox before the channel closes. The wait is bounded by `opts.Durability.DrainTimeout`, but it does slow
+the drain. On Kubernetes, check that the pod's `terminationGracePeriodSeconds` (30 seconds by default) covers it. To
+turn it off on one listener, call `.DoNotDrainWaitForPrefetch()`.
 
 ### `.NET 9.0` support dropped (BREAKING)
 

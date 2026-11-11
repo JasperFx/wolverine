@@ -153,7 +153,11 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         var channel = Channel;
         if (channel != null)
         {
-            if (!Queue.DrainWaitForPrefetch)
+            // GH-5201. Not when a handler running on this consumer's own dispatch stops the listener (an Inline
+            // PauseThenRequeue): the cancel-ok cannot be dispatched until that handler returns, so the wait would
+            // only run out the whole drain timeout. That stop gets the 6.x cancel. Nor on a channel that has already
+            // closed: no cancel-ok can arrive on it, and its unacked deliveries are back on the queue anyway.
+            if (!Queue.DrainWaitForPrefetch || consumer.IsDispatchingOnCurrentFlow || !channel.IsOpen)
             {
                 // nowait cancel: no cancel-ok, and still-prefetched deliveries are requeued by the
                 // broker on channel close.

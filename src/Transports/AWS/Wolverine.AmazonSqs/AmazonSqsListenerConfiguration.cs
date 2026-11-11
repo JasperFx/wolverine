@@ -110,7 +110,9 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
     ///     executed a second time while the first execution is still running. Extension calls are only
     ///     made when a batch is still in flight at half the visibility timeout, so fast handlers pay
     ///     nothing. Has no effect on Buffered or Durable listeners, which delete the message before the
-    ///     handler runs. See GH-4019.
+    ///     handler runs. See GH-4019. On by default since Wolverine 7.0 (GH-5201), so call this to change
+    ///     <paramref name="maximum" /> or to turn it back on after <see cref="WolverineOptions.RestoreV6Defaults" />.
+    ///     Renewing needs the <c>sqs:ChangeMessageVisibility</c> IAM permission.
     /// </summary>
     /// <param name="maximum">
     ///     Longest any single message is kept invisible from its receipt before Wolverine stops
@@ -127,6 +129,19 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
             }
         });
 
+        return this;
+    }
+
+    /// <summary>
+    ///     GH-5201. Turn off the visibility renewal an inline (<c>ProcessInline()</c>) listener does by default
+    ///     since Wolverine 7.0, the 6.x behaviour: Wolverine sets the visibility timeout once on receive, and the
+    ///     later messages of a batch whose handlers outlive it are redelivered while they are still being handled.
+    ///     Saves the <c>ChangeMessageVisibilityBatch</c> calls and the <c>sqs:ChangeMessageVisibility</c> IAM
+    ///     permission. Has no effect on <c>ProcessInParallelWithNativeAcks()</c> listeners, which always renew.
+    /// </summary>
+    public AmazonSqsListenerConfiguration DoNotExtendVisibilityWhileHandling()
+    {
+        add(e => e.ExtendVisibilityWhileHandling = false);
         return this;
     }
 
