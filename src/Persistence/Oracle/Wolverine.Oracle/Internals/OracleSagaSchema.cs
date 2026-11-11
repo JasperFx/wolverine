@@ -122,6 +122,8 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
 
     public async Task InsertAsync(T saga, DbTransaction transaction, CancellationToken cancellationToken)
     {
+        // GH-5345: the storage, not user code, owns LastModified. Set before the body is serialized.
+        saga.LastModified = DateTimeOffset.UtcNow;
         var id = IdSource(saga);
         if (id == null || id.Equals(default(TId)))
             throw new ArgumentOutOfRangeException(nameof(saga),
@@ -139,6 +141,8 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
 
     public async Task UpdateAsync(T saga, DbTransaction transaction, CancellationToken cancellationToken)
     {
+        // GH-5345: the storage, not user code, owns LastModified. Set before the body is serialized.
+        saga.LastModified = DateTimeOffset.UtcNow;
         await EnsureStorageExistsAsync(cancellationToken);
 
         var id = IdSource(saga);

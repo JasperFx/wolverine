@@ -170,6 +170,38 @@ public class saga_storage_operations
             await db.CommitAsync();
         });
     }
+    // GH-5345. Oracle stamps the property and keeps it in the saga body; the table's own last_modified column is
+    // still maintained by the database and is not read back into the property
+    [Fact]
+    public async Task insert_and_update_stamp_last_modified_over_any_user_value()
+    {
+        await using var conn = new OracleConnection(Servers.OracleConnectionString);
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+
+        var backdated = new DateTimeOffset(2001, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var saga = new OracleLightweightSaga { Id = Guid.NewGuid(), Name = "Xavier Worthy", LastModified = backdated };
+
+        var before = DateTimeOffset.UtcNow;
+        var db = (OracleTransaction)await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
+        await theSchema.InsertAsync(saga, db, CancellationToken.None);
+        await db.CommitAsync(TestContext.Current.CancellationToken);
+
+        saga.LastModified.ShouldBeGreaterThanOrEqualTo(before);
+        var inserted = saga.LastModified;
+
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+
+        saga.LastModified = backdated;
+        var db2 = (OracleTransaction)await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
+        await theSchema.UpdateAsync(saga, db2, CancellationToken.None);
+        await db2.CommitAsync(TestContext.Current.CancellationToken);
+
+        var db3 = (OracleTransaction)await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
+        var loaded = await theSchema.LoadAsync(saga.Id, db3, CancellationToken.None);
+
+        loaded!.LastModified.ShouldBe(saga.LastModified);
+        loaded.LastModified.ShouldBeGreaterThan(inserted);
+    }
 }
 
 public class OracleLightweightSaga : Saga

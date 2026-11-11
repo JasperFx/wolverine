@@ -38,6 +38,7 @@ list.
 | Wolverine's OpenTelemetry `Meter` name | `Wolverine:{ServiceName}`, so only `AddMeter("Wolverine*")` collected it | exactly `Wolverine` *(BREAKING for exact-name meter filters)* | `AddMeter("Wolverine")` now works; `AddMeter("Wolverine*")` keeps working. See [meter and metric names](#opentelemetry-meter-and-metric-names-breaking) |
 | Wolverine metric instrument names | dashed (`wolverine-messages-sent`) | dotted (`wolverine.messages.sent`) *(BREAKING for dashboards and alerts)* | Rename the series in dashboards, alerts and recording rules; see [the full table](#opentelemetry-meter-and-metric-names-breaking) |
 | `WolverineOptions.ServiceName` default | the entry assembly name | `OTEL_SERVICE_NAME` when set, then the entry assembly name | None, unless a service relied on the assembly name while `OTEL_SERVICE_NAME` was set to something else: set `opts.ServiceName` explicitly |
+| `Saga.LastModified` | not there | new `DateTimeOffset` property on the base `Saga`, set to UTC now by every saga store on insert and update *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga LastModified](#saga-lastmodified-is-set-by-every-saga-store) |
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 
@@ -543,6 +544,30 @@ changed is what they do:
   (see the [Wolverine.Http defaults](#wolverine-http-defaults-that-changed-in-7-0)).
 * New store-agnostic side effects on `Storage`: `Storage.DeleteById<T>(id)`, `Storage.DeleteWhere<T>(filter)`,
   `Storage.ArchiveStream(id)` and `Storage.TombstoneStream(id)`.
+
+### `Saga.LastModified` is set by every saga store
+
+The base `Wolverine.Saga` type has a new `public DateTimeOffset LastModified { get; set; }` next to `Version`
+(GH-5345). Wolverine sets it to `DateTimeOffset.UtcNow` every time it inserts or updates a saga, in the generated
+saga code, so it means the same thing on every store and is the property to order by, or filter on, when you look
+for saga instances that have sat untouched for a long time. A value your own code assigns is overwritten on the
+next save.
+
+What each store needs from you:
+
+| Store | Schema change | Sagas saved before 7.0 |
+|---|---|---|
+| Marten | none; the property is also mapped to Marten's own `mt_last_modified` column | loaded with their `mt_last_modified` value |
+| Lightweight saga tables (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) | none; every table already had a `last_modified` column. It is now written with the property's value | PostgreSQL, SQL Server, MySQL and SQLite load the column into the property. Oracle reads `default(DateTimeOffset)` until the saga's next update |
+| EF Core | **yes**: the base-class property becomes a mapped column in your `DbContext`. Add an EF Core migration for it, or `modelBuilder.Entity<MySaga>().Ignore(x => x.LastModified)` to keep the old schema (the property is still set in memory) | the column's value from your migration's default (or `default(DateTimeOffset)`) until the saga's next update |
+| Polecat, Fisher, RavenDb, CosmosDb, Redis, Azure Blob Storage, Amazon S3, in-memory | none; the value is saved with the rest of the saga | `default(DateTimeOffset)` until the saga's next update |
+
+On EF Core, a saga that is loaded and saved again is now always written: setting `LastModified` makes the entity
+`Modified`, which also increments `Version`. Before 7.0, a message that changed nothing on the saga left the row and
+its version alone.
+
+If a saga type of yours already declares its own `LastModified`, it now hides the base property (compiler warning
+CS0108). Wolverine still sets the base `Saga.LastModified`; rename or remove your own property.
 
 ### Obsolete in 7.0
 
