@@ -67,6 +67,9 @@ public sealed partial class WolverineOptions
         // is in a partitioned topology (resolved at startup) and the in-memory idempotency guard on NativeAck
         // endpoints (resolved in Endpoint.Compile()).
 
+        // GH-5201: three transport defaults read V6DefaultsRestored when the transport starts: SQS
+        // ExtendVisibilityWhileHandling, Kafka idempotent producers and RabbitMQ DrainWaitForPrefetch.
+
         // Add one line here for each core default 7.x flips, a row to the 7.0 defaults
         // table in docs/guide/migration.md and an entry to restore_v6_defaults_tests.
         // Defaults owned by extension packages read V6DefaultsRestored instead.

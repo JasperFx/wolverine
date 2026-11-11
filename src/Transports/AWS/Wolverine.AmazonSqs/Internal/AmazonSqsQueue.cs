@@ -263,7 +263,9 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     ///     so a batch whose handlers collectively outlive the timeout has its later messages redelivered
     ///     -- and executed again -- while they are still being handled. Costs nothing for a batch that
     ///     finishes inside half the timeout. Ignored for Buffered and Durable endpoints, which delete the
-    ///     message before the handler runs. Default false.
+    ///     message before the handler runs. Default true since Wolverine 7.0 (GH-5201), false in 6.x and after
+    ///     <see cref="WolverineOptions.RestoreV6Defaults" />; a value set here wins over both. Renewing needs the
+    ///     <c>sqs:ChangeMessageVisibility</c> IAM permission.
     /// </summary>
     /// <remarks>
     ///     GH-4048: <b>not consulted for <c>NativeAck</c></b>, where renewal is unconditional. A NativeAck lane
@@ -272,7 +274,15 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     ///     risk under a slow handler -- an opt-in default-false flag would mean "off by default" for the one mode
     ///     that cannot survive it. <see cref="MaximumVisibilityExtension" /> remains the ceiling for both modes.
     /// </remarks>
-    public bool ExtendVisibilityWhileHandling { get; set; }
+    public bool ExtendVisibilityWhileHandling
+    {
+        // GH-5201. Resolved through the transport's flag, which it reads when it starts, so RestoreV6Defaults()
+        // may come after UseAmazonSqsTransport()
+        get => _extendVisibilityWhileHandling ?? !_parent.V6DefaultsRestoredAtStartup;
+        set => _extendVisibilityWhileHandling = value;
+    }
+
+    private bool? _extendVisibilityWhileHandling;
 
     private TimeSpan _maximumVisibilityExtension = MaximumSqsVisibilityExtension;
 

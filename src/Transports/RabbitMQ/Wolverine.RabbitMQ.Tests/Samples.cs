@@ -620,8 +620,8 @@ public class Samples
                 // wins over the transport wide setting
                 .DeliveryLimit(100)
 
-                // Optional, but this lets in flight deliveries reach
-                // the inbox on a stop instead of being handed back
+                // On by default since 7.0, and what lets in flight deliveries
+                // reach the inbox on a stop instead of being handed back
                 .DrainWaitForPrefetch();
         });
 

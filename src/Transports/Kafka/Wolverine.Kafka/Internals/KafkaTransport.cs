@@ -156,6 +156,18 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
             AdminClientConfig.BootstrapServers = namedConnection.BootstrapServers;
         }
 
+        // GH-5201. Idempotent producers are the 7.0 default (Dekaf's own as well, but Wolverine owns it). 6.x ran on
+        // Confluent.Kafka, whose producers were not, so RestoreV6Defaults() turns idempotence off wherever it was
+        // left unset. An explicit EnableIdempotence wins either way. Before the acks check, so a restored
+        // application keeps 6.x's Acks.Leader/Acks.None configurations working. Read from the options, not the
+        // transport's copy: resource setup can connect before InitializeAsync captures it.
+        var idempotentByDefault = !runtime.Options.V6DefaultsRestored;
+        ProducerConfig.EnableIdempotence ??= idempotentByDefault;
+        foreach (var topic in Topics)
+        {
+            if (topic.ProducerConfig != null) topic.ProducerConfig.EnableIdempotence ??= idempotentByDefault;
+        }
+
         ProducerConfig.AssertAcksAllowed("the Kafka transport");
         ProducerConfig.AssertSaslSupported("the Kafka transport");
         ConsumerConfig.AssertSaslSupported("the Kafka transport");

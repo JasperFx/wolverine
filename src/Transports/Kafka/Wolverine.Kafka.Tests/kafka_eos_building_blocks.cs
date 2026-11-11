@@ -97,7 +97,8 @@ public class kafka_eos_building_blocks
     [Fact]
     public void defaults_are_unchanged()
     {
-        // Opt-in: a vanilla transport touches neither setting.
+        // A vanilla transport touches neither setting before it starts. GH-5201 resolves the idempotent producer
+        // default when the transport connects; see kafka_idempotent_producer_default_5201.
         var transport = new KafkaTransport();
         transport.ProducerConfig.EnableIdempotence.ShouldBeNull();
         transport.ConsumerConfig.IsolationLevel.ShouldBeNull();
