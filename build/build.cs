@@ -449,7 +449,7 @@ partial class Build : NukeBuild
         {
             // Shares ComposeUp with the CI targets so this path gets the same registry-timeout
             // retry — it pulls every image in the compose file, so it is the most exposed of all.
-            ComposeUp("compose up -d", "all services");
+            ComposeUp(composeArgs("up -d"), "all services");
             WaitForDatabaseToBeReady();
         });
 
