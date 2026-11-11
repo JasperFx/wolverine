@@ -2,6 +2,36 @@
 
 ## Key Changes in 7.0
 
+### Deduplication storage is on by default; `EnableMessageDeduplication` removed (BREAKING)
+
+`Durability.MessageDeduplicationMode` now defaults to `CompareByHash` (it was `None`), and
+`Durability.EnableDeduplicatedResponses` now defaults to `true` (it was `false`). So every message store, in every
+role and tenant database, provisions the `wolverine_deduplication_hashed` and `wolverine_deduplicated_responses` tables
+on the first deploy of 7.0, each with a cleanup job that runs every five minutes. Storage alone deduplicates nothing:
+handlers and endpoints still opt in with `[Deduplicated]`, `[DeduplicatedWithResponse]` or
+`Policies.RequireDeduplicationId()`. A `[Deduplicated]` handler now works without any extra configuration.
+
+To keep the 6.x schema, turn either one off or call `opts.RestoreV6Defaults()`, which turns both off:
+
+```csharp
+opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None;
+opts.Durability.EnableDeduplicatedResponses = false;
+```
+
+An explicit setting wins over both the 7.0 default and `RestoreV6Defaults()`, in either order. Registering a recurring
+message still turns deduplication on, even after `RestoreV6Defaults()`, because the recurring agent relies on it.
+
+The obsolete `Durability.EnableMessageDeduplication` flag is gone. Replace `EnableMessageDeduplication = true` with
+`MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash` (or just delete the line), and `false` with
+`MessageDeduplicationMode = MessageDeduplicationMode.None`.
+
+Why defaults rather than creating the tables only when something uses them (GH-5194): we checked first whether
+Wolverine knows which handlers and endpoints use deduplication before it builds the storage, and it does not. A message
+store decides which tables it owns when it is constructed and initialized, before handler discovery runs at startup.
+The `resources setup` and `db-apply` commands build the schema without discovering handlers at all. And an HTTP
+endpoint mapped from a `Startup` class can be discovered after the storage has already migrated. Creating the tables
+on use would have left a pre-provisioned database without the table a `[Deduplicated]` handler needs.
+
 ### `.NET 9.0` support dropped (BREAKING)
 
 Wolverine 7.0 targets **net10.0 and net11.0**. Move your application to .NET 10 or later, or stay on the latest

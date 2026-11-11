@@ -41,9 +41,9 @@ public static class DeduplicationSamples
             {
                 opts.PersistMessagesWithPostgresql("connection string");
 
-                // Opt in to logical message deduplication. This provisions a new
-                // "wolverine_deduplication" table -- nothing else about your message
-                // storage changes, and leaving this at None means no schema migration at all.
+                // CompareByHash is the default as of 7.0, so this line only spells it out.
+                // It provisions the "wolverine_deduplication_hashed" table -- nothing else
+                // about your message storage changes. Set None to provision nothing.
                 // CompareByHash compares ids by a binary SHA-256, so they mean the same thing
                 // on every database engine
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
