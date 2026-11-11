@@ -42,8 +42,9 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
-
+          dotnet-version: |
+            10.0.x
+            11.0.x
       - name: Run Tests
         # Names this run in the retry ledger written to the job summary (build/RetryLedger.cs).
         env:
