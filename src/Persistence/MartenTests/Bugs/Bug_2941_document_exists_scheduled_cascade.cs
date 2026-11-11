@@ -9,11 +9,13 @@ using Shouldly;
 using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Marten;
-using Wolverine.Marten.Requirements;
+using Wolverine.Persistence.Requirements;
 using Wolverine.Tracking;
 
 namespace MartenTests.Bugs;
 
+// GH-5514: runs on the core attributes in Wolverine.Persistence.Requirements, which the store's CanApply
+// recognises the same way it recognises its own obsolete copies.
 // Companion to Bug_aggregate_should_still_publish (GH-2941). The [DocumentExists<T>] /
 // [DocumentDoesNotExist<T>] attributes are ModifyChainAttribute-based and inject a
 // DocumentExistenceCheckFrame (AsyncFrame, uses IDocumentSession). Like [ReadAggregate], that

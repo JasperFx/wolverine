@@ -60,6 +60,29 @@ builder.Services.AddPolecat(opts =>
     });
 ```
 
+::: tip Store-agnostic event forwarding <Badge type="tip" text="7.0" />
+`MartenIntegration`, `PolecatIntegration` and `FisherIntegration` all implement the core
+`Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding`, so code that sets up forwarding transformations can
+be written once and applied to any of the three stores:
+
+```cs
+using IEventForwarding = Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding;
+
+public static void ForwardSecondEvents(IEventForwarding forwarding)
+{
+    forwarding.SubscribeToEvent<SecondEvent>()
+        .TransformedTo(e => new SecondMessage(e.StreamId, e.Sequence));
+}
+
+// Marten, Polecat or Fisher alike
+services.AddPolecat(opts => opts.Connection(connectionString)).IntegrateWithWolverine(x => ForwardSecondEvents(x));
+```
+
+Each store's own `IEventForwarding` and `EventForwardingTransform<T>` (in `Wolverine.Marten`, `Wolverine.Polecat` and
+`Wolverine.Fisher`) are `[Obsolete]` in 7.0 and will be removed in 8.0. Until then, those namespaces still carry the
+old names, so refer to the core interface through a `using` alias as above.
+:::
+
 This does need to be paired with Wolverine configuration to add
 subscriptions to event types like so:
 

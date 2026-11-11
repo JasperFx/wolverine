@@ -24,7 +24,10 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Wolverine.Polecat;
 
-public class PolecatIntegration : IWolverineExtension, IEventForwarding
+// GH-5514: the per-store IEventForwarding stays implemented until 8.0, for compatibility
+#pragma warning disable CS0618
+public class PolecatIntegration : IWolverineExtension, IEventForwarding, Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding
+#pragma warning restore CS0618
 {
     private readonly List<Action<WolverineOptions>> _actions = [];
 
@@ -188,16 +191,26 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
 
     /// <summary>
     /// Define a <em>transformation</em> of a forwarded event: complete the returned builder with
-    /// <see cref="EventForwardingTransform{TSource}.TransformedTo{TDestination}"/> to publish the
+    /// <see cref="Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform{TSource}.TransformedTo{TDestination}"/> to publish the
     /// transformed message under Wolverine's normal routing rules. ⚠️ This is not an on-switch for
     /// event forwarding, and a bare call registers nothing (GH-4310 — the bootstrap rejects it):
     /// to simply have Wolverine handlers receive an event after commit, set
     /// <see cref="UseFastEventForwarding"/> = true instead.
     /// </summary>
+    // GH-5514: the signature keeps the per-store type until 8.0; the value is already the core type
+#pragma warning disable CS0618
     public EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull
     {
         EventRouter.StartTransformation<T>();
         return new EventForwardingTransform<T>(EventRouter);
+    }
+#pragma warning restore CS0618
+
+    // GH-5514: the core forwarding API. The public SubscribeToEvent<T>() above keeps its signature until 8.0, and
+    // what it returns is already the core type
+    Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<T> Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding.SubscribeToEvent<T>()
+    {
+        return SubscribeToEvent<T>();
     }
 }
 
@@ -240,6 +253,7 @@ internal class PolecatOverrides : IConfigurePolecat
     }
 }
 
+[Obsolete("Use Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding; this type will be removed in Wolverine 8.0")]
 public interface IEventForwarding
 {
     /// <summary>
@@ -250,17 +264,14 @@ public interface IEventForwarding
     EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull;
 }
 
-public class EventForwardingTransform<TSource> where TSource : notnull
+/// <summary>
+/// GH-5514: kept for compatibility. It is a <see cref="Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform{TSource}" />, so
+/// the value <see cref="PolecatIntegration.SubscribeToEvent{T}" /> returns can be used as the core type already.
+/// </summary>
+[Obsolete("Use Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<TSource>; this type will be removed in Wolverine 8.0")]
+public class EventForwardingTransform<TSource> : Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<TSource> where TSource : notnull
 {
-    private readonly EventForwardingRouter _eventRouter;
-
-    internal EventForwardingTransform(EventForwardingRouter eventRouter)
+    internal EventForwardingTransform(EventForwardingRouter eventRouter) : base(eventRouter)
     {
-        _eventRouter = eventRouter;
-    }
-
-    public void TransformedTo<TDestination>(Func<IEvent<TSource>, TDestination> transformer)
-    {
-        _eventRouter.CompleteTransformation(transformer);
     }
 }
