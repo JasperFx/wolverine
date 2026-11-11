@@ -37,8 +37,9 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
-
+          dotnet-version: |
+            10.0.x
+            11.0.x
       # GH-5125: the checks live in the CICommandLineSmoke target (build/CommandLineSmoke.cs), so
       # LocalGate runs the same ones on a developer machine.
       - name: wolverine-diagnostics describe-handlers + event-model smoke tests
@@ -60,8 +61,9 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
-
+          dotnet-version: |
+            10.0.x
+            11.0.x
       # Runs `codegen test` against a handler-bearing project with no pre-generated code -- the path
       # that broke in 6.37.0 and that neither the drift gate (`codegen write`) nor AotSmoke (`publish`)
       # exercises. The target starts its own rabbitmq container.
@@ -85,8 +87,9 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
-
+          dotnet-version: |
+            10.0.x
+            11.0.x
       # GH-4421. Regenerates the committed `codegen write` output and fails on any diff. This is only
       # a believable gate as of JasperFx 2.69.2, which made the emitted statement order deterministic
       # (jasperfx#832); before that, a byte comparison could not tell real drift from per-process
