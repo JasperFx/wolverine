@@ -1,4 +1,4 @@
-<Project Sdk="Aspire.AppHost.Sdk/13.6.3">
+<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
 
   <!-- Keep the SDK version above and the Aspire.Hosting.* versions in the root
        Directory.Packages.props on the same Aspire release. -->
