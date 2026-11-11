@@ -115,6 +115,12 @@ opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None;
 opts.Durability.EnableDeduplicatedResponses = false;
 ```
 
+If you provision the schema yourself (`AutoBuildMessageStorageOnStartup = AutoCreate.None`), Wolverine will not create
+these tables for you. Before you deploy 7.0, run `resources setup` or `db-apply` (or call `IHost.SetupResources()`)
+against every message database, including each tenant database. Otherwise, opt out as shown above. If you do
+neither, the startup check still passes, because it only looks for the envelope and node tables. But the cleanup jobs,
+and any handler or endpoint that uses deduplication, will then fail against the missing tables.
+
 An explicit setting wins over both the 7.0 default and `RestoreV6Defaults()`, in either order. Registering a recurring
 message still turns deduplication on, even after `RestoreV6Defaults()`, because the recurring agent relies on it.
 
