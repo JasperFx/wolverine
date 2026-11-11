@@ -5,7 +5,7 @@
 ## Tech Stack
 
 - **Language**: C# 12+
-- **Frameworks**: .NET 9.0, 10.0 (net8.0 dropped in 6.0; 5.x maintained on the `5.0` branch)
+- **Frameworks**: .NET 10.0, 11.0 (net9.0 dropped in 7.0, net8.0 in 6.0; 5.x maintained on the `5.0` branch)
 - **Build**: MSBuild + Nuke (scripted automation)
 - **Core Dependencies**: JasperFx (runtime compilation), Microsoft.Extensions.*, System.Threading.Tasks.Dataflow
 - **Docs**: Vitepress (in `/docs`)
@@ -55,9 +55,9 @@ docker compose up -d    # PostgreSQL, SQL Server, RabbitMQ, Kafka, etc.
 
 # Run tests: dotnet test names the project or solution with an option, never positionally
 dotnet test --solution wolverine.slnx
-dotnet test --project src/Testing/CoreTests -f net9.0
-dotnet test --project src/Testing/CoreTests -f net9.0 --filter-class "*Acceptance.wolverine_as_command_bus*"
-dotnet test --project src/Testing/CoreTests -f net9.0 --filter "FullyQualifiedName~batching"
+dotnet test --project src/Testing/CoreTests -f net10.0
+dotnet test --project src/Testing/CoreTests -f net10.0 --filter-class "*Acceptance.wolverine_as_command_bus*"
+dotnet test --project src/Testing/CoreTests -f net10.0 --filter "FullyQualifiedName~batching"
 
 # Documentation
 npm install && npm run docs
@@ -75,10 +75,10 @@ the .NET 10 SDK, so `dotnet test` runs in the platform's own mode:
   `--filter-not-*` and `--filter-query`. xUnit 4 also takes the old VSTest grammar via `--filter`
   (`"FullyQualifiedName~X"`, `"Category!=Flaky"`).
 - Running the built executable directly works too, with the same options:
-  `src/Testing/CoreTests/bin/Release/net9.0/CoreTests --filter-class "*Acceptance*"`.
+  `src/Testing/CoreTests/bin/Release/net10.0/CoreTests --filter-class "*Acceptance*"`.
 - CI does not use `dotnet test` except in `fsharp.yml`. The Nuke targets run each test host through
   Bobcat's supervisor (`build/SupervisedTests.cs`) with C# filter predicates, so a CI target is
-  `./build.sh CoreTests --framework net9.0` locally.
+  `./build.sh CoreTests --framework net10.0` locally.
 - **Everything CI runs, on this box:** `./build.sh LocalGate` (GH-5125) builds once, runs every suite as a unit
   of one Bobcat gate (longest first, one track per Docker service), then the AOT, samples, command-line and
   codegen gates. `./build.sh LocalGateSuites --gate-only <name>` runs a slice. The list is `build/LocalGate.cs`;
@@ -109,14 +109,14 @@ the .NET 10 SDK, so `dotnet test` runs in the platform's own mode:
 > is clean across Wolverine. **Build `wolverine.slnx` before pushing**:
 >
 > ```bash
-> dotnet build wolverine.slnx -c Release -f net9.0
+> dotnet build wolverine.slnx -c Release -f net10.0
 > ```
 >
-> ⚠️ **Pass `-f net9.0`.** `.nuke/parameters.json` pins `"Framework": "net9.0"`, so the `Compile`
+> ⚠️ **Pass `-f net10.0`.** `.nuke/parameters.json` pins `"Framework": "net10.0"`, so the `Compile`
 > target builds the solution *pinned to a single framework*. A bare
 > `dotnet build wolverine.slnx` builds each project for its own `TargetFrameworks` instead, which
-> is a **weaker** check — a net10.0-only project passes locally and then fails CI with
-> `NETSDK1005: Assets file ... doesn't have a target for 'net9.0'`. That is not hypothetical; it
+> is a **weaker** check — a net11.0-only project passes locally and then fails CI with
+> `NETSDK1005: Assets file ... doesn't have a target for 'net10.0'`. That is not hypothetical; it
 > is what made GH-3839's first push red after a clean local build. Build the unpinned form too if
 > you like, but the pinned one is the gate.
 
@@ -267,5 +267,5 @@ When working on specific areas, consult these files:
 ## Version
 
 - **5.39.0** — last shipped on the 5.x line (see `Directory.Build.props`).
-- **6.0** — `main` branch ongoing development (JasperFx 2.0-alpha line, net9.0/net10.0).
+- **6.0** — `main` branch ongoing development (JasperFx 2.0-alpha line, net10.0/net11.0).
 - **5.x maintenance** — bug fixes only, off the `5.0` branch.

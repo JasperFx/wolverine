@@ -97,8 +97,8 @@
     <!-- GHSA-334f-vvp4-7g6p / CVE-2026-70159 (HIGH, NU1903): SignalR.Client 9.0.8 brings
          Microsoft.AspNetCore.SignalR.Common 9.0.8, patched in 9.0.21 and 10.0.13. Each TFM takes
          its own servicing line. -->
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.21" Condition="'$(TargetFramework)' != 'net10.0'" />
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="11.0.0" Condition="'$(TargetFramework)' == 'net11.0'" />
     <PackageVersion Include="Microsoft.Azure.SignalR" Version="1.32.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.9.0" />
@@ -173,34 +173,6 @@
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.1" />
     <PackageVersion Include="System.ComponentModel" Version="4.3.0" />
-    <!-- System.Formats.Asn1 7.0.0 carries GHSA-447r-wph3-92pm / CVE-2024-38095 (HIGH, NU1903: DoS
-         parsing a malicious X.509 certificate; affects 7.0.0-preview through 8.0.0, patched in
-         8.0.1). It arrives purely transitively as
-            Wolverine.EntityFrameworkCore (net9.0 group)
-              -> Microsoft.CodeAnalysis.Workspaces.MSBuild 4.14.0
-              -> System.Security.Cryptography.Pkcs 7.0.2
-              -> System.Formats.Asn1 7.0.0
-         so no default restore ever reported it - NuGetAuditMode was "direct" (see the note in
-         Directory.Build.props, now "all").
-
-         It survives in exactly four project/TFM pairs, and the reason is package pruning: SDK 10
-         enables pruning for any project that targets net10.0, INCLUDING its net9.0 group when it
-         multi-targets, and pruning drops a framework-superseded package like this one. The 51
-         single-TFM net9.0 projects get no pruning, so the four of them that reach
-         Wolverine.EntityFrameworkCore keep the stale 7.0.0:
-           src/Http/WolverineWebApi
-           src/Persistence/EFCore/DomainEventsWithEfCore/BackLogService
-           src/Samples/WolverineFSharpSample
-           src/Testing/Wolverine.EfCore.FSharpTests
-         Transitive pinning is off repo-wide, so each of those four references this DIRECTLY - a
-         PackageVersion on its own would be inert here.
-
-         9.0.0, not 8.0.1: it is the net9.0 servicing baseline and is already what the rest of the
-         solution resolves (Microsoft.EntityFrameworkCore.SqlServer 9.0.0 asks for it, and
-         Wolverine.Http.Tests has been running Pkcs 7.0.2 against Asn1 9.0.0 all along), so this
-         lifts four outliers onto the version everything else was already on instead of introducing
-         a new one. See GH-4773. -->
-    <PackageVersion Include="System.Formats.Asn1" Version="9.0.0" />
     <!-- 10.0.7 carries a known HIGH severity advisory (NU1903). -->
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.12" />
     <!-- GHSA-846f-f764-76mx / CVE-2026-84008 (HIGH, NU1903: .NET denial of service) covers
@@ -213,8 +185,8 @@
          Weasel 9.45.1 and Polecat 5.40.2 now carry the same patched floor themselves, but these
          pins stay: Wolverine references Microsoft.Data.SqlClient and Oracle.ManagedDataAccess.Core
          directly, and neither driver depends on a patched Pkcs yet. -->
-    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="9.0.21" Condition="'$(TargetFramework)' != 'net10.0'" />
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="11.0.0" Condition="'$(TargetFramework)' == 'net11.0'" />
     <!-- Testcontainers pulls SSH.NET [2025.1.0, ); everything through 2025.1.0 carries
          GHSA-q939-rpr3-3284. The test projects that use Testcontainers reference this directly so
          the patched version wins. -->
@@ -325,34 +297,28 @@
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.2" />
   </ItemGroup>
   <!-- TFM-conditional Microsoft.Extensions.* for Wolverine core (version ranges for NuGet compatibility) -->
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net9.0' ">
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.DotNet.ILCompiler" Version="9.0.22" />
-    <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="[9.0.0,12.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="[9.0.0,12.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="[9.0.0,12.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="[9.0.0,12.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="[9.0.0,12.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="[9.0.0,12.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="[9.0.0,12.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="[9.0.0,12.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="[9.0.0,12.0.0)" />
-    <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="[9.0.12,12.0.0)" />
-  </ItemGroup>
-  <!-- net11.0 is not a target yet (p0-tooling-wolverine adds it). Microsoft.OpenApi 3.x is a different
-       object model from 2.x (GH-5132), and Microsoft.AspNetCore.OpenApi 11 requires >= 3.10.2. -->
+  <!-- net11.0 (GH-5134). Microsoft.OpenApi 3.x is a different object model from 2.x (GH-5132), and
+       Microsoft.AspNetCore.OpenApi 11 requires >= 3.10.2. Npgsql.EntityFrameworkCore.PostgreSQL has no
+       11.0 GA on nuget.org yet, so net11.0 takes its newest release candidate. -->
   <ItemGroup Condition=" '$(TargetFramework)' == 'net11.0' ">
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="11.0.0" />
     <PackageVersion Include="Microsoft.OpenApi" Version="3.11.0" />
+    <PackageVersion Include="Microsoft.DotNet.ILCompiler" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="11.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="11.0.0" />
   </ItemGroup>
   <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0' ">
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageVersion Include="Microsoft.OpenApi" Version="2.13.0" />
     <PackageVersion Include="Microsoft.DotNet.ILCompiler" Version="10.0.14" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.4" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
@@ -363,36 +329,26 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
     <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="10.0.2" />
+  </ItemGroup>
+  <!-- EF Core, its Npgsql provider and Roslyn stay on the 10.x line on net11.0 too (GH-5134).
+       Npgsql.EntityFrameworkCore.PostgreSQL has only an 11.0.0 release candidate, which pins
+       Microsoft.EntityFrameworkCore to the exact RC build and so cannot sit beside the GA 11.0.0 that
+       published WolverineFx.EntityFrameworkCore would need (and NU5104 refuses a stable package with a
+       prerelease dependency); EF Core 11's Design package also brings Roslyn 5.9.0 against the exact
+       5.0.0 JasperFx.RuntimeCompiler asks for. The 10.x packages run on the net11.0 runtime. Moving this
+       group to EF Core 11 is a follow-up once Npgsql ships 11.0 GA. -->
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0' Or '$(TargetFramework)' == 'net11.0' ">
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <!-- Roslyn is per-TFM, because JasperFx.RuntimeCompiler 5.0.0 asks for a different line in each
-         of its own dependency groups. On net10.0 it asks for Microsoft.CodeAnalysis exactly 5.0.0,
-         and EF Core Design 10.0.4 brings Workspaces.MSBuild 5.0.0, so 5.0.0 is the line here. See
-         the net9.0 group below for the 4.14.0 half and why these pins are TFM-scoped at all. -->
+    <!-- JasperFx.RuntimeCompiler asks for Microsoft.CodeAnalysis exactly 5.0.0 on these frameworks,
+         and EF Core Design 10.0.4 brings Workspaces.MSBuild 5.0.0, so 5.0.0 is the line here. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.0.0" />
-  </ItemGroup>
-  <!-- TFM-conditional EF Core ecosystem -->
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net9.0' ">
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.0" />
-    <!-- On net9.0 the Roslyn line is 4.14.0: JasperFx.RuntimeCompiler 5.0.0 asks for
-         Microsoft.CodeAnalysis [4.14.0, 6.0.0) in its net9.0 group and NuGet takes the floor. These
-         pins unify EF Core Design 9.0.5's transitive CSharp.Workspaces 4.8.0 up to that line — it
-         used to be masked by core WolverineFx's own JasperFx.RuntimeCompiler reference, removed in
-         #2876. Wolverine.EntityFrameworkCore references CSharp.Workspaces and Workspaces.MSBuild
-         directly from its *net9.0-conditional* ItemGroup, so the unification flows to the EF
-         sample/test projects — and that conditional scope is the reason these four pins live in a
-         TFM group rather than the unconditional one. -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.Build.Tasks.Core" Version="18.4.0" />
   </ItemGroup>
 </Project>

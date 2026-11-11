@@ -9,7 +9,7 @@
           GenerateTestingPlatformEntryPoint=false that xunit.v3 sets, so it emits its own entry
           point alongside xunit's and the build fails with CS0017 (more than one entry point).
         -->
-        <TargetFrameworks>net9.0</TargetFrameworks>
+        <TargetFrameworks>net10.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>

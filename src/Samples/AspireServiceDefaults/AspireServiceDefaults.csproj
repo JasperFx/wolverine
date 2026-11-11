@@ -4,7 +4,7 @@
        ActivitySource and Meters, exported to the Aspire dashboard over OTLP, plus the /health and
        /alive endpoints the AppHost's health checks use. -->
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsAspireSharedProject>true</IsAspireSharedProject>

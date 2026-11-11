@@ -16,7 +16,7 @@ on its own.
 ```bash
 MSBUILDDISABLENODEREUSE=1 dotnet build src/Testing/DurabilityChaosRig -c Release
 
-cd src/Testing/DurabilityChaosRig/bin/Release/net9.0
+cd src/Testing/DurabilityChaosRig/bin/Release/net10.0
 dotnet DurabilityChaosRig.dll driver 180 3 21     # [chaos seconds] [workers] [seed]
 ```
 

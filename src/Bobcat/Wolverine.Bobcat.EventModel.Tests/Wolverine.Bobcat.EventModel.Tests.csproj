@@ -10,7 +10,7 @@
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
-        <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
         <IsAotCompatible>false</IsAotCompatible>
         <LangVersion>13</LangVersion>
         <!-- Moved from Bobcat, which did not run these analyzers as errors -->

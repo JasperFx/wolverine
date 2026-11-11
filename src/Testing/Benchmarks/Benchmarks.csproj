@@ -3,8 +3,8 @@
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <!-- Standalone benchmark harness; deliberately NOT in either .slnx solution.
-             Single-TFM on purpose: `dotnet build src/Testing/Benchmarks -f net9.0` -->
-        <TargetFrameworks>net9.0</TargetFrameworks>
+             Single-TFM on purpose: `dotnet build src/Testing/Benchmarks -f net10.0` -->
+        <TargetFrameworks>net10.0</TargetFrameworks>
         <IsPackable>false</IsPackable>
         <ServerGarbageCollection>true</ServerGarbageCollection>
     </PropertyGroup>
