@@ -13,8 +13,8 @@ internal interface IDocumentStoreFrameProvider : IPersistenceFrameProvider
 }
 
 /// <summary>
-///     GH-5514: marks <c>[DocumentExists&lt;T&gt;]</c> and <c>[DocumentDoesNotExist&lt;T&gt;]</c>, both the core attributes
-///     in <c>Wolverine.Persistence.Requirements</c> and the per-store copies kept until 8.0, so a store's
-///     persistence frame provider can see that a chain needs its session without naming every attribute type.
+///     GH-5514: marks the store-agnostic <c>[DocumentExists&lt;T&gt;]</c> and <c>[DocumentDoesNotExist&lt;T&gt;]</c> in
+///     <c>Wolverine.Persistence.Requirements</c>, so a store's persistence frame provider can see that a chain needs a
+///     document session. The per-store copies kept until 8.0 do not carry it: each store only claims its own.
 /// </summary>
 internal interface IDocumentExistenceAttribute;

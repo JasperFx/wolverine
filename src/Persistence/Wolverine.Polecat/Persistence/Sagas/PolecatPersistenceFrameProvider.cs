@@ -233,8 +233,17 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
 
     private static bool IsDocumentExistsAttribute(Attribute attribute)
     {
-        // GH-5514: the core [DocumentExists<T>] / [DocumentDoesNotExist<T>] and this store's own copies
-        return attribute is Wolverine.Persistence.DocumentStores.IDocumentExistenceAttribute;
+        // GH-5514: the store-agnostic core [DocumentExists<T>] / [DocumentDoesNotExist<T>] ...
+        if (attribute is Wolverine.Persistence.DocumentStores.IDocumentExistenceAttribute) return true;
+
+        // ... and this store's own obsolete copies, but never another store's, so a host integrating
+        // several stores claims chains exactly as it did before
+        var type = attribute.GetType();
+        if (!type.IsGenericType) return false;
+        var def = type.GetGenericTypeDefinition();
+#pragma warning disable CS0618
+        return def == typeof(DocumentExistsAttribute<>) || def == typeof(DocumentDoesNotExistAttribute<>);
+#pragma warning restore CS0618
     }
 
     public bool TryBuildAllFrame(Type entityType, IServiceContainer container,

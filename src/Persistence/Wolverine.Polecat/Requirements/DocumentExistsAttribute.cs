@@ -30,7 +30,7 @@ namespace Wolverine.Polecat.Requirements;
 /// </example>
 [Obsolete("Use Wolverine.Persistence.Requirements.DocumentExistsAttribute<TDoc>; this type will be removed in Wolverine 8.0")]
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-public class DocumentExistsAttribute<TDoc> : ModifyChainAttribute, IDocumentExistenceAttribute where TDoc : class
+public class DocumentExistsAttribute<TDoc> : ModifyChainAttribute where TDoc : class
 {
     private readonly string? _argumentName;
 
@@ -72,7 +72,7 @@ public class DocumentExistsAttribute<TDoc> : ModifyChainAttribute, IDocumentExis
 /// </example>
 [Obsolete("Use Wolverine.Persistence.Requirements.DocumentDoesNotExistAttribute<TDoc>; this type will be removed in Wolverine 8.0")]
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-public class DocumentDoesNotExistAttribute<TDoc> : ModifyChainAttribute, IDocumentExistenceAttribute where TDoc : class
+public class DocumentDoesNotExistAttribute<TDoc> : ModifyChainAttribute where TDoc : class
 {
     private readonly string? _argumentName;
 

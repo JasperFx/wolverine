@@ -16,7 +16,8 @@ namespace Wolverine.Persistence.Requirements;
 ///
 /// Works with Marten, Polecat and Fisher. The store is resolved the way <see cref="StorageAttribute"/> resolves it:
 /// a chain routed to an ancillary store (<c>[Storage]</c>, <c>[MartenStore]</c>, ...) checks that store, otherwise
-/// the one document store integrated with Wolverine is used.
+/// the one document store integrated with Wolverine is used. With more than one document store integrated, route the
+/// chain with <c>[Storage]</c>; the attribute refuses at code generation rather than guess.
 ///
 /// The identity is resolved from the message/request by looking for a property named
 /// <c>{DocTypeName}Id</c> or <c>Id</c> on the input type. You can override this by
@@ -62,7 +63,8 @@ public class DocumentExistsAttribute<TDoc> : ModifyChainAttribute, IDocumentExis
 ///
 /// Works with Marten, Polecat and Fisher. The store is resolved the way <see cref="StorageAttribute"/> resolves it:
 /// a chain routed to an ancillary store (<c>[Storage]</c>, <c>[MartenStore]</c>, ...) checks that store, otherwise
-/// the one document store integrated with Wolverine is used.
+/// the one document store integrated with Wolverine is used. With more than one document store integrated, route the
+/// chain with <c>[Storage]</c>; the attribute refuses at code generation rather than guess.
 ///
 /// The identity is resolved from the message/request by looking for a property named
 /// <c>{DocTypeName}Id</c> or <c>Id</c> on the input type. You can override this by
@@ -130,11 +132,6 @@ internal static class DocumentStoreResolution
         var candidates = stores.Where(x => x.CanPersist(documentType, container, out _)).ToList();
         if (candidates.Count == 1) return candidates[0];
 
-        // More than one document store in the application: prefer the one this chain already works with
-        var claiming = candidates.Cast<IPersistenceFrameProvider>().ToList().ProvidersClaiming(chain, container)
-            .OfType<IDocumentStoreFrameProvider>().ToList();
-        if (claiming.Count == 1) return claiming[0];
-
         if (candidates.Count == 0)
         {
             throw new InvalidOperationException(
@@ -144,6 +141,6 @@ internal static class DocumentStoreResolution
         throw new InvalidOperationException(
             $"{attributeName} on chain {chain} cannot tell which document store to check for {documentType.FullNameInCode()}: " +
             $"{candidates.Select(x => x.SessionTypes.StoreName).Join(", ")} are all integrated with Wolverine. " +
-            "Route the chain to one store with [Storage(typeof(...))], or use that store's own session in the handler.");
+            "Route the chain to one store with [Storage(typeof(...))].");
     }
 }

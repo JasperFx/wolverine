@@ -559,8 +559,8 @@ and are removed in 8.0.
 
 * **The core attributes keep the old names.** To migrate, swap `using Wolverine.Marten.Requirements;` (or the Polecat or Fisher
   one) for `using Wolverine.Persistence.Requirements;`. They work with all three stores. A chain routed to an ancillary
-  store with `[Storage]` or `[MartenStore]` checks that store. If more than one document store is integrated, the chain
-  checks the store it already works with. Do not import both namespaces into one file, or `[DocumentExists<T>]` is ambiguous.
+  store with `[Storage]` or `[MartenStore]` checks that store. If more than one document store is integrated, route
+  the chain with `[Storage(typeof(...))]`: otherwise the attribute refuses at code generation rather than guess. Do not import both namespaces into one file, or `[DocumentExists<T>]` is ambiguous.
   That means a file that also uses `IMartenDataRequirement` (from `Wolverine.Marten.Requirements`) should spell the
   attribute's full name.
 * **Event forwarding.** `MartenIntegration`, `PolecatIntegration` and `FisherIntegration` implement the core
