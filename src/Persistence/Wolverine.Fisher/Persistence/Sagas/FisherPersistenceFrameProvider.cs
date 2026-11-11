@@ -18,12 +18,16 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Fisher.Persistence.Sagas;
 
-internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvider
+internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvider, Wolverine.Persistence.DocumentStores.IDocumentStoreFrameProvider
 {
     // Fisher can persist any document, so CanPersist claims every type. Yield to selective
     // providers (EF Core) for the entity types they actually map, regardless of the order the
     // integrations were registered in
     public bool IsCatchAll => true;
+
+    // GH-5514: lets the store-agnostic [DocumentExists<T>] in Wolverine.Persistence.Requirements reach this store
+    Wolverine.Persistence.DocumentStores.Codegen.DocumentSessionTypes Wolverine.Persistence.DocumentStores.IDocumentStoreFrameProvider.SessionTypes
+        => FisherIntegration.SessionTypes;
 
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
@@ -202,10 +206,8 @@ internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvide
 
     private static bool IsDocumentExistsAttribute(Attribute attribute)
     {
-        var type = attribute.GetType();
-        if (!type.IsGenericType) return false;
-        var def = type.GetGenericTypeDefinition();
-        return def == typeof(DocumentExistsAttribute<>) || def == typeof(DocumentDoesNotExistAttribute<>);
+        // GH-5514: the core [DocumentExists<T>] / [DocumentDoesNotExist<T>] and this store's own copies
+        return attribute is Wolverine.Persistence.DocumentStores.IDocumentExistenceAttribute;
     }
 
     public bool TryBuildAllFrame(Type entityType, IServiceContainer container,
