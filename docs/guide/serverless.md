@@ -423,7 +423,7 @@ For each request, the push receiver:
    the first envelope that asks for a retry stops the rest so that the broker redelivers the whole request
 
 ::: tip
-If your publisher batches messages into one push request, turn on `DeduplicateWithInbox` as described below so that a redelivery of the whole
+If your publisher batches messages into one push request, keep `DeduplicateWithInbox` on as described below so that a redelivery of the whole
 request doesn't run the messages that already succeeded a second time.
 :::
 
@@ -450,8 +450,9 @@ If you write your own `IPushEnvelopeMapper` for a broker that carries a delivery
 
 ### Deduplicating with the Inbox
 
-Push delivery is at-least-once, so you can also set `DeduplicateWithInbox` to `true` to have the push receiver use the durable inbox to recognize
-redeliveries. Before the handler runs, the receiver claims the message id in the inbox. A redelivery of a message that was already acknowledged
+Push delivery is at-least-once, so the push receiver can use the durable inbox to recognize redeliveries. From Wolverine 7.0
+`DeduplicateWithInbox` does that by default whenever the application has a message store; set it to `false` to turn it off, or call
+`opts.RestoreV6Defaults()` for the 6.x default, which was off. Without a message store it stays off unless you set it. Before the handler runs, the receiver claims the message id in the inbox. A redelivery of a message that was already acknowledged
 is acknowledged again without running the handler. A redelivery that shows up while the first delivery is still running -- which usually means your
 handler is slower than the push subscription's ack deadline, since the broker redelivers at every deadline and a late 200 doesn't acknowledge
 anything -- is answered with the retry status instead of running the handler a second time. Once the handler succeeds, the message is recorded as
