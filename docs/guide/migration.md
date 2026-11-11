@@ -125,6 +125,9 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `KafkaProducerOptions.EnableIdempotence` | off: Confluent.Kafka producers were not idempotent unless `UseIdempotentProducer()` | on: Dekaf's idempotent producer (`acks=all`). `Acks.None` or `Acks.Leader` stops the host unless idempotence is off | `kafka.DisableIdempotentProducer()`, or `.DisableIdempotentProducer()` on a topic | `kafka_idempotent_producer_default_5201` |
 | `RabbitMqQueue.DrainWaitForPrefetch` | `false`: a stopping listener cancels without waiting, and the broker redelivers its prefetched deliveries | `true`: the listener waits for its prefetched deliveries, bounded by `DrainTimeout`, before closing the channel | `.DoNotDrainWaitForPrefetch()` on the listener | `drain_wait_for_prefetch_turned_off` |
 | `WithInMemoryIdempotency()` on `ProcessInParallelWithNativeAcks()` endpoints | off: no guard unless the listener asks for one | on, with the default 5 minute window and 100,000 id ceiling. Every other endpoint mode still opts in | `.WithoutInMemoryIdempotency()` on the listener | `core_default_flips_5200` |
+| `DurabilitySettings.MessageIdentity` | `IdOnly`: an inbox row is identified by its envelope id | `IdAndDestination`: by its envelope id and the endpoint that received it. **This changes the primary key of the inbox table (and the dead letter table) in the database**; see [below](#messageidentity-defaults-to-idanddestination-in-7-0-schema-change) | `opts.Durability.MessageIdentity = MessageIdentity.IdOnly` | `restore_v6_defaults_tests` |
+| `EnableDeterministicQueueOrdering` (PostgreSQL, SQL Server, MySQL, Oracle and SQLite transports) | off: new queue tables are dequeued in timestamp order alone | on for **new** queue tables: a `queue_order` identity column and indexes (an index over the rowid on SQLite) break timestamp ties. Existing tables keep their layout; see [queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout) | `.DisableDeterministicQueueOrdering()` on the persistence registration | `queue_tables_new_only` |
+| `SqlServerTransport.OptimizeQueueThroughput` | off: new SQL Server queue tables get the classic layout | on for **new** queue tables: the throughput layout, a clustered `seq` identity. Existing tables keep their layout | `.UseClassicQueueLayout()` on the persistence registration (explicit, so it also rebuilds existing throughput tables) | `queue_tables_new_only` |
 
 ### Wolverine.Http defaults that changed in 7.0
 
@@ -274,15 +277,15 @@ An explicit setting still behaves as it did in 6.x, so it **does** change existi
   other layout, under an exclusive lock. SQL Server's layout-switch rebuild (GH-4989) now only fires when you set the
   layout explicitly, which ends the rebuild ping-pong between two applications that disagree about the default.
 
-To keep the 6.x layout for new tables too, call `DisableDeterministicQueueOrdering()` on the persistence registration
+To keep the 6.x layout for new tables too, call `opts.RestoreV6Defaults()` (GH-5511). It turns both defaults off on
+every database transport, and like the 7.0 default it never touches an existing table: one that already has the column
+or the throughput layout keeps it. An explicit `EnableDeterministicQueueOrdering()` or `OptimizeQueueThroughput()` still
+wins over `RestoreV6Defaults()`, in either order.
+
+You can also turn them off one at a time: call `DisableDeterministicQueueOrdering()` on the persistence registration
 (`PersistMessagesWithPostgresql(...)`, `PersistMessagesWithSqlServer(...)` and so on). Tables that already have the
 column keep it. On SQL Server, `UseClassicQueueLayout()` also keeps new tables on the classic layout. Because that one
 is explicit, it rebuilds any existing throughput-layout table back to classic, so drain the queues first.
-
-::: warning
-`RestoreV6Defaults()` does **not** restore these two defaults yet. Use `DisableDeterministicQueueOrdering()` (and
-`UseClassicQueueLayout()` on SQL Server) to keep the 6.x layout for new queue tables.
-:::
 
 To convert an existing table on purpose, follow "Converting an existing queue table" on the page for your database,
 for example [SQL Server](/guide/durability/sqlserver#converting-an-existing-queue-table). Every application that

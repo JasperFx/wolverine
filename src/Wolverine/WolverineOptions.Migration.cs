@@ -70,6 +70,15 @@ public sealed partial class WolverineOptions
         // GH-5201: three transport defaults read V6DefaultsRestored when the transport starts: SQS
         // ExtendVisibilityWhileHandling, Kafka idempotent producers and RabbitMQ DrainWaitForPrefetch.
 
+        // GH-5139: 7.0 identifies an inbox row by envelope id and destination (MessageIdentity.IdAndDestination),
+        // 6.x by envelope id alone. Nothing to assign: the MessageIdentity getter reads Durability.V6DefaultsRestored,
+        // set above, so an explicit setting still wins.
+
+        // GH-5192 / GH-5511: new database queue tables get deterministic ordering, and SQL Server's throughput layout,
+        // in 7.0. Each database transport (PostgreSQL, SQL Server, MySQL, Oracle, SQLite) reads V6DefaultsRestored when
+        // it starts, before its first queue table is built, so an explicit setting still wins and an existing table is
+        // never rebuilt by the default either way.
+
         // Add one line here for each core default 7.x flips, a row to the 7.0 defaults
         // table in docs/guide/migration.md and an entry to restore_v6_defaults_tests.
         // Defaults owned by extension packages read V6DefaultsRestored instead.
