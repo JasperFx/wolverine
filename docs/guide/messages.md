@@ -186,6 +186,34 @@ opts.UseSystemTextJsonForSerialization(stj =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Transports/Local/local_integration_specs.cs#L26-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_stj' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Source generated System.Text.Json (trimming and Native AOT)
+
+The default System.Text.Json serializer uses reflection to read message types. For a trimmed or
+Native AOT application, hand Wolverine a source generated `JsonSerializerContext` that declares every
+message type the default serializer handles:
+
+```cs
+[JsonSerializable(typeof(CreateOrder))]
+[JsonSerializable(typeof(OrderCreated))]
+internal partial class MessagesJsonContext : JsonSerializerContext;
+
+// In your Wolverine configuration
+opts.UseSystemTextJsonForSerialization(MessagesJsonContext.Default);
+```
+
+The context becomes the `TypeInfoResolver` of the serializer's `JsonSerializerOptions` (Wolverine's
+defaults, such as camel casing, still apply), and the serializer then calls the `JsonTypeInfo`
+overloads of `JsonSerializer`, which are trim and AOT safe. A message type the context does not
+declare fails with a `NotSupportedException`. To fall back to reflection for undeclared types while
+you migrate, chain a reflection resolver after the context:
+
+```cs
+opts.UseSystemTextJsonForSerialization(MessagesJsonContext.Default, stj =>
+{
+    stj.TypeInfoResolverChain.Add(new DefaultJsonTypeInfoResolver());
+});
+```
+
 ### Newtonsoft.Json Serialization
 
 ::: tip

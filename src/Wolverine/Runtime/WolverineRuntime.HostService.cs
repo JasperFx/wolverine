@@ -80,6 +80,25 @@ public partial class WolverineRuntime
             generation);
     }
 
+    /// <summary>
+    /// GH-5148. Bring the runtime to the point <see cref="StartAsync"/> reaches just before the message
+    /// stores are built — the metadata-only (codegen / OpenAPI tool) check, the async extensions and the
+    /// named connection strings, in that order — for a startup validator that runs ahead of every hosted
+    /// service. Each step is idempotent, so <see cref="StartAsync"/> repeating them later is a no-op.
+    /// Returns false when the runtime is in lightweight / metadata-only mode and should not be touching
+    /// any database at all.
+    /// </summary>
+    internal async Task<bool> PrepareForStartupValidationAsync()
+    {
+        applyMetadataOnlyModeIfDetected();
+        if (Options.LightweightMode) return false;
+
+        await ApplyAsyncExtensions();
+        ApplyNamedConnectionStrings();
+
+        return true;
+    }
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         // Make this idempotent because the AddResourceSetupOnStartup() can cause it to bootstrap twice
