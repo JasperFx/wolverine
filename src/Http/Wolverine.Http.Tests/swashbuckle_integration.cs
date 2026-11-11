@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
+using WolverineWebApi.TestSupport;
 using Shouldly;
 using Swashbuckle.AspNetCore.Swagger;
 
@@ -51,7 +52,7 @@ public class swashbuckle_integration : IntegrationContext
         tags.Any().ShouldBeTrue();
 
         var (item, op) = FindOpenApiDocument(OperationType.Post, "/users/sign-up");
-        op.Tags.ShouldContain(x => x.Name == "Users");
+        op.Tags!.ShouldContain(x => x.Name == "Users");
     }
 
 	[Fact]

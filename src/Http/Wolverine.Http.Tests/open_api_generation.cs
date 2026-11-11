@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Shouldly;
 using WolverineWebApi;
 using WolverineWebApi.TestSupport;

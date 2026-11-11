@@ -1,7 +1,7 @@
 using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Shouldly;
 using Swashbuckle.AspNetCore.Swagger;
 using Wolverine.Http.Tests.DifferentAssembly.OpenApi;
@@ -62,16 +62,16 @@ public class entity_miss_swashbuckle_document : IAsyncLifetime
         await theApp.DisposeAsync();
     }
 
-    private OpenApiResponse responseFor(string path, string status, OperationType method = OperationType.Get)
+    private IOpenApiResponse responseFor(string path, string status, HttpMethod? method = null)
     {
         theDocument.Paths.TryGetValue(path, out var item)
             .ShouldBeTrue($"The generated OpenAPI document has no path for {path}");
 
-        var responses = item.Operations[method].Responses;
+        var responses = item!.Operations![method ?? HttpMethod.Get].Responses!;
         responses.TryGetValue(status, out var response)
             .ShouldBeTrue($"{path} advertises no {status} response. Known: {string.Join(", ", responses.Keys)}");
 
-        return response;
+        return response!;
     }
 
     [Theory]
@@ -81,10 +81,10 @@ public class entity_miss_swashbuckle_document : IAsyncLifetime
     {
         var response = responseFor(path, status);
 
-        response.Content.TryGetValue(ProblemJson, out var media)
+        response.Content!.TryGetValue(ProblemJson, out var media)
             .ShouldBeTrue("the miss is written as a problem document, and the generated document must say so");
 
-        media.Schema.Reference?.Id.ShouldBe(nameof(Microsoft.AspNetCore.Mvc.ProblemDetails));
+        (media!.Schema as OpenApiSchemaReference)?.Reference?.Id.ShouldBe(nameof(Microsoft.AspNetCore.Mvc.ProblemDetails));
     }
 
     [Theory]
@@ -92,18 +92,18 @@ public class entity_miss_swashbuckle_document : IAsyncLifetime
     [InlineData("/shapes/validation/requirement")]
     public void a_validate_refusal_advertises_its_problem_document(string path)
     {
-        var response = responseFor(path, "400", OperationType.Post);
+        var response = responseFor(path, "400", HttpMethod.Post);
 
-        response.Content.TryGetValue(ProblemJson, out var media)
+        response.Content!.TryGetValue(ProblemJson, out var media)
             .ShouldBeTrue("a Validate() refusal is written as a problem document, and the generated document must say so");
 
-        media.Schema.Reference?.Id.ShouldBe(nameof(Microsoft.AspNetCore.Mvc.ProblemDetails));
+        (media!.Schema as OpenApiSchemaReference)?.Reference?.Id.ShouldBe(nameof(Microsoft.AspNetCore.Mvc.ProblemDetails));
     }
 
     [Fact]
     public void a_simple_404_entity_miss_advertises_no_body()
     {
-        responseFor("/shapes/entity-miss/simple404/{id}", "404").Content
+        responseFor("/shapes/entity-miss/simple404/{id}", "404").Content!
             .ShouldBeEmpty("a Simple404 writes no body, so it must not advertise one");
     }
 }

@@ -1,4 +1,4 @@
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Shouldly;
 
 namespace WolverineWebApi.TestSupport;
@@ -10,7 +10,7 @@ namespace WolverineWebApi.TestSupport;
 [AttributeUsage(AttributeTargets.Method)]
 public class ExpectNoRequestBodyAttribute : OpenApiExpectationAttribute
 {
-    public override void Validate(OpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
+    public override void Validate(IOpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
     {
         var hasContent = op.RequestBody?.Content?.Count > 0;
         hasContent.ShouldBeFalse(
