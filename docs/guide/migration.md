@@ -26,7 +26,7 @@ list.
 | `UseAutomaticForwarderDiscovery()`, `WolverineOptions.EnableMessageCausationTracking`, `Policies.PublishAgentEvents`, `AgentAssignmentsChanged`, `ApplyDeduplication(IChain)`, Fisher `TransportSchemaName`, `MqttEnvelope.ShouldRequeue` | `[Obsolete]` or unused | **removed** *(BREAKING)* | See [dead and obsolete flags removed](#dead-and-obsolete-flags-removed-breaking) |
 | `INodeAgentPersistence.HasLeadershipLock()` | synchronous, pinged the lock's database session with blocking I/O | `HasLeadershipLockAsync(CancellationToken)` *(BREAKING for custom node persistence)* | See [leadership lock probe is asynchronous](#the-leadership-lock-probe-is-asynchronous-breaking) |
 | Several handler types for one message type | combined into one chain and one transaction by default (`ClassicCombineIntoOneLogicalHandler`) | **one chain per handler type**, each with its own transaction, local queue and generated type *(BREAKING)* | See [one handler chain per handler type](#one-handler-chain-per-handler-type-breaking); regenerate pre-generated code |
-| `WolverineOptions.MultipleHandlerBehavior` | `ClassicCombineIntoOneLogicalHandler` (default, `[Obsolete]` in 6.52) or `Separated` | ignored: 7.0 always behaves like `Separated` | Delete the setting |
+| `WolverineOptions.MultipleHandlerBehavior`, the `MultipleHandlerBehavior` enum, `AssertNoBatchHandlerConflicts()` | `ClassicCombineIntoOneLogicalHandler` (default, `[Obsolete]` in 6.52) or `Separated` | **removed**: 7.0 always behaves like `Separated` *(BREAKING)* | Delete the setting and the call; `AssertNoCombinedHandlers()` is an `[Obsolete]` no-op for one major version |
 | `InvokeAsync(msg)` for a message type with several handler types | ran the one combined chain in one transaction | runs each chain in turn, each in its own transaction; the first failure throws `HandlerInvocationException` *(BREAKING)* | See [InvokeAsync with several handler types](#invokeasync-and-streamasync-with-several-handler-types) |
 | `InvokeAsync<T>` / `StreamAsync<T>` for such a message type | ran the combined chain | run only the chain that returns `T`; none or several throw `AmbiguousHandlerChainException` *(BREAKING)* | Make exactly one handler type return `T` |
 | `LocalQueueFor<T>()` / `[LocalQueue]` on a message type with several handler types | the message type's queue received the message | the queue only drains rows left over from 6.x; each handler type's own queue receives the message *(BREAKING)* | Move the queue's settings to the handler types' queues |
@@ -422,9 +422,10 @@ In 6.x, when several handler classes handled the same message type, Wolverine co
 (`MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler`) into one handler chain, run in one transaction. In 7.0
 there is always **one handler chain per handler type**, which is what `MultipleHandlerBehavior.Separated` did in 6.x
 (GH-5136, GH-5137, GH-5138). There is no way back to combined handlers, and `RestoreV6Defaults()` doesn't change this.
-`WolverineOptions.MultipleHandlerBehavior` is still there, but it is ignored, so delete the line. In 6.52 and later,
-`opts.AssertNoCombinedHandlers()` lists the message types that 6.x still combines, so run it on 6.x first to see what
-will change.
+`WolverineOptions.MultipleHandlerBehavior` and the `MultipleHandlerBehavior` enum are removed (GH-5139), so delete the
+line. In 6.52 and later, `opts.AssertNoCombinedHandlers()` lists the message types that 6.x still combines, so run it on
+6.x first to see what will change. In 7.0 it is an `[Obsolete]` no-op, kept for one major version so the rehearsal still
+compiles; remove the call after upgrading.
 
 A message type with a single handler class is not affected by anything in this section.
 
@@ -464,7 +465,8 @@ With conventional broker routing, a listener for such a message type is now name
 `Separated` in 6.x, so expect new broker queues or subscriptions.
 
 **Batching.** A `BatchMessagesOf<T>()` batch is now one more subscriber of `T` next to its handler chains, and its
-queue name (`{queue}-batch`) is unchanged. `opts.AssertNoBatchHandlerConflicts()` is a no-op.
+queue name (`{queue}-batch`) is unchanged. `opts.AssertNoBatchHandlerConflicts()` and the 6.x startup warning about a
+batch shadowed by a direct handler are removed, because both now run.
 
 #### InvokeAsync and StreamAsync with several handler types
 
@@ -489,7 +491,12 @@ back to `{Message}_{HandlerType}Handler` when two names collide. **If you pre-ge
 For code that inspects the handler graph:
 
 * `HandlerGraph.ChainFor(Type)` and `ChainFor<T>()` throw `AmbiguousHandlerChainException` when a message type has
-  several chains.
+  several chains. Use `ChainsFor(Type)` / `ChainsFor<T>()` for every chain of a message type, or
+  `ChainFor(messageType, handlerType)` / `ChainFor<TMessage, THandler>()` for one of them.
+* A chain's `Handlers` holds the calls of one handler type only. A test that asserted several handler classes on one
+  chain should look each chain up with `ChainFor(messageType, handlerType)` instead.
+* `MessageHandlerDescriptor` (the handler description CritterWatch reads from a service) has a new `HandlerType`
+  property, the one handler type of the chain.
 * `HandlerGraph.Chains` and `AllChains()` are one flat list of every chain. There are no more per-endpoint child chains,
   and `HandlerChain.ByEndpoint` is gone.
 

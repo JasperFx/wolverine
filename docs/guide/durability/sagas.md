@@ -425,7 +425,7 @@ public class Reservation : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L73-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L91-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and the handler that would start the new saga:
@@ -453,7 +453,7 @@ public class StartReservationHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L51-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_return_saga_from_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L69-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_return_saga_from_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Method Conventions
@@ -646,7 +646,7 @@ using var host = await Host.CreateDefaultBuilder()
         
         opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "color_sagas");
         opts.Services.AddResourceSetupOnStartup();
-    }).StartAsync();
+    }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Sagas/configuring_saga_table_storage.cs#L22-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_manually_adding_saga_types' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -738,21 +738,14 @@ using var host = await Host.CreateDefaultBuilder()
 
 ## Multiple Sagas Handling the Same Message Type
 
-By default, Wolverine does not allow multiple saga types to handle the same message type and will throw an `InvalidSagaException` at startup if this is detected. However, there are valid architectural reasons to have multiple, independent saga workflows react to the same event — for example, an `OrderPlaced` event might start both a `ShippingSaga` and a `BillingSaga`.
+There are valid architectural reasons to have multiple, independent saga workflows react to the same event — for example, an `OrderPlaced` event might start both a `ShippingSaga` and a `BillingSaga`. Wolverine supports this with no configuration.
 
-To enable this, set `MultipleHandlerBehavior` to `Separated`:
+Wolverine creates an independent handler chain for each saga type, routed to its own local queue. Each saga independently manages its own lifecycle — loading, creating, updating, and deleting state — without interfering with the other. A saga and a plain handler class for the same message are separate chains as well.
 
-```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-
-        // Your persistence configuration here (Marten, EF Core, etc.)
-    }).StartAsync();
-```
-
-When `Separated` mode is active, Wolverine creates an independent handler chain for each saga type, routed to its own local queue. Each saga independently manages its own lifecycle — loading, creating, updating, and deleting state — without interfering with the other.
+::: info
+Before Wolverine 7.0, several saga types for one message type threw an `InvalidSagaException` at startup unless you set
+`MultipleHandlerBehavior.Separated`. 7.0 removed that setting and always behaves this way.
+:::
 
 Here is an example with two sagas that both start from an `OrderPlaced` message but complete independently:
 
@@ -808,7 +801,7 @@ public class BillingSaga : Saga
 When an `OrderPlaced` message is published, both sagas will be started independently. Completing one saga (e.g., by sending `OrderShipped`) does not affect the other.
 
 ::: warning
-In `Separated` mode, messages routed to multiple sagas must be **published** (via `SendAsync` or `PublishAsync`), not **invoked** (via `InvokeAsync`). `InvokeAsync` bypasses message routing and will not reach the separated saga endpoints.
+Publish (via `SendAsync` or `PublishAsync`) a message that several sagas react to, so each saga handles it on its own queue. `InvokeAsync(message)` runs every saga's chain inline, one after another, each in its own transaction; the first failure stops the run and throws `HandlerInvocationException`, and the sagas that already ran are not rolled back.
 :::
 
 ## Resequencer Saga

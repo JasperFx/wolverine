@@ -54,7 +54,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L614-L658' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L698-L742' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Route to Topics and Subscriptions <Badge type="tip" text="1.6.0" />
@@ -82,7 +82,7 @@ opts.UseAzureServiceBusEmulator()
     .AutoProvision()
     .AutoPurgeOnStartup();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L180-L199' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L264-L283' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Handler Type Naming <Badge type="tip" text="5.25" />
@@ -108,31 +108,30 @@ With `NamingSource.FromHandlerType`, each handler class gets its own dedicated q
 handler type. This ensures that each handler independently receives a copy of every message. Outgoing queue/topic
 names are still derived from the message type.
 
-## Separated Handler Behavior <Badge type="tip" text="4.12" />
+## Several Handler Types for One Message Type <Badge type="tip" text="7.0" />
 
-In the case of using the `MultipleHandlerBehavior.Separated` mode, this convention will create a subscription
+When a message type has more than one handler type, Wolverine gives each handler type its own handler chain
+([see here](/guide/handlers/#multiple-handlers-for-the-same-message-type)), and this convention will create a subscription
 for each separate handler using the handler type to derive the subscription name and the message type to derive
 the topic name. Both the topic and subscription are declared by the transport if using the `AutoProvision()` setting.
 
 
 
 
-## Separated Handlers with Queue Routing <Badge type="tip" text="6.49" />
+## Several Handler Types with Queue Routing <Badge type="tip" text="6.49" />
 
-The queue convention supports `MultipleHandlerBehavior.Separated` too, from 6.49. A queue does not fan out the
+The queue convention supports several handler types for one message type too. A queue does not fan out the
 way a topic does, so the convention does the fan-out at the sender:
 
-* the first handler keeps the message type's own queue;
-* every other handler listens on a queue named from the handler type, run through the transport's naming
+* each handler type listens on a queue named from the handler type, run through the transport's naming
   rules (the same name the topic convention gives its per-handler subscription);
-* the sender publishes the message to each of those queues.
+* the sender publishes the message to each of those queues;
+* a message type with a single, non-sticky handler type keeps the message type's own queue, as before.
 
 ```csharp
 opts.UseAzureServiceBus("connection string")
     .AutoProvision()
     .UseConventionalRouting();
-
-opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 ```
 
 The per-handler queues are known only to the process that holds those handlers. A publisher in another process

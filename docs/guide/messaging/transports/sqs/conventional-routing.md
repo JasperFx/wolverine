@@ -12,7 +12,7 @@ var host = await Host.CreateDefaultBuilder()
             .UseConventionalRouting();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L204-L212' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conventional_sqs_routing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L265-L273' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conventional_sqs_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In this case any outgoing message types that aren't handled locally or have an explicit subscription will be automatically routed
@@ -38,23 +38,22 @@ With `NamingSource.FromHandlerType`, each handler class gets its own dedicated S
 This ensures that each handler independently receives a copy of every message. Outgoing queue names are still derived
 from the message type.
 
-## Separated Handler Behavior <Badge type="tip" text="6.49" />
+## Several Handler Types for One Message Type <Badge type="tip" text="7.0" />
 
-With `MultipleHandlerBehavior.Separated`, every handler of a message type past the first is its own handler
-chain with its own listener. SQS has no exchange or topic to fan a message out from, so the convention does the
-fan-out at the sender:
+When a message type has more than one handler type, every handler type is its own handler chain
+([see here](/guide/handlers/#multiple-handlers-for-the-same-message-type)) with its own listener, and so is a
+sticky handler. SQS has no exchange or topic to fan a message out from, so the convention does the fan-out at the
+sender:
 
-* the first handler keeps the message type's own queue;
-* every other handler listens on a queue named from the handler type, run through the transport's naming
+* each of those handler types listens on a queue named from the handler type, run through the transport's naming
   rules (the same name RabbitMQ gives its per-handler queue);
-* the sender publishes the message to each of those queues.
+* the sender publishes the message to each of those queues;
+* a message type with a single, non-sticky handler type keeps the message type's own queue, as before.
 
 ```csharp
 opts.UseAmazonSqsTransport()
     .AutoProvision()
     .UseConventionalRouting();
-
-opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 ```
 
 The per-handler queues are known only to the process that holds those handlers. A publisher in another process

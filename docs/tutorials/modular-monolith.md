@@ -60,16 +60,17 @@ we've had to scramble a little bit as a community lately to make Wolverine be mo
 for modular monoliths. To avoid making breaking changes, we've had to put some modular monolith-friendly features behind configuration
 settings so as not to break existing users.
 
-Specifically, Wolverine "classic" has two conceptual problems for modular monoliths with its original model:
+Specifically, Wolverine "classic" had two conceptual problems for modular monoliths with its original model:
 
-1. If you have multiple message handlers for the same message type, Wolverine combines these handlers into one logical
-   message handler and one logical transaction
+1. If you had multiple message handlers for the same message type, Wolverine combined these handlers into one logical
+   message handler and one logical transaction. **Wolverine 7.0 no longer does this**: every handler type always gets
+   its own handler chain, as described below, and there is nothing to configure.
 2. Messages in its [transactional inbox](/guide/durability/#using-the-inbox-for-incoming-messages) are identified by only the message id. That's worked great until folks start wanting to receive the same message from an external broker, but handled
    separately by different handlers receiving the same message from different queues or subscriptions or topics depending on the external transport. This is shown below:
 
 ![Receiving Same Message 2 or More Times](/receive-message-twice.png)
 
-Both of these behaviors can be changed in your application by setting these two flags shown below:
+The second behavior can be changed in your application with the `MessageIdentity` setting shown below:
 
 <!-- snippet: sample_important_settings_for_modular_monoliths -->
 <a id='snippet-sample_important_settings_for_modular_monoliths'></a>
@@ -95,11 +96,6 @@ builder.UseWolverine(opts =>
     // modules, which in turn should help Wolverine be more efficient with
     // your database
     opts.Durability.MessageStorageSchemaName = "wolverine";
-    
-    // Tell Wolverine that when you have more than one handler for the same
-    // message type, they should be executed separately and automatically
-    // "stuck" to separate local queues
-    opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
     // *If* you may be using external message brokers in such a way that they
     // are "fanning out" a single message sent from an upstream system into
@@ -113,19 +109,19 @@ builder.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L241-L282' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_important_settings_for_modular_monoliths' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L241-L276' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_important_settings_for_modular_monoliths' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See [Message Identity](/guide/durability/#message-identity) and [Multiple Handlers for the Same Message Type](/guide/handlers/#multiple-handlers-for-the-same-message-type)
 for more detail.
 
-The `MultipleHandlerBehavior.Separated` setting is meant for an increasingly common scenario shown below where you want
+Wolverine's one handler chain per handler type is meant for an increasingly common scenario shown below where you want
 to take completely separate actions on an event message by separate logical modules published by an upstream handler:
 
 ![Publishing a message to multiple local subscribers](/publish-event-to-multiple-handlers.png)
 
-By using the `MultipleHandlerBehavior.Separated` setting, we're directing Wolverine to track any `OrderPlaced` event message
-completely separately for each handler. By default this would be publishing the event message to two completely separate
+Wolverine tracks any `OrderPlaced` event message completely separately for each handler. By default this means
+publishing the event message to two completely separate
 [local, in process queues](/guide/messaging/transports/local) inside the Wolverine application. By publishing to separate queues, 
 you also get:
 
@@ -135,10 +131,10 @@ you also get:
 * Granular tracing and logging on the handlers
 
 ::: tip
-When using `MultipleHandlerBehavior.Separated`, Wolverine automatically fans out messages arriving from external
-broker endpoints (RabbitMQ, Azure Service Bus, Kafka, etc.) to all the separated local handler queues. This means you
-don't need any special routing configuration -- a single message received from an external queue will be forwarded to
-each local handler queue automatically, so every separated handler processes its own copy of the message independently.
+Wolverine automatically fans out messages arriving from external broker endpoints (RabbitMQ, Azure Service Bus, Kafka,
+etc.) to every handler type's local queue. This means you don't need any special routing configuration -- a single
+message received from an external queue will be forwarded to each local handler queue automatically, so every handler
+processes its own copy of the message independently.
 :::
 
 
