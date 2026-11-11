@@ -231,9 +231,9 @@ public static class ServiceDefaultsExtensions
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
 
-                    // Wolverine publishes its metrics from a Meter named "Wolverine:{ServiceName}",
-                    // so this has to be a wildcard. A bare AddMeter("Wolverine") matches nothing
-                    .AddMeter("Wolverine*");
+                    // Wolverine publishes its metrics from a Meter named "Wolverine" (7.0+);
+                    // the service is identified by the resource (OTEL_SERVICE_NAME) and the "source" tag
+                    .AddMeter("Wolverine");
             })
             .WithTracing(tracing =>
             {
@@ -286,8 +286,10 @@ public static class ServiceDefaultsExtensions
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireServiceDefaults/Extensions.cs#L12-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_service_defaults' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Note that Wolverine names its `Meter` "Wolverine:{ServiceName}", so `AddMeter("Wolverine*")` has to be a wildcard.
-A bare `AddMeter("Wolverine")` matches nothing.
+As of 7.0 Wolverine names its `Meter` exactly `Wolverine`, so `AddMeter("Wolverine")` is enough. Before 7.0 it was
+`Wolverine:{ServiceName}` and needed the `AddMeter("Wolverine*")` wildcard. Wolverine's `ServiceName` defaults from
+the `OTEL_SERVICE_NAME` variable that the AppHost sets for each resource, so the `source` tag on Wolverine's metrics
+matches the resource name the dashboard shows.
 
 Each service then calls `builder.AddServiceDefaults()` and `app.MapDefaultEndpoints()`, and the AppHost polls the
 `/health` endpoint with `WithHttpHealthCheck("/health")`.

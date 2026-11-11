@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using CoreTests.Transports;
@@ -45,11 +46,15 @@ public class system_traffic_metrics_silencing : IAsyncLifetime
 
         _runtime = (WolverineRuntime)_host.Services.GetService(typeof(IWolverineRuntime))!;
 
+        var theMeter = _host.Services.GetRequiredService<IWolverineRuntime>().Meter;
+
         _listener = new MeterListener
         {
             InstrumentPublished = (instrument, l) =>
             {
-                if (instrument.Meter.Name == "Wolverine:" + TheServiceName)
+                // Every runtime publishes on a meter named "Wolverine" (GH-5128), so isolate THIS host's
+                // instruments from parallel tests by the Meter instance rather than its name.
+                if (ReferenceEquals(instrument.Meter, theMeter))
                 {
                     l.EnableMeasurementEvents(instrument);
                 }
@@ -204,7 +209,7 @@ public class system_traffic_metrics_silencing : IAsyncLifetime
     {
         // Pre-#3774, MessageSucceededContinuation reported through runtime.MessageTracking no
         // matter what the executor resolved, so a system message's completion still recorded
-        // wolverine-messages-succeeded + wolverine-effective-time.
+        // wolverine.messages.succeeded + wolverine.effective.time.
         _counts.Clear();
         var envelope = envelopeFor(new CheckAgentHealth());
         envelope.SentAt = DateTimeOffset.UtcNow;

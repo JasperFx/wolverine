@@ -182,7 +182,7 @@ ordered-by-key processing is done on the consumer side:
 
 ## Interpreting Wolverine's metrics
 
-`wolverine-execution-time` measures the handler *plus all middleware* (including time blocked
-inside middleware); `wolverine-effective-time` is wall-clock from the sender's `SentAt` stamp
+`wolverine.execution.time` measures the handler *plus all middleware* (including time blocked
+inside middleware); `wolverine.effective.time` is wall-clock from the sender's `SentAt` stamp
 through handling, cascading-message flush, and the final ack, and is sensitive to clock skew
 across machines.

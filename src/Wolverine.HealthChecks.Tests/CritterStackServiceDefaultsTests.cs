@@ -126,7 +126,7 @@ public class CritterStackServiceDefaultsTests
     }
 
     [Theory]
-    [InlineData("Wolverine:servicedefaults")]
+    [InlineData("Wolverine")]
     [InlineData("Marten")]
     [InlineData("Polecat")]
     [InlineData("Fisher")]

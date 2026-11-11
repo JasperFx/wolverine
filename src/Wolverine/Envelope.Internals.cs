@@ -227,7 +227,7 @@ public partial class Envelope
     /// Returns the elapsed handler execution time in fractional milliseconds, or -1 if timing
     /// never started. Previously this truncated to whole milliseconds, which — combined with the
     /// callers' "only record positive values" guard — silently dropped every sub-millisecond
-    /// execution and biased the wolverine-execution-time histogram upward for fast handlers
+    /// execution and biased the wolverine.execution.time histogram upward for fast handlers
     /// (GH-3490).
     /// </summary>
     internal double StopTiming()
