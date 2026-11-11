@@ -50,6 +50,14 @@ internal partial class PolecatPersistenceFrameProvider : IEventSourcingFrameProv
     public StreamIdentity DetermineStreamIdentity(IServiceContainer container)
         => container.Services.GetRequiredService<StoreOptions>().Events.StreamIdentity;
 
+    /// <summary>
+    /// The stream identity of the store this chain writes to. GH-5142: an ancillary store can be keyed
+    /// differently from the default one.
+    /// </summary>
+    public StreamIdentity DetermineStreamIdentity(IChain chain, IServiceContainer container)
+        => (resolveStoreOptions(chain, container) ?? container.Services.GetRequiredService<StoreOptions>())
+            .Events.StreamIdentity;
+
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "The aggregate type comes from handler discovery, which already roots it. Codegen-time only. See docs/guide/aot.md.")]
     public Type? TryDetermineNaturalKeyType(Type aggregateType, IChain chain, IServiceContainer container)
