@@ -34,6 +34,11 @@ public class restore_v6_defaults_tests
             ["`DurabilitySettings.EnableDeduplicatedResponses`"] = (
                 o => o.Durability.EnableDeduplicatedResponses.ShouldBeTrue(),
                 o => o.Durability.EnableDeduplicatedResponses.ShouldBeFalse()),
+            // GH-5193
+            ["`DurabilitySettings.AlwaysProvisionOptionalSchemaObjects`"] = (
+                o => o.Durability.AlwaysProvisionOptionalSchemaObjects.ShouldBeTrue(),
+                o => o.Durability.AlwaysProvisionOptionalSchemaObjects.ShouldBeFalse()),
+
             // e.g.
             // ["`WolverineOptions.Something`"] = (
             //     o => o.Something.ShouldBe(newValue),
@@ -49,6 +54,20 @@ public class restore_v6_defaults_tests
         options.RestoreV6Defaults();
 
         options.V6DefaultsRestored.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void an_explicit_AlwaysProvisionOptionalSchemaObjects_wins_over_RestoreV6Defaults(bool restoreFirst)
+    {
+        // GH-5193: whichever order the two are called in
+        var options = new WolverineOptions();
+        if (restoreFirst) options.RestoreV6Defaults();
+        options.Durability.AlwaysProvisionOptionalSchemaObjects = true;
+        if (!restoreFirst) options.RestoreV6Defaults();
+
+        options.Durability.AlwaysProvisionOptionalSchemaObjects.ShouldBeTrue();
     }
 
     [Fact]

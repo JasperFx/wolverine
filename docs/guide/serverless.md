@@ -130,13 +130,9 @@ using var host = await Host.CreateDefaultBuilder()
 
         // Optional. This is already 60 seconds under ServerlessWithOutbox
         opts.Durability.OutboxStaleTime = 1.Minutes();
-
-        // Optional. Adds an index on the outgoing envelope table's
-        // timestamp column for the durability pass to use
-        opts.Durability.EnableOutgoingTimestampIndex = true;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L85-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_serverless_with_outbox_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L85-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_serverless_with_outbox_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Here's what happens when a handler cascades a message in this mode:
@@ -210,21 +206,29 @@ inbox rows that no process ever claimed with those two stores.
 
 ### The Outgoing Timestamp Index
 
-To find the outbox rows whose inline send failed, the durability pass queries the outgoing envelope table by its `timestamp` column. If you
-expect a lot of rows in that table, you can opt into an index on that column with `DurabilitySettings.EnableOutgoingTimestampIndex`
-as shown in the sample above. That's off by default so that upgrading Wolverine doesn't change your database schema unless you
-ask it to. Every relational message store supports the index. RavenDb builds an auto index for that query on its own and Cosmos DB indexes every property by default, so the flag doesn't change anything for those two stores.
+To find the outbox rows whose inline send failed, the durability pass queries the outgoing envelope table by its `timestamp` column.
+Since Wolverine 7.0, every relational message store always creates a small index on that column for the pass to use, so there's
+nothing to turn on. RavenDb builds an auto index for that query on its own and Cosmos DB indexes every property by default.
+
+::: info
+In Wolverine 6.x this index was opt-in through `DurabilitySettings.EnableOutgoingTimestampIndex`. That flag is gone in 7.0. If you call
+`opts.RestoreV6Defaults()` or set `opts.Durability.AlwaysProvisionOptionalSchemaObjects = false`, the index isn't created.
+:::
 
 ### Moving an Existing Database to ServerlessWithOutbox
 
-That `timestamp` column isn't always there. The relational message stores only add a `timestamp` column to the outgoing
-envelope table when `OutboxStaleTime` has a value, and to the incoming envelope table when `InboxStaleTime` has a value.
-Since `ServerlessWithOutbox` gives both of those a default, switching an existing application over to this mode is a
-schema change to your message storage, even if you never touch either setting yourself.
+Since Wolverine 7.0, the relational message stores always create the `timestamp` column on the incoming and outgoing envelope tables,
+whether or not `InboxStaleTime` or `OutboxStaleTime` have a value. Once your message storage has been migrated to Wolverine 7, switching
+an existing application over to `ServerlessWithOutbox` doesn't change your database schema at all.
 
-If Wolverine is allowed to migrate the message storage at startup, you won't notice anything. But a lot of folks
-running in serverless functions turn that off with `AutoBuildMessageStorageOnStartup = AutoCreate.None` to keep
-migrations out of the cold start, and that's exactly the case to watch out for. With `AutoCreate.None`, Wolverine
+That's not true if you've turned that off with `opts.RestoreV6Defaults()` or `opts.Durability.AlwaysProvisionOptionalSchemaObjects = false`.
+Then the relational message stores only add a `timestamp` column to the outgoing envelope table when `OutboxStaleTime` has a value, and to
+the incoming envelope table when `InboxStaleTime` has a value. Since `ServerlessWithOutbox` gives both of those a default, switching an
+existing application over to this mode is a schema change to your message storage, even if you never touch either setting yourself.
+
+Either way, the first Wolverine 7 deployment is a schema change. If Wolverine is allowed to migrate the message storage at startup, you won't
+notice anything. But a lot of folks running in serverless functions turn that off with `AutoBuildMessageStorageOnStartup = AutoCreate.None`
+to keep migrations out of the cold start, and that's exactly the case to watch out for. With `AutoCreate.None`, Wolverine
 only logs a warning at startup that the message storage is out of date and leaves your schema alone. The durability pass
 reads and updates that `timestamp` column to find and recover the stale outbox rows, so that part of the pass fails every
 single time until the schema is migrated, and the messages whose inline send failed are never recovered.

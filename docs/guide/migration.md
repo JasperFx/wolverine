@@ -38,6 +38,7 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `NatsTransportConfiguration.TrustTenantIdHeader` | `true`: a tenant-aware listener takes the tenant from the `tenant-id` header | not trusted: the tenant comes from the connection or subject prefix the message arrived on | `nats.TrustTenantIdHeader = true` | `NatsTenantIdHeaderTests` |
 | `DurabilitySettings.MessageDeduplicationMode` | `None`: no deduplication table | `CompareByHash`: every message store provisions `wolverine_deduplication_hashed` and its cleanup job | `opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None` | `restore_v6_defaults_tests` |
 | `DurabilitySettings.EnableDeduplicatedResponses` | `false` | `true`: every message store provisions `wolverine_deduplicated_responses` and its cleanup job | `opts.Durability.EnableDeduplicatedResponses = false` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.AlwaysProvisionOptionalSchemaObjects` | not there (new in 7.0; `EnableOutgoingTimestampIndex` is removed): the inbox/outbox `timestamp` columns only exist with `InboxStaleTime`/`OutboxStaleTime`, `wolverine_nodes.load_factor` only with `CapacityAwareAssignment`, and the outbox stale index only with `EnableOutgoingTimestampIndex` | `true`: the relational stores always create all four, a one-time additive migration on first start; reading and writing them stays opt-in | `opts.Durability.AlwaysProvisionOptionalSchemaObjects = false` | `restore_v6_defaults_tests` |
 
 ### Wolverine.Http defaults that changed in 7.0
 
@@ -134,6 +135,38 @@ store decides which tables it owns when it is constructed and initialized, befor
 The `resources setup` and `db-apply` commands build the schema without discovering handlers at all. And an HTTP
 endpoint mapped from a `Startup` class can be discovered after the storage has already migrated. Creating the tables
 on use would have left a pre-provisioned database without the table a `[Deduplicated]` handler needs.
+
+### Optional message storage schema objects are always created in 7.0
+
+Wolverine 7 always creates a handful of small, additive schema objects in the relational message stores
+(PostgreSQL, SQL Server, MySQL, Oracle and SQLite), whether or not you use the feature that reads them:
+
+* the `timestamp` column on the incoming envelope table (used by `DurabilitySettings.InboxStaleTime`)
+* the `timestamp` column on the outgoing envelope table (used by `DurabilitySettings.OutboxStaleTime`)
+* the index on the outgoing `timestamp` column for the `ServerlessWithOutbox` durability pass
+* the nullable `load_factor` column on `wolverine_nodes` (used by `DurabilitySettings.CapacityAwareAssignment`)
+
+Only the schema changed. Nothing reads or writes these objects unless its own setting is on, so the behavior stays
+opt-in. What you get is that turning on one of those settings later is a configuration change, not a schema migration.
+
+`DurabilitySettings.EnableOutgoingTimestampIndex` is gone, because the index is always there now. Remove the line.
+
+What to watch for on the upgrade:
+
+* The first Wolverine 7 node migrates the message storage. If you run with
+  `AutoBuildMessageStorageOnStartup = AutoCreate.None`, apply the migration with `dotnet run -- resources setup` (or
+  your own migration process) as part of the deployment, and expect a schema check to report these objects as missing
+  until you do.
+* Wolverine stopped dropping unknown columns from its envelope and queue tables in 6.50. Every application sharing the
+  same message storage schema has to be on 6.50 or later before the first 7.0 node starts, or an older node could drop
+  the new columns again.
+* On PostgreSQL the outgoing `timestamp` column defaults to `clock_timestamp()`, which is volatile, so adding it to an
+  existing table rewrites that table under an exclusive lock. That's quick for a typical outbox, but if yours has a
+  large backlog, migrate while it is drained.
+
+To keep the 6.x layout, call `opts.RestoreV6Defaults()` or set
+`opts.Durability.AlwaysProvisionOptionalSchemaObjects = false`. Each column is then only created when its setting is
+on, and the outgoing timestamp index isn't created.
 
 ### `.NET 9.0` support dropped (BREAKING)
 

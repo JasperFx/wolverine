@@ -29,14 +29,16 @@ internal class OutgoingEnvelopeTable : Table
 
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
 
-        if (durability.OutboxStaleTime.HasValue)
+        // GH-5193: always created (unless AlwaysProvisionOptionalSchemaObjects is off), whether or not
+        // OutboxStaleTime is set; only the statements that read and write it follow OutboxStaleTime
+        if (durability.ProvisionsOutgoingTimestamp)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp)
                 .DefaultValueByExpression(TimestampDefault);
 
-            // GH-5016: opt-in, for the stale owner-0 predicate of a ServerlessWithOutbox durability pass
+            // GH-5016 / GH-5193: always created since 7.0, for the stale owner-0 predicate of a ServerlessWithOutbox durability pass
             // (`owner_id = 0 and timestamp <= @stale`). Partial on unowned rows, which are all it ever reads
-            if (durability.EnableOutgoingTimestampIndex)
+            if (durability.ProvisionsOutgoingTimestampIndex)
             {
                 Indexes.Add(new IndexDefinition(PostgresqlIdentifier.Shorten($"idx_{DatabaseConstants.OutgoingTable}_stale"))
                 {
