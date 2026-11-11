@@ -15,7 +15,7 @@ public class envelope_username_tracking
         {
             opts.DisableConventionalDiscovery();
             opts.IncludeType(typeof(UserNameTrackingHandler));
-            opts.EnableRelayOfUserName = true;
+            // EnableRelayOfUserName is on by default from 7.0 (GH-5520), so this proves the default end to end
 
             opts.Publish(x =>
             {
@@ -53,7 +53,8 @@ public class envelope_username_tracking
         {
             opts.DisableConventionalDiscovery();
             opts.IncludeType(typeof(UserNameTrackingHandler));
-            // EnableRelayOfUserName defaults to false
+            // EnableRelayOfUserName defaults to true from 7.0 (GH-5520)
+            opts.EnableRelayOfUserName = false;
 
             opts.Publish(x =>
             {

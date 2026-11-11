@@ -30,15 +30,19 @@ And then adding a policy to the `WolverineHttpOptions` like this code from the F
 ```cs
 /// <summary>
 ///     Apply Fluent Validation middleware to all Wolverine HTTP endpoints with a known Fluent Validation
-///     validator for the request type
+///     validator for the request type. From Wolverine 7.0 this is the default whenever
+///     <c>UseFluentValidation()</c> is called, so calling it is only needed after <c>RestoreV6Defaults()</c>.
+///     Calling it more than once applies the middleware once.
 /// </summary>
 /// <param name="httpOptions"></param>
 public static void UseFluentValidationProblemDetailMiddleware(this WolverineHttpOptions httpOptions)
 {
+    if (httpOptions.Policies.OfType<HttpChainFluentValidationPolicy>().Any()) return;
+
     httpOptions.AddPolicy<HttpChainFluentValidationPolicy>();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.FluentValidation/WolverineHttpOptionsExtensions.cs#L7-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_usage_of_http_add_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.FluentValidation/WolverineHttpOptionsExtensions.cs#L7-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_usage_of_http_add_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or lastly through lambdas (which creates an `IHttpPolicy` object behind the scenes):

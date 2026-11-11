@@ -100,6 +100,12 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     /// </summary>
     internal bool ApplyCorrelationIdHeaderToAllEndpoints { get; set; }
 
+    /// <summary>
+    /// GH-5520. Mirrors <see cref="WolverineHttpOptions.UserNameClaimType"/>; transferred before endpoint discovery,
+    /// like <see cref="ApplyCorrelationIdHeaderToAllEndpoints"/>.
+    /// </summary>
+    internal string? UserNameClaimType { get; set; }
+
     private int _warnedAboutLenientQueryBinding;
 
     /// <summary>

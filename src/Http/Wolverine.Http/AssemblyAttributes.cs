@@ -32,4 +32,6 @@ using JasperFx.Core.TypeScanning;
 [assembly: InternalsVisibleTo("Wolverine.Http.Marten")]
 [assembly: InternalsVisibleTo("Wolverine.Http.Polecat")]
 [assembly: InternalsVisibleTo("Wolverine.Http.Fisher")]
+// GH-5520: WolverineFx.Http.FluentValidation contributes its 7.0 default through IHttpVersionDefaults
+[assembly: InternalsVisibleTo("Wolverine.Http.FluentValidation")]
 [assembly: IgnoreAssembly]

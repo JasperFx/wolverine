@@ -115,6 +115,9 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `WolverineHttpOptions.MapConcurrencyFailuresToConflict()` | off: a concurrency failure escapes as a 500 | on for the transactional endpoints: 409 with ProblemDetails, advertised in OpenAPI (under Marten 9.x, the exclusive-lock failure only with `MapMartenConcurrencyFailuresToConflict()`) | `opts.DoNotMapConcurrencyFailuresToConflict()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
 | `WolverineHttpOptions.MapUnknownTenantToNotFound()` | off: `UnknownTenantIdException` escapes as a 500 | on for the tenanted endpoints: 404 with ProblemDetails, advertised in OpenAPI | `opts.DoNotMapUnknownTenantToNotFound()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
 | `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` | `false` | `true`: the `X-Correlation-ID` header reaches every endpoint, and the events it appends | `opts.ApplyCorrelationIdHeaderToAllEndpoints = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `WolverineHttpOptions.RejectUnparseableHeaderValues` | `false`: an unparseable `[FromHeader]` value binds the parameter's default | `true`: it answers 400 with ProblemDetails, matching `RejectUnparseableQueryValues` | `opts.RejectUnparseableHeaderValues = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| FluentValidation ProblemDetails for HTTP (`WolverineFx.Http.FluentValidation`) | off unless `UseFluentValidationProblemDetailMiddleware()` is called as well as `UseFluentValidation()` | on wherever `UseFluentValidation()` is called: a failed validator answers 400 with `ValidationProblemDetails`. `UseFluentValidationProblemDetailMiddleware()` still works and is no longer needed | `opts.DoNotUseFluentValidationProblemDetailMiddleware()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `WolverineOptions.EnableRelayOfUserName` | `false` | `true`: the authenticated HTTP user is relayed onto the message context, the outboxed Marten, Polecat or Fisher session, and **the `user-name` header of every message sent, to every transport**. `WolverineHttpOptions.UserNameClaimType` names the claim when `Identity.Name` is null | `opts.EnableRelayOfUserName = false` | `restore_v6_defaults_tests` |
 | `PushReceiverOptions.DeduplicateWithInbox` | `false` | `true` when the application has a message store | `o.DeduplicateWithInbox = false` in `MapWolverinePushReceiver()` | `push_receiver_5016` |
 | `BrokerTransport.TenantedIdBehavior` (RabbitMQ, Azure Service Bus, SQS, SNS, Kafka, GCP Pub/Sub, Redis, NATS; also MQTT, MQTT 5 and Pulsar) | `FallbackToDefault`: a message for an unregistered tenant id goes to the default broker | `DeadLetterUnknownTenants`: it goes to dead letter storage and is sent nowhere | `.TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)` (`ConfigureMultiTenancy(...)` on Redis and NATS) | `restore_v6_broker_tenancy_defaults` |
 | `NatsTransportConfiguration.TrustTenantIdHeader` | `true`: a tenant-aware listener takes the tenant from the `tenant-id` header | not trusted: the tenant comes from the connection or subject prefix the message arrived on | `nats.TrustTenantIdHeader = true` | `NatsTenantIdHeaderTests` |
@@ -134,8 +137,9 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 
 ### Wolverine.Http defaults that changed in 7.0
 
-Five Wolverine.Http defaults flipped in 7.0 (GH-5195). They are the rows of the table above that name
-`WolverineHttpOptions` or `PushReceiverOptions`, and `RestoreV6Defaults()` puts back all five:
+Seven Wolverine.Http defaults flipped in 7.0 (GH-5195, GH-5520). They are the rows of the table above that name
+`WolverineHttpOptions`, `PushReceiverOptions` or FluentValidation ProblemDetails, and `RestoreV6Defaults()` puts back
+all seven. The user name relay, a core setting, is [below](#the-user-name-travels-with-every-message-by-default).
 
 - **Strict query string binding.** A query string value that is present but cannot be parsed, such as `?page=abc` on an
   `int page` parameter, now answers 400 with a ProblemDetails naming the parameter, as MVC and minimal APIs do. In 6.x it
@@ -143,6 +147,17 @@ Five Wolverine.Http defaults flipped in 7.0 (GH-5195). They are the rows of the 
   modes. See [query string binding](/guide/http/querystring). F# code generation does not support strict binding yet,
   so an application that pre-generates F# code for an endpoint with a parsed query string parameter has to set
   `RejectUnparseableQueryValues = false`.
+- **Strict header binding.** A `[FromHeader]` value that is present but cannot be parsed, such as `x-count: abc` on
+  an `int` parameter, now answers 400 with a ProblemDetails naming the header, matching query string binding. In 6.x it
+  bound the parameter's default value. A missing header still binds the default, and `string` headers are never
+  rejected. F# code generation does not support it yet, so an application that pre-generates F# code for an endpoint
+  with a parsed header parameter has to set `RejectUnparseableHeaderValues = false`. See [headers](/guide/http/headers).
+- **FluentValidation ProblemDetails is automatic.** With `WolverineFx.Http.FluentValidation` referenced, calling
+  `UseFluentValidation()` now also applies the HTTP validation middleware, so an endpoint whose request type has a
+  validator answers 400 with `ValidationProblemDetails` when it fails. `UseFluentValidationProblemDetailMiddleware()`
+  is no longer needed; it still works, and the middleware is applied once either way. With
+  `ExtensionDiscovery.ManualOnly`, call `UseFluentValidationProblemDetail()` in `UseWolverine()` as before. See
+  [validation](/guide/http/validation).
 - **Concurrency failures answer 409.** The commit-time concurrency failures (`JasperFx.ConcurrencyException` and
   everything deriving from it, which since JasperFx 3.0 includes `JasperFx.Events.StreamLockedException`, plus
   `JasperFx.Events.ExistingStreamIdCollisionException` from a `StartStream` whose id is already taken) on a
@@ -160,6 +175,31 @@ Five Wolverine.Http defaults flipped in 7.0 (GH-5195). They are the rows of the 
 - **Push receivers deduplicate with the inbox.** When the application has a message store, a push receiver now claims
   each message id in the durable inbox, so a redelivery is recognized instead of run again. See
   [serverless](/guide/serverless).
+
+### The user name travels with every message by default
+
+`WolverineOptions.EnableRelayOfUserName` is `true` from 7.0 (GH-5520); it was `false` throughout 6.x. On every HTTP
+endpoint with a message context, Wolverine now copies the authenticated user (`ClaimsPrincipal.Identity.Name`) onto
+`IMessageContext.UserName`, onto the outboxed Marten, Polecat or Fisher session (`LastModifiedBy` or `CurrentUserName`)
+and onto the `enduser.id` tag of the request's span.
+
+**That means the user name now travels in the `user-name` header of every message the request sends, to every
+transport** (RabbitMQ, Azure Service Bus, SQS, SNS, Kafka, the database queues and the rest), and is stored with it in
+the durable outbox. Downstream services see it too. If the user name is personal data that should not leave the
+service, turn the relay off:
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    opts.EnableRelayOfUserName = false;
+});
+```
+
+`opts.RestoreV6Defaults()` turns it off as well, and an explicit setting wins over both.
+
+`Identity.Name` is null for some tokens, Auth0 access tokens among them, and then nothing is relayed. Name the claim
+that identifies the user with `WolverineHttpOptions.UserNameClaimType`, for example `opts.UserNameClaimType = "sub";` in
+`MapWolverineEndpoints()`. See [tracking the user name](/guide/http/security#tracking-user-name).
 
 Two related behaviors need no action. `DefaultClaimInTransaction` stays opt-in. And since 6.51.2, a query string, header
 or form value that is omitted binds the parameter's declared default (`int limit = 50` binds 50, not 0); that change

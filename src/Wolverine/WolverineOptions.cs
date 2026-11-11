@@ -440,10 +440,21 @@ public sealed partial class WolverineOptions
     /// integration (LastModifiedBy, or CurrentUserName on Fisher)
     /// </summary>
     /// <remarks>
-    /// Applies to every HTTP endpoint with a message context, including ones that only open an
-    /// outboxed session.
+    /// <para>Applies to every HTTP endpoint with a message context, including ones that only open an
+    /// outboxed session.</para>
+    /// <para><b>On by default from Wolverine 7.0</b> (GH-5520); off throughout 6.x. That means the user name
+    /// travels in the <c>user-name</c> header (<see cref="EnvelopeConstants.UserNameKey"/>) of every message
+    /// sent from a context that has one, to every transport. Set this to false, or call
+    /// <see cref="RestoreV6Defaults"/>, to keep it off; an explicit setting wins over both. Which claim is the
+    /// user is <c>WolverineHttpOptions.UserNameClaimType</c> in Wolverine.Http.</para>
     /// </remarks>
-    public bool EnableRelayOfUserName { get; set; }
+    public bool EnableRelayOfUserName
+    {
+        get => _enableRelayOfUserName ?? !V6DefaultsRestored;
+        set => _enableRelayOfUserName = value;
+    }
+
+    private bool? _enableRelayOfUserName;
 
     /// <summary>
     /// Controls how much tracing and logging is applied to InvokeAsync() calls.
