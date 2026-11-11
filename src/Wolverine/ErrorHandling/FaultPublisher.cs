@@ -45,13 +45,9 @@ internal sealed class FaultPublisher : IFaultPublisher
 
         var messageType = original.Message.GetType();
 
-        // GH-5146: everything that depends only on the message type -- the recursion guard, the value-type
-        // check, the Fault<T> constructor and the message type name -- is worked out once per type.
-        var shape = _shapes.GetOrAdd(messageType, FaultShape.For);
-
         // Recursion guard: never publish a Fault<Fault<T>>. A failed Fault<T>
         // subscriber falls through to the standard failure pipeline instead.
-        if (shape.IsFault)
+        if (messageType.IsGenericType && messageType.GetGenericTypeDefinition() == typeof(Fault<>))
         {
             _logger.LogDebug(
                 "Suppressed auto-publish of Fault<{MessageType}> — message is itself a Fault<T> (recursion guard); envelope {EnvelopeId}",
@@ -61,7 +57,7 @@ internal sealed class FaultPublisher : IFaultPublisher
         }
 
         // Silent no-op for value-type messages — Fault<T> requires `T : class`.
-        if (shape.Constructor is null) return;
+        if (messageType.IsValueType) return;
 
         var decision = _policy.Resolve(messageType);
 
@@ -70,6 +66,10 @@ internal sealed class FaultPublisher : IFaultPublisher
 
         try
         {
+            // GH-5146: the Fault<T> constructor and the message type name are worked out once per message
+            // type, and only once a fault is actually going to be published
+            var shape = _shapes.GetOrAdd(messageType, FaultShape.For);
+
             var exceptionInfo = ExceptionInfo.From(
                 exception,
                 decision.IncludeExceptionMessage,
@@ -129,34 +129,21 @@ internal sealed class FaultPublisher : IFaultPublisher
             typeof(string), typeof(string), typeof(IReadOnlyDictionary<string, string?>)
         ];
 
-        private FaultShape(bool isFault, ConstructorInvoker? constructor, string messageTypeName)
+        private readonly ConstructorInvoker _constructor;
+
+        private FaultShape(ConstructorInvoker constructor, string messageTypeName)
         {
-            IsFault = isFault;
-            Constructor = constructor;
+            _constructor = constructor;
             MessageTypeName = messageTypeName;
         }
 
-        public bool IsFault { get; }
-
-        /// <summary>
-        ///     Null when no Fault&lt;T&gt; can be built for the type: a value type, or a Fault&lt;T&gt; itself.
-        /// </summary>
-        public ConstructorInvoker? Constructor { get; }
-
         public string MessageTypeName { get; }
 
+        // Only called for a reference type that is not itself a Fault<T>; PublishIfEnabledAsync filters both
         public static FaultShape For(Type messageType)
         {
-            var name = messageType.ToMessageTypeName();
-
-            if (messageType.IsGenericType && messageType.GetGenericTypeDefinition() == typeof(Fault<>))
-            {
-                return new FaultShape(true, null, name);
-            }
-
-            if (messageType.IsValueType) return new FaultShape(false, null, name);
-
-            return new FaultShape(false, ConstructorInvoker.Create(findConstructor(messageType)), name);
+            return new FaultShape(ConstructorInvoker.Create(findConstructor(messageType)),
+                messageType.ToMessageTypeName());
         }
 
         // Reflective construction is fine: this only fires on terminal failures, never on the hot path.
@@ -183,7 +170,7 @@ internal sealed class FaultPublisher : IFaultPublisher
                 FilterEncryptionHeaders(envelope.Headers)
             };
 
-            return Constructor!.Invoke(arguments.AsSpan());
+            return _constructor.Invoke(arguments.AsSpan());
         }
     }
 

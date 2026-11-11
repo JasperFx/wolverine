@@ -330,8 +330,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                     if (!agent.IsDurable)
                     {
                         Runtime.Logger.LogError(results[i].Exception,
-                            "Unable to send outgoing message {Envelope} inline to non-durable destination {Destination}, so it has been discarded",
-                            envelope, envelope.Destination);
+                            "Unable to send outgoing message {Name}#{Id} inline to non-durable destination {Destination}, so it has been discarded",
+                            envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
                         Runtime.MessageTracking.DiscardedEnvelope(envelope);
                         continue;
                     }
@@ -343,16 +343,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                     if (Runtime.Options.Durability.Mode != DurabilityMode.ServerlessWithOutbox)
                     {
                         Runtime.Logger.LogError(results[i].Exception,
-                            "Unable to send outgoing message {Envelope} inline to {Destination}. Handing it to the destination's sending agent to retry",
-                            envelope, envelope.Destination);
+                            "Unable to send outgoing message {Name}#{Id} inline to {Destination}. Handing it to the destination's sending agent to retry",
+                            envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
 
                         await flushEnvelopeAsync(envelope).ConfigureAwait(false);
                         continue;
                     }
 
                     Runtime.Logger.LogError(results[i].Exception,
-                        "Unable to send outgoing message {Envelope} inline to {Destination}. It is left in the outbox to be recovered by a later durability pass",
-                        envelope, envelope.Destination);
+                        "Unable to send outgoing message {Name}#{Id} inline to {Destination}. It is left in the outbox to be recovered by a later durability pass",
+                        envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
 
                     if (!alreadyPersisted)
                     {
@@ -380,8 +380,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         catch (Exception e)
         {
             Runtime.Logger.LogError(e,
-                "Unable to store unsent outgoing message {Envelope} in the outbox, so it has been discarded",
-                envelope);
+                "Unable to store unsent outgoing message {Name}#{Id} in the outbox, so it has been discarded",
+                envelope.GetMessageTypeName(), envelope.Id);
             Runtime.MessageTracking.DiscardedEnvelope(envelope);
         }
     }
@@ -516,8 +516,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             // reach this catch. It can now, and an unreachable message store is the more common cause
             // of the two, so name both -- and name the envelope, which this never did.
             Runtime.Logger.LogError(e,
-                "Unable to send outgoing message {Envelope}, so it has been discarded. This is usually either a serialization failure or an unreachable message store",
-                envelope);
+                "Unable to send outgoing message {Name}#{Id}, so it has been discarded. This is usually either a serialization failure or an unreachable message store",
+                envelope.GetMessageTypeName(), envelope.Id);
             Runtime.MessageTracking.DiscardedEnvelope(envelope);
         }
 

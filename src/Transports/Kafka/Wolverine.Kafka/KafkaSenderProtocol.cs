@@ -64,8 +64,8 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
             catch (Exception e)
             {
                 Logger.LogError(e,
-                    "Error while mapping envelope {Envelope} to a Kafka message for {Uri}. It can never be sent, so it is reported as a serialization failure",
-                    envelope, _topic.Uri);
+                    "Error while mapping envelope {Name}#{Id} to a Kafka message for {Uri}. It can never be sent, so it is reported as a serialization failure",
+                    envelope.MessageType, envelope.Id, _topic.Uri);
                 (unmappable ??= new()).Add(envelope);
             }
         }
