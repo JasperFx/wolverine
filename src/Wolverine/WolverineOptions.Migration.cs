@@ -62,10 +62,10 @@ public sealed partial class WolverineOptions
         // the EnvelopeIdGeneration getter reads V6DefaultsRestored, so an explicit setting still wins and a SQL
         // Server-only application still switches to NewIdSqlServerOrder at startup, as it did in 6.x.
 
-        // GH-5200: three more core defaults read the flags set above when they are resolved, so an explicit setting
-        // still wins: Durability.CompressAgentCommands (on in 7.0), GroupByGroupId() for a batch whose element type
-        // is in a partitioned topology (resolved at startup) and the in-memory idempotency guard on NativeAck
-        // endpoints (resolved in Endpoint.Compile()).
+        // GH-5200: two more core defaults read the flags set above when they are resolved, so an explicit setting
+        // still wins: Durability.CompressAgentCommands (on in 7.0) and GroupByGroupId() for a batch whose element
+        // type is in a partitioned topology (resolved at startup). The in-memory idempotency guard on NativeAck
+        // endpoints stays opt-in in 7.0 (see Endpoint.Compile()).
 
         // GH-5201: three transport defaults read V6DefaultsRestored when the transport starts: SQS
         // ExtendVisibilityWhileHandling, Kafka idempotent producers and RabbitMQ DrainWaitForPrefetch.
