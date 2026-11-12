@@ -112,6 +112,32 @@ internal class LeaseRenewalTracker : IAsyncDisposable
     }
 
     /// <summary>
+    ///     GH-5533. A redelivery of a message whose original delivery is still in flight has arrived and is being
+    ///     held unsettled until the original finishes. On a clocked broker the redelivery carries the LIVE handle
+    ///     -- SQS's newest receipt handle, a fresh Service Bus lock, a new Pub/Sub ack id -- and the original's is
+    ///     stale or about to be, so from here on it is the held copy whose lease has to be kept alive. Without this
+    ///     the held copy would time out too, be redelivered again, and on SQS or Service Bus count towards the
+    ///     receive limit that dead-letters a message that is being handled perfectly well.
+    /// </summary>
+    /// <remarks>
+    ///     Keyed by id like everything else here, so this replaces the original's entry rather than adding one.
+    ///     The original's lost-lease state (in <c>_lost</c>) is left alone on purpose: it still tells the receiver
+    ///     not to defer the original, which is right, because the held copy is the one that gets settled.
+    /// </remarks>
+    public void Adopt(Envelope duplicate)
+    {
+        if (duplicate.Listener is not ISupportLeaseRenewal renewal) return;
+
+        var hasStarted = _inFlight.TryGetValue(duplicate.Id, out var existing) && existing.HasStarted;
+        var replacement = new Tracked(duplicate, renewal, duplicate.ReceivedAt ?? DateTimeOffset.UtcNow)
+        {
+            HasStarted = hasStarted
+        };
+
+        _inFlight[duplicate.Id] = replacement;
+    }
+
+    /// <summary>
     ///     The gate in front of <c>Pipeline.InvokeAsync</c>. Returns false when this envelope's lease is already
     ///     gone and it must be dropped -- neither completed nor deferred. Returns true otherwise, and atomically
     ///     marks the envelope as executing so a lease lost from here on is classified as realized duplication

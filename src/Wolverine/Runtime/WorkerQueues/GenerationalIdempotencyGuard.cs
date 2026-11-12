@@ -22,7 +22,9 @@ namespace Wolverine.Runtime.WorkerQueues;
 /// In-flight ids are tracked separately from processed ids so that a duplicate arriving <i>while</i> the
 /// original is still executing is dropped rather than queued up to run again. In-flight ids are generational
 /// too, purely as a leak stop: every receiver path releases what it claims, but an id that somehow never
-/// reaches a terminal still ages out instead of accumulating forever.
+/// reaches a terminal still ages out instead of accumulating forever. The one exception is an in-flight id
+/// that is holding duplicate deliveries (GH-5533): those deliveries are unsettled broker messages that only the
+/// original's terminal will settle, so the entry is carried into the new generation rather than forgotten.
 /// </para>
 ///
 /// <para>
@@ -40,10 +42,13 @@ internal class GenerationalIdempotencyGuard : IIncomingIdempotencyGuard
     private readonly Func<DateTimeOffset> _now;
     private readonly TimeSpan _rotation;
 
-    private HashSet<IdempotencyKey> _currentInFlight = new();
+    // GH-5533. The value is the list of duplicate deliveries held while the key is in flight, null (the
+    // common case) when there are none. Held deliveries are deliberately unsettled, and are handed back to the
+    // caller by MarkProcessed / Release so they settle with the original's outcome.
+    private Dictionary<IdempotencyKey, List<Envelope>?> _currentInFlight = new();
     private HashSet<IdempotencyKey> _currentProcessed = new();
     private DateTimeOffset _nextRotation;
-    private HashSet<IdempotencyKey> _previousInFlight = new();
+    private Dictionary<IdempotencyKey, List<Envelope>?> _previousInFlight = new();
     private HashSet<IdempotencyKey> _previousProcessed = new();
 
     // GH-4199. Instruments alongside plain counters, matching LeaseRenewalTracker: tests and a debugger read
@@ -127,7 +132,25 @@ internal class GenerationalIdempotencyGuard : IIncomingIdempotencyGuard
         }
     }
 
+    /// <summary>Number of duplicate deliveries currently held unsettled behind an in-flight original. Test seam.</summary>
+    internal int HeldCount
+    {
+        get
+        {
+            lock (_locker)
+            {
+                return _currentInFlight.Values.Sum(x => x?.Count ?? 0) +
+                       _previousInFlight.Values.Sum(x => x?.Count ?? 0);
+            }
+        }
+    }
+
     public bool TryBeginProcessing(Envelope envelope)
+    {
+        return Claim(envelope, false) == IdempotencyClaim.Claimed;
+    }
+
+    public IdempotencyClaim Claim(Envelope envelope, bool holdIfInFlight)
     {
         var key = IdempotencyKey.For(envelope, _identity);
 
@@ -135,51 +158,93 @@ internal class GenerationalIdempotencyGuard : IIncomingIdempotencyGuard
         {
             rotateIfNecessary();
 
-            if (_currentInFlight.Contains(key) || _previousInFlight.Contains(key)
-                                               || _currentProcessed.Contains(key) ||
-                                               _previousProcessed.Contains(key))
+            if (_currentInFlight.TryGetValue(key, out var held) ||
+                _previousInFlight.TryGetValue(key, out held))
             {
-                // GH-4199: counted here rather than at each caller's drop site so every receiver that uses a
-                // guard -- NativeAck, Inline, Buffered -- reports without having to remember to.
-                DuplicatesSuppressed++;
-                _suppressedCounter?.Add(1, _tags);
-                return false;
+                if (holdIfInFlight)
+                {
+                    // Store the list back into whichever generation owns the key; rotation carries a holding
+                    // entry forward, so it is never dropped with these deliveries inside it.
+                    if (held == null)
+                    {
+                        held = new List<Envelope>(1);
+                        if (_currentInFlight.ContainsKey(key))
+                        {
+                            _currentInFlight[key] = held;
+                        }
+                        else
+                        {
+                            _previousInFlight[key] = held;
+                        }
+                    }
+
+                    held.Add(envelope);
+                }
+
+                countSuppressed();
+                return IdempotencyClaim.InFlight;
             }
 
-            _currentInFlight.Add(key);
-            return true;
+            if (_currentProcessed.Contains(key) || _previousProcessed.Contains(key))
+            {
+                countSuppressed();
+                return IdempotencyClaim.AlreadyProcessed;
+            }
+
+            _currentInFlight.Add(key, null);
+            return IdempotencyClaim.Claimed;
         }
     }
 
-    public void MarkProcessed(Envelope envelope)
+    // GH-4199: counted here rather than at each caller's drop site so every receiver that uses a guard --
+    // NativeAck, Inline, Buffered -- reports without having to remember to.
+    private void countSuppressed()
+    {
+        DuplicatesSuppressed++;
+        _suppressedCounter?.Add(1, _tags);
+    }
+
+    public IReadOnlyList<Envelope> MarkProcessed(Envelope envelope)
     {
         var key = IdempotencyKey.For(envelope, _identity);
 
         lock (_locker)
         {
-            _currentInFlight.Remove(key);
-            _previousInFlight.Remove(key);
+            var held = removeInFlight(key);
 
             _currentProcessed.Add(key);
 
             rotateIfNecessary();
+
+            return held;
         }
     }
 
-    public void Release(Envelope envelope)
+    public IReadOnlyList<Envelope> Release(Envelope envelope)
     {
         var key = IdempotencyKey.For(envelope, _identity);
 
         lock (_locker)
         {
-            _currentInFlight.Remove(key);
-            _previousInFlight.Remove(key);
+            var held = removeInFlight(key);
 
             // Deliberately also removes any processed record of this id. The failure path means the broker
             // is going to redeliver, and remembering the id would silently discard the retry.
             _currentProcessed.Remove(key);
             _previousProcessed.Remove(key);
+
+            return held;
         }
+    }
+
+    private IReadOnlyList<Envelope> removeInFlight(IdempotencyKey key)
+    {
+        _currentInFlight.Remove(key, out var current);
+        _previousInFlight.Remove(key, out var previous);
+
+        if (current == null) return (IReadOnlyList<Envelope>?)previous ?? [];
+        if (previous != null) current.AddRange(previous);
+        return current;
     }
 
     private void rotateIfNecessary()
@@ -204,8 +269,20 @@ internal class GenerationalIdempotencyGuard : IIncomingIdempotencyGuard
         _previousProcessed = _currentProcessed;
         _currentProcessed = new HashSet<IdempotencyKey>();
 
+        // GH-5533. An entry still holding duplicate deliveries survives the drop of the old previous generation:
+        // those are unsettled broker messages, and forgetting the entry would leave them unsettled until the
+        // channel closes or the lease runs out. Bounded by the broker's prefetch window, like the holds.
+        var nextInFlight = new Dictionary<IdempotencyKey, List<Envelope>?>();
+        foreach (var pair in _previousInFlight)
+        {
+            if (pair.Value is { Count: > 0 } && !_currentInFlight.ContainsKey(pair.Key))
+            {
+                nextInFlight[pair.Key] = pair.Value;
+            }
+        }
+
         _previousInFlight = _currentInFlight;
-        _currentInFlight = new HashSet<IdempotencyKey>();
+        _currentInFlight = nextInFlight;
 
         _nextRotation = now.Add(_rotation);
     }

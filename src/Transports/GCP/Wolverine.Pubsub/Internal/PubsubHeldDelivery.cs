@@ -81,6 +81,19 @@ internal sealed class PubsubHeldDeliveries
 {
     public const string DeliveryKeyHeader = "wolverine-pubsub-delivery";
 
+    /// <summary>
+    /// GH-5533. A key for ONE delivery. Not the Pub/Sub message id on its own: a redelivery of a message that is
+    /// still being held carries the same message id, and keying by it let the redelivery's hold overwrite the
+    /// original's -- the original's settle then resolved the redelivery's callback, and the original's callback
+    /// was never resolved at all. With the in-memory idempotency guard a redelivery like that is held open
+    /// until its original finishes, so the two deliveries have to be told apart.
+    /// </summary>
+    public static string KeyFor(string? messageId)
+    {
+        var unique = Guid.NewGuid().ToString("N");
+        return string.IsNullOrEmpty(messageId) ? unique : $"{messageId}/{unique}";
+    }
+
     private readonly ConcurrentDictionary<string, PubsubHeldDelivery> _held = new();
 
     public PubsubHeldDelivery Hold(string key, int envelopeCount)

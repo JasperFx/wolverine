@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using System.Collections.Concurrent;
 using DotPulsar;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,6 +7,7 @@ using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.ComplianceTests;
 using Wolverine.Runtime;
+using Wolverine.Transports;
 using Xunit;
 
 namespace Wolverine.Pulsar.Tests;
@@ -24,6 +26,7 @@ public static class PulsarNativeAckTracking
     private static readonly ConcurrentDictionary<string, ConcurrentBag<int>> _handled = new();
     private static readonly ConcurrentDictionary<string, ConcurrentBag<int>> _started = new();
     private static readonly ConcurrentDictionary<string, byte> _parked = new();
+    private static readonly ConcurrentDictionary<string, TaskCompletionSource> _gates = new();
 
     /// <summary>
     /// Cancelling this releases parked handlers into an exception rather than into a completion, so a delivery
@@ -51,6 +54,22 @@ public static class PulsarNativeAckTracking
     public static bool IsParked(string batch)
     {
         return _parked.ContainsKey(batch);
+    }
+
+    /// <summary>
+    /// GH-5533. Park a batch's handlers behind a gate that can be opened, so they complete NORMALLY -- unlike
+    /// <see cref="Released"/>, which fails them -- once a redelivery has been put in front of the receiver.
+    /// </summary>
+    public static TaskCompletionSource GateHandlersFor(string batch)
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _gates[batch] = gate;
+        return gate;
+    }
+
+    public static Task GateFor(string batch)
+    {
+        return _gates.TryGetValue(batch, out var gate) ? gate.Task : Task.CompletedTask;
     }
 
     public static ConcurrentBag<int> Handled(string batch)
@@ -85,6 +104,8 @@ public class PulsarNativeAckWorkHandler
             // Stands in for a node that dies mid-flight: the handler never terminates, so nothing is ever acked.
             await Task.Delay(Timeout.InfiniteTimeSpan, PulsarNativeAckTracking.Released.Token);
         }
+
+        await PulsarNativeAckTracking.GateFor(message.Batch).WaitAsync(PulsarNativeAckTracking.Released.Token);
 
         PulsarNativeAckTracking.Handled(message.Batch).Add(message.Number);
     }
@@ -375,7 +396,108 @@ public class native_ack_mode : IAsyncLifetime
         PulsarNativeAckTracking.HandledInOrder(batch).ShouldBe(Enumerable.Range(100, 5));
     }
 
+    /// <summary>
+    /// GH-5533. The test above, with the in-memory idempotency guard ON. Stopping the first host asks Pulsar to
+    /// redeliver everything unacknowledged while the five originals are still parked, so the redeliveries reach
+    /// the same receiver as in-flight duplicates. The guard used to acknowledge them -- and a Pulsar redelivery
+    /// shares its MessageId with the original, so that ack settled all five at the broker and the second host
+    /// received none of them. An in-flight duplicate is now held unsettled instead.
+    /// </summary>
+    [Fact]
+    public async Task nothing_is_acked_until_the_handler_succeeds_so_a_draining_node_loses_nothing_with_the_idempotency_guard_on()
+    {
+        var batch = Guid.NewGuid().ToString("N");
+        var topic = uniqueTopic("nativeack-redelivery-guard");
+        var subscription = "sub-" + Guid.NewGuid().ToString("N");
+
+        PulsarNativeAckTracking.ParkHandlersFor(batch);
+
+        var firstHost = await startHostAsync(topic, subscription,
+            c => c.UseNativeRedelivery().WithInMemoryIdempotency());
+
+        for (var i = 0; i < 5; i++)
+        {
+            await firstHost.SendAsync(new PulsarNativeAckWork(batch, 100 + i));
+        }
+
+        await waitForStartedAsync(batch, 5);
+        PulsarNativeAckTracking.Started(batch).Distinct().OrderBy(x => x).ShouldBe(Enumerable.Range(100, 5));
+        PulsarNativeAckTracking.HandledInOrder(batch).ShouldBeEmpty();
+
+        await firstHost.StopAsync(TestContext.Current.CancellationToken);
+        firstHost.Dispose();
+
+        PulsarNativeAckTracking.HandledInOrder(batch).ShouldBeEmpty();
+
+        PulsarNativeAckTracking.StopParking(batch);
+
+        using var secondHost = await startHostAsync(topic, subscription,
+            c => c.UseNativeRedelivery().WithInMemoryIdempotency());
+
+        await waitForAsync(batch, 5);
+
+        PulsarNativeAckTracking.HandledInOrder(batch).ShouldBe(Enumerable.Range(100, 5));
+    }
+
+    /// <summary>
+    /// GH-5533. The other half: a redelivery that arrives while the original is in flight is held, and once the
+    /// original succeeds the held copy is settled too. Nothing runs twice, and nothing is left unacknowledged on
+    /// the subscription for the next consumer to pick up.
+    /// </summary>
+    [Fact]
+    public async Task an_in_flight_redelivery_is_held_then_settled_with_the_original()
+    {
+        var batch = Guid.NewGuid().ToString("N");
+        var topic = uniqueTopic("nativeack-inflight");
+        var subscription = "sub-" + Guid.NewGuid().ToString("N");
+
+        var gate = PulsarNativeAckTracking.GateHandlersFor(batch);
+
+        var firstHost = await startHostAsync(topic, subscription, c => c.WithInMemoryIdempotency());
+
+        for (var i = 0; i < 5; i++)
+        {
+            await firstHost.SendAsync(new PulsarNativeAckWork(batch, 200 + i));
+        }
+
+        await waitForStartedAsync(batch, 5);
+
+        // Redeliver all five while every original is parked in its handler
+        var runtime = firstHost.Services.GetRequiredService<IWolverineRuntime>();
+        var agent = (ListeningAgent)runtime.Endpoints.FindListeningAgent("native-ack-listener").ShouldNotBeNull();
+        var listener = agent.Listener.ShouldBeOfType<PulsarListener>();
+        await listener.RedeliverUnacknowledgedMessagesAsync();
+
+        // Give the redeliveries time to arrive and be (wrongly) handled or settled
+        await Task.Delay(2.Seconds(), TestContext.Current.CancellationToken);
+        PulsarNativeAckTracking.HandledInOrder(batch).ShouldBeEmpty();
+        PulsarNativeAckTracking.Started(batch).Count.ShouldBe(5);
+
+        gate.SetResult();
+        await waitForAsync(batch, 5);
+
+        await firstHost.StopAsync(TestContext.Current.CancellationToken);
+        firstHost.Dispose();
+
+        // A second consumer on the same subscription finds nothing left: every delivery, original and held
+        // redelivery alike, was settled
+        using var secondHost = await startHostAsync(topic, subscription, c => c.WithInMemoryIdempotency());
+        await Task.Delay(3.Seconds(), TestContext.Current.CancellationToken);
+
+        PulsarNativeAckTracking.Handled(batch).Count.ShouldBe(5);
+        PulsarNativeAckTracking.Started(batch).Count.ShouldBe(5);
+    }
+
     // ---- helpers ----
+
+    private static async Task waitForStartedAsync(string batch, int count)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(60);
+        while (PulsarNativeAckTracking.Started(batch).Distinct().Count() < count && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
+    }
 
     private static PulsarEndpoint endpointFor()
     {
