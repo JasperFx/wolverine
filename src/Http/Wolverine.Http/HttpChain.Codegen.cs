@@ -149,6 +149,15 @@ public partial class HttpChain
         Middleware.Insert(0, tags);
     }
 
+    private void readTheFormAfterTheAntiforgeryCheck()
+    {
+        var tags = Middleware.OfType<TagHttpHandlerFrame>().FirstOrDefault();
+        if (tags != null) ReadFormCollection.MustFollow(tags);
+
+        // 6.x has no in-endpoint antiforgery frame to follow: ASP.NET Core's antiforgery middleware validates
+        // before the endpoint runs. The in-endpoint check (AntiforgeryValidation) arrives with 7.0's GH-5147.
+    }
+
     internal IEnumerable<Frame> DetermineFrames(GenerationRules rules)
     {
         // Add frames for any writers
@@ -200,6 +209,11 @@ public partial class HttpChain
         // rejected request is the one an operator most wants grouped by route. The tags are constants or read
         // from the HttpContext, so they depend on nothing an earlier frame produces.
         moveSpanTagsToTheFront();
+
+        // GH-5463: the asynchronous form read is usually reached only as a variable, never in Middleware, and the
+        // arranger puts such a frame at the very front of the method. Keep it behind the span tags and the
+        // antiforgery check, where Request.Form used to be read.
+        readTheFormAfterTheAntiforgeryCheck();
 
         // Allow for immutable request types that get overwritten by middleware
         if (RequestBodyVariable != null)

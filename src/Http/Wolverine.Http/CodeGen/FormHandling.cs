@@ -3,6 +3,7 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +25,19 @@ internal class ReadFormCollection : AsyncFrame
     }
 
     public Variable Variable { get; }
+
+    /// <summary>
+    ///     Orders the form read after <paramref name="frame" /> wherever the arranger puts it. A form value's
+    ///     binding never sits in <see cref="IChain.Middleware" />, so this frame is usually reached only through
+    ///     <see cref="FormCollectionSource" />, and JasperFx's <c>MethodFrameArranger</c> inserts a frame it
+    ///     reaches that way at the very front of the method, ahead of the antiforgery check. ASP.NET Core
+    ///     refuses to read the form of a request that failed antiforgery validation and throws instead (a 500),
+    ///     so the read has to follow the check that answers 400.
+    /// </summary>
+    internal void MustFollow(Frame frame)
+    {
+        dependencies.Fill(frame);
+    }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
