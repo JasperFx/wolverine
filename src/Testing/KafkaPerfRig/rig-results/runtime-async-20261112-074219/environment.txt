@@ -1,0 +1,44 @@
+Thu Nov 12 07:42:19 CST 2026
+ 7:42  up 26 days, 19:20, 4 users, load averages: 28.92 33.49 25.50
+RIG_INPROC_CONCURRENCY= RIG_INPROC_YIELD_EVERY=16
+RIG_WARMUP_S=10 RIG_DURATION_S=30 rounds=5
+CONTAINER ID   NAME                                     CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+bb4de25cb6b3   friendly_robinson                        0.33%     568.8MiB / 31.29GiB   1.78%     255MB / 51.3MB    177MB / 1.02GB    39
+e6315b4aed9c   wolverine-postgresql-1                   1.34%     285.4MiB / 31.29GiB   0.89%     463MB / 235MB     253MB / 1.5GB     6
+398d2649656e   amazing_mclean                           3.27%     365.3MiB / 31.29GiB   1.14%     255MB / 51.4MB    935MB / 1.1GB     39
+60949b4bb0cf   nifty_hodgkin                            0.25%     376.4MiB / 31.29GiB   1.17%     255MB / 51.4MB    721MB / 1.14GB    39
+8bbb1f60f621   nervous_mirzakhani                       3.35%     364.1MiB / 31.29GiB   1.14%     255MB / 51.3MB    347MB / 1.16GB    39
+07aa36d8fe38   suspicious_rosalind                      0.24%     435.3MiB / 31.29GiB   1.36%     255MB / 51.4MB    486MB / 1.15GB    39
+93992c1b3424   wolverine-localstack-1                   0.03%     139.5MiB / 31.29GiB   0.44%     752kB / 614kB     743MB / 21.7MB    8
+5dd5e07ef8c5   wolverine-sqlserver-1                    0.91%     2.077GiB / 31.29GiB   6.64%     710MB / 151MB     7.48GB / 642MB    103
+b5674832a833   wolverine-asb-emulator-1                 0.57%     238.2MiB / 31.29GiB   0.74%     160MB / 71.8MB    2.81GB / 12.1MB   20
+1dd51f11d751   wolverine-asb-sql-1                      0.53%     434.3MiB / 31.29GiB   1.36%     64.1MB / 154MB    19.8GB / 538MB    180
+d8dc697d2c36   wolverine-pulsar-1                       1.52%     2.597GiB / 31.29GiB   8.30%     2.07MB / 1.42MB   7.91GB / 33.5MB   360
+6dd18861ee9c   wolverine-mysql-1                        0.29%     5.297GiB / 31.29GiB   16.93%    136MB / 139MB     651MB / 3.61GB    50
+7fe240cb6c5b   wolverine-mosquitto-1                    0.02%     3.07MiB / 31.29GiB    0.01%     25.5kB / 7.11kB   91MB / 0B         1
+c5575ae33118   wolverine-asb-emulator-2-1               0.48%     165.9MiB / 31.29GiB   0.52%     177MB / 65.7MB    2.99GB / 11.4MB   21
+1b4de20f6fa8   composefixture-postgres-1                0.00%     15.61MiB / 31.29GiB   0.05%     1.17kB / 126B     5.01GB / 3.3MB    6
+3a67e057c6c4   multihosttests-postgres_replica-1        0.00%     18.96MiB / 31.29GiB   0.06%     35.7MB / 1.99MB   1.81GB / 67.7MB   5
+aadfd2f5d35c   multihosttests-postgres_primary-1        0.60%     24.41MiB / 31.29GiB   0.08%     549MB / 405MB     6.51GB / 95.3MB   7
+386fe8a000d6   critterstackscalability-asb-emulator-1   0.06%     208.6MiB / 31.29GiB   0.65%     1.03GB / 376MB    8.23GB / 51.7MB   29
+de3e9bd390c3   critterstackscalability-mosquitto-1      0.02%     2.672MiB / 31.29GiB   0.01%     262MB / 253MB     136MB / 0B        1
+6b0ecea34111   critterstackscalability-rabbitmq-1       0.09%     214.1MiB / 31.29GiB   0.67%     619MB / 609MB     2.27GB / 394MB    57
+f9cbefabcc69   critterstackscalability-redis-1          0.26%     27.25MiB / 31.29GiB   0.09%     7.65GB / 312MB    152MB / 36.8MB    6
+a6fff2cf086e   critterstackscalability-nats-1           0.02%     14.26MiB / 31.29GiB   0.04%     662MB / 649MB     7.11GB / 471kB    15
+dd9af9fd84b0   critterstackscalability-gcp-pubsub-1     0.04%     187.5MiB / 31.29GiB   0.59%     2kB / 126B        3.57GB / 109MB    32
+c7e77ea9026f   critterstackscalability-postgresql-1     1.87%     275.5MiB / 31.29GiB   0.86%     1.88GB / 579MB    17.6GB / 8.99GB   6
+01f73c47818c   busy_dhawan                              0.22%     384.8MiB / 31.29GiB   1.20%     219MB / 648kB     53.2GB / 2.71GB   39
+170eabe3f41d   wolverine-rabbitmq-1                     0.37%     337.5MiB / 31.29GiB   1.05%     454MB / 417MB     3.2GB / 433MB     57
+563b4443922f   wolverine-fake-gcs-server-1              0.00%     39.77MiB / 31.29GiB   0.12%     35.8kB / 22.3kB   8.17GB / 127kB    14
+fd5987f05c42   wolverine-redis-server-1                 0.28%     11.79MiB / 31.29GiB   0.04%     18.9kB / 2.92kB   79.7MB / 119kB    6
+daeeb7c16901   wolverine-azurite-1                      0.01%     46.72MiB / 31.29GiB   0.15%     605kB / 522kB     19GB / 8.37MB     11
+751eff80d9f4   wolverine-kafka-1                        1.16%     1.566GiB / 31.29GiB   5.00%     18.6MB / 155MB    18.9GB / 1.02GB   169
+285ccaa7dc36   wolverine-gcp-pubsub-1                   5.19%     747.4MiB / 31.29GiB   2.33%     122MB / 53.2MB    6.22GB / 64.7MB   2686
+ff9710df5d4e   wolverine-nats-1                         0.02%     11.5MiB / 31.29GiB    0.04%     324kB / 373kB     4.4GB / 279kB     15
+08a15b071671   wolverine-asb-sql-2-1                    0.56%     680.4MiB / 31.29GiB   2.12%     65.8MB / 177MB    106GB / 545MB     185
+6617322e6950   weasel-firebird4-1                       3.15%     39.89MiB / 31.29GiB   0.12%     5.57kB / 126B     6.08GB / 265MB    11
+38995c24a56b   weasel-sqlserver-1                       0.26%     1.536GiB / 31.29GiB   4.91%     186MB / 38.6MB    81.3GB / 1.91GB   191
+430023aae316   weasel-oracle-1                          1.09%     1.944GiB / 31.29GiB   6.21%     99.7MB / 81MB     440GB / 26.9GB    83
+7d001a6e65cd   weasel-firebird5-1                       1.17%     17.99MiB / 31.29GiB   0.06%     292MB / 208MB     10.4GB / 1.7GB    9
+a603760d5cc8   weasel-firebird3-1                       4.98%     23.02MiB / 31.29GiB   0.07%     5.71kB / 126B     5.64GB / 35.2MB   12
+32f2cbfc44ef   marten-postgresql-1                      2.18%     238.8MiB / 31.29GiB   0.75%     39.7GB / 27.7GB   103GB / 76.2GB    6

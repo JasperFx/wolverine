@@ -91,6 +91,10 @@ switch (role)
         await OutboxStoreLane.RunAsync(cfg);
         break;
 
+    case "inproc":
+        await InProcLane.RunAsync(cfg);
+        break;
+
     case "local-queue":
         await WolverineLocalQueue.RunAsync(cfg);
         break;

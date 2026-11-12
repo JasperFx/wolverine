@@ -351,6 +351,12 @@ public sealed partial class WolverineOptions
         UseSystemTextJsonForSerialization();
 
         CodeGeneration = new GenerationRules("Internal.Generated");
+#if NET11_0_OR_GREATER
+        // GH-5150, plan decision D4: on .NET 11, runtime-compiled handler code is emitted as runtime-async methods
+        // instead of compiler-built state machines (fewer allocations per message). Set it back to false to opt out.
+        // Pre-generated code is compiled by the application's own project, so its compiler settings decide there.
+        CodeGeneration.UseRuntimeAsync = true;
+#endif
         CodeGeneration.Sources.Add(new NowTimeVariableSource());
         CodeGeneration.Sources.Add(new TenantIdSource());
         CodeGeneration.Sources.Add(new Runtime.Batching.BatchContextVariableSource());
