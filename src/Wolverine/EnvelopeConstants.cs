@@ -39,6 +39,8 @@ public static class EnvelopeConstants
     /// </summary>
     public const string PreviousAttemptActivityIdKey = "previous-attempt-activity-id";
 
+    public const string StartsNewLinkedTraceKey = "starts-new-linked-trace";
+
     /// <summary>
     ///     The format <see cref="Wolverine.Transports.EnvelopeMapper{TIncoming,TOutgoing}" /> uses when it writes
     ///     <see cref="DateTimeOffset" /> envelope properties (<c>time-to-send</c>, <c>deliver-by</c>) into
