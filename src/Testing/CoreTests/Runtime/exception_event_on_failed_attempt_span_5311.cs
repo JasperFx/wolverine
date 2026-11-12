@@ -58,6 +58,27 @@ public class exception_event_on_failed_attempt_span_5311
         }
     }
 
+    /// <summary>
+    /// GH-5470. A tracked session is done when the message's terminal record (MovedToErrorQueue, DiscardedEnvelope)
+    /// arrives, and the error continuation reports that record from inside the attempt's span: the handler pipeline
+    /// stops the span in its finally block once the continuation returns, and for an inline retry the first
+    /// attempt's span only stops after the second attempt's whole pipeline has unwound. The session signals its
+    /// completion asynchronously, so the test can look at the listener before the receiving thread gets that far.
+    /// Wait, boundedly, for the spans to stop; the assertions on how many there are stay exact.
+    /// </summary>
+    private static async Task<Activity[]> stoppedSpansForAsync<T>(List<Activity> captured, int expected)
+    {
+        var timeout = Stopwatch.StartNew();
+        var spans = spansFor<T>(captured);
+        while (spans.Length < expected && timeout.Elapsed < 5.Seconds())
+        {
+            await Task.Delay(10.Milliseconds());
+            spans = spansFor<T>(captured);
+        }
+
+        return spans;
+    }
+
     private static void shouldHaveOneExceptionEvent(Activity span, Exception expected)
     {
         span.Status.ShouldBe(ActivityStatusCode.Error);
@@ -84,7 +105,7 @@ public class exception_event_on_failed_attempt_span_5311
         new WolverineOptions().Tracking.RecordExceptionsOnSpans.ShouldBeTrue();
     }
 
-    [Fact(Skip = "GH-5470: captures no spans on CI since CoreTests runs on net10.0; green locally in isolation. Quarantined for the .NET 11 train, the skip comes off with the fix.")]
+    [Fact]
     public async Task each_attempt_of_a_retried_then_dead_lettered_message_records_its_exception()
     {
         var (host, captured, listener) = await startAsync();
@@ -94,7 +115,7 @@ public class exception_event_on_failed_attempt_span_5311
             await host.TrackActivity().DoNotAssertOnExceptionsDetected()
                 .PublishMessageAndWaitAsync(new PoisonMessage5311("order 123 is poison"));
 
-            var spans = spansFor<PoisonMessage5311>(captured);
+            var spans = await stoppedSpansForAsync<PoisonMessage5311>(captured, 2);
             spans.Length.ShouldBe(2);
 
             foreach (var span in spans)
@@ -118,7 +139,7 @@ public class exception_event_on_failed_attempt_span_5311
             await host.TrackActivity().DoNotAssertOnExceptionsDetected()
                 .PublishMessageAndWaitAsync(new DiscardedMessage5311("order 456 is junk"));
 
-            var span = spansFor<DiscardedMessage5311>(captured).ShouldHaveSingleItem();
+            var span = (await stoppedSpansForAsync<DiscardedMessage5311>(captured, 1)).ShouldHaveSingleItem();
             shouldHaveOneExceptionEvent(span, new Discarded5311("order 456 is junk"));
         }
         finally
@@ -162,7 +183,8 @@ public class exception_event_on_failed_attempt_span_5311
             await host.TrackActivity().DoNotAssertOnExceptionsDetected()
                 .PublishMessageAndWaitAsync(new DiscardedMessage5311("order 456 is junk"));
 
-            var spans = spansFor<PoisonMessage5311>(captured).Concat(spansFor<DiscardedMessage5311>(captured))
+            var spans = (await stoppedSpansForAsync<PoisonMessage5311>(captured, 2))
+                .Concat(await stoppedSpansForAsync<DiscardedMessage5311>(captured, 1))
                 .ToArray();
             spans.Length.ShouldBe(3);
 
@@ -188,7 +210,7 @@ public class exception_event_on_failed_attempt_span_5311
             await host.TrackActivity().DoNotAssertOnExceptionsDetected()
                 .PublishMessageAndWaitAsync(new DiscardedMessage5311("order 456 is junk"));
 
-            var spans = spansFor<DiscardedMessage5311>(captured);
+            var spans = await stoppedSpansForAsync<DiscardedMessage5311>(captured, 1);
             spans.ShouldNotBeEmpty();
 
             foreach (var span in spans)
