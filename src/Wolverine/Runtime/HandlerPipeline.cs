@@ -141,6 +141,8 @@ public class HandlerPipeline : IHandlerPipeline
         }
         finally
         {
+            // GH-5547. An inline retry has already stopped this attempt's span before running the next attempt
+            // (WolverineTracing.EndAttemptBeforeInlineRetry), and Stop() is a no-op on a stopped activity
             activity?.Stop();
         }
     }
