@@ -273,6 +273,21 @@ public class generational_idempotency_guard
     }
 
     [Fact]
+    public void claim_says_which_kind_of_duplicate_a_refused_delivery_is()
+    {
+        var guard = guardFor();
+        var envelope = envelopeFor();
+
+        guard.Claim(envelope).ShouldBe(IdempotencyClaim.Claimed);
+        guard.Claim(envelopeFor(envelope.Id)).ShouldBe(IdempotencyClaim.InFlight);
+
+        guard.MarkProcessed(envelope);
+        guard.Claim(envelopeFor(envelope.Id)).ShouldBe(IdempotencyClaim.AlreadyProcessed);
+
+        guard.DuplicatesSuppressed.ShouldBe(2);
+    }
+
+    [Fact]
     public void an_in_flight_duplicate_counts_as_well_as_a_processed_one()
     {
         var guard = guardFor();

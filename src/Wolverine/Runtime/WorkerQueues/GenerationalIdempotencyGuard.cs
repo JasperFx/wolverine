@@ -127,7 +127,9 @@ internal class GenerationalIdempotencyGuard : IIncomingIdempotencyGuard
         }
     }
 
-    public bool TryBeginProcessing(Envelope envelope)
+    public bool TryBeginProcessing(Envelope envelope) => Claim(envelope) == IdempotencyClaim.Claimed;
+
+    public IdempotencyClaim Claim(Envelope envelope)
     {
         var key = IdempotencyKey.For(envelope, _identity);
 
@@ -135,19 +137,23 @@ internal class GenerationalIdempotencyGuard : IIncomingIdempotencyGuard
         {
             rotateIfNecessary();
 
-            if (_currentInFlight.Contains(key) || _previousInFlight.Contains(key)
-                                               || _currentProcessed.Contains(key) ||
-                                               _previousProcessed.Contains(key))
+            var claim = _currentInFlight.Contains(key) || _previousInFlight.Contains(key)
+                ? IdempotencyClaim.InFlight
+                : _currentProcessed.Contains(key) || _previousProcessed.Contains(key)
+                    ? IdempotencyClaim.AlreadyProcessed
+                    : IdempotencyClaim.Claimed;
+
+            if (claim != IdempotencyClaim.Claimed)
             {
                 // GH-4199: counted here rather than at each caller's drop site so every receiver that uses a
                 // guard -- NativeAck, Inline, Buffered -- reports without having to remember to.
                 DuplicatesSuppressed++;
                 _suppressedCounter?.Add(1, _tags);
-                return false;
+                return claim;
             }
 
             _currentInFlight.Add(key);
-            return true;
+            return claim;
         }
     }
 

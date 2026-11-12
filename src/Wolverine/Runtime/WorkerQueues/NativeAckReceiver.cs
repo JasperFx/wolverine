@@ -249,19 +249,36 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
             return null;
         }
 
-        // GH-3710. Ack-and-drop a redelivery of something this process already handled (or is handling right
-        // now), which is exactly what DurableReceiver.handleDuplicateIncomingEnvelope does when the inbox
-        // INSERT hits the primary key -- minus the database. Debug rather than Error, unlike the durable path:
-        // in a mode that never settles on receipt, redelivery after a rolling deploy is expected operational
-        // noise rather than a sign that something went wrong.
-        if (_idempotency != null && !_idempotency.TryBeginProcessing(envelope))
+        // GH-3710. Ack-and-drop a redelivery of something this process already handled, which is exactly what
+        // DurableReceiver.handleDuplicateIncomingEnvelope does when the inbox INSERT hits the primary key --
+        // minus the database. Debug rather than Error, unlike the durable path: in a mode that never settles
+        // on receipt, redelivery after a rolling deploy is expected operational noise rather than a sign that
+        // something went wrong.
+        //
+        // A redelivery of something still IN FLIGHT here is dropped WITHOUT settling it. Acking it settled the
+        // original on Pulsar, where the redelivery and the original are the same message, while the original's
+        // handler was still running -- so a node that went away mid-handler lost the message, the one thing
+        // this mode exists to prevent. Found once GH-5200 made the guard the NativeAck default. Left unsettled,
+        // the duplicate is settled by the original's own terminal, or redelivered again if that never comes,
+        // when the guard will have the answer.
+        if (_idempotency != null)
         {
-            _logger.LogDebug(
-                "Discarding duplicate delivery of envelope {EnvelopeId} ({MessageType}) at {Uri}; it was already handled within the in-memory idempotency window",
-                envelope.Id, envelope.MessageType, Uri);
+            switch (_idempotency.Claim(envelope))
+            {
+                case IdempotencyClaim.AlreadyProcessed:
+                    _logger.LogDebug(
+                        "Discarding duplicate delivery of envelope {EnvelopeId} ({MessageType}) at {Uri}; it was already handled within the in-memory idempotency window",
+                        envelope.Id, envelope.MessageType, Uri);
 
-            await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
-            return null;
+                    await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+                    return null;
+
+                case IdempotencyClaim.InFlight:
+                    _logger.LogDebug(
+                        "Dropping duplicate delivery of envelope {EnvelopeId} ({MessageType}) at {Uri} unsettled; the original is still being handled",
+                        envelope.Id, envelope.MessageType, Uri);
+                    return null;
+            }
         }
 
         var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;

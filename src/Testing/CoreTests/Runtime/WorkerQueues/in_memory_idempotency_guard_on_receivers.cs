@@ -137,7 +137,7 @@ public class in_memory_idempotency_guard_on_receivers : IAsyncLifetime
     }
 
     [Fact]
-    public async Task a_concurrent_duplicate_is_dropped_rather_than_queued_up_to_run_again()
+    public async Task a_concurrent_duplicate_is_dropped_unsettled_rather_than_queued_up_to_run_again()
     {
         var receiver = nativeAckReceiver(nativeAckEndpoint(true));
         var listener = new RecordingListener();
@@ -148,17 +148,21 @@ public class in_memory_idempotency_guard_on_receivers : IAsyncLifetime
         await receiver.ReceivedAsync(listener, first);
 
         // The original is parked inside the handler. The duplicate has to be turned away on the in-flight
-        // set, not merely on the processed set.
+        // set, not merely on the processed set -- and turned away WITHOUT settling it. On Pulsar the
+        // redelivery and the original are the same message, so acking the duplicate settled the original
+        // while its handler was still running, and a node that died then lost it (found once GH-5200 made the
+        // guard the NativeAck default).
         await receiver.ReceivedAsync(listener, pingEnvelope("one", first.Id));
-        await listener.WaitUntilAtLeast(1);
 
-        listener.Completed.Count.ShouldBe(1);
+        listener.Completed.ShouldBeEmpty();
         NativeAckPingHandler.Handled.ShouldBeEmpty();
 
         gate.SetResult();
-        await listener.WaitUntilAtLeast(2);
+        await listener.WaitUntilAtLeast(1);
 
         NativeAckPingHandler.Handled.Count.ShouldBe(1);
+        listener.Completed.Count.ShouldBe(1);
+        listener.Completed.Single().Id.ShouldBe(first.Id);
     }
 
     /// <summary>

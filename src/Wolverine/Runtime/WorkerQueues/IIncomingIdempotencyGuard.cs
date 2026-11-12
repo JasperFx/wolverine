@@ -3,6 +3,21 @@ using JasperFx.Core;
 namespace Wolverine.Runtime.WorkerQueues;
 
 /// <summary>
+/// The outcome of <see cref="IIncomingIdempotencyGuard.Claim"/>.
+/// </summary>
+internal enum IdempotencyClaim
+{
+    /// <summary>Not seen within the window; now in flight here.</summary>
+    Claimed,
+
+    /// <summary>A delivery with this identity is being handled right now and has not reached a terminal.</summary>
+    InFlight,
+
+    /// <summary>A delivery with this identity already reached a terminal the broker will not redeliver.</summary>
+    AlreadyProcessed
+}
+
+/// <summary>
 /// GH-3710. Opt-in, per-process, bounded duplicate detection for endpoints that have no durable inbox.
 ///
 /// <para>
@@ -30,6 +45,14 @@ internal interface IIncomingIdempotencyGuard
     /// already processed within the window, in which case the caller settles the delivery and drops it.
     /// </summary>
     bool TryBeginProcessing(Envelope envelope);
+
+    /// <summary>
+    /// <see cref="TryBeginProcessing"/>, saying which kind of duplicate a refused delivery is. A receiver
+    /// that leaves deliveries unsettled until a handler finishes must not settle a duplicate of one that is
+    /// still <see cref="IdempotencyClaim.InFlight"/>: on a broker where the redelivery and the original are
+    /// the same message (Pulsar), that ack settles the original before its handler has run to the end.
+    /// </summary>
+    IdempotencyClaim Claim(Envelope envelope);
 
     /// <summary>
     /// Move an id from in-flight to processed. Call this only when the delivery reached a terminal the
