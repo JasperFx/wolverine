@@ -1,6 +1,6 @@
 namespace Wolverine.Transports.Sending;
 
-public interface ISenderRequiresCallback : IDisposable
+public interface ISenderRequiresCallback
 {
     void RegisterCallback(ISenderCallback senderCallback);
 }

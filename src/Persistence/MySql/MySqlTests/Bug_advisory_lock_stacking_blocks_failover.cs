@@ -51,6 +51,7 @@ public class Bug_advisory_lock_stacking_blocks_failover
             }
 
             holder.HasLock(lockId).ShouldBeTrue();
+            (await holder.HasLockAsync(lockId, CancellationToken.None)).ShouldBeTrue();
 
             // The leader steps down or is disabled — exactly ONE release
             // call, matching DisableAgentsAsync / stepDownAsync semantics.

@@ -217,7 +217,8 @@ internal class HttpTransportExecutor
 
         try
         {
-            executor = _runtime.FindInvoker(envelope.MessageType!) as Executor;
+            // GH-5138. A message type with several handler types has an invoker of its own, not a single Executor
+            executor = _runtime.FindInvoker(envelope.MessageType!) is IExecutor found and not NoHandlerExecutor ? found : null;
         }
         catch (Exception e)
         {

@@ -16,6 +16,7 @@ using Wolverine.Polecat.Subscriptions;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
+using ManagedDistributionDaemonModeValidator = Wolverine.Persistence.EventSourcing.Distribution.ManagedDistributionDaemonModeValidator;
 using Wolverine.SqlServer.Persistence;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
@@ -34,8 +35,8 @@ internal class MapEventTypeMessages : IWolverineExtension
 
 // GH-4902. Polecat's integration only reaches the service collection, so the envelope id choice is applied
 // through an extension, which Wolverine runs after the UseWolverine() configuration and before startup.
-// True forces SQL Server-ordered ids; false pins the default ids so the automatic switch does not apply,
-// unless something was chosen explicitly already
+// True forces SQL Server-ordered ids; false keeps the default ids (GuidV7, or NewId after
+// RestoreV6Defaults()) by turning the automatic switch off; an explicit choice still wins
 internal class PolecatEnvelopeIdChoice(bool optimizeEnvelopeIdsForSqlServer) : IWolverineExtension
 {
     public void Configure(WolverineOptions options)
@@ -44,9 +45,10 @@ internal class PolecatEnvelopeIdChoice(bool optimizeEnvelopeIdsForSqlServer) : I
         {
             options.EnvelopeIdGeneration = EnvelopeIdGeneration.NewIdSqlServerOrder;
         }
-        else if (!options.EnvelopeIdGenerationIsExplicit)
+        else
         {
-            options.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId;
+            // GH-5197. Keep the default -- GuidV7, or NewId after RestoreV6Defaults() -- rather than pinning one here
+            options.IgnoreStorePreferredEnvelopeIdGeneration();
         }
     }
 }
@@ -61,8 +63,10 @@ public static class WolverineOptionsPolecatExtensions
     /// GH-4902. Polecat keeps Wolverine's envelopes in SQL Server, so when it is every message store in the
     /// application Wolverine already switches to <see cref="EnvelopeIdGeneration.NewIdSqlServerOrder"/> at
     /// startup, unless <see cref="WolverineOptions.EnvelopeIdGeneration"/> was set explicitly. True sets it
-    /// explicitly anyway. False opts out of the automatic switch and keeps the default ids -- use that when this
-    /// application sends messages to services that store their envelopes in PostgreSQL. An explicit
+    /// explicitly anyway. False opts out of the automatic switch and keeps the default ids
+    /// (<see cref="EnvelopeIdGeneration.GuidV7"/> in 7.0, <see cref="EnvelopeIdGeneration.NewId"/> after
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/>) -- use that when this application sends messages to
+    /// services that store their envelopes in PostgreSQL. An explicit
     /// EnvelopeIdGeneration is left alone when false, and there is no schema change either way.
     /// </param>
     public static PolecatConfigurationExpression IntegrateWithWolverine(
@@ -114,7 +118,7 @@ public static class WolverineOptionsPolecatExtensions
         // GH-3956: Polecat registers its own interfaces, never the store-agnostic
         // JasperFx.Events.Documents contracts its session types already implement, so a service depending
         // on one of those could not be resolved at all on a stock host. Handler PARAMETERS are satisfied by
-        // codegen (SharedDocumentOperationsSource); these registrations cover everything codegen does not
+        // codegen (DocumentSessionContractSource, GH-5141); these registrations cover everything codegen does not
         // see -- a service-located contract, or one injected into a class that a handler depends on.
         //
         // Deliberately delegating to IDocumentSession / IQuerySession rather than to a fresh session, so
@@ -173,15 +177,18 @@ public static class WolverineOptionsPolecatExtensions
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
-        // CritterWatch / saga-explorer diagnostic surface — Polecat
-        // builds a SqlServerMessageStore underneath, so the lightweight
-        // SQL Server saga storage owns every Polecat-driven saga. The
-        // runtime aggregator picks this up alongside any other saga
-        // storages (Marten / EF Core / RavenDB) for mixed-storage hosts.
+        // CritterWatch / saga-explorer diagnostic surface. GH-5142: a Polecat
+        // saga is a Polecat document, not a row in Wolverine's lightweight
+        // SQL Server saga tables, so this used to register DatabaseSagaStoreDiagnostics
+        // over tables Polecat sagas are never written to, and the saga explorer
+        // showed nothing. The document-store diagnostics read the documents,
+        // with the same implementation Marten uses.
         expression.Services.AddSingleton<Wolverine.Persistence.Sagas.ISagaStoreDiagnostics>(s =>
-            new DatabaseSagaStoreDiagnostics(
+            new Wolverine.Persistence.Sagas.DocumentStoreSagaStoreDiagnostics(
                 s.GetRequiredService<IWolverineRuntime>(),
-                (IMessageDatabase)s.GetRequiredService<IMessageStore>()));
+                s.GetRequiredService<IDocumentStore>(),
+                typeof(Wolverine.Polecat.Persistence.Sagas.PolecatPersistenceFrameProvider),
+                "Polecat"));
 
         // GH-3365: do NOT bridge the primary store to the store-agnostic JasperFx.Events.IEventStore
         // here. Polecat's own AddPolecat() registers IEventStore for the primary DocumentStore on every
@@ -200,13 +207,22 @@ public static class WolverineOptionsPolecatExtensions
 
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {
+            // GH-5141: the agent family, coordinator and validator are Wolverine core's, shared with Marten
+            // and Fisher. Polecat's IProjectionCoordinator resolves the one coordinator instance.
+            expression.Services.AddEventSubscriptionAgentFamily();
             expression.Services.AddSingleton<WolverineProjectionCoordinator>();
-            expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
-            expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
-            // GH-3133, Gap 1: mirror Marten so tooling resolving GetServices<IEventSubscriptionAgentFamily>()
-            // can map a shard identity to an agent URI for Polecat too.
-            expression.Services.AddSingleton<IEventSubscriptionAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
-            expression.Services.AddSingleton<IProjectionCoordinator, WolverineProjectionCoordinator>();
+            expression.Services.AddSingleton<IProjectionCoordinator>(s => s.GetRequiredService<WolverineProjectionCoordinator>());
+
+            // GH-5141: refuse a competing Polecat-side daemon (Solo/HotCold) at host start, as Marten does
+            // (GH-3388). Polecat had no such check: the combination hung instead of failing.
+            ManagedDistributionDaemonModeValidator.Register(expression.Services, s =>
+            {
+                var mode = ((DocumentStore)s.GetRequiredService<IDocumentStore>()).Options.DaemonSettings.AsyncMode;
+                return mode is JasperFx.Events.Daemon.DaemonMode.Solo or JasperFx.Events.Daemon.DaemonMode.HotCold
+                    ? ManagedDistributionDaemonModeValidator.MessageFor("Polecat's async daemon", mode,
+                        $"Remove the Polecat-side daemon choice (AddAsyncDaemon(DaemonMode.{mode}))")
+                    : null;
+            });
         }
 
         return expression;

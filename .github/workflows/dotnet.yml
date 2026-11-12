@@ -2,9 +2,9 @@ name: .NET
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, '7.0' ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, '7.0' ]
   workflow_dispatch:
 
 env:
@@ -21,8 +21,9 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
-
+          dotnet-version: |
+            10.0.x
+            11.0.x
       - name: Checkout
         uses: actions/checkout@v6
         with:

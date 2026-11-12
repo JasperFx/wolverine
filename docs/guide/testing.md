@@ -207,7 +207,7 @@ acknowledgement APIs depend on them.
 
 A tracked session follows each message by its envelope id. When a broker fans one message out to several
 queues, as a RabbitMQ exchange with several bound queues does, every copy arrives with the **same** envelope
-id. That is the usual shape with `MultipleHandlerBehavior.Separated` and conventional routing by handler type,
+id. That is the usual shape for a message type with several handler types and conventional routing by handler type,
 where each handler gets its own queue. The session cannot see the broker's bindings, so it does not know how
 many copies to expect. With `IncludeExternalTransports()` it can report `Completed` as soon as the first copy
 is handled, while another queue's handler is still running.
@@ -254,7 +254,7 @@ public class MessageSucceededAtEveryQueue<T> : ITrackedCondition
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Bugs/Bug_5416_tracked_session_waits_for_every_fanned_out_copy.cs#L63-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tracked_condition_for_a_message_fanned_out_by_the_broker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Bugs/Bug_5416_tracked_session_waits_for_every_fanned_out_copy.cs#L62-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tracked_condition_for_a_message_fanned_out_by_the_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add it to the session with `WaitForCondition()`:
@@ -274,7 +274,7 @@ var tracked = await host.TrackActivity()
     .WaitForCondition(new MessageSucceededAtEveryQueue<FanOut5416>(2))
     .SendMessageAndWaitAsync(message);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Bugs/Bug_5416_tracked_session_waits_for_every_fanned_out_copy.cs#L42-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_waiting_for_a_message_fanned_out_by_the_broker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Bugs/Bug_5416_tracked_session_waits_for_every_fanned_out_copy.cs#L41-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_waiting_for_a_message_fanned_out_by_the_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `WaitForExecutionOf<T>(count)` is a simpler option when you only need a count of executions of the message
@@ -820,7 +820,8 @@ A few things to know:
   say yet, it just waits on every database before reading through the tenant. An act that carried no tenant at all is
   looked for in every database. That's still exact, because a correlation id only ever belongs to one act.
 * For an HTTP act, `WhenPosted()` sends the act's correlation id as the `X-Correlation-ID` header. For the events an
-  endpoint appends to record it, turn on `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` -- see
+  endpoint appends to record it, `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` has to be on, which
+  it is by default from Wolverine 7.0 -- see
   [applying the correlation id to every endpoint](/guide/http/middleware#applying-the-correlation-id-to-every-endpoint).
   If you make your own HTTP call inside `WhenTracked()`, send `ActCorrelationId` as that header yourself.
 

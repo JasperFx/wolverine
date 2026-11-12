@@ -27,6 +27,8 @@ namespace Internal.Generated.WolverineHandlers
         public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
             var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
+            Wolverine.Http.Runtime.UserNameMiddleware.Apply(httpContext, messageContext);
+            Wolverine.Http.Runtime.RequestIdMiddleware.Apply(httpContext, messageContext);
             // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
             Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "DeepMiddlewareUsage.TrainerGet").SetTag("http.route", "/api/trainer").SetTag("http.request.method", "GET");

@@ -1,3 +1,4 @@
+using System.Buffers;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using MQTTnet;
@@ -214,7 +215,7 @@ public class MyMqttEnvelopeMapper : IMqttEnvelopeMapper
     {
         // These are the absolute minimums necessary for Wolverine to function
         envelope.MessageType = typeof(PaymentMade).ToMessageTypeName();
-        envelope.Data = incoming.PayloadSegment.Array;
+        envelope.Data = incoming.Payload.ToArray();
 
         // Optional items
         envelope.DeliverWithin = 5.Seconds(); // throw away the message if it

@@ -122,7 +122,7 @@ var receiver = await WolverineHost.ForAsync(opts =>
         });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L599-L637' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_exchange_conventions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L633-L671' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_exchange_conventions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Handler Type Naming <Badge type="tip" text="5.25" />
@@ -159,9 +159,10 @@ opts.UseRabbitMq()
     });
 ```
 
-## Separated Handler Behavior <Badge type="tip" text="4.12" />
+## Several Handler Types for One Message Type <Badge type="tip" text="7.0" />
 
-In the case of using the `MultipleHandlerBehavior.Separated` mode, this convention will create an exchange
+When a message type has more than one handler type, Wolverine gives each handler type its own handler chain
+([see here](/guide/handlers/#multiple-handlers-for-the-same-message-type)), and this convention will create an exchange
 for the message type, then a separate queue for each handler using the handler type to create the name *and* finally
 a binding from that queue to the exchange.
 

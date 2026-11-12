@@ -25,10 +25,12 @@ internal class FisherToWolverineMessageBatch : IMessageBatch
 {
     private readonly ProjectionSideEffectSink _sink;
 
-    public FisherToWolverineMessageBatch(MessageContext context, IDocumentSession session)
+    public FisherToWolverineMessageBatch(ProjectionSideEffectSink sink)
     {
-        _sink = new ProjectionSideEffectSink(context, c => new FisherEnvelopeTransaction(session, c));
+        _sink = sink;
     }
+
+    internal ProjectionSideEffectSink Sink => _sink;
 
     public ValueTask PublishAsync<T>(T message, string tenantId)
     {

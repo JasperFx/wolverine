@@ -28,8 +28,8 @@ internal class CompositeContinuation : IContinuation, IInlineContinuation
             catch (Exception e)
             {
                 runtime.Logger.LogError(e,
-                    "Failed while attempting to apply continuation {Continuation} on Envelope {Envelope}", continuation,
-                    lifecycle.Envelope);
+                    "Failed while attempting to apply continuation {Continuation} on Envelope {Name}#{Id}", continuation,
+                    lifecycle.Envelope?.GetMessageTypeName(), lifecycle.Envelope?.Id);
             }
         }
     }
@@ -57,8 +57,8 @@ internal class CompositeContinuation : IContinuation, IInlineContinuation
                 {
                     allTryAgain = false;
                     runtime.Logger.LogError(e,
-                        "Failed while attempting to apply inline continuation {Continuation} on Envelope {Envelope}", inline,
-                        lifecycle.Envelope);
+                        "Failed while attempting to apply inline continuation {Continuation} on Envelope {Name}#{Id}", inline,
+                        lifecycle.Envelope?.GetMessageTypeName(), lifecycle.Envelope?.Id);
                 }
             }
         }

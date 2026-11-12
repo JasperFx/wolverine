@@ -247,7 +247,7 @@ message**, so the guard says nothing about it: after `WhenPosted(...)` to an end
 
 ### HTTP without WolverineFx.Bobcat.Http {#http-without-wolverinefx-bobcat-http}
 
-`WolverineFx.Bobcat.Http` depends on Alba 9 (currently 9.0.0-rc.2, see Bobcat's
+`WolverineFx.Bobcat.Http` depends on Alba 9 (9.0.0 or later, see Bobcat's
 [Compatibility](https://bobcat.jasperfx.net/compatibility) page), so a suite on Alba 8.x often acts over HTTP with
 `WhenTracked("…", () => host.Scenario(…))` instead. That works, but two verdicts differ from `WhenPosted` and the other
 HTTP acts:
@@ -537,8 +537,9 @@ Three things it needs from you:
 - **Every hop has to carry the id.** Wolverine's handlers do. An event subscription or a projection's side effect that
   publishes a message has to pass the event's `CorrelationId` on itself, as in
   `bus.PublishAsync(message, new DeliveryOptions { CorrelationId = e.CorrelationId })`.
-- **An HTTP act sends the id as the `X-Correlation-ID` header.** For Wolverine.HTTP to apply it, turn on
-  `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints`.
+- **An HTTP act sends the id as the `X-Correlation-ID` header.** For Wolverine.HTTP to apply it,
+  `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` has to be on, which it is by default from Wolverine
+  7.0.
 
 An act sent for a tenant is looked for within that tenant: filtered by it on a conjoined store, and in the tenant's
 own database on a store that spreads its tenants across several. An act with no tenant on such a store is looked for

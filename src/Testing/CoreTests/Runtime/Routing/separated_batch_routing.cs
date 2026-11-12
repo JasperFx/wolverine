@@ -31,7 +31,6 @@ public class separated_batch_routing
                     .IncludeType(typeof(LoadPublisher))
                     .IncludeType(typeof(LoadTelemetry));
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.BatchMessagesOf<LoadEvent>();
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -67,7 +66,6 @@ public class separated_batch_routing
                     .IncludeType(typeof(LoadPublisher))
                     .IncludeType(typeof(LoadTelemetry));
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.BatchMessagesOf<LoadEvent>();
 
                 // A non-local (external) listener — a LoadEvent arriving here must still
@@ -97,7 +95,6 @@ public class separated_batch_routing
                     .IncludeType(typeof(InvoicePublisher))
                     .IncludeType(typeof(InvoiceArchiver));
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.BatchMessagesOf<InvoiceEvent>();
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
-        <TargetFramework>net9.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
@@ -30,7 +30,7 @@
 
         Refresh the committed pre-gen FROM THIS PROJECT'S DIRECTORY, with SQL Server running:
 
-          dotnet run -f net9.0 codegen write
+          dotnet run -f net10.0 codegen write
         -->
         <PublishAot>true</PublishAot>
         <StripSymbols>false</StripSymbols>

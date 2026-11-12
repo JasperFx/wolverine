@@ -21,6 +21,7 @@ public class IncomingMessage
         Body = envelope.Status == EnvelopeStatus.Handled ? [] : EnvelopeSerializer.Serialize(envelope);
         MessageType = envelope.MessageType!;
         ReceivedAt = envelope.Destination?.ToString();
+        GroupId = envelope.StoredGroupId;
         // GH-5059. Follows the message identity, so Cosmos DB's per-partition id uniqueness rejects a duplicate
         PartitionKey = store.IncomingPartitionKeyFor(envelope);
 
@@ -81,6 +82,13 @@ public class IncomingMessage
     [JsonProperty("keepUntil")]
     [JsonPropertyName("keepUntil")]
     public DateTimeOffset? KeepUntil { get; set; }
+
+    /// <summary>
+    /// GH-5167. The envelope's group id, for scheduled message management to query by
+    /// </summary>
+    [JsonProperty("groupId")]
+    [JsonPropertyName("groupId")]
+    public string? GroupId { get; set; }
 
     [JsonProperty("_etag")]
     [JsonPropertyName("_etag")]

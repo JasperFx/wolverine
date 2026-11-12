@@ -42,7 +42,6 @@ public class Bug_1594_ReplayDeadLetterQueue
             {
                 opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
                 opts.Policies.AutoApplyTransactions();
-                opts.EnableAutomaticFailureAcks = false;
                 opts.Durability.Mode = DurabilityMode.Solo;
                 
                 opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();

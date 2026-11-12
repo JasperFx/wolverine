@@ -43,7 +43,7 @@ schema change.
 :::
 
 Wolverine's SQL Server inbox, outbox, and dead letter tables are clustered on the envelope id. Wolverine's default
-envelope ids are created in an order that .NET and PostgreSQL see as sequential, but SQL Server compares a
+envelope ids (`GuidV7` as of 7.0) are created in an order that .NET and PostgreSQL see as sequential, but SQL Server compares a
 `uniqueidentifier` starting from its *last* six bytes, so as far as SQL Server is concerned those ids arrive in random
 order. On a busy system that means constant page splits. One user
 [measured](https://github.com/JasperFx/wolverine/issues/4902) a production inbox that was 99% fragmented with its
@@ -58,13 +58,14 @@ So this plain registration is all it takes:
 // EnvelopeIdGeneration.NewIdSqlServerOrder at startup all by itself
 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "ordered_ids");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L37-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_only_application_gets_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L41-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_only_application_gets_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Under the covers, every message store tells Wolverine which envelope id layout it would like, and if they *all*
 agree, Wolverine uses it. The SQL Server message store -- which also backs the SQL Server transport, EF Core with SQL
 Server, and Polecat -- asks for `EnvelopeIdGeneration.NewIdSqlServerOrder`, which is the same NewId algorithm and
-uniqueness as the default with the timestamp moved to where SQL Server sorts on it. If any other message store in the
+uniqueness as Wolverine 6.x's default with the timestamp moved to where SQL Server sorts on it. That still holds in
+7.0, where the plain default is `GuidV7`, and after `RestoreV6Defaults()`. If any other message store in the
 application doesn't agree, say a PostgreSQL ancillary store, Wolverine keeps the default ids. You'll see a log
 message at startup when the switch happens.
 
@@ -78,15 +79,16 @@ index even worse than completely random GUIDs. In that case, opt out by setting 
 <a id='snippet-sample_opting_out_of_sql_server_ordered_ids_explicitly'></a>
 ```cs
 // This application sends messages to Wolverine services that store
-// their envelopes in PostgreSQL, so keep the default ids
-opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId;
+// their envelopes in PostgreSQL, so use the time-ordered GuidV7 ids
+opts.EnvelopeIdGeneration = EnvelopeIdGeneration.GuidV7;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L72-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_out_of_sql_server_ordered_ids_explicitly' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L76-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_out_of_sql_server_ordered_ids_explicitly' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 :::
 
 The `PersistMessagesWithSqlServer()` and `UseSqlServerPersistenceAndTransport()` registrations also have an overload
-that takes `optimizeEnvelopeIdsForSqlServer`. Passing `false` is another way to opt out:
+that takes `optimizeEnvelopeIdsForSqlServer`. Passing `false` is another way to opt out, and keeps the default ids
+(`GuidV7`, or `NewId` after `RestoreV6Defaults()`):
 
 <!-- snippet: sample_persist_messages_with_sql_server_opting_out_of_sql_server_ordered_ids -->
 <a id='snippet-sample_persist_messages_with_sql_server_opting_out_of_sql_server_ordered_ids'></a>
@@ -94,7 +96,7 @@ that takes `optimizeEnvelopeIdsForSqlServer`. Passing `false` is another way to 
 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString,
     optimizeEnvelopeIdsForSqlServer: false, schema: "ordered_ids");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L94-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_persist_messages_with_sql_server_opting_out_of_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L98-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_persist_messages_with_sql_server_opting_out_of_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 <!-- snippet: sample_sql_server_persistence_and_transport_and_sql_server_ordered_ids -->
@@ -103,7 +105,7 @@ opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString,
 opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString,
     optimizeEnvelopeIdsForSqlServer: false, schema: "ordered_ids");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L136-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_persistence_and_transport_and_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L176-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_persistence_and_transport_and_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and passing `true` forces the SQL Server-ordered ids even when some other message store in your application has no
@@ -116,7 +118,7 @@ opinion:
 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString,
     optimizeEnvelopeIdsForSqlServer: true, schema: "ordered_ids");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L114-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_persist_messages_with_sql_server_and_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/sql_server_ordered_envelope_ids.cs#L154-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_persist_messages_with_sql_server_and_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 An explicit `opts.EnvelopeIdGeneration` always wins over all of this. See
@@ -329,17 +331,19 @@ When not set, the queue falls back to the global `DurabilitySettings.ScheduledJo
 
 ### Optimizing Queue Throughput <Badge type="tip" text="6.16" />
 
-By default the Sql Server queue and scheduled-message tables use a clustered primary key on the
-message `id` (a random `Guid`). That layout is simple and safe, but on busy queues with non-trivial
-depth it has two costs: inserts land on random pages (causing page splits and fragmentation), and
+The classic layout of the Sql Server queue and scheduled-message tables, and the default up to Wolverine 6.x,
+is a clustered primary key on the message `id` (a random `Guid`). That layout is simple and safe, but on busy
+queues with non-trivial depth it has two costs: inserts land on random pages (causing page splits and fragmentation), and
 the dequeue query (`SELECT TOP(n) ... ORDER BY timestamp`) has no supporting index, so each poll
 scans and sorts the whole table.
 
-You can opt into a higher-throughput storage layout that mirrors the design used by mature SQL-based
+The higher-throughput storage layout mirrors the design used by mature SQL-based
 queues (including Wolverine's own NServiceBus interop transport): the tables are **clustered on a
 monotonic `seq` identity column** so dequeues are an ordered clustered-index seek and the matching
 deletes remove physically contiguous rows, while the message `id` keeps a unique non-clustered index
 so duplicate sends still fail fast for idempotency. A filtered index also speeds up the expiry sweep.
+It is the default for the queue tables Wolverine creates from 7.0 (see [below](#new-queue-tables-only)); on
+6.x, or to rebuild existing tables, opt in:
 
 ```cs
 opts.UseSqlServerPersistenceAndTransport(connectionString)
@@ -353,19 +357,54 @@ and turned worst-case deep-queue dequeue latency from hundreds of milliseconds i
 milliseconds.
 
 ::: warning
-This setting changes the physical schema of the queue tables. Turning it on or off for an **existing**
-database rebuilds the ready and scheduled queue tables the next time the schema is applied: in one
+This setting changes the physical schema of the queue tables. Setting it explicitly, with
+`OptimizeQueueThroughput()` or `UseClassicQueueLayout()`, for an **existing** database rebuilds the ready and scheduled queue tables the next time the schema is applied: in one
 transaction, Wolverine copies the rows out, recreates the table in the new layout and inserts the rows
 back in queue order, so messages already waiting keep their order and the new `seq` (or `queue_order`)
 identity follows it. The table is locked for the duration. Queue tables are normally transient, so this
 is usually cheap, but you should switch during a maintenance window — ideally with the queues drained —
-and on every application that shares the queue tables. New applications can simply turn it on from the
-start.
+and on every application that shares the queue tables. Two applications that disagree would rebuild the
+tables back and forth, which is why the 7.0 *default* never rebuilds anything.
 
 This applies to Wolverine's native Sql Server queue tables only. The NServiceBus interoperability
 transport already uses the equivalent clustered layout (it must match the NServiceBus on-disk schema),
 so no opt-in is needed there.
 :::
+
+#### New queue tables only <Badge type="tip" text="7.0" />
+
+From Wolverine 7.0, the high-throughput layout is the default for the queue tables Wolverine **creates**,
+and the classic layout gets the [`queue_order` tie-breaker](#deterministic-queue-ordering) by default. A
+queue table that already exists keeps the layout it has: moving it to the other layout rebuilds it, and
+adding an identity numbers every row, both under an exclusive lock. Wolverine adopts the existing table as it
+is, no migration touches it, and the listeners use the dequeue SQL for the layout they find. This is decided
+per table and per database, so a tenant database created after the upgrade gets the new layout while the
+older ones keep theirs. The same goes the other way: with the classic defaults back, a table on the
+high-throughput layout is kept as it is.
+
+To get the Wolverine 6.x layout for new tables, use `UseClassicQueueLayout()` and
+`DisableDeterministicQueueOrdering()`, or `opts.RestoreV6Defaults()` for both:
+
+```cs
+opts.UseSqlServerPersistenceAndTransport(connectionString)
+    .UseClassicQueueLayout()
+    .DisableDeterministicQueueOrdering();
+```
+
+Note that `UseClassicQueueLayout()` is an explicit setting, so like `OptimizeQueueThroughput()` it rebuilds
+existing tables that are on the other layout. `RestoreV6Defaults()` only changes the default, and so never
+does.
+
+#### Converting an existing queue table
+
+To move an existing table to the high-throughput layout, do it deliberately:
+
+1. Stop sending to the queue and let the listeners drain it, until both the ready and the scheduled queue
+   tables are empty.
+2. Either drop the two tables and let Wolverine create them again on the next start, or call
+   `OptimizeQueueThroughput()` explicitly for one deployment, which rebuilds them as described above. On an
+   empty table the rebuild is cheap.
+3. Configure every application that shares the queue tables the same way.
 
 ### Deterministic Queue Ordering
 
@@ -374,8 +413,9 @@ With the default table layout, the Sql Server queue listeners dequeue by the `ti
 timestamp, but `SYSDATETIMEOFFSET()` is evaluated once per statement, so every row written by one
 statement gets the same value. That is exactly what happens when scheduled messages come due: each
 promotion moves a batch of them into the ready queue in a single statement. Rows with the same
-timestamp have no defined order relative to each other. To persist a tie-breaker for those rows, opt
-into deterministic queue ordering:
+timestamp have no defined order relative to each other. Deterministic queue ordering persists a
+tie-breaker for those rows. It is the default for new classic queue tables from Wolverine 7.0 (see
+[New queue tables only](#new-queue-tables-only)); on 6.x, or to add it to existing classic tables, opt in:
 
 ```cs
 opts.UseSqlServerPersistenceAndTransport(connectionString)

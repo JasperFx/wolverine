@@ -774,7 +774,7 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         var key = endpointMessageTypeKey(endpointUri, messageTypeName);
 
         // First chain registered wins, to agree with the handler that will actually run:
-        // HandlerGraph.HandlerFor(messageType, endpoint) selects ByEndpoint.FirstOrDefault(), and this
+        // HandlerGraph.HandlerFor(messageType, endpoint) selects the first chain bound to the endpoint, and this
         // loop walks the chains in that same order. Routing the envelope to a store chosen by a chain
         // that never executes is how GH-3870 left envelopes stranded in the wrong database.
         if (_endpointMessageTypeIsStickyRouted.Contains(key)) return;

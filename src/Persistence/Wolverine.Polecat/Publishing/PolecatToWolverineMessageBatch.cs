@@ -25,10 +25,12 @@ internal class PolecatToWolverineMessageBatch : IMessageBatch
 {
     private readonly ProjectionSideEffectSink _sink;
 
-    public PolecatToWolverineMessageBatch(MessageContext context, IDocumentSession session)
+    public PolecatToWolverineMessageBatch(ProjectionSideEffectSink sink)
     {
-        _sink = new ProjectionSideEffectSink(context, c => new PolecatEnvelopeTransaction(session, c));
+        _sink = sink;
     }
+
+    internal ProjectionSideEffectSink Sink => _sink;
 
     public ValueTask PublishAsync<T>(T message, string tenantId)
     {

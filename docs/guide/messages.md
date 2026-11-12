@@ -186,6 +186,34 @@ opts.UseSystemTextJsonForSerialization(stj =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Transports/Local/local_integration_specs.cs#L26-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_stj' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Source generated System.Text.Json (trimming and Native AOT)
+
+The default System.Text.Json serializer uses reflection to read message types. For a trimmed or
+Native AOT application, hand Wolverine a source generated `JsonSerializerContext` that declares every
+message type the default serializer handles:
+
+```cs
+[JsonSerializable(typeof(CreateOrder))]
+[JsonSerializable(typeof(OrderCreated))]
+internal partial class MessagesJsonContext : JsonSerializerContext;
+
+// In your Wolverine configuration
+opts.UseSystemTextJsonForSerialization(MessagesJsonContext.Default);
+```
+
+The context becomes the `TypeInfoResolver` of the serializer's `JsonSerializerOptions` (Wolverine's
+defaults, such as camel casing, still apply), and the serializer then calls the `JsonTypeInfo`
+overloads of `JsonSerializer`, which are trim and AOT safe. A message type the context does not
+declare fails with a `NotSupportedException`. To fall back to reflection for undeclared types while
+you migrate, chain a reflection resolver after the context:
+
+```cs
+opts.UseSystemTextJsonForSerialization(MessagesJsonContext.Default, stj =>
+{
+    stj.TypeInfoResolverChain.Add(new DefaultJsonTypeInfoResolver());
+});
+```
+
 ### Newtonsoft.Json Serialization
 
 ::: tip
@@ -435,9 +463,8 @@ automatically. That scan is gone in 6.0 because it is not trim/AOT-clean. Regist
 opts.RegisterMessageForwarder<PersonBorn, PersonBornV2>();
 ```
 
-If you need the legacy behavior temporarily while migrating, opt back into the assembly scan with
-`opts.UseAutomaticForwarderDiscovery()`. That method is `[Obsolete]` and slated for removal in 7.0; new code should prefer
-the explicit `RegisterMessageForwarder<TFrom, TTo>()` API. See `docs/guide/migration.md` and issue #2757.
+The 6.x `opts.UseAutomaticForwarderDiscovery()` opt-in back into the assembly scan was removed in 7.0, so register
+each forwarder with `RegisterMessageForwarder<TFrom, TTo>()`. See `docs/guide/migration.md` and issue #2757.
 :::
 
 ## "Self Serializing" Messages
@@ -479,37 +506,42 @@ serialization.
 
 ## Envelope ID Generation <Badge type="tip" text="5.26" />
 
-Every message envelope in Wolverine is assigned a unique `Guid` identifier. By default, Wolverine uses [MassTransit's NewId](https://masstransit.io/documentation/patterns/newid) algorithm which generates sequential GUIDs based on machine identity (MAC address or DNS hostname) and a timestamp. Those ids sort in time order the way .NET and PostgreSQL compare GUIDs, which keeps the PostgreSQL inbox and outbox indexes compact. SQL Server is a different story, and Wolverine picks a different layout for it [automatically](#envelope-ids-for-sql-server).
+Every message envelope in Wolverine is assigned a unique `Guid` identifier. As of Wolverine 7.0, Wolverine creates
+those ids with `Guid.CreateVersion7()` (`EnvelopeIdGeneration.GuidV7`) per [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562),
+which produces GUIDs with a millisecond timestamp and cryptographically strong random bits. That guarantees uniqueness
+without relying on machine-specific properties, and the ids sort by time in a PostgreSQL `uuid` column, a MySQL
+`CHAR(36)` column and a SQLite `TEXT` column. Just know that ids created within the same millisecond are in random
+order, so under a heavy message load they index about like random GUIDs, and SQL Server doesn't sort them by time at
+all. SQL Server is a different story, and Wolverine picks a different layout for it
+[automatically](#envelope-ids-for-sql-server).
 
-However, in **cloud environments where multiple instances share network identity** — such as Kubernetes pods, Google Cloud Run, AWS Lambda, or other containerized/serverless platforms — `NewId` can produce **duplicate envelope IDs** because it relies on machine-specific properties that are identical across instances.
-
-For **greenfield applications**, or any deployment where instances may share network identity, use `GuidV7`:
+Wolverine 6.x used [MassTransit's NewId](https://masstransit.io/documentation/patterns/newid) algorithm instead, which
+generates sequential GUIDs based on machine identity (MAC address or DNS hostname), the process id and a timestamp. In
+**cloud environments where multiple instances share network identity** — such as Kubernetes pods, Google Cloud Run, AWS
+Lambda, or other containerized/serverless platforms — `NewId` can produce **duplicate envelope IDs**, which is why it
+is no longer the default. It is still there as an explicit opt-in, and `opts.RestoreV6Defaults()` brings it back:
 
 ```csharp
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        // Recommended for new applications and cloud deployments
-        opts.EnvelopeIdGeneration = EnvelopeIdGeneration.GuidV7;
+        // The Wolverine 6.x default
+        opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId;
     }).StartAsync();
 ```
 
-`GuidV7` uses `Guid.CreateVersion7()` per [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562), which produces GUIDs with a millisecond timestamp and cryptographically strong random bits. This guarantees uniqueness without relying on machine-specific properties. Just know that ids created within the same millisecond are in random order, so under a heavy message load they index about like random GUIDs, and SQL Server doesn't sort them by time at all.
-
-::: warning
-`EnvelopeIdGeneration.GuidV7` requires **.NET 9 or later**. `Guid.CreateVersion7()` is not available on .NET 8. Attempting to use this option on .NET 8 will throw a `NotSupportedException` at startup.
-:::
+An explicit `EnvelopeIdGeneration` always wins, over the default and over what the message stores prefer.
 
 | Strategy | Uniqueness Source | Sorted in time order by | Best For |
 |----------|------------------|-------------|----------|
-| `NewId` (default) | Machine identity + timestamp | .NET and PostgreSQL | Single-machine or unique-network deployments, and PostgreSQL message storage |
-| `GuidV7` | Cryptographic randomness + timestamp | .NET and PostgreSQL, to the millisecond | Cloud, containers, serverless, greenfield apps |
+| `GuidV7` (default) | Cryptographic randomness + timestamp | .NET and PostgreSQL, to the millisecond | Almost everything: cloud, containers, serverless, PostgreSQL, MySQL and SQLite message storage |
+| `NewId` (6.x default) | Machine identity + timestamp | .NET and PostgreSQL | Single-machine or unique-network deployments that want strictly sequential ids |
 | `NewIdSqlServerOrder` | Machine identity + timestamp | SQL Server | Applications whose envelopes are stored in SQL Server (automatic when every message store is SQL Server) |
 
 ### Envelope IDs for SQL Server <Badge type="tip" text="6.49" />
 
-SQL Server compares a `uniqueidentifier` starting from its *last* six bytes, so the default `NewId` ids -- and the
-`GuidV7` ids, for that matter -- arrive in effectively random order as far as SQL Server is concerned. Wolverine's
+SQL Server compares a `uniqueidentifier` starting from its *last* six bytes, so the default `GuidV7` ids -- and the
+6.x `NewId` ids, for that matter -- arrive in effectively random order as far as SQL Server is concerned. Wolverine's
 SQL Server inbox, outbox, and dead letter tables are clustered on the envelope id, so a busy system keeps splitting
 pages. One user [measured](https://github.com/JasperFx/wolverine/issues/4902) a production inbox that was 99%
 fragmented with its pages half full, which means every scan of that table reads about twice the pages it should.
@@ -517,7 +549,8 @@ fragmented with its pages half full, which means every scan of that table reads 
 `EnvelopeIdGeneration.NewIdSqlServerOrder` uses the same NewId algorithm with the timestamp laid out where SQL Server
 looks for it, and **Wolverine switches to it automatically at startup when every message store in your application is
 SQL Server** -- plain SQL Server persistence, the SQL Server transport, EF Core on SQL Server, or Polecat -- and you
-haven't set `EnvelopeIdGeneration` yourself. If any message store disagrees, Wolverine keeps the default. You can
+haven't set `EnvelopeIdGeneration` yourself, in 7.0 and after `RestoreV6Defaults()` alike. If any message store
+disagrees, Wolverine keeps the default. You can
 also set it directly:
 
 <!-- snippet: sample_envelope_ids_in_sql_server_order -->
@@ -527,14 +560,14 @@ also set it directly:
 // setting it explicitly forces it no matter what the message stores prefer
 opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewIdSqlServerOrder;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/envelope_id_generation.cs#L112-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_ids_in_sql_server_order' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/envelope_id_generation.cs#L121-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_ids_in_sql_server_order' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
 The envelope id travels with the message, and the *receiving* application uses that same id as the key in its own
 inbox. If a SQL Server-only application publishes to other Wolverine services that store their envelopes in
 PostgreSQL, these ids will bloat *their* inbox indexes -- on PostgreSQL this layout indexes even worse than completely
-random GUIDs. Opt out in that case by setting `opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId` explicitly, or
+random GUIDs. Opt out in that case by setting `opts.EnvelopeIdGeneration = EnvelopeIdGeneration.GuidV7` explicitly, or
 see the [SQL Server](/guide/durability/sqlserver#optimized-envelope-ids-for-sql-server) and
 [Polecat](/guide/durability/polecat/#optimized-envelope-ids-for-sql-server) pages for the registration overloads.
 Likewise, an inbox only stays in order for messages whose senders use these ids too.

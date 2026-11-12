@@ -29,9 +29,23 @@ internal class IncomingEnvelopeTable : Table
 
         AddColumn(DatabaseConstants.KeepUntil, "TEXT");
 
-        if (durability.InboxStaleTime.HasValue)
+        // GH-5167: the envelope's GroupId, so scheduled message management can find, cancel and reschedule the
+        // scheduled messages of one business identifier (booking/{id}). Nullable, so an existing table migrates
+        // by gaining a column that is null for every row already there.
+        AddColumn(DatabaseConstants.GroupId, "TEXT");
+
+        // GH-5193: always created (unless AlwaysProvisionOptionalSchemaObjects is off), whether or not
+        // InboxStaleTime is set; only the statements that read and write it follow InboxStaleTime
+        if (durability.ProvisionsIncomingTimestamp)
         {
             AddColumn(DatabaseConstants.Timestamp, "TEXT").DefaultValueByExpression("(datetime('now'))");
         }
+
+        // GH-5167: serves ScheduledMessageQuery.GroupId (query, cancel, reschedule by group), partial on the Scheduled slice
+        Indexes.Add(new IndexDefinition($"idx_{Identifier.Name}_group_id")
+        {
+            Columns = [DatabaseConstants.GroupId],
+            Predicate = $"{DatabaseConstants.Status} = 'Scheduled'"
+        });
     }
 }

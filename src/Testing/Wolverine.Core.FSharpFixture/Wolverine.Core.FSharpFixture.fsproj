@@ -9,8 +9,8 @@
     -->
 
     <PropertyGroup>
-        <!-- Single target keeps the compile gate fast; net9.0 matches the FSharp.Core 9 pin below. -->
-        <TargetFrameworks>net9.0</TargetFrameworks>
+        <!-- Single target keeps the compile gate fast; net10.0 matches the single-target fixtures below. -->
+        <TargetFrameworks>net10.0</TargetFrameworks>
         <IsPackable>false</IsPackable>
 
         <!-- Clear / relax the C#-oriented props inherited from Directory.Build.props that an F#

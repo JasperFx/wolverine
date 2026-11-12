@@ -131,12 +131,14 @@ public class compressed_agent_command_payloads
     [Fact]
     public async Task the_compressed_serializer_is_always_readable_even_when_writing_is_off()
     {
-        // The rollout contract: reading works on every node from this version forward, so a fleet can be
-        // fully deployed before anyone turns writing on.
-        using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync(TestContext.Current.CancellationToken);
+        // The rollout contract: reading works on every node from 6.44 forward, whatever the setting, so a fleet
+        // on 6.44+ reads what a 7.0 node writes now that writing is on by default (GH-5200).
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts => opts.Durability.CompressAgentCommands = false)
+            .StartAsync(TestContext.Current.CancellationToken);
 
         var options = host.GetRuntime().Options;
-        options.Durability.CompressAgentCommands.ShouldBeFalse("Default must stay off for rolling deploys");
+        options.Durability.CompressAgentCommands.ShouldBeFalse();
 
         options.TryFindSerializer(CompressedIntrinsicSerializer.MimeType).ShouldBeSameAs(
             CompressedIntrinsicSerializer.Instance);
@@ -162,7 +164,7 @@ public class compressed_agent_command_payloads
     }
 
     [Fact]
-    public async Task the_default_leaves_agent_commands_on_the_plain_serializer()
+    public async Task turning_it_off_leaves_agent_commands_on_the_plain_serializer()
     {
         var serializer = await serializerForAgentCommand(false);
 

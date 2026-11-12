@@ -4,12 +4,18 @@
          either .slnx solution or CI; build and run standalone via rig.sh in this folder. -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net9.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
         <InvariantGlobalization>true</InvariantGlobalization>
     </PropertyGroup>
+
+    <ItemGroup>
+        <!-- NativeTwin.cs deliberately stays on raw Confluent.Kafka as the cross-library
+             comparison anchor now that Wolverine.Kafka itself runs on Dekaf -->
+        <PackageReference Include="Confluent.Kafka" />
+    </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\..\Transports\Kafka\Wolverine.Kafka\Wolverine.Kafka.csproj" />

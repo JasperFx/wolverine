@@ -432,7 +432,7 @@ internal class Executor : IExecutor
         var handler = handlerGraph.HandlerFor(messageType);
         if (handler == null )
         {
-            var batching = runtime.Options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
+            var batching = handlerGraph.BatchFor(messageType);
             if (batching != null)
             {
                 handler = batching.BuildHandler((WolverineRuntime)runtime);

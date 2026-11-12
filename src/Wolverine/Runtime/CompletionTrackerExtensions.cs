@@ -6,8 +6,8 @@ namespace Wolverine.Runtime;
 ///     CritterWatch GH-907 / wolverine#3774. Completion continuations (success, no-handler,
 ///     error-queue, discard) historically reported through the runtime's global tracker, which
 ///     bypassed the metrics-silent tracker the executor resolved for system traffic — so a
-///     system message's completion still recorded wolverine-messages-succeeded and
-///     wolverine-effective-time (and, in the publishing modes, still fed the CritterWatch
+///     system message's completion still recorded wolverine.messages.succeeded and
+///     wolverine.effective.time (and, in the publishing modes, still fed the CritterWatch
 ///     accumulator's effective-time rollup: the CritterWatch#880 producer).
 ///
 ///     <para>The diversion is deliberately narrow: ONLY the metrics-silent tracker is honored

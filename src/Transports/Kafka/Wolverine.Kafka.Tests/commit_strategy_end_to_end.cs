@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.ComplianceTests;

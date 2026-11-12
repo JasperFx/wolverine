@@ -77,9 +77,9 @@ public enum MessageIdentity
     IdOnly,
     
     /// <summary>
-    /// Make Wolverine identify message identity uniqueness by a combination of the message id and destination (received_at). Use
-    /// this if you are having a single Wolverine process receive the same message from multiple external listeners. This may be
-    /// necessary for some "Modular Monolith" approaches
+    /// Opt in to make Wolverine identify a received message by the combination of the message id and destination
+    /// (received_at), so a single Wolverine process can receive the same message from multiple external listeners --
+    /// one per handler type in a "Modular Monolith", for example
     /// </summary>
     IdAndDestination
 }
@@ -167,9 +167,12 @@ public class DurabilitySettings : IDescribeMyself
         Wolverine.Persistence.Durability.IMessageStore?>? ResolveMainStoreOnConflict { get; set; }
 
     /// <summary>
-    /// Direct Wolverine on how it judges message identity. "Classic" default is IdOnly. Switch to IdAndDestination
-    /// for Modular Monolith usage where you may be receiving the same message and processing separately in different
-    /// external transport listening endpoints
+    /// Direct Wolverine on how it judges the identity of a received message in the durable inbox. The default is
+    /// <see cref="Wolverine.MessageIdentity.IdOnly"/>. Switch to <see cref="Wolverine.MessageIdentity.IdAndDestination"/>
+    /// when a broker can deliver one message to several durable listening endpoints in the same process -- Wolverine
+    /// gives every handler type of a message type its own handler chain, often on a listening endpoint of its own, so
+    /// in a "Modular Monolith" those copies share an envelope id. The two give the inbox table a different primary
+    /// key, so changing this changes the database schema
     /// </summary>
     public MessageIdentity MessageIdentity { get; set; } = MessageIdentity.IdOnly;
 
@@ -256,18 +259,37 @@ public class DurabilitySettings : IDescribeMyself
     /// than the configured time even if the message is marked as owned by an active node
     /// </summary>
     /// <remarks>
-    /// Under <see cref="DurabilityMode.ServerlessWithOutbox"/> this defaults to 60 seconds. A value set
-    /// explicitly always wins.
+    /// Defaults to 1 hour since 7.0 (GH-5519), and to 60 seconds under <see cref="DurabilityMode.ServerlessWithOutbox"/>.
+    /// The outbox has no heartbeat, so this has to be longer than any time a live node legitimately holds an outgoing
+    /// row it owns -- a sender latched by its circuit breaker through a broker outage, say -- or the row is sent twice.
+    /// Orphaned rows of a node that died are recovered without it, so this is only a backstop for rows a live node
+    /// owns and has lost track of. <see cref="WolverineOptions.RestoreV6Defaults"/> restores 6.x's null outside
+    /// ServerlessWithOutbox. A value set explicitly always wins, and outside ServerlessWithOutbox an explicit null turns it off.
     /// </remarks>
     public TimeSpan? OutboxStaleTime
     {
-        get => _outboxStaleTime ?? (Mode == DurabilityMode.ServerlessWithOutbox ? ServerlessWithOutboxDefaultOutboxStaleTime : null);
-        set => _outboxStaleTime = value;
+        // Under ServerlessWithOutbox an explicit null still means that mode's default, as it did in 6.x
+        get => Mode == DurabilityMode.ServerlessWithOutbox
+            ? _outboxStaleTime ?? ServerlessWithOutboxDefaultOutboxStaleTime
+            : _outboxStaleTimeSet
+                ? _outboxStaleTime
+                : V6DefaultsRestored ? null : DefaultOutboxStaleTime;
+        set
+        {
+            _outboxStaleTime = value;
+            _outboxStaleTimeSet = true;
+        }
     }
 
     private TimeSpan? _outboxStaleTime;
+    private bool _outboxStaleTimeSet;
 
     internal static readonly TimeSpan ServerlessWithOutboxDefaultOutboxStaleTime = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// GH-5519. The 7.0 default of <see cref="OutboxStaleTime"/> outside ServerlessWithOutbox
+    /// </summary>
+    internal static readonly TimeSpan DefaultOutboxStaleTime = TimeSpan.FromHours(1);
 
     /// <summary>
     /// The owner id stamped onto outgoing envelopes when they are written to the outbox. Under
@@ -279,13 +301,55 @@ public class DurabilitySettings : IDescribeMyself
         : AssignedNodeNumber;
 
     /// <summary>
-    /// GH-5016. Opt in to an index on the outgoing envelope table's <c>timestamp</c> column, for the stale
-    /// <c>owner_id = 0</c> predicate a <see cref="DurabilityMode.ServerlessWithOutbox"/> durability pass
-    /// uses to find the outbox rows whose inline send failed. Only applies where the column exists, which
-    /// is whenever <see cref="OutboxStaleTime"/> has a value. Default is false, so there is no schema
-    /// change unless you ask for one
+    /// GH-5193. When true (the default since 7.0), the relational message stores always create three small,
+    /// additive schema objects whether or not the feature that reads them is turned on: the <c>timestamp</c>
+    /// column on the incoming and outgoing envelope tables, the partial index on the outgoing <c>timestamp</c>
+    /// column for the stale <c>owner_id = 0</c> predicate of a <see cref="DurabilityMode.ServerlessWithOutbox"/>
+    /// durability pass, and the nullable <c>load_factor</c> column on the <c>wolverine_nodes</c> table. Turning
+    /// on <see cref="InboxStaleTime"/>, <see cref="OutboxStaleTime"/> or <see cref="CapacityAwareAssignment"/>
+    /// later is then a configuration change only, with no schema migration.
     /// </summary>
-    public bool EnableOutgoingTimestampIndex { get; set; }
+    /// <remarks>
+    /// Only the schema is unconditional; the behaviour stays opt-in, and no statement reads or writes these
+    /// objects unless its own setting is on. Set this to false, or call
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/>, for the Wolverine 6.x layout: each column is created
+    /// only when its setting is on, and the outgoing timestamp index is not created. A value set explicitly wins
+    /// over <see cref="WolverineOptions.RestoreV6Defaults"/>, whichever is called first. The document stores
+    /// have no schema to provision and ignore this setting.
+    /// </remarks>
+    public bool AlwaysProvisionOptionalSchemaObjects
+    {
+        get => _alwaysProvisionOptionalSchemaObjects ?? !V6DefaultsRestored;
+        set => _alwaysProvisionOptionalSchemaObjects = value;
+    }
+
+    private bool? _alwaysProvisionOptionalSchemaObjects;
+
+    /// <summary>
+    /// Set by <see cref="WolverineOptions.RestoreV6Defaults"/>, so the durability defaults Wolverine 7.0
+    /// flipped resolve to their 6.x values unless they were set explicitly
+    /// </summary>
+    internal bool V6DefaultsRestored { get; set; }
+
+    /// <summary>
+    /// Whether the relational stores create the incoming envelope table's <c>timestamp</c> column
+    /// </summary>
+    internal bool ProvisionsIncomingTimestamp => AlwaysProvisionOptionalSchemaObjects || InboxStaleTime.HasValue;
+
+    /// <summary>
+    /// Whether the relational stores create the outgoing envelope table's <c>timestamp</c> column
+    /// </summary>
+    internal bool ProvisionsOutgoingTimestamp => AlwaysProvisionOptionalSchemaObjects || OutboxStaleTime.HasValue;
+
+    /// <summary>
+    /// Whether the relational stores create the partial index on the outgoing <c>timestamp</c> column (GH-5016)
+    /// </summary>
+    internal bool ProvisionsOutgoingTimestampIndex => AlwaysProvisionOptionalSchemaObjects;
+
+    /// <summary>
+    /// Whether the relational stores create the <c>load_factor</c> column on <c>wolverine_nodes</c> (GH-3959)
+    /// </summary>
+    internal bool ProvisionsNodeLoadFactor => AlwaysProvisionOptionalSchemaObjects || CapacityAwareAssignment;
 
     /// <summary>
     /// GH-5279. Opt in to a transaction-scoped durability pass lock for the message stores that support one, which
@@ -326,18 +390,36 @@ public class DurabilitySettings : IDescribeMyself
     /// <see cref="Wolverine.Persistence.Durability.IMessageInboxHeartbeat" />, which every relational store does.
     /// Under <see cref="DurabilityMode.ServerlessWithOutbox"/> this defaults to 5 minutes, so a durability pass
     /// recovers the inbox rows of a process that died before its handler finished (GH-5037). That mode runs no
-    /// durable receivers and so no heartbeat, so there it must be longer than the longest handler. A value set
-    /// explicitly always wins.
+    /// durable receivers and so no heartbeat, so there it must be longer than the longest handler.
+    /// Everywhere else this defaults to 1 hour since 7.0 (GH-5519): a backstop for rows a live node owns and has lost
+    /// track of, long enough that a store without the heartbeat does not release a long handler's row underneath it.
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/> restores 6.x's null outside ServerlessWithOutbox. A value set
+    /// explicitly always wins, and outside ServerlessWithOutbox an explicit null turns it off.
     /// </remarks>
     public TimeSpan? InboxStaleTime
     {
-        get => _inboxStaleTime ?? (Mode == DurabilityMode.ServerlessWithOutbox ? ServerlessWithOutboxDefaultInboxStaleTime : null);
-        set => _inboxStaleTime = value;
+        // Under ServerlessWithOutbox an explicit null still means that mode's default, as it did in 6.x
+        get => Mode == DurabilityMode.ServerlessWithOutbox
+            ? _inboxStaleTime ?? ServerlessWithOutboxDefaultInboxStaleTime
+            : _inboxStaleTimeSet
+                ? _inboxStaleTime
+                : V6DefaultsRestored ? null : DefaultInboxStaleTime;
+        set
+        {
+            _inboxStaleTime = value;
+            _inboxStaleTimeSet = true;
+        }
     }
 
     private TimeSpan? _inboxStaleTime;
+    private bool _inboxStaleTimeSet;
 
     internal static readonly TimeSpan ServerlessWithOutboxDefaultInboxStaleTime = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// GH-5519. The 7.0 default of <see cref="InboxStaleTime"/> outside ServerlessWithOutbox
+    /// </summary>
+    internal static readonly TimeSpan DefaultInboxStaleTime = TimeSpan.FromHours(1);
 
     /// <summary>
     /// GH-4659. How long a tenant database's writes are held after it refuses one, before a single probe
@@ -396,8 +478,27 @@ public class DurabilitySettings : IDescribeMyself
     /// which is the only path to <see cref="MaximumBrokerRedeliveries"/>. That setting dead-letters a delivery the
     /// inbox rejected as a duplicate and the listener could not settle; it does not bound duplicate execution, and
     /// that pair does not reach it.
+    ///
+    /// GH-5519: on by default since 7.0, for the PostgreSQL message store only. An existing unpartitioned inbox is
+    /// rebuilt as a partitioned one on the first 7.0 start, under an exclusive lock on the inbox table for as long as
+    /// the copy takes; see the migration guide. The other relational stores keep their unpartitioned inbox and only
+    /// use the partition-aware statements when this is set to true explicitly, as in 6.x. Set this to false, or call
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/>, to keep PostgreSQL's 6.x unpartitioned inbox. A value set
+    /// explicitly always wins.
     /// </summary>
-    public bool EnableInboxPartitioning { get; set; }
+    public bool EnableInboxPartitioning
+    {
+        get => _enableInboxPartitioning ?? !V6DefaultsRestored;
+        set => _enableInboxPartitioning = value;
+    }
+
+    private bool? _enableInboxPartitioning;
+
+    /// <summary>
+    /// GH-5519. Whether a store other than PostgreSQL, which never took the 7.0 default, uses the partition-aware inbox
+    /// statements: only when <see cref="EnableInboxPartitioning"/> was set to true explicitly
+    /// </summary>
+    internal bool EnableInboxPartitioningExplicitly => _enableInboxPartitioning == true;
 
     /// <summary>
     ///     Should the message durability agent be enabled during execution.
@@ -415,8 +516,26 @@ public class DurabilitySettings : IDescribeMyself
     /// Other scheduling paths already provide durability without this flag — see the
     /// XML doc on <see cref="IPolicies.AlwaysMakeScheduledMessagesDurable"/> for the
     /// full matrix. No-ops when no message store is configured.
+    ///
+    /// GH-5519: on by default since 7.0, which only changes anything for an application with a message store; without
+    /// one, scheduled messages to a buffered local queue stay in process as before, and no startup warning is written
+    /// (that warning is only for an explicit opt-in). Set this to false, or call
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/>, for 6.x's in-process scheduling. A value set explicitly
+    /// always wins.
     /// </summary>
-    public bool AlwaysMakeScheduledMessagesDurable { get; set; }
+    public bool AlwaysMakeScheduledMessagesDurable
+    {
+        get => _alwaysMakeScheduledMessagesDurable ?? !V6DefaultsRestored;
+        set => _alwaysMakeScheduledMessagesDurable = value;
+    }
+
+    private bool? _alwaysMakeScheduledMessagesDurable;
+
+    /// <summary>
+    /// GH-5519. True when <see cref="AlwaysMakeScheduledMessagesDurable"/> was turned on explicitly rather than by the
+    /// 7.0 default, which is the only case worth warning about when there is no message store
+    /// </summary>
+    internal bool AlwaysMakeScheduledMessagesDurableExplicitly => _alwaysMakeScheduledMessagesDurable == true;
 
     /// <summary>
     ///     How long should successfully handled messages be kept to use in idempotency checking
@@ -446,72 +565,98 @@ public class DurabilitySettings : IDescribeMyself
     /// </summary>
     public int HandledMessageCleanupMaxBatchesPerCycle { get; set; } = 20;
 
+    private MessageDeduplicationMode? _messageDeduplicationMode;
+    private bool? _enableDeduplicatedResponses;
+    private bool _v6DeduplicationDefaultsRestored;
+
     /// <summary>
-    ///     GH-4180. Opt in to storage for <b>logical</b> message deduplication ids — the
+    ///     GH-4757. Storage for <b>logical</b> message deduplication ids — the
     ///     <see cref="Envelope.DeduplicationId" /> an application sets to say "this is the same intent",
-    ///     as opposed to <see cref="Envelope.Id" />, which identifies one delivery.
+    ///     as opposed to <see cref="Envelope.Id" />, which identifies one delivery — and how those ids
+    ///     are compared for equality.
     ///
     ///     <para>
-    ///     Off by default, and deliberately so: enabling it provisions a new
-    ///     <c>wolverine_deduplication</c> table, and forcing a schema change on every existing
-    ///     deployment is not something a patch upgrade should do. Nothing in the read or write path of
-    ///     the transactional inbox changes either way — the deduplication markers live in their own
-    ///     table (see <see cref="Persistence.Durability.IDeduplicationStore" /> for why).
+    ///     The default is <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" /> as of 7.0
+    ///     (GH-5194), so every message store provisions the <c>wolverine_deduplication_hashed</c> table
+    ///     and its cleanup job. It was <see cref="Wolverine.MessageDeduplicationMode.None" /> in 6.x.
+    ///     <see cref="WolverineOptions.RestoreV6Defaults" /> puts the 6.x default back, and so does
+    ///     setting this to <see cref="Wolverine.MessageDeduplicationMode.None" />, which provisions
+    ///     nothing. An explicit setting always wins over either default.
     ///     </para>
     ///
     ///     <para>
-    ///     Turning this on provisions storage; it does not by itself deduplicate anything. Individual
-    ///     message handlers, HTTP endpoints and gRPC methods opt in with <c>[Deduplicated]</c> or via
+    ///     The comparison is a binary one with
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" />, and therefore identical on
+    ///     every engine. <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> preserves the
+    ///     original GH-4180 table and comparison exactly, for an application that cannot take the schema
+    ///     change.
+    ///     </para>
+    ///
+    ///     <para>
+    ///     Storage on its own does not deduplicate anything. Individual message handlers, HTTP endpoints
+    ///     and gRPC methods opt in with <c>[Deduplicated]</c> or via
     ///     <c>Policies.RequireDeduplicationId()</c>.
     ///     </para>
     /// </summary>
     /// <remarks>
-    ///     GH-4757. A boolean cannot say HOW the ids are compared, and the original string comparison
-    ///     behaves differently on SQL Server and MySQL than on PostgreSQL and SQLite — see
-    ///     <see cref="MessageDeduplicationMode" />. Kept as a pass-through so existing configuration code
-    ///     keeps compiling: <c>true</c> now means
-    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" />, the engine-independent
-    ///     comparison. An application that needs the old table and the old comparison sets
-    ///     <see cref="MessageDeduplicationMode" /> to
-    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> explicitly.
+    ///     GH-5194. Why a default rather than "provision the table only when a chain uses it": the
+    ///     message stores decide which tables they own when they are constructed and initialized, and
+    ///     that happens before handler discovery at startup. The <c>resources setup</c> /
+    ///     <c>db-apply</c> commands build the schema without discovering handlers at all, and HTTP
+    ///     endpoints can be discovered after the storage has migrated. Usage is not known in time.
     /// </remarks>
-    [Obsolete(
-        "Use DurabilitySettings.MessageDeduplicationMode instead. 'true' maps to MessageDeduplicationMode.CompareByHash and 'false' to MessageDeduplicationMode.None. GH-4757")]
-    public bool EnableMessageDeduplication
+    public MessageDeduplicationMode MessageDeduplicationMode
     {
-        get => MessageDeduplicationMode != MessageDeduplicationMode.None;
-        set => MessageDeduplicationMode =
-            value ? MessageDeduplicationMode.CompareByHash : MessageDeduplicationMode.None;
+        get => _messageDeduplicationMode ?? (_v6DeduplicationDefaultsRestored
+            ? MessageDeduplicationMode.None
+            : MessageDeduplicationMode.CompareByHash);
+        set => _messageDeduplicationMode = value;
     }
 
     /// <summary>
-    ///     GH-4757. Opt in to storage for <b>logical</b> message deduplication ids, and choose how those
-    ///     ids are compared for equality. <see cref="Wolverine.MessageDeduplicationMode.None" /> — the
-    ///     default — provisions nothing, so an upgrade migrates nothing.
-    ///
-    ///     <para>
-    ///     Prefer <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" />: the comparison is a
-    ///     binary one and therefore identical on every engine.
-    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> preserves the original
-    ///     GH-4180 table and comparison exactly, for an application that cannot take the schema change.
-    ///     </para>
-    ///
-    ///     <para>
-    ///     Setting this provisions storage; it does not by itself deduplicate anything. Individual
-    ///     message handlers, HTTP endpoints and gRPC methods opt in with <c>[Deduplicated]</c> or via
-    ///     <c>Policies.RequireDeduplicationId()</c>.
-    ///     </para>
-    /// </summary>
-    public MessageDeduplicationMode MessageDeduplicationMode { get; set; } = MessageDeduplicationMode.None;
-
-    /// <summary>
-    ///     GH-4742. Opt in to storage for <c>[DeduplicatedWithResponse]</c> HTTP endpoints, which answer a repeat
+    ///     GH-4742. Storage for <c>[DeduplicatedWithResponse]</c> HTTP endpoints, which answer a repeat
     ///     of a request with its first response. Provisions a separate <c>wolverine_deduplicated_responses</c>
-    ///     table, so it is independent of <see cref="EnableMessageDeduplication" />. Claims expire after
+    ///     table, so it is independent of <see cref="MessageDeduplicationMode" />. Claims expire after
     ///     <see cref="DeduplicationWindow" /> unless the endpoint sets its own, and are reaped on
     ///     <see cref="DeduplicationCleanupPollingTime" />.
+    ///
+    ///     <para>
+    ///     On by default as of 7.0 (GH-5194), off in 6.x. <see cref="WolverineOptions.RestoreV6Defaults" />
+    ///     turns it back off, and so does setting it to <see langword="false" />. An explicit setting
+    ///     always wins over either default.
+    ///     </para>
     /// </summary>
-    public bool EnableDeduplicatedResponses { get; set; }
+    public bool EnableDeduplicatedResponses
+    {
+        get => _enableDeduplicatedResponses ?? !_v6DeduplicationDefaultsRestored;
+        set => _enableDeduplicatedResponses = value;
+    }
+
+    /// <summary>
+    ///     GH-5194. Called by <see cref="WolverineOptions.RestoreV6Defaults" />: the deduplication defaults go
+    ///     back to <see cref="Wolverine.MessageDeduplicationMode.None" /> and no deduplicated responses.
+    ///     Values the application set explicitly, before or after, are left alone.
+    /// </summary>
+    internal void RestoreV6DeduplicationDefaults()
+    {
+        _v6DeduplicationDefaultsRestored = true;
+    }
+
+    /// <summary>
+    ///     GH-5194. Make sure logical deduplication storage is on, for a feature that depends on it
+    ///     (registering a recurring message). Leaves an explicit
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByString" /> alone, promotes an explicit
+    ///     <see cref="Wolverine.MessageDeduplicationMode.None" />, and pins
+    ///     <see cref="Wolverine.MessageDeduplicationMode.CompareByHash" /> when nothing was set, so a later
+    ///     <see cref="WolverineOptions.RestoreV6Defaults" /> cannot take it away again.
+    /// </summary>
+    internal void RequireMessageDeduplication()
+    {
+        if (_messageDeduplicationMode is null or MessageDeduplicationMode.None)
+        {
+            _messageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
+        }
+    }
 
     /// <summary>
     ///     GH-4180. How long a logical deduplication claim is honoured before the reaper removes it.
@@ -549,7 +694,8 @@ public class DurabilitySettings : IDescribeMyself
 
     /// <summary>
     ///     Is the recurring (cron) message feature active on this application? Flipped by
-    ///     registering the first schedule through <c>opts.Schedules</c> — never set this by hand.
+    ///     registering the first schedule through <c>opts.Schedules</c>. Internal since 7.0 (GH-5521): it
+    ///     was public, but setting it by hand was never supported.
     ///
     ///     <para>
     ///     It exists as a durability setting because the message stores read it: when
@@ -560,7 +706,7 @@ public class DurabilitySettings : IDescribeMyself
     ///     without the feature, so an upgrade forces no migration on anyone who has not asked for it.
     ///     </para>
     /// </summary>
-    public bool EnableRecurringMessages { get; set; }
+    internal bool EnableRecurringMessages { get; set; }
 
     /// <summary>
     ///     Governs the page size for how many persisted incoming or outgoing messages
@@ -807,7 +953,9 @@ public class DurabilitySettings : IDescribeMyself
 
     /// <summary>
     ///     GH-4720. Compress agent command payloads on the wire, under the separate
-    ///     <c>binary/wolverine+gzip</c> content type. Off by default.
+    ///     <c>binary/wolverine+gzip</c> content type. On by default as of Wolverine 7.0 (GH-5200), off in 6.x.
+    ///     <see cref="WolverineOptions.RestoreV6Defaults" /> turns it back off, and an explicit setting always
+    ///     wins over either default.
     /// </summary>
     /// <remarks>
     ///     <para>
@@ -818,11 +966,13 @@ public class DurabilitySettings : IDescribeMyself
     ///     poll, and it raises the ceiling under <c>Options.MaxIncomingEnvelopeDataSize</c>.
     ///     </para>
     ///     <para>
-    ///     <b>Turn this on only once every node in the cluster is running a version that can read it.</b>
-    ///     Reading is unconditional from this version forward, so the upgrade path is: deploy everywhere
-    ///     first, then enable. A node that predates the content type will reject the command rather than
-    ///     misread it — loudly, but it will still reject it, and agent assignment to that node stops until it
-    ///     is upgraded. It is off by default for exactly that reason; a rolling deploy is the normal case.
+    ///     <b>Every node in the cluster must run Wolverine 6.44 or later before the first 7.0 node starts.</b>
+    ///     Reading the compressed format has been unconditional since 6.44, whatever this setting says, so a
+    ///     6.44+ node reads what a 7.0 node writes. A node older than 6.44 does not know the content type and
+    ///     rejects the command rather than misreading it -- loudly, but agent assignment to that node stops
+    ///     until it is upgraded. If a rolling deploy has to go straight from an older 6.x to 7.0, set this to
+    ///     <see langword="false" /> (or call <see cref="WolverineOptions.RestoreV6Defaults" />) until every
+    ///     node is on 7.0, then remove the setting.
     ///     </para>
     ///     <para>
     ///     Compression does not REPLACE chunking by <see cref="AgentStartBatchSize" /> (GH-4718). It scales
@@ -830,7 +980,13 @@ public class DurabilitySettings : IDescribeMyself
     ///     back over the reader's limit.
     ///     </para>
     /// </remarks>
-    public bool CompressAgentCommands { get; set; }
+    public bool CompressAgentCommands
+    {
+        get => _compressAgentCommands ?? !V6DefaultsRestored;
+        set => _compressAgentCommands = value;
+    }
+
+    private bool? _compressAgentCommands;
 
     /// <summary>
     ///     GH-3604 / D3: the maximum number of agents a receiving node starts concurrently when it
@@ -959,12 +1115,15 @@ public class DurabilitySettings : IDescribeMyself
     ///         take the entire partition — a shard database's agents are never split to relieve pressure.
     ///     </para>
     ///     <para>
-    ///         On a relational store, enabling this provisions a <c>load_factor</c> column on the
-    ///         <c>wolverine_nodes</c> table. With <c>AutoCreate.None</c> — or a process without DDL
-    ///         rights — apply the schema migration before turning this on; otherwise every heartbeat
-    ///         fails against the missing column. Every statement naming the column is gated on this same
-    ///         flag, so leaving it off migrates nothing and reads nothing. The document stores have no
-    ///         schema to migrate: an absent property simply reads back as "not advertising".
+    ///         On a relational store, the nullable <c>load_factor</c> column on the <c>wolverine_nodes</c>
+    ///         table is always created (GH-5193, see <see cref="AlwaysProvisionOptionalSchemaObjects" />),
+    ///         so turning this on needs no schema migration. Every statement naming the column is gated on
+    ///         this flag, so leaving it off reads and writes nothing. With
+    ///         <see cref="AlwaysProvisionOptionalSchemaObjects" /> turned off the column is only created when
+    ///         this is on; with <c>AutoCreate.None</c> — or a process without DDL rights — apply the schema
+    ///         migration before turning it on, otherwise every heartbeat fails against the missing column.
+    ///         The document stores have no schema to migrate: an absent property simply reads back as
+    ///         "not advertising".
     ///     </para>
     /// </summary>
     public bool CapacityAwareAssignment { get; set; }
@@ -1105,10 +1264,20 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan DeadLetterQueueExpiration { get; set; } = 10.Days();
     
     /// <summary>
-    /// Opt-in flag governs whether or not dead letter queued messages have expiration
-    /// enforced for database stored dead letter messages. The default is false.
+    /// Governs whether or not dead letter queued messages have expiration enforced for database stored dead letter
+    /// messages, after <see cref="DeadLetterQueueExpiration"/>. On by default since 7.0 (GH-5519); it was opt-in
+    /// before. On a relational store this adds the <c>expires</c> column and its index to the dead letter table, an
+    /// additive migration on the first start. Dead letters already stored have no expiration and are kept. Set this to
+    /// false, or call <see cref="WolverineOptions.RestoreV6Defaults"/>, to keep dead letters until they are replayed
+    /// or deleted. A value set explicitly always wins.
     /// </summary>
-    public bool DeadLetterQueueExpirationEnabled { get; set; }
+    public bool DeadLetterQueueExpirationEnabled
+    {
+        get => _deadLetterQueueExpirationEnabled ?? !V6DefaultsRestored;
+        set => _deadLetterQueueExpirationEnabled = value;
+    }
+
+    private bool? _deadLetterQueueExpirationEnabled;
 
     /// <summary>
     /// GH-5209. How long an archived dead letter is retained in database storage, measured from when it was
@@ -1248,7 +1417,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(EnableRecurringMessages), EnableRecurringMessages);
 
         if (OutboxStaleTime.HasValue) desc.AddValue(nameof(OutboxStaleTime), OutboxStaleTime.Value);
-        if (EnableOutgoingTimestampIndex) desc.AddValue(nameof(EnableOutgoingTimestampIndex), EnableOutgoingTimestampIndex);
+        desc.AddValue(nameof(AlwaysProvisionOptionalSchemaObjects), AlwaysProvisionOptionalSchemaObjects);
         if (UseTransactionScopedDurabilityPassLock) desc.AddValue(nameof(UseTransactionScopedDurabilityPassLock), UseTransactionScopedDurabilityPassLock);
         if (InboxStaleTime.HasValue) desc.AddValue(nameof(InboxStaleTime), InboxStaleTime.Value);
         if (MessageStorageSchemaName != null) desc.AddValue(nameof(MessageStorageSchemaName), MessageStorageSchemaName);

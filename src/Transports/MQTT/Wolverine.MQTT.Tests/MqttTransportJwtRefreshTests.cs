@@ -1,5 +1,5 @@
 using System.Reflection;
-using MQTTnet.Client;
+using MQTTnet;
 using MQTTnet.Extensions.ManagedClient;
 using NSubstitute;
 using Shouldly;

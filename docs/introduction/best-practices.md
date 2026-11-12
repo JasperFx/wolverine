@@ -537,9 +537,9 @@ public static async Task configure()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/BestPracticesSamples.cs#L335-L370' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bp_dividing_handlers_across_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-When the same message type has more than one handler, use [sticky handlers](/guide/handlers/sticky) to give each handler its
-own endpoint, or the `Separated` [multiple handler behavior](/guide/handlers/#multiple-handlers-for-the-same-message-type)
-to do that for every message type in a modular monolith:
+When the same message type has more than one handler, Wolverine always gives each handler type
+[its own handler chain and local queue](/guide/handlers/#multiple-handlers-for-the-same-message-type). Use
+[sticky handlers](/guide/handlers/sticky) to pin a handler to an endpoint of your choosing instead:
 
 <!-- snippet: sample_bp_sticky_handler -->
 <a id='snippet-sample_bp_sticky_handler'></a>

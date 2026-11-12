@@ -42,9 +42,17 @@ public abstract class CompilationContext : IDisposable
         return _host.Get<HandlerGraph>().HandlerFor(typeof(TMessage))!.As<MessageHandler>();
     }
 
-    public async Task<IMessageContext> Execute<TMessage>(TMessage message)
+    public Task<IMessageContext> Execute<TMessage>(TMessage message) => Execute(message, null);
+
+    /// <summary>
+    /// GH-5136. Run the chain of <typeparamref name="TMessage"/> that belongs to <paramref name="handlerType"/>.
+    /// Each handler type has its own chain, and the shared messages are handled by several handler types here
+    /// </summary>
+    public async Task<IMessageContext> Execute<TMessage>(TMessage message, Type? handlerType)
     {
-        var handler = await HandlerFor<TMessage>();
+        var handler = handlerType == null
+            ? await HandlerFor<TMessage>()
+            : _host.Get<HandlerGraph>().HandlerForHandlerType(typeof(TMessage), handlerType)!.As<MessageHandler>();
         theEnvelope = new Envelope(message!);
         var context = new MessageContext(_host.Get<IWolverineRuntime>());
         context.ReadEnvelope(theEnvelope, InvocationCallback.Instance);

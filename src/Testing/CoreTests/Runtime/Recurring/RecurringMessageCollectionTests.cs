@@ -18,6 +18,8 @@ public class RecurringMessageCollectionTests
     public void a_host_with_no_schedules_opts_into_nothing()
     {
         var options = new WolverineOptions();
+        // GH-5194: deduplication storage is on by default in 7.0; start from the 6.x "off" to see what this turns on
+        options.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None;
 
         options.Schedules.Any().ShouldBeFalse();
         options.Durability.MessageDeduplicationMode.ShouldBe(MessageDeduplicationMode.None);
@@ -29,6 +31,8 @@ public class RecurringMessageCollectionTests
     public void registering_the_first_schedule_is_the_opt_in()
     {
         var options = new WolverineOptions();
+        // GH-5194: deduplication storage is on by default in 7.0; start from the 6.x "off" to see what this turns on
+        options.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None;
 
         options.Schedules.ScheduleRecurring<SampleRecurringMessage>("0 9 * * *");
 
@@ -81,6 +85,8 @@ public class RecurringMessageCollectionTests
     public void a_bad_cron_expression_fails_at_the_registration_site()
     {
         var options = new WolverineOptions();
+        // GH-5194: deduplication storage is on by default in 7.0; start from the 6.x "off" to see what this turns on
+        options.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None;
 
         Should.Throw<ArgumentException>(() =>
             options.Schedules.ScheduleRecurring<SampleRecurringMessage>("every day at nine"));

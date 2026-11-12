@@ -99,7 +99,6 @@ public class sticky_local_queue_ancillary_stores : IAsyncLifetime
                     .IncludeType<LocalStickyAHandler>()
                     .IncludeType<LocalStickyBHandler>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 // The one message fans out to both sticky local queues, so the destination has to be
                 // part of the inbox identity or the second queue's row collides with the first

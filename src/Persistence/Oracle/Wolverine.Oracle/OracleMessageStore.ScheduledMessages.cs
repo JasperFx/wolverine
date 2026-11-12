@@ -11,7 +11,7 @@ internal partial class OracleMessageStore
 
     async Task<ScheduledMessageResults> IScheduledMessages.QueryAsync(ScheduledMessageQuery query, CancellationToken token)
     {
-        if (query.SagaId.IsNotEmpty())
+        if (ScheduledMessageSagaFilter.AppliesTo(query))
         {
             return await ScheduledMessageSagaFilter.QueryAsync(this, query, token);
         }
@@ -19,7 +19,7 @@ internal partial class OracleMessageStore
         var builder = ToOracleCommandBuilder();
 
         builder.Append(
-            $"SELECT {DatabaseConstants.Id}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.ReceivedAt}, {DatabaseConstants.Attempts}, COUNT(*) OVER() as total_rows, {DatabaseConstants.Body} FROM {SchemaName}.{DatabaseConstants.IncomingTable} WHERE {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
+            $"SELECT {DatabaseConstants.Id}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.ReceivedAt}, {DatabaseConstants.Attempts}, COUNT(*) OVER() as total_rows, {DatabaseConstants.Body}, {DatabaseConstants.GroupId} FROM {SchemaName}.{DatabaseConstants.IncomingTable} WHERE {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
 
         writeScheduledMessageWhereClause(query, builder);
 
@@ -68,6 +68,11 @@ internal partial class OracleMessageStore
                 summary.ReadEnvelopeIdentity(await reader.GetFieldValueAsync<byte[]>(6, token));
             }
 
+            if (!await reader.IsDBNullAsync(7, token))
+            {
+                summary.GroupId = await reader.GetFieldValueAsync<string>(7, token);
+            }
+
             results.Messages.Add(summary);
 
             if (results.TotalCount == 0)
@@ -84,7 +89,7 @@ internal partial class OracleMessageStore
 
     async Task IScheduledMessages.CancelAsync(ScheduledMessageQuery query, CancellationToken token)
     {
-        if (query.SagaId.IsNotEmpty())
+        if (ScheduledMessageSagaFilter.AppliesTo(query))
         {
             var bySagaIds = await ScheduledMessageSagaFilter.ResolveCancellationAsync(this, query, token);
             if (bySagaIds == null) return;
@@ -122,6 +127,42 @@ internal partial class OracleMessageStore
         builder.Append($" WHERE {DatabaseConstants.Id} = ");
         builder.AppendParameter(envelopeId);
         builder.Append($" AND {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
+
+        await using var cmd = builder.Compile();
+
+        await using var conn = await _dataSource.OpenConnectionAsync(token);
+        try
+        {
+            cmd.Connection = conn;
+            await cmd.ExecuteNonQueryAsync(token);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    async Task IScheduledMessages.RescheduleAsync(ScheduledMessageQuery query, DateTimeOffset newExecutionTime,
+        CancellationToken token)
+    {
+        ScheduledMessageSagaFilter.AssertHasCriteria(query);
+
+        if (ScheduledMessageSagaFilter.AppliesTo(query))
+        {
+            var byIds = await ScheduledMessageSagaFilter.ResolveCancellationAsync(this, query, token);
+            if (byIds == null) return;
+            query = byIds;
+        }
+
+        // GH-5167. One statement for every match; only rows still Scheduled move
+        var builder = ToOracleCommandBuilder();
+
+        builder.Append(
+            $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.ExecutionTime} = ");
+        builder.AppendParameter(newExecutionTime.ToUniversalTime());
+        builder.Append($" WHERE {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
+
+        writeScheduledMessageWhereClause(query, builder);
 
         await using var cmd = builder.Compile();
 
@@ -186,6 +227,12 @@ internal partial class OracleMessageStore
         {
             builder.Append($" AND {DatabaseConstants.ExecutionTime} <= ");
             builder.AppendParameter(query.ExecutionTimeTo.Value.ToUniversalTime());
+        }
+
+        if (query.GroupId is not null)
+        {
+            builder.Append($" AND {DatabaseConstants.GroupId} = ");
+            builder.AppendParameter(query.GroupId);
         }
 
         if (query.MessageIds.Length > 0)

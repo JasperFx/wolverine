@@ -1,4 +1,4 @@
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Shouldly;
 
 namespace WolverineWebApi.TestSupport;
@@ -12,9 +12,9 @@ public class ExpectStatusCodesAttribute : OpenApiExpectationAttribute
         StatusCodes = statusCodes.OrderBy(x => x).ToArray();
     }
 
-    public override void Validate(OpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
+    public override void Validate(IOpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
     {
-        var actual = op.Responses.Keys.Select(int.Parse).OrderBy(x => x).ToArray();
+        var actual = op.Responses!.Keys.Select(int.Parse).OrderBy(x => x).ToArray();
         actual.ShouldBe(StatusCodes);
     }
 }

@@ -2,10 +2,13 @@ using System.Collections.Concurrent;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using RabbitMQ.Client;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime.WorkerQueues;
+using Wolverine.Transports;
 using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
@@ -74,6 +77,12 @@ public class native_ack_mode : IAsyncLifetime
     private const string RedeliveryQueue = "native-ack-3708-redelivery";
     private const string HardKillQueue = "native-ack-4095-hard-kill";
 
+    // GH-5533. Unique per run: these tests deliberately leave deliveries on the queue when they fail, and the
+    // listener starts consuming before a purge could run, so a fixed name let one run's leftovers satisfy -- or
+    // break -- the next run's assertions.
+    private readonly string InFlightDrainQueue = "native-ack-5533-drain-" + Guid.NewGuid().ToString("N")[..8];
+    private readonly string InFlightSettleQueue = "native-ack-5533-settle-" + Guid.NewGuid().ToString("N")[..8];
+
     public ValueTask InitializeAsync()
     {
         NativeAckWorkTracking.Reset();
@@ -87,7 +96,7 @@ public class native_ack_mode : IAsyncLifetime
         return ValueTask.CompletedTask;
     }
 
-    private static Task<IHost> startHostAsync(string queueName, string nodeName = "node")
+    private static Task<IHost> startHostAsync(string queueName, string nodeName = "node", bool idempotency = false)
     {
         return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -105,9 +114,14 @@ public class native_ack_mode : IAsyncLifetime
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<NativeAckWorkHandler>();
 
-                opts.ListenToRabbitQueue(queueName)
+                var listener = opts.ListenToRabbitQueue(queueName)
                     .Named(queueName)
                     .ProcessInParallelWithNativeAcks();
+
+                if (idempotency)
+                {
+                    listener.WithInMemoryIdempotency();
+                }
 
                 opts.PublishMessage<NativeAckWork>().ToRabbitQueue(queueName);
             }).StartAsync();
@@ -280,6 +294,146 @@ public class native_ack_mode : IAsyncLifetime
         // duplicate per in-flight lane, because a handler can finish after its ack path is gone. No loss is the
         // guarantee; exactly-once is not
         firstHost.Dispose();
+    }
+
+    /// <summary>
+    /// GH-5533. Rebuilds the listener's channel while every original is parked in its handler. Closing the
+    /// channel requeues the unacknowledged deliveries and the rebuilt consumer receives them again -- with NEW
+    /// delivery tags, on the new channel, at the same receiver -- which is exactly how RabbitMQ produces a
+    /// redelivery of a message that is still in flight. The originals' tags are now on a dead channel.
+    /// </summary>
+    private static async Task redeliverInFlightAsync(IHost host, string queueName)
+    {
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        var agent = (ListeningAgent)runtime.Endpoints.FindListeningAgent(queueName).ShouldNotBeNull();
+        var listener = agent.Listener.ShouldBeOfType<RabbitMqListener>();
+
+        await listener.ReconnectedAsync();
+
+        // Give the redeliveries time to arrive and be (wrongly) acked or run
+        await Task.Delay(2.Seconds());
+    }
+
+    /// <summary>
+    /// GH-5533. With the in-memory idempotency guard on, a redelivery of an in-flight message used to be acked
+    /// as a duplicate. On RabbitMQ that ack lands on the NEW delivery tag -- the only live one, since the
+    /// original's channel is gone -- so the message was settled while its handler was still running, and a
+    /// node that then went away lost it. The held redelivery is now left unacknowledged, so the broker requeues
+    /// it when the node's channel closes.
+    /// </summary>
+    [Fact]
+    public async Task an_in_flight_redelivery_is_not_acked_so_a_draining_node_still_loses_nothing()
+    {
+        NativeAckWorkTracking.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var firstHost = await startHostAsync(InFlightDrainQueue, "redelivered-node", idempotency: true);
+        await purgeAsync(InFlightDrainQueue);
+        var bus = firstHost.MessageBus();
+
+        for (var i = 0; i < 5; i++)
+        {
+            await bus.SendAsync(new NativeAckWork(300 + i));
+        }
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        while (startedByNode("redelivered-node", 300, 5).Count() < 5 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        startedByNode("redelivered-node", 300, 5).ShouldBe(Enumerable.Range(300, 5));
+
+        await redeliverInFlightAsync(firstHost, InFlightDrainQueue);
+
+        // Each redelivery was held rather than run: the guard is doing its job
+        NativeAckWorkTracking.Started.Count(x => x.Node == "redelivered-node" && x.Number >= 300 && x.Number < 305)
+            .ShouldBe(5);
+
+        firstHost.Dispose();
+        handledInRange(300, 5).ShouldBeEmpty();
+
+        NativeAckWorkTracking.Block!.TrySetResult();
+        NativeAckWorkTracking.Block = null;
+
+        using var secondHost = await startHostAsync(InFlightDrainQueue, "after-redelivery-node", idempotency: true);
+
+        deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (handledByNode("after-redelivery-node", 300, 5).Count() < 5 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        handledByNode("after-redelivery-node", 300, 5).ShouldBe(Enumerable.Range(300, 5));
+    }
+
+    /// <summary>
+    /// GH-5533. The other half. The original's ack cannot land -- its tag belongs to the channel that was
+    /// closed -- so if the held redelivery were simply left alone it would sit unacknowledged on the new
+    /// channel indefinitely, holding a prefetch slot. Once the original is processed, the held copy is acked
+    /// against its own (live) delivery tag, and nothing is left on the queue.
+    /// </summary>
+    [Fact]
+    public async Task an_in_flight_redelivery_is_acked_on_its_own_tag_once_the_original_succeeds()
+    {
+        NativeAckWorkTracking.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var firstHost = await startHostAsync(InFlightSettleQueue, "settling-node", idempotency: true);
+        await purgeAsync(InFlightSettleQueue);
+        var bus = firstHost.MessageBus();
+
+        for (var i = 0; i < 5; i++)
+        {
+            await bus.SendAsync(new NativeAckWork(400 + i));
+        }
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        while (startedByNode("settling-node", 400, 5).Count() < 5 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        startedByNode("settling-node", 400, 5).ShouldBe(Enumerable.Range(400, 5));
+
+        await redeliverInFlightAsync(firstHost, InFlightSettleQueue);
+
+        NativeAckWorkTracking.Block!.TrySetResult();
+        NativeAckWorkTracking.Block = null;
+
+        deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+        while (handledByNode("settling-node", 400, 5).Count() < 5 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        handledByNode("settling-node", 400, 5).ShouldBe(Enumerable.Range(400, 5));
+
+        // Ran exactly once each: the redeliveries were held, never executed
+        NativeAckWorkTracking.Handled.Count(x => x.Number >= 400 && x.Number < 405).ShouldBe(5);
+
+        // Give the held copies' acks time to land, then stop WITHOUT purging and look for leftovers
+        await Task.Delay(1.Seconds(), TestContext.Current.CancellationToken);
+        firstHost.Dispose();
+
+        (await queueDepthAsync(InFlightSettleQueue)).ShouldBe(0u);
+    }
+
+    // A raw channel rather than the management API, whose queue statistics lag by several seconds
+    private static async Task<uint> queueDepthAsync(string queueName)
+    {
+        var factory = new ConnectionFactory { HostName = "localhost", Port = 5672 };
+        await using var connection = await factory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+        var declared = await channel.QueueDeclarePassiveAsync(queueName);
+        return declared.MessageCount;
+    }
+
+    // A test that failed half way through a previous run must not leave deliveries behind for this one
+    private static async Task purgeAsync(string queueName)
+    {
+        var factory = new ConnectionFactory { HostName = "localhost", Port = 5672 };
+        await using var connection = await factory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+        await channel.QueuePurgeAsync(queueName);
     }
 
     /// <summary>Messages in the range whose handler STARTED on the named node, gate or no gate.</summary>

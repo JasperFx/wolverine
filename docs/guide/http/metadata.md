@@ -270,6 +270,14 @@ dotnet run -- openapi --document v1 --output ./artifacts/openapi.json
 dotnet run -- openapi --list
 ```
 
+The command writes the document in the OpenAPI version the document is configured with. On .NET 11,
+`Microsoft.AspNetCore.OpenApi` can write **OpenAPI 3.2**, and Wolverine endpoints come out of a 3.2
+document with the same operations, request content types and responses as in 3.1:
+
+```csharp
+builder.Services.AddOpenApi(o => o.OpenApiVersion = OpenApiSpecVersion.OpenApi3_2);
+```
+
 ### Inspecting a single route
 
 When you just want to look at the OpenAPI metadata for one endpoint — a great way to troubleshoot how

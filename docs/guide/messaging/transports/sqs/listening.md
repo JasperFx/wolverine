@@ -66,7 +66,8 @@ unacknowledged delivery lives until the channel closes, an unsettled SQS message
 Under this mode Wolverine holds it for lane queue time *plus* handler time, and lane queue time
 is unbounded by design — so Wolverine keeps issuing `ChangeMessageVisibilityBatch` for every
 delivery still sitting in a lane, without consulting `ExtendVisibilityWhileHandling()` (which
-remains an `Inline`-only opt-in). Idle lanes cost nothing, and `MaximumVisibilityExtension` is
+only applies to `Inline` endpoints, where it is on by default since 7.0). Both need the
+`sqs:ChangeMessageVisibility` IAM permission. Idle lanes cost nothing, and `MaximumVisibilityExtension` is
 still the ceiling. See [Performance and Throughput](/guide/messaging/transports/sqs/performance).
 
 **`MaxNumberOfMessages` is the prefetch equivalent, and it defaults *down* here.** Instead of

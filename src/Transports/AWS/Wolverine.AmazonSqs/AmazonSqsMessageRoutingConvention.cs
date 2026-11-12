@@ -34,10 +34,11 @@ public class AmazonSqsMessageRoutingConvention : MessageRoutingConvention<Amazon
     }
 
     /// <summary>
-    /// GH-4524. Under <see cref="MultipleHandlerBehavior.Separated"/> every handler of a message type past the
-    /// first listens on its own queue, named from the handler type the way RabbitMQ names its per-handler queue
-    /// -- but SQS has no exchange to fan out from, so the sender publishes to each of those queues itself (see
-    /// <see cref="FindOrCreateAdditionalSubscribers"/>). The first handler keeps the message type's own queue.
+    /// GH-4524 / GH-5137. When a message type has several handler types, each one -- with its own handler chain --
+    /// listens on its own queue, named from the handler type the way RabbitMQ names its per-handler queue -- but
+    /// SQS has no exchange to fan out from, so the sender publishes to each of those queues itself (see
+    /// <see cref="FindOrCreateAdditionalSubscribers"/>). A message type with one handler type keeps the message
+    /// type's own queue.
     /// </summary>
     protected override (AmazonSqsListenerConfiguration, Endpoint) FindOrCreateListenerForIdentifierUsingSeparatedHandler(string identifier,
         AmazonSqsTransport transport, Type messageType, Type handlerType)

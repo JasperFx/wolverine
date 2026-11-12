@@ -68,9 +68,17 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
     /// <summary>
     /// When true, automatically apply antiforgery metadata to form data and file upload endpoints.
-    /// Defaults to false. Enable by calling <see cref="WolverineHttpOptions.AutoAntiforgeryOnFormEndpoints"/>.
+    /// Defaults to true on .NET 11 and false on .NET 10 (GH-5147). See
+    /// <see cref="WolverineHttpOptions.AutoAntiforgeryOnFormEndpoints"/> and
+    /// <see cref="WolverineHttpOptions.DisableAutoAntiforgeryOnFormEndpoints"/>.
     /// </summary>
-    internal bool AutoAntiforgeryOnFormEndpoints { get; set; }
+    internal bool AutoAntiforgeryOnFormEndpoints { get; set; } = WolverineHttpOptions.AutoAntiforgeryOnFormEndpointsByDefault;
+
+    /// <summary>
+    /// Mirrors <see cref="WolverineHttpOptions.RequireAntiforgeryOnAll"/>: every endpoint requires antiforgery
+    /// validation unless it carries <see cref="DisableAntiforgeryAttribute"/>.
+    /// </summary>
+    internal bool RequireAntiforgeryOnAll { get; set; }
 
     /// <summary>
     /// When true, generated query string binding emits a 400 + ProblemDetails short circuit
@@ -91,6 +99,12 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     /// before endpoint discovery, like <see cref="RejectUnparseableQueryValues"/>.
     /// </summary>
     internal bool ApplyCorrelationIdHeaderToAllEndpoints { get; set; }
+
+    /// <summary>
+    /// GH-5520. Mirrors <see cref="WolverineHttpOptions.UserNameClaimType"/>; transferred before endpoint discovery,
+    /// like <see cref="ApplyCorrelationIdHeaderToAllEndpoints"/>.
+    /// </summary>
+    internal string? UserNameClaimType { get; set; }
 
     private int _warnedAboutLenientQueryBinding;
 
@@ -133,7 +147,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         }
 
         logger.LogWarning(
-            "WolverineHttpOptions.RejectUnparseableQueryValues is false, so a query string value that is present but cannot be parsed binds the parameter's default value and the request proceeds -- '?page=abc' on an int parameter runs with page = 0, and nothing is logged. Set WolverineHttpOptions.RejectUnparseableQueryValues = true to answer 400 with ProblemDetails instead, which is what MVC and minimal APIs do. This default flips to true in Wolverine 7.");
+            "WolverineHttpOptions.RejectUnparseableQueryValues is false, so a query string value that is present but cannot be parsed binds the parameter's default value and the request proceeds -- '?page=abc' on an int parameter runs with page = 0, and nothing is logged. Set WolverineHttpOptions.RejectUnparseableQueryValues = true to answer 400 with ProblemDetails instead, which is what MVC and minimal APIs do. It defaults to true from Wolverine 7.0; this application set it to false explicitly or called WolverineOptions.RestoreV6Defaults().");
     }
 
     internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _optionsWriterPolicies.Concat(_builtInWriterPolicies);

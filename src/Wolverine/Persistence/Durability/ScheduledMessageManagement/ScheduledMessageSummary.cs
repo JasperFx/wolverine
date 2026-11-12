@@ -21,4 +21,10 @@ public class ScheduledMessageSummary
     /// cannot be read.
     /// </summary>
     public string? SagaId { get; set; }
+
+    /// <summary>
+    /// GH-5167. The <see cref="Envelope.GroupId"/> the message was scheduled with, such as a business
+    /// identifier like <c>booking/{bookingId}</c>. Null when the message was scheduled without one.
+    /// </summary>
+    public string? GroupId { get; set; }
 }

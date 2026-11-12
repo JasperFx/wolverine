@@ -1,6 +1,6 @@
 using System.Text;
 using System.Text.Json;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -29,7 +29,6 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                //opts.EnableAutomaticFailureAcks = false;
                 opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
                 opts.ListenToKafkaTopic("cloudevents").InteropWithCloudEvents();
@@ -222,13 +221,13 @@ internal class CloudEventsOnlyMapper : IKafkaEnvelopeMapper
         _cloudEvents = cloudEvents;
     }
 
-    public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
+    public void MapEnvelopeToOutgoing(Envelope envelope, OutgoingKafkaRecord outgoing)
     {
         outgoing.Key = envelope.GroupId!;
         outgoing.Value = _cloudEvents.WriteToBytes(envelope);
     }
 
-    public void MapIncomingToEnvelope(Envelope envelope, Message<string, byte[]> incoming)
+    public void MapIncomingToEnvelope(Envelope envelope, ConsumeResult<string, byte[]> incoming)
     {
         throw new NotImplementedException();
     }

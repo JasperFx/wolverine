@@ -106,12 +106,8 @@ internal static class SagaDescriptorBuilder
     }
 
     /// <summary>
-    /// Recursively yield every <see cref="SagaChain"/> reachable through
-    /// the handler graph, including per-endpoint variants created by
-    /// MultipleHandlerBehavior.Separated. Top-level chains may have moved
-    /// their handlers into <see cref="MessageHandler.ByEndpoint"/>
-    /// sub-chains, leaving the outer chain routing-only — we still want
-    /// the inner chains' roles.
+    /// Every <see cref="SagaChain"/> in the handler graph, one per
+    /// (message type, saga type).
     /// </summary>
     public static IEnumerable<SagaChain> CollectSagaChains(HandlerGraph graph) => graph.SagaChains();
 

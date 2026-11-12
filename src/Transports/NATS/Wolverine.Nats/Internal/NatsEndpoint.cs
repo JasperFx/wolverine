@@ -82,7 +82,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     /// See <see cref="NatsTransportConfiguration.TrustTenantIdHeader"/>
     /// </summary>
     [IgnoreDescription]
-    internal bool TrustsTenantIdHeader => _transport.Configuration.TrustTenantIdHeader;
+    internal bool TrustsTenantIdHeader => _transport.TrustsTenantIdHeader;
 
     /// <summary>
     /// The ids of the tenants configured on the transport

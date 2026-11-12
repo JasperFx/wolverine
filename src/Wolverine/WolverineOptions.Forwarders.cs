@@ -9,8 +9,9 @@ public sealed partial class WolverineOptions
     /// Explicit (TForwarder, TForwarded) message-forwarder registrations made via
     /// <see cref="RegisterMessageForwarder{TFrom, TTo}"/> or
     /// <see cref="RegisterMessageForwarder{TForwarder}"/>. Replaces the
-    /// pre-6.0 <c>Forwarders.FindForwards(Assembly)</c> assembly scan, which is
-    /// now opt-in via <see cref="UseAutomaticForwarderDiscovery"/>.
+    /// pre-6.0 <c>Forwarders.FindForwards(Assembly)</c> assembly scan. The
+    /// <c>UseAutomaticForwarderDiscovery()</c> opt-in back into that scan was
+    /// removed in 7.0 (GH-5198).
     /// </summary>
     /// <remarks>
     /// <para>
@@ -22,18 +23,6 @@ public sealed partial class WolverineOptions
     /// </para>
     /// </remarks>
     internal Dictionary<Type, Type> ExplicitMessageForwarders { get; } = new();
-
-    /// <summary>
-    /// When <see langword="true"/>, <c>HandlerGraph.Compile</c> will scan
-    /// <see cref="ApplicationAssembly"/>'s exported types for concrete
-    /// <c>IForwardsTo&lt;T&gt;</c> implementations and register them as
-    /// message forwarders — the 5.x behavior. Default in 6.0 is
-    /// <see langword="false"/>; existing apps that relied on the implicit
-    /// scan should either call <see cref="UseAutomaticForwarderDiscovery"/>
-    /// or migrate to <see cref="RegisterMessageForwarder{TFrom, TTo}"/>
-    /// (recommended; see docs/guide/migration.md).
-    /// </summary>
-    internal bool AutomaticForwarderDiscoveryEnabled { get; set; }
 
     /// <summary>
     /// Register a message forwarder so that incoming messages of type
@@ -86,39 +75,6 @@ public sealed partial class WolverineOptions
 
         var forwardedType = forwardingInterface.GetGenericArguments().Single();
         ExplicitMessageForwarders[typeof(TForwarder)] = forwardedType;
-        return this;
-    }
-
-    /// <summary>
-    /// Re-enable the pre-6.0 behavior of scanning
-    /// <see cref="ApplicationAssembly"/>'s exported types for concrete
-    /// <see cref="IForwardsTo{T}"/> implementations at startup. Provided as
-    /// a backward-compatibility escape valve while apps migrate to the
-    /// explicit <see cref="RegisterMessageForwarder{TFrom, TTo}"/> API.
-    /// </summary>
-    /// <returns>This <see cref="WolverineOptions"/> for fluent chaining.</returns>
-    /// <remarks>
-    /// Marked <c>[Obsolete]</c> as a migration nudge and
-    /// <c>[RequiresUnreferencedCode]</c> because the underlying assembly
-    /// scan walks <see cref="System.Reflection.Assembly.ExportedTypes"/>
-    /// and trimming may remove forwarder types that are only reached
-    /// reflectively here. The explicit
-    /// <see cref="RegisterMessageForwarder{TFrom, TTo}"/> API is AOT-clean
-    /// and should be preferred for new code. Targeted for removal in 7.0.
-    /// </remarks>
-    [Obsolete(
-        "Migrate to the explicit RegisterMessageForwarder<TFrom, TTo>() API. " +
-        "UseAutomaticForwarderDiscovery() is provided as a backward-compatibility " +
-        "escape valve for the 6.0 release cycle and is targeted for removal in 7.0. " +
-        "See docs/guide/migration.md for the migration recipe.")]
-    [RequiresUnreferencedCode(
-        "UseAutomaticForwarderDiscovery() walks ApplicationAssembly.ExportedTypes for " +
-        "IForwardsTo<> implementations at HandlerGraph.Compile time. Trimming may remove " +
-        "forwarder types that are only reached reflectively. Migrate to " +
-        "RegisterMessageForwarder<TFrom, TTo>() — see docs/guide/migration.md.")]
-    public WolverineOptions UseAutomaticForwarderDiscovery()
-    {
-        AutomaticForwarderDiscoveryEnabled = true;
         return this;
     }
 }

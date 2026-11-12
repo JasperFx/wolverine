@@ -33,7 +33,7 @@ public class null_message_store_never_throws
 
             (await nodes.LoadAllNodesAsync(CancellationToken.None)).ShouldBeEmpty();
             (await nodes.FetchRecentRecordsAsync(10)).ShouldBeEmpty();
-            nodes.HasLeadershipLock().ShouldBeFalse();
+            (await nodes.HasLeadershipLockAsync(CancellationToken.None)).ShouldBeFalse();
             (await nodes.TryAttainLeadershipLockAsync(CancellationToken.None)).ShouldBeFalse();
         });
     }

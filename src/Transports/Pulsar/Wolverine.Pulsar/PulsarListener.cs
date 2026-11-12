@@ -608,6 +608,19 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         }
     }
 
+    /// <summary>
+    /// GH-5533 test seam: ask Pulsar to redeliver everything this consumer holds unacknowledged, exactly as
+    /// <see cref="StopAsync"/> does on the way out, but without stopping -- which is how a test puts a
+    /// redelivery in front of the receiver while the original delivery is still parked in a handler.
+    /// </summary>
+    internal async Task RedeliverUnacknowledgedMessagesAsync()
+    {
+        if (_consumer != null)
+        {
+            await _consumer.RedeliverUnacknowledgedMessages(_cancellation);
+        }
+    }
+
     public async Task<bool> TryRequeueAsync(Envelope envelope)
     {
         if (!_enableRequeue)

@@ -27,7 +27,10 @@ namespace CoreTests.Bugs
                     opts.Services.AddScoped<IIdentityService>(x => new IdentityService());
                 }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-            await host.InvokeMessageAndWaitAsync(new SayStuff("Hi"));
+            // GH-5136. Each handler type has its own chain and local queue, so send the message and let every
+            // handler receive it, instead of invoking it inline
+            var tracked = await host.SendMessageAndWaitAsync(new SayStuff("Hi"));
+            tracked.Executed.MessagesOf<SayStuff>().Count().ShouldBe(2);
         }
     }
 

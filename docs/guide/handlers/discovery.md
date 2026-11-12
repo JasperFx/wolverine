@@ -77,6 +77,9 @@ application assembly explicitly on the affected host, or add the missing assembl
 This warning only became dependable with GH-3778. Before that fix it could not fire on the
 `RememberedApplicationAssembly` path at all — the very case described here — and elsewhere it frequently named the
 wrong "registered from" assembly, so on older releases neither its presence nor its absence proves much.
+
+JasperFx detects the same divergence one level down, and Marten, Polecat and Fisher log JasperFx's copy at startup.
+In a host that also runs Wolverine, Wolverine owns the warning, so you see it once, in Wolverine's wording (GH-3576).
 :::
 
 In testing scenarios, if you're bootstrapping the application independently somehow of the application's "official" configuration, you may have to help
@@ -294,7 +297,7 @@ public class NetflixHandler : IMovieSink
     {
     }
 
-    public void Consume(MovieAdded added)
+    public void Consume(EpisodeAvailable available)
     {
     }
 

@@ -37,7 +37,7 @@ internal sealed class PrimeScopedSessionFrame<TSession, THolder> : SyncFrame, IU
         // to be VariableSource.Existing: All/NotServices run the registered IVariableSource
         // implementations, and a variable source is a factory, so asking either of those whether the
         // chain has a session MANUFACTURES one. Every store integration registers such a source (see
-        // Wolverine.Marten's SessionVariableSource), so the creating form gave every chain that
+        // Wolverine core's DocumentSessionVariableSource, GH-5141), so the creating form gave every chain that
         // service-locates anything an outbox-enrolled session it never asked for: opened, handed to
         // the holder below, never read and never committed -- and under sharded multi-tenancy, an
         // outright throw on a database the chain does not use. See GH-4198.

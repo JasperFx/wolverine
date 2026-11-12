@@ -1,4 +1,4 @@
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Shouldly;
 
 namespace WolverineWebApi.TestSupport;
@@ -14,18 +14,20 @@ public class ExpectMatchAttribute : OpenApiExpectationAttribute
         Path = path;
     }
 
-    public override void Validate(OpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
+    public override void Validate(IOpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
     {
         var (_, expected) = openApi.FindOpenApiDocument(OperationType, Path);
 
-        op.Responses.Keys.OrderBy(x => x).ToArray().ShouldBe(expected.Responses.Keys.OrderBy(x => x).ToArray(), "Expected status codes");
+        op.Responses!.Keys.OrderBy(x => x).ToArray().ShouldBe(expected.Responses!.Keys.OrderBy(x => x).ToArray(), "Expected status codes");
 
         foreach (var responsesKey in expected.Responses.Keys)
         {
             var expectedResponse = expected.Responses[responsesKey];
             var actualResponse = op.Responses[responsesKey];
 
-            actualResponse.Content.Keys.ToArray().ShouldBe(expectedResponse.Content.Keys.ToArray(), "Expected content for response " + responsesKey);
+            var actualContent = actualResponse.Content?.Keys.ToArray() ?? [];
+            var expectedContent = expectedResponse.Content?.Keys.ToArray() ?? [];
+            actualContent.ShouldBe(expectedContent, "Expected content for response " + responsesKey);
         }
     }
 }

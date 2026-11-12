@@ -31,7 +31,6 @@ public class Bug_3399_batched_message_separated_handler_codegen
                 opts.Discovery.IncludeType<OtherCreatedHandler3399>();
                 opts.Discovery.IncludeType<OtherDeletedHandler3399>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.BatchMessagesOf<ItemDeleted3399>();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -40,7 +39,6 @@ public class Bug_3399_batched_message_separated_handler_codegen
 
         // Both the batched (array) chain and the single-message chain exist...
         var chains = runtime.Handlers.Chains
-            .SelectMany(x => x.ByEndpoint.Any() ? x.ByEndpoint : [x])
             .Where(x => x.Handlers.Any())
             .ToArray();
 
@@ -70,7 +68,6 @@ public class Bug_3399_batched_message_separated_handler_codegen
                 opts.Discovery.IncludeType<OtherCreatedHandler3399>();
                 opts.Discovery.IncludeType<OtherDeletedHandler3399>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.BatchMessagesOf<ItemDeleted3399>();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);

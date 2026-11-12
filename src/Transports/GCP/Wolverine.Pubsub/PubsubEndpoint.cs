@@ -67,7 +67,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     /// <summary>
     /// GH-4526. A listener on its OWN subscription to a topic another endpoint publishes to -- the shape
-    /// MultipleHandlerBehavior.Separated needs, one subscription per handler type on the message type's topic.
+    /// a message type with several handler types needs, one subscription per handler type on the message type's topic.
     /// Its Uri is <c>pubsub://{projectId}/{topicName}/{subscriptionName}</c>, so it is distinct from the topic
     /// endpoint that shares the topic, and it never publishes: the topic endpoint is the sender.
     /// </summary>

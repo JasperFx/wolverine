@@ -65,6 +65,9 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     public async ValueTask ConfigureAsync(IWolverineRuntime runtime)
     {
+        // GH-5511. Before the first queue table is built: RestoreV6Defaults() gives new queue tables the 6.x layout
+        ResolveQueueV6Defaults(runtime.Options);
+
         // This is important, let the Postgres queues get built automatically
         AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None;
         var stores = await runtime.Stores.FindAllAsync<PostgresqlMessageStore>();
@@ -124,14 +127,59 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     public LightweightCache<string, PostgresqlQueue> Queues { get; }
 
+    private bool? _enableDeterministicQueueOrdering;
+
     /// <summary>
-    ///     Enables persistent sequence values to break timestamp ties when dequeueing PostgreSQL
-    ///     queue messages. This adds columns and indexes to the ready and scheduled queue tables.
-    ///     It applies to queues managed by this transport, including tenant databases, and is
-    ///     opt-in to avoid changing existing schemas automatically. Configure it before startup;
-    ///     changing it at runtime is not supported.
+    ///     Use persistent sequence values to break timestamp ties when dequeueing PostgreSQL queue
+    ///     messages, through a <c>queue_order</c> identity column and index on the ready and scheduled
+    ///     queue tables. It applies to queues managed by this transport, including tenant databases.
+    ///     Configure it before startup; changing it at runtime is not supported.
+    ///     <para>
+    ///         GH-5192: on by default from 7.0 for the queue tables Wolverine creates. An existing queue
+    ///         table without the column keeps its layout and is dequeued in timestamp order, because adding
+    ///         an identity to it rewrites the table under an exclusive lock. Setting this to <c>true</c>
+    ///         explicitly migrates existing tables as well, as in 6.x. <c>RestoreV6Defaults()</c> or
+    ///         <see cref="PostgresqlPersistenceExpression.DisableDeterministicQueueOrdering" /> turns it off.
+    ///     </para>
     /// </summary>
-    public bool EnableDeterministicQueueOrdering { get; set; }
+    public bool EnableDeterministicQueueOrdering
+    {
+        get => _enableDeterministicQueueOrdering ?? !QueueV6DefaultsRestored;
+        set => _enableDeterministicQueueOrdering = value;
+    }
+
+    /// <summary>
+    ///     GH-5192. Only an explicit <see cref="EnableDeterministicQueueOrdering" /> migrates an existing
+    ///     queue table; the 7.0 default adopts it as it stands.
+    /// </summary>
+    internal bool DeterministicQueueOrderingIsExplicit => _enableDeterministicQueueOrdering.HasValue;
+
+    /// <summary>
+    ///     GH-5192. Whether the application restored the Wolverine 6.x defaults for the queue tables. Named apart from
+    ///     <c>BrokerTransport.V6DefaultsRestored</c> (GH-5196), which this transport inherits.
+    ///     <para>
+    ///         GH-5511. Resolved from <see cref="WolverineOptions.V6DefaultsRestored" /> when the transport starts
+    ///         (<see cref="ResolveQueueV6Defaults" />), never at registration, because <c>RestoreV6Defaults()</c> may come
+    ///         after the transport is configured. Until then it falls back to the flag <c>BrokerTransport</c> reads in
+    ///         <c>InitializeAsync()</c>. An explicit setting of either queue-table option still wins over both.
+    ///     </para>
+    /// </summary>
+    internal bool QueueV6DefaultsRestored
+    {
+        get => _queueV6DefaultsRestored ?? V6DefaultsRestored;
+        set => _queueV6DefaultsRestored = value;
+    }
+
+    private bool? _queueV6DefaultsRestored;
+
+    /// <summary>
+    ///     GH-5511. Read <see cref="WolverineOptions.V6DefaultsRestored" /> before the first queue table is built. The
+    ///     tables are built once and cached, so this runs ahead of anything that registers or provisions them.
+    /// </summary>
+    internal void ResolveQueueV6Defaults(WolverineOptions options)
+    {
+        _queueV6DefaultsRestored ??= options.V6DefaultsRestored;
+    }
 
     protected override IEnumerable<PostgresqlQueue> endpoints()
     {

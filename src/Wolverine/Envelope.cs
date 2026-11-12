@@ -164,13 +164,19 @@ public partial class Envelope : IHasTenantId
         {
             return _data;
         }
+
+        // A pooled payload is already serialized, so materialize it exactly as reading Data would
+        if (_pooledBody != null)
+        {
+            return Data;
+        }
+
         assertMessage();
 
         if(Serializer is IAsyncMessageSerializer asyncMessaeSerializer)
         {
             try
             {
-                releasePooledBody();
                 _data = await asyncMessaeSerializer.WriteAsync(this);
             }
             catch (Exception e)
@@ -452,6 +458,22 @@ public partial class Envelope : IHasTenantId
     /// </summary>
     public string? ParentId { get; set; }
 
+    public bool StartsNewLinkedTrace
+    {
+        get => _headers != null && _headers.ContainsKey(EnvelopeConstants.StartsNewLinkedTraceKey);
+        set
+        {
+            if (value)
+            {
+                Headers[EnvelopeConstants.StartsNewLinkedTraceKey] = "true";
+            }
+            else
+            {
+                _headers?.Remove(EnvelopeConstants.StartsNewLinkedTraceKey);
+            }
+        }
+    }
+
     /// <summary>
     ///     User defined tenant identifier for multi-tenancy strategies. This is
     ///     part of metrics reporting and message correlation
@@ -471,10 +493,11 @@ public partial class Envelope : IHasTenantId
     public string?[] AcceptedContentTypes { get; set; } = DefaultAcceptedContentTypes;
 
     /// <summary>
-    /// The delegate used to generate unique envelope IDs. Defaults to <see cref="EnvelopeIds.NextSequentialGuid"/>.
-    /// Set via <see cref="WolverineOptions.EnvelopeIdGeneration"/> at startup.
+    /// The delegate used to generate unique envelope IDs. Defaults to <see cref="Guid.CreateVersion7()"/>, the 7.0
+    /// default <see cref="EnvelopeIdGeneration.GuidV7"/> (GH-5197). Set via
+    /// <see cref="WolverineOptions.EnvelopeIdGeneration"/> at startup.
     /// </summary>
-    internal static Func<Guid> IdGenerator = EnvelopeIds.NextSequentialGuid;
+    internal static Func<Guid> IdGenerator = Guid.CreateVersion7;
 
     /// <summary>
     ///     Specific message id for this envelope

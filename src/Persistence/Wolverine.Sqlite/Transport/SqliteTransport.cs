@@ -28,6 +28,9 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
 
     public async ValueTask ConfigureAsync(IWolverineRuntime runtime)
     {
+        // GH-5511. Before the first queue table is built: RestoreV6Defaults() gives new queue tables the 6.x layout
+        ResolveQueueV6Defaults(runtime.Options);
+
         // This is important, let the SQLite queues get built automatically
         AutoProvision = AutoProvision || runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None;
         var stores = await runtime.Stores.FindAllAsync<SqliteMessageStore>();
@@ -68,15 +71,52 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
 
     public LightweightCache<string, SqliteQueue> Queues { get; }
 
+    private bool? _enableDeterministicQueueOrdering;
+
     /// <summary>
     ///     Uses SQLite's implicit rowid to break timestamp ties when dequeueing SQLite queue
     ///     messages, and promotes scheduled messages in execution time order with the same
     ///     tie-breaker. No column is added, but this adds an index to each of the ready and
     ///     scheduled queue tables. It applies to queues managed by this transport, including
-    ///     tenant databases, and is opt-in to avoid changing existing schemas automatically.
-    ///     Configure it before startup; changing it at runtime is not supported.
+    ///     tenant databases. Configure it before startup; changing it at runtime is not supported.
+    ///     <para>
+    ///         GH-5192: on by default from 7.0. Every SQLite table already has a rowid, so unlike the other
+    ///         databases nothing is rebuilt: an existing queue table only gains the index.
+    ///         <c>RestoreV6Defaults()</c> or <c>DisableDeterministicQueueOrdering()</c> turns it off.
+    ///     </para>
     /// </summary>
-    public bool EnableDeterministicQueueOrdering { get; set; }
+    public bool EnableDeterministicQueueOrdering
+    {
+        get => _enableDeterministicQueueOrdering ?? !QueueV6DefaultsRestored;
+        set => _enableDeterministicQueueOrdering = value;
+    }
+
+    /// <summary>
+    ///     GH-5192. Whether the application restored the Wolverine 6.x defaults for the queue tables. Named apart from
+    ///     <c>BrokerTransport.V6DefaultsRestored</c> (GH-5196), which this transport inherits.
+    ///     <para>
+    ///         GH-5511. Resolved from <see cref="WolverineOptions.V6DefaultsRestored" /> when the transport starts
+    ///         (<see cref="ResolveQueueV6Defaults" />), never at registration, because <c>RestoreV6Defaults()</c> may come
+    ///         after the transport is configured. Until then it falls back to the flag <c>BrokerTransport</c> reads in
+    ///         <c>InitializeAsync()</c>. An explicit setting of either queue-table option still wins over both.
+    ///     </para>
+    /// </summary>
+    internal bool QueueV6DefaultsRestored
+    {
+        get => _queueV6DefaultsRestored ?? V6DefaultsRestored;
+        set => _queueV6DefaultsRestored = value;
+    }
+
+    private bool? _queueV6DefaultsRestored;
+
+    /// <summary>
+    ///     GH-5511. Read <see cref="WolverineOptions.V6DefaultsRestored" /> before the first queue table is built. The
+    ///     tables are built once and cached, so this runs ahead of anything that registers or provisions them.
+    /// </summary>
+    internal void ResolveQueueV6Defaults(WolverineOptions options)
+    {
+        _queueV6DefaultsRestored ??= options.V6DefaultsRestored;
+    }
 
     /// <summary>
     ///     GH-3947: an optional prefix for the native SQLite queue and scheduled-message tables.

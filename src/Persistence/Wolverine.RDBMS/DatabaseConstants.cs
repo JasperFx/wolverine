@@ -51,9 +51,41 @@ public class DatabaseConstants
     public const string Timestamp = "timestamp";
 
     public const string ReceivedAt = "received_at"; // add to all
+
+    /// <summary>
+    /// GH-3166 / GH-5139. The received_at written for a dead letter whose envelope had no destination. Under
+    /// MessageIdentity.IdAndDestination received_at is part of the dead letter table's primary
+    /// key, and SQL Server's column is NOT NULL either way. The dead letter admin readers report a NULL received_at
+    /// written by 6.x as this same value
+    /// </summary>
+    public const string UnknownReceivedAt = "unknown://none";
     public const string SentAt = "sent_at"; // add to all
 
     public const string KeepUntil = "keep_until";
+
+    /// <summary>
+    /// GH-5167. The envelope's <see cref="Envelope.GroupId"/> on the incoming table, so scheduled message
+    /// management can find, cancel and reschedule the scheduled messages of one business identifier. Nullable,
+    /// and indexed for the scheduled slice.
+    /// </summary>
+    public const string GroupId = "group_id";
+
+    /// <summary>
+    /// GH-5167. The width of the <see cref="GroupId"/> column. Every inbox row writes it, and an envelope's group id
+    /// can arrive from a broker (a FIFO group, a session, a partitioning key), so a longer one is stored as null
+    /// rather than failing the insert: see <see cref="StorableGroupId"/>
+    /// </summary>
+    public const int GroupIdMaxLength = 500;
+
+    /// <summary>
+    /// GH-5167. The value to write to the <see cref="GroupId"/> column for this envelope: its
+    /// <see cref="Envelope.StoredGroupId"/>, or null when it has none or it is longer than <see cref="GroupIdMaxLength"/>
+    /// </summary>
+    public static string? StorableGroupId(Envelope envelope)
+    {
+        var groupId = envelope.StoredGroupId;
+        return groupId == null || groupId.Length > GroupIdMaxLength ? null : groupId;
+    }
     public const string NodeRecordTableName = "wolverine_node_records";
 
     public const string AgentRestrictionsTableName = "wolverine_agent_restrictions";
@@ -184,7 +216,7 @@ public class DatabaseConstants
     public const string LastUpdated = "last_updated";
 
     public static readonly string IncomingFields =
-        $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {MessageType}, {ReceivedAt}, {KeepUntil}";
+        $"{Body}, {Id}, {Status}, {OwnerId}, {ExecutionTime}, {Attempts}, {MessageType}, {ReceivedAt}, {KeepUntil}, {GroupId}";
 
     public static readonly string OutgoingFields =
         $"{Body}, {Id}, {OwnerId}, {Destination}, {DeliverBy}, {Attempts}, {MessageType}";
@@ -199,7 +231,7 @@ public class DatabaseConstants
     /// moving a chunk boundary. Outgoing is one fewer than its field list: <c>owner_id</c> is a single
     /// shared parameter reused by every values-clause.
     /// </remarks>
-    public const int IncomingParametersPerEnvelope = 9;
+    public const int IncomingParametersPerEnvelope = 10;
 
     /// <inheritdoc cref="IncomingParametersPerEnvelope" />
     public const int OutgoingParametersPerEnvelope = 6;
@@ -242,7 +274,8 @@ public class DatabaseConstants
 
     // GH-3959, extended to every store by GH-4593: per-node load advertisement. Deliberately NOT part of
     // NodeColumns -- every store's readNode is a positional read over that shared list, and this column is
-    // only provisioned when DurabilitySettings.CapacityAwareAssignment asked for it. Each store appends it
+    // only read and written when DurabilitySettings.CapacityAwareAssignment asks for it (and, with
+    // AlwaysProvisionOptionalSchemaObjects off, only provisioned then; GH-5193). Each store appends it
     // through its own `nodeColumns` property and reads it back by NAME rather than by ordinal.
     public static readonly string LoadFactor = "load_factor";
 

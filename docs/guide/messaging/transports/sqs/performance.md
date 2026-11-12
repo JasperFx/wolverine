@@ -42,8 +42,8 @@ does not leave settled messages to reappear at their visibility timeout.
 
 ## Visibility timeout: size it against your processing window
 
-Wolverine sets each received message's visibility timeout at receive (default **120 seconds**)
-and, unless you opt into the inline heartbeat described below, never calls
+Wolverine sets each received message's visibility timeout at receive (default **120 seconds**).
+Only the inline heartbeat and native-ack renewal described below ever call
 `ChangeMessageVisibility` to extend it. How much of your processing that window has to cover
 depends on the endpoint mode, because each mode deletes the message from SQS at a different
 point:
@@ -62,9 +62,11 @@ point:
   aging against the timeout through every handler before it. Past the timeout SQS redelivers
   the message *while it is still being handled* (or still waiting its turn), the second copy
   executes too, and the first copy's eventual delete carries a stale receipt handle that SQS
-  accepts without deleting anything. Either raise the timeout on the endpoint
+  accepts without deleting anything. Since Wolverine 7.0 inline endpoints run a heartbeat that
+  extends the timeout for you. If you turn it off, raise the timeout on the endpoint
   (`.VisibilityTimeout(...)`) to comfortably exceed `MaxNumberOfMessages × your slowest
-  handler`, or turn on the heartbeat:
+  handler`. Call `ExtendVisibilityWhileHandling()` yourself to change how long a message can be
+  kept invisible, or to turn the heartbeat back on after `RestoreV6Defaults()`:
 
 <!-- snippet: sample_sqs_extend_visibility_while_handling -->
 <a id='snippet-sample_sqs_extend_visibility_while_handling'></a>
@@ -83,14 +85,28 @@ deleted the message by the time a handler runs) issues a `ChangeMessageVisibilit
 every message of the batch that is still in flight at each half-timeout tick, so a batch that
 finishes inside half the timeout costs no extra API calls at all. Each message is kept
 invisible for at most 12 hours from its receipt (the SQS limit; lower it with the optional
-`maximum` argument), after which Wolverine stops extending and logs a warning. It is opt-in in
-6.x because it adds billable API calls under sustained slow handling and changes when a
-crashed node's in-flight messages reappear.
+`maximum` argument), after which Wolverine stops extending and logs a warning.
+
+It was opt-in through 6.x and is on by default since 7.0. It adds billable API calls under
+sustained slow handling and changes when a crashed node's in-flight messages reappear. It also
+needs the **`sqs:ChangeMessageVisibility`** IAM permission on the queue. A native-ack endpoint
+already needed that permission in 6.x; an inline endpoint needs it now too. Without it the
+extension calls fail, Wolverine logs the failure, and the messages are redelivered at their
+visibility timeout as they were in 6.x. To turn the heartbeat off on one listener:
+
+```csharp
+opts.ListenToSqsQueue("fast-work")
+    .ProcessInline()
+    .DoNotExtendVisibilityWhileHandling();
+```
+
+`opts.RestoreV6Defaults()` turns it off for every listener that doesn't call
+`ExtendVisibilityWhileHandling()` itself.
 
 - **NativeAck** endpoints hold the message longest of all — for lane queue time *plus* handler
   time — and that queue time is unbounded by design. Renewal there is therefore **mandatory and
-  does not consult `ExtendVisibilityWhileHandling()`**: an opt-in default-false flag would mean
-  "off by default" for the one mode that cannot survive it being off. `MaximumVisibilityExtension`
+  does not consult `ExtendVisibilityWhileHandling()`**, so neither `DoNotExtendVisibilityWhileHandling()`
+  nor `RestoreV6Defaults()` can turn it off for the one mode that cannot survive it being off. `MaximumVisibilityExtension`
   is still the ceiling, and idle lanes still cost nothing. See
   [Native Ack Endpoints](/guide/messaging/listeners#native-ack-endpoints) for what happens when a
   visibility timeout is lost anyway.
@@ -150,7 +166,7 @@ scheduling.
 
 ## Interpreting Wolverine's metrics
 
-`wolverine-execution-time` measures the handler *plus all middleware* (including time blocked
-inside middleware); `wolverine-effective-time` is wall-clock from the sender's `SentAt` stamp
+`wolverine.execution.time` measures the handler *plus all middleware* (including time blocked
+inside middleware); `wolverine.effective.time` is wall-clock from the sender's `SentAt` stamp
 through handling, cascading-message flush, and completion, and is sensitive to clock skew
 across machines.

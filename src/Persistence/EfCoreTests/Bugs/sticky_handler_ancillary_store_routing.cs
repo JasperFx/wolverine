@@ -27,10 +27,9 @@ namespace EfCoreTests.Bugs;
 // DurableLocalQueue). Sticky handlers here name endpoints that do not otherwise exist, so Wolverine
 // creates local queues for them and no broker is needed.
 //
-// NOTE for anyone adding a permutation: HandlerChain only splits into per-endpoint ByEndpoint chains
-// when a message type has MORE THAN ONE handler (HandlerChain.cs, `if (grouping.Count() > 1)`). A lone
-// [StickyHandler] handler produces no sticky chain at all, so every sticky permutation below needs a
-// second handler for the same message type to be testing what it claims to test.
+// NOTE for anyone adding a permutation: before GH-5136 (Wolverine 7) a lone [StickyHandler] handler
+// produced no sticky chain at all, so the sticky permutations below each have a second handler for the
+// same message type. Since GH-5136 sticky handlers always apply, but the permutations keep their pairs.
 
 #region stores
 
@@ -216,7 +215,6 @@ public class sticky_handler_ancillary_store_routing : IAsyncLifetime
                     .IncludeType<PermAgreeTwoHandler>()
                     .IncludeType<PermPlainHandler>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.Policies.AutoApplyTransactions();
                 opts.Policies.UseDurableLocalQueues();

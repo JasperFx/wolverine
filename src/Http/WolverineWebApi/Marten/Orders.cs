@@ -7,7 +7,7 @@ using Marten.Events;
 using Marten.Linq;
 using Marten.Pagination;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Wolverine.Attributes;
 using Wolverine.ErrorHandling;
 using Wolverine.Http;

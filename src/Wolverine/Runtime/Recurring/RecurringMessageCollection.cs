@@ -133,10 +133,8 @@ public sealed class RecurringMessageCollection : IEnumerable<RecurringMessage>
         // failover double-fire window then matches the pre-deduplication status quo.)
         // GH-4757: promoted from None only. An application that explicitly chose CompareByString keeps
         // it -- registering a schedule is not the moment to silently reshape its deduplication table.
-        if (_parent.Durability.MessageDeduplicationMode == MessageDeduplicationMode.None)
-        {
-            _parent.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
-        }
+        // GH-5194: pinned rather than read, so a RestoreV6Defaults() call after this one cannot turn it back off.
+        _parent.Durability.RequireMessageDeduplication();
 
         // The other half of the opt-in: the main message store reads this flag to provision the
         // wolverine_recurring_messages tracking table and build a real IRecurringMessageStore,

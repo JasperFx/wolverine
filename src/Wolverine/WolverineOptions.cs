@@ -25,25 +25,6 @@ using Wolverine.Transports.Stub;
 
 namespace Wolverine;
 
-public enum MultipleHandlerBehavior
-{
-    /// <summary>
-    /// The "classic" Wolverine behavior where multiple handlers for the same message
-    /// type are combined into a single logical message handler. Still the default in Wolverine 6.x,
-    /// but obsolete: Wolverine 7.0 removes <see cref="MultipleHandlerBehavior"/> and always builds one
-    /// handler chain per handler type, which is what <see cref="Separated"/> does today
-    /// </summary>
-    [Obsolete("ClassicCombineIntoOneLogicalHandler is removed in Wolverine 7.0, where every handler type gets its own handler chain -- the behavior of MultipleHandlerBehavior.Separated today. Switch to MultipleHandlerBehavior.Separated, and call WolverineOptions.AssertNoCombinedHandlers() to find the message types that are still combined.")]
-    ClassicCombineIntoOneLogicalHandler,
-    
-    /// <summary>
-    /// Force Wolverine to make each individual handler for a message type be
-    /// processed completely independently. This is common when you may be publishing
-    /// an event message to multiple module handlers within the same process
-    /// </summary>
-    Separated
-}
-
 public enum WolverineMetricsMode
 {
     /// <summary>
@@ -108,7 +89,8 @@ public enum InvokeTracingMode
 public enum EnvelopeIdGeneration
 {
     /// <summary>
-    /// Default. Uses MassTransit's NewId algorithm (<c>NewId.NextSequentialGuid()</c>), which builds
+    /// The Wolverine 6.x default, now an explicit opt-in (and what <see cref="WolverineOptions.RestoreV6Defaults"/>
+    /// restores). Uses MassTransit's NewId algorithm (<c>NewId.NextSequentialGuid()</c>), which builds
     /// GUIDs from machine identity (MAC/DNS), the process id and a timestamp, laid out so they sort in time
     /// order the way .NET and PostgreSQL compare GUIDs. Wolverine adds the process id to NewId's own layout
     /// so that several processes on one machine cannot draw the same ids. SQL Server compares a <c>uniqueidentifier</c> starting from its
@@ -119,11 +101,12 @@ public enum EnvelopeIdGeneration
     NewId,
 
     /// <summary>
-    /// Uses Guid.CreateVersion7() which produces GUIDs with a millisecond timestamp and cryptographically
-    /// strong random bits per RFC 9562. Recommended for greenfield applications and cloud environments
-    /// where instances may share network identity. Guaranteed unique without relying on machine-specific
-    /// properties. Ids created within the same millisecond are in random order, and SQL Server does not
-    /// sort them by time at all.
+    /// Default as of Wolverine 7.0 (GH-5197). Uses Guid.CreateVersion7() which produces GUIDs with a millisecond
+    /// timestamp and cryptographically strong random bits per RFC 9562, so instances that share network identity
+    /// cannot draw the same ids. Guaranteed unique without relying on machine-specific properties. The ids sort
+    /// by time for PostgreSQL <c>uuid</c>, MySQL <c>CHAR(36)</c> and SQLite <c>TEXT</c>. Ids created within the
+    /// same millisecond are in random order, and SQL Server does not sort them by time at all, which is why a
+    /// SQL Server-only application still gets <see cref="NewIdSqlServerOrder"/>.
     /// </summary>
     GuidV7,
 
@@ -132,10 +115,12 @@ public enum EnvelopeIdGeneration
     /// timestamp in the last six bytes (<c>NewId.NextGuid()</c>) so the ids sort in time order the way SQL
     /// Server compares a <c>uniqueidentifier</c>. This keeps SQL Server's clustered inbox, outbox and
     /// dead-letter tables from fragmenting. Wolverine switches to this automatically when every message store
-    /// in the application is SQL Server and nothing was set explicitly. The id travels with the message and
+    /// in the application is SQL Server and nothing was set explicitly, in 7.0 and after
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/> alike. The id travels with the message and
     /// becomes the key in the RECEIVING application's inbox, and on PostgreSQL these ids index worse than
-    /// random GUIDs, so set <see cref="WolverineOptions.EnvelopeIdGeneration"/> explicitly to
-    /// <see cref="NewId"/> if a SQL Server-only application sends to services that store envelopes in PostgreSQL.
+    /// random GUIDs, so if a SQL Server-only application sends to services that store envelopes in PostgreSQL,
+    /// set <see cref="WolverineOptions.EnvelopeIdGeneration"/> explicitly to <see cref="GuidV7"/> or pass
+    /// <c>optimizeEnvelopeIdsForSqlServer: false</c> to keep the default.
     /// </summary>
     NewIdSqlServerOrder
 }
@@ -187,7 +172,7 @@ public class MetricsOptions
 
     /// <summary>
     /// Default explicit histogram bucket boundaries (in milliseconds) applied to the
-    /// <c>wolverine-execution-time</c> and <c>wolverine-effective-time</c> histograms. The
+    /// <c>wolverine.execution.time</c> and <c>wolverine.effective.time</c> histograms. The
     /// OpenTelemetry SDK's default buckets are poor for millisecond-scale latencies; these are tuned for
     /// message handling. See GH-3224.
     /// </summary>
@@ -196,7 +181,7 @@ public class MetricsOptions
 
     /// <summary>
     /// Explicit histogram bucket boundaries (in milliseconds) used as the instrument <em>advice</em> for
-    /// the <c>wolverine-execution-time</c> and <c>wolverine-effective-time</c> histograms, so quantile
+    /// the <c>wolverine.execution.time</c> and <c>wolverine.effective.time</c> histograms, so quantile
     /// baselines computed from a time-series database (Prometheus / VictoriaMetrics) are meaningful for
     /// millisecond latencies. Defaults to <see cref="DefaultHistogramBucketBoundaries"/>. Set to
     /// <c>null</c> to fall back to the OpenTelemetry SDK / exporter defaults, or supply your own ascending
@@ -401,9 +386,9 @@ public sealed partial class WolverineOptions
         Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
 
-        // Phase-A pre-population of IChain.AncillaryStoreType for [Storage]-attributed handlers so the
-        // ancillary-store inbox routing map sees them eagerly at startup. Mirrors the per-provider
-        // eager policies (e.g. Marten's MartenStoreEagerPolicy). See StorageAttributeEagerPolicy.
+        // Phase-A pre-population of IChain.AncillaryStoreType for handlers carrying any ancillary-store
+        // routing attribute ([Storage], [MartenStore], [PolecatStore], [FisherStore]) so the
+        // ancillary-store inbox routing map sees them eagerly at startup. See StorageAttributeEagerPolicy.
         Policies.Add<StorageAttributeEagerPolicy>();
 
         // GH-4180. Weaves logical deduplication frames into handler chains that opted in with
@@ -455,10 +440,21 @@ public sealed partial class WolverineOptions
     /// integration (LastModifiedBy, or CurrentUserName on Fisher)
     /// </summary>
     /// <remarks>
-    /// Applies to every HTTP endpoint with a message context, including ones that only open an
-    /// outboxed session.
+    /// <para>Applies to every HTTP endpoint with a message context, including ones that only open an
+    /// outboxed session.</para>
+    /// <para><b>On by default from Wolverine 7.0</b> (GH-5520); off throughout 6.x. That means the user name
+    /// travels in the <c>user-name</c> header (<see cref="EnvelopeConstants.UserNameKey"/>) of every message
+    /// sent from a context that has one, to every transport. Set this to false, or call
+    /// <see cref="RestoreV6Defaults"/>, to keep it off; an explicit setting wins over both. Which claim is the
+    /// user is <c>WolverineHttpOptions.UserNameClaimType</c> in Wolverine.Http.</para>
     /// </remarks>
-    public bool EnableRelayOfUserName { get; set; }
+    public bool EnableRelayOfUserName
+    {
+        get => _enableRelayOfUserName ?? !V6DefaultsRestored;
+        set => _enableRelayOfUserName = value;
+    }
+
+    private bool? _enableRelayOfUserName;
 
     /// <summary>
     /// Controls how much tracing and logging is applied to InvokeAsync() calls.
@@ -471,17 +467,18 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     /// Controls how Wolverine generates unique identifiers for message envelopes.
-    /// Default is <see cref="EnvelopeIdGeneration.NewId"/> for backward compatibility, except that when this is
-    /// not set explicitly and every message store in the application prefers the same value -- for example
+    /// Default is <see cref="EnvelopeIdGeneration.GuidV7"/> as of Wolverine 7.0 (GH-5197), and
+    /// <see cref="EnvelopeIdGeneration.NewId"/> after <see cref="RestoreV6Defaults"/>. Either way, when this is
+    /// not set explicitly and every message store in the application prefers the same value --
     /// <see cref="EnvelopeIdGeneration.NewIdSqlServerOrder"/> when SQL Server is the only message storage --
-    /// Wolverine switches to that value at startup. Setting this explicitly, even to
-    /// <see cref="EnvelopeIdGeneration.NewId"/>, turns that automatic switch off.
-    /// Use <see cref="EnvelopeIdGeneration.GuidV7"/> for greenfield applications or
-    /// cloud environments where multiple instances may share network identity.
+    /// Wolverine switches to that value at startup. Setting this explicitly, to any value, turns that automatic
+    /// switch off.
     /// </summary>
     public EnvelopeIdGeneration EnvelopeIdGeneration
     {
-        get => _envelopeIdGeneration ?? _storePreferredEnvelopeIdGeneration ?? EnvelopeIdGeneration.NewId;
+        get => _envelopeIdGeneration
+               ?? (_ignoreStorePreferredEnvelopeIdGeneration ? null : _storePreferredEnvelopeIdGeneration)
+               ?? (V6DefaultsRestored ? EnvelopeIdGeneration.NewId : EnvelopeIdGeneration.GuidV7);
         set => _envelopeIdGeneration = value;
     }
 
@@ -491,11 +488,43 @@ public sealed partial class WolverineOptions
     // GH-4902. What every message store agreed on at startup, used only when nothing was set explicitly
     private EnvelopeIdGeneration? _storePreferredEnvelopeIdGeneration;
 
+    // GH-5197. optimizeEnvelopeIdsForSqlServer: false. Keeps the default -- whichever default RestoreV6Defaults()
+    // leaves in place, however late it is called -- instead of pinning one at registration
+    private bool _ignoreStorePreferredEnvelopeIdGeneration;
+
     internal bool EnvelopeIdGenerationIsExplicit => _envelopeIdGeneration.HasValue;
+
+    internal bool StorePreferredEnvelopeIdGenerationIsIgnored => _ignoreStorePreferredEnvelopeIdGeneration;
 
     internal void UseStorePreferredEnvelopeIdGeneration(EnvelopeIdGeneration generation)
     {
         _storePreferredEnvelopeIdGeneration = generation;
+    }
+
+    /// <summary>
+    /// GH-4902 / GH-5197. When nothing was set explicitly and every message store prefers the same envelope id
+    /// layout, use it. Returns true when that changed <see cref="EnvelopeIdGeneration"/>.
+    /// </summary>
+    internal bool ApplyStorePreferredEnvelopeIdGeneration(IReadOnlyList<IMessageStore> stores)
+    {
+        if (EnvelopeIdGenerationIsExplicit || _ignoreStorePreferredEnvelopeIdGeneration) return false;
+
+        var agreed = MessageStoreCollection.AgreedEnvelopeIdGeneration(stores);
+        if (agreed is not { } generation || generation == EnvelopeIdGeneration) return false;
+
+        UseStorePreferredEnvelopeIdGeneration(generation);
+        return true;
+    }
+
+    /// <summary>
+    /// GH-5197. Opt out of the message stores' preferred envelope id layout and keep the default
+    /// (<see cref="EnvelopeIdGeneration.GuidV7"/>, or <see cref="EnvelopeIdGeneration.NewId"/> after
+    /// <see cref="RestoreV6Defaults"/>). An explicit <see cref="EnvelopeIdGeneration"/> still wins. Used by the
+    /// <c>optimizeEnvelopeIdsForSqlServer: false</c> overloads.
+    /// </summary>
+    internal void IgnoreStorePreferredEnvelopeIdGeneration()
+    {
+        _ignoreStorePreferredEnvelopeIdGeneration = true;
     }
 
     /// <summary>
@@ -512,25 +541,6 @@ public sealed partial class WolverineOptions
     public ServiceLocationPolicy ServiceLocationPolicy { get; set; } = ServiceLocationPolicy.NotAllowed;
 
     public Uri SubjectUri => new Uri("wolverine://" + ServiceName.Sanitize());
-
-    /// <summary>
-    /// How should Wolverine treat message handlers for the same message type?
-    /// Default is ClassicCombineIntoOneLogicalHandler, but change this if wanting
-    /// to execute different handlers for the same type of message in different endpoints.
-    ///
-    /// This frequently comes into play with "modular monolith" architectures
-    /// </summary>
-    /// <remarks>
-    /// ClassicCombineIntoOneLogicalHandler is obsolete and removed in Wolverine 7.0 along with this
-    /// property; 7.0 always behaves like <see cref="Wolverine.MultipleHandlerBehavior.Separated"/>. While
-    /// the classic mode is in use, Wolverine logs one warning at startup that lists every message type
-    /// whose handlers it combined. See <see cref="AssertNoCombinedHandlers"/>
-    /// </remarks>
-    public MultipleHandlerBehavior MultipleHandlerBehavior
-    {
-        get => HandlerGraph.MultipleHandlerBehavior;
-        set => HandlerGraph.MultipleHandlerBehavior = value;
-    }
 
     /// <summary>
     /// Use to establish rules about determining the message GroupId metadata that
@@ -768,9 +778,28 @@ public sealed partial class WolverineOptions
     }
 
     /// <summary>
-    ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support
+    ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support, and as the
+    ///     <c>source</c> tag on every Wolverine metric. When not set explicitly (here or on
+    ///     <c>JasperFxOptions.ServiceName</c>), it defaults to the <c>OTEL_SERVICE_NAME</c> environment variable if
+    ///     that is set (which is what an Aspire AppHost sets for each resource), and otherwise to the application's
+    ///     entry assembly name.
     /// </summary>
     public string ServiceName { get; set; } = null!;
+
+    /// <summary>
+    ///     The standard OpenTelemetry environment variable <see cref="ServiceName" /> defaults from. GH-5128.
+    /// </summary>
+    public const string OtelServiceNameVariable = "OTEL_SERVICE_NAME";
+
+    /// <summary>
+    ///     GH-5128. The service name chosen ahead of the JasperFx / entry assembly fallback: an explicitly set
+    ///     <see cref="ServiceName" />, then <c>OTEL_SERVICE_NAME</c>. Null when neither is set.
+    /// </summary>
+    internal static string? ResolveServiceName(string? explicitServiceName, string? otelServiceName)
+    {
+        if (explicitServiceName.IsNotEmpty()) return explicitServiceName;
+        return string.IsNullOrWhiteSpace(otelServiceName) ? null : otelServiceName.Trim();
+    }
 
     /// <summary>
     ///     GH-4916. Register every <c>EventModelDefinition</c> subclass in the application's assemblies from the
@@ -811,25 +840,6 @@ public sealed partial class WolverineOptions
     /// may want to disable this to avoid surprise network round trips
     /// </summary>
     public bool EnableRemoteInvocation { get; set; } = true;
-
-    /// <summary>
-    /// Should message failures automatically try to send a failure acknowledgement message back to the
-    /// original caller. Default is *false* as of Wolverine 4.6
-    /// </summary>
-    public bool EnableAutomaticFailureAcks { get; set; } = false;
-
-    /// <summary>
-    /// Legacy flag for message-causation tracking. Reads and writes flow through
-    /// <see cref="TrackingOptions.EnableMessageCausationTracking"/> on the
-    /// <see cref="Tracking"/> sub-config. Use the new property directly going
-    /// forward.
-    /// </summary>
-    [Obsolete("Use Tracking.EnableMessageCausationTracking instead")]
-    public bool EnableMessageCausationTracking
-    {
-        get => Tracking.EnableMessageCausationTracking;
-        set => Tracking.EnableMessageCausationTracking = value;
-    }
 
     private void deriveServiceName()
     {
@@ -881,9 +891,16 @@ public sealed partial class WolverineOptions
         HandlerGraph.MappedGenericMessageTypes[interfaceType] = closedType;
     }
 
+    // GH-5136. Read while the handler graph is built -- for every handler type now that sticky handlers always
+    // apply -- which is before any listener's delayed configuration has run. A broker's Endpoints() infers a
+    // default dead letter queue for every listener whose own dead letter queue is not configured yet, so read
+    // only the endpoints configured explicitly; an inferred dead letter queue never has a sticky handler.
+    private IEnumerable<Endpoint> existingEndpoints()
+        => Transports.SelectMany(x => x is Wolverine.Transports.IHasExplicitEndpoints broker ? broker.ExplicitEndpoints() : x.Endpoints());
+
     internal IEnumerable<Endpoint> FindOrCreateEndpointByName(string endpointName)
     {
-        var existing = Transports.SelectMany(x => x.Endpoints())
+        var existing = existingEndpoints()
             .Where(x => x.EndpointName.EqualsIgnoreCase(endpointName)).ToArray();
 
         if (existing.Any()) return existing;
@@ -893,7 +910,7 @@ public sealed partial class WolverineOptions
 
     public IEnumerable<Endpoint> FindEndpointsWithHandlerType(Type handlerType)
     {
-        return Transports.SelectMany(x => x.Endpoints()).Where(x => x.StickyHandlers.Contains(handlerType));
+        return existingEndpoints().Where(x => x.StickyHandlers.Contains(handlerType));
     }
 
     public Version? Version => ApplicationAssembly?.GetName().Version ?? Assembly.GetEntryAssembly()?.GetName().Version;
@@ -921,6 +938,9 @@ public sealed partial class WolverineOptions
     }
 
     internal void ReadJasperFxOptions(JasperFxOptions jasperfx)
+        => ReadJasperFxOptions(jasperfx, Environment.GetEnvironmentVariable(OtelServiceNameVariable));
+
+    internal void ReadJasperFxOptions(JasperFxOptions jasperfx, string? otelServiceName)
     {
         // GH-4448: the exchange runs BOTH ways, and it used to run only one. `??=` makes JasperFx's value
         // the fallback for Wolverine's — which already says an explicit WolverineOptions.ServiceName
@@ -938,16 +958,24 @@ public sealed partial class WolverineOptions
         //
         // Captured before the `??=` because afterwards there is no telling a value the user set from
         // one just adopted from JasperFx — and adopting is precisely the case that must NOT write back.
-        var explicitlyNamedHere = ServiceName;
+        //
+        // GH-5128 (7.0): OTEL_SERVICE_NAME, which an Aspire AppHost sets per resource, replaces the entry
+        // assembly default, but not a name set explicitly on either side. JasperFx can't tell us whether its
+        // name was set, so a name other than its application assembly's counts as set. A name taken from
+        // OTEL_SERVICE_NAME is written back like an explicit one, for the same GH-4448 reason: JasperFx would
+        // otherwise go on naming the service after the entry assembly.
+        var jasperFxNamedExplicitly = jasperfx.ServiceName.IsNotEmpty() &&
+                                      jasperfx.ServiceName != jasperfx.ApplicationAssembly?.GetName().Name;
+        var namedHere = ResolveServiceName(ServiceName, jasperFxNamedExplicitly ? null : otelServiceName);
 
-        ServiceName ??= jasperfx.ServiceName;
+        ServiceName = namedHere ?? jasperfx.ServiceName;
 
-        if (explicitlyNamedHere.IsNotEmpty())
+        if (namedHere.IsNotEmpty())
         {
-            // Wolverine's own value wins, in the same direction the `??=` above already established.
+            // Wolverine's own value wins, in the same direction the fallback above already established.
             // Safe to assign unconditionally because JasperFxOptions is resolved from THIS container, so
             // a second host in the process has its own instance to name.
-            jasperfx.ServiceName = explicitlyNamedHere;
+            jasperfx.ServiceName = namedHere;
         }
 
 

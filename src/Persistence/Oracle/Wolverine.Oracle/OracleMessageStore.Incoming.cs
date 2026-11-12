@@ -23,7 +23,7 @@ internal partial class OracleMessageStore
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         await using var cmd = conn.CreateCommand(
             $"INSERT INTO {SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) " +
-            "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil)");
+            "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil, :groupId)");
 
         cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = data });
         cmd.With("id", envelope.Id);
@@ -34,6 +34,7 @@ internal partial class OracleMessageStore
         cmd.With("messageType", envelope.MessageType!);
         cmd.With("receivedAt", envelope.Destination?.ToString() ?? string.Empty);
         cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = (object?)envelope.KeepUntil ?? DBNull.Value });
+        cmd.Parameters.Add(new OracleParameter("groupId", OracleDbType.Varchar2) { Value = (object?)DatabaseConstants.StorableGroupId(envelope) ?? DBNull.Value });
 
         try
         {
@@ -66,7 +67,7 @@ internal partial class OracleMessageStore
 
             await using var cmd = conn.CreateCommand(
                 $"INSERT INTO {SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) " +
-                "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil)");
+                "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil, :groupId)");
             cmd.Transaction = tx;
 
             cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = data });
@@ -78,6 +79,7 @@ internal partial class OracleMessageStore
             cmd.With("messageType", envelope.MessageType!);
             cmd.With("receivedAt", envelope.Destination?.ToString() ?? string.Empty);
             cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = (object?)envelope.KeepUntil ?? DBNull.Value });
+            cmd.Parameters.Add(new OracleParameter("groupId", OracleDbType.Varchar2) { Value = (object?)DatabaseConstants.StorableGroupId(envelope) ?? DBNull.Value });
 
             try
             {
@@ -291,7 +293,7 @@ internal partial class OracleMessageStore
         insertCmd.Parameters.Add(new OracleParameter("executionTime", OracleDbType.TimeStampTZ) { Value = (object?)envelope.ScheduledTime ?? DBNull.Value });
         insertCmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = data });
         insertCmd.With("messageType", envelope.MessageType ?? string.Empty);
-        insertCmd.With("receivedAt", envelope.Destination?.ToString() ?? string.Empty);
+        insertCmd.With("receivedAt", DatabasePersistence.DeadLetterReceivedAt(envelope));
         insertCmd.With("source", envelope.Source ?? string.Empty);
         insertCmd.With("exceptionType", exception.DeadLetterExceptionType() ?? string.Empty);
         insertCmd.With("exceptionMessage", exception.DeadLetterExceptionMessage() ?? string.Empty);
@@ -527,7 +529,7 @@ internal partial class OracleMessageStore
 
             await using var cmd = ((OracleConnection)tx.Connection!).CreateCommand(
                 $"INSERT INTO {SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) " +
-                "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil)");
+                "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil, :groupId)");
             cmd.Transaction = (OracleTransaction)tx;
 
             cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = data });
@@ -539,6 +541,7 @@ internal partial class OracleMessageStore
             cmd.With("messageType", envelope.MessageType!);
             cmd.With("receivedAt", envelope.Destination?.ToString() ?? string.Empty);
             cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = (object?)envelope.KeepUntil ?? DBNull.Value });
+            cmd.Parameters.Add(new OracleParameter("groupId", OracleDbType.Varchar2) { Value = (object?)DatabaseConstants.StorableGroupId(envelope) ?? DBNull.Value });
 
             try
             {

@@ -27,9 +27,8 @@ public class unsequenced_batch_execution_validation
                         .IncludeType(typeof(UnsequencedProbeHandler))
                         .IncludeType(typeof(UnsequencedProbeBatchHandler));
 
-                    // Both handlers legitimately run under Separated -- which is exactly when there are
-                    // two writers
-                    opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+                    // Both handlers legitimately run, each on its own chain -- which is exactly when there
+                    // are two writers
                     opts.BatchMessagesOf<UnsequencedProbe>();
 
                     opts.AssertBatchExecutionIsSequenced();
@@ -60,7 +59,6 @@ public class unsequenced_batch_execution_validation
                     .IncludeType(typeof(PartitionedProbeHandler))
                     .IncludeType(typeof(PartitionedProbeBatchHandler));
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 // Same harness GH-3867's own resolution test uses -- this is what gives the batch
                 // execution slots to share with its unbatched siblings
@@ -88,7 +86,6 @@ public class unsequenced_batch_execution_validation
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(BatchOnlyProbeBatchHandler));
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.BatchMessagesOf<BatchOnlyProbe>();
 
                 opts.AssertBatchExecutionIsSequenced();
@@ -98,28 +95,29 @@ public class unsequenced_batch_execution_validation
     }
 
     /// <summary>
-    ///     Under the default Classic behaviour the direct handler wins and the batch handler never runs at
-    ///     all, so there is only ever one writer. That shape is already reported by
-    ///     <c>warnOrAssertBatchHandlerConflicts</c> and must not be double-reported here.
+    ///     GH-5136. There is no classic mode any more in which the direct handler shadows the batch and the batch
+    ///     never runs: both handler types always get their own chain, so the unsequenced shape is reported by
+    ///     default.
     /// </summary>
     [Fact]
-    public async Task silent_under_classic_behavior_where_the_batch_never_runs()
+    public async Task the_batch_always_runs_so_the_unsequenced_shape_is_reported_by_default()
     {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Discovery.DisableConventionalDiscovery()
-                    .IncludeType(typeof(ClassicProbeHandler))
-                    .IncludeType(typeof(ClassicProbeBatchHandler));
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.Discovery.DisableConventionalDiscovery()
+                        .IncludeType(typeof(ClassicProbeHandler))
+                        .IncludeType(typeof(ClassicProbeBatchHandler));
 
-                // The default, stated explicitly for the sake of the test
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler;
-                opts.BatchMessagesOf<ClassicProbe>();
+                    opts.BatchMessagesOf<ClassicProbe>();
 
-                opts.AssertBatchExecutionIsSequenced();
-            }).StartAsync(TestContext.Current.CancellationToken);
+                    opts.AssertBatchExecutionIsSequenced();
+                }).StartAsync(TestContext.Current.CancellationToken);
+        });
 
-        host.ShouldNotBeNull();
+        ex.Message.ShouldContain("Unsequenced batch execution");
     }
 
     [Fact]
@@ -135,7 +133,6 @@ public class unsequenced_batch_execution_validation
                     .IncludeType(typeof(UnsequencedProbeHandler))
                     .IncludeType(typeof(UnsequencedProbeBatchHandler));
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.BatchMessagesOf<UnsequencedProbe>();
 
                 // Deliberately NOT calling AssertBatchExecutionIsSequenced()

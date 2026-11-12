@@ -70,17 +70,33 @@ public partial class WolverineRuntime
     // SQL Server-ordered ids when SQL Server is the only message storage -- use it
     private void applyStorePreferredEnvelopeIdGeneration()
     {
-        if (Options.EnvelopeIdGenerationIsExplicit) return;
+        if (!Options.ApplyStorePreferredEnvelopeIdGeneration(_stores.Value.AllStores())) return;
 
-        var agreed = MessageStoreCollection.AgreedEnvelopeIdGeneration(_stores.Value.AllStores());
-        if (agreed is not { } generation || generation == Options.EnvelopeIdGeneration) return;
-
-        Options.UseStorePreferredEnvelopeIdGeneration(generation);
+        var generation = Options.EnvelopeIdGeneration;
         Envelope.IdGenerator = IdGeneratorFor(generation);
 
         Logger.LogInformation(
             "Every message store in this application prefers EnvelopeIdGeneration.{Generation}, so Wolverine is using it for envelope ids. Set WolverineOptions.EnvelopeIdGeneration explicitly to choose otherwise",
             generation);
+    }
+
+    /// <summary>
+    /// GH-5148. Bring the runtime to the point <see cref="StartAsync"/> reaches just before the message
+    /// stores are built — the metadata-only (codegen / OpenAPI tool) check, the async extensions and the
+    /// named connection strings, in that order — for a startup validator that runs ahead of every hosted
+    /// service. Each step is idempotent, so <see cref="StartAsync"/> repeating them later is a no-op.
+    /// Returns false when the runtime is in lightweight / metadata-only mode and should not be touching
+    /// any database at all.
+    /// </summary>
+    internal async Task<bool> PrepareForStartupValidationAsync()
+    {
+        applyMetadataOnlyModeIfDetected();
+        if (Options.LightweightMode) return false;
+
+        await ApplyAsyncExtensions();
+        ApplyNamedConnectionStrings();
+
+        return true;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -134,7 +150,9 @@ public partial class WolverineRuntime
             // to in-process scheduling (lost on restart) — defeating the policy. Surface
             // this as a startup warning so a misconfiguration is observable rather than a
             // silent durability gap.
-            if (Options.Durability.AlwaysMakeScheduledMessagesDurable && Storage is NullMessageStore)
+            // GH-5519: only for an explicit opt-in. The policy is on by default since 7.0, and without a store the
+            // default deliberately changes nothing.
+            if (Options.Durability.AlwaysMakeScheduledMessagesDurableExplicitly && Storage is NullMessageStore)
             {
                 Logger.LogWarning(
                     "Policies.AlwaysMakeScheduledMessagesDurable() is set but no message store is configured. " +
@@ -177,7 +195,9 @@ public partial class WolverineRuntime
                 // "Silently never fires" is not a degradation, it is a refusal: these modes run no
                 // agents at all, so a registered schedule would be accepted and then simply never
                 // happen — the exact class of quiet failure the recurring feature exists to avoid.
-                if (Options.Durability.Mode is DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox or DurabilityMode.MediatorOnly)
+                // A lightweight run (codegen, describe, OpenAPI generation) is exempt: Wolverine forced
+                // MediatorOnly on it, not the application, and it never runs the schedules anyway.
+                if (!Options.LightweightMode && Options.Durability.Mode is DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox or DurabilityMode.MediatorOnly)
                 {
                     var names = Options.Schedules.Select(x => x.Name).Join(", ");
                     throw new InvalidOperationException(
@@ -221,23 +241,10 @@ public partial class WolverineRuntime
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
-            // Under MultipleHandlerBehavior.Separated, a message type may have BOTH a direct
-            // Handle(T) handler AND a BatchMessagesOf<T>() batch handler. By default the batch
-            // local queue is the element type's convention queue — the SAME queue the direct
-            // handler uses — so the two collide (a local queue resolves a single executor per
-            // message type) and the batch is silently shadowed. Move the batch onto a dedicated
-            // queue so both can run independently. Done before the messaging transports start so
+            // GH-5138. A BatchMessagesOf<T>() batch is a member of T's handler group. When T has handler chains of its
+            // own, the batch gets a local queue of its own next to theirs. Done before the messaging transports start so
             // the new queue still receives the durable/local-queue endpoint policies.
-            reassignBatchQueuesThatCollideWithHandlers();
-
-            // Under the DEFAULT Classic behavior the same collision is NOT resolved: the direct
-            // Handle(T) handler wins and the BatchMessagesOf<T>() batch handler is silently shadowed.
-            // Warn loudly (or throw, if opted in) so the shadowing is not a silent surprise. GH-3289.
-            warnOrAssertBatchHandlerConflicts();
-
-            // GH-5133. ClassicCombineIntoOneLogicalHandler is obsolete and gone in 7.0. Say which message
-            // types it actually combined (once), or throw if the application opted into the assertion.
-            warnOrAssertCombinedHandlers();
+            Handlers.BindBatchQueues(Options.Transports.GetOrCreate<LocalTransport>());
 
             // Apply BatchMessagesOf<T>(b => b.ProbeIndividuallyAfter(N)) as a failure rule on the batch
             // handler chain. GH-3289.
@@ -605,6 +612,12 @@ public partial class WolverineRuntime
 
     private void logCodeGenerationConfiguration()
     {
+        if (Options.ProductionCodeGenerationSkippedForTestRunner)
+        {
+            Logger.LogInformation(
+                "This process has a test framework loaded, so Wolverine left the Production profile's code generation at JasperFx's default (TypeLoadMode.Dynamic) instead of applying the 7.0 default of TypeLoadMode.Static with pre-generated types (GH-5523). Outside a test host, a Production application loads pre-generated code.");
+        }
+
         switch (Options.CodeGeneration.TypeLoadMode)
         {
             case TypeLoadMode.Dynamic:
@@ -837,24 +850,22 @@ public partial class WolverineRuntime
         // that can't be resolved from a string alone
         if (Options.MessagePartitioning.GlobalPartitionedTopologies.Count > 0)
         {
-            var knownMessageTypes = Handlers.Chains.Select(x => x.MessageType).ToList();
+            var knownMessageTypes = Handlers.Groups.Select(x => x.MessageType).ToList();
             foreach (var topology in Options.MessagePartitioning.GlobalPartitionedTopologies)
             {
                 topology.ResolveMessageTypeNames(knownMessageTypes);
             }
         }
 
-        Options.MessagePartitioning.AssertTopologyGroupingIsUnambiguous(Handlers.Chains.Select(x => x.MessageType));
+        Options.MessagePartitioning.AssertTopologyGroupingIsUnambiguous(Handlers.Groups.Select(x => x.MessageType));
 
         // Build message-type-to-ancillary-store mapping for durable inbox routing.
         // When a handler targets an ancillary store on a different database, incoming
         // envelopes should be persisted in that store for transactional atomicity.
         //
-        // Use AllChains() rather than Chains so per-endpoint sticky chains
-        // produced by MultipleHandlerBehavior.Separated are included.
-        // Without this, [MartenStore]-attributed handlers under Separated mode
-        // never make it into the map and inbox routing falls back to the main
-        // store. See https://github.com/JasperFx/wolverine/issues/2576.
+        // AllChains() is every chain, one per (message type, handler type), so a
+        // [MartenStore]-attributed handler beside another handler of the same message
+        // still makes it into the map. See https://github.com/JasperFx/wolverine/issues/2576.
         if (Stores != null && Stores.HasAnyAncillaryStores())
         {
             var markerTypes = Stores.AncillaryMarkerTypes().ToArray();
@@ -973,6 +984,62 @@ public partial class WolverineRuntime
         var requeuePoliciesConfigured = Handlers.AnyRequeuePolicies();
 
         ListenerConfigurationValidator.AssertValid(listeners, Logger, requeuePoliciesConfigured);
+
+        // GH-5139. Needs the compiled endpoints above, because endpoint policies are what settle the durable mode.
+        // A warning rather than a startup failure: the envelope ids only collide when the BROKER copies one message
+        // into several of these queues, which Wolverine cannot see from here
+        if (Storage is not NullMessageStore)
+        {
+            var message = DurableFanOutWithoutMessageIdentity(Handlers.Groups, Options.Durability.MessageIdentity);
+            if (message != null) Logger.LogWarning(message);
+        }
+    }
+
+    /// <summary>
+    /// GH-5139. Wolverine 7 gives every handler type of a message type its own handler chain, and conventional
+    /// or sticky routing binds each chain to a listening endpoint of its own. When a broker copies ONE envelope
+    /// into two of those queues -- a topic with two subscriptions, an exchange bound to two queues, an upstream
+    /// publisher -- both copies carry the same envelope id. <see cref="MessageIdentity.IdAndDestination"/>, the
+    /// explicit opt-in, tells them apart. Under <see cref="MessageIdentity.IdOnly"/>, the default, the second
+    /// durable inbox insert is a duplicate, and that handler type never runs the message. Returns the startup warning for that configuration, or null.
+    /// </summary>
+    /// <remarks>
+    /// Local queues are exempt: a local route always sends a new envelope with an id of its own. So is a
+    /// message type with only one durable external listener, where there is nothing to collide with.
+    /// </remarks>
+    internal static string? DurableFanOutWithoutMessageIdentity(IEnumerable<MessageHandlerGroup> groups,
+        MessageIdentity identity)
+    {
+        if (identity == MessageIdentity.IdAndDestination) return null;
+
+        var lines = new List<string>();
+        foreach (var group in groups)
+        {
+            var bound = group.Chains
+                .Select(chain => (chain, endpoints: chain.Endpoints
+                    .Where(e => e.IsListener && e is not LocalQueue && e.Mode == EndpointMode.Durable)
+                    .ToArray()))
+                .Where(x => x.endpoints.Length > 0)
+                .ToArray();
+
+            if (bound.Length < 2) continue;
+
+            lines.Add($"{Environment.NewLine}  {group.MessageType.FullNameInCode()}: " + bound
+                .Select(x => $"{MessageHandlerGroup.HandlerTypeOf(x.chain).FullNameInCode()} ({x.endpoints.Select(e => e.Uri.ToString()).Join(", ")})")
+                .Join(", "));
+        }
+
+        if (lines.Count == 0) return null;
+
+        return "Wolverine gives each handler type of a message type its own handler chain, and these message types have " +
+               "handler chains bound to more than one durable listening endpoint of an external transport. When the broker " +
+               "delivers one message to several of those queues, every copy has the same envelope id, and with " +
+               "DurabilitySettings.MessageIdentity = MessageIdentity.IdOnly (the default) " +
+               "the durable inbox rejects all but the first as a duplicate, so the other handler types never run it. If your " +
+               "broker can deliver one message to more than one of these endpoints, " +
+               "use opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination, which " +
+               "makes the inbox identity the envelope id and the receiving endpoint (and changes the inbox table's " +
+               "primary key), or make those endpoints non-durable. Message types:" + string.Concat(lines);
     }
 
     /// <summary>
@@ -1059,127 +1126,6 @@ public partial class WolverineRuntime
         }
     }
 
-    // Suffix appended to the element type's convention queue name to host the batch processor
-    // when the same element type also has a direct handler under Separated mode.
-    internal const string BatchQueueSuffix = "-batch";
-
-    private void reassignBatchQueuesThatCollideWithHandlers()
-    {
-        if (Options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
-        {
-            return;
-        }
-
-        if (Options.BatchDefinitions.Count == 0)
-        {
-            return;
-        }
-
-        var local = Options.Transports.GetOrCreate<LocalTransport>();
-
-        foreach (var batch in Options.BatchDefinitions)
-        {
-            // No direct Handle(T) handler for the element type -> the batch owns the element
-            // type's queue and the existing fallback routing/executor behavior is correct.
-            if (Handlers.ChainFor(batch.ElementType) == null)
-            {
-                continue;
-            }
-
-            // The user explicitly pointed the batch at a distinct queue already -> respect it.
-            var directQueue = local.FindQueueForMessageType(batch.ElementType);
-            if (!string.Equals(batch.LocalExecutionQueueName, directQueue.EndpointName,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            // Move the batch onto a dedicated queue distinct from the direct handler's queue.
-            var batchQueueName = directQueue.EndpointName + BatchQueueSuffix;
-            var batchQueue = local.QueueFor(batchQueueName);
-            batchQueue.Mode = directQueue.Mode;
-
-            // Wolverine's own reassignment, not a user choice — see SetDefaultLocalExecutionQueueName.
-            batch.SetDefaultLocalExecutionQueueName(batchQueue.EndpointName);
-        }
-    }
-
-    private void warnOrAssertCombinedHandlers()
-    {
-        var combined = Handlers.CombinedHandlerChains();
-        if (combined.Length == 0) return;
-
-        var message = CombinedHandlersMessage(combined);
-
-        if (Options.AssertsNoCombinedHandlers)
-        {
-            throw new InvalidOperationException(message);
-        }
-
-        Logger.LogWarning(message);
-    }
-
-    internal static string CombinedHandlersMessage(IReadOnlyList<HandlerChain> combined)
-    {
-        var lines = combined
-            .Select(chain => $"{Environment.NewLine}  {chain.MessageType.FullNameInCode()}: " +
-                             chain.Handlers.Select(x => x.HandlerType).Distinct()
-                                 .Select(x => x.FullNameInCode()).Join(", "));
-
-        return $"Wolverine combined the handlers of {combined.Count} message type(s) into one logical handler each, because " +
-               "MultipleHandlerBehavior is ClassicCombineIntoOneLogicalHandler (the 6.x default). That mode is obsolete and " +
-               "is removed in Wolverine 7.0, where each handler type gets its own handler chain and its own local queue, as " +
-               "MultipleHandlerBehavior.Separated does today. After the upgrade these handlers no longer share one transaction, " +
-               "one error handling policy or one middleware pipeline, and IMessageBus.InvokeAsync() no longer runs them together. " +
-               "Set opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated to switch now, or merge the handlers into one " +
-               "class where they have to stay atomic. Call opts.AssertNoCombinedHandlers() to make this a startup failure. " +
-               "Combined message types:" + string.Concat(lines);
-    }
-
-    private void warnOrAssertBatchHandlerConflicts()
-    {
-        // Only relevant under the default Classic behavior. Under Separated the same collision is
-        // legitimately resolved by reassignBatchQueuesThatCollideWithHandlers() (both handlers run).
-        if (Options.MultipleHandlerBehavior != MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler)
-        {
-            return;
-        }
-
-        if (Options.BatchDefinitions.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var batch in Options.BatchDefinitions)
-        {
-            // A non-null chain for the element type itself means there is a direct Handle(T) handler
-            // colliding with the batch (the batch handler is for T[], a different chain).
-            var directChain = Handlers.ChainFor(batch.ElementType);
-            if (directChain == null)
-            {
-                continue;
-            }
-
-            var elementType = batch.ElementType.NameInCode();
-            var directHandlers = directChain.Handlers
-                .Select(x => $"{x.HandlerType.NameInCode()}.{x.Method.Name}()").Join(", ");
-
-            var message =
-                $"Batch handler conflict for message type '{batch.ElementType.FullNameInCode()}': it has BOTH a direct handler ({directHandlers}) " +
-                $"and a BatchMessagesOf<{elementType}>() batch handler ({elementType}[]). Under the default " +
-                $"MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler the direct handler wins and the batch handler is silently " +
-                $"shadowed (it never runs). To run both independently set opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated; " +
-                $"otherwise remove one of the two handlers. (Call opts.AssertNoBatchHandlerConflicts() to make Wolverine throw on this instead of warning.)";
-
-            if (Options.AssertsNoBatchHandlerConflicts)
-            {
-                throw new InvalidOperationException(message);
-            }
-
-            Logger.LogWarning(message);
-        }
-    }
-
     /// <summary>
     /// GH-3973. A batched element type that ALSO has unbatched handlers has two independent execution
     /// paths writing the same entity: the assembled batch on its own local queue, and the unbatched
@@ -1208,30 +1154,23 @@ public partial class WolverineRuntime
             return;
         }
 
-        // Under Classic the direct handler wins and the batch never runs at all, so there is only ever
-        // one writer. warnOrAssertBatchHandlerConflicts() covers that shape.
-        if (Options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
+        // GH-5138. Only a group with both handler chains and a batch has a second writer: an element type with no
+        // unbatched handler has no group, or a group with no batch
+        foreach (var directGroup in Handlers.Groups)
         {
-            return;
-        }
+            if (directGroup.Batch is not { } batch || directGroup.Chains.Count == 0)
+            {
+                continue;
+            }
 
-        foreach (var batch in Options.BatchDefinitions)
-        {
             // Sequenced onto a shared partitioned topology by GH-3867 -- single writer per group id.
             if (batch.ExecutionSlots is { Count: > 0 })
             {
                 continue;
             }
 
-            // No unbatched sibling means no second writer.
-            var directChain = Handlers.ChainFor(batch.ElementType);
-            if (directChain == null)
-            {
-                continue;
-            }
-
             var elementType = batch.ElementType.NameInCode();
-            var directHandlers = directChain.Handlers
+            var directHandlers = directGroup.Chains.SelectMany(x => x.Handlers)
                 .Select(x => $"{x.HandlerType.NameInCode()}.{x.Method.Name}()").Join(", ");
 
             var message =
@@ -1269,6 +1208,16 @@ public partial class WolverineRuntime
 
         foreach (var batch in Options.BatchDefinitions)
         {
+            // GH-5200. 7.0 groups the batches of any element type in a partitioned topology by group id, wherever
+            // they execute. Without it a batch envelope has no group id and draws a random slot downstream, so the
+            // batch silently gives up the ordering its unbatched siblings keep. Non-partitioned batching is left
+            // alone, and so is a batcher the application supplied.
+            if (!Options.V6DefaultsRestored && !batch.GroupByGroupIdOptedOut && batch.UsesDefaultBatcher &&
+                belongsToPartitionedTopology(batch.ElementType))
+            {
+                batch.GroupByGroupId();
+            }
+
             // Naming a queue, or asking for a dedicated one outright, is an explicit choice to run
             // the batches somewhere of your own choosing. Respect it.
             if (batch.IsLocalQueueExplicit || batch.ForcesDedicatedQueue)
@@ -1295,12 +1244,17 @@ public partial class WolverineRuntime
             // Slotting a batch requires the batch to belong to exactly one group, which the default
             // tenant-only batcher cannot promise. Swap it for the group-id batcher — but leave a
             // batcher the application supplied alone, since it may stamp group ids itself.
-            var batcherType = batch.Batcher.GetType();
-            if (batcherType.IsGenericType && batcherType.GetGenericTypeDefinition() == typeof(DefaultMessageBatcher<>))
+            if (batch.UsesDefaultBatcher)
             {
                 batch.GroupByGroupId();
             }
         }
+    }
+
+    private bool belongsToPartitionedTopology(Type elementType)
+    {
+        var partitioning = Options.MessagePartitioning;
+        return partitioning.TryFindGlobalTopology(elementType, out _) || partitioning.TryFindTopology(elementType, out _);
     }
 
     /// <summary>
@@ -1361,7 +1315,7 @@ public partial class WolverineRuntime
     private void discoverListenersFromConventions()
     {
         // Let any registered routing conventions discover listener endpoints
-        var handledMessageTypes = Handlers.Chains.Select(x => x.MessageType).ToList();
+        var handledMessageTypes = Handlers.Groups.Select(x => x.MessageType).ToList();
 
         // Include batch element types so that conventional routing creates listeners for
         // the element type (e.g., BatchedItem) rather than only the array type (BatchedItem[])
@@ -1408,6 +1362,9 @@ public partial class WolverineRuntime
         }
 
         Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
+
+        // GH-5137. Every listener is bound to its chains by now
+        Handlers.AssertOneChainPerEndpoint();
     }
 
     internal Task StartLightweightAsync()

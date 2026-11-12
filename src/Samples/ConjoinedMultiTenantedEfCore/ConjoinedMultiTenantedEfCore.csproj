@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
-        <!-- net9.0 only for now: every project using the Npgsql EF provider in this
-             repo is net9.0-only until Npgsql.EntityFrameworkCore.PostgreSQL 10 GA
-             (the rc pin conflicts with Microsoft.EntityFrameworkCore 10.0.2) -->
-        <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+        <!-- EF Core and its Npgsql provider stay on the 10.x line on net11.0 too (see Directory.Packages.props);
+             until Npgsql.EntityFrameworkCore.PostgreSQL 11 ships GA
+             (its rc pins an exact RC EF Core) -->
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     </PropertyGroup>
 
     <ItemGroup>

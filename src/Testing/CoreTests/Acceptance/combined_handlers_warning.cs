@@ -1,3 +1,4 @@
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -8,7 +9,10 @@ namespace CoreTests.Acceptance;
 
 /// <summary>
 /// GH-5133. ClassicCombineIntoOneLogicalHandler is obsolete in 6.x and removed in 7.0, so an application
-/// still relying on it hears about it at startup -- and can make that a failure in CI.
+/// still relying on it hears about it at startup -- and can make that a failure in CI. GH-5136: from 7.0 every
+/// handler type gets its own chain, so nothing is combined and neither the warning nor the assertion fires.
+/// GH-5139: 7.0 removed the warning and MultipleHandlerBehavior itself; AssertNoCombinedHandlers() is an
+/// obsolete no-op kept for one major version so an upgrade rehearsal still compiles.
 /// </summary>
 public class combined_handlers_warning
 {
@@ -28,86 +32,47 @@ public class combined_handlers_warning
     }
 
     [Fact]
-    public async Task warns_once_listing_the_combined_message_types_in_classic_mode()
+    public async Task nothing_is_combined_so_there_is_no_warning_by_default()
     {
         var logger = new CapturingLogger();
 
-        // The default MultipleHandlerBehavior is still ClassicCombineIntoOneLogicalHandler
+        // GH-5136. No MultipleHandlerBehavior setting: every handler type gets its own chain, so nothing is
+        // combined and there is nothing to warn about
         using var host = await buildHost(opts =>
         {
-            opts.Discovery.IncludeType<ShippingOrderPlacedHandler>();
-            opts.Discovery.IncludeType<BillingOrderPlacedHandler>();
-            opts.Discovery.IncludeType<OnlyOneHandlerForThis>();
-        }, logger).StartAsync(TestContext.Current.CancellationToken);
-
-        var warning = logger.Entries
-            .Where(x => x.Level == LogLevel.Warning && x.Message.Contains("ClassicCombineIntoOneLogicalHandler"))
-            .ShouldHaveSingleItem();
-
-        warning.Message.ShouldContain(typeof(CombinedOrderPlaced).FullName!);
-        warning.Message.ShouldContain(typeof(ShippingOrderPlacedHandler).FullName!);
-        warning.Message.ShouldContain(typeof(BillingOrderPlacedHandler).FullName!);
-        warning.Message.ShouldContain("AssertNoCombinedHandlers()");
-
-        // A message with a single handler class is not combined
-        warning.Message.ShouldNotContain(nameof(NotCombinedMessage));
-    }
-
-    [Fact]
-    public async Task no_warning_when_no_message_type_has_more_than_one_handler_class()
-    {
-        var logger = new CapturingLogger();
-
-        using var host = await buildHost(opts =>
-        {
-            // Two methods on ONE class for the same message is still one handler type
-            opts.Discovery.IncludeType<OnlyOneHandlerForThis>();
-        }, logger).StartAsync(TestContext.Current.CancellationToken);
-
-        logger.Entries.ShouldNotContain(x => x.Message.Contains("ClassicCombineIntoOneLogicalHandler"));
-    }
-
-    [Fact]
-    public async Task no_warning_under_separated()
-    {
-        var logger = new CapturingLogger();
-
-        using var host = await buildHost(opts =>
-        {
-            opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
             opts.Discovery.IncludeType<ShippingOrderPlacedHandler>();
             opts.Discovery.IncludeType<BillingOrderPlacedHandler>();
         }, logger).StartAsync(TestContext.Current.CancellationToken);
 
         logger.Entries.ShouldNotContain(x => x.Message.Contains("ClassicCombineIntoOneLogicalHandler"));
+
+        host.Services.GetRequiredService<Wolverine.Runtime.IWolverineRuntime>()
+            .As<Wolverine.Runtime.WolverineRuntime>().Handlers.AllChains()
+            .Count(x => x.MessageType == typeof(CombinedOrderPlaced)).ShouldBe(2);
     }
 
     [Fact]
-    public async Task AssertNoCombinedHandlers_fails_startup_on_combined_handlers()
+    public async Task two_methods_on_one_handler_class_for_one_message_is_a_startup_error()
     {
+        // GH-5136. Two methods of one class for the same message would be one chain running both -- the
+        // combining that 7.0 removed -- so it is refused at startup instead
         var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
         {
-            #region sample_assert_no_combined_handlers
-            using var host = await Host.CreateDefaultBuilder()
-                .UseWolverine(opts =>
-                {
-                    opts.Discovery.DisableConventionalDiscovery();
-                    opts.Discovery.IncludeType<ShippingOrderPlacedHandler>();
-                    opts.Discovery.IncludeType<BillingOrderPlacedHandler>();
-
-                    // Rehearse the Wolverine 7.0 upgrade: fail startup if any message
-                    // type still has handlers from more than one class combined
-                    opts.AssertNoCombinedHandlers();
-                }).StartAsync();
-            #endregion
+            using var host = await buildHost(opts =>
+            {
+                opts.Discovery.IncludeType<OnlyOneHandlerForThis>();
+            }).StartAsync(TestContext.Current.CancellationToken);
         });
 
-        ex.Message.ShouldContain(typeof(CombinedOrderPlaced).FullName!);
+        ex.Message.ShouldContain(typeof(OnlyOneHandlerForThis).FullName!);
+        ex.Message.ShouldContain(typeof(NotCombinedMessage).FullName!);
     }
 
     [Fact]
-    public async Task AssertNoCombinedHandlers_is_satisfied_by_separated()
+    public async Task AssertNoCombinedHandlers_is_satisfied_by_default()
     {
+        // GH-5136 / GH-5139. Nothing is ever combined in 7.0, so the 6.x upgrade rehearsal is an obsolete no-op
+        #region sample_assert_no_combined_handlers
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -115,11 +80,12 @@ public class combined_handlers_warning
                 opts.Discovery.IncludeType<ShippingOrderPlacedHandler>();
                 opts.Discovery.IncludeType<BillingOrderPlacedHandler>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+                // Rehearse the Wolverine 7.0 upgrade: fail startup if any message
+                // type still has handlers from more than one class combined
                 opts.AssertNoCombinedHandlers();
             }).StartAsync(TestContext.Current.CancellationToken);
+        #endregion
     }
-
 }
 
 public record CombinedOrderPlaced(Guid Id);

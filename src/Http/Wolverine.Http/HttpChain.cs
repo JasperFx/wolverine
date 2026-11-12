@@ -933,27 +933,80 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     private void applyAntiforgeryMetadata()
     {
+        var requirement = AntiforgeryRequirement();
+        if (requirement == null) return;
+
+        assertShortCircuitDoesNotSkipAntiforgery(requirement.Value);
+
+        Metadata.WithMetadata(requirement.Value
+            ? WolverineAntiforgeryMetadata.Required
+            : WolverineAntiforgeryMetadata.NotRequired);
+    }
+
+    /// <summary>
+    ///     What Wolverine decides about antiforgery (CSRF) validation for this endpoint: <c>true</c> when it
+    ///     requires validation, <c>false</c> when it explicitly opted out with <see cref="DisableAntiforgeryAttribute" />,
+    ///     and <c>null</c> when it has no say (no antiforgery metadata at all).
+    /// </summary>
+    internal bool? AntiforgeryRequirement()
+    {
         // Check for explicit opt-out via [DisableAntiforgery] on method or class
         if (Method.Method.HasAttribute<DisableAntiforgeryAttribute>() ||
             Method.HandlerType.HasAttribute<DisableAntiforgeryAttribute>())
         {
-            Metadata.WithMetadata(WolverineAntiforgeryMetadata.NotRequired);
-            return;
+            return false;
         }
 
-        // Check for explicit opt-in via [ValidateAntiforgery] on method or class
-        if (Method.Method.HasAttribute<ValidateAntiforgeryAttribute>() ||
+        // Check for explicit opt-in via [ValidateAntiforgery] on method or class, or RequireAntiforgeryOnAll()
+        if (_parent.RequireAntiforgeryOnAll ||
+            Method.Method.HasAttribute<ValidateAntiforgeryAttribute>() ||
             Method.HandlerType.HasAttribute<ValidateAntiforgeryAttribute>())
         {
-            Metadata.WithMetadata(WolverineAntiforgeryMetadata.Required);
-            return;
+            return true;
         }
 
-        // Auto-enable for form data and file upload endpoints when antiforgery is enabled
+        // Form data and file upload endpoints, on by default on .NET 11 (GH-5147); see
+        // WolverineHttpOptions.AutoAntiforgeryOnFormEndpoints()
         if (_parent.AutoAntiforgeryOnFormEndpoints && (IsFormData || FileParameters.Any() || StreamsMultipartBody))
         {
-            Metadata.WithMetadata(WolverineAntiforgeryMetadata.Required);
+            return true;
         }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     Is the endpoint marked with ASP.NET Core 11's <c>[ShortCircuit]</c> attribute on its method or class? The
+    ///     attribute reaches the endpoint metadata with every other attribute, which is all routing needs to run it
+    ///     short-circuited. Always false on .NET 10, which has no such attribute. GH-5147.
+    /// </summary>
+    internal bool IsShortCircuited()
+    {
+#if NET11_0_OR_GREATER
+        return Method.Method.HasAttribute<ShortCircuitAttribute>() ||
+               Method.HandlerType.HasAttribute<ShortCircuitAttribute>();
+#else
+        return false;
+#endif
+    }
+
+    /// <summary>
+    ///     A short-circuited endpoint ([ShortCircuit]) runs inside the routing middleware, so
+    ///     no antiforgery middleware ever sees the request. ASP.NET Core refuses such an endpoint on every request
+    ///     ("contains anti-forgery metadata, but this endpoint is marked with short circuit"); say so at startup
+    ///     instead. GH-5147.
+    /// </summary>
+    private void assertShortCircuitDoesNotSkipAntiforgery(bool requiresValidation)
+    {
+        if (!requiresValidation || !IsShortCircuited()) return;
+
+        throw new InvalidOperationException(
+            $"HTTP endpoint {Method.HandlerType.FullNameInCode()}.{Method.Method.Name} ({_httpMethods.Join("/")} {RoutePattern?.RawText}) " +
+            "is marked [ShortCircuit] but requires antiforgery (CSRF) validation" +
+            (IsFormData || FileParameters.Any() || StreamsMultipartBody ? ", which form and file upload endpoints get by default" : "") +
+            ". A short-circuited endpoint runs inside the routing middleware, before any antiforgery middleware, so " +
+            "ASP.NET Core would refuse every request to it. Either remove [ShortCircuit], or add [DisableAntiforgery] " +
+            "to accept the request without CSRF protection.");
     }
 
     public HttpElementVariable? TryFindOrCreateFormValue(ParameterInfo parameter)

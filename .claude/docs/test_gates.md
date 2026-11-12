@@ -9,7 +9,7 @@ the Docker services each suite needs, and what can safely run side by side on on
 Every gate is a Nuke target, run from the root of the worktree under test:
 
 ```bash
-BOBCAT_RUN_TAG={plan}/{node} ./build.sh <Target> --framework net9.0
+BOBCAT_RUN_TAG={plan}/{node} ./build.sh <Target> --framework net10.0
 ```
 
 - **Exit code 0 is green.** A target fails if any of its projects fails.
@@ -18,7 +18,7 @@ BOBCAT_RUN_TAG={plan}/{node} ./build.sh <Target> --framework net9.0
   (`build/SupervisedTests.cs`): Microsoft.Testing.Platform workers, a fresh-process retry within a
   budget, stall detection, a heartbeat, and the `[Trait("Category", "Flaky")]` exclusion. That is
   the same run CI does; the GitHub workflows call the same targets.
-- `--framework net9.0` matches CI (`.nuke/parameters.json`). Projects that only target net10.0
+- `--framework net10.0` matches CI (`.nuke/parameters.json`). Projects that only target net10.0
   (the Alba-based suites, Polecat) pick net10.0 on their own.
 - **Set `BOBCAT_RUN_TAG` exactly.** It is the only thing that ties the run to the plan node, and the
   gate matches it literally. Do not invent a tag, shorten it or add a timestamp; use the one the plan
@@ -46,9 +46,8 @@ stoat gate run {plan}/{node}                        # from the worktree; the nod
   CIMartenTenancy, the SQL Server, Polecat, ASB and AWS shards) are one unit here. Each unit's
   supervisor is configured exactly as its CI target's is (`configureSupervisor` in
   `build/SupervisedTests.cs`), and leaves its ledger in `artifacts/test-ledger/LocalGate.*.json`.
-- **Framework.** `.nuke/parameters.json` pins `net9.0`, as in CI; a suite that does not target it runs
-  on its newest. CI's EF Core 10 job (`CIEfCoreNet10`) is only covered by `--framework all` or
-  `--framework net10.0`.
+- **Framework.** `.nuke/parameters.json` pins `net10.0`, as in CI; a suite that does not target it runs
+  on its newest. `--framework all` runs every framework a suite declares (net10.0 and net11.0).
 - **Longest first, under one worker budget** (`--gate-workers`, default half the cores). Durations
   are kept in `.bobcat/gate-durations.json` for the next run's order.
 - **Extras**, which `LocalGate` runs after the suites, one after another, as the ordinary targets
@@ -110,11 +109,11 @@ code and commit.
 
 | Suite | Command | Docker services |
 |---|---|---|
-| CoreTests | `./build.sh CoreTests --framework net9.0` | none |
-| PostgresqlTests (with PersistenceTests) | `./build.sh CIPostgresql --framework net9.0` and `./build.sh CIPersistence --framework net9.0` (two shards of PostgresqlTests; both make the whole suite) | postgresql, sqlserver, rabbitmq |
-| MartenTests | `./build.sh CIMartenDistribution --framework net9.0`, `./build.sh CIMartenTenancy --framework net9.0` and `./build.sh CIMarten --framework net9.0` (three shards of one project; all three make the whole suite) | postgresql |
-| EfCoreTests | `./build.sh CIEfCore --framework net9.0` | postgresql, sqlserver, rabbitmq |
-| SqlServerTests | `./build.sh CISqlServer --framework net9.0` | sqlserver |
+| CoreTests | `./build.sh CoreTests --framework net10.0` | none |
+| PostgresqlTests (with PersistenceTests) | `./build.sh CIPostgresql --framework net10.0` and `./build.sh CIPersistence --framework net10.0` (two shards of PostgresqlTests; both make the whole suite) | postgresql, sqlserver, rabbitmq |
+| MartenTests | `./build.sh CIMartenDistribution --framework net10.0`, `./build.sh CIMartenTenancy --framework net10.0` and `./build.sh CIMarten --framework net10.0` (three shards of one project; all three make the whole suite) | postgresql |
+| EfCoreTests | `./build.sh CIEfCore --framework net10.0` | postgresql, sqlserver, rabbitmq |
+| SqlServerTests | `./build.sh CISqlServer --framework net10.0` | sqlserver |
 
 `CoreTests` is the one target that compiles the **whole solution** first (`Compile`, after
 `Restore`/`Init`, which also empties `artifacts/` and `results/`); the `CI*` targets build only their
@@ -126,17 +125,17 @@ own projects.
 |---|---|---|---|
 | `CoreTests` | CoreTests | none | full-solution compile first |
 | `CIMessageRouting` | MessageRoutingTests | rabbitmq | `./build.sh ci` runs this after CoreTests |
-| `CIPostgresql` / `CIPersistence` | PostgresqlTests shards (+ PersistenceTests (net9.0) in `CIPersistence`) | postgresql (+ sqlserver, rabbitmq in `CIPersistence`) | |
+| `CIPostgresql` / `CIPersistence` | PostgresqlTests shards (+ PersistenceTests (net10.0) in `CIPersistence`) | postgresql (+ sqlserver, rabbitmq in `CIPersistence`) | |
 | `CISqlServer` | SqlServerTests | sqlserver | 4 workers, one database per lane (`wolverine_w0..`) |
 | `CIMySql` | MySqlTests | mysql | |
 | `CIOracle` | OracleTests | oracle | the slowest image to become ready |
 | `CISqlite` | SqliteTests | none | |
 | `CIFisher` | FisherTests, InMemoryTests | none | |
-| `CIEfCore` / `CIEfCoreNet10` | EfCoreTests (+ EfCoreTests.MultiTenancy on net10.0) | postgresql, sqlserver, rabbitmq | |
+| `CIEfCore` | EfCoreTests (+ EfCoreTests.MultiTenancy on net10.0) | postgresql, sqlserver, rabbitmq | |
 | `CIMartenDistribution` / `CIMartenTenancy` / `CIMarten` | MartenTests shards (+ MartenSubscriptionTests in `CIMarten`) | postgresql | |
 | `CIPolecat` / `CIPolecatWorkflow` / `CIPolecatSagas` | PolecatTests shards (+ PolecatIncidentService.Tests in `CIPolecat`) | sqlserver | net10.0 |
 | `CICosmosDb` | CosmosDbTests, CosmosDbTests.LeaderElection | none from compose | starts its own emulator through Testcontainers (Docker required, dynamic ports) |
-| `CIRavenDb` | RavenDbTests, RavenDbTests.LeaderElection | none | embedded RavenDB server; net9.0 |
+| `CIRavenDb` | RavenDbTests, RavenDbTests.LeaderElection | none | embedded RavenDB server; net10.0 |
 | `CIClaimCheck` | Wolverine.ClaimCheck.*.Tests | postgresql, sqlserver, fake-gcs-server, nats | |
 | `CIAmazonS3` | Wolverine.AmazonS3.Tests | localstack | |
 | `CIAzureBlobStorage` | Wolverine.AzureBlobStorage.Tests | azurite | |
@@ -150,9 +149,9 @@ own projects.
 | `CIPulsar` | Wolverine.Pulsar.Tests | pulsar, postgresql | |
 | `CIRedis` | Wolverine.Redis.Tests | postgresql | |
 | `CIMQTT` | Wolverine.MQTT.Tests | postgresql, sqlserver | |
-| `CIMQTT5` | Wolverine.Mqtt5.Tests | postgresql, sqlserver | |
 | `CIHttp` | Wolverine.Http.Tests | postgresql | |
 | `CIHttpAspVersioning` | Wolverine.Http.AspVersioning.Tests | none | net10.0 |
+| `CIHttpCompat` | Wolverine.Http.Compat.Tests | none | runs net10.0 and net11.0 itself (GH-5147) |
 | `CIGrpc` | Wolverine.Grpc.Tests | none | |
 | `CIOtel` | TracingTests | rabbitmq | |
 | `CIBobcat` | Wolverine.Bobcat.Tests, Wolverine.Bobcat.Http.Tests, IncidentService.Tests, ProcessManagerViaHandlers.Tests | postgresql, sqlserver | Bobcat.Xunit spec projects |
@@ -191,7 +190,7 @@ For Stoat's resource declarations (JasperFx/stoat#101):
   on SQL Server (the Postgres equivalent, `postgresDatabasePerLane`, is not used by any target today),
   so two runs that use lanes collide on those names.
 - **Suites with no service** (`CoreTests`, `CISqlite`, `CIFisher`, `CIRavenDb`, `CIGrpc`,
-  `CIHttpAspVersioning`, `CIExtensions`) only compete for CPU and memory. `CICosmosDb` starts its own
+  `CIHttpAspVersioning`, `CIHttpCompat`, `CIExtensions`) only compete for CPU and memory. `CICosmosDb` starts its own
   emulator on dynamic ports, so it does not collide either, but the emulator is heavy.
 - **One target per worktree at a time.** The build writes `bin/` and `obj/` in place, and `CoreTests`
   compiles the whole solution, so two gates in one worktree race on the same outputs.

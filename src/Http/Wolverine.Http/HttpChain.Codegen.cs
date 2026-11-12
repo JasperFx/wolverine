@@ -10,6 +10,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Wolverine.Http.Antiforgery;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Policies;
 using Wolverine.Http.Resources;
@@ -73,7 +74,7 @@ public partial class HttpChain
             handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
             handleMethod.Sources.Add(new FormCollectionSource(this));
             handleMethod.Sources.Add(new MessageBusSource(_parent.Options.EnableRelayOfUserName,
-                _parent.ApplyCorrelationIdHeaderToAllEndpoints));
+                _parent.ApplyCorrelationIdHeaderToAllEndpoints, _parent.UserNameClaimType));
 
             // Per-method scoping for SourceServiceFromHttpContext<T>(). Registering on the
             // method (rather than WolverineOptions.CodeGeneration.Sources) keeps the
@@ -194,6 +195,19 @@ public partial class HttpChain
         }
 
         bufferRequestForDeduplicatedWithResponse();
+
+        // GH-5147: refuse a request the antiforgery/CSRF middleware marked invalid before anything binds from it.
+        // Inserted last so it lands ahead of the body read, validation and tenant detection.
+        if (AntiforgeryRequirement() == true &&
+            !Middleware.OfType<MethodCall>().Any(x => x.HandlerType == typeof(AntiforgeryValidation)))
+        {
+            var antiforgery = new MethodCall(typeof(AntiforgeryValidation), nameof(AntiforgeryValidation.Validate))
+            {
+                CommentText = "Refuse the request if antiforgery (CSRF) validation failed"
+            };
+            Middleware.Insert(0, antiforgery);
+            Middleware.Insert(1, new MaybeEndWithResultFrame(antiforgery.ReturnVariable!));
+        }
 
         // GH-5406: the span tags go first, whatever inserted itself at index 0 after TagHttpHandlerPolicy ran
         // (tenant detection, validation, request id, the body read). Any of those may short-circuit, and a

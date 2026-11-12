@@ -38,7 +38,6 @@ return await Host.CreateDefaultBuilder()
                 
         opts.Durability.Mode = DurabilityMode.Solo;
         opts.ApplicationAssembly = typeof(Program).Assembly;
-        opts.EnableAutomaticFailureAcks = false;
         
         opts.Policies.AutoApplyTransactions();
 

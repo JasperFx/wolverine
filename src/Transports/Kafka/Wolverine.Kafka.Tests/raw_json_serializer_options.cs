@@ -30,7 +30,7 @@ public class raw_json_serializer_options
                 opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision()
                     // The consumer group has no committed offsets on this freshly provisioned
                     // topic, and the librdkafka default of Latest would race the producer below
-                    .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
+                    .ConfigureConsumers(c => c.AutoOffsetReset = Dekaf.Consumer.AutoOffsetReset.Earliest);
                 opts.Discovery.IncludeAssembly(GetType().Assembly);
 
                 opts.ListenToKafkaTopic(topic).ReceiveRawJson<WireMessage>(options);
@@ -48,7 +48,7 @@ public class raw_json_serializer_options
             .Timeout(60.Seconds())
             .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
             {
-                using var producer = new ProducerBuilder<string, byte[]>(transport.ProducerConfig).Build();
+                using var producer = new ProducerBuilder<string, byte[]>(new ProducerConfig { BootstrapServers = transport.ProducerConfig.BootstrapServers }).Build();
                 await producer.ProduceAsync(topic, new Message<string, byte[]>
                 {
                     Value = Encoding.UTF8.GetBytes($"{{\"color_name\":\"{colorName}\"}}")

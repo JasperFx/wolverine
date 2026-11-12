@@ -79,8 +79,10 @@ You could see poor performance over time if the dead letter queue storage in the
 so Wolverine does have an "opt in" feature to let old messages expire and be expunged from the storage.
 :::
 
-It's off by default (for backwards compatibility), but you can enable Wolverine to assign expiration times to dead letter
-queue messages persisted to durable storage like this:
+Since 7.0 it's on by default: Wolverine assigns an expiration time to every dead letter it persists to durable storage,
+10 days out unless the message had its own `DeliverBy`, and deletes it after that. Before 7.0 it was off, and
+`opts.RestoreV6Defaults()` or `opts.Durability.DeadLetterQueueExpirationEnabled = false` keeps dead letters until they
+are replayed or deleted. The retention period is configured like this:
 
 <!-- snippet: sample_enabling_dead_letter_queue_expiration -->
 <a id='snippet-sample_enabling_dead_letter_queue_expiration'></a>

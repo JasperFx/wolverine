@@ -20,6 +20,9 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="Alba" />
+        <!-- Test-only oracle: raw Confluent.Kafka clients independently verify the wire behavior of
+             the Dekaf-based transport and prove Confluent <-> Dekaf interop for mixed fleets -->
+        <PackageReference Include="Confluent.Kafka" />
         <PackageReference Include="NSubstitute" />
         <PackageReference Include="Testcontainers.Kafka" />
         <!-- Testcontainers depends on SSH.NET [2025.1.0, ), and every version through 2025.1.0

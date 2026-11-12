@@ -16,11 +16,12 @@ public partial class RavenDbMessageStore
     private long _lastLockIndex = 0;
     
 
-    public bool HasLeadershipLock()
+    // A lease read from memory: there is no session to ping, so nothing here does I/O.
+    public Task<bool> HasLeadershipLockAsync(CancellationToken token)
     {
-        if (_leaderLock == null) return false;
-        if (_leaderLock.ExpirationTime < DateTimeOffset.UtcNow) return false;
-        return true;
+        if (_leaderLock == null) return Task.FromResult(false);
+        if (_leaderLock.ExpirationTime < DateTimeOffset.UtcNow) return Task.FromResult(false);
+        return Task.FromResult(true);
     }
 
     // Error handling is outside of this

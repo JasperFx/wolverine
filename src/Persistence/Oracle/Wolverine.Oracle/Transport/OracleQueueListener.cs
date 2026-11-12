@@ -25,15 +25,15 @@ internal class OracleQueueListener : IListener
     private readonly DurabilitySettings _settings;
     private Task? _scheduledTask;
     private readonly OracleQueueSender _sender;
-    private readonly string _tryPopMessagesDirectlySql;
+    private string _tryPopMessagesDirectlySql = null!;
     private readonly string _queueTableName;
     private readonly string _queueName;
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
-    private readonly bool _deterministicQueueOrdering;
-    private readonly string _queueOrderBy;
-    private readonly string _scheduledOrderBy;
+    private bool _deterministicQueueOrdering;
+    private string _queueOrderBy = null!;
+    private string _scheduledOrderBy = null!;
 
     // GH-5015: ids of a durable pop whose COMMIT failed with an unknown outcome and could not be released yet
     private UnconfirmedPop? _unconfirmedPop;
@@ -55,7 +55,15 @@ internal class OracleQueueListener : IListener
         _queueTableName = _queue.QueueTable.Identifier.QualifiedName;
         _scheduledTableName = _queue.ScheduledTable.Identifier.QualifiedName;
         _schemaName = _queue.Parent.MessageStorageSchemaName;
-        _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
+        _queueName = _queue.Name;
+        useQueueOrdering(queue.Parent.EnableDeterministicQueueOrdering);
+    }
+
+    // GH-5192: the configured value is only a first guess. StartAsync swaps in what this database's queue tables
+    // really have, because 7.0 adopts an existing table without queue_order as it stands.
+    private void useQueueOrdering(bool deterministicQueueOrdering)
+    {
+        _deterministicQueueOrdering = deterministicQueueOrdering;
 
         // The identity tie-breaker is only referenced when its schema is enabled
         _queueOrderBy = _deterministicQueueOrdering
@@ -72,8 +80,6 @@ internal class OracleQueueListener : IListener
         _tryPopMessagesDirectlySql =
             $"SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM {_queueTableName} " +
             $"ORDER BY {_queueOrderBy} FOR UPDATE SKIP LOCKED";
-
-        _queueName = _queue.Name;
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
@@ -672,6 +678,8 @@ internal class OracleQueueListener : IListener
         {
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _dataSource);
         }
+
+        useQueueOrdering(await _queue.UsesQueueOrderingAsync(_databaseName ?? string.Empty, _dataSource));
 
         _task = Task.Run(listenForMessagesAsync, _cancellation.Token);
         _scheduledTask = Task.Run(lookForScheduledMessagesAsync, _cancellation.Token);

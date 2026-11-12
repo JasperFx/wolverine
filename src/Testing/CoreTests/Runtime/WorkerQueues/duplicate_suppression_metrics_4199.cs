@@ -35,11 +35,15 @@ public class duplicate_suppression_metrics_4199 : IAsyncLifetime
                 opts.Discovery.DisableConventionalDiscovery();
             }).StartAsync(TestContext.Current.CancellationToken);
 
+        var theMeter = _host.Services.GetRequiredService<IWolverineRuntime>().Meter;
+
         _listener = new MeterListener
         {
             InstrumentPublished = (instrument, l) =>
             {
-                if (instrument.Meter.Name == "Wolverine:" + TheServiceName)
+                // Every runtime publishes on a meter named "Wolverine" (GH-5128), so isolate THIS host's
+                // instruments from parallel tests by the Meter instance rather than its name.
+                if (ReferenceEquals(instrument.Meter, theMeter))
                 {
                     l.EnableMeasurementEvents(instrument);
                 }

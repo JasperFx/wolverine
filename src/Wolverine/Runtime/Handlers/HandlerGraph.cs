@@ -19,6 +19,7 @@ using Wolverine.Persistence;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
@@ -39,9 +40,21 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     internal readonly HandlerDiscovery Discovery = new();
 
-    private ImHashMap<Type, HandlerChain> _chains = ImHashMap<Type, HandlerChain>.Empty;
+    // GH-5136. One group per message type, holding one chain per handler type
+    private ImHashMap<Type, MessageHandlerGroup> _chains = ImHashMap<Type, MessageHandlerGroup>.Empty;
 
     private ImHashMap<Type, IMessageHandler?> _handlers = ImHashMap<Type, IMessageHandler?>.Empty;
+
+    // GH-5137. The relay of a message type with several chains from an endpoint none of them is bound to. Kept
+    // apart from _handlers, which HandlerFor(Type) reads first: a fan-out handler cached there made
+    // HandlerFor(Type) answer with the relay, or throw, depending on whether a message had already arrived
+    // somewhere from outside
+    private ImHashMap<Type, IMessageHandler> _fanoutHandlers = ImHashMap<Type, IMessageHandler>.Empty;
+
+    // GH-5138. Every BatchMessagesOf<T>() batch by its element type, including the element types that have no handler
+    // chain of their own and therefore no group, and by the batch message type each one produces
+    private ImHashMap<Type, BatchingOptions> _batches = ImHashMap<Type, BatchingOptions>.Empty;
+    private BatchingOptions[] _allBatches = [];
 
     private bool _hasCompiled;
 
@@ -69,15 +82,41 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     internal IServiceContainer Container { get; set; } = null!;
 
-    public HandlerChain[] Chains => _chains.Enumerate().Select(x => x.Value).ToArray();
+    /// <summary>
+    /// Every handler chain in the graph. GH-5136: a message type handled by more than one handler type has
+    /// one chain per handler type, so a message type can appear here more than once
+    /// </summary>
+    public HandlerChain[] Chains => _chains.Enumerate().SelectMany(x => x.Value.Chains).ToArray();
+
+    /// <summary>
+    /// GH-5136. The handler chains grouped by message type
+    /// </summary>
+    internal MessageHandlerGroup[] Groups => _chains.Enumerate().Select(x => x.Value).ToArray();
+
+    /// <summary>
+    /// GH-5136. The group of handler chains for exactly this message type, or null
+    /// </summary>
+    internal MessageHandlerGroup? GroupFor(Type messageType)
+    {
+        return _chains.TryFind(messageType, out var group) ? group : null;
+    }
+
+    /// <summary>
+    /// GH-5136. The group for this message type, or else the one group whose message type it can be cast to
+    /// (the Event&lt;T&gt; to IEvent&lt;T&gt; case)
+    /// </summary>
+    private MessageHandlerGroup? groupOrCandidateFor(Type messageType)
+    {
+        if (_chains.TryFind(messageType, out var group)) return group;
+
+        var candidates = _chains.Enumerate().Where(x => messageType.CanBeCastTo(x.Key)).ToArray();
+        return candidates.Length == 1 ? candidates[0].Value : null;
+    }
 
     public IEnumerable<Assembly> ExtensionAssemblies => Discovery.Assemblies;
     public List<Assembly> InteropAssemblies { get; } = new();
 
     public FailureRuleCollection Failures { get; set; } = new();
-
-    public MultipleHandlerBehavior MultipleHandlerBehavior { get; set; } =
-        MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler;
 
     public void ConfigureHandlerForMessage<T>(Action<HandlerChain> configure)
     {
@@ -86,25 +125,19 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     /// <summary>
     /// Customize the handler chain(s) for a message type after discovery and policies have run. When the
-    /// message type has more than one chain -- one per handler type under
-    /// <see cref="Wolverine.MultipleHandlerBehavior.Separated"/>, or sticky handlers -- the configuration is
-    /// applied to every one of them
+    /// message type has more than one chain -- one per handler type -- the configuration is applied to every
+    /// one of them
     /// </summary>
     public void ConfigureHandlerForMessage(Type messageType, Action<HandlerChain> configure)
     {
         _configurations.Add(() =>
         {
-            var chain = ChainFor(messageType);
-            if (chain != null)
+            var group = GroupFor(messageType);
+            if (group == null) return;
+
+            foreach (var chain in group.Chains)
             {
                 configure(chain);
-
-                // GH-5133. Under Separated the root chain of a message type with several handlers is an empty
-                // placeholder; the handlers that actually run are in the per-endpoint chains.
-                foreach (var separated in chain.ByEndpoint)
-                {
-                    configure(separated);
-                }
             }
         });
     }
@@ -172,11 +205,22 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return HandlerFor(typeof(T));
     }
 
+    /// <summary>
+    /// The handler chain for this message type, or null if it has none. GH-5136: a message type handled by
+    /// more than one handler type has one chain per handler type, and asking for "the" chain of it throws
+    /// <see cref="AmbiguousHandlerChainException"/>. Use <see cref="ChainsFor(Type)"/> or
+    /// <see cref="ChainFor(Type, Type)"/> for such a message type
+    /// </summary>
     public HandlerChain? ChainFor(Type messageType)
     {
-        if (_chains.TryFind(messageType, out var chain)) return chain;
+        if (!_chains.TryFind(messageType, out var group)) return null;
 
-        return null;
+        return group.Chains.Count switch
+        {
+            0 => null,
+            1 => group.Chains[0],
+            _ => throw new AmbiguousHandlerChainException(messageType, group.Chains)
+        };
     }
 
     /// <summary>
@@ -195,7 +239,9 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     /// </remarks>
     internal HandlerChain? ChainOrRegisteredHandlerChainFor(Type messageType)
     {
-        return ChainFor(messageType)
+        // GH-5136. Several batch handlers of one batch type are several chains; any of them carries the
+        // runtime settings this is asked for
+        return GroupFor(messageType)?.Chains.FirstOrDefault()
                ?? (_handlers.TryFind(messageType, out var handler) && handler is MessageHandler { Chain: { } chain }
                    ? chain
                    : null);
@@ -204,6 +250,56 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     public HandlerChain? ChainFor<T>()
     {
         return ChainFor(typeof(T));
+    }
+
+    /// <summary>
+    /// GH-5139. Every handler chain of <paramref name="messageType"/>, one per handler type, in discovery
+    /// order. Empty when the message type has no handler chain. Unlike <see cref="ChainFor(Type)"/>, this never
+    /// throws for a message type handled by more than one handler type
+    /// </summary>
+    public IReadOnlyList<HandlerChain> ChainsFor(Type messageType)
+    {
+        return GroupFor(messageType)?.Chains ?? [];
+    }
+
+    /// <summary>
+    /// GH-5139. Every handler chain of <typeparamref name="T"/>, one per handler type, in discovery order
+    /// </summary>
+    public IReadOnlyList<HandlerChain> ChainsFor<T>()
+    {
+        return ChainsFor(typeof(T));
+    }
+
+    /// <summary>
+    /// GH-5136 / GH-5139. The handler chain of <paramref name="messageType"/> that belongs to
+    /// <paramref name="handlerType"/> (the handler class, or the saga type for a saga), or null
+    /// </summary>
+    public HandlerChain? ChainFor(Type messageType, Type handlerType)
+    {
+        return GroupFor(messageType)?.Chains.FirstOrDefault(x => MessageHandlerGroup.HandlerTypeOf(x) == handlerType);
+    }
+
+    /// <summary>
+    /// GH-5139. The handler chain of <typeparamref name="TMessage"/> that belongs to
+    /// <typeparamref name="THandler"/>, or null
+    /// </summary>
+    public HandlerChain? ChainFor<TMessage, THandler>()
+    {
+        return ChainFor(typeof(TMessage), typeof(THandler));
+    }
+
+    /// <summary>
+    /// GH-5136. The compiled handler of the chain of <paramref name="messageType"/> that belongs to
+    /// <paramref name="handlerType"/>, resolved for the endpoint that chain is bound to if it is bound to one
+    /// </summary>
+    internal IMessageHandler? HandlerForHandlerType(Type messageType, Type handlerType)
+    {
+        var chain = ChainFor(messageType, handlerType);
+        if (chain == null) return null;
+
+        return chain.Endpoints.Count == 0
+            ? HandlerFor(messageType)
+            : HandlerFor(messageType, chain.Endpoints[0]);
     }
 
     public IMessageHandler? HandlerFor(Type messageType, Endpoint endpoint)
@@ -227,64 +323,111 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             throw new NotSupportedException();
         }
         
-        // This is cached in the HandlerPipeline for each endpoint, so 
+        // This is cached in the HandlerPipeline for each endpoint, so
         // not terribly important to cache it here
-        var chain = ChainFor(messageType);
+        var group = GroupFor(messageType);
 
-        if (chain == null)
+        if (group == null)
         {
             // There are a couple special types where this might be cached. Like for Acknowledgement
             if (_handlers.TryFind(messageType, out var handler)) return handler;
-            
+
             // This was to handle moving Event<T> to IEvent<T>
-            var candidates = _chains.Enumerate().Where(x => messageType.CanBeCastTo(x.Key)).ToArray();
-            if (candidates.Length == 1)
-            {
-                chain = candidates[0].Value;
-            }
+            group = groupOrCandidateFor(messageType);
         }
-        
-        if (chain == null) return null;
 
-        // If there are no sticky handlers, just use the default handler
-        // for the message type
-        if (!chain.ByEndpoint.Any()) return HandlerFor(messageType);
+        if (group == null || group.Chains.Count == 0) return null;
 
-        // See if there is a sticky handler that is specific to this endpoint
-        var sticky = chain.ByEndpoint.FirstOrDefault(x => x.Endpoints.Contains(endpoint));
-        
-        // If none, use the default
-        if (sticky == null)
+        return resolveHandlerFromGroup(messageType, group, endpoint);
+    }
+
+    /// <summary>
+    /// GH-5137. What runs a message of a type with at least one chain when it is received at
+    /// <paramref name="endpoint"/>, in order:
+    /// <list type="number">
+    /// <item>the chain bound to this endpoint -- a sticky handler, or one of several handler types on its own
+    /// local queue. <see cref="AssertOneChainPerEndpoint"/> makes sure there is at most one at startup</item>
+    /// <item>the message type's only chain, when it is not bound to any endpoint</item>
+    /// <item>a relay to the local queues of the group's chains: from an endpoint outside the process (or a
+    /// sharded slot), when every chain is on a local queue, to all of them; from anywhere else -- the message
+    /// type's own local queue still holding envelopes from before the handler types were split, a broker
+    /// queue next to a handler sticky to another broker queue, or a queue the message was explicitly sent
+    /// to -- to the queues of the handler types that are not sticky</item>
+    /// <item>otherwise a <see cref="NoHandlerForEndpointException"/> that says where each chain runs</item>
+    /// </list>
+    /// </summary>
+    private IMessageHandler? resolveHandlerFromGroup(Type messageType, MessageHandlerGroup group, Endpoint endpoint)
+    {
+        var bound = group.Chains.Where(x => x.Endpoints.Contains(endpoint)).ToArray();
+        if (bound.Length > 1)
         {
-            if (!chain.HasDefaultNonStickyHandlers())
-            {
-                // If all sticky handlers target local queues, create a fanout handler
-                // to relay the message from the external endpoint to each local queue
-                var allLocal = chain.ByEndpoint.All(
-                    c => c.Endpoints.All(e => e is LocalQueue));
+            throw new InvalidOperationException(describeEndpointCollision(messageType, endpoint, bound));
+        }
 
-                if (allLocal)
-                {
-                    if (endpoint is not LocalQueue)
-                    {
-                        return getOrBuildFanoutHandler(messageType, chain);
-                    }
+        if (bound.Length == 1)
+        {
+            return resolveHandlerFromChain(messageType, bound[0], false);
+        }
 
-                    // Also fanout when the incoming local queue is part of a sharded/global
-                    // partition topology rather than a sticky handler's own queue
-                    if (endpoint.UsedInShardedTopology)
-                    {
-                        return getOrBuildFanoutHandler(messageType, chain);
-                    }
-                }
-
-                throw new NoHandlerForEndpointException(messageType, endpoint.Uri);
-            }
-
+        // The message type's only chain, when it is not bound to any endpoint, runs wherever it is received
+        if (group.UnboundChains().Any())
+        {
             return HandlerFor(messageType);
         }
 
-        return resolveHandlerFromChain(messageType, sticky, false);
+        // Every chain is bound to some other endpoint. If they are all local queues, a message from outside the
+        // process is relayed to each of them
+        var allLocal = group.Chains.All(c => c.Endpoints.All(e => e is LocalQueue));
+        if (allLocal && (endpoint is not LocalQueue || endpoint.UsedInShardedTopology))
+        {
+            return getOrBuildFanoutHandler(messageType, group);
+        }
+
+        // GH-5136 / GH-5137. Anywhere else the message is relayed to the queues of the handler types that are not
+        // sticky, so each still gets it. That is how envelopes persisted to the message type's own local queue
+        // before an upgrade split its handler types drain. A sticky handler runs only at its own endpoints, so a
+        // message type whose chains are all sticky still has no handler here.
+        var unstickyQueues = group.Chains.Where(x => !x.IsSticky)
+            .SelectMany(x => x.Endpoints).OfType<LocalQueue>().Select(x => x.Uri).Distinct().ToArray();
+
+        if (unstickyQueues.Length > 0)
+        {
+            return BuildFanoutHandler(messageType, group.Chains[0], unstickyQueues);
+        }
+
+        throw new NoHandlerForEndpointException(messageType, endpoint.Uri, group);
+    }
+
+    /// <summary>
+    /// GH-5137. The invariant every executor relies on: at most one handler chain of a message type is bound to
+    /// any one endpoint, so the chain that runs a message received there is never a matter of discovery order.
+    /// Checked at startup, once the routing conventions have bound their listeners to chains
+    /// </summary>
+    internal void AssertOneChainPerEndpoint()
+    {
+        foreach (var group in Groups)
+        {
+            if (group.Chains.Count < 2) continue;
+
+            var collision = group.Chains
+                .SelectMany(chain => chain.Endpoints.Select(endpoint => (endpoint, chain)))
+                .GroupBy(x => x.endpoint)
+                .FirstOrDefault(x => x.Select(pair => pair.chain).Distinct().Count() > 1);
+
+            if (collision != null)
+            {
+                throw new InvalidOperationException(describeEndpointCollision(group.MessageType, collision.Key,
+                    collision.Select(x => x.chain).Distinct().ToArray()));
+            }
+        }
+    }
+
+    private static string describeEndpointCollision(Type messageType, Endpoint endpoint, IReadOnlyList<HandlerChain> chains)
+    {
+        return $"Handler types {MessageHandlerGroup.Describe(chains)} each handle message type {messageType.FullNameInCode()} " +
+               $"at endpoint {endpoint.Uri}. Wolverine runs one handler chain per handler type, and at most one of them " +
+               "may be bound to any one endpoint, so it is clear which one runs a message received there. Make the handlers " +
+               "sticky to different endpoints, or merge them into one handler type if they have to run together.";
     }
 
     public IMessageHandler? HandlerFor(Type messageType)
@@ -305,22 +448,136 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             throw new NotSupportedException();
         }
         
-        if (_chains.TryFind(messageType, out var chain))
+        // The second half is to handle moving Event<T> to IEvent<T>
+        var group = groupOrCandidateFor(messageType);
+        if (group != null && group.Chains.Count > 0)
         {
-            return resolveHandlerFromChain(messageType, chain, true);
-        }
+            // GH-5136. One chain per handler type: there is no single handler for a message type handled by
+            // several handler types, only one per endpoint
+            if (group.Chains.Count > 1)
+            {
+                throw new NoHandlerForEndpointException(messageType, group);
+            }
 
-        // This was to handle moving Event<T> to IEvent<T>
-        var candidates = _chains.Enumerate().Where(x => messageType.CanBeCastTo(x.Key)).ToArray();
-        if (candidates.Length == 1)
-        {
-            chain = candidates[0].Value;
-            return resolveHandlerFromChain(messageType, chain, true);
+            return resolveHandlerFromChain(messageType, group.Chains[0], true);
         }
 
         // memoize the "miss"
         _handlers = _handlers.AddOrUpdate(messageType, null);
         return null;
+    }
+
+    /// <summary>
+    /// GH-5138. The <c>BatchMessagesOf&lt;T&gt;()</c> batch of an element type, whether or not the element type has a
+    /// handler chain of its own
+    /// </summary>
+    internal BatchingOptions? BatchFor(Type elementType)
+    {
+        return _batches.TryFind(elementType, out var batch) ? batch : null;
+    }
+
+    private void attachBatches(IEnumerable<BatchingOptions> batches)
+    {
+        _allBatches = batches.ToArray();
+        foreach (var batch in _allBatches)
+        {
+            // The first batch of an element type wins, as it always has
+            if (_batches.TryFind(batch.ElementType, out _)) continue;
+
+            _batches = _batches.AddOrUpdate(batch.ElementType, batch);
+
+            var group = GroupFor(batch.ElementType);
+            if (group != null) group.Batch = batch;
+        }
+    }
+
+    /// <summary>
+    /// GH-5138. The batch of a message type with handler chains of its own runs on a local queue of its own. By default
+    /// a batch executes on its element type's local queue, which is also where the element type's handler chain (or,
+    /// for several handler types, the relay of envelopes persisted before they were split) runs, and a local queue
+    /// runs one executor per message type. Unless the application already pointed the batch somewhere else, it moves
+    /// to <c>{queue}-batch</c>. Done before the transports start, so the queue still gets the local queue policies
+    /// </summary>
+    internal void BindBatchQueues(LocalTransport local)
+    {
+        foreach (var group in Groups)
+        {
+            if (group.Batch is not { } batch) continue;
+
+            var directQueue = local.FindQueueForMessageType(batch.ElementType);
+            if (!string.Equals(batch.LocalExecutionQueueName, directQueue.EndpointName, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var batchQueue = local.QueueFor(directQueue.EndpointName + BatchQueueSuffix);
+            batchQueue.Mode = directQueue.Mode;
+
+            // Wolverine's own reassignment, not a user choice -- see SetDefaultLocalExecutionQueueName
+            batch.SetDefaultLocalExecutionQueueName(batchQueue.EndpointName);
+        }
+    }
+
+    /// <summary>
+    /// The suffix of the local queue a batch moves to when its element type has handler chains of its own
+    /// </summary>
+    internal const string BatchQueueSuffix = "-batch";
+
+    /// <summary>
+    /// GH-5138. What runs a message at <paramref name="endpoint"/> because of a batch, before any handler chain is
+    /// considered, or null when no batch is involved:
+    /// <list type="number">
+    /// <item>an element type received on its batch's own queue goes into the batch, even when the element type has
+    /// handler chains of its own</item>
+    /// <item>an element type with handler chains and a batch, received from outside the process, is relayed to the
+    /// local queue of every chain and to the batch's queue</item>
+    /// <item>an assembled batch message on the queue its batch runs on, when every chain of the batch message type is
+    /// bound to an endpoint of its own (several batch handler types, or a sticky one), is relayed to their local
+    /// queues</item>
+    /// </list>
+    /// Asked by the executor factory ahead of the partitioned message re-router, so a batch queue is never mistaken
+    /// for a stray copy of a partitioned message
+    /// </summary>
+    internal IMessageHandler? ResolveBatchMember(Type messageType, Endpoint endpoint, LocalTransport local,
+        Func<BatchingOptions, IMessageHandler> buildBatchHandler)
+    {
+        if (_allBatches.Length == 0) return null;
+
+        if (BatchFor(messageType) is { } batch)
+        {
+            if (isBatchQueue(batch, endpoint)) return buildBatchHandler(batch);
+
+            if (endpoint is not LocalQueue && GroupFor(messageType) is { Chains.Count: > 0 } group)
+            {
+                return BuildFanoutHandler(messageType, group.Chains[0], group.MemberLocalQueueUris(local));
+            }
+
+            return null;
+        }
+
+        if (endpoint is not LocalQueue) return null;
+
+        var producesTheBatch = _allBatches.Any(x => x.Batcher.BatchMessageType == messageType && isBatchQueue(x, endpoint));
+        if (!producesTheBatch) return null;
+
+        var batchGroup = GroupFor(messageType);
+        if (batchGroup == null || !batchGroup.BoundChains().Any() || batchGroup.UnboundChains().Any()) return null;
+
+        var boundQueues = batchGroup.BoundLocalQueueUris();
+        return boundQueues.Length == 0 ? null : BuildFanoutHandler(messageType, batchGroup.Chains[0], boundQueues);
+    }
+
+    private static bool isBatchQueue(BatchingOptions batch, Endpoint endpoint)
+    {
+        return string.Equals(endpoint.EndpointName, batch.LocalExecutionQueueName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// GH-5138. The compiled handler of one chain, without caching it as the handler of its message type
+    /// </summary>
+    internal IMessageHandler HandlerForChain(HandlerChain chain)
+    {
+        return resolveHandlerFromChain(chain.MessageType, chain, false)!;
     }
 
     private IMessageHandler? resolveHandlerFromChain(Type messageType, HandlerChain chain, bool shouldCacheGlobally)
@@ -332,17 +589,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         }
         else
         {
-            // SagaChain.DetermineFrames clears Handlers during codegen, so the
-            // HasDefaultNonStickyHandlers check has to happen inside the lock
             lock (_compilingLock)
             {
                 if (chain.Handler != null)
                 {
                     handler = chain.Handler;
-                }
-                else if (!chain.HasDefaultNonStickyHandlers())
-                {
-                    throw new NoHandlerForEndpointException(messageType);
                 }
                 else
                 {
@@ -369,34 +620,27 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     // Closes FanoutMessageHandler<> over the runtime-resolved messageType
     // and Activator.CreateInstance's the result. Per-message-type lazy-init
-    // (cached in _handlers ImHashMap after first call). Same chunk J
+    // (cached in _fanoutHandlers ImHashMap after first call). Same chunk J
     // (RoutingFor) pattern: AOT-clean apps in TypeLoadMode.Static pre-
     // populate _handlers at HandlerGraph.Compile time so the steady-state
     // hot path is pure cache lookups. The pre-population work is tracked in
     // #2769 (CloseAndBuildAs elimination).
-    private IMessageHandler getOrBuildFanoutHandler(Type messageType, HandlerChain chain)
+    private IMessageHandler getOrBuildFanoutHandler(Type messageType, MessageHandlerGroup group)
     {
-        if (_handlers.TryFind(messageType, out var cached) && cached != null)
+        if (_fanoutHandlers.TryFind(messageType, out var cached))
         {
             return cached;
         }
 
-        var localUris = chain.ByEndpoint
-            .SelectMany(c => c.Endpoints)
-            .OfType<LocalQueue>()
-            .Select(e => e.Uri)
-            .Distinct()
-            .ToArray();
+        var handler = BuildFanoutHandler(messageType, group.Chains[0], group.BoundLocalQueueUris());
 
-        var handler = BuildFanoutHandler(messageType, chain, localUris);
-
-        _handlers = _handlers.AddOrUpdate(messageType, handler);
+        _fanoutHandlers = _fanoutHandlers.AddOrUpdate(messageType, handler);
         return handler;
     }
 
     // Closes FanoutMessageHandler<> over the runtime-resolved messageType and
     // Activator.CreateInstance's the result. Used both for sticky-handler fanout
-    // (getOrBuildFanoutHandler, cached in _handlers) and for relaying an externally-
+    // (getOrBuildFanoutHandler, cached in _fanoutHandlers) and for relaying an externally-
     // arriving element type to its direct + batch local queues (NOT cached — the
     // _handlers[messageType] slot belongs to the direct handler). AOT-clean apps in
     // TypeLoadMode.Static pre-populate handlers at Compile time. See #2769.
@@ -410,15 +654,13 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     // Compile is the bootstrap-time handler-graph build. The remaining IL2026
     // here comes from registerMessageTypes' MakeGenericType / GetInterfaces walks
-    // (pre-population work tracked in #2769) and from the opt-in
-    // Forwarders.FindForwards path that runs only when
-    // options.AutomaticForwarderDiscoveryEnabled is true (the 6.0 explicit
-    // RegisterMessageForwarder API replaced the unconditional scan — see #2757).
+    // (pre-population work tracked in #2769). The opt-in Forwarders.FindForwards
+    // assembly scan (UseAutomaticForwarderDiscovery) was removed in 7.0 (GH-5198).
     // Suppress at the Compile boundary: a single annotation here keeps
     // WolverineRuntime.StartAsync (the public bootstrap entry point) free of
     // the cascade.
     [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Bootstrap-time handler-graph build; per-message-type cache population (#2769) plus opt-in Forwarders.FindForwards assembly scan (#2757). See AOT guide.")]
+        Justification = "Bootstrap-time handler-graph build; per-message-type cache population (#2769). See AOT guide.")]
     internal void Compile(WolverineOptions options, IServiceContainer container)
     {
         if (_hasCompiled)
@@ -436,30 +678,23 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         Group(options);
 
+        // GH-5138. A BatchMessagesOf<T>() batch is a member of T's group, next to its handler chains
+        attachBatches(options.BatchDefinitions);
+
         assignDeduplicationScopes();
 
         // GH-3974: the earliest point at which "will this message type be handled?" has a real answer.
         // Discovery has resolved and the chains are grouped, so a consumer no longer has to hand-roll a
         // mirror of Wolverine's own discovery convention to ask it.
-        options.ApplyHandlerDiscoveryCallbacks(Chains.Select(x => x.MessageType));
+        options.ApplyHandlerDiscoveryCallbacks(Groups.Select(x => x.MessageType));
 
-        // This was to address the issue with policies not extending to sticky message
-        // handlers
-        IEnumerable<HandlerChain> explodeChains(HandlerChain chain)
-        {
-            yield return chain;
+        // GH-5136. One flat list: every message type's chains, one per handler type
+        var allChains = Chains;
 
-            foreach (var stickyChain in chain.ByEndpoint)
-            {
-                yield return stickyChain;
-            }
-        }
-
-        var allChains = Chains.SelectMany(explodeChains).ToArray();
-        
-        // This lovely thing was brought to you by https://github.com/JasperFx/wolverine/issues/2004
+        // This lovely thing was brought to you by https://github.com/JasperFx/wolverine/issues/2004. A handler
+        // type that handles more than one message type which each have several handler types would otherwise
+        // name two chains after the same handler type.
         var duplicateTypeNames = allChains
-            .Where(x => x.Handlers.Any()) // filter out the parent, placeholder HandlerChain for separated handlers
             .GroupBy(x => x.TypeName)
             .Where(x => x.Count() > 1)
             .ToArray();
@@ -480,22 +715,15 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         Container = container;
 
-        // 6.0 forwarder registration: drain the explicit
+        // Forwarder registration: drain the explicit
         // WolverineOptions.RegisterMessageForwarder<TFrom, TTo>() registrations
-        // first (AOT-clean — no reflective assembly walk), then optionally
-        // run the legacy Forwarders.FindForwards(ApplicationAssembly) scan
-        // when the user opted in via UseAutomaticForwarderDiscovery(). The
-        // pre-6.0 unconditional scan is gone — see #2757 and
-        // docs/guide/migration.md.
+        // (AOT-clean, no reflective assembly walk). The pre-6.0 assembly scan
+        // went away in 6.0 (#2757) and its UseAutomaticForwarderDiscovery()
+        // opt-in was removed in 7.0 (GH-5198).
         var forwarders = new Forwarders();
         foreach (var pair in options.ExplicitMessageForwarders)
         {
             forwarders.Relationships[pair.Key] = pair.Value;
-        }
-
-        if (options.AutomaticForwarderDiscoveryEnabled && options.ApplicationAssembly is not null)
-        {
-            forwarders.FindForwards(options.ApplicationAssembly);
         }
 
         AddForwarders(forwarders);
@@ -705,10 +933,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
                 return;
             }
 
-            _calls
-                .GroupBy(x => x.MessageType)
-                .Select(x => buildHandlerChain(options, x))
-                .Each(chain => { _chains = _chains.AddOrUpdate(chain.MessageType, chain); });
+            foreach (var messageGroup in _calls.GroupBy(x => x.MessageType))
+            {
+                var group = buildHandlerGroup(options, messageGroup);
+                _chains = _chains.AddOrUpdate(group.MessageType, group);
+            }
 
 
             _hasGrouped = true;
@@ -731,15 +960,78 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return false;
     }
 
-    private HandlerChain buildHandlerChain(WolverineOptions options, IGrouping<Type, HandlerCall> group)
+    /// <summary>
+    /// GH-5136. One chain per (message type, handler type). A saga type's Start / Handle / NotFound methods for
+    /// the message are one <see cref="SagaChain"/>; any other handler type gets a <see cref="HandlerChain"/> of
+    /// its own, including one that sits beside a saga. With more than one chain, each chain that is not sticky
+    /// to an endpoint gets the local queue named for its handler type and a generated type named for its handler
+    /// type. A message type with a single chain keeps the message type's queue and generated type name.
+    /// </summary>
+    private MessageHandlerGroup buildHandlerGroup(WolverineOptions options, IGrouping<Type, HandlerCall> calls)
     {
-        // If the SagaChain handler method is a static, then it's valid to be a "Start" method
-        if (group.Any(isSagaMethod))
+        var group = new MessageHandlerGroup(calls.Key);
+
+        foreach (var byHandlerType in calls.GroupBy(x => x.HandlerType))
         {
-            return new SagaChain(options, group, this);
+            assertOneMethodPerNonSagaHandlerType(calls.Key, byHandlerType);
+
+            var handlerCalls = new HandlerCallGrouping(calls.Key, byHandlerType.ToArray());
+
+            // If the SagaChain handler method is a static, then it's valid to be a "Start" method
+            HandlerChain chain = handlerCalls.Any(isSagaMethod)
+                ? new SagaChain(options, handlerCalls, this)
+                : new HandlerChain(options, handlerCalls, this);
+
+            group.Add(chain);
         }
 
-        return new HandlerChain(options, group, this);
+        var separated = group.Chains.Count > 1;
+
+        foreach (var chain in group.Chains)
+        {
+            // Sticky handlers always apply, whether or not the message type has any other handler
+            var handlerCall = chain.HandlerCalls().First();
+            var assigned = chain.TryAssignStickyEndpoints(options);
+
+            if (!separated) continue;
+
+            if (!assigned)
+            {
+                chain.RegisterEndpoint(options.Transports.GetOrCreate<LocalTransport>()
+                    .QueueFor(handlerCall.HandlerType.FullNameInCode().ToLowerInvariant()));
+            }
+
+            chain.TypeName = HandlerChain.GeneratedTypeNameFor(handlerCall.HandlerType, HandlerChain.HandlerSuffix);
+            chain.OverrideDescription(
+                $"Message Handler for {chain.MessageType.FullNameInCode()} using {handlerCall.HandlerType.FullNameInCode()}");
+        }
+
+        return group;
+    }
+
+    /// <summary>
+    /// GH-5136. Two methods of one handler class for the same message type would be one chain running both, the
+    /// combining that Wolverine 7 removed everywhere else. A saga is exempt: its Start, Handle and NotFound
+    /// methods for a message are one saga chain by design.
+    /// </summary>
+    private static void assertOneMethodPerNonSagaHandlerType(Type messageType, IGrouping<Type, HandlerCall> calls)
+    {
+        if (calls.Key.CanBeCastTo<Saga>()) return;
+
+        var methods = calls.Select(x => x.Method).Distinct().ToArray();
+        if (methods.Length < 2) return;
+
+        throw new InvalidOperationException(
+            $"Handler type {calls.Key.FullNameInCode()} has {methods.Length} methods that handle message type {messageType.FullNameInCode()} " +
+            $"({methods.Select(x => x.Name + "()").Join(", ")}). A handler type may have only one handler method for each message type. " +
+            "Merge them into one method, or move one of them to a different handler type to give it a handler chain of its own.");
+    }
+
+    private sealed class HandlerCallGrouping(Type key, HandlerCall[] calls) : IGrouping<Type, HandlerCall>
+    {
+        public Type Key { get; } = key;
+        public IEnumerator<HandlerCall> GetEnumerator() => ((IEnumerable<HandlerCall>)calls).GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => calls.GetEnumerator();
     }
 
     // typeof(ForwardingHandler<,>).CloseAndBuildAs<MessageHandler>(this, source, destination)
@@ -763,7 +1055,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
                 var handler =
                     typeof(ForwardingHandler<,>).CloseAndBuildAs<MessageHandler>(this, source, destination);
 
-                _chains = _chains.AddOrUpdate(source, handler.Chain!);
+                _chains = _chains.AddOrUpdate(source, new MessageHandlerGroup(source, handler.Chain!));
                 _handlers = _handlers.AddOrUpdate(source, handler);
             }
         }
@@ -808,22 +1100,17 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         }
     }
 
-    // GH-5133. A message type with more than one chain that runs handlers -- one per handler type under
-    // Separated, or sticky handlers -- would otherwise have every chain claim the same logical deduplication
-    // id, so the first claim wins and the rest drop the message. Give each such chain its own scope. Done
-    // here, straight after grouping, because SagaChain clears its handler calls when it generates code.
+    // GH-5133. A message type with more than one chain -- one per handler type -- would otherwise have every
+    // chain claim the same logical deduplication id, so the first claim wins and the rest drop the message.
+    // Give each such chain its own scope. Done here, straight after grouping, because SagaChain clears its
+    // handler calls when it generates code.
     private void assignDeduplicationScopes()
     {
-        foreach (var root in Chains)
+        foreach (var group in Groups)
         {
-            if (root.ByEndpoint.Count == 0) continue;
+            if (group.Chains.Count < 2) continue;
 
-            var running = root.ByEndpoint.Where(x => x.Handlers.Any()).ToList();
-            if (root.Handlers.Any()) running.Insert(0, root);
-
-            if (running.Count < 2) continue;
-
-            foreach (var chain in running)
+            foreach (var chain in group.Chains)
             {
                 var handlerTypes = chain.Handlers.Select(x => x.HandlerType.FullNameInCode()).Distinct()
                     .OrderBy(x => x).Join("+");
@@ -834,75 +1121,35 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     }
 
     /// <summary>
-    /// GH-5133. Every chain in the graph: each message type's root chain -- including the empty placeholder
-    /// that <see cref="Wolverine.MultipleHandlerBehavior.Separated"/> leaves behind when it moves every handler
-    /// out -- followed by its per-endpoint (separated or sticky) chains. <see cref="Chains"/> only has the
-    /// roots, so anything that inspects chain configuration has to read this instead.
+    /// GH-5133 / GH-5136. Every chain in the graph, the same flat list as <see cref="Chains"/>
     /// </summary>
-    internal IEnumerable<HandlerChain> EveryChain()
-    {
-        foreach (var chain in Chains)
-        {
-            yield return chain;
-
-            foreach (var separated in chain.ByEndpoint)
-            {
-                yield return separated;
-            }
-        }
-    }
+    internal IEnumerable<HandlerChain> EveryChain() => Chains;
 
     /// <summary>
-    /// GH-5133. Every saga chain, including the per-saga-type chains Separated builds when more than one saga
-    /// type handles the same message. Saga store diagnostics and validators read this so that a saga type
+    /// GH-5133. Every saga chain, including one per saga type when more than one saga type handles the same
+    /// message. Saga store diagnostics and validators read this so that a saga type
     /// whose messages are all shared with another saga is not missed.
     /// </summary>
     internal IEnumerable<SagaChain> SagaChains() => EveryChain().OfType<SagaChain>();
 
     /// <summary>
-    /// GH-4060 / GH-5133. Is any requeue-shaped error handling configured, globally or on any chain --
-    /// including the per-endpoint chains built under Separated?
+    /// GH-4060 / GH-5133. Is any requeue-shaped error handling configured, globally or on any chain?
     /// </summary>
     internal bool AnyRequeuePolicies()
         => Failures.AnyRequeuePolicies() || EveryChain().Any(x => x.Failures.AnyRequeuePolicies());
 
     /// <summary>
-    /// GH-5133. The chains that hold handlers from more than one handler class for the same message type,
-    /// which only the obsolete ClassicCombineIntoOneLogicalHandler mode builds. Several methods of one
-    /// class (a saga's Start and Handle) are one handler type and do not count.
+    /// Every handler chain in the graph, one per (message type, handler type). The same list as <see cref="Chains"/>
     /// </summary>
-    internal HandlerChain[] CombinedHandlerChains()
-    {
-#pragma warning disable CS0618 // the obsolete value is exactly what this looks for
-        if (MultipleHandlerBehavior != MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler) return [];
-#pragma warning restore CS0618
-
-        return AllChains()
-            .Where(x => x.Handlers.Select(h => h.HandlerType).Distinct().Count() > 1)
-            .OrderBy(x => x.MessageType.FullNameInCode())
-            .ToArray();
-    }
-
-    public IEnumerable<HandlerChain> AllChains()
-    {
-        foreach (var chain in Chains)
-        {
-            if (chain.Handlers.Any()) yield return chain;
-
-            foreach (var handlerChain in chain.ByEndpoint)
-            {
-                yield return handlerChain;
-            }
-        }
-    }
+    public IEnumerable<HandlerChain> AllChains() => Chains;
 
     public IEnumerable<Type> AllMessageTypes()
     {
-        foreach (var chain in Chains)
+        foreach (var group in Groups)
         {
-            yield return chain.MessageType;
+            yield return group.MessageType;
 
-            foreach (var publishedType in chain.PublishedTypes()) yield return publishedType;
+            foreach (var publishedType in group.Chains.SelectMany(x => x.PublishedTypes())) yield return publishedType;
         }
 
         foreach (var entry in _messageTypes.Enumerate())

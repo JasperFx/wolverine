@@ -333,6 +333,100 @@ public class native_ack_mode : IAsyncLifetime
         NativeAckWorkTracking.DistinctNumbersFor("dying-host", 100, 5).ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// GH-5533. Puts a JetStream redelivery of an in-flight message in front of the SAME receiver: AckWait is 2s and
+    /// the AckProgress ceiling is 3s, so Wolverine stops renewing almost at once and the server redelivers each
+    /// message while its first delivery is still parked. Waits until the server reports one redelivery per message.
+    /// </summary>
+    private async Task<IHost> startWithInFlightRedeliveriesAsync(Topology topology, string service, int start,
+        int count)
+    {
+        NativeAckWorkTracking.Block(service);
+
+        var host = await startHostAsync(topology, service, 2.Seconds(),
+            l => l.MaximumAckExtension(3.Seconds()).WithInMemoryIdempotency());
+
+        var bus = host.MessageBus();
+        for (var i = 0; i < count; i++)
+        {
+            await bus.SendAsync(new NativeAckWork(start + i));
+        }
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        ConsumerInfo info;
+        do
+        {
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            info = await consumerInfoAsync(topology);
+        } while (info.NumRedelivered < count && DateTimeOffset.UtcNow < deadline);
+
+        info.NumRedelivered.ShouldBeGreaterThanOrEqualTo(count);
+
+        // The guard used to ack those redeliveries, settling the messages while their originals were parked
+        info.NumAckPending.ShouldBe(count);
+        NativeAckWorkTracking.Handled.ShouldBeEmpty();
+
+        return host;
+    }
+
+    [Fact]
+    public async Task an_in_flight_redelivery_is_not_acked_so_a_draining_node_still_loses_nothing()
+    {
+        var topology = topologyFor("inflight-drain");
+
+        // Disposed straight away: JetStream's MaxDeliver (5) is the budget every lapse spends
+        var firstHost = await startWithInFlightRedeliveriesAsync(topology, "redelivered-host", 300, 3);
+        firstHost.Dispose();
+
+        NativeAckWorkTracking.Handled.ShouldBeEmpty();
+
+        using var secondHost = await startHostAsync(topology, "after-host", 2.Seconds(),
+            l => l.WithInMemoryIdempotency());
+
+        await waitForAsync(() => NativeAckWorkTracking.DistinctNumbersFor("after-host", 300, 3).Count() >= 3,
+            60.Seconds());
+
+        NativeAckWorkTracking.DistinctNumbersFor("after-host", 300, 3).ShouldBe(Enumerable.Range(300, 3));
+        NativeAckWorkTracking.DistinctNumbersFor("redelivered-host", 300, 3).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task an_in_flight_redelivery_is_acked_once_the_original_succeeds()
+    {
+        var topology = topologyFor("inflight-settle");
+
+        using var host = await startWithInFlightRedeliveriesAsync(topology, "settling-host", 400, 3);
+
+        NativeAckWorkTracking.Release("settling-host");
+
+        await waitForAsync(() => NativeAckWorkTracking.DistinctNumbersFor("settling-host", 400, 3).Count() >= 3,
+            30.Seconds());
+        NativeAckWorkTracking.DistinctNumbersFor("settling-host", 400, 3).ShouldBe(Enumerable.Range(400, 3));
+
+        // Nothing left pending, and nothing came back to run a second time across two more AckWait windows
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while ((await consumerInfoAsync(topology)).NumAckPending > 0 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+        }
+
+        (await consumerInfoAsync(topology)).NumAckPending.ShouldBe(0);
+        await Task.Delay(5.Seconds(), TestContext.Current.CancellationToken);
+        NativeAckWorkTracking.Handled.Count(x => x.Number >= 400 && x.Number < 403).ShouldBe(3);
+    }
+
+    private async Task<ConsumerInfo> consumerInfoAsync(Topology topology)
+    {
+        await using var connection = new NatsConnection(new NatsOpts { Url = _fixture.ConnectionString });
+        await connection.ConnectAsync();
+
+        var js = connection.CreateJetStreamContext();
+        var consumer = await js.GetConsumerAsync(topology.Stream, topology.Consumer,
+            TestContext.Current.CancellationToken);
+
+        return consumer.Info;
+    }
+
     private async Task<ConsumerConfig> consumerConfigAsync(Topology topology)
     {
         await using var connection = new NatsConnection(new NatsOpts { Url = _fixture.ConnectionString });

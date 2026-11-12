@@ -27,6 +27,25 @@ partial class Build
     }
 
     /// <summary>
+    /// The compose project every build target uses, whatever directory the checkout lives in.
+    ///
+    /// <para>Compose names a project after its directory by default, so each git worktree was its
+    /// own project (<c>wolverine-runner-wv-gate-transports</c>, say) while the host ports in
+    /// docker-compose.yml are fixed. A worktree's <c>docker compose up -d</c> then tried to create a
+    /// second RabbitMQ, Postgres, SQL Server and so on beside the main checkout's
+    /// <c>wolverine-*</c> containers and failed with "port is already allocated". Pinning the name
+    /// makes every checkout on a machine share one stack, and <c>up -d</c> idempotent against it. The
+    /// main checkout's directory is already <c>wolverine</c>, as is the CI runner's, so nothing changes
+    /// there. <c>COMPOSE_PROJECT_NAME</c>, when set, still wins, for anyone who wants a stack of
+    /// their own.</para>
+    /// </summary>
+    static string ComposeProjectName =>
+        Environment.GetEnvironmentVariable("COMPOSE_PROJECT_NAME") is { Length: > 0 } name ? name : "wolverine";
+
+    /// <summary>`compose -p {project} {args}`: every compose invocation in the build goes through this.</summary>
+    static string composeArgs(string args) => $"compose -p {ComposeProjectName} {args}";
+
+    /// <summary>
     /// How many times <see cref="ComposeUp"/> will try `docker compose up -d` before giving up.
     /// </summary>
     const int DockerComposeAttempts = 3;
@@ -59,7 +78,7 @@ partial class Build
         Log.Information("Starting docker services: {Services}", serviceList);
 
         // Pass each service as a separate argument to avoid quoting issues
-        ComposeUp("compose up -d " + serviceList, serviceList);
+        ComposeUp(composeArgs("up -d " + serviceList), serviceList);
     }
 
     static bool portAnswers(int port)
@@ -337,8 +356,8 @@ partial class Build
 
         try
         {
-            runDiagnostic(composeTool(), $"compose ps {composeService}");
-            runDiagnostic(composeTool(), $"compose logs --tail=200 {composeService}");
+            runDiagnostic(composeTool(), composeArgs($"ps {composeService}"));
+            runDiagnostic(composeTool(), composeArgs($"logs --tail=200 {composeService}"));
 
             // Linux-only, and the runner is the only place this matters -- a developer machine has
             // no OOM killer story worth telling here.
@@ -358,7 +377,7 @@ partial class Build
     void restartService(string name, string composeService)
     {
         Log.Warning("Restarting the {Service} container ({ComposeService}) and probing once more", name, composeService);
-        runDiagnostic(composeTool(), $"compose restart {composeService}");
+        runDiagnostic(composeTool(), composeArgs($"restart {composeService}"));
     }
 
     /// <summary>
@@ -682,11 +701,11 @@ partial class Build
             var persistenceTests = RootDirectory / "src" / "Persistence" / "PersistenceTests" / "PersistenceTests.csproj";
 
             BuildTestProjects(PostgresqlTests);
-            // Pin PersistenceTests to net9.0 in CI; csproj targets net9.0;net10.0.
-            BuildTestProjectsWithFramework("net9.0", persistenceTests);
+            // Pin PersistenceTests to net10.0 in CI; csproj targets net10.0;net11.0.
+            BuildTestProjectsWithFramework("net10.0", persistenceTests);
             StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 
-            RunTestProject(persistenceTests, frameworkOverride: "net9.0");
+            RunTestProject(persistenceTests, frameworkOverride: "net10.0");
             RunTestProject(PostgresqlTests, testFilter: excludeNamespaces(PostgresqlShard));
         });
 
@@ -1010,17 +1029,14 @@ partial class Build
 
     /// <param name="framework">
     /// Which target framework the two EF suites run on, or null to inherit <c>--framework</c>.
-    /// Both projects multi-target net9.0;net10.0 and <c>Directory.Packages.props</c> resolves EF Core 9
-    /// for net9.0 and EF Core 10 for net10.0, so the framework IS the EF Core major version under test.
-    /// CI passes <c>--framework net9.0</c> globally (tests.yml), which is why <see cref="CIEfCore" />
-    /// alone never exercised EF 10 in CI even though both suites have multi-targeted since #3540.
-    /// See GH-4635.
+    /// EfCoreTests multi-targets net10.0;net11.0, but <c>Directory.Packages.props</c> holds EF Core on 10.x
+    /// for both until Npgsql.EntityFrameworkCore.PostgreSQL 11 ships GA (GH-5134), so there is no separate
+    /// EF Core 11 lane yet; CI passes <c>--framework net10.0</c> globally (tests.yml). See GH-4635.
     /// </param>
     void runEfCoreSuites(string framework)
     {
         // EfCoreTests.MultiTenancy is net10.0-only: its MultiTenancyCompliance base hosts through Alba,
-        // and Alba 9 has no net9.0 target. It runs in the EF Core 10 lane only, rather than being
-        // silently promoted to net10.0 here and run twice.
+        // and Alba 9 has no net11.0 target, so it runs only when the chosen framework is net10.0.
         var chosen = framework ?? Framework;
         AbsolutePath[] suites = declaredFrameworks(EfCoreMultiTenancyTests).Contains(chosen)
             ? [EfCoreTests, EfCoreMultiTenancyTests]
@@ -1039,24 +1055,13 @@ partial class Build
         .ProceedAfterFailure()
         .Executes(() => runEfCoreSuites(null));
 
-    /// <summary>
-    /// GH-4635. The same two EF suites on net10.0 / EF Core 10. A SEPARATE matrix job rather than a
-    /// second framework inside <see cref="CIEfCore" />: this matrix is minute-bound, not wall-clock
-    /// bound, and doubling an existing lane's work is the one thing the 20 minute cap is there to
-    /// prevent. As its own job the EF 10 run costs wall clock only against the other 34 jobs already
-    /// running in parallel.
-    /// </summary>
-    Target CIEfCoreNet10 => _ => _
-        .ProceedAfterFailure()
-        .Executes(() => runEfCoreSuites("net10.0"));
-
     // ─── Transport CI Targets ──────────────────────────────────────────
 
     // ─── AWS CI Targets ────────────────────────────────────────────────
     //
     // CIAWS used to run the SQS project and then the SNS project back to back in a single job, which chronically
     // blew past the 20 minute job timeout on CI runners. It is now split three ways so the shards run as parallel
-    // jobs. Measured locally (Release, net9.0, serial, LocalStack in docker):
+    // jobs. Measured locally (Release, net9.0 at the time, serial, LocalStack in docker):
     //
     //   whole SQS project  199 tests  6m27s   <- the real hog
     //   whole SNS project  118 tests  1m30s
@@ -1166,18 +1171,6 @@ partial class Build
             RunTestProject(tests);
         });
 
-    Target CIMQTT5 => _ => _
-        .ProceedAfterFailure()
-        .Executes(() =>
-        {
-            var tests = RootDirectory / "src" / "Transports" / "MQTT" / "Wolverine.Mqtt5.Tests" / "Wolverine.Mqtt5.Tests.csproj";
-
-            BuildTestProjects(tests);
-            StartDockerServices("postgresql", "sqlserver");
-
-            RunTestProject(tests);
-        });
-
     Target CINATS => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
@@ -1272,6 +1265,21 @@ partial class Build
             RunTestProject(tests, frameworkOverride: "net10.0");
         });
 
+    // GH-5147: Wolverine.Http against ASP.NET Core 11 (CSRF default, async DataAnnotations, [ShortCircuit],
+    // OpenAPI 3.2). Runs on both frameworks whatever --framework says, because the behaviour under test is
+    // deliberately different between them. No database or broker.
+    Target CIHttpCompat => _ => _
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Http" / "Wolverine.Http.Compat.Tests" / "Wolverine.Http.Compat.Tests.csproj";
+
+            foreach (var framework in new[] { "net10.0", "net11.0" })
+            {
+                BuildTestProjectsWithFramework(framework, tests);
+                RunTestProject(tests, frameworkOverride: framework);
+            }
+        });
+
     Target CIRabbitMQ => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
@@ -1336,9 +1344,9 @@ partial class Build
             var ravenDbTests = RootDirectory / "src" / "Persistence" / "RavenDbTests" / "RavenDbTests.csproj";
             var leaderElectionTests = RootDirectory / "src" / "Persistence" / "LeaderElection" / "RavenDbTests.LeaderElection" / "RavenDbTests.LeaderElection.csproj";
 
-            BuildTestProjectsWithFramework("net9.0", ravenDbTests, leaderElectionTests);
+            BuildTestProjectsWithFramework("net10.0", ravenDbTests, leaderElectionTests);
 
-            RunTestProjects([ravenDbTests, leaderElectionTests], frameworkOverride: "net9.0");
+            RunTestProjects([ravenDbTests, leaderElectionTests], frameworkOverride: "net10.0");
         });
 
     Target CIGrpc => _ => _
@@ -1580,8 +1588,8 @@ partial class Build
     {
         var project = RootDirectory / "src" / "Testing" / projectName / $"{projectName}.csproj";
 
-        DotNet($"build {project} --configuration {Configuration} --framework net9.0");
-        DotNet($"run --project {project} --no-build --configuration {Configuration} --framework net9.0");
+        DotNet($"build {project} --configuration {Configuration} --framework net10.0");
+        DotNet($"run --project {project} --no-build --configuration {Configuration} --framework net10.0");
     }
 
     /// <summary>
@@ -1594,7 +1602,7 @@ partial class Build
         var output = RootDirectory / "src" / "Testing" / projectName / "bin" / outputFolder;
 
         DotNet(
-            $"publish {project} --configuration {Configuration} --framework net9.0 --use-current-runtime --output {output}");
+            $"publish {project} --configuration {Configuration} --framework net10.0 --use-current-runtime --output {output}");
 
         var binaryName = EnvironmentInfo.IsWin ? $"{projectName}.exe" : projectName;
         ProcessTasks.StartProcess(output / binaryName, workingDirectory: RootDirectory)
@@ -1682,7 +1690,7 @@ partial class Build
 
             foreach (var project in projects)
             {
-                DotNet($"build {project} --configuration {Configuration} --framework net9.0");
+                DotNet($"build {project} --configuration {Configuration} --framework net10.0");
             }
 
             foreach (var project in projects)
@@ -1698,7 +1706,7 @@ partial class Build
 
                 ProcessTasks
                     .StartProcess("dotnet",
-                        $"run --configuration {Configuration} --framework net9.0 --no-build -- codegen write",
+                        $"run --configuration {Configuration} --framework net10.0 --no-build -- codegen write",
                         workingDirectory: project)
                     .AssertZeroExitCode();
             }
@@ -1768,13 +1776,13 @@ partial class Build
             }
 
             // AFTER the wipe, so the assembly under test genuinely has no generated types in it.
-            DotNet($"build {project} --configuration {Configuration} --framework net9.0");
+            DotNet($"build {project} --configuration {Configuration} --framework net10.0");
 
             // From the project's own directory, for the same working-directory reason the drift gate
             // documents above.
             ProcessTasks
                 .StartProcess("dotnet",
-                    $"run --configuration {Configuration} --framework net9.0 --no-build -- codegen test",
+                    $"run --configuration {Configuration} --framework net10.0 --no-build -- codegen test",
                     workingDirectory: project)
                 .AssertZeroExitCode();
 
@@ -1791,7 +1799,7 @@ partial class Build
     // minutes were broker timeouts, so splitting would have spread a real defect across three jobs and
     // hidden it a second time. GH-3789 removed those timeouts, so what is left is genuine capacity.
     //
-    // Measured, not guessed (Release, net9.0, serial, freshly recreated emulator in docker):
+    // Measured, not guessed (Release, net9.0 at the time, serial, freshly recreated emulator in docker):
     // 300 tests, 806s of test-body time across 42 classes, 14m36s wall clock. Two properties of that
     // measurement shaped the split:
     //

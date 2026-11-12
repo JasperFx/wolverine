@@ -64,7 +64,7 @@ public abstract partial class MessageDatabase<T>
         // store then flipped the retained Handled row straight back to Scheduled with its body intact -- a second,
         // fully executable copy of a message that already completed. The Handled row is the dedup window's record
         // of completion and is nobody else's to touch, on any store.
-        if (!Durability.EnableInboxPartitioning)
+        if (!inboxPartitioned)
         {
             return $"{set} {identity} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}';";
         }

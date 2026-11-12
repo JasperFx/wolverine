@@ -22,7 +22,7 @@ internal class MoveReplayableErrorMessagesToIncomingOperation : IDatabaseOperati
         builder.Append(
             $"insert into {_database.TableNameFor(DatabaseConstants.IncomingTable)} ({DatabaseConstants.IncomingFields}) ");
         builder.Append(
-            $"select {DatabaseConstants.Body}, {DatabaseConstants.Id}, '{EnvelopeStatus.Incoming}', 0, null, 0, {DatabaseConstants.MessageType}, {DatabaseConstants.ReceivedAt}, null ");
+            $"select {DatabaseConstants.Body}, {DatabaseConstants.Id}, '{EnvelopeStatus.Incoming}', 0, null, 0, {DatabaseConstants.MessageType}, {DatabaseConstants.ReceivedAt}, null, null ");
         builder.Append(
             $"from {_database.TableNameFor(DatabaseConstants.DeadLetterTable)} where {DatabaseConstants.Replayable} = {builder.ParameterPrefix}replayable;");
         builder.AddNamedParameter("replayable", true);
