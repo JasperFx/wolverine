@@ -462,7 +462,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
             return SubscriberClient.Reply.Ack;
         }
 
-        var key = message.MessageId.IsNotEmpty() ? message.MessageId : Guid.NewGuid().ToString();
+        var key = PubsubHeldDeliveries.KeyFor(message.MessageId);
         var delivery = _held.Hold(key, envelopes.Length);
 
         foreach (var envelope in envelopes)

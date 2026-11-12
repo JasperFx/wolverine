@@ -50,9 +50,8 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
     private readonly DurabilitySettings _settings;
 
     /// <summary>
-    /// GH-3710. Built by default for a NativeAck endpoint as of 7.0 (GH-5200); null after
-    /// WithoutInMemoryIdempotency() or RestoreV6Defaults(), and then it costs one null check per delivery
-    /// and nothing else. Owned by the endpoint rather
+    /// GH-3710. Null unless the endpoint opted in with WithInMemoryIdempotency(), and then it costs one null
+    /// check per delivery and nothing else. Owned by the endpoint rather
     /// than by this receiver, so its contents survive the receiver rebuilds -- back pressure recovery, listener
     /// restart -- that are themselves a source of redeliveries.
     /// </summary>
@@ -249,19 +248,40 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
             return null;
         }
 
-        // GH-3710. Ack-and-drop a redelivery of something this process already handled (or is handling right
-        // now), which is exactly what DurableReceiver.handleDuplicateIncomingEnvelope does when the inbox
-        // INSERT hits the primary key -- minus the database. Debug rather than Error, unlike the durable path:
-        // in a mode that never settles on receipt, redelivery after a rolling deploy is expected operational
-        // noise rather than a sign that something went wrong.
-        if (_idempotency != null && !_idempotency.TryBeginProcessing(envelope))
+        if (_idempotency != null)
         {
-            _logger.LogDebug(
-                "Discarding duplicate delivery of envelope {EnvelopeId} ({MessageType}) at {Uri}; it was already handled within the in-memory idempotency window",
-                envelope.Id, envelope.MessageType, Uri);
+            switch (_idempotency.Claim(envelope, holdIfInFlight: true))
+            {
+                case IdempotencyClaim.AlreadyProcessed:
+                    // GH-3710. Ack-and-drop a redelivery of something this process already handled, which is
+                    // exactly what DurableReceiver.handleDuplicateIncomingEnvelope does when the inbox INSERT hits
+                    // the primary key -- minus the database. Debug rather than Error, unlike the durable path: in a
+                    // mode that never settles on receipt, redelivery after a rolling deploy is expected
+                    // operational noise rather than a sign that something went wrong.
+                    _logger.LogDebug(
+                        "Discarding duplicate delivery of envelope {EnvelopeId} ({MessageType}) at {Uri}; it was already handled within the in-memory idempotency window",
+                        envelope.Id, envelope.MessageType, Uri);
 
-            await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
-            return null;
+                    await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+                    return null;
+
+                case IdempotencyClaim.InFlight:
+                    // GH-5533. NOT acknowledged. The original delivery is still parked in a handler, and acking
+                    // this redelivery settles the message at the broker underneath it -- on Pulsar the two share
+                    // a MessageId, and RabbitMQ, SQS, Service Bus and Pub/Sub all treat the newest delivery as the
+                    // live one -- so a node that then drains or dies loses the message outright. Nor is it nacked,
+                    // which would only bounce it straight back. The guard has held it, and it is settled with the
+                    // original's outcome: acked once the original is processed, handed back if the original
+                    // fails. If neither ever happens (the node goes away mid-flight), it is simply never settled,
+                    // and the broker redelivers it to whoever is left.
+                    _logger.LogDebug(
+                        "Holding duplicate delivery of envelope {EnvelopeId} ({MessageType}) at {Uri} unsettled; the original delivery is still being handled",
+                        envelope.Id, envelope.MessageType, Uri);
+
+                    // The held copy may carry the live broker handle, so it is the one whose lease is renewed now.
+                    leasesFor(listener)?.Adopt(envelope);
+                    return null;
+            }
         }
 
         var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
@@ -293,7 +313,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
         catch
         {
             _leases?.Untrack(envelope);
-            _idempotency?.Release(envelope);
+            await releaseAsync(envelope).ConfigureAwait(false);
             activity?.Stop();
             throw;
         }
@@ -321,7 +341,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
                 {
                     var (stranded, strandedActivity) = admitted[j];
                     _leases?.Untrack(stranded);
-                    _idempotency?.Release(stranded);
+                    await releaseAsync(stranded).ConfigureAwait(false);
                     strandedActivity?.Stop();
                 }
 
@@ -354,7 +374,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
             // Latched before this one started: hand it straight back to the broker instead of holding an
             // unacked delivery that nothing is going to process. The broker WILL redeliver it, so the guard
             // has to forget the id or the redelivery would be dropped as a duplicate of a message that never ran.
-            _idempotency?.Release(envelope);
+            await releaseAsync(envelope).ConfigureAwait(false);
             await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
             return;
         }
@@ -369,6 +389,12 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
         if (_leases is { } leases && !leases.TryBeginExecution(envelope))
         {
             leases.Untrack(envelope);
+
+            // GH-5533. This delivery will never run, so its claim has to go: the broker's redelivery is now the
+            // copy that runs, and a claim left in place would hold it (or, before GH-5533, ack it) as a
+            // duplicate of something that is not executing at all. A redelivery that already arrived and is
+            // being held is handed back to the broker here, since it may be the only live copy.
+            await releaseAsync(envelope).ConfigureAwait(false);
             _logger.LogDebug(
                 "Dropping envelope {EnvelopeId} from the native-ack lane at {Uri} without settling it; its broker lease was lost before it started executing",
                 envelope.Id, Uri);
@@ -390,7 +416,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
             // MessageContext.CompleteAsync, and so does a native dead-letter move. A requeue or a nack does
             // NOT set it, and those are the cases where remembering the id would turn a retry into a lost
             // message -- so anything else releases.
-            recordOutcome(envelope);
+            await recordOutcomeAsync(envelope).ConfigureAwait(false);
         }
         catch (Exception e)
         {
@@ -408,7 +434,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
             // the id so that redelivery is allowed to run -- unconditionally, because it is equally true when
             // the nack below is suppressed: a lost lease means the broker is redelivering anyway, and a
             // remembered id would suppress the very attempt that is supposed to replace this one.
-            _idempotency?.Release(envelope);
+            await releaseAsync(envelope).ConfigureAwait(false);
 
             // GH-4048. The nack is suppressed when the lease was lost mid-execution. The broker is already
             // redelivering this one, and every defer path settles-then-republishes, so a nack here would add a
@@ -452,20 +478,60 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
     private void stoppedUpstream(Envelope envelope)
     {
         _leases?.Untrack(envelope);
-        recordOutcome(envelope);
+
+        // A synchronous callback inside the partitioned stage, so the settlement of any held duplicates is not
+        // waited on here. The guard's own bookkeeping happens synchronously, before the first await, and
+        // settleHeldAsync swallows its own failures.
+        _ = recordOutcomeAsync(envelope).AsTask();
     }
 
-    private void recordOutcome(Envelope envelope)
+    private ValueTask recordOutcomeAsync(Envelope envelope)
     {
-        if (_idempotency == null) return;
+        if (_idempotency == null) return ValueTask.CompletedTask;
 
         if (envelope.HasBeenAcked)
         {
-            _idempotency.MarkProcessed(envelope);
+            // GH-5533. Every redelivery held while this one ran is now a duplicate of a processed message, so
+            // it is acknowledged -- each against its own listener and with its own handle, which on RabbitMQ,
+            // SQS, Service Bus and Pub/Sub is the live one. Only now, never before: this is the "already
+            // processed" case, not the "in flight" one.
+            var held = _idempotency.MarkProcessed(envelope);
+            return held.Count == 0 ? ValueTask.CompletedTask : settleHeldAsync(held, _completeBlock, "acknowledging");
         }
-        else
+
+        return releaseAsync(envelope);
+    }
+
+    /// <summary>
+    /// GH-5533. Forget this delivery's claim and hand back to the broker any redelivery that was held behind it.
+    /// The original did not reach a settled terminal, so one of the held copies may now be the only live
+    /// delivery -- RabbitMQ only redelivers in flight after the original's channel closed, and a clocked
+    /// broker only after the original's lease ran out -- and leaving it unsettled would strand it until its
+    /// channel closes. Deferring a held copy whose original is ALSO being deferred is safe: it is the same
+    /// message id, so the guard settles whichever copy comes back second.
+    /// </summary>
+    private ValueTask releaseAsync(Envelope envelope)
+    {
+        if (_idempotency == null) return ValueTask.CompletedTask;
+
+        var held = _idempotency.Release(envelope);
+        return held.Count == 0 ? ValueTask.CompletedTask : settleHeldAsync(held, _deferBlock, "deferring");
+    }
+
+    private async ValueTask settleHeldAsync(IReadOnlyList<Envelope> held, RetryBlock<Envelope> block, string action)
+    {
+        foreach (var duplicate in held)
         {
-            _idempotency.Release(envelope);
+            try
+            {
+                await block.PostAsync(duplicate).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                // Unsettled is the safe failure here: the broker redelivers it.
+                _logger.LogDebug(e, "Error {Action} held duplicate delivery of envelope {EnvelopeId} at {Uri}", action,
+                    duplicate.Id, Uri);
+            }
         }
     }
 

@@ -439,7 +439,10 @@ placed on a slot when it belongs to one group.
 An early 7.0 build turned `WithInMemoryIdempotency()` on for native-ack listeners by default. It was taken back out
 before release, because the guard acknowledges a redelivery of a message that is still being handled, and on a
 broker like Pulsar that settles the message while its first delivery is in flight, so a draining node can lose it
-(GH-5533). Opting in works as it did in 6.x and carries the same caveat until that is fixed.
+(GH-5533). 7.0 fixes that: on a native-ack listener the guard now holds a redelivery of an in-flight message
+unsettled and settles it with the original's outcome, and only acknowledges a redelivery of a message that was
+already processed (see [In flight versus already processed](/guide/messaging/listeners#in-flight-versus-already-processed)).
+Whether 7.x turns the guard on by default again is a separate decision.
 
 ### Scheduled messages, inbox partitioning, dead letter expiration and stale times in 7.0
 

@@ -896,8 +896,9 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         // GH-5200 turned the GH-3710 guard on by default for NativeAck endpoints, and TestAllTransports showed it
         // loses messages there: a redelivery of a message that is still in flight is treated as a duplicate and
         // acknowledged, which on Pulsar settles the message while its first delivery is still being handled, so a
-        // draining node loses it (Pulsar native_ack_mode). The guard stays opt-in on every endpoint mode in 7.0
-        // until an in-flight duplicate is dropped unsettled rather than acknowledged (GH-5533).
+        // draining node loses it (Pulsar native_ack_mode). GH-5533 fixed that -- NativeAckReceiver now holds an
+        // in-flight duplicate unsettled and settles it with the original's outcome -- but the guard stays opt-in
+        // on every endpoint mode; turning it back on by default is a separate decision.
 
         // GH-3710. Durable endpoints deduplicate through the inbox's primary key, so a second, weaker
         // in-memory guard in front of it would only add memory. ListenerConfigurationValidator says so in

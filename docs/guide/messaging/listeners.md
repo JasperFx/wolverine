@@ -231,18 +231,35 @@ opts.ListenToRabbitQueue("webhooks")
     .WithInMemoryIdempotency(window: 5.Minutes(), maxTracked: 100_000);
 ```
 
-::: warning In-flight redeliveries on native-ack listeners
-The guard treats a redelivery of a message that is still being handled as a duplicate and acknowledges it. On a broker
-like Pulsar that settles the message while its first delivery is in flight, so a node that drains or dies at that
-moment loses it. Until GH-5533 lands, weigh that before turning the guard on for a `ProcessInParallelWithNativeAcks()`
-listener.
-:::
-
 To turn it on everywhere rather than endpoint by endpoint, use a policy:
 
 ```csharp
 opts.Policies.AllListeners(x => x.WithInMemoryIdempotency());
 ```
+
+### In flight versus already processed <Badge type="tip" text="7.0" />
+
+On a `ProcessInParallelWithNativeAcks()` listener the guard tells two kinds of duplicate apart, because they
+need opposite settlements:
+
+* **Already processed.** The message reached a terminal the broker will not undo. The redelivery is
+  acknowledged and dropped, exactly as above.
+* **Still in flight.** The same message is executing right now under its first delivery — the broker
+  redelivered it because a lease lapsed, a channel closed, or a consumer asked for its unacknowledged
+  messages back on the way out. Acknowledging that redelivery would settle the message at the broker
+  underneath the running handler, and a node that then drained or died would lose it. So it is **held,
+  unsettled**: neither acked nor nacked. When the original succeeds, the held copy is acknowledged too,
+  against its own delivery; if the original is handed back to the broker instead, so is the held copy; and if
+  the node goes away first, nothing is settled and the broker redelivers to whoever is left.
+
+Each delivery settles with its own handle, which is the one the broker honours after a redelivery: the new
+RabbitMQ delivery tag on the new channel, the newest SQS receipt handle, the fresh Azure Service Bus lock, the
+new Pub/Sub ack id. On SQS, Azure Service Bus and NATS JetStream the held copy is also the one whose lease
+Wolverine keeps renewing while it waits, so the broker does not keep redelivering it — or, on SQS and Azure
+Service Bus, count those redeliveries towards dead-lettering a message that is being handled fine. Pulsar and
+Redis Streams redeliver the same message id or stream entry, so acknowledging either copy settles both.
+
+`Inline` and `BufferedInMemory` listeners still treat both kinds of duplicate the same way.
 
 ### What it does and does not promise
 
