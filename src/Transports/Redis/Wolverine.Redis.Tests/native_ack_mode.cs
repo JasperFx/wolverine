@@ -427,6 +427,85 @@ public class native_ack_mode : IAsyncLifetime
     }
 
     /// <summary>
+    /// GH-5533. Puts a Redis redelivery of an in-flight entry in front of the SAME receiver: the node auto-claims
+    /// its own idle pending entries every 250ms, so while the handlers are parked each entry is XAUTOCLAIMed back
+    /// to it again. Waits until every entry has been delivered at least twice.
+    /// </summary>
+    private async Task<IHost> startWithInFlightRedeliveriesAsync(RedisNativeAckSession session, Guid sessionId,
+        string streamKey, string group, int start, int count)
+    {
+        session.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var host = await startHostAsync(streamKey, group,
+            listener => listener.EnableAutoClaim(250.Milliseconds(), 250.Milliseconds()).WithInMemoryIdempotency(),
+            consumerName: "node-1");
+
+        var bus = host.MessageBus();
+        for (var i = 0; i < count; i++)
+        {
+            await bus.SendAsync(new RedisNativeAckWork(sessionId, start + i, $"g{i}"));
+        }
+
+        await waitFor(async () =>
+        {
+            var pending = await _connection.GetDatabase().StreamPendingMessagesAsync(streamKey, group, count * 2, "node-1");
+            return pending.Length == count && pending.All(x => x.DeliveryCount >= 2);
+        }, 30.Seconds());
+
+        // The guard used to XACK those redeliveries -- and a redelivered stream entry is the SAME entry, so that
+        // settled the message underneath its parked original. Give a wrong XACK time to land, then look.
+        await Task.Delay(1.Seconds());
+        (await pendingCountAsync(streamKey, group)).ShouldBe(count);
+        session.Handled.ShouldBeEmpty();
+
+        return host;
+    }
+
+    [Fact]
+    public async Task an_in_flight_redelivery_is_not_acked_so_a_draining_node_still_loses_nothing()
+    {
+        var sessionId = Guid.NewGuid();
+        var session = startSession(sessionId);
+        var streamKey = $"native-ack-5533-drain-{Guid.NewGuid():N}";
+        const string group = "inflight-drain-group";
+
+        var firstHost = await startWithInFlightRedeliveriesAsync(session, sessionId, streamKey, group, 300, 3);
+
+        firstHost.Dispose();
+        (await pendingCountAsync(streamKey, group)).ShouldBe(3);
+
+        session.Block = null;
+
+        using var secondHost = await startHostAsync(streamKey, group,
+            listener => listener.EnableAutoClaim(250.Milliseconds(), 250.Milliseconds()).WithInMemoryIdempotency(),
+            consumerName: "node-2");
+
+        await waitFor(() => session.Handled.Distinct().Count() >= 3, 60.Seconds());
+        session.Handled.Distinct().OrderBy(x => x).ShouldBe(Enumerable.Range(300, 3));
+        await waitFor(async () => await pendingCountAsync(streamKey, group) == 0, 30.Seconds());
+    }
+
+    [Fact]
+    public async Task an_in_flight_redelivery_is_settled_once_the_original_succeeds()
+    {
+        var sessionId = Guid.NewGuid();
+        var session = startSession(sessionId);
+        var streamKey = $"native-ack-5533-settle-{Guid.NewGuid():N}";
+        const string group = "inflight-settle-group";
+
+        using var host = await startWithInFlightRedeliveriesAsync(session, sessionId, streamKey, group, 400, 3);
+
+        session.Block!.TrySetResult();
+
+        await waitFor(() => session.Handled.Count >= 3, 30.Seconds());
+        await waitFor(async () => await pendingCountAsync(streamKey, group) == 0, 30.Seconds());
+
+        // Every redelivery was held rather than run
+        await Task.Delay(1.Seconds(), TestContext.Current.CancellationToken);
+        session.Handled.OrderBy(x => x).ShouldBe(Enumerable.Range(400, 3));
+    }
+
+    /// <summary>
     /// The hard guarantee of the mode: messages sharing a group id never execute concurrently, while the
     /// endpoint as a whole still runs several at once. Original delivery order is explicitly NOT promised.
     /// </summary>
