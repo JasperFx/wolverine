@@ -76,8 +76,12 @@ public class native_ack_mode : IAsyncLifetime
     private const string EndToEndQueue = "native-ack-3708-e2e";
     private const string RedeliveryQueue = "native-ack-3708-redelivery";
     private const string HardKillQueue = "native-ack-4095-hard-kill";
-    private const string InFlightDrainQueue = "native-ack-5533-inflight-drain";
-    private const string InFlightSettleQueue = "native-ack-5533-inflight-settle";
+
+    // GH-5533. Unique per run: these tests deliberately leave deliveries on the queue when they fail, and the
+    // listener starts consuming before a purge could run, so a fixed name let one run's leftovers satisfy -- or
+    // break -- the next run's assertions.
+    private readonly string InFlightDrainQueue = "native-ack-5533-drain-" + Guid.NewGuid().ToString("N")[..8];
+    private readonly string InFlightSettleQueue = "native-ack-5533-settle-" + Guid.NewGuid().ToString("N")[..8];
 
     public ValueTask InitializeAsync()
     {

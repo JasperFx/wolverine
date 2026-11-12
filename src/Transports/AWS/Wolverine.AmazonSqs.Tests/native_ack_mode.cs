@@ -336,9 +336,15 @@ public class native_ack_mode : IAsyncLifetime
 
     /// <summary>
     ///     GH-5533. The other half: once the original succeeds, the held redelivery is deleted with ITS receipt
-    ///     handle -- the newest, which is the one SQS honours -- and its visibility was kept extended in the
-    ///     meantime, so nothing comes back for the next consumer.
+    ///     handle -- the newest, which is the one AWS documents as valid -- so nothing comes back for the next
+    ///     consumer and nothing runs twice.
     /// </summary>
+    /// <remarks>
+    ///     LocalStack is more lenient than AWS here: it still honours the original's older receipt handle, so this
+    ///     test also passes if the held copy were merely dropped. It guards "settled exactly once, nothing left
+    ///     over"; that the held copy's own (newest) handle is the one settled and renewed is pinned in CoreTests
+    ///     (native_ack_inflight_duplicates_5533).
+    /// </remarks>
     [Fact]
     public async Task an_in_flight_redelivery_is_deleted_with_its_own_receipt_handle_once_the_original_succeeds()
     {
