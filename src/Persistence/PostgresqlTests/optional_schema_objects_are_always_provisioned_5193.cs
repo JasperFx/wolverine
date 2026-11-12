@@ -33,7 +33,11 @@ public class optional_schema_objects_are_always_provisioned_5193 : PostgresqlCon
         // No stale times, no capacity-aware assignment: nothing that reads these objects is turned on
         var durability = new DurabilitySettings
         {
-            AlwaysProvisionOptionalSchemaObjects = alwaysProvisionOptionalSchemaObjects
+            AlwaysProvisionOptionalSchemaObjects = alwaysProvisionOptionalSchemaObjects,
+
+            // GH-5519: both default to 1 hour in 7.0, and either one provisions its timestamp column on its own
+            InboxStaleTime = null,
+            OutboxStaleTime = null
         };
 
         await using var store = new PostgresqlMessageStore(settings, durability,

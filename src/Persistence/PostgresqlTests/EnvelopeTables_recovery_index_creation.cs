@@ -73,14 +73,35 @@ public class EnvelopeTables_recovery_index_creation : IAsyncLifetime
 
     // GH-5346: the scheduled-message poll's own statement, explained against an inbox that looks like
     // a busy one -- mostly retained Handled rows, a small Scheduled slice -- must range-scan the
-    // scheduled index in execution_time order rather than scan the whole table and sort it.
+    // scheduled index in execution_time order rather than scan the whole table and sort it. Pinned to the
+    // unpartitioned inbox, which is where that matters; see the partitioned variant below (GH-5519)
     [Fact]
     public async Task the_scheduled_poll_uses_the_scheduled_index()
     {
-        const string schemaName = "env_idx_sched_poll";
+        var planText = await explainTheScheduledPollAsync("env_idx_sched_poll",
+            new DurabilitySettings { EnableInboxPartitioning = false });
+
+        planText.ShouldContain($"Index Scan using idx_{DatabaseConstants.IncomingTable}_scheduled");
+        planText.ShouldNotContain("Seq Scan");
+        planText.ShouldNotContain("Sort");
+    }
+
+    // GH-5519: the inbox is partitioned by default in 7.0, so the scheduled poll is pruned to the scheduled
+    // partition and never reads the retained Handled rows GH-5346 was about, whichever plan it picks there
+    [Fact]
+    public async Task the_scheduled_poll_only_reads_the_scheduled_partition()
+    {
+        var planText = await explainTheScheduledPollAsync("env_idx_sched_poll_part", new DurabilitySettings());
+
+        planText.ShouldContain($"{DatabaseConstants.IncomingTable}_scheduled");
+        planText.ShouldNotContain($"{DatabaseConstants.IncomingTable}_handled");
+        planText.ShouldNotContain($"{DatabaseConstants.IncomingTable}_incoming");
+    }
+
+    private async Task<string> explainTheScheduledPollAsync(string schemaName, DurabilitySettings durability)
+    {
         await theConnection.ResetSchemaAsync(schemaName, ct: TestContext.Current.CancellationToken);
 
-        var durability = new DurabilitySettings();
         var table = new IncomingEnvelopeTable(durability, schemaName);
         await table.ApplyChangesAsync(theConnection, ct: TestContext.Current.CancellationToken);
 
@@ -119,10 +140,7 @@ public class EnvelopeTables_recovery_index_creation : IAsyncLifetime
             }
         }
 
-        var planText = string.Join(Environment.NewLine, plan);
-        planText.ShouldContain($"Index Scan using idx_{DatabaseConstants.IncomingTable}_scheduled");
-        planText.ShouldNotContain("Seq Scan");
-        planText.ShouldNotContain("Sort");
+        return string.Join(Environment.NewLine, plan);
     }
 
     [Fact]
