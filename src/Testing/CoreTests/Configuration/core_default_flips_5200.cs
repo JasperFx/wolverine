@@ -204,16 +204,15 @@ public class core_default_flips_5200
     }
 
     [Fact]
-    public void a_native_ack_listener_gets_the_guard_by_default()
+    public void a_native_ack_listener_stays_opt_in_in_7_0()
     {
+        // GH-5200 turned this on by default; TestAllTransports showed the guard acknowledges an in-flight redelivery,
+        // which loses the message on Pulsar when the node drains. It stays opt-in until GH-5533.
         var endpoint = compiledListener(_ => { }, x => x.ProcessInParallelWithNativeAcks());
 
         endpoint.Mode.ShouldBe(EndpointMode.NativeAck);
-        endpoint.InMemoryIdempotency.ShouldNotBeNull();
-        endpoint.InMemoryIdempotency.Window.ShouldBe(InMemoryIdempotencySettings.DefaultWindow);
-        endpoint.InMemoryIdempotency.MaxTracked.ShouldBe(InMemoryIdempotencySettings.DefaultMaxTracked);
-        endpoint.IdempotencyGuard.ShouldNotBeNull();
-        ListenerConfigurationValidator.Validate(endpoint).ShouldBeEmpty();
+        endpoint.InMemoryIdempotency.ShouldBeNull();
+        endpoint.IdempotencyGuard.ShouldBeNull();
     }
 
     [Fact]

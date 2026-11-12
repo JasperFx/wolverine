@@ -131,8 +131,6 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `AmazonSqsQueue.ExtendVisibilityWhileHandling` (SQS `ProcessInline()` listeners) | `false`: the visibility timeout is set once on receive, and the later messages of a batch that outlives it are redelivered while still being handled | `true`: the visibility of every unsettled message in the batch is extended every half `VisibilityTimeout`. Needs the `sqs:ChangeMessageVisibility` IAM permission | `.DoNotExtendVisibilityWhileHandling()` on the listener | `inline_visibility_heartbeat_4019` |
 | `KafkaProducerOptions.EnableIdempotence` | off: Confluent.Kafka producers were not idempotent unless `UseIdempotentProducer()` | on: Dekaf's idempotent producer (`acks=all`). `Acks.None` or `Acks.Leader` stops the host unless idempotence is off | `kafka.DisableIdempotentProducer()`, or `.DisableIdempotentProducer()` on a topic | `kafka_idempotent_producer_default_5201` |
 | `RabbitMqQueue.DrainWaitForPrefetch` | `false`: a stopping listener cancels without waiting, and the broker redelivers its prefetched deliveries | `true`: the listener waits for its prefetched deliveries, bounded by `DrainTimeout`, before closing the channel | `.DoNotDrainWaitForPrefetch()` on the listener | `drain_wait_for_prefetch_turned_off` |
-| `WithInMemoryIdempotency()` on `ProcessInParallelWithNativeAcks()` endpoints | off: no guard unless the listener asks for one | on, with the default 5 minute window and 100,000 id ceiling. Every other endpoint mode still opts in | `.WithoutInMemoryIdempotency()` on the listener | `core_default_flips_5200` |
-| `DurabilitySettings.MessageIdentity` | `IdOnly`: an inbox row is identified by its envelope id | `IdAndDestination`: by its envelope id and the endpoint that received it. **This changes the primary key of the inbox table (and the dead letter table) in the database**; see [below](#messageidentity-defaults-to-idanddestination-in-7-0-schema-change) | `opts.Durability.MessageIdentity = MessageIdentity.IdOnly` | `restore_v6_defaults_tests` |
 | `EnableDeterministicQueueOrdering` (PostgreSQL, SQL Server, MySQL, Oracle and SQLite transports) | off: new queue tables are dequeued in timestamp order alone | on for **new** queue tables: a `queue_order` identity column and indexes (an index over the rowid on SQLite) break timestamp ties. Existing tables keep their layout; see [queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout) | `.DisableDeterministicQueueOrdering()` on the persistence registration | `queue_tables_new_only` |
 | `SqlServerTransport.OptimizeQueueThroughput` | off: new SQL Server queue tables get the classic layout | on for **new** queue tables: the throughput layout, a clustered `seq` identity. Existing tables keep their layout | `.UseClassicQueueLayout()` on the persistence registration (explicit, so it also rebuilds existing throughput tables) | `queue_tables_new_only` |
 | `JasperFxOptions.Production.GeneratedCodeMode` / `AssertAllPreGeneratedTypesExist` (Wolverine hosts) | `Dynamic` / `false`: a Production application compiles its handlers and HTTP endpoints at runtime, which needs `WolverineFx.RuntimeCompilation` | `Static` / `true`: a Production application loads pre-generated code, and fails at startup naming any type that is missing. Only when `UseWolverine()` is present, and not in a process with a test framework loaded; JasperFx's own default, and so a Marten, Polecat or Fisher application without Wolverine, is unchanged. See [deploying 7.0 to production](#deploying-7-0-to-production) | `services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic)` | `restore_v6_defaults_tests` |
@@ -406,9 +404,9 @@ What to watch for on the upgrade:
 To keep the 6.x ids, call `opts.RestoreV6Defaults()` or set `opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId`.
 An explicit setting always wins, over the default and over what the message stores prefer.
 
-### Agent command compression, batch grouping and native-ack idempotency are on in 7.0
+### Agent command compression and batch grouping are on in 7.0
 
-Three core defaults that were opt-in through 6.x are on in 7.0 (GH-5200). `RestoreV6Defaults()` turns all three off
+Two core defaults that were opt-in through 6.x are on in 7.0 (GH-5200). `RestoreV6Defaults()` turns both off
 again, and an explicit setting wins either way.
 
 **Agent commands are compressed.** `opts.Durability.CompressAgentCommands` is `true`, so the leader's agent commands
@@ -433,15 +431,11 @@ topology is unchanged, and so is a batch with your own `IMessageBatcher`. To kee
 `batching.DoNotGroupByGroupId()`. A batch that executes on the topology's slots is still grouped, because it can only be
 placed on a slot when it belongs to one group.
 
-**`ProcessInParallelWithNativeAcks()` listeners get the in-memory idempotency guard.** A native-ack listener holds
-deliveries unacknowledged, so a restart or rolling deploy redelivers up to the broker's prefetch depth. That is the
-case `WithInMemoryIdempotency()` was built for, so it is now on for those listeners with the default 5 minute window
-and 100,000 id ceiling. Call `WithInMemoryIdempotency(window, maxTracked)` to change those, or
-`WithoutInMemoryIdempotency()` to turn the guard off on one listener, or
-`opts.Policies.AllListeners(x => x.WithoutInMemoryIdempotency())` for every listener. For the slot listeners a
-partitioned topology creates for you, use `topology.ConfigureListening(x => x.WithoutInMemoryIdempotency())` or the
-`AllListeners` policy. Buffered and inline listeners still have no guard
-unless they ask for one, and durable listeners keep deduplicating through the inbox.
+**The in-memory idempotency guard stays opt-in, including on `ProcessInParallelWithNativeAcks()` listeners.**
+An early 7.0 build turned `WithInMemoryIdempotency()` on for native-ack listeners by default. It was taken back out
+before release, because the guard acknowledges a redelivery of a message that is still being handled, and on a
+broker like Pulsar that settles the message while its first delivery is in flight, so a draining node can lose it
+(GH-5533). Opting in works as it did in 6.x and carries the same caveat until that is fixed.
 
 ### Dead and obsolete flags removed (BREAKING)
 
