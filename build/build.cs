@@ -455,9 +455,14 @@ partial class Build : NukeBuild
     Target DockerUp => _ => _
         .Executes(() =>
         {
-            // Shares ComposeUp with the CI targets so this path gets the same registry-timeout
-            // retry — it pulls every image in the compose file, so it is the most exposed of all.
-            ComposeUp("compose up -d", "all services");
+            // Goes through LaunchDockerServices (and so ComposeUp) like the CI targets: the same
+            // registry-timeout retry, which matters most here because it pulls every image in the
+            // compose file, and the same reuse of a service whose host port already answers. On a
+            // shared machine a fixed port can be held by another repository's container (Weasel's
+            // Oracle on 1521, say), and a bare `up -d` of every service failed on it. Every service
+            // in the file publishes a port except asb-sql and asb-sql-2, which come up as the
+            // emulators' depends_on.
+            LaunchDockerServices(composeServicePorts().Keys.OrderBy(x => x).ToArray());
             WaitForDatabaseToBeReady();
         });
 
