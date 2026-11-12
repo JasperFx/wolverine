@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
-public class when_using_handler_type_naming : IAsyncLifetime, IDisposable
+public class when_using_handler_type_naming : IAsyncLifetime
 {
     private IHost _host = null!;
     private IWolverineRuntime _runtime = null!;
@@ -42,10 +42,9 @@ public class when_using_handler_type_naming : IAsyncLifetime, IDisposable
             .ShouldBeTrue($"Expected active listener containing '{expectedName}' for handler type");
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
-
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        await _host.StopAsync();
         _host.Dispose();
     }
 }
