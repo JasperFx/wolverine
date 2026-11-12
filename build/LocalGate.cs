@@ -425,9 +425,16 @@ partial class Build
             Log.Information("=== LocalGate: {Units} unit(s) from {Suites} suite(s), {Services} ===",
                 units.Count, suites.Length, services.Length == 0 ? "no docker services" : string.Join(" ", services));
 
-            if (services.Length > 0) LaunchDockerServices(services);
+            // GH-5532: the gate owns its services for the run, so SQL Server and the ASB emulator pairs
+            // start fresh after the build and before any unit provisions a database or lane on them.
+            // Keyed on the compose services, not the tracks: SqlServerTests' lanes hold no sqlserver track.
+            var fresh = FreshServices.Select(f => f.Requested).Intersect(services).ToArray();
+            var rest = services.Except(fresh).ToArray();
+
+            if (rest.Length > 0) LaunchDockerServices(rest);
             if (!GateSkipBuild) buildGateUnits(units);
-            if (services.Length > 0) AwaitDockerServices(services);
+            if (fresh.Length > 0) StartServicesFresh(fresh);
+            if (rest.Length > 0) AwaitDockerServices(rest);
 
             var cleanBefore = cleanFSharpFixtures();
             var results = await gate.Run();
