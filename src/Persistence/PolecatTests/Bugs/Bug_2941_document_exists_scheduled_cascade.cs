@@ -6,11 +6,13 @@ using Polecat;
 using Shouldly;
 using Wolverine;
 using Wolverine.Polecat;
-using Wolverine.Polecat.Requirements;
+using Wolverine.Persistence.Requirements;
 using Wolverine.Tracking;
 
 namespace PolecatTests.Bugs;
 
+// GH-5514: runs on the core attributes in Wolverine.Persistence.Requirements, which the store's CanApply
+// recognises the same way it recognises its own obsolete copies.
 // Polecat parallel of MartenTests.Bugs.Bug_2941_document_exists_scheduled_cascade. The
 // [DocumentExists<T>] / [DocumentDoesNotExist<T>] attributes here are Polecat's own (mirror of
 // Marten's), and they have the same GH-2941 root cause: the DocumentExistenceCheckFrame

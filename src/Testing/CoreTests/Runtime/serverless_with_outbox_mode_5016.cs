@@ -29,9 +29,10 @@ public class serverless_with_outbox_mode_5016
         new DurabilitySettings { Mode = DurabilityMode.ServerlessWithOutbox }
             .OutboxStaleTime.ShouldBe(60.Seconds());
 
-        new DurabilitySettings { Mode = DurabilityMode.Serverless }.OutboxStaleTime.ShouldBeNull();
-        new DurabilitySettings { Mode = DurabilityMode.Balanced }.OutboxStaleTime.ShouldBeNull();
-        new DurabilitySettings { Mode = DurabilityMode.Solo }.OutboxStaleTime.ShouldBeNull();
+        // GH-5519: every other mode takes the 7.0 default of 1 hour
+        new DurabilitySettings { Mode = DurabilityMode.Serverless }.OutboxStaleTime.ShouldBe(1.Hours());
+        new DurabilitySettings { Mode = DurabilityMode.Balanced }.OutboxStaleTime.ShouldBe(1.Hours());
+        new DurabilitySettings { Mode = DurabilityMode.Solo }.OutboxStaleTime.ShouldBe(1.Hours());
     }
 
     [Fact]
@@ -42,9 +43,10 @@ public class serverless_with_outbox_mode_5016
         new DurabilitySettings { Mode = DurabilityMode.ServerlessWithOutbox }
             .InboxStaleTime.ShouldBe(5.Minutes());
 
-        new DurabilitySettings { Mode = DurabilityMode.Serverless }.InboxStaleTime.ShouldBeNull();
-        new DurabilitySettings { Mode = DurabilityMode.Balanced }.InboxStaleTime.ShouldBeNull();
-        new DurabilitySettings { Mode = DurabilityMode.Solo }.InboxStaleTime.ShouldBeNull();
+        // GH-5519: every other mode takes the 7.0 default of 1 hour
+        new DurabilitySettings { Mode = DurabilityMode.Serverless }.InboxStaleTime.ShouldBe(1.Hours());
+        new DurabilitySettings { Mode = DurabilityMode.Balanced }.InboxStaleTime.ShouldBe(1.Hours());
+        new DurabilitySettings { Mode = DurabilityMode.Solo }.InboxStaleTime.ShouldBe(1.Hours());
     }
 
     [Fact]

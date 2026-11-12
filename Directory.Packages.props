@@ -19,7 +19,7 @@
          answered by NuGetAuditMode (GH-4773) at none of that cost. -->
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Alba" Version="9.0.0-rc.3" />
+    <PackageVersion Include="Alba" Version="9.0.0" />
     <!-- The .NET Aspire samples (src/Samples/AspireWithRabbitMq, src/Samples/AspireWithKafka). Keep these on
          the same version as the Aspire.AppHost.Sdk those AppHost projects declare. -->
     <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.6.5" />
@@ -115,7 +115,6 @@
          is 10.0.204, so there is no smaller step. Build-time only, nothing ships from it. -->
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
     <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.0.64" />
-    <PackageVersion Include="MQTTnet.Extensions.ManagedClient" Version="4.3.7.1207" />
     <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
     <PackageVersion Include="MQTTnet.Server" Version="5.2.0.1603" />
     <!-- 2.6.1, not 2.4.0, and this is REQUIRED rather than tidy: Weasel.MySql 9.48.0 declares
@@ -123,7 +122,7 @@
          promoted to an error. Weasel took it for GHSA-473q-m89c-ghf8 (weasel#767), so the advisory
          closes for WolverineFx.MySql here too. -->
     <PackageVersion Include="MySqlConnector" Version="2.6.1" />
-    <PackageVersion Include="NATS.Net" Version="2.8.2" />
+    <PackageVersion Include="NATS.Net" Version="3.3.2" />
     <!-- The cron EXPRESSION PARSER behind opts.Schedules (recurring messages). A parser, not a
          scheduling engine — Wolverine's own scheduled-message machinery is the engine. MIT, zero
          transitive dependencies, correct DST handling. In core by explicit decision (CritterWatch

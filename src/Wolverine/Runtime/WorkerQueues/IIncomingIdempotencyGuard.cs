@@ -32,17 +32,48 @@ internal interface IIncomingIdempotencyGuard
     bool TryBeginProcessing(Envelope envelope);
 
     /// <summary>
-    /// Move an id from in-flight to processed. Call this only when the delivery reached a terminal the
-    /// broker will not redeliver.
+    /// GH-5533. The three-way form of <see cref="TryBeginProcessing"/> that a native-ack receiver needs, because
+    /// for it "in flight" and "already processed" call for opposite settlements. An already-processed duplicate
+    /// is acknowledged. An in-flight duplicate must NOT be: acknowledging a redelivery settles the message at
+    /// the broker while the original delivery is still parked in a handler, so a node that drains or dies then
+    /// loses it. When <paramref name="holdIfInFlight"/> is true, an in-flight duplicate is held -- atomically
+    /// with the check, so it cannot miss the original's terminal -- and handed back by
+    /// <see cref="MarkProcessed"/> or <see cref="Release"/> to be settled with the original's outcome.
     /// </summary>
-    void MarkProcessed(Envelope envelope);
+    IdempotencyClaim Claim(Envelope envelope, bool holdIfInFlight);
+
+    /// <summary>
+    /// Move an id from in-flight to processed. Call this only when the delivery reached a terminal the
+    /// broker will not redeliver. Returns any duplicate deliveries held while it was in flight (GH-5533); they
+    /// are now duplicates of a processed message, and the caller acknowledges them.
+    /// </summary>
+    IReadOnlyList<Envelope> MarkProcessed(Envelope envelope);
 
     /// <summary>
     /// Drop an id from the in-flight set WITHOUT marking it processed. This is the failure path: a
     /// nacked or requeued delivery is coming back, and suppressing it would turn a retry into a message
-    /// loss.
+    /// loss. Returns any duplicate deliveries held while it was in flight (GH-5533); the caller hands them
+    /// back to the broker, because one of them may now be the only live copy.
     /// </summary>
-    void Release(Envelope envelope);
+    IReadOnlyList<Envelope> Release(Envelope envelope);
+}
+
+/// <summary>
+/// GH-5533. What <see cref="IIncomingIdempotencyGuard.Claim"/> decided about a delivery.
+/// </summary>
+internal enum IdempotencyClaim
+{
+    /// <summary>First sighting within the window: this delivery is now the one in flight, process it.</summary>
+    Claimed,
+
+    /// <summary>
+    /// The same message is executing right now under another delivery. Do not settle this one; it was held
+    /// if the caller asked for that.
+    /// </summary>
+    InFlight,
+
+    /// <summary>The message already reached a terminal the broker will not undo. Acknowledge and drop.</summary>
+    AlreadyProcessed
 }
 
 /// <summary>

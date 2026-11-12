@@ -15,8 +15,6 @@ public class when_discovering_a_listening_endpoint_with_all_defaults : Conventio
         theEndpoint = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<PubsubEndpoint>();
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
-
     [Fact]
     public void endpoint_should_be_a_listener()
     {

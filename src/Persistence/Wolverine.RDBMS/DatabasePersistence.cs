@@ -163,6 +163,8 @@ public static class DatabasePersistence
         appendValue(builder, envelope.Destination?.ToString());
         builder.Append(", ");
         appendValue(builder, envelope.KeepUntil);
+        builder.Append(", ");
+        appendValue(builder, DatabaseConstants.StorableGroupId(envelope));
         builder.Append(");");
     }
 
@@ -338,6 +340,17 @@ public static class DatabasePersistence
         return envelope;
     }
 
+    /// <summary>
+    /// GH-5139. The received_at of a dead letter: its destination, or <see cref="DatabaseConstants.UnknownReceivedAt"/>
+    /// when it has none (a locally published message that failed before routing, GH-3166). received_at is part of the
+    /// primary key under MessageIdentity.IdAndDestination, and NOT NULL on SQL Server either way, so a
+    /// NULL here refused the dead letter
+    /// </summary>
+    public static string DeadLetterReceivedAt(Envelope envelope)
+    {
+        return envelope.Destination?.ToString() ?? DatabaseConstants.UnknownReceivedAt;
+    }
+
     public static void ConfigureDeadLetterCommands(DurabilitySettings durability, Envelope envelope,
         Exception? exception, DbCommandBuilder builder,
         IMessageDatabase wolverineDatabase)
@@ -364,7 +377,7 @@ public static class DatabasePersistence
             "@" + builder.AddParameter(envelope.ScheduledTime).ParameterName,
             "@" + builder.AddParameter(data).ParameterName,
             "@" + builder.AddParameter(envelope.MessageType ?? "unknown").ParameterName,
-            "@" + builder.AddParameter(envelope.Destination?.ToString()).ParameterName,
+            "@" + builder.AddParameter(DeadLetterReceivedAt(envelope)).ParameterName,
             "@" + builder.AddParameter(envelope.Source ?? "unknown").ParameterName,
             "@" + builder.AddParameter(exception.DeadLetterExceptionType()).ParameterName,
             "@" + builder.AddParameter(exception.DeadLetterExceptionMessage()).ParameterName,

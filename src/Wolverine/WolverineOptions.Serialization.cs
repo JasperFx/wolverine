@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using JasperFx.Core;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports.Tcp;
@@ -51,7 +52,7 @@ public sealed partial class WolverineOptions
     /// <summary>
     ///     Override or get the default message serializer for the application. The default is
     ///     <see cref="SystemTextJsonSerializer"/> (wired in the <see cref="WolverineOptions"/>
-    ///     constructor via <see cref="UseSystemTextJsonForSerialization"/>). To restore the
+    ///     constructor via <see cref="UseSystemTextJsonForSerialization(Action{JsonSerializerOptions}?)"/>). To restore the
     ///     5.x-and-earlier Newtonsoft.Json default, install the
     ///     <c>WolverineFx.Newtonsoft</c> package and call its
     ///     <c>UseNewtonsoftForSerialization()</c> extension method. As of Wolverine 6.0
@@ -116,6 +117,31 @@ public sealed partial class WolverineOptions
         }
 
         _serializers[serializer.ContentType] = serializer;
+    }
+
+    /// <summary>
+    ///     Use System.Text.Json as the default JSON serialization, resolving message type metadata
+    ///     from a source generated <see cref="JsonSerializerContext"/> instead of reflection. The
+    ///     serializer then calls the <c>JsonTypeInfo</c> overloads of <see cref="JsonSerializer"/>,
+    ///     which is the trim and Native AOT safe path. Every message type sent or received through
+    ///     the default serializer must be declared on the context with <c>[JsonSerializable]</c>;
+    ///     a message type the context does not know fails serialization with a
+    ///     <see cref="NotSupportedException"/>. To fall back to reflection for undeclared types,
+    ///     combine resolvers in <paramref name="configuration"/>, e.g.
+    ///     <c>o.TypeInfoResolverChain.Add(new DefaultJsonTypeInfoResolver())</c>.
+    /// </summary>
+    /// <param name="context">The source generated context covering the application's message types</param>
+    /// <param name="configuration">Optional further configuration of the serializer options</param>
+    public void UseSystemTextJsonForSerialization(JsonSerializerContext context,
+        Action<JsonSerializerOptions>? configuration = null)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        UseSystemTextJsonForSerialization(options =>
+        {
+            options.TypeInfoResolver = context;
+            configuration?.Invoke(options);
+        });
     }
 
     internal IMessageSerializer FindSerializer(string contentType)

@@ -7,7 +7,7 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
-public abstract class ConventionalRoutingContext : IDisposable
+public abstract class ConventionalRoutingContext : IAsyncDisposable
 {
     private IHost _host = default!;
 
@@ -25,9 +25,14 @@ public abstract class ConventionalRoutingContext : IDisposable
         return _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    public void Dispose()
+    // GH-5536. Stop the host, don't just dispose it: every host here listens on the shared emulator, and one left
+    // running keeps pulling from the "routed" subscription as a competing consumer for every later test that uses it
+    public async ValueTask DisposeAsync()
     {
-        _host?.Dispose();
+        if (_host == null) return;
+
+        await _host.StopAsync();
+        _host.Dispose();
     }
 
     internal async Task ConfigureConventions(Action<PubsubMessageRoutingConvention> configure)

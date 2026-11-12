@@ -437,21 +437,6 @@
       ]
     },
     {
-      "name": "Wolverine.Mqtt5.Tests",
-      "path": "src/Transports/MQTT/Wolverine.Mqtt5.Tests/Wolverine.Mqtt5.Tests.csproj",
-      "ciTargets": "CIMQTT5",
-      "workers": 1,
-      "postgres": "OwnDatabase",
-      "sqlServer": "OwnDatabase",
-      "services": [
-        "postgresql",
-        "sqlserver"
-      ],
-      "tracks": [
-        "mqtt-broker-ports"
-      ]
-    },
-    {
       "name": "Wolverine.Nats.Tests",
       "path": "src/Transports/NATS/Wolverine.Nats.Tests/Wolverine.Nats.Tests.csproj",
       "ciTargets": "CINATS",
@@ -533,6 +518,14 @@
       "services": [
         "postgresql"
       ],
+      "tracks": []
+    },
+    {
+      "name": "Wolverine.Http.Compat.Tests",
+      "path": "src/Http/Wolverine.Http.Compat.Tests/Wolverine.Http.Compat.Tests.csproj",
+      "ciTargets": "CIHttpCompat",
+      "workers": 1,
+      "services": [],
       "tracks": []
     },
     {

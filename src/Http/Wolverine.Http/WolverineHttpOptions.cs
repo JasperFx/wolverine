@@ -316,10 +316,27 @@ public class WolverineHttpOptions
     /// header sent more than once, whose values bind as one comma-joined string such as <c>"1,2"</c>.
     /// A <b>missing</b> header still binds the parameter's default value in either mode, and string headers
     /// are never rejected. Applies to header binding for endpoint and middleware method arguments and for
-    /// [AsParameters] members. Opt-in (default false) to preserve the previous lenient behavior, where an
-    /// unparseable header silently binds the parameter's default.
+    /// [AsParameters] members. <b>True by default from Wolverine 7.0</b> (GH-5520), matching
+    /// <see cref="RejectUnparseableQueryValues"/>; it was opt-in throughout 6.x. Set it to false, or call
+    /// <c>WolverineOptions.RestoreV6Defaults()</c>, for the old lenient behavior, where an unparseable header
+    /// silently binds the parameter's default; an explicit setting wins over both.
     /// </summary>
-    public bool RejectUnparseableHeaderValues { get; set; }
+    public bool RejectUnparseableHeaderValues
+    {
+        get => _rejectUnparseableHeaderValues ?? true;
+        set => _rejectUnparseableHeaderValues = value;
+    }
+
+    private bool? _rejectUnparseableHeaderValues;
+
+    /// <summary>
+    /// The claim type whose value is relayed as the user name when <c>WolverineOptions.EnableRelayOfUserName</c>
+    /// is on (GH-5520). When null, the default, the user name is <c>ClaimsPrincipal.Identity.Name</c>, which is
+    /// whatever claim the authentication handler maps to the name. Set it when that is null, for example
+    /// <c>"sub"</c> for an Auth0 access token, which carries no name claim. When the principal has no claim of
+    /// this type, no user name is relayed.
+    /// </summary>
+    public string? UserNameClaimType { get; set; }
 
     /// <summary>
     ///     The application wide default for what status code is written when an endpoint's response body is null.
@@ -485,16 +502,47 @@ public class WolverineHttpOptions
     #endregion
 
     /// <summary>
+    /// Whether Wolverine applies antiforgery (CSRF) validation to form data and file upload endpoints
+    /// when the application says nothing: on for .NET 11, off for .NET 10. GH-5147.
+    /// </summary>
+    /// <remarks>
+    /// ASP.NET Core 11 injects its own CSRF protection middleware, so an endpoint that requires validation
+    /// works without <c>app.UseAntiforgery()</c> and without tokens: same-origin requests (by
+    /// <c>Sec-Fetch-Site</c>, or <c>Origin</c> for older clients) pass, cross-site browser requests are
+    /// refused. That matches what Minimal API does for its own form endpoints. On .NET 10 the same metadata
+    /// makes ASP.NET Core throw on every request unless the application calls <c>app.UseAntiforgery()</c>,
+    /// so the default stays off there.
+    /// </remarks>
+    public const bool AutoAntiforgeryOnFormEndpointsByDefault =
+#if NET11_0_OR_GREATER
+        true;
+#else
+        false;
+#endif
+
+    /// <summary>
     /// Automatically apply antiforgery token validation to form data and file upload
     /// endpoints. Individual endpoints can opt out with <see cref="DisableAntiforgeryAttribute"/>.
-    /// Requires <c>app.UseAntiforgery()</c> in the middleware pipeline.
+    /// The default on .NET 11 (see <see cref="AutoAntiforgeryOnFormEndpointsByDefault"/>); on .NET 10 this
+    /// requires <c>app.UseAntiforgery()</c> in the middleware pipeline.
     /// </summary>
     public void AutoAntiforgeryOnFormEndpoints()
     {
         _autoAntiforgeryOnFormEndpoints = true;
     }
 
-    internal bool _autoAntiforgeryOnFormEndpoints;
+    /// <summary>
+    /// Stop Wolverine from applying antiforgery (CSRF) validation to form data and file upload endpoints by
+    /// default, which it does on .NET 11. Endpoints marked <see cref="ValidateAntiforgeryAttribute"/> still
+    /// require it. GH-5147.
+    /// </summary>
+    public void DisableAutoAntiforgeryOnFormEndpoints()
+    {
+        _autoAntiforgeryOnFormEndpoints = false;
+    }
+
+    internal bool _autoAntiforgeryOnFormEndpoints = AutoAntiforgeryOnFormEndpointsByDefault;
+    internal bool _requireAntiforgeryOnAll;
 
     /// <summary>
     /// Require antiforgery token validation on all Wolverine HTTP endpoints,
@@ -504,7 +552,9 @@ public class WolverineHttpOptions
     public void RequireAntiforgeryOnAll()
     {
         _autoAntiforgeryOnFormEndpoints = true;
-        ConfigureEndpoints(e => e.WithMetadata(WolverineAntiforgeryMetadata.Required));
+        // Applied per chain (HttpChain.AntiforgeryRequirement) rather than as an endpoint convention, so that
+        // [DisableAntiforgery] still wins and the generated code knows to check the result. GH-5147.
+        _requireAntiforgeryOnAll = true;
     }
 
     /// <summary>
@@ -529,21 +579,20 @@ public class WolverineHttpOptions
     /// <para>
     /// Covers everything deriving from <see cref="JasperFx.ConcurrencyException"/>:
     /// <c>EventStreamUnexpectedMaxEventIdException</c>, document revision/version violations,
-    /// <c>DcbConcurrencyException</c> and <c>SagaConcurrencyException</c>.
+    /// <c>DcbConcurrencyException</c>, <c>SagaConcurrencyException</c> and
+    /// <see cref="JasperFx.Events.StreamLockedException"/>, which <c>FetchForExclusiveWriting</c> throws on a
+    /// contended stream (a <see cref="JasperFx.ConcurrencyException"/> since JasperFx 3.0).
     /// </para>
     ///
     /// <para>
-    /// GH-5142: also covers <see cref="JasperFx.Events.StreamLockedException"/>, which
-    /// <c>FetchForExclusiveWriting</c> throws on a contended stream and which does <b>not</b> derive from
-    /// <see cref="JasperFx.ConcurrencyException"/>. Polecat's and Fisher's lock exceptions derive from it, so
-    /// this one call is complete for those stores.
+    /// GH-5459: also covers <see cref="JasperFx.Events.ExistingStreamIdCollisionException"/>, which
+    /// <c>StartStream</c> throws when the stream id is already taken.
     /// </para>
     ///
     /// <para>
-    /// <b>On Marten, call <c>MapMartenConcurrencyFailuresToConflict()</c> instead.</b> Marten's
-    /// <c>StreamLockedException</c> still derives from <c>MartenException</c> rather than from the JasperFx
-    /// type, so this method alone leaves Marten's exclusive locking path returning 500s. The Marten overload
-    /// calls this one and adds Marten's type.
+    /// Marten, Polecat and Fisher all throw these shared JasperFx.Events types, so this one call is complete for
+    /// every store. <c>MapMartenConcurrencyFailuresToConflict()</c> and
+    /// <c>MapPolecatConcurrencyFailuresToConflict()</c> are the same call under the store's name.
     /// </para>
     /// </summary>
     /// <param name="filter">
@@ -656,6 +705,7 @@ public class WolverineHttpOptions
         var v7 = !v6DefaultsRestored;
 
         _rejectUnparseableQueryValues ??= v7;
+        _rejectUnparseableHeaderValues ??= v7;
         _applyCorrelationIdHeaderToAllEndpoints ??= v7;
 
         if (_concurrencyFailureMapping == null && v7)

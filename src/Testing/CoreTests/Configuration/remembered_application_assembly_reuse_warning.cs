@@ -195,4 +195,77 @@ public class remembered_application_assembly_reuse_warning
 
         options.ApplicationAssemblyReuseWarning.ShouldBeNull();
     }
+
+    // GH-3576: Wolverine owns the reuse warning in a Wolverine host. JasperFx computes the same signal and
+    // Marten/Polecat/Fisher log JasperFx's copy, so it is cleared once Wolverine is registered.
+
+    [Fact]
+    public void claiming_the_application_assembly_reuse_warning()
+    {
+        // The claim goes through JasperFx's internal setter. If a JasperFx release removes or renames it,
+        // hosts quietly go back to two warnings -- this is what notices.
+        WolverineOptions.CanClaimApplicationAssemblyReuseWarning.ShouldBeTrue();
+
+        var jasperfx = JasperFxWarning(ThisTestAssembly);
+
+        new WolverineOptions().ClaimApplicationAssemblyReuseWarning(jasperfx);
+
+        jasperfx.ApplicationAssemblyReuseWarning.ShouldBeNull();
+    }
+
+    [Fact]
+    public void leaves_jasperfx_warning_alone_when_wolverine_scans_a_different_explicit_assembly()
+    {
+        // Wolverine stays silent for an explicit choice, but the stores still adopt JasperFx's pin, so
+        // JasperFx's warning is the only one left that applies to them.
+        var jasperfx = JasperFxWarning(ThisTestAssembly);
+        var options = new WolverineOptions { ApplicationAssembly = WolverineAssembly };
+
+        options.ClaimApplicationAssemblyReuseWarning(jasperfx);
+
+        jasperfx.ApplicationAssemblyReuseWarning.ShouldNotBeNull();
+    }
+
+    private static JasperFxOptions JasperFxWarning(Assembly adopted)
+    {
+        var jasperfx = new JasperFxOptions { ApplicationAssembly = adopted };
+        typeof(JasperFxOptions).GetProperty(nameof(JasperFxOptions.ApplicationAssemblyReuseWarning))!
+            .GetSetMethod(nonPublic: true)!.Invoke(jasperfx, ["JasperFx adopted application assembly 'A'"]);
+        return jasperfx;
+    }
+
+    [Fact]
+    public async Task jasperfx_does_not_carry_a_false_positive_when_registered_here_and_built_elsewhere()
+    {
+        // Without the claim, JasperFx records the BUILDING assembly (Module1) as where this host registered and
+        // warns, and a Marten/Polecat store in the host logs that false positive (jasperfx#1179).
+        var builder = Host.CreateDefaultBuilder().UseWolverine();
+        using var host = HostBuiltFromAnotherAssembly.Build(builder);
+        await host.StartAsync(TestContext.Current.CancellationToken);
+
+        host.Services.GetRequiredService<WolverineOptions>().ApplicationAssemblyReuseWarning.ShouldBeNull();
+        host.Services.GetRequiredService<JasperFxOptions>().ApplicationAssemblyReuseWarning.ShouldBeNull();
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task a_real_divergence_is_warned_about_by_wolverine_alone()
+    {
+        // Act as a later host in a process whose first host registered from Module1.
+        using var pin = ProcessWideApplicationAssemblyPin.AsFirstHost();
+        JasperFxOptions.RememberedApplicationAssembly = typeof(HostBuiltFromAnotherAssembly).Assembly;
+        WolverineOptions.RememberedApplicationAssembly = typeof(HostBuiltFromAnotherAssembly).Assembly;
+
+        using var host = await Host.CreateDefaultBuilder().UseWolverine()
+            .StartAsync(TestContext.Current.CancellationToken);
+
+        host.Services.GetRequiredService<WolverineOptions>().ApplicationAssemblyReuseWarning
+            .ShouldNotBeNull().ShouldContain("Wolverine adopted application assembly 'Module1'");
+
+        // What a store activator would have logged as a second warning
+        host.Services.GetRequiredService<JasperFxOptions>().ApplicationAssemblyReuseWarning.ShouldBeNull();
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
 }

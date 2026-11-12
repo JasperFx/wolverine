@@ -48,9 +48,10 @@ public class SeatNote
 /// </summary>
 public static class MartenConcurrencyExceptionMiddleware
 {
-    // Marten's optimistic concurrency failures -- EventStreamUnexpectedMaxEventIdException from
-    // the event store, and document level concurrency violations -- all derive from
-    // JasperFx.ConcurrencyException, so one handler covers them
+    // Every optimistic concurrency failure -- EventStreamUnexpectedMaxEventIdException from the
+    // event store, document level concurrency violations, and since JasperFx 3.0 the
+    // StreamLockedException that FetchForExclusiveWriting throws on a contended stream -- derives
+    // from JasperFx.ConcurrencyException, so one handler covers them
     public static ProblemDetails OnException(ConcurrencyException ex)
     {
         return new ProblemDetails
@@ -61,10 +62,9 @@ public static class MartenConcurrencyExceptionMiddleware
         };
     }
 
-    // Before Marten 10, StreamLockedException did NOT derive from ConcurrencyException (it was a MartenException);
-    // so the FetchForExclusiveWriting path needs its own handler. Catching only ConcurrencyException
-    // silently misses it
-    public static ProblemDetails OnException(StreamLockedException ex)
+    // StartStream with an id that is already taken throws ExistingStreamIdCollisionException,
+    // which is NOT a ConcurrencyException, so it needs its own handler
+    public static ProblemDetails OnException(ExistingStreamIdCollisionException ex)
     {
         return new ProblemDetails
         {
@@ -121,13 +121,26 @@ public static class ConcurrencyEndpoints
     }
 
     /// <summary>
-    /// GH-5142. Throws the store-agnostic lock failure that Polecat's and Fisher's StreamLockedException
-    /// derive from. Marten's own type does not, so only the core conflict mapping can catch this one
+    /// GH-5142. Throws the store-agnostic lock failure directly, the type Marten 10 throws and Polecat's and
+    /// Fisher's StreamLockedException derive from
     /// </summary>
     [WolverinePost("/seatholds/{id}/store-agnostic-lock")]
     public static string StoreAgnosticLock(Guid id)
     {
         throw new global::JasperFx.Events.StreamLockedException(id, null);
+    }
+
+    /// <summary>
+    /// GH-5459. Starts a stream with an id that is already taken, so SaveChangesAsync throws the shared
+    /// JasperFx.Events.ExistingStreamIdCollisionException
+    /// </summary>
+    [WolverinePost("/seatholds/{id}/start-again")]
+    public static async Task<string> StartAgain(Guid id, IDocumentSession session)
+    {
+        session.Events.StartStream<SeatHold>(id, new SeatHoldStarted("Duplicate"));
+        await session.SaveChangesAsync();
+
+        return "started";
     }
 
     [WolverinePost("/seatnotes/create")]

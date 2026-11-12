@@ -115,7 +115,7 @@ public class AmbiguousHandlerChainException : Exception
     internal AmbiguousHandlerChainException(Type messageType, IReadOnlyList<HandlerChain> chains) : base(
         $"Message type {messageType.FullNameInCode()} is handled by {chains.Count} handler chains, one per handler type " +
         $"({MessageHandlerGroup.Describe(chains)}), " +
-        "so there is no single chain for it. Look up every chain of the message type with HandlerGraph.AllChains() instead.")
+        "so there is no single chain for it. Use HandlerGraph.ChainsFor(messageType) for all of them, or HandlerGraph.ChainFor(messageType, handlerType) for one.")
     {
         MessageType = messageType;
     }

@@ -43,6 +43,8 @@ internal class StoreIncomingEnvelope : global::Marten.Internal.Operations.IStora
         builder.AppendParameter(Envelope.Destination?.ToString());
         builder.Append(',');
         builder.AppendParameter(Envelope.KeepUntil.HasValue ? Envelope.KeepUntil.Value : DBNull.Value);
+        builder.Append(',');
+        builder.AppendParameter(DatabaseConstants.StorableGroupId(Envelope));
         builder.Append(");");
     }
 

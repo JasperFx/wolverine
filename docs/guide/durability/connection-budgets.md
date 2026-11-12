@@ -97,8 +97,8 @@ and reports that server's budget as unknown rather than failing the metrics swee
 
 | Instrument | Meaning |
 |------------|---------|
-| `wolverine-database-connection-count` | Connections currently open on the server |
-| `wolverine-database-connection-budget` | The budget, omitted entirely when unknown |
+| `wolverine.database.connection.count` | Connections currently open on the server |
+| `wolverine.database.connection.budget` | The budget, omitted entirely when unknown |
 
 **`IWolverineObserver.ConnectionBudget`**, which is how CritterWatch surfaces it:
 
@@ -109,6 +109,31 @@ public record ConnectionBudgetSnapshot(
     int? Max,
     ConnectionBudgetSource Source); // Configured | Probed | Unknown
 ```
+
+## Startup validation <Badge type="tip" text=".NET 11" />
+
+On .NET 11, Wolverine also registers an `IAsyncStartupValidator` (the new
+`Microsoft.Extensions.Options` contract that the host runs once, before any hosted service starts)
+over the declared budgets. It does nothing unless at least one budget has been declared with
+`ForServer(...)`, and nothing when `ConnectionBudgets.Enabled` is explicitly `false`. When it runs:
+
+* **A budget that names a server no message store lives on refuses startup** with an
+  `OptionsValidationException` that lists the unmatched budget and the servers Wolverine does know
+  about. That budget is a typo or a stale entry, and it would otherwise sit silently unused. Matching
+  is the same as for the metrics: case-insensitive host names, and a host-wide `ForServer(host, max)`
+  covers every port on that host.
+* **Each known server is probed once**, and a warning is logged when its open connections already
+  meet or exceed the declared budget. This does *not* refuse startup: during a rolling or
+  blue/green deploy the other nodes legitimately hold most of the budget, so a full budget is
+  normal for the newest node. A probe that fails is logged, never fatal.
+
+The check only sees message stores that are known before Wolverine starts. Databases that a
+multi-tenanted message store discovers at runtime (sharded or dynamic tenancy) cannot be seen this
+early, so when the application has any multi-tenanted message store an unmatched budget is logged as
+a warning instead of refusing startup. Budgets declared only from an `IAsyncWolverineExtension` are
+not seen by the validator either. Codegen and OpenAPI tooling runs skip it entirely.
+
+On .NET 10 there is no such validator; the budgets behave exactly as described above.
 
 ## Cost
 

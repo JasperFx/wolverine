@@ -27,6 +27,25 @@ partial class Build
     }
 
     /// <summary>
+    /// The compose project every build target uses, whatever directory the checkout lives in.
+    ///
+    /// <para>Compose names a project after its directory by default, so each git worktree was its
+    /// own project (<c>wolverine-runner-wv-gate-transports</c>, say) while the host ports in
+    /// docker-compose.yml are fixed. A worktree's <c>docker compose up -d</c> then tried to create a
+    /// second RabbitMQ, Postgres, SQL Server and so on beside the main checkout's
+    /// <c>wolverine-*</c> containers and failed with "port is already allocated". Pinning the name
+    /// makes every checkout on a machine share one stack, and <c>up -d</c> idempotent against it. The
+    /// main checkout's directory is already <c>wolverine</c>, as is the CI runner's, so nothing changes
+    /// there. <c>COMPOSE_PROJECT_NAME</c>, when set, still wins, for anyone who wants a stack of
+    /// their own.</para>
+    /// </summary>
+    static string ComposeProjectName =>
+        Environment.GetEnvironmentVariable("COMPOSE_PROJECT_NAME") is { Length: > 0 } name ? name : "wolverine";
+
+    /// <summary>`compose -p {project} {args}`: every compose invocation in the build goes through this.</summary>
+    static string composeArgs(string args) => $"compose -p {ComposeProjectName} {args}";
+
+    /// <summary>
     /// How many times <see cref="ComposeUp"/> will try `docker compose up -d` before giving up.
     /// </summary>
     const int DockerComposeAttempts = 3;
@@ -59,7 +78,7 @@ partial class Build
         Log.Information("Starting docker services: {Services}", serviceList);
 
         // Pass each service as a separate argument to avoid quoting issues
-        ComposeUp("compose up -d " + serviceList, serviceList);
+        ComposeUp(composeArgs("up -d " + serviceList), serviceList);
     }
 
     static bool portAnswers(int port)
@@ -337,8 +356,8 @@ partial class Build
 
         try
         {
-            runDiagnostic(composeTool(), $"compose ps {composeService}");
-            runDiagnostic(composeTool(), $"compose logs --tail=200 {composeService}");
+            runDiagnostic(composeTool(), composeArgs($"ps {composeService}"));
+            runDiagnostic(composeTool(), composeArgs($"logs --tail=200 {composeService}"));
 
             // Linux-only, and the runner is the only place this matters -- a developer machine has
             // no OOM killer story worth telling here.
@@ -358,7 +377,7 @@ partial class Build
     void restartService(string name, string composeService)
     {
         Log.Warning("Restarting the {Service} container ({ComposeService}) and probing once more", name, composeService);
-        runDiagnostic(composeTool(), $"compose restart {composeService}");
+        runDiagnostic(composeTool(), composeArgs($"restart {composeService}"));
     }
 
     /// <summary>
@@ -1152,18 +1171,6 @@ partial class Build
             RunTestProject(tests);
         });
 
-    Target CIMQTT5 => _ => _
-        .ProceedAfterFailure()
-        .Executes(() =>
-        {
-            var tests = RootDirectory / "src" / "Transports" / "MQTT" / "Wolverine.Mqtt5.Tests" / "Wolverine.Mqtt5.Tests.csproj";
-
-            BuildTestProjects(tests);
-            StartDockerServices("postgresql", "sqlserver");
-
-            RunTestProject(tests);
-        });
-
     Target CINATS => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
@@ -1256,6 +1263,21 @@ partial class Build
             BuildTestProjectsWithFramework("net10.0", tests);
 
             RunTestProject(tests, frameworkOverride: "net10.0");
+        });
+
+    // GH-5147: Wolverine.Http against ASP.NET Core 11 (CSRF default, async DataAnnotations, [ShortCircuit],
+    // OpenAPI 3.2). Runs on both frameworks whatever --framework says, because the behaviour under test is
+    // deliberately different between them. No database or broker.
+    Target CIHttpCompat => _ => _
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Http" / "Wolverine.Http.Compat.Tests" / "Wolverine.Http.Compat.Tests.csproj";
+
+            foreach (var framework in new[] { "net10.0", "net11.0" })
+            {
+                BuildTestProjectsWithFramework(framework, tests);
+                RunTestProject(tests, frameworkOverride: framework);
+            }
         });
 
     Target CIRabbitMQ => _ => _

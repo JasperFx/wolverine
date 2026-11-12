@@ -168,8 +168,18 @@ public abstract partial class MessageDatabase<T>
             var builder = ToCommandBuilder();
             builder.Append($"delete from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} WHERE id = ");
             builder.AppendParameter(envelope.Id);
-            builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
-            builder.AppendParameter(envelope.Destination!.ToString(), AddressParameterType);
+            if (envelope.Destination == null)
+            {
+                // GH-5139. An envelope dead-lettered without a destination (GH-3166) used to throw here. Only a row
+                // stored with no destination can be its inbox row
+                builder.Append($" and {DatabaseConstants.ReceivedAt} is null");
+            }
+            else
+            {
+                builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
+                builder.AppendParameter(envelope.Destination.ToString(), AddressParameterType);
+            }
+
             builder.Append(';');
 
             DatabasePersistence.ConfigureDeadLetterCommands(Durability, envelope, exception, builder, this);
@@ -258,7 +268,7 @@ public abstract partial class MessageDatabase<T>
         var update =
             $"update {table} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = {keepUntilExpression}, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression}";
 
-        if (!Durability.EnableInboxPartitioning)
+        if (!inboxPartitioned)
         {
             // GH-5423: a row another execution already marked Handled is left as it is. Rewriting it erased the
             // keep_until that tells this execution's mark from the other's, which the handled-elsewhere check reads
@@ -411,7 +421,7 @@ public abstract partial class MessageDatabase<T>
         // GH-4216: the batch has to carry the same partition-aware shape as the single-envelope path, or a
         // coalesced mark-as-handled strands exactly the rows the single one now retires. Each identity's
         // parameters are appended per occurrence, which is why the same value goes in more than once.
-        var partitioned = Durability.EnableInboxPartitioning;
+        var partitioned = inboxPartitioned;
         var table = MarkAsHandledTableName;
 
         foreach (var envelope in envelopes)
@@ -546,6 +556,14 @@ public abstract partial class MessageDatabase<T>
     /// </para>
     /// </summary>
     protected virtual bool incomingInsertRefusesHandled => false;
+
+    /// <summary>
+    /// GH-5519. Whether this store's inbox statements take the partition-aware shape. PostgreSQL, the one store
+    /// whose inbox table is partitioned, follows <see cref="DurabilitySettings.EnableInboxPartitioning" /> and so its
+    /// 7.0 default. Every other store only does when that setting was turned on explicitly, as in 6.x, so the
+    /// PostgreSQL default never changes their statements. Read lazily, never in a constructor (GH-4216).
+    /// </summary>
+    protected virtual bool inboxPartitioned => Durability.EnableInboxPartitioningExplicitly;
 
     /// <summary>
     /// GH-4320. The batched inbox INSERT, as one command. Virtual because the default shape -- one

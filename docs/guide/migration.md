@@ -23,8 +23,24 @@ list.
 | `BackgroundReceiveLoop.UsesBlockingIteration` | opt-in dedicated thread for blocking iterations | **removed** *(BREAKING)* | Make the iteration async; see [transport author changes](#disposal-and-receive-loop-changes-for-transport-authors-breaking) |
 | `BatchedSender`, `InlineSendingAgent`, `ListeningAgent` | `IDisposable` | `IAsyncDisposable` only *(BREAKING)* | Call `await DisposeAsync()` |
 | `ISenderRequiresCallback` | extends `IDisposable` | does not *(BREAKING)* | Implement disposal on the sender itself if it needs it |
-| `UseAutomaticForwarderDiscovery()`, `WolverineOptions.EnableMessageCausationTracking`, `Policies.PublishAgentEvents`, `AgentAssignmentsChanged`, `ApplyDeduplication(IChain)`, Fisher `TransportSchemaName`, `MqttEnvelope.ShouldRequeue` | `[Obsolete]` or unused | **removed** *(BREAKING)* | See [dead and obsolete flags removed](#dead-and-obsolete-flags-removed-breaking) |
+| `UseAutomaticForwarderDiscovery()`, `WolverineOptions.EnableMessageCausationTracking`, `WolverineOptions.EnableAutomaticFailureAcks`, `Policies.PublishAgentEvents`, `AgentAssignmentsChanged`, `ApplyDeduplication(IChain)`, Fisher `TransportSchemaName`, `MqttEnvelope.ShouldRequeue` | `[Obsolete]` or unused | **removed** *(BREAKING)* | See [dead and obsolete flags removed](#dead-and-obsolete-flags-removed-breaking) |
+| `DurabilitySettings.EnableRecurringMessages` | public, "never set this by hand" | `internal` *(BREAKING)* | Delete the line; registering a recurring schedule sets it. See [dead and obsolete flags removed](#dead-and-obsolete-flags-removed-breaking) |
 | `INodeAgentPersistence.HasLeadershipLock()` | synchronous, pinged the lock's database session with blocking I/O | `HasLeadershipLockAsync(CancellationToken)` *(BREAKING for custom node persistence)* | See [leadership lock probe is asynchronous](#the-leadership-lock-probe-is-asynchronous-breaking) |
+| Several handler types for one message type | combined into one chain and one transaction by default (`ClassicCombineIntoOneLogicalHandler`) | **one chain per handler type**, each with its own transaction, local queue and generated type *(BREAKING)* | See [one handler chain per handler type](#one-handler-chain-per-handler-type-breaking); regenerate pre-generated code |
+| `WolverineOptions.MultipleHandlerBehavior`, the `MultipleHandlerBehavior` enum, `AssertNoBatchHandlerConflicts()` | `ClassicCombineIntoOneLogicalHandler` (default, `[Obsolete]` in 6.52) or `Separated` | **removed**: 7.0 always behaves like `Separated` *(BREAKING)* | Delete the setting and the call; `AssertNoCombinedHandlers()` is an `[Obsolete]` no-op for one major version |
+| `InvokeAsync(msg)` for a message type with several handler types | ran the one combined chain in one transaction | runs each chain in turn, each in its own transaction; the first failure throws `HandlerInvocationException` *(BREAKING)* | See [InvokeAsync with several handler types](#invokeasync-and-streamasync-with-several-handler-types) |
+| `InvokeAsync<T>` / `StreamAsync<T>` for such a message type | ran the combined chain | run only the chain that returns `T`; none or several throw `AmbiguousHandlerChainException` *(BREAKING)* | Make exactly one handler type return `T` |
+| `LocalQueueFor<T>()` / `[LocalQueue]` on a message type with several handler types | the message type's queue received the message | the queue only drains rows left over from 6.x; each handler type's own queue receives the message *(BREAKING)* | Move the queue's settings to the handler types' queues |
+| New database queue tables (PostgreSQL, SQL Server, MySQL, Oracle, SQLite transports) | no ordering column; SQL Server classic layout | deterministic ordering, and SQL Server's throughput layout, **for new tables only** | None for existing tables; see [queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout) |
+| `WolverineFx.MQTT` client library | MQTTnet 4 + `MQTTnet.Extensions.ManagedClient` | **MQTTnet 5** *(BREAKING for code using MQTTnet types directly)* | See [MQTT runs on MQTTnet 5](#mqtt-transport-runs-on-mqttnet-5-wolverinefx-mqtt5-retired-breaking) |
+| `WolverineFx.Mqtt5` package | MQTTnet 5 flavor of the MQTT transport | **retired**; last published in 6.x *(BREAKING)* | Reference `WolverineFx.MQTT` instead; nothing else changes |
+| Per-store `[DocumentExists<T>]` / `[DocumentDoesNotExist<T>]`, `IEventForwarding`, `EventForwardingTransform<T>` (Marten, Polecat, Fisher) | one copy per store | **`[Obsolete]`**: one core type each, same names; removed in 8.0 | See [obsolete in 7.0](#obsolete-in-7-0) |
+| JasperFx / Weasel / Marten / Polecat / Fisher | 2.x / 9.x / 9.x / 5.x / 1.x | 3.0 / 10.0 / 10.0 / 6.0 / 2.0 *(BREAKING)* | Upgrade them together; see [dependency majors](#dependency-major-versions-in-7-0-breaking) |
+| Wolverine's OpenTelemetry `Meter` name | `Wolverine:{ServiceName}`, so only `AddMeter("Wolverine*")` collected it | exactly `Wolverine` *(BREAKING for exact-name meter filters)* | `AddMeter("Wolverine")` now works; `AddMeter("Wolverine*")` keeps working. See [meter and metric names](#opentelemetry-meter-and-metric-names-breaking) |
+| Wolverine metric instrument names | dashed (`wolverine-messages-sent`) | dotted (`wolverine.messages.sent`) *(BREAKING for dashboards and alerts)* | Rename the series in dashboards, alerts and recording rules; see [the full table](#opentelemetry-meter-and-metric-names-breaking) |
+| `WolverineOptions.ServiceName` default | the entry assembly name | `OTEL_SERVICE_NAME` when set, then the entry assembly name | None, unless a service relied on the assembly name while `OTEL_SERVICE_NAME` was set to something else: set `opts.ServiceName` explicitly |
+| `Saga.LastModified` | not there | new `DateTimeOffset` property on the base `Saga`, set to UTC now by every saga store on insert and update *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga LastModified](#saga-lastmodified-is-set-by-every-saga-store) |
+| Code generation in the `Production` profile (Wolverine hosts) | `TypeLoadMode.Dynamic`: compiled at runtime | `TypeLoadMode.Static` with `AssertAllPreGeneratedTypesExist`: pre-generated code is required *(BREAKING for applications that deploy without `codegen write`)* | Run `dotnet run -- codegen write` in the build, or call `RestoreV6Defaults()`. See [deploying 7.0 to production](#deploying-7-0-to-production) |
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 
@@ -100,6 +116,9 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `WolverineHttpOptions.MapConcurrencyFailuresToConflict()` | off: a concurrency failure escapes as a 500 | on for the transactional endpoints: 409 with ProblemDetails, advertised in OpenAPI (under Marten 9.x, the exclusive-lock failure only with `MapMartenConcurrencyFailuresToConflict()`) | `opts.DoNotMapConcurrencyFailuresToConflict()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
 | `WolverineHttpOptions.MapUnknownTenantToNotFound()` | off: `UnknownTenantIdException` escapes as a 500 | on for the tenanted endpoints: 404 with ProblemDetails, advertised in OpenAPI | `opts.DoNotMapUnknownTenantToNotFound()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
 | `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` | `false` | `true`: the `X-Correlation-ID` header reaches every endpoint, and the events it appends | `opts.ApplyCorrelationIdHeaderToAllEndpoints = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `WolverineHttpOptions.RejectUnparseableHeaderValues` | `false`: an unparseable `[FromHeader]` value binds the parameter's default | `true`: it answers 400 with ProblemDetails, matching `RejectUnparseableQueryValues` | `opts.RejectUnparseableHeaderValues = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| FluentValidation ProblemDetails for HTTP (`WolverineFx.Http.FluentValidation`) | off unless `UseFluentValidationProblemDetailMiddleware()` is called as well as `UseFluentValidation()` | on wherever `UseFluentValidation()` is called: a failed validator answers 400 with `ValidationProblemDetails`. `UseFluentValidationProblemDetailMiddleware()` still works and is no longer needed | `opts.DoNotUseFluentValidationProblemDetailMiddleware()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `WolverineOptions.EnableRelayOfUserName` | `false` | `true`: the authenticated HTTP user is relayed onto the message context, the outboxed Marten, Polecat or Fisher session, and **the `user-name` header of every message sent, to every transport**. `WolverineHttpOptions.UserNameClaimType` names the claim when `Identity.Name` is null | `opts.EnableRelayOfUserName = false` | `restore_v6_defaults_tests` |
 | `PushReceiverOptions.DeduplicateWithInbox` | `false` | `true` when the application has a message store | `o.DeduplicateWithInbox = false` in `MapWolverinePushReceiver()` | `push_receiver_5016` |
 | `BrokerTransport.TenantedIdBehavior` (RabbitMQ, Azure Service Bus, SQS, SNS, Kafka, GCP Pub/Sub, Redis, NATS; also MQTT, MQTT 5 and Pulsar) | `FallbackToDefault`: a message for an unregistered tenant id goes to the default broker | `DeadLetterUnknownTenants`: it goes to dead letter storage and is sent nowhere | `.TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)` (`ConfigureMultiTenancy(...)` on Redis and NATS) | `restore_v6_broker_tenancy_defaults` |
 | `NatsTransportConfiguration.TrustTenantIdHeader` | `true`: a tenant-aware listener takes the tenant from the `tenant-id` header | not trusted: the tenant comes from the connection or subject prefix the message arrived on | `nats.TrustTenantIdHeader = true` | `NatsTenantIdHeaderTests` |
@@ -112,12 +131,64 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `AmazonSqsQueue.ExtendVisibilityWhileHandling` (SQS `ProcessInline()` listeners) | `false`: the visibility timeout is set once on receive, and the later messages of a batch that outlives it are redelivered while still being handled | `true`: the visibility of every unsettled message in the batch is extended every half `VisibilityTimeout`. Needs the `sqs:ChangeMessageVisibility` IAM permission | `.DoNotExtendVisibilityWhileHandling()` on the listener | `inline_visibility_heartbeat_4019` |
 | `KafkaProducerOptions.EnableIdempotence` | off: Confluent.Kafka producers were not idempotent unless `UseIdempotentProducer()` | on: Dekaf's idempotent producer (`acks=all`). `Acks.None` or `Acks.Leader` stops the host unless idempotence is off | `kafka.DisableIdempotentProducer()`, or `.DisableIdempotentProducer()` on a topic | `kafka_idempotent_producer_default_5201` |
 | `RabbitMqQueue.DrainWaitForPrefetch` | `false`: a stopping listener cancels without waiting, and the broker redelivers its prefetched deliveries | `true`: the listener waits for its prefetched deliveries, bounded by `DrainTimeout`, before closing the channel | `.DoNotDrainWaitForPrefetch()` on the listener | `drain_wait_for_prefetch_turned_off` |
-| `WithInMemoryIdempotency()` on `ProcessInParallelWithNativeAcks()` endpoints | off: no guard unless the listener asks for one | on, with the default 5 minute window and 100,000 id ceiling. Every other endpoint mode still opts in | `.WithoutInMemoryIdempotency()` on the listener | `core_default_flips_5200` |
+| `EnableDeterministicQueueOrdering` (PostgreSQL, SQL Server, MySQL, Oracle and SQLite transports) | off: new queue tables are dequeued in timestamp order alone | on for **new** queue tables: a `queue_order` identity column and indexes (an index over the rowid on SQLite) break timestamp ties. Existing tables keep their layout; see [queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout) | `.DisableDeterministicQueueOrdering()` on the persistence registration | `queue_tables_new_only` |
+| `SqlServerTransport.OptimizeQueueThroughput` | off: new SQL Server queue tables get the classic layout | on for **new** queue tables: the throughput layout, a clustered `seq` identity. Existing tables keep their layout | `.UseClassicQueueLayout()` on the persistence registration (explicit, so it also rebuilds existing throughput tables) | `queue_tables_new_only` |
+| `JasperFxOptions.Production.GeneratedCodeMode` / `AssertAllPreGeneratedTypesExist` (Wolverine hosts) | `Dynamic` / `false`: a Production application compiles its handlers and HTTP endpoints at runtime, which needs `WolverineFx.RuntimeCompilation` | `Static` / `true`: a Production application loads pre-generated code, and fails at startup naming any type that is missing. Only when `UseWolverine()` is present, and not in a process with a test framework loaded; JasperFx's own default, and so a Marten, Polecat or Fisher application without Wolverine, is unchanged. See [deploying 7.0 to production](#deploying-7-0-to-production) | `services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic)` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.AlwaysMakeScheduledMessagesDurable` | `false`: a message scheduled to a buffered (non-durable) local queue waits in the in-process scheduler and is lost on restart | `true`: with a message store it is stored in the inbox as Scheduled and run by the scheduled message poller. Without a message store nothing changes and nothing is logged. See [durability defaults](#scheduled-messages-inbox-partitioning-dead-letter-expiration-and-stale-times-in-7-0) | `opts.Durability.AlwaysMakeScheduledMessagesDurable = false` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.EnableInboxPartitioning` | `false` | `true`, honoured by the PostgreSQL message store only: the inbox table is `PARTITION BY LIST (status)`. **An existing inbox is rebuilt on the first 7.0 start, under an exclusive lock**, and one message can now exist as both Incoming and Scheduled; see [the PostgreSQL inbox](#the-postgresql-inbox-is-partitioned) | `opts.Durability.EnableInboxPartitioning = false` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.DeadLetterQueueExpirationEnabled` | `false`: database dead letters are kept until replayed or deleted | `true`: a dead letter expires `DeadLetterQueueExpiration` (10 days) after it is stored. The relational stores add the dead letter `expires` column and its index, an additive migration | `opts.Durability.DeadLetterQueueExpirationEnabled = false` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.InboxStaleTime` / `OutboxStaleTime` | `null` (except under `ServerlessWithOutbox`: 5 minutes / 60 seconds) | 1 hour each outside `ServerlessWithOutbox`, which keeps its own values | `opts.Durability.InboxStaleTime = null;` and `opts.Durability.OutboxStaleTime = null;` | `restore_v6_defaults_tests` |
+
+### Deploying 7.0 to production
+
+In 7.0 a Wolverine application in the `Production` profile (any environment that isn't `Development`, unless you
+changed `DevelopmentEnvironmentName`) loads **pre-generated code** by default: `TypeLoadMode.Static` with
+`AssertAllPreGeneratedTypesExist = true` (GH-5523, from #5344). It covers every chain Wolverine generates code for:
+message handlers, HTTP endpoints, gRPC services and the Marten, Polecat and Fisher aggregate and saga chains. The
+`Development` profile still compiles at runtime.
+
+Wolverine sets this on JasperFx's `Production` profile only when `UseWolverine()` is present. The shared JasperFx
+default is unchanged, so a Marten, Polecat or Fisher application that doesn't use Wolverine behaves exactly as before.
+Any value you set yourself wins, whether with `CritterStackDefaults()` or on `opts.CodeGeneration.TypeLoadMode`.
+
+**Before the first 7.0 deploy**, generate the code as part of the build and compile it into the application:
+
+```bash
+dotnet run -- codegen write
+```
+
+Commit the output (by default under `Internal/Generated`) or run the command in CI before `dotnet publish`. Static mode
+doesn't need Roslyn, so a production build can drop `WolverineFx.RuntimeCompilation`. See
+[working with code generation](/guide/codegen).
+
+If a type is missing, because the command wasn't run or the code is stale, the application **fails at startup** with a
+`MissingPreBuiltTypesException`. The error names every missing handler type or HTTP route and tells you how to fix it.
+In 6.x the same deploy started and compiled the code at runtime.
+
+To keep compiling at runtime in production instead, do either of these:
+
+```csharp
+// Everything 6.x did, including this
+builder.Host.UseWolverine(opts => opts.RestoreV6Defaults());
+
+// Or just this setting
+builder.Services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic);
+```
+
+Either way, keep the `WolverineFx.RuntimeCompilation` package reference.
+
+::: tip Test hosts are left alone
+`Host.CreateDefaultBuilder()` without `DOTNET_ENVIRONMENT` runs in the Production environment, which is where most
+integration tests build their hosts. So Wolverine doesn't apply this default in a process that has a test framework
+loaded (xUnit, NUnit, MSTest, TUnit or Microsoft.Testing.Platform), and it logs that at startup. Tests keep compiling at
+runtime as they did in 6.x. To test the pre-generated code itself, set the mode explicitly in that test host.
+:::
 
 ### Wolverine.Http defaults that changed in 7.0
 
-Five Wolverine.Http defaults flipped in 7.0 (GH-5195). They are the rows of the table above that name
-`WolverineHttpOptions` or `PushReceiverOptions`, and `RestoreV6Defaults()` puts back all five:
+Seven Wolverine.Http defaults flipped in 7.0 (GH-5195, GH-5520). They are the rows of the table above that name
+`WolverineHttpOptions`, `PushReceiverOptions` or FluentValidation ProblemDetails, and `RestoreV6Defaults()` puts back
+all seven. The user name relay, a core setting, is [below](#the-user-name-travels-with-every-message-by-default).
 
 - **Strict query string binding.** A query string value that is present but cannot be parsed, such as `?page=abc` on an
   `int page` parameter, now answers 400 with a ProblemDetails naming the parameter, as MVC and minimal APIs do. In 6.x it
@@ -125,16 +196,25 @@ Five Wolverine.Http defaults flipped in 7.0 (GH-5195). They are the rows of the 
   modes. See [query string binding](/guide/http/querystring). F# code generation does not support strict binding yet,
   so an application that pre-generates F# code for an endpoint with a parsed query string parameter has to set
   `RejectUnparseableQueryValues = false`.
+- **Strict header binding.** A `[FromHeader]` value that is present but cannot be parsed, such as `x-count: abc` on
+  an `int` parameter, now answers 400 with a ProblemDetails naming the header, matching query string binding. In 6.x it
+  bound the parameter's default value. A missing header still binds the default, and `string` headers are never
+  rejected. F# code generation does not support it yet, so an application that pre-generates F# code for an endpoint
+  with a parsed header parameter has to set `RejectUnparseableHeaderValues = false`. See [headers](/guide/http/headers).
+- **FluentValidation ProblemDetails is automatic.** With `WolverineFx.Http.FluentValidation` referenced, calling
+  `UseFluentValidation()` now also applies the HTTP validation middleware, so an endpoint whose request type has a
+  validator answers 400 with `ValidationProblemDetails` when it fails. `UseFluentValidationProblemDetailMiddleware()`
+  is no longer needed; it still works, and the middleware is applied once either way. With
+  `ExtensionDiscovery.ManualOnly`, call `UseFluentValidationProblemDetail()` in `UseWolverine()` as before. See
+  [validation](/guide/http/validation).
 - **Concurrency failures answer 409.** The commit-time concurrency failures (`JasperFx.ConcurrencyException` and
-  everything deriving from it, plus `JasperFx.Events.StreamLockedException`) on a transactional endpoint now answer 409
-  with ProblemDetails instead of escaping as a 500, and the OpenAPI document advertises the 409. If you call
-  `MapConcurrencyFailuresToConflict()`, `MapMartenConcurrencyFailuresToConflict()` or
+  everything deriving from it, which since JasperFx 3.0 includes `JasperFx.Events.StreamLockedException`, plus
+  `JasperFx.Events.ExistingStreamIdCollisionException` from a `StartStream` whose id is already taken) on a
+  transactional endpoint now answer 409 with ProblemDetails instead of escaping as a 500, and the OpenAPI document
+  advertises the 409. If you call `MapConcurrencyFailuresToConflict()`, `MapMartenConcurrencyFailuresToConflict()` or
   `MapPolecatConcurrencyFailuresToConflict()` yourself, your call replaces the default, so a custom filter or
-  ProblemDetails factory still applies. With Marten 9.x, Marten's own `StreamLockedException` (from
-  `FetchForExclusiveWriting`) does not derive from the JasperFx type yet, so keep calling
-  `MapMartenConcurrencyFailuresToConflict()` if you want that one mapped to a 409 too. Marten 10 rebases it onto the
-  JasperFx type, and from then on the default covers it. See
-  [exception handling](/guide/http/exception-handling).
+  ProblemDetails factory still applies. Marten 10, Polecat 6 and Fisher 2 all throw the shared JasperFx.Events types,
+  so the default covers every store with one mapping. See [exception handling](/guide/http/exception-handling).
 - **An unknown tenant answers 404.** An `UnknownTenantIdException` on an endpoint marked `[RequiresTenant]` or
   `[MaybeTenanted]` now answers 404 with ProblemDetails instead of escaping as a 500. A *missing* tenant id still
   answers 400.
@@ -144,6 +224,31 @@ Five Wolverine.Http defaults flipped in 7.0 (GH-5195). They are the rows of the 
 - **Push receivers deduplicate with the inbox.** When the application has a message store, a push receiver now claims
   each message id in the durable inbox, so a redelivery is recognized instead of run again. See
   [serverless](/guide/serverless).
+
+### The user name travels with every message by default
+
+`WolverineOptions.EnableRelayOfUserName` is `true` from 7.0 (GH-5520); it was `false` throughout 6.x. On every HTTP
+endpoint with a message context, Wolverine now copies the authenticated user (`ClaimsPrincipal.Identity.Name`) onto
+`IMessageContext.UserName`, onto the outboxed Marten, Polecat or Fisher session (`LastModifiedBy` or `CurrentUserName`)
+and onto the `enduser.id` tag of the request's span.
+
+**That means the user name now travels in the `user-name` header of every message the request sends, to every
+transport** (RabbitMQ, Azure Service Bus, SQS, SNS, Kafka, the database queues and the rest), and is stored with it in
+the durable outbox. Downstream services see it too. If the user name is personal data that should not leave the
+service, turn the relay off:
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    opts.EnableRelayOfUserName = false;
+});
+```
+
+`opts.RestoreV6Defaults()` turns it off as well, and an explicit setting wins over both.
+
+`Identity.Name` is null for some tokens, Auth0 access tokens among them, and then nothing is relayed. Name the claim
+that identifies the user with `WolverineHttpOptions.UserNameClaimType`, for example `opts.UserNameClaimType = "sub";` in
+`MapWolverineEndpoints()`. See [tracking the user name](/guide/http/security#tracking-user-name).
 
 Two related behaviors need no action. `DefaultClaimInTransaction` stays opt-in. And since 6.51.2, a query string, header
 or form value that is omitted binds the parameter's declared default (`int limit = 50` binds 50, not 0); that change
@@ -242,6 +347,42 @@ To keep the 6.x layout, call `opts.RestoreV6Defaults()` or set
 `opts.Durability.AlwaysProvisionOptionalSchemaObjects = false`. Each column is then only created when its setting is
 on, and the outgoing timestamp index isn't created.
 
+### New queue tables get deterministic ordering and SQL Server's throughput layout
+
+The database transports (PostgreSQL, SQL Server, MySQL, Oracle and SQLite) create **new** queue tables with
+deterministic ordering in 7.0 (GH-5192). On PostgreSQL, MySQL, Oracle and SQL Server that is a `queue_order` identity
+column plus composite indexes. On SQLite it is an index over the rowid, with no new column. On SQL Server, new tables
+also get the [throughput layout](/guide/durability/sqlserver#optimizing-queue-throughput): a clustered `seq` identity
+with a unique non-clustered index on the message id.
+
+**Existing queue tables keep the layout they have.** No migration path adds the identity column or rebuilds an existing
+table: not queue setup, not `resources setup` or `db-apply`, and not the schema check. Each listener reads the layout
+of the table it actually finds, per database and per tenant database. So a tenant database created before the upgrade
+and one created after it work side by side. The one exception is SQLite, where existing tables gain the two indexes on
+the next migration, without a rebuild.
+
+An explicit setting still behaves as it did in 6.x, so it **does** change existing tables:
+
+* `EnableDeterministicQueueOrdering()` adds the identity column to existing tables. On PostgreSQL and MySQL that
+  rewrites the table under an exclusive lock, and on SQL Server it numbers every row.
+* `OptimizeQueueThroughput()` and `UseClassicQueueLayout()` on SQL Server rebuild an existing table that is on the
+  other layout, under an exclusive lock. SQL Server's layout-switch rebuild (GH-4989) now only fires when you set the
+  layout explicitly, which ends the rebuild ping-pong between two applications that disagree about the default.
+
+To keep the 6.x layout for new tables too, call `opts.RestoreV6Defaults()` (GH-5511). It turns both defaults off on
+every database transport, and like the 7.0 default it never touches an existing table: one that already has the column
+or the throughput layout keeps it. An explicit `EnableDeterministicQueueOrdering()` or `OptimizeQueueThroughput()` still
+wins over `RestoreV6Defaults()`, in either order.
+
+You can also turn them off one at a time: call `DisableDeterministicQueueOrdering()` on the persistence registration
+(`PersistMessagesWithPostgresql(...)`, `PersistMessagesWithSqlServer(...)` and so on). Tables that already have the
+column keep it. On SQL Server, `UseClassicQueueLayout()` also keeps new tables on the classic layout. Because that one
+is explicit, it rebuilds any existing throughput-layout table back to classic, so drain the queues first.
+
+To convert an existing table on purpose, follow "Converting an existing queue table" on the page for your database,
+for example [SQL Server](/guide/durability/sqlserver#converting-an-existing-queue-table). Every application that
+shares the queue tables has to be configured the same way.
+
 ### `GuidV7` is the default envelope id in 7.0
 
 Wolverine 7 creates envelope ids with `Guid.CreateVersion7()` (`EnvelopeIdGeneration.GuidV7`) instead of MassTransit's
@@ -267,9 +408,9 @@ What to watch for on the upgrade:
 To keep the 6.x ids, call `opts.RestoreV6Defaults()` or set `opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId`.
 An explicit setting always wins, over the default and over what the message stores prefer.
 
-### Agent command compression, batch grouping and native-ack idempotency are on in 7.0
+### Agent command compression and batch grouping are on in 7.0
 
-Three core defaults that were opt-in through 6.x are on in 7.0 (GH-5200). `RestoreV6Defaults()` turns all three off
+Two core defaults that were opt-in through 6.x are on in 7.0 (GH-5200). `RestoreV6Defaults()` turns both off
 again, and an explicit setting wins either way.
 
 **Agent commands are compressed.** `opts.Durability.CompressAgentCommands` is `true`, so the leader's agent commands
@@ -294,15 +435,81 @@ topology is unchanged, and so is a batch with your own `IMessageBatcher`. To kee
 `batching.DoNotGroupByGroupId()`. A batch that executes on the topology's slots is still grouped, because it can only be
 placed on a slot when it belongs to one group.
 
-**`ProcessInParallelWithNativeAcks()` listeners get the in-memory idempotency guard.** A native-ack listener holds
-deliveries unacknowledged, so a restart or rolling deploy redelivers up to the broker's prefetch depth. That is the
-case `WithInMemoryIdempotency()` was built for, so it is now on for those listeners with the default 5 minute window
-and 100,000 id ceiling. Call `WithInMemoryIdempotency(window, maxTracked)` to change those, or
-`WithoutInMemoryIdempotency()` to turn the guard off on one listener, or
-`opts.Policies.AllListeners(x => x.WithoutInMemoryIdempotency())` for every listener. For the slot listeners a
-partitioned topology creates for you, use `topology.ConfigureListening(x => x.WithoutInMemoryIdempotency())` or the
-`AllListeners` policy. Buffered and inline listeners still have no guard
-unless they ask for one, and durable listeners keep deduplicating through the inbox.
+**The in-memory idempotency guard stays opt-in, including on `ProcessInParallelWithNativeAcks()` listeners.**
+An early 7.0 build turned `WithInMemoryIdempotency()` on for native-ack listeners by default. It was taken back out
+before release, because the guard acknowledges a redelivery of a message that is still being handled, and on a
+broker like Pulsar that settles the message while its first delivery is in flight, so a draining node can lose it
+(GH-5533). 7.0 fixes that: on a native-ack listener the guard now holds a redelivery of an in-flight message
+unsettled and settles it with the original's outcome, and only acknowledges a redelivery of a message that was
+already processed (see [In flight versus already processed](/guide/messaging/listeners#in-flight-versus-already-processed)).
+Whether 7.x turns the guard on by default again is a separate decision.
+
+### Scheduled messages, inbox partitioning, dead letter expiration and stale times in 7.0
+
+Four durability settings that were opt-in through 6.x are on in 7.0 (GH-5519, from GH-5344). `RestoreV6Defaults()` puts
+back all four, and an explicit setting wins over both, whichever order the two are in.
+
+**Scheduled local messages are durable when there is a message store.** `AlwaysMakeScheduledMessagesDurable` is on, so
+a message scheduled to a buffered local queue is stored in the inbox as Scheduled, survives a restart and is run by the
+scheduled message poller instead of the in-process scheduler. The poller checks every `ScheduledJobPollingTime`, so a
+message can run up to that long after its scheduled time. An application without a message store keeps in-process
+scheduling, and the startup warning about a missing store is only written when you call
+`opts.Policies.AlwaysMakeScheduledMessagesDurable()` (or set the property) yourself.
+
+**Dead letters expire.** `DeadLetterQueueExpirationEnabled` is on, so a dead letter in database storage is deleted
+`DeadLetterQueueExpiration` (10 days by default) after it is stored, or at its `DeliverBy` time if it has one. The
+relational stores add a nullable `expires` column and an index on it to the dead letter table on the first 7.0 start.
+Dead letters stored before then have no expiration and are kept. Set `DeadLetterQueueExpiration` for a longer window,
+or turn the setting off to keep dead letters until they are replayed or deleted.
+
+**Inbox and outbox stale times are 1 hour.** `InboxStaleTime` and `OutboxStaleTime` are a backstop for rows a live node
+owns and has lost track of; rows of a node that died are recovered without them. Once a row is older than the stale
+time, any node may take it over. 1 hour is deliberately long:
+
+- The outbox has no heartbeat, so `OutboxStaleTime` has to be longer than any time a live node legitimately holds an
+  outgoing row, such as a sender latched through a broker outage, or the message is sent twice.
+- The relational stores restart the inbox clock of every row a node holds three times per `InboxStaleTime` (every 20
+  minutes at 1 hour), so a long handler is not released underneath itself. A shorter value costs more of those writes.
+
+Under `ServerlessWithOutbox` the two keep that mode's defaults of 5 minutes and 60 seconds. The `timestamp` columns
+they read are already always created in 7.0 ([optional schema objects](#optional-message-storage-schema-objects-are-always-created-in-7-0)).
+
+#### The PostgreSQL inbox is partitioned
+
+`EnableInboxPartitioning` is on, and the PostgreSQL message store (including Marten's) honours it: the inbox table is
+`PARTITION BY LIST (status)`, with `incoming`, `scheduled` and `handled` partitions and the status in the primary key.
+The other relational stores keep their unpartitioned inbox and only use the partition-aware statements when you set
+`EnableInboxPartitioning = true` explicitly, as in 6.x.
+
+**An existing inbox is rebuilt on the first 7.0 start.** PostgreSQL cannot partition a table in place, so with
+`AutoCreate.CreateOrUpdate` the first 7.0 node to start changes the inbox's primary key, copies the table aside, drops
+it, creates it again partitioned and copies the rows back, in one transaction. Main database and every tenant database
+alike. The primary key change takes an `ACCESS EXCLUSIVE` lock first, so the copy sees every committed row and **every
+read and write of the inbox waits until the rebuild commits**. That takes as long as the copies take, so it grows with
+the number of rows, including the Handled rows kept for `KeepAfterMessageHandling`. As a guide, an inbox of 100,000
+rows with 500-byte bodies was rebuilt in well under a second on a laptop's PostgreSQL in Docker. Wolverine serializes its
+migrations with an advisory lock, so a second node starting at the same time waits and then finds nothing left to do. To keep the wait short, start the first 7.0 node while
+the inbox is small, and before a scheduled backlog builds up.
+
+Plan the rollout around it:
+
+* **6.x nodes don't know the inbox is partitioned** and don't use the partition-aware statements, and a 6.x node that
+  starts afterwards rebuilds the inbox unpartitioned again. Stop the 6.x nodes before the first 7.0 node starts, or set `opts.Durability.EnableInboxPartitioning = false` until every node runs 7.0,
+  then remove it and let the next start rebuild the inbox.
+* **With `AutoCreate.None`** nothing is migrated, but 7.0 still writes to the inbox as if it were partitioned. Apply
+  the migration first (`dotnet run -- resources setup`, `db-apply` or your own process), or keep partitioning off.
+* **One message can now exist as both Incoming and Scheduled.** PostgreSQL only enforces a primary key within a
+  partition, so a broker redelivery can be stored as Incoming while the earlier attempt is parked as a scheduled retry.
+  The scheduled message poller discards the scheduled copy in favour of the incoming one, which runs with the attempt
+  count it was stored with, so the retry budget restarts and the message can be tried more times than the error
+  policy nominally allows. A scheduled retry for a message that has meanwhile been handled is dropped. A redelivery
+  arriving while a handled copy is retained is still refused as a duplicate. The XML documentation on
+  `EnableInboxPartitioning` has the details.
+
+To keep the 6.x unpartitioned inbox, set `opts.Durability.EnableInboxPartitioning = false` or call
+`RestoreV6Defaults()`. Doing that after a 7.0 start has partitioned the inbox rebuilds it unpartitioned again, under the
+same exclusive lock. Where one message is stored more than once, it keeps the row that supersedes the others: the
+Handled row, then the Incoming one, then the Scheduled one.
 
 ### Dead and obsolete flags removed (BREAKING)
 
@@ -316,6 +523,8 @@ code used one of them, it won't compile against 7.0 until you make the change be
 | `WolverineOptions.EnableMessageCausationTracking` | `opts.Tracking.EnableMessageCausationTracking`. The old property just forwarded to it |
 | `opts.Policies.PublishAgentEvents` | Delete the line. Nothing read it |
 | `AgentAssignmentsChanged` | Nothing published it after GH-5078. Wrap the runtime's `Observer` and handle `IWolverineObserver.AssignmentsChanged(AssignmentGrid, AgentCommands)` instead |
+| `WolverineOptions.EnableAutomaticFailureAcks` | Delete the line. It has been `false` by default since 4.6, and 7.0 behaves as if it were always `false`: moving a message to the error queue never sends a failure acknowledgement to the sender (GH-5521). If you had turned it on, a remote `InvokeAsync()` or `InvokeAsync<T>()` whose handler moves the message to the error queue now ends in a `TimeoutException` on the caller instead of a `WolverineRequestReplyException`. Failure replies for a missing handler or a missing response are still sent |
+| `DurabilitySettings.EnableRecurringMessages` | Delete the line. It is internal now (GH-5521): registering a recurring schedule through `opts.Schedules` sets it, which was always the only supported way to turn it on |
 | `ChainDeduplicationExtensions.ApplyDeduplication(this IChain)` | Call `ApplyDeduplication(rules, container)`, so a store that can write the deduplication claim inside its own transaction gets to |
 | `FisherIntegration.TransportSchemaName` | `FisherIntegration.PrefixName`. In 6.x setting `TransportSchemaName` set `PrefixName`, so set `PrefixName` to the same value to keep your queue table names |
 | `MqttEnvelope.ShouldRequeue` | Delete it. Nothing read it, so setting it never requeued anything |
@@ -372,6 +581,368 @@ listener, the inbox before the channel closes. The wait is bounded by `opts.Dura
 the drain. On Kubernetes, check that the pod's `terminationGracePeriodSeconds` (30 seconds by default) covers it. To
 turn it off on one listener, call `.DoNotDrainWaitForPrefetch()`.
 
+### One handler chain per handler type (BREAKING)
+
+In 6.x, when several handler classes handled the same message type, Wolverine combined them by default
+(`MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler`) into one handler chain, run in one transaction. In 7.0
+there is always **one handler chain per handler type**, which is what `MultipleHandlerBehavior.Separated` did in 6.x
+(GH-5136, GH-5137, GH-5138). There is no way back to combined handlers, and `RestoreV6Defaults()` doesn't change this.
+`WolverineOptions.MultipleHandlerBehavior` and the `MultipleHandlerBehavior` enum are removed (GH-5139), so delete the
+line. In 6.52 and later, `opts.AssertNoCombinedHandlers()` lists the message types that 6.x still combines, so run it on
+6.x first to see what will change. In 7.0 it is an `[Obsolete]` no-op, kept for one major version so the rehearsal still
+compiles; remove the call after upgrading.
+
+A message type with a single handler class is not affected by anything in this section.
+
+**Each handler type runs on its own.** Every chain gets its own service scope, transaction, error policies and
+deduplication scope. Handlers of the same message no longer commit together, and one failing no longer rolls back the
+others.
+
+**Sagas:**
+
+* One saga type's `Start`, `Handle` and `NotFound` methods for a message are still one saga chain.
+* A saga and a plain handler for the same message are two chains. In 6.x the plain handler could be silently dropped.
+* Several saga types for one message no longer need any opt-in.
+
+**New startup errors:**
+
+* Two methods on one non-saga handler class for the same message type. Merge them into one method or move one to
+  another class.
+* Two handler types sticky to the same endpoint for one message type.
+
+**Sticky handlers always apply.** 6.x only honoured `[StickyHandler]` (and the other ways of making a handler sticky)
+when a message type had more than one handler. A lone sticky handler is now bound only to its endpoint as well.
+
+**Local queues.** When a message type has more than one handler type, each non-sticky chain gets its own local queue
+named after the handler type, `local://{handler type's full name, lower case}`. Publishing the message puts one copy
+on each of those queues. A message arriving from a broker on an endpoint with no chain bound to it is relayed to every
+handler type's local queue. If no chain can take a message at an endpoint, Wolverine throws
+`NoHandlerForEndpointException`, naming where each handler type runs. A message type with one handler type keeps its
+message-type queue, as before.
+
+`LocalQueueFor<T>()` or `[LocalQueue]` on a message type with several handler types still creates that queue, but only
+so it can drain rows persisted to it under 6.x, which it relays to every handler type's queue. Nothing routes to it any
+more, and Wolverine logs a warning at startup saying so. **Settings you put on that queue (parallelism, durability,
+ordering) no longer apply**, so move them to the handler types' queues, for example with
+`opts.LocalQueue("{handler type's full name, lower case}")`.
+
+With conventional broker routing, a listener for such a message type is now named for the handler type, as it was with
+`Separated` in 6.x, so expect new broker queues or subscriptions.
+
+**Message identity is unchanged.** `DurabilitySettings.MessageIdentity` still defaults to `MessageIdentity.IdOnly`, so
+the inbox and dead letter tables keep their 6.x primary keys. If a broker can deliver one message to more than one of a
+message type's durable listening endpoints in the same process, every copy has the same envelope id, and under `IdOnly`
+the durable inbox rejects all but the first as a duplicate. Wolverine logs a warning at startup naming the message types
+and endpoints where that can happen. Opt in to `opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination` for
+that setup, as in 6.x; it changes the primary key of the inbox table.
+
+**Batching.** A `BatchMessagesOf<T>()` batch is now one more subscriber of `T` next to its handler chains, and its
+queue name (`{queue}-batch`) is unchanged. `opts.AssertNoBatchHandlerConflicts()` and the 6.x startup warning about a
+batch shadowed by a direct handler are removed, because both now run.
+
+#### InvokeAsync and StreamAsync with several handler types
+
+* **`InvokeAsync(message)`** runs every chain inline, one after another in discovery order, each with its own envelope,
+  scope, transaction and error handling. The first failure stops the run and is rethrown as
+  `Wolverine.Runtime.Handlers.HandlerInvocationException` (with `MessageType` and `HandlerType`). Its message lists the
+  handler types that already completed and committed, and those that did not run. **The chains that ran before the
+  failing one are not rolled back.**
+* **`InvokeAsync<T>(message)`** and **`StreamAsync<T>(message)`** run only the one chain whose handler returns `T`
+  (`Task<T>`, `ValueTask<T>`, a tuple containing `T`, or `IAsyncEnumerable<T>` for streaming). The other chains do not
+  run. If no chain or more than one chain returns `T`, they throw `AmbiguousHandlerChainException`.
+* The HTTP transport's invoke endpoint used to answer 400 for these message types. A request that asks for a reply now
+  runs the one chain that produces it, and any other request runs every chain.
+
+#### Generated code and handler graph APIs
+
+A message type with one handler class keeps its generated type name. With several handler classes, the 6.x combined
+chain's class (named for the message type) disappears and each chain gets a class named for its handler type, falling
+back to `{Message}_{HandlerType}Handler` when two names collide. **If you pre-generate code (`codegen write`,
+`TypeLoadMode.Static`), regenerate it** after upgrading.
+
+For code that inspects the handler graph:
+
+* `HandlerGraph.ChainFor(Type)` and `ChainFor<T>()` throw `AmbiguousHandlerChainException` when a message type has
+  several chains. Use `ChainsFor(Type)` / `ChainsFor<T>()` for every chain of a message type, or
+  `ChainFor(messageType, handlerType)` / `ChainFor<TMessage, THandler>()` for one of them.
+* A chain's `Handlers` holds the calls of one handler type only. A test that asserted several handler classes on one
+  chain should look each chain up with `ChainFor(messageType, handlerType)` instead.
+* `MessageHandlerDescriptor` (the handler description CritterWatch reads from a service) has a new `HandlerType`
+  property, the one handler type of the chain.
+* `HandlerGraph.Chains` and `AllChains()` are one flat list of every chain. There are no more per-endpoint child chains,
+  and `HandlerChain.ByEndpoint` is gone.
+
+### Store integrations share one implementation in 7.0
+
+Wolverine.Marten, Wolverine.Polecat and Wolverine.Fisher (and their HTTP packages) now run on one shared
+implementation in Wolverine's core for their outbox, event forwarding, aggregate handling, saga diagnostics and
+`[DocumentExists]` code (GH-5141 to GH-5145). The public types you use keep their names and namespaces. What
+changed is what they do:
+
+* **The observer hears about appended events only after the commit.** Polecat and Fisher used to report appended events
+  to `IWolverineObserver.EventsAppended` (which CritterWatch listens to) before the commit, so a failed commit was still
+  reported. All three stores now report after the commit, as Marten already did.
+* **The saga explorer works on Polecat and Fisher.** It used to read relational saga tables those stores never write
+  to, so it showed nothing.
+* **Polecat refuses `Solo` or `HotCold` daemon modes combined with Wolverine-managed event subscription distribution**
+  at startup instead of hanging, as Marten already did.
+* **Projection side effects on an ancillary Polecat or Fisher store** enlist in that store's own message store, not the
+  main one.
+* **Scoped subscription runners** (`SubscribeToEventsWithServices`) set the tenant, and Marten's keeps its service scope
+  until the after-commit flush.
+* **A string-keyed ancillary store next to a Guid-keyed main store** now builds its chains, and Fisher unwraps nullable
+  aggregate and saga ids as Polecat already did.
+* **`[DocumentExists]` / `[DocumentDoesNotExist]`** check the chain's own store, so a chain routed to an ancillary Marten
+  store no longer asks the main `IDocumentStore`.
+* **One 409 mapping for every store** (GH-5459). `MapConcurrencyFailuresToConflict()` maps `JasperFx.ConcurrencyException`
+  (including `JasperFx.Events.StreamLockedException`) and `JasperFx.Events.ExistingStreamIdCollisionException` to 409,
+  which covers Marten's, Polecat's and Fisher's exceptions alike. The `MartenStreamLockedMiddleware` and
+  `PolecatStreamLockedMiddleware` classes are **removed**; they were no longer registered by anything. Remove any
+  `AddMiddleware(typeof(MartenStreamLockedMiddleware))` of your own, since the core mapping already catches that type
+  (see the [Wolverine.Http defaults](#wolverine-http-defaults-that-changed-in-7-0)).
+* New store-agnostic side effects on `Storage`: `Storage.DeleteById<T>(id)`, `Storage.DeleteWhere<T>(filter)`,
+  `Storage.ArchiveStream(id)` and `Storage.TombstoneStream(id)`.
+
+### `Saga.LastModified` is set by every saga store
+
+The base `Wolverine.Saga` type has a new `public DateTimeOffset LastModified { get; set; }` next to `Version`
+(GH-5345). Wolverine sets it to `DateTimeOffset.UtcNow` every time it inserts or updates a saga, in the generated
+saga code, so it means the same thing on every store and is the property to order by, or filter on, when you look
+for saga instances that have sat untouched for a long time. A value your own code assigns is overwritten on the
+next save.
+
+What each store needs from you:
+
+| Store | Schema change | Sagas saved before 7.0 |
+|---|---|---|
+| Marten | none; the property is also mapped to Marten's own `mt_last_modified` column | loaded with their `mt_last_modified` value |
+| Lightweight saga tables (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) | none; every table already had a `last_modified` column. It is now written with the property's value | PostgreSQL, SQL Server, MySQL and SQLite load the column into the property. Oracle reads `default(DateTimeOffset)` until the saga's next update |
+| EF Core | **yes**: the base-class property becomes a mapped column in your `DbContext`. Add an EF Core migration for it, or `modelBuilder.Entity<MySaga>().Ignore(x => x.LastModified)` to keep the old schema (the property is still set in memory) | the column's value from your migration's default (or `default(DateTimeOffset)`) until the saga's next update |
+| Polecat, Fisher, RavenDb, CosmosDb, Redis, Azure Blob Storage, Amazon S3, in-memory | none; the value is saved with the rest of the saga | `default(DateTimeOffset)` until the saga's next update |
+
+On EF Core, a saga that is loaded and saved again is now always written: setting `LastModified` makes the entity
+`Modified`, which also increments `Version`. Before 7.0, a message that changed nothing on the saga left the row and
+its version alone.
+
+If a saga type of yours already declares its own `LastModified`, it now hides the base property (compiler warning
+CS0108). Wolverine still sets the base `Saga.LastModified`; rename or remove your own property.
+
+### Obsolete in 7.0
+
+Wolverine.Marten, Wolverine.Polecat and Wolverine.Fisher each shipped their own copy of a few public types. 7.0 adds one
+core type for each and marks the per-store copies `[Obsolete]` (GH-5514). The old types still work exactly as before
+and are removed in 8.0.
+
+| Obsolete in 7.0 | Use instead |
+|---|---|
+| `Wolverine.Marten.Requirements.DocumentExistsAttribute<T>`, `Wolverine.Polecat.Requirements.DocumentExistsAttribute<T>`, `Wolverine.Fisher.Requirements.DocumentExistsAttribute<T>` | `Wolverine.Persistence.Requirements.DocumentExistsAttribute<T>` |
+| `Wolverine.Marten.Requirements.DocumentDoesNotExistAttribute<T>`, and the Polecat and Fisher copies | `Wolverine.Persistence.Requirements.DocumentDoesNotExistAttribute<T>` |
+| `Wolverine.Marten.IEventForwarding`, `Wolverine.Polecat.IEventForwarding`, `Wolverine.Fisher.IEventForwarding` | `Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding` |
+| `Wolverine.Marten.EventForwardingTransform<T>`, and the Polecat and Fisher copies | `Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<T>` |
+
+* **The core attributes keep the old names.** To migrate, swap `using Wolverine.Marten.Requirements;` (or the Polecat or Fisher
+  one) for `using Wolverine.Persistence.Requirements;`. They work with all three stores. A chain routed to an ancillary
+  store with `[Storage]` or `[MartenStore]` checks that store. If more than one document store is integrated, route
+  the chain with `[Storage(typeof(...))]`: otherwise the attribute refuses at code generation rather than guess. Do not import both namespaces into one file, or `[DocumentExists<T>]` is ambiguous.
+  That means a file that also uses `IMartenDataRequirement` (from `Wolverine.Marten.Requirements`) should spell the
+  attribute's full name.
+* **Event forwarding.** `MartenIntegration`, `PolecatIntegration` and `FisherIntegration` implement the core
+  `IEventForwarding`. Their public `SubscribeToEvent<T>()` keeps its signature until 8.0, and what it returns is already a
+  core `EventForwardingTransform<T>`. Code that never names these types (`x.SubscribeToEvent<T>().TransformedTo(...)`)
+  needs no change. Code that names the interface should alias it,
+  `using IEventForwarding = Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding;`, because `Wolverine.Marten`
+  still carries the obsolete name.
+* The `DocumentStore()` extension methods (`Wolverine.Polecat.TestingExtensions`, `Wolverine.Fisher.TestingExtensions`
+  and Marten's own) are **not** obsolete and stay as they are.
+* The `MartenOps`, `PolecatOps` and `FisherOps` facades are not obsolete in 7.0.
+
+### MQTT transport runs on MQTTnet 5; `WolverineFx.Mqtt5` retired (BREAKING)
+
+In 6.x the MQTT transport came in two packages that shared one `Wolverine.MQTT` namespace: `WolverineFx.MQTT` on MQTTnet 4
+(through `MQTTnet.Extensions.ManagedClient`, whose last release is 4.3.7) and `WolverineFx.Mqtt5` on MQTTnet 5. In 7.0 there is
+one package:
+
+- **`WolverineFx.MQTT` is built on MQTTnet 5** (and `MQTTnet.Server` for `LocalMqttBroker`).
+- **`WolverineFx.Mqtt5` is retired.** It is not published for 7.0; its last versions are the 6.x releases
+  (6.64.0 when this was written). If you referenced it, reference `WolverineFx.MQTT` instead. The namespace, the types and
+  `UseMqtt(...)` are the same, so that is the whole migration.
+
+`UseMqtt(...)`, `UseMqttWithLocalBroker(...)`, the topic configuration and the `IManagedMqttClient` /
+`ManagedMqttClientOptionsBuilder` types keep their shape. MQTTnet 5 has no managed client, so Wolverine ships its own in the
+same `MQTTnet.Extensions.ManagedClient` namespace. It reconnects after `AutoReconnectDelay` (5 seconds by default) when the
+connection drops, re-subscribes to its topics on reconnect, and queues outgoing messages while disconnected, up to
+`MaxPendingMessages`. MQTT keep-alive is MQTTnet 5's own (`WithKeepAlivePeriod(...)` on the client options).
+
+Wolverine's managed client is smaller than MQTTnet 4's:
+
+- `ManagedMqttClientOptionsBuilder` has `WithClientOptions(...)`, `WithAutoReconnectDelay(...)` and
+  `WithMaxPendingMessages(...)`. MQTTnet 4's other builder methods (`WithStorage(...)`,
+  `WithPendingMessagesOverflowStrategy(...)` and the rest) are gone; remove the calls.
+- `WithClientOptions(...)` replaces the whole client options each time it is called, so configure the client in one call.
+- When `MaxPendingMessages` messages are already queued, enqueuing another throws `InvalidOperationException`. MQTTnet 4
+  dropped the new message by default.
+
+If you moved from `WolverineFx.MQTT` 6.x, code that touches MQTTnet types directly needs MQTTnet 5's names. In
+particular:
+
+| MQTTnet 4 | MQTTnet 5 |
+|---|---|
+| `using MQTTnet.Client;` (client options, builders, event args) | `using MQTTnet;` |
+| `new MqttFactory()` | `new MqttClientFactory()` (clients), `new MqttServerFactory()` (servers) |
+| `MqttApplicationMessage.PayloadSegment` (read) in a custom `IMqttEnvelopeMapper` | `Payload` (a `ReadOnlySequence<byte>`; `Payload.ToArray()` with `using System.Buffers;`) |
+| `new MqttClientTcpOptions { Server = "host", Port = 1883 }` | `new MqttClientTcpOptions { RemoteEndpoint = new DnsEndPoint("host", 1883) }`, or `WithTcpServer("host", 1883)` on the builder |
+| `MqttExtendedAuthenticationExchangeData`, `SendExtendedAuthenticationExchangeDataAsync` | `MqttEnhancedAuthenticationExchangeData`, `SendEnhancedAuthenticationExchangeDataAsync` |
+| `MQTTnet.Diagnostics` (`IMqttNetLogger`) | `MQTTnet.Diagnostics.Logger` |
+
+The wire format is unchanged: a 6.x node on either package and a 7.0 node exchange messages through the same broker.
+
+### Dependency major versions in 7.0 (BREAKING)
+
+Wolverine 7 is part of the Critter Stack .NET 11 release, and its packages depend on the new majors of the rest of the
+stack. Upgrade them together; mixing a Wolverine 7 package with Marten 9 or Weasel 9 does not work.
+
+| Package | Wolverine 6.x | Wolverine 7.0 |
+|---|---|---|
+| JasperFx, JasperFx.Events | 2.x | 3.0 |
+| JasperFx.RuntimeCompiler (used by `WolverineFx.RuntimeCompilation`) | 5.x | 6.0 |
+| Weasel | 9.x | 10.0 |
+| Marten | 9.x | 10.0 |
+| Polecat | 5.x | 6.0 |
+| Fisher | 1.x | 2.0 |
+| Microsoft.Extensions.*, EF Core, ASP.NET Core OpenAPI | 9.x / 10.x | 10.x on net10.0, 11.x on net11.0 |
+| Npgsql | 9.x | 10.x |
+| Microsoft.Data.SqlClient | 6.x | 7.x |
+| Swashbuckle.AspNetCore (Wolverine.Http samples and tests) | 6.x | 10.x on net10.0, 11.x on net11.0 |
+| OpenTelemetry | 1.15 | 1.20 |
+| Kafka client | Confluent.Kafka | Dekaf (see [above](#kafka-transport-now-runs-on-dekaf-breaking)) |
+| MQTT client (`WolverineFx.MQTT`) | MQTTnet 4.3 + MQTTnet.Extensions.ManagedClient | MQTTnet 5 (see [below](#mqtt-transport-runs-on-mqttnet-5-wolverinefx-mqtt5-retired-breaking)) |
+| NATS client (`WolverineFx.Nats`, `WolverineFx.ClaimCheck.Nats`) | NATS.Net 2.x | NATS.Net 3.x (see [below](#nats-transport-runs-on-nats-net-3)) |
+
+The Marten, Polecat and Fisher majors have their own migration guides; read them alongside this one. The RabbitMQ,
+Azure Service Bus, SQS/SNS, GCP Pub/Sub, Pulsar, Redis and Cosmos DB client libraries are unchanged.
+
+#### NATS transport runs on NATS.Net 3
+
+`WolverineFx.Nats` and `WolverineFx.ClaimCheck.Nats` move from NATS.Net 2.x to 3.x. No Wolverine NATS API changed
+shape: the NATS.Net types Wolverine's public surface takes or exposes keep their names and namespaces in 3.x, and now
+come from the 3.x assemblies. They are `NatsOpts` (`ConfigureNatsOpts`), `NatsAuthCred` (`AuthCallback`),
+`NatsJSPubOpts` (`ConfigureJetStreamPublish`), `StreamConfigRetention` / `StreamConfigStorage` /
+`StreamConfigDiscard` / `StreamSource` / `Placement` (`StreamConfiguration`), `ConsumerConfigDeliverPolicy` (`DeliverFrom`),
+`NatsConnection` / `INatsJSContext` (`NatsTransport.Connection` / `JetStreamContext`),
+`NatsMsg<byte[]>` / `INatsJSMsg<byte[]>` (`NatsEnvelope`), and `INatsConnection` / `INatsObjContext`
+(`NatsObjectStoreClaimCheckStore`). Code that uses them compiles unchanged, but an application that also references
+NATS.Net directly must move to 3.x with Wolverine. Behaviour that differs, from the NATS.Net 3 upgrade notes:
+
+- A core NATS subscription's pending channel holds 16,384 messages before it drops the newest, up from 1,024. Set
+  `SubPendingChannelCapacity` through `ConfigureNatsOpts()` to keep the old bound.
+- NATS.Net's own request-reply defaults to `NatsRequestReplyMode.Direct`. Wolverine's request-reply does not use it;
+  your own `RequestAsync` calls on Wolverine's connection do.
+- `NatsOpts.SkipSubjectValidation` is `[Obsolete]`.
+
+### Schema changes when the first 7.0 node starts
+
+Several 7.0 defaults add schema objects to an existing message database. With the default
+`AutoBuildMessageStorageOnStartup = AutoCreate.CreateOrUpdate`, **the first 7.0 node to start runs that DDL** against
+the main message database and every tenant database. Everything it adds is additive:
+
+* the `wolverine_deduplication_hashed` and `wolverine_deduplicated_responses` tables
+  ([deduplication storage](#deduplication-storage-is-on-by-default-enablemessagededuplication-removed-breaking))
+* the inbox/outbox `timestamp` columns, the outbox stale index and `wolverine_nodes.load_factor`
+  ([optional schema objects](#optional-message-storage-schema-objects-are-always-created-in-7-0))
+* the ordering indexes on existing SQLite queue tables
+  ([queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout))
+* the dead letter `expires` column and its index
+  ([dead letter expiration](#scheduled-messages-inbox-partitioning-dead-letter-expiration-and-stale-times-in-7-0))
+
+On PostgreSQL it also **rebuilds the inbox table as a partitioned table**, which is not additive: see
+[the PostgreSQL inbox](#the-postgresql-inbox-is-partitioned) for the lock it takes and how to roll it out.
+
+Before the first 7.0 node starts:
+
+* **Every application sharing the message storage schema must be on 6.50 or later.** Wolverine only stopped dropping
+  unknown columns from its envelope and queue tables in 6.50, so an older node could drop the new columns again.
+* **If you run with `AutoCreate.None`**, apply the migration yourself (`dotnet run -- resources setup`, `db-apply`, or
+  your own migration process) against every message database, including each tenant database.
+* **On PostgreSQL**, adding the outgoing `timestamp` column rewrites the outbox table under an exclusive lock. Migrate
+  while a large outbox is drained.
+
+`RestoreV6Defaults()` turns off the deduplication tables, the optional schema objects, the dead letter expiration
+column and inbox partitioning, so it avoids all of this except the SQLite queue indexes.
+
+### OpenTelemetry meter and metric names (BREAKING)
+
+Wolverine's metrics move to the OpenTelemetry naming conventions in 7.0 (GH-5128):
+
+* **The `Meter` is named exactly `Wolverine`**, the same as Wolverine's `ActivitySource`. It used to be
+  `Wolverine:{ServiceName}`, so `AddMeter("Wolverine")` matched nothing and the Aspire dashboard listed one meter
+  per application. `AddMeter("Wolverine")` now collects every Wolverine metric; `AddMeter("Wolverine*")` still works
+  and also collects the separate `Wolverine.AI` and `Wolverine.CritterWatch` meters. A `MeterListener` or a view that
+  compared the meter name to `"Wolverine:" + serviceName` has to compare it to `"Wolverine"`
+  (`MetricsConstants.MeterName`). Several Wolverine hosts in one process now share one meter name, so tell them
+  apart by the `source` tag, or by the `IWolverineRuntime.Meter` instance in a test.
+* **The service is identified by the resource, not the meter name.** The OpenTelemetry SDK takes the resource's
+  `service.name` from `OTEL_SERVICE_NAME`, and every Wolverine measurement still carries the `source` tag with
+  `WolverineOptions.ServiceName`.
+* **`WolverineOptions.ServiceName` defaults from `OTEL_SERVICE_NAME`** when it is set (an Aspire AppHost sets it for
+  every project resource), and otherwise from the entry assembly as before. An explicit `opts.ServiceName`, or a
+  `JasperFxOptions.ServiceName` set through `CritterStackDefaults()`, still wins.
+  The name is also what node records, CritterWatch and the Event Model use, so if a service ran with
+  `OTEL_SERVICE_NAME` set to something other than its assembly name, set `opts.ServiceName` explicitly to keep the
+  old name.
+* **Instrument names are dotted.** Backends that keep OpenTelemetry names as they are (OTLP into the Aspire
+  dashboard, Honeycomb, Datadog and so on) see the new names, so rename those series in dashboards, alerts and
+  queries. Only the separators changed, so a Prometheus exporter, which turns both `-` and `.` into `_`, produces the
+  same `wolverine_messages_sent` style names as before. Units are unchanged.
+* **The message type tag is `wolverine.message.type`** (GH-5450), where it was the bare `message.type`
+  (`MetricsConstants.MessageTypeKey`). `message.type` is an old OpenTelemetry RPC semantic-convention attribute, so
+  backends that migrate old semantic-convention names on ingest (Dash0 by default) renamed Wolverine's tag to
+  `rpc_message_type`, and anything grouping by message type found nothing. Unlike the instrument names, this one
+  changes under a Prometheus exporter too: `message_type` becomes `wolverine_message_type`, so update every
+  `by (message_type, ...)` grouping and `{message_type="..."}` selector in dashboards, alerts and queries. The other
+  tag keys (`message.destination`, `tenant.id`, `source`, `schedule.name`, `exception.type`) are unchanged, and so
+  is the tracing tag `messaging.message_type`. There is no `RestoreV6Defaults()` switch for this, the same as for
+  the instrument names.
+
+| 6.x instrument | 7.0 instrument |
+|---|---|
+| `wolverine-messages-sent` | `wolverine.messages.sent` |
+| `wolverine-execution-time` | `wolverine.execution.time` |
+| `wolverine-messages-succeeded` | `wolverine.messages.succeeded` |
+| `wolverine-dead-letter-queue` | `wolverine.dead_letter_queue` |
+| `wolverine-fault-publish-failures` | `wolverine.fault_publish.failures` |
+| `wolverine-effective-time` | `wolverine.effective.time` |
+| `wolverine-inbox-count` | `wolverine.inbox.count` |
+| `wolverine-outbox-count` | `wolverine.outbox.count` |
+| `wolverine-scheduled-count` | `wolverine.scheduled.count` |
+| `wolverine-database-connection-count` | `wolverine.database.connection.count` |
+| `wolverine-database-connection-budget` | `wolverine.database.connection.budget` |
+| `wolverine-leases-renewed` | `wolverine.leases.renewed` |
+| `wolverine-leases-lost` | `wolverine.leases.lost` |
+| `wolverine-lease-ceiling-reached` | `wolverine.lease.ceiling_reached` |
+| `wolverine-duplicates-suppressed` | `wolverine.duplicates.suppressed` |
+| `wolverine-idempotency-early-rotation` | `wolverine.idempotency.early_rotation` |
+| `wolverine-messages-received` | `wolverine.messages.received` |
+| `wolverine-execution-failure` | `wolverine.execution.failure` |
+| `wolverine-recurring-occurrences-skipped` | `wolverine.recurring.occurrences_skipped` |
+
+| 6.x tag key | 7.0 tag key | Prometheus label (6.x → 7.0) |
+|---|---|---|
+| `message.type` | `wolverine.message.type` | `message_type` → `wolverine_message_type` |
+
+### Changed during 6.x without a flag
+
+These changed in 6.x minor releases, so `RestoreV6Defaults()` doesn't put them back. If you are coming from an early
+6.x release, check each one:
+
+| Change | Shipped in | What to do |
+|---|---|---|
+| **Successful message processing is logged at `Debug`** (GH-3490), where it was logged at `Information`. A per-message `Information` log was a real throughput cost on busy listeners | 6.21 | Nothing, unless you rely on that log line: then call `opts.Policies.MessageSuccessLogLevel(LogLevel.Information)`. See [logging](/guide/logging) |
+| **Kafka `CommitMode` default** became `StoreThenAutoFlush` (GH-3150): offsets are stored per finished message and committed by the client's background committer, where earlier releases committed synchronously after every message | 6.13 | Nothing, unless you need strict per-message commits: then call `.CommitOffsets(CommitMode.PerMessage)`. See [Kafka behaviour changes](#kafka-behaviour-changes) for how commits run on Dekaf |
+| **GCP Pub/Sub competing consumers share one subscription** (GH-4615), named after the topic, where each node used to create its own `{subscription}.{node number}` and handle every message | 6.41 | Let the old nodes drain their per-node subscriptions, then delete them by hand; Wolverine doesn't. Expect duplicates during a rolling deploy unless the listener is durable. `.SubscriptionPerNode()` on a listener keeps the old behaviour. See [GCP Pub/Sub listening](/guide/messaging/transports/gcp-pubsub/listening) |
+| **NATS named consumers are created or updated on startup**: an existing JetStream consumer is brought in line with the listener's ack, `AckWait`, `MaxDeliver`, filter subject and `MaxAckPending` settings, where it used to be reused as it was | 6.47 | If you manage consumers outside the application, call `.Provisioning(NatsProvisioning.CreateOnly)` on `UseNats(...)`. See [NATS](/guide/messaging/transports/nats) |
+| **SQL Server-ordered envelope ids** (GH-4902): when every message store is SQL Server (including the SQL Server transport, EF Core on SQL Server and Polecat) and `EnvelopeIdGeneration` isn't set, Wolverine switches to `NewIdSqlServerOrder` at startup | 6.49 | Nothing; no schema change. Set `EnvelopeIdGeneration` yourself, or pass `optimizeEnvelopeIdsForSqlServer: false`, to opt out. See [`GuidV7`](#guidv7-is-the-default-envelope-id-in-7-0) |
+| **Cosmos DB inbox documents are partitioned by message identity** (GH-5059) under `MessageIdentity.IdOnly`, where they were partitioned by destination, so the same id arriving at two addresses is now recognized as a duplicate | 6.51 | Nothing; the container and partition key path are unchanged, and documents written by older versions still drain. Until they have, a redelivery of one of them isn't rejected. See [Cosmos DB](/guide/durability/cosmosdb) |
+| **Omitted HTTP values bind the declared default** (GH-5099): an omitted query string, header or form value binds the parameter's default (`int limit = 50` binds 50, not 0) | 6.51.2 | Nothing; see [Wolverine.Http defaults](#wolverine-http-defaults-that-changed-in-7-0) |
 ### `.NET 9.0` support dropped (BREAKING)
 
 Wolverine 7.0 targets **net10.0 and net11.0**. Move your application to .NET 10 or later, or stay on the latest

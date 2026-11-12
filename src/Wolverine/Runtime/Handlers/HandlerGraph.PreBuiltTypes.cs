@@ -96,6 +96,8 @@ public partial class HandlerGraph
         }
 
         message.AppendLine();
+        message.AppendLine(MissingPreBuiltTypesException.HowToFix);
+        message.AppendLine();
         message.Append("See https://wolverinefx.net/guide/codegen.html");
 
         return message.ToString();

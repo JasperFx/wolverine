@@ -295,12 +295,12 @@ public static class WolverineTracing
 
     public static Activity? StartReceiving(Envelope envelope)
     {
-        return StartEnvelopeActivity("receive", envelope, ActivityKind.Consumer);
+        return StartReceivingSideActivity("receive", envelope, ActivityKind.Consumer);
     }
 
     public static Activity? StartExecuting(Envelope envelope)
     {
-        var activity = StartEnvelopeActivity(envelope.MessageType ?? "process", envelope);
+        var activity = StartReceivingSideActivity(envelope.MessageType ?? "process", envelope, ActivityKind.Internal);
 
         // GH-5310: remembered so the generated handler can tag this span even after a persistence
         // integration has made its own activity current (see MessageActivity below)
@@ -334,6 +334,36 @@ public static class WolverineTracing
             return null;
         }
 
+        envelope.WriteTags(activity);
+
+        return activity;
+    }
+
+    private static Activity? StartReceivingSideActivity(string spanName, Envelope envelope, ActivityKind kind)
+    {
+        return envelope.StartsNewLinkedTrace
+            ? StartNewLinkedTrace(spanName, envelope, kind)
+            : StartEnvelopeActivity(spanName, envelope, kind);
+    }
+
+    private static Activity? StartNewLinkedTrace(string spanName, Envelope envelope, ActivityKind kind)
+    {
+        ActivityLink[]? links = ActivityContext.TryParse(envelope.ParentId, null, out var sender)
+            ? [new ActivityLink(sender)]
+            : null;
+
+        var previous = Activity.Current;
+        Activity.Current = null;
+
+        var activity = ActivitySource.StartActivity(spanName, kind, default(ActivityContext), links: links);
+        if (activity == null)
+        {
+            Activity.Current = previous;
+            return null;
+        }
+
+        envelope.StartsNewLinkedTrace = false;
+        envelope.ParentId = activity.Id;
         envelope.WriteTags(activity);
 
         return activity;

@@ -47,7 +47,6 @@ public class ServiceCapabilities : OptionsDescription
         AddValue(nameof(options.DefaultRemoteInvocationTimeout), options.DefaultRemoteInvocationTimeout);
         AddValue(nameof(options.DisableAllExternalListeners), options.DisableAllExternalListeners);
         AddValue(nameof(options.EnableRemoteInvocation), options.EnableRemoteInvocation);
-        AddValue(nameof(options.EnableAutomaticFailureAcks), options.EnableAutomaticFailureAcks);
         AddValue(nameof(options.EnableRelayOfUserName), options.EnableRelayOfUserName);
         AddValue(nameof(options.ServiceLocationPolicy), options.ServiceLocationPolicy);
         AddValue("MetricsMode", options.Metrics.Mode);

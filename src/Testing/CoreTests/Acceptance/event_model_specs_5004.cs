@@ -24,7 +24,6 @@ public class event_model_specs_5004
         .UseWolverine(opts =>
         {
             opts.ServiceName = "specs-5004";
-            opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
             opts.Discovery.DisableConventionalDiscovery()
                 .IncludeType(typeof(ScheduleVisitHandler))
                 .IncludeType(typeof(KennelAdmitPetHandler))

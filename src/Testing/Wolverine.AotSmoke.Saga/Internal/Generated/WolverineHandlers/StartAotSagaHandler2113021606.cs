@@ -27,6 +27,7 @@ namespace Internal.Generated.WolverineHandlers
             Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)?.SetTag("wolverine.saga.type", "AotSaga");
             if (!outgoing1.IsCompleted())
             {
+                ((Wolverine.Saga)outgoing1).LastModified = System.DateTimeOffset.UtcNow;
                 await sagaStorageOfGuidAndAotSaga_Slim.InsertAsync(outgoing1, cancellation);
             }
 

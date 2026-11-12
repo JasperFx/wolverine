@@ -161,7 +161,8 @@ public static class Storage
             var entityType = effect.VariableType.GetGenericArguments()[0];
             if (rules.TryFindPersistenceFrameProvider(container, entityType, out var provider))
             {
-                effect.UseReturnAction(v => provider.DetermineStorageActionFrame(entityType, effect, container).WrapIfNotNull(effect));
+                effect.UseReturnAction(v => StampSagaLastModifiedFrame.ForStorageAction(entityType, effect,
+                    provider.DetermineStorageActionFrame(entityType, effect, container), throughHelper: true).WrapIfNotNull(effect));
                 provider.ApplyTransactionSupport(chain, container, entityType);
                 return true;
             }

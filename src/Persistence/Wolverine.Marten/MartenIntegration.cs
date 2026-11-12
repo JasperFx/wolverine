@@ -31,7 +31,10 @@ using Wolverine.Util;
 
 namespace Wolverine.Marten;
 
-public class MartenIntegration : IWolverineExtension, IEventForwarding
+// GH-5514: the per-store IEventForwarding stays implemented until 8.0, for compatibility
+#pragma warning disable CS0618
+public class MartenIntegration : IWolverineExtension, IEventForwarding, Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding
+#pragma warning restore CS0618
 {
     private readonly List<Action<WolverineOptions>> _actions = [];
 
@@ -59,7 +62,9 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         // options instead.
         EventRouter.AssertNoBareSubscriptions(UseFastEventForwarding, nameof(UseFastEventForwarding));
 
-        // Duplicate incoming messages
+        // Duplicate incoming messages. GH-5459 reviewed this and it stays Marten-only: it matches a Postgres
+        // primary key violation on Wolverine's incoming envelope table, which is specific to this store, and
+        // JasperFx deliberately has no store-neutral command-failure base type to hang it on.
         options.OnException<MartenCommandException>(e =>
             {
                 if (e.InnerException is PostgresException pg)
@@ -209,16 +214,26 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
 
     /// <summary>
     /// Define a <em>transformation</em> of a forwarded event: complete the returned builder with
-    /// <see cref="EventForwardingTransform{TSource}.TransformedTo{TDestination}"/> to publish the
+    /// <see cref="Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform{TSource}.TransformedTo{TDestination}"/> to publish the
     /// transformed message under Wolverine's normal routing rules. ⚠️ This is not an on-switch for
     /// event forwarding, and a bare call registers nothing (GH-4310 — the bootstrap rejects it):
     /// to simply have Wolverine handlers receive an event after commit, set
     /// <see cref="UseFastEventForwarding"/> = true instead.
     /// </summary>
+    // GH-5514: the signature keeps the per-store type until 8.0; the value is already the core type
+#pragma warning disable CS0618
     public EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull
     {
         EventRouter.StartTransformation<T>();
         return new EventForwardingTransform<T>(EventRouter);
+    }
+#pragma warning restore CS0618
+
+    // GH-5514: the core forwarding API. The public SubscribeToEvent<T>() above keeps its signature until 8.0, and
+    // what it returns is already the core type
+    Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<T> Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding.SubscribeToEvent<T>()
+    {
+        return SubscribeToEvent<T>();
     }
 }
 
@@ -302,6 +317,12 @@ internal class MartenOverrides : IConfigureMarten
                 // ignores any derived shadow of a different type.
                 mapping.Metadata.Revision.Member = mapping.DocumentType.GetProperty(
                     nameof(Saga.Version), typeof(int))!;
+
+                // GH-5345: Wolverine's saga frames stamp Saga.LastModified on every insert and update.
+                // Mapping it onto Marten's own mt_last_modified column as well means a saga loaded from
+                // Marten carries the store's modification time -- which also backfills sagas written
+                // before 7.0, whose JSON has no LastModified at all.
+                mapping.Metadata.LastModified.Member = typeof(Saga).GetProperty(nameof(Saga.LastModified))!;
             }
         });
     }
@@ -312,6 +333,7 @@ internal class MartenOverrides<T> : MartenOverrides, IConfigureMarten<T> where T
     protected override Type? StoreType => typeof(T);
 }
 
+[Obsolete("Use Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding; this type will be removed in Wolverine 8.0")]
 public interface IEventForwarding
 {
     /// <summary>
@@ -322,17 +344,14 @@ public interface IEventForwarding
     EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull;
 }
 
-public class EventForwardingTransform<TSource> where TSource : notnull
+/// <summary>
+/// GH-5514: kept for compatibility. It is a <see cref="Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform{TSource}" />, so
+/// the value <see cref="MartenIntegration.SubscribeToEvent{T}" /> returns can be used as the core type already.
+/// </summary>
+[Obsolete("Use Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<TSource>; this type will be removed in Wolverine 8.0")]
+public class EventForwardingTransform<TSource> : Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<TSource> where TSource : notnull
 {
-    private readonly EventForwardingRouter _eventRouter;
-
-    internal EventForwardingTransform(EventForwardingRouter eventRouter)
+    internal EventForwardingTransform(EventForwardingRouter eventRouter) : base(eventRouter)
     {
-        _eventRouter = eventRouter;
-    }
-
-    public void TransformedTo<TDestination>(Func<IEvent<TSource>, TDestination> transformer)
-    {
-        _eventRouter.CompleteTransformation(transformer);
     }
 }

@@ -183,6 +183,11 @@ public class DeliveryOptions
         {
             envelope.RoutingInformation = RoutingInformation;
         }
+
+        if (StartsNewLinkedTrace)
+        {
+            envelope.StartsNewLinkedTrace = true;
+        }
     }
 
     /// <summary>
@@ -203,6 +208,8 @@ public class DeliveryOptions
     /// Partition Key when sending via Kafka
     /// </summary>
     public string? PartitionKey { get; set; }
+
+    public bool StartsNewLinkedTrace { get; set; }
 
     /// <summary>
     ///     Add a header key/value pair to the outgoing message

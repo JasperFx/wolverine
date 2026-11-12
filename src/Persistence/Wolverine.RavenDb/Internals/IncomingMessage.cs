@@ -20,6 +20,7 @@ public class IncomingMessage
         Body = envelope.Status == EnvelopeStatus.Handled ? [] : EnvelopeSerializer.Serialize(envelope);
         MessageType = envelope.MessageType!;
         ReceivedAt = envelope.Destination;
+        GroupId = envelope.StoredGroupId;
 
         // GH-5036. A document stored already Handled is kept only for idempotency, and a durability pass
         // deletes it once this has passed
@@ -41,6 +42,11 @@ public class IncomingMessage
     public string MessageType { get; set; } = string.Empty;
     public Uri? ReceivedAt { get; set; }
     public DateTimeOffset? KeepUntil { get; set; }
+
+    /// <summary>
+    /// GH-5167. The envelope's group id, for scheduled message management to query by
+    /// </summary>
+    public string? GroupId { get; set; }
 
     public Envelope Read()
     {

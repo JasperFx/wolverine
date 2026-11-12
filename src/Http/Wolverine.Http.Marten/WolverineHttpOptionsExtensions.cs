@@ -10,14 +10,14 @@ public static class WolverineHttpOptionsExtensions
     /// letting them escape as an unhandled 500, and advertise the 409 in the OpenAPI document.
     ///
     /// <para>
-    /// This is the call a Marten application wants, because it covers <b>both</b> halves:
-    /// everything deriving from <c>JasperFx.ConcurrencyException</c> (<c>EventStreamUnexpectedMaxEventIdException</c>,
-    /// document revision/version violations, <c>SagaConcurrencyException</c>) <b>and</b>
-    /// <see cref="global::JasperFx.Events.StreamLockedException"/>, which <c>FetchForExclusiveWriting</c>
-    /// throws on a contended stream. Before Marten 10 that was <c>Marten.Exceptions.StreamLockedException</c>,
-    /// which did <b>not</b> derive from <c>ConcurrencyException</c>, and catching only the former silently left
-    /// the exclusive locking path returning 500s. GH-5142: both are now mapped by the core
-    /// <c>MapConcurrencyFailuresToConflict()</c>, so this is the same call under the Marten name.
+    /// GH-5459: Marten 10 throws the shared JasperFx.Events exception types, so this is the core
+    /// <c>MapConcurrencyFailuresToConflict()</c> under the Marten name: everything deriving from
+    /// <c>JasperFx.ConcurrencyException</c> (<c>EventStreamUnexpectedMaxEventIdException</c>, document
+    /// revision/version violations, <c>SagaConcurrencyException</c> and, since JasperFx 3.0,
+    /// <see cref="global::JasperFx.Events.StreamLockedException"/>) plus
+    /// <see cref="global::JasperFx.Events.ExistingStreamIdCollisionException"/>. Before Marten 10,
+    /// <c>Marten.Exceptions.StreamLockedException</c> did <b>not</b> derive from <c>ConcurrencyException</c>,
+    /// and catching only the latter silently left the exclusive locking path returning 500s.
     /// </para>
     ///
     /// <para>
@@ -39,8 +39,8 @@ public static class WolverineHttpOptionsExtensions
     {
         filter ??= ConflictMapping.IsTransactional;
 
-        // GH-5142: the core mapping catches JasperFx.Events.StreamLockedException, which is what Marten 10
-        // throws from FetchForExclusiveWriting (marten#5858), so no Marten-specific catch is registered any more.
+        // GH-5142 / GH-5459: Marten 10 throws the JasperFx.Events exception types, which the core mapping
+        // catches, so no Marten-specific catch is registered.
         options.MapConcurrencyFailuresToConflict(filter, toProblemDetails);
     }
 

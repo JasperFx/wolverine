@@ -940,7 +940,9 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public IDeadLetters DeadLetters => this;
-    public IScheduledMessages ScheduledMessages => Main.ScheduledMessages;
+    // GH-5167. ScheduledMessageQuery.TenantId routes to the tenant's database; without one, scheduled message
+    // management works against the main database as it always has
+    public IScheduledMessages ScheduledMessages => new TenantRoutedScheduledMessages(this);
     public INodeAgentPersistence Nodes => this;
 
     // Multi-tenant store delegates dynamic-listener registration to the main
@@ -1390,5 +1392,81 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         {
             _reassigned.AddRange(reassigns);
         }
+    }
+}
+
+/// <summary>
+/// GH-5167. Scheduled message management for a multi-tenanted message store: a query that names a tenant goes
+/// to that tenant's database, anything else to the main database
+/// </summary>
+internal class TenantRoutedScheduledMessages : IScheduledMessages
+{
+    private readonly MultiTenantedMessageStore _parent;
+
+    public TenantRoutedScheduledMessages(MultiTenantedMessageStore parent)
+    {
+        _parent = parent;
+    }
+
+    private async ValueTask<(IScheduledMessages, ScheduledMessageQuery)> routeAsync(ScheduledMessageQuery query)
+    {
+        if (query.TenantId.IsEmpty()) return (_parent.Main.ScheduledMessages, query);
+
+        var database = await _parent.GetDatabaseAsync(query.TenantId);
+
+        // The tenant's database is the tenant scope, so the tenant store need not filter by it again
+        return (database.ScheduledMessages, new ScheduledMessageQuery
+        {
+            PageNumber = query.PageNumber,
+            PageSize = query.PageSize,
+            MessageType = query.MessageType,
+            ExecutionTimeFrom = query.ExecutionTimeFrom,
+            ExecutionTimeTo = query.ExecutionTimeTo,
+            MessageIds = query.MessageIds,
+            SagaId = query.SagaId,
+            GroupId = query.GroupId,
+            QueryId = query.QueryId
+        });
+    }
+
+    public async Task<ScheduledMessageResults> QueryAsync(ScheduledMessageQuery query, CancellationToken token)
+    {
+        var (store, routed) = await routeAsync(query);
+        return await store.QueryAsync(routed, token);
+    }
+
+    public async Task CancelAsync(ScheduledMessageQuery query, CancellationToken token)
+    {
+        var (store, routed) = await routeAsync(query);
+        await store.CancelAsync(routed, token);
+    }
+
+    public Task RescheduleAsync(Guid envelopeId, DateTimeOffset newExecutionTime, CancellationToken token)
+    {
+        return _parent.Main.ScheduledMessages.RescheduleAsync(envelopeId, newExecutionTime, token);
+    }
+
+    public async Task RescheduleAsync(ScheduledMessageQuery query, DateTimeOffset newExecutionTime,
+        CancellationToken token)
+    {
+        ScheduledMessageSagaFilter.AssertHasCriteria(query);
+        var (store, routed) = await routeAsync(query);
+
+        // Naming only the tenant leaves the routed query with no criteria, which means every scheduled message
+        // in the tenant's database: name them by id for the tenant store
+        if (!routed.HasCriteria)
+        {
+            var all = await store.QueryAsync(new ScheduledMessageQuery { PageSize = 0 }, token);
+            if (all.Messages.Count == 0) return;
+
+            routed = new ScheduledMessageQuery { MessageIds = all.Messages.Select(x => x.Id).ToArray() };
+        }
+
+        await store.RescheduleAsync(routed, newExecutionTime, token);
+    }
+
+    public Task<IReadOnlyList<ScheduledMessageCount>> SummarizeAsync(string serviceName, CancellationToken token)
+    {
+        return _parent.Main.ScheduledMessages.SummarizeAsync(serviceName, token);
     }
 }

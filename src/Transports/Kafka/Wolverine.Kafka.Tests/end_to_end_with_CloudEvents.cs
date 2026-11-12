@@ -29,7 +29,6 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                //opts.EnableAutomaticFailureAcks = false;
                 opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.RegisterMessageType(typeof(ColorMessage), CloudEventsKafkaTestConstants.ColorMessageTypeAlias);
                 opts.ListenToKafkaTopic("cloudevents").InteropWithCloudEvents();

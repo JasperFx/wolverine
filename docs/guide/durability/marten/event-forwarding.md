@@ -180,6 +180,29 @@ public static Task HandleAsync(SecondMessage message, IDocumentSession session)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L223-L229' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: tip Store-agnostic event forwarding <Badge type="tip" text="7.0" />
+`MartenIntegration`, `PolecatIntegration` and `FisherIntegration` all implement the core
+`Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding`, so code that sets up forwarding transformations can
+be written once and applied to any of the three stores:
+
+```cs
+using IEventForwarding = Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding;
+
+public static void ForwardSecondEvents(IEventForwarding forwarding)
+{
+    forwarding.SubscribeToEvent<SecondEvent>()
+        .TransformedTo(e => new SecondMessage(e.StreamId, e.Sequence));
+}
+
+// Marten, Polecat or Fisher alike
+services.AddMarten(connectionString).IntegrateWithWolverine(x => ForwardSecondEvents(x));
+```
+
+Each store's own `IEventForwarding` and `EventForwardingTransform<T>` (in `Wolverine.Marten`, `Wolverine.Polecat` and
+`Wolverine.Fisher`) are `[Obsolete]` in 7.0 and will be removed in 8.0. Until then, those namespaces still carry the
+old names, so refer to the core interface through a `using` alias as above.
+:::
+
 ## Overriding Side-Effect Message Metadata <Badge type="tip" text="5.x" />
 
 When a Marten projection publishes a Wolverine message from `RaiseSideEffects` via `slice.PublishMessage(...)`, the resulting Wolverine envelope is built by an internal `MessageContext` that has no inherent knowledge of the originating event's metadata. By default the outgoing message ends up with no correlation id, no causation id, and an envelope-level conversation id rooted at its own envelope id — which means the chain Event A → side-effect command → Event B does not naturally share a correlation id.

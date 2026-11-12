@@ -35,7 +35,6 @@ public class Bug_5116_dead_letter_recovery_with_a_disposed_store : IAsyncLifetim
             {
                 opts.ServiceName = "Gh5116";
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.EnableAutomaticFailureAcks = false;
 
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "gh5116_rabbit");
 

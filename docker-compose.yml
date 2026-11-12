@@ -115,6 +115,12 @@ services:
       - "6650:6650"
       - "8080:8080"
     command: bin/pulsar standalone
+    # Fresh standalone state on every start. Standalone records its bookie under the container's IP;
+    # a restarted container gets a new IP on the compose network, the broker then cannot reach its
+    # own bookie ("Bookie handle is not available") and exits a minute after starting. A test broker
+    # has nothing worth keeping across restarts.
+    tmpfs:
+      - /pulsar/data
 
   localstack:
     image: localstack/localstack:4

@@ -151,7 +151,9 @@ Detection is based on two signals:
 
 When either condition is true, Wolverine applies the equivalent of "lightweight mode":
 external transports are stubbed out, durability agents are disabled, and the durability
-mode is set to `MediatorOnly`.
+mode is set to `MediatorOnly`. Recurring messages registered with `opts.Schedules` do not stop
+these commands: no recurring agent runs, and the startup refusal of schedules in `MediatorOnly`
+mode is skipped.
 
 If you need to explicitly disable persistence initialization for other tooling (e.g., your own
 OpenAPI generation pipeline), you can use the `DisableAllWolverineMessagePersistence()` extension:
@@ -522,7 +524,7 @@ same guards apply to every one of them, and a slice joined on an earlier key is 
 
 ### One message, several modules
 
-In a modular monolith running `MultipleHandlerBehavior.Separated`, every module's handler of the same message is
+In a modular monolith, every module's handler of the same message is
 its own chain, and each gets its own slice. A message with a single handler keeps its bare name; a message with
 several gets one slice per handler, named for its **domain** — `OrderPlaced (Billing)`, `OrderPlaced (Shipping)` —
 or, when no domain is declared, for its handler type: `OrderPlaced (MyApp.Billing.OrderPlacedHandler)`.

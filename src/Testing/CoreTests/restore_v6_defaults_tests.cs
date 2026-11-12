@@ -1,3 +1,5 @@
+using JasperFx;
+using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using Shouldly;
 using Wolverine;
@@ -46,6 +48,36 @@ public class restore_v6_defaults_tests
             ["`DurabilitySettings.CompressAgentCommands`"] = (
                 o => o.Durability.CompressAgentCommands.ShouldBeTrue(),
                 o => o.Durability.CompressAgentCommands.ShouldBeFalse()),
+            // GH-5520
+            ["`WolverineOptions.EnableRelayOfUserName`"] = (
+                o => o.EnableRelayOfUserName.ShouldBeTrue(),
+                o => o.EnableRelayOfUserName.ShouldBeFalse()),
+            // GH-5523. Wolverine hosts only, Production profile only; resolved the way UseWolverine() resolves it
+            ["`JasperFxOptions.Production.GeneratedCodeMode` / `AssertAllPreGeneratedTypesExist` (Wolverine hosts)"] = (
+                o => assertProductionProfile(o, TypeLoadMode.Static, true),
+                o => assertProductionProfile(o, TypeLoadMode.Dynamic, false)),
+
+            // GH-5519
+            ["`DurabilitySettings.AlwaysMakeScheduledMessagesDurable`"] = (
+                o => o.Durability.AlwaysMakeScheduledMessagesDurable.ShouldBeTrue(),
+                o => o.Durability.AlwaysMakeScheduledMessagesDurable.ShouldBeFalse()),
+            ["`DurabilitySettings.EnableInboxPartitioning`"] = (
+                o => o.Durability.EnableInboxPartitioning.ShouldBeTrue(),
+                o => o.Durability.EnableInboxPartitioning.ShouldBeFalse()),
+            ["`DurabilitySettings.DeadLetterQueueExpirationEnabled`"] = (
+                o => o.Durability.DeadLetterQueueExpirationEnabled.ShouldBeTrue(),
+                o => o.Durability.DeadLetterQueueExpirationEnabled.ShouldBeFalse()),
+            ["`DurabilitySettings.InboxStaleTime` / `OutboxStaleTime`"] = (
+                o =>
+                {
+                    o.Durability.InboxStaleTime.ShouldBe(TimeSpan.FromHours(1));
+                    o.Durability.OutboxStaleTime.ShouldBe(TimeSpan.FromHours(1));
+                },
+                o =>
+                {
+                    o.Durability.InboxStaleTime.ShouldBeNull();
+                    o.Durability.OutboxStaleTime.ShouldBeNull();
+                }),
 
             // e.g.
             // ["`WolverineOptions.Something`"] = (
@@ -76,6 +108,22 @@ public class restore_v6_defaults_tests
         if (!restoreFirst) options.RestoreV6Defaults();
 
         options.Durability.AlwaysProvisionOptionalSchemaObjects.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    public void an_explicit_EnableRelayOfUserName_wins_over_RestoreV6Defaults(bool restoreFirst, bool relay)
+    {
+        // GH-5520: whichever order the two are called in
+        var options = new WolverineOptions();
+        if (restoreFirst) options.RestoreV6Defaults();
+        options.EnableRelayOfUserName = relay;
+        if (!restoreFirst) options.RestoreV6Defaults();
+
+        options.EnableRelayOfUserName.ShouldBe(relay);
     }
 
     [Fact]
@@ -143,6 +191,19 @@ public class restore_v6_defaults_tests
         options.RestoreV6Defaults();
 
         options.DefaultSerializer.ShouldBeSameAs(before);
+    }
+
+    private static void assertProductionProfile(WolverineOptions options, TypeLoadMode mode, bool assertion)
+    {
+        // This process is a test host, where the default is otherwise deliberately skipped
+        options.ApplyProductionCodeGenerationUnderTestRunner = true;
+
+        var jasperfx = new JasperFxOptions();
+        WolverineOptions.MarkProductionCodeGenerationUnset(jasperfx);
+        options.ResolveProductionCodeGeneration(jasperfx, assertionBefore: false);
+
+        jasperfx.Production.GeneratedCodeMode.ShouldBe(mode);
+        jasperfx.Production.AssertAllPreGeneratedTypesExist.ShouldBe(assertion);
     }
 
     private static void shouldHold(string setting, string what, Action assertion)

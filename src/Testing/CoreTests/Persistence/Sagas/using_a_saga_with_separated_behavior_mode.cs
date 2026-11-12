@@ -21,7 +21,6 @@ public class using_a_saga_with_separated_behavior_mode
                     .IncludeType(typeof(OtherThingUpdatedHandler));
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var id = Guid.NewGuid();

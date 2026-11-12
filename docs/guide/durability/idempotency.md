@@ -157,7 +157,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.DeduplicationWindow = 24.Hours();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L37-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_message_deduplication' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L37-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_message_deduplication' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -232,7 +232,7 @@ public static class RebuildProjectionHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L58-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_message_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L60-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_message_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and on the publishing side:
@@ -251,7 +251,7 @@ public static ValueTask ScheduleNightlyRebuild(IMessageBus bus, string projectio
     });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L73-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_with_a_deduplication_id' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L75-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_with_a_deduplication_id' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A logical id is a `string` rather than a `Guid` on purpose: it is meant to be legible in the database
@@ -280,7 +280,7 @@ public static class CreateOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L88-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_from_the_message_body' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L90-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_from_the_message_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `ValueSource.Header` reads an envelope header, and `ValueSource.Anything` uses the chain type's
@@ -347,7 +347,7 @@ using var host = await Host.CreateDefaultBuilder()
             .DeduplicateBy(x => $"{x.Sku}|{x.Quantity}");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L105-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deriving_deduplication_ids' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L107-L130' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deriving_deduplication_ids' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -397,7 +397,7 @@ public static class MixedTrafficHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L151-L165' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplication_with_optional_id' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L153-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplication_with_optional_id' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Unkeyed messages on such a handler pay no database round trip at all.
@@ -420,7 +420,7 @@ using var host = await Host.CreateDefaultBuilder()
             chain.MessageType.CanBeCastTo<ICreateCommand>());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L133-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requiring_deduplication_ids_by_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DeduplicationSamples.cs#L135-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requiring_deduplication_ids_by_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The filter is required rather than optional. Applying logical deduplication to *every* handler would
@@ -613,7 +613,7 @@ The claims live in `wolverine_deduplication` rather than as a column on
   conjoined (single-database) tenancy they share the one database. Either way an id is global across
   tenants, so include the tenant in it if two tenants can legitimately use the same one.
 - **Several handlers of one message:** when a message type has more than one handler chain -- one per
-  handler type under `MultipleHandlerBehavior.Separated`, or sticky handlers -- each chain claims the id
+  handler type, or sticky handlers -- each chain claims the id
   for itself (6.52), so one handler running does not make the others discard the message as a duplicate.
   A message type with a single handler chain stores its ids exactly as before.
 - **Fire-and-forget only.** Replaying the *original response* of a deduplicated `InvokeAsync<T>` is

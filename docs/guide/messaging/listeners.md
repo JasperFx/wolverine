@@ -231,18 +231,35 @@ opts.ListenToRabbitQueue("webhooks")
     .WithInMemoryIdempotency(window: 5.Minutes(), maxTracked: 100_000);
 ```
 
-::: tip On by default for native-ack listeners in 7.0
-As of Wolverine 7.0 a `ProcessInParallelWithNativeAcks()` listener gets this guard without asking, with the default
-window and ceiling. Call `WithInMemoryIdempotency(window, maxTracked)` to change them, or `WithoutInMemoryIdempotency()`
-to turn the guard off on that listener. `RestoreV6Defaults()` turns it off for every native-ack listener. Buffered and
-inline listeners still opt in.
-:::
-
 To turn it on everywhere rather than endpoint by endpoint, use a policy:
 
 ```csharp
 opts.Policies.AllListeners(x => x.WithInMemoryIdempotency());
 ```
+
+### In flight versus already processed <Badge type="tip" text="7.0" />
+
+On a `ProcessInParallelWithNativeAcks()` listener the guard tells two kinds of duplicate apart, because they
+need opposite settlements:
+
+* **Already processed.** The message reached a terminal the broker will not undo. The redelivery is
+  acknowledged and dropped, exactly as above.
+* **Still in flight.** The same message is executing right now under its first delivery — the broker
+  redelivered it because a lease lapsed, a channel closed, or a consumer asked for its unacknowledged
+  messages back on the way out. Acknowledging that redelivery would settle the message at the broker
+  underneath the running handler, and a node that then drained or died would lose it. So it is **held,
+  unsettled**: neither acked nor nacked. When the original succeeds, the held copy is acknowledged too,
+  against its own delivery; if the original is handed back to the broker instead, so is the held copy; and if
+  the node goes away first, nothing is settled and the broker redelivers to whoever is left.
+
+Each delivery settles with its own handle, which is the one the broker honours after a redelivery: the new
+RabbitMQ delivery tag on the new channel, the newest SQS receipt handle, the fresh Azure Service Bus lock, the
+new Pub/Sub ack id. On SQS, Azure Service Bus and NATS JetStream the held copy is also the one whose lease
+Wolverine keeps renewing while it waits, so the broker does not keep redelivering it — or, on SQS and Azure
+Service Bus, count those redeliveries towards dead-lettering a message that is being handled fine. Pulsar and
+Redis Streams redeliver the same message id or stream entry, so acknowledging either copy settles both.
+
+`Inline` and `BufferedInMemory` listeners still treat both kinds of duplicate the same way.
 
 ### What it does and does not promise
 
@@ -288,7 +305,7 @@ minutes — and leave `maxTracked` alone unless you are running a flood at a sus
 
 | Mode | Guard |
 | --- | --- |
-| `NativeAck` | ✔️ — the primary use case, and on by default as of 7.0 |
+| `NativeAck` | ✔️ — the primary use case |
 | `BufferedInMemory` | ✔️ |
 | `Inline` | ✔️ |
 | `Durable` | ignored (warns at startup) — the inbox already deduplicates, and does it better |
@@ -304,8 +321,8 @@ Both are also metered <Badge type="tip" text="6.32" />, tagged by endpoint:
 
 | Meter | Answers |
 | --- | --- |
-| `wolverine-duplicates-suppressed` | "Is my redelivery rate normal?" — how many duplicate deliveries this guard has dropped |
-| `wolverine-idempotency-early-rotation` | "Is my window big enough?" — how often the `maxTracked` ceiling forced a rotation *before* the window elapsed |
+| `wolverine.duplicates.suppressed` | "Is my redelivery rate normal?" — how many duplicate deliveries this guard has dropped |
+| `wolverine.idempotency.early_rotation` | "Is my window big enough?" — how often the `maxTracked` ceiling forced a rotation *before* the window elapsed |
 
 The second is the one to alert on. A non-zero and rising count means the early-rotation row in the table
 above is firing, so the effective suppression window is **shorter than the `window` you configured** — the
@@ -349,8 +366,8 @@ delivery again and is going to redeliver it. Wolverine's response depends on whe
 * **Already executing.** A running handler cannot be un-run. This one stays at-least-once — NativeAck's
   documented contract — and Wolverine's only job is to not compound it, so its defer is suppressed too.
 
-Both are metered. `wolverine-leases-lost` is tagged `lease.loss.stage` = `not-started` (duplication prevented)
-or `executing` (duplication realized); `wolverine-leases-renewed` and `wolverine-lease-ceiling-reached` round
+Both are metered. `wolverine.leases.lost` is tagged `lease.loss.stage` = `not-started` (duplication prevented)
+or `executing` (duplication realized); `wolverine.leases.renewed` and `wolverine.lease.ceiling_reached` round
 out the picture. A rising `executing` count means lane depth has outgrown the configured lease — raise the
 lease, raise the slot count, or lower the prefetch.
 :::
@@ -514,7 +531,7 @@ callback. Settings that size or shard that block therefore do nothing on an `Inl
 | `ListenWithStrictOrdering()` / `ListenOnlyAtLeader()` | ✔️ (exclusivity only) | ✔️ | ✔️ | ✔️ |
 | `ExclusiveNodeWithParallelism(n)` | ✔️ exclusivity, parallelism ignored (warns) | ✔️ | ✔️ | ✔️ |
 | `CircuitBreaker()` | ✔️ | ✔️ | ✔️ (a [local queue](/guide/messaging/transports/local#circuit-breakers-on-local-queues) **throws at startup**) | ✔️ |
-| [`WithInMemoryIdempotency()`](#in-memory-idempotency-guard) | ✔️ | ✔️ (on by default in 7.0) | ✔️ | ignored (warns) |
+| [`WithInMemoryIdempotency()`](#in-memory-idempotency-guard) | ✔️ | ✔️ | ✔️ | ignored (warns) |
 
 As of Wolverine 6.30, these combinations are no longer silently accepted:
 

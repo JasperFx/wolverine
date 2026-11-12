@@ -49,6 +49,14 @@ public partial class Envelope
         ReplyUri = agent.ReplyUri?.MaybeCorrectScheme(agent.Destination.Scheme);
     }
 
+    /// <summary>
+    /// GH-5167. The group id a message store keeps for this envelope. A message scheduled for an endpoint without
+    /// native scheduling is stored as a wrapper around the real envelope, and the group id is the real envelope's.
+    /// The wrapper itself carries none, so releasing it is not grouped or sharded under the business identifier.
+    /// </summary>
+    [JsonIgnore]
+    public string? StoredGroupId => GroupId ?? (Message as Envelope)?.GroupId;
+
     internal Envelope(object message, IMessageSerializer writer)
     {
         Message = message;
@@ -227,7 +235,7 @@ public partial class Envelope
     /// Returns the elapsed handler execution time in fractional milliseconds, or -1 if timing
     /// never started. Previously this truncated to whole milliseconds, which — combined with the
     /// callers' "only record positive values" guard — silently dropped every sub-millisecond
-    /// execution and biased the wolverine-execution-time histogram upward for fast handlers
+    /// execution and biased the wolverine.execution.time histogram upward for fast handlers
     /// (GH-3490).
     /// </summary>
     internal double StopTiming()
