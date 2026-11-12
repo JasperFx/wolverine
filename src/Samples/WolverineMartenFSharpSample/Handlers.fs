@@ -16,3 +16,10 @@ type CreateProductHandler =
         session.Store<Product>(product)
         { Id = product.Id }
 // end-snippet
+
+/// Renames a Product. F# cannot apply a generic attribute, so [DocumentExists<Product>] cannot sit
+/// on Handle here; the F# codegen sample (Wolverine.Marten.FSharpTests) applies it to this chain from
+/// a handler policy instead, which exercises the existence check's F# emitter.
+type RenameProductHandler =
+    static member Handle(command: RenameProductCommand, session: IDocumentSession) : unit =
+        session.Store<Product>({ Id = command.ProductId; Name = command.Name })

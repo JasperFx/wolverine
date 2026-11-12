@@ -147,4 +147,31 @@ internal class DocumentExistenceCheckFrame : AsyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var docTypeName = _docType.FSharpName();
+        var existsVar = $"docExists{_id}";
+
+        writer.WriteComment(_mustExist
+            ? $"Verify that {docTypeName} exists"
+            : $"Verify that {docTypeName} does not exist");
+
+        writer.WriteLine(
+            $"let! {existsVar} = {_session!.FSharpUsage}.CheckExistsAsync<{docTypeName}>({_identity.FSharpUsage}, {_cancellation!.FSharpUsage})");
+
+        var msg = _mustExist
+            ? $"No {_docType.Name} with the specified identity exists"
+            : $"A {_docType.Name} with the specified identity already exists";
+
+        // LogWarning is an extension method, so call it through LoggerExtensions: the generated file
+        // does not open Microsoft.Extensions.Logging. The array is the params object[] argument.
+        writer.Write(_mustExist ? $"BLOCK:if not {existsVar} then" : $"BLOCK:if {existsVar} then");
+        writer.Write(
+            $"{typeof(LoggerExtensions).FSharpName()}.{nameof(LoggerExtensions.LogWarning)}({_logger!.FSharpUsage}, \"{_sessionTypes.StoreName} data requirement failure: {{Message}}\", [| box \"{msg}\" |])");
+        writer.Write($"raise ({typeof(RequiredDataMissingException).FSharpName()}(\"{msg}\"))");
+        writer.FinishBlock();
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

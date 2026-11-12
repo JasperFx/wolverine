@@ -12,3 +12,7 @@ type CreateProductCommand = { Name: string }
 
 /// The event cascaded out after the product is stored.
 type ProductCreated = { Id: Guid }
+
+/// The command handled by RenameProductHandler. Its ProductId names the Product that
+/// [DocumentExists<Product>] requires to exist before the handler runs.
+type RenameProductCommand = { ProductId: Guid; Name: string }
