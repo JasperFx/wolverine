@@ -7,6 +7,7 @@ using Shouldly;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.AmazonSqs.Tests;
 
@@ -89,6 +90,8 @@ public class native_ack_mode : IAsyncLifetime
     private readonly string _endToEndQueue = uniqueQueue("native-ack-4050-e2e");
     private readonly string _redeliveryQueue = uniqueQueue("native-ack-4050-redelivery");
     private readonly string _fifoQueue = uniqueQueue("native-ack-4050-fifo") + ".fifo";
+    private readonly string _inFlightDrainQueue = uniqueQueue("native-ack-5533-drain");
+    private readonly string _inFlightSettleQueue = uniqueQueue("native-ack-5533-settle");
 
     private static string uniqueQueue(string prefix)
     {
@@ -110,7 +113,8 @@ public class native_ack_mode : IAsyncLifetime
     }
 
     private static Task<IHost> startHostAsync(string queueName, string nodeName, bool parks = false,
-        int? maxParallelism = null)
+        int? maxParallelism = null, bool idempotency = false, int visibilityTimeoutSeconds = VisibilityTimeoutSeconds,
+        TimeSpan? maximumVisibilityExtension = null)
     {
         return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -123,14 +127,24 @@ public class native_ack_mode : IAsyncLifetime
                 // Bound how long a stop can sit on a lane full of parked handlers
                 opts.Durability.DrainTimeout = 2.Seconds();
 
-                opts.ListenToSqsQueue(queueName, q =>
+                var listener = opts.ListenToSqsQueue(queueName, q =>
                     {
-                        q.VisibilityTimeout = VisibilityTimeoutSeconds;
+                        q.VisibilityTimeout = visibilityTimeoutSeconds;
                         q.WaitTimeSeconds = 1;
                     })
                     .Named(queueName)
                     .ProcessInParallelWithNativeAcks()
                     .MaximumParallelMessages(maxParallelism ?? Math.Max(Environment.ProcessorCount, 5));
+
+                if (idempotency)
+                {
+                    listener.WithInMemoryIdempotency();
+                }
+
+                if (maximumVisibilityExtension.HasValue)
+                {
+                    listener.ExtendVisibilityWhileHandling(maximumVisibilityExtension);
+                }
 
                 // Deliberately NOT SendInline(): the listening and sending sides are the same AmazonSqsQueue
                 // object here, and SendInline() would assign EndpointMode.Inline right back over the mode under
@@ -249,6 +263,103 @@ public class native_ack_mode : IAsyncLifetime
             await waitFor(() => NativeAckSqsTracking.HandledBy("second", 100, 5).Count() >= 5, 90.Seconds());
 
             NativeAckSqsTracking.HandledBy("second", 100, 5).ShouldBe(Enumerable.Range(100, 5));
+        }
+        finally
+        {
+            await secondHost.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    /// <summary>
+    ///     GH-5533. Puts an SQS redelivery in front of the receiver while every original is still parked: the
+    ///     visibility extension ceiling is set so low that Wolverine stops renewing almost at once, the visibility
+    ///     timeout lapses, and SQS hands the same message out again -- with a NEW receipt handle -- to the same
+    ///     listener. The guard holds those redeliveries; this waits until it has held one per message.
+    /// </summary>
+    private static async Task<IHost> startWithInFlightRedeliveriesAsync(string queueName, string nodeName, int count,
+        int start)
+    {
+        var host = await startHostAsync(queueName, nodeName, parks: true, idempotency: true,
+            visibilityTimeoutSeconds: 2, maximumVisibilityExtension: 3.Seconds());
+
+        var bus = host.MessageBus();
+        for (var i = 0; i < count; i++)
+        {
+            await bus.SendAsync(new NativeAckSqsWork(start + i));
+        }
+
+        await waitFor(() => NativeAckSqsTracking.StartedOn(nodeName) >= count, 60.Seconds());
+        NativeAckSqsTracking.StartedOn(nodeName).ShouldBe(count);
+
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        var endpoint = runtime.Endpoints.EndpointByName(queueName).ShouldNotBeNull();
+        var guard = (GenerationalIdempotencyGuard)endpoint.IdempotencyGuard.ShouldNotBeNull();
+
+        await waitFor(() => guard.DuplicatesSuppressed >= count, 60.Seconds());
+        guard.DuplicatesSuppressed.ShouldBeGreaterThanOrEqualTo(count);
+
+        // Held, never run a second time
+        NativeAckSqsTracking.Started.Count(x => x.Node == nodeName).ShouldBe(count);
+
+        return host;
+    }
+
+    /// <summary>
+    ///     GH-5533. With the in-memory idempotency guard on, the redelivery of an in-flight message used to be
+    ///     acknowledged as a duplicate. On SQS that DELETES the message -- the redelivery carries the newest, valid
+    ///     receipt handle -- while its first delivery is still being handled, so a node that then went away lost
+    ///     it. The redelivery is now held unsettled, and SQS makes it visible again once the node is gone.
+    /// </summary>
+    [Fact]
+    public async Task an_in_flight_redelivery_is_not_deleted_so_a_draining_node_still_loses_nothing()
+    {
+        NativeAckSqsTracking.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var firstHost = await startWithInFlightRedeliveriesAsync(_inFlightDrainQueue, "redelivered", 3, 300);
+
+        await firstHost.StopAsync(TestContext.Current.CancellationToken);
+        firstHost.Dispose();
+
+        NativeAckSqsTracking.HandledBy("redelivered", 300, 3).ShouldBeEmpty();
+
+        using var secondHost = await startHostAsync(_inFlightDrainQueue, "after", idempotency: true, visibilityTimeoutSeconds: 2);
+        try
+        {
+            await waitFor(() => NativeAckSqsTracking.HandledBy("after", 300, 3).Count() >= 3, 90.Seconds());
+            NativeAckSqsTracking.HandledBy("after", 300, 3).ShouldBe(Enumerable.Range(300, 3));
+        }
+        finally
+        {
+            await secondHost.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    /// <summary>
+    ///     GH-5533. The other half: once the original succeeds, the held redelivery is deleted with ITS receipt
+    ///     handle -- the newest, which is the one SQS honours -- and its visibility was kept extended in the
+    ///     meantime, so nothing comes back for the next consumer.
+    /// </summary>
+    [Fact]
+    public async Task an_in_flight_redelivery_is_deleted_with_its_own_receipt_handle_once_the_original_succeeds()
+    {
+        NativeAckSqsTracking.Block = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var firstHost = await startWithInFlightRedeliveriesAsync(_inFlightSettleQueue, "settling", 3, 400);
+
+        NativeAckSqsTracking.Block.TrySetResult();
+        await waitFor(() => NativeAckSqsTracking.HandledBy("settling", 400, 3).Count() >= 3, 30.Seconds());
+        NativeAckSqsTracking.HandledBy("settling", 400, 3).ShouldBe(Enumerable.Range(400, 3));
+
+        await Task.Delay(1.Seconds(), TestContext.Current.CancellationToken);
+        await firstHost.StopAsync(TestContext.Current.CancellationToken);
+        firstHost.Dispose();
+
+        // Anything left unsettled would be visible again well inside this window
+        using var secondHost = await startHostAsync(_inFlightSettleQueue, "leftovers", idempotency: true, visibilityTimeoutSeconds: 2);
+        try
+        {
+            await Task.Delay(8.Seconds(), TestContext.Current.CancellationToken);
+            NativeAckSqsTracking.Started.Count(x => x.Node == "leftovers").ShouldBe(0);
         }
         finally
         {
