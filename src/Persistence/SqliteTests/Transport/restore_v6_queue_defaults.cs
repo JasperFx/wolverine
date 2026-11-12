@@ -96,11 +96,11 @@ public class restore_v6_queue_defaults : SqliteContext
                 if (restore && !restoreFirst) opts.RestoreV6Defaults();
 
                 // Isolates the queue tables in the restart test: the envelope storage of a database first built on
-                // the 7.0 layout is a separate question (the 6.x inbox primary key makes SQLite rebuild the table)
+                // the 7.0 layout is a separate question. MessageIdentity is left alone: IdOnly is the default in both
+                // 6.x and 7.0 (GH-5501), and changing it changes the inbox primary key, which SQLite rebuilds the table for
                 if (keepEnvelopeStorageLayout)
                 {
                     opts.Durability.AlwaysProvisionOptionalSchemaObjects = true;
-                    opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination;
                 }
             }).StartAsync(ct);
     }

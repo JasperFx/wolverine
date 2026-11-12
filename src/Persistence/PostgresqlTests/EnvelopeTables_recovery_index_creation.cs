@@ -80,7 +80,9 @@ public class EnvelopeTables_recovery_index_creation : IAsyncLifetime
         const string schemaName = "env_idx_sched_poll";
         await theConnection.ResetSchemaAsync(schemaName, ct: TestContext.Current.CancellationToken);
 
-        var durability = new DurabilitySettings();
+        // The unpartitioned inbox: partitioning is on by default since 7.0 (GH-5519), and a partitioned
+        // inbox keeps Scheduled rows in their own small partition instead
+        var durability = new DurabilitySettings { EnableInboxPartitioning = false };
         var table = new IncomingEnvelopeTable(durability, schemaName);
         await table.ApplyChangesAsync(theConnection, ct: TestContext.Current.CancellationToken);
 

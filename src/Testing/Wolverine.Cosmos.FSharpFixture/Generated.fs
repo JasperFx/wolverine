@@ -63,6 +63,7 @@ type ContinueThingHandler603355368(container: Microsoft.Azure.Cosmos.Container) 
                         // The saga document was changed by another message since it was read
                         raise (Wolverine.SagaConcurrencyException(sprintf "Saga of type WolverineCosmosFSharpSample.ThingSaga and id %O cannot be updated because of optimistic concurrency violations" sagaId, e))
                 else
+                    (thingSaga :> Wolverine.Saga).LastModified <- System.DateTimeOffset.UtcNow
                     try
                         let! _ = _container.UpsertItemAsync(thingSaga, requestOptions = Microsoft.Azure.Cosmos.ItemRequestOptions(IfMatchEtag = thingSaga_Etag))
                         ()
@@ -137,6 +138,7 @@ type StartThingSagaHandler963364493(container: Microsoft.Azure.Cosmos.Container)
                 (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.id", startThingSaga.Id.ToString()) |> ignore
                 (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
             if not (outgoing1.IsCompleted()) then
+                (outgoing1 :> Wolverine.Saga).LastModified <- System.DateTimeOffset.UtcNow
                 try
                     let! _ = _container.CreateItemAsync(outgoing1)
                     ()

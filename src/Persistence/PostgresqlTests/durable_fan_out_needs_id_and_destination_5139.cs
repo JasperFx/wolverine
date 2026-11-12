@@ -148,6 +148,10 @@ public class upgrading_an_id_only_inbox_to_id_and_destination_5139 : IAsyncLifet
             {
                 if (identity.HasValue) opts.Durability.MessageIdentity = identity.Value;
 
+                // Inbox partitioning (on by default since 7.0, GH-5519) adds status to the primary key;
+                // this is about the identity's part of it only
+                opts.Durability.EnableInboxPartitioning = false;
+
                 opts.Discovery.DisableConventionalDiscovery();
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, SchemaName);
             }).StartAsync(TestContext.Current.CancellationToken);

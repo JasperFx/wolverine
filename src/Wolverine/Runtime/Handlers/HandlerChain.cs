@@ -443,7 +443,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
             if (member != null)
             {
-                variable = new MessageMemberVariable(member, MessageType);
+                variable = new FSharpMessageMemberVariable(member, MessageType);
                 return true;
             }
         }
