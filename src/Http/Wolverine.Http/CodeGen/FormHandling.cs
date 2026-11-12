@@ -3,15 +3,87 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
+/// <summary>
+///     Reads the request form with <c>ReadFormAsync</c>. <c>Request.Form</c> parses a form that has not been
+///     read yet synchronously, blocking the request thread while a large multipart upload arrives.
+/// </summary>
+internal class ReadFormCollection : AsyncFrame
+{
+    private Variable? _httpContext;
+
+    public ReadFormCollection()
+    {
+        Variable = new Variable(typeof(IFormCollection), "formCollection", this);
+    }
+
+    public Variable Variable { get; }
+
+    /// <summary>
+    ///     Orders the form read after <paramref name="frame" /> wherever the arranger puts it. A form value's
+    ///     binding never sits in <see cref="IChain.Middleware" />, so this frame is usually reached only through
+    ///     <see cref="FormCollectionSource" />, and JasperFx's <c>MethodFrameArranger</c> inserts a frame it
+    ///     reaches that way at the very front of the method, ahead of the antiforgery check. ASP.NET Core
+    ///     refuses to read the form of a request that failed antiforgery validation and throws instead (a 500),
+    ///     so the read has to follow the check that answers 400.
+    /// </summary>
+    internal void MustFollow(Frame frame)
+    {
+        dependencies.Fill(frame);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _httpContext = chain.FindVariable(typeof(HttpContext));
+        yield return _httpContext;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("Read the form without blocking the request thread");
+        writer.Write(
+            $"var {Variable.Usage} = await {_httpContext!.Usage}.Request.ReadFormAsync({_httpContext.Usage}.RequestAborted).ConfigureAwait(false);");
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("Read the form without blocking the request thread");
+        writer.Write(
+            $"let! {Variable.Usage} = {_httpContext!.FSharpUsage}.Request.ReadFormAsync({_httpContext.FSharpUsage}.RequestAborted)");
+        Next?.GenerateFSharpCode(method, writer);
+    }
+}
+
+/// <summary>
+///     Resolves <see cref="IFormCollection" /> to the chain's one <see cref="ReadFormCollection" />, so form
+///     values, files and an <see cref="IFormCollection" /> parameter all share a single read.
+/// </summary>
+internal class FormCollectionSource : IVariableSource
+{
+    private readonly HttpChain _chain;
+
+    public FormCollectionSource(HttpChain chain)
+    {
+        _chain = chain;
+    }
+
+    public bool Matches(Type type) => type == typeof(IFormCollection);
+
+    public Variable Create(Type type) => _chain.ReadFormCollection.Variable;
+}
+
 internal class ParsedCollectionFormValue : SyncFrame, IReadHttpFrame
 {
     private readonly Type _collectionElementType;
+    private Variable? _form;
 
     public ParsedCollectionFormValue(Type parameterType, string parameterName)
     {
@@ -20,6 +92,12 @@ internal class ParsedCollectionFormValue : SyncFrame, IReadHttpFrame
     }
 
     public HttpElementVariable Variable { get; }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _form = chain.FindVariable(typeof(IFormCollection));
+        yield return _form;
+    }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
@@ -37,11 +115,11 @@ internal class ParsedCollectionFormValue : SyncFrame, IReadHttpFrame
 
         if (_collectionElementType == typeof(string))
         {
-            writer.Write($"{Variable.Usage}.AddRange(httpContext.Request.Form[\"{Variable.Name}\"]);");
+            writer.Write($"{Variable.Usage}.AddRange({_form!.Usage}[\"{Variable.Name}\"]);");
         }
         else
         {
-            writer.Write($"BLOCK:foreach (var {Variable.Name}Value in httpContext.Request.Form[\"{Variable.Name}\"])");
+            writer.Write($"BLOCK:foreach (var {Variable.Name}Value in {_form!.Usage}[\"{Variable.Name}\"])");
 
             // Enums parse case-insensitively, matching the scalar binder
             writer.Write($"BLOCK:if ({ParsingCode.TryParse(_collectionElementType!, $"{Variable.Name}Value", $"var {Variable.Name}ValueParsed")})");
@@ -95,6 +173,7 @@ internal class ParsedCollectionFormValue : SyncFrame, IReadHttpFrame
 internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
 {
     private string? _property;
+    private Variable? _form;
 
     public ParsedArrayFormValue(Type parameterType, string parameterName) 
     {
@@ -111,6 +190,12 @@ internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
 
     public HttpElementVariable Variable { get; }
 
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _form = chain.FindVariable(typeof(IFormCollection));
+        yield return _form;
+    }
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         var elementType = Variable.VariableType.GetElementType();
@@ -118,11 +203,11 @@ internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
         {
             if (Mode == AssignMode.WriteToVariable)
             {
-                writer.Write($"var {Variable.Usage} = httpContext.Request.Form[\"{Variable.Usage}\"].ToArray();");
+                writer.Write($"var {Variable.Usage} = {_form!.Usage}[\"{Variable.Usage}\"].ToArray();");
             }
             else
             {
-                writer.Write($"{_property} = httpContext.Request.Form[\"{Variable.Usage}\"].ToArray();");
+                writer.Write($"{_property} = {_form!.Usage}[\"{Variable.Usage}\"].ToArray();");
             }
         }
         else
@@ -132,7 +217,7 @@ internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
 
             writer.Write($"var {Variable.Usage}_List = new {collectionAlias}();");
             
-            writer.Write($"BLOCK:foreach (var {Variable.Usage}Value in httpContext.Request.Form[\"{Variable.Usage}\"])");
+            writer.Write($"BLOCK:foreach (var {Variable.Usage}Value in {_form!.Usage}[\"{Variable.Usage}\"])");
 
             // Enums parse case-insensitively, matching the scalar binder
             writer.Write($"BLOCK:if ({ParsingCode.TryParse(elementType!, $"{Variable.Usage}Value", $"var {Variable.Usage}ValueParsed")})");

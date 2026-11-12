@@ -33,12 +33,15 @@ namespace Internal.Generated.WolverineHandlers
             }
 
             var tenantIdentifier = new JasperFx.MultiTenancy.TenantId(tenantId);
-            var value = httpContext.Request.Form["value"];
+            // Read the form without blocking the request thread
+            var formCollection = await httpContext.Request.ReadFormAsync(httpContext.RequestAborted).ConfigureAwait(false);
+            Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "Wolverine.Http.Tests.MultiTenancy.TenantedEndpoints").SetTag("http.route", "/tenant/{tenant}/formdata").SetTag("http.request.method", "POST");
+            var value = formCollection["value"];
             
             // The actual HTTP request handler execution
             var result_of_GetTenantIdWithFormData = Wolverine.Http.Tests.MultiTenancy.TenantedEndpoints.GetTenantIdWithFormData(value, tenantIdentifier);
 
-            await WriteString(httpContext, result_of_GetTenantIdWithFormData);
+            await WriteString(httpContext, result_of_GetTenantIdWithFormData, 404);
         }
 
     }

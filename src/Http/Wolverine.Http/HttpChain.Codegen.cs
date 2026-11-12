@@ -72,6 +72,7 @@ public partial class HttpChain
             var loggedType = determineLogMarkerType();
 
             handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
+            handleMethod.Sources.Add(new FormCollectionSource(this));
             handleMethod.Sources.Add(new MessageBusSource(_parent.Options.EnableRelayOfUserName,
                 _parent.ApplyCorrelationIdHeaderToAllEndpoints, _parent.UserNameClaimType));
 
@@ -149,6 +150,24 @@ public partial class HttpChain
         Middleware.Insert(0, tags);
     }
 
+    private void readTheFormAfterTheAntiforgeryCheck()
+    {
+        var tags = Middleware.OfType<TagHttpHandlerFrame>().FirstOrDefault();
+        if (tags != null) ReadFormCollection.MustFollow(tags);
+
+        var check = Middleware.OfType<MethodCall>().FirstOrDefault(x => x.HandlerType == typeof(AntiforgeryValidation));
+        if (check == null) return;
+
+        ReadFormCollection.MustFollow(check);
+
+        // The frame that returns early with the 400
+        var index = Middleware.IndexOf(check);
+        if (index + 1 < Middleware.Count && Middleware[index + 1] is MaybeEndWithResultFrame stop)
+        {
+            ReadFormCollection.MustFollow(stop);
+        }
+    }
+
     internal IEnumerable<Frame> DetermineFrames(GenerationRules rules)
     {
         // Add frames for any writers
@@ -213,6 +232,11 @@ public partial class HttpChain
         // rejected request is the one an operator most wants grouped by route. The tags are constants or read
         // from the HttpContext, so they depend on nothing an earlier frame produces.
         moveSpanTagsToTheFront();
+
+        // GH-5463: the asynchronous form read is usually reached only as a variable, never in Middleware, and the
+        // arranger puts such a frame at the very front of the method. Keep it behind the span tags and the
+        // antiforgery check, where Request.Form used to be read.
+        readTheFormAfterTheAntiforgeryCheck();
 
         // Allow for immutable request types that get overwritten by middleware
         if (RequestBodyVariable != null)
