@@ -48,12 +48,13 @@ public class native_ack_inflight_redelivery_5533 : IAsyncLifetime
 
                 opts.ListenToAzureServiceBusQueue(queueName)
                     .Named(queueName)
-                    // The Service Bus minimum. A delivery count limit well above what these tests produce, so
-                    // repeated lock expiries cannot dead letter a message mid-test
+                    // The Service Bus minimum lock. The emulator's ceiling on delivery count, comfortably above the
+                    // two to four deliveries each message sees here, so repeated lock expiries cannot dead letter a
+                    // message mid-test
                     .ConfigureQueue(q =>
                     {
                         q.LockDuration = 5.Seconds();
-                        q.MaxDeliveryCount = 100;
+                        q.MaxDeliveryCount = 10;
                     })
                     .ProcessInParallelWithNativeAcks()
                     .WithInMemoryIdempotency();
