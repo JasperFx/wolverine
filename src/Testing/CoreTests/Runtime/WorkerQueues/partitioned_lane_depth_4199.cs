@@ -6,6 +6,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Stub;
@@ -23,6 +24,8 @@ namespace CoreTests.Runtime.WorkerQueues;
 /// </summary>
 public class partitioned_lane_depth_4199 : IAsyncLifetime
 {
+    private const int MessageCount = 60;
+
     private IHost _host = null!;
     private WolverineRuntime theRuntime = null!;
 
@@ -58,21 +61,18 @@ public class partitioned_lane_depth_4199 : IAsyncLifetime
         {
             // Every message carries the SAME group id, so the partitioner routes all of them to one slot.
             var flood = Task.Run(() => agent.EnqueueDirectlyAsync(
-                    Enumerable.Range(0, 60).Select(_ => pingFor("one-hot-group")).ToArray()),
+                    Enumerable.Range(0, MessageCount).Select(_ => pingFor("one-hot-group")).ToArray()),
                 TestContext.Current.CancellationToken);
 
-            await waitUntil(() => snapshotFor(agent.Uri).BusiestLaneCount > 1,
-                "the partitioned listener never reported a busiest-lane depth");
+            var snapshot = await waitForEveryMessageToReachALaneAsync(agent);
 
-            var snapshot = snapshotFor(agent.Uri);
-
+            snapshot.QueueCount.ShouldBe(MessageCount);
             snapshot.LaneCount.ShouldBe(5);
 
-            // The assertion the aggregate could never make: nearly everything is in ONE lane.
+            // The assertion the aggregate could never make: everything is in ONE lane.
             snapshot.BusiestLaneCount.ShouldNotBeNull();
-            snapshot.BusiestLaneCount.Value.ShouldBeGreaterThan(1);
-            snapshot.BusiestLaneCount!.Value.ShouldBeGreaterThan(snapshot.QueueCount / 5,
-                "All of these messages share a group id, so the busiest lane must hold far more than an even share.");
+            snapshot.BusiestLaneCount.Value.ShouldBe(snapshot.QueueCount,
+                "All of these messages share a group id, so the busiest lane must hold every one of them.");
 
             gate.SetResult();
             await flood;
@@ -97,19 +97,26 @@ public class partitioned_lane_depth_4199 : IAsyncLifetime
 
         try
         {
-            var flood = Task.Run(() => agent.EnqueueDirectlyAsync(
-                    Enumerable.Range(0, 60).Select(i => pingFor("group-" + i)).ToArray()),
-                TestContext.Current.CancellationToken);
+            var pings = Enumerable.Range(0, MessageCount).Select(i => pingFor("group-" + i)).ToArray();
 
-            await waitUntil(() => snapshotFor(agent.Uri).QueueCount > 5,
-                "the partitioned listener never took on any depth");
+            // The slot hash is deterministic, so the depth of the deepest lane is known before anything is sent
+            var expectedBusiest = pings
+                .GroupBy(x => x.SlotForProcessing(5, theRuntime.Options.MessagePartitioning))
+                .Max(x => x.Count());
 
-            var snapshot = snapshotFor(agent.Uri);
+            // Guard against a vacuous control: if these group ids all hashed to one slot this would prove nothing
+            expectedBusiest.ShouldBeLessThan(MessageCount);
 
-            // Distinct group ids hash across the slots, so no single lane holds the whole load.
-            snapshot.BusiestLaneCount.ShouldNotBeNull();
-            snapshot.BusiestLaneCount.Value.ShouldBeLessThan(snapshot.QueueCount,
-                "With 60 distinct group ids no single lane should hold everything -- if it does, this is the aggregate wearing a different name.");
+            var flood = Task.Run(() => agent.EnqueueDirectlyAsync(pings), TestContext.Current.CancellationToken);
+
+            var snapshot = await waitForEveryMessageToReachALaneAsync(agent);
+
+            snapshot.QueueCount.ShouldBe(MessageCount);
+
+            // Distinct group ids hash across the slots, so no single lane holds the whole load -- and the number
+            // reported is the deepest lane itself, not the sum.
+            snapshot.BusiestLaneCount.ShouldBe(expectedBusiest,
+                $"With {MessageCount} distinct group ids no single lane should hold everything -- if it does, this is the aggregate wearing a different name.");
 
             gate.SetResult();
             await flood;
@@ -169,6 +176,37 @@ public class partitioned_lane_depth_4199 : IAsyncLifetime
 
         await theRuntime.Endpoints.StartListenerAsync(endpoint, CancellationToken.None);
         return theRuntime.Endpoints.FindListeningAgent(endpoint.Uri).ShouldNotBeNull();
+    }
+
+    /// <summary>
+    /// Waits for a STATE, not for time. A partitioned NativeAck receiver puts an ordered deserialization stage in
+    /// front of its lanes -- the group id, and so the lane, is only known once the message is deserialized -- and
+    /// QueueCount counts that stage too, because its messages are work not yet finished. While it is still
+    /// draining, the snapshot honestly reports most of the load as queued but not yet in any lane, so a snapshot
+    /// taken the moment the first lane shows any depth (what this test used to do) could read 2 of 60 in the hot
+    /// lane on a loaded machine. The handler is gated, so nothing leaves a lane: once every message is in one and
+    /// the upstream stage is empty, the snapshot is stable and the assertions are exact.
+    /// </summary>
+    private async Task<EndpointHealthSnapshot> waitForEveryMessageToReachALaneAsync(IListeningAgent agent)
+    {
+        var receiver = receiverOf(agent).Unwrap().ShouldBeOfType<NativeAckReceiver>();
+        var lanes = (ShardedExecutionBlock)typeof(NativeAckReceiver)
+            .GetField("_sharded", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(receiver).ShouldNotBeNull();
+
+        EndpointHealthSnapshot? snapshot = null;
+        await waitUntil(() =>
+            {
+                if (lanes.Count != MessageCount) return false;
+
+                // Read after the lanes are full: an item is briefly counted by both the stage handing it on and the
+                // lane receiving it, so the total settles at MessageCount only once the upstream stage is empty
+                snapshot = snapshotFor(agent.Uri);
+                return snapshot.QueueCount == MessageCount;
+            },
+            $"Not every one of the {MessageCount} messages reached a partition lane");
+
+        return snapshot!;
     }
 
     private EndpointHealthSnapshot snapshotFor(Uri uri)
