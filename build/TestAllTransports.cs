@@ -6,7 +6,7 @@ using Serilog;
 partial class Build
 {
     Target TestAllTransports => _ => _
-        .DependsOn(Compile, DockerUp)
+        .DependsOn(Compile, FreshContainers, DockerUp)
         .ProceedAfterFailure()
         .Executes(() =>
         {

@@ -218,6 +218,8 @@ partial class Build
             WaitForLocalStackToBeReady();
         if (services.Contains("asb-emulator"))
             WaitForAzureServiceBusEmulatorToBeReady();
+        if (services.Contains("asb-emulator-2"))
+            WaitForAzureServiceBusEmulatorToBeReady("asb-emulator-2", 5674, 5301);
         if (services.Contains("kafka"))
             WaitForKafkaToBeReady();
         if (services.Contains("gcp-pubsub"))
@@ -609,24 +611,25 @@ partial class Build
     /// 2.0.1, which warms up more slowly. CI pulls fresh every run and gets 2.0.1; a developer machine
     /// keeps whatever it pulled months ago. The images are pinned now for exactly that reason.</para>
     /// </summary>
-    void WaitForAzureServiceBusEmulatorToBeReady()
+    void WaitForAzureServiceBusEmulatorToBeReady(string composeService = "asb-emulator", int amqpPort = 5673,
+        int managementPort = 5300)
     {
         using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
 
         // Any management request will do. While warming, the emulator answers 503 to all of them; once warm
         // it answers something else (200/400/401 depending on auth and api-version), so readiness does not
         // depend on getting the ATOM api-version right here.
-        const string managementProbe = "http://localhost:5300/$Resources/topics";
+        var managementProbe = $"http://localhost:{managementPort}/$Resources/topics";
 
         // Deliberately fatal, via the same shared path as every other gate. This used to log a warning
         // and carry on, so an emulator that never came up at all still fed the entire suite into a
         // broker that could not serve it — and the resulting failures read as flaky tests rather than
         // as infrastructure that never started.
-        awaitService("Azure Service Bus emulator", "asb-emulator", TimeSpan.FromMinutes(3), () =>
+        awaitService(composeService == "asb-emulator" ? "Azure Service Bus emulator" : $"Azure Service Bus emulator ({composeService})", composeService, TimeSpan.FromMinutes(3), () =>
         {
             using (var tcpClient = new System.Net.Sockets.TcpClient())
             {
-                tcpClient.Connect("localhost", 5673);
+                tcpClient.Connect("localhost", amqpPort);
             }
 
             var response = http.GetAsync(managementProbe).GetAwaiter().GetResult();
@@ -635,7 +638,7 @@ partial class Build
             // answers 200; asserting 200 would hang for the whole budget and then fail the job. This
             // distinction cost a day to find — do not tighten it.
             return response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable
-                ? "the management api on 5300 is still warming up (503)"
+                ? $"the management api on {managementPort} is still warming up (503)"
                 : null;
         });
     }
@@ -853,11 +856,10 @@ partial class Build
 
     void runSqlServerShard(Func<WorkerTest, bool> testFilter)
     {
-        // SQL Server's boot is one of the slower container starts; overlap it with the compile
-        // instead of paying the two serially.
-        LaunchDockerServices("sqlserver");
+        // This run owns SQL Server, so it starts it fresh (GH-5532). That waits until the recreated
+        // server answers, so it no longer overlaps the compile; a reused server costs nothing.
         BuildTestProjects(SqlServerTests);
-        AwaitDockerServices("sqlserver");
+        StartServicesFresh("sqlserver");
 
         // The sibling databases the multi-tenancy and NSB dedicated-db suites create are lane-scoped via
         // LaneDatabases.Name, so lanes cannot collide on them.
@@ -1856,7 +1858,8 @@ partial class Build
         // Postgres is needed for leader election tests. Started for every shard rather than only the
         // one holding leader_election: durability-backed tests are spread across all three, and the
         // container is cheap next to the emulator's warm-up.
-        StartDockerServices("asb-emulator", "postgresql");
+        // This run owns the emulators, so it starts both pairs fresh (GH-5532).
+        StartServicesFresh("asb-emulator", "postgresql");
 
         RunTestProject(tests, testFilter: testFilter);
     }
@@ -1938,7 +1941,8 @@ partial class Build
     void runPolecatShard(Func<WorkerTest, bool> testFilter)
     {
         BuildTestProjectsWithFramework("net10.0", PolecatTests);
-        StartDockerServices("sqlserver");
+        // PolecatTests owns SQL Server for the run, so it starts it fresh (GH-5532).
+        StartServicesFresh("sqlserver");
 
         RunTestProject(PolecatTests, frameworkOverride: "net10.0", testFilter: testFilter);
     }

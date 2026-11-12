@@ -174,6 +174,45 @@ worktree's stack was running. Now every worktree on the box shares whichever sta
 Bringing a stack down is the box owner's call, not a gate's: `docker compose down` in one worktree
 stops only that worktree's containers, but other worktrees may be using them.
 
+### Fresh starts: SQL Server and the Azure Service Bus emulator (GH-5532)
+
+Both pile up state on a box where they live for days: the emulator's SQL backend slowed the ASB suite
+to about 2 minutes per test, and a 5-day-old SQL Server with hundreds of leftover schemas sat at 300%
+CPU. So a run that **owns** one of them starts it fresh: `docker compose -p wolverine up -d
+--force-recreate --renew-anon-volumes <services>`, then the usual readiness probes, before its first
+test (`StartServicesFresh` in `build/FreshContainers.cs`).
+
+| Target | Starts fresh |
+|--------|--------------|
+| `CISqlServer`, `CISqlServerTransport` | `sqlserver` |
+| `CIPolecat*` shards | `sqlserver` |
+| `CIAzureServiceBus`, `CIAzureServiceBusLeader`, `CIAzureServiceBusRouting` | `asb-sql`, `asb-emulator`, `asb-sql-2`, `asb-emulator-2` |
+| `TestAllPersistence` | `sqlserver` (through the `FreshContainers` target, before `DockerUp`) |
+| `TestAllTransports` | the four ASB containers (same) |
+| `LocalGate` / `LocalGateSuites` | whichever of the two the selected suites need (any suite with `sqlserver` or `asb-emulator` among its compose services, lanes included), once, after the build and before any unit provisions a database |
+
+Nothing else starts anything fresh: not `DockerUp` (plenty of targets that do not own these services
+depend on it), not the other CI targets that merely use SQL Server, and never a plain `dotnet test`.
+It happens once per service per build, at the start, never mid-run. And it is skipped, with a warning
+and the service reused as it is, when:
+
+- **`--no-fresh-containers`** is passed, or `WOLVERINE_NO_FRESH_CONTAINERS=1` is set: for a developer
+  who wants to keep their data.
+- **Someone is using it.** SQL Server has a session from another client process (a running test host
+  keeps its pooled connections open), or a `Wolverine.AzureServiceBus.Tests` process is running. Every
+  Stoat worker on the box shares the `wolverine-*` containers, and recreating one under another run's
+  tests fails them.
+- **It is not this compose project's container**: another repository's container holding the port.
+- **Another run started it fresh within the last 10 minutes.**
+
+Two runs cannot recreate the same service at once: each holds an exclusive file lock,
+`~/.wolverine/locks/fresh-sqlserver.lock` or `fresh-asb.lock`, through the recreate and the readiness
+wait (a second run waits up to 15 minutes for it). The OS releases it if the build dies. The lock file
+also records when the service was last started fresh, which is what the 10 minute rule reads.
+
+Recreating SQL Server drops every database on it, `wolverine_w0..N-1` lanes included; the runs that
+use them create them after the fresh start, as they always have.
+
 ## Running suites side by side
 
 For Stoat's resource declarations (JasperFx/stoat#101):
