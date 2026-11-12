@@ -195,7 +195,9 @@ public partial class WolverineRuntime
                 // "Silently never fires" is not a degradation, it is a refusal: these modes run no
                 // agents at all, so a registered schedule would be accepted and then simply never
                 // happen — the exact class of quiet failure the recurring feature exists to avoid.
-                if (Options.Durability.Mode is DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox or DurabilityMode.MediatorOnly)
+                // A lightweight run (codegen, describe, OpenAPI generation) is exempt: Wolverine forced
+                // MediatorOnly on it, not the application, and it never runs the schedules anyway.
+                if (!Options.LightweightMode && Options.Durability.Mode is DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox or DurabilityMode.MediatorOnly)
                 {
                     var names = Options.Schedules.Select(x => x.Name).Join(", ");
                     throw new InvalidOperationException(

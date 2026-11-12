@@ -151,7 +151,9 @@ Detection is based on two signals:
 
 When either condition is true, Wolverine applies the equivalent of "lightweight mode":
 external transports are stubbed out, durability agents are disabled, and the durability
-mode is set to `MediatorOnly`.
+mode is set to `MediatorOnly`. Recurring messages registered with `opts.Schedules` do not stop
+these commands: no recurring agent runs, and the startup refusal of schedules in `MediatorOnly`
+mode is skipped.
 
 If you need to explicitly disable persistence initialization for other tooling (e.g., your own
 OpenAPI generation pipeline), you can use the `DisableAllWolverineMessagePersistence()` extension:
