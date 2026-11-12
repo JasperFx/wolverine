@@ -49,7 +49,9 @@ internal class SagaPersistenceChainPolicy : IChainPolicy
             {
                 chain.AddDependencyType(serviceType);
 
-                saga.UseReturnAction(v => provider.DetermineInsertFrame(v, container),
+                // GH-5345: stamp Saga.LastModified ahead of the provider's insert, like the saga chain does
+                saga.UseReturnAction(
+                    v => new StampSagaLastModifiedFrame(v, provider.DetermineInsertFrame(v, container), guardNull: true),
                     "Persisting the new Saga entity");
 
                 provider.ApplyTransactionSupport(chain, container);

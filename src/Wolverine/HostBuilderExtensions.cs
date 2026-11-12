@@ -139,6 +139,18 @@ public static class HostBuilderExtensions
         }
 
         services.AddJasperFx();
+
+        // GH-3576: in a Wolverine host, Wolverine owns the application-assembly reuse warning. JasperFx detects
+        // the same divergence one level down and Marten/Polecat/Fisher log JasperFx's copy at startup, so a
+        // host running both used to warn twice -- and JasperFx's copy is a false positive whenever
+        // IHostBuilder.UseWolverine() is registered in one assembly and built in another (jasperfx#1179).
+        // Registered after AddJasperFx() above, so this runs after the PostConfigure that computes JasperFx's
+        // warning and before any store reads it.
+        services.PostConfigure<JasperFxOptions>(options.ClaimApplicationAssemblyReuseWarning);
+
+        // GH-5523 (7.0): pre-generated code by default in the Production profile, for Wolverine hosts only
+        options.ApplyProductionCodeGenerationDefault(services);
+
         services.AddSingleton<MessageStoreCollection>();
 
         // GH-4180. The single service that generated logical-deduplication code resolves, in message

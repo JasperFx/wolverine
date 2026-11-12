@@ -23,7 +23,9 @@ public record Store<T>(T Entity) : ISideEffectAware, IStorageAction<T>
         {
             provider.ApplyTransactionSupport(chain, container, typeof(T));
             var value = new EntityVariable(variable);
-            return provider.DetermineStoreFrame(value, container).WrapIfNotNull(variable);
+            // GH-5345: a saga stored this way gets LastModified like one a saga chain saves
+            return StampSagaLastModifiedFrame.ForStorageAction(typeof(T), value,
+                provider.DetermineStoreFrame(value, container), throughHelper: false).WrapIfNotNull(variable);
         }
 
         throw new NoMatchingPersistenceProviderException(typeof(T));

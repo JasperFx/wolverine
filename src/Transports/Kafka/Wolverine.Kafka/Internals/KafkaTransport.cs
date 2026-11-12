@@ -139,15 +139,6 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        // GH-4522: UseKafka() turns off automatic failure acks and said so nowhere -- not in a log line, not
-        // in the docs. It is one of the answers to "why is this message being redelivered", so state it once
-        // at startup where an operator reading the logs will find it.
-        if (!runtime.Options.EnableAutomaticFailureAcks)
-        {
-            runtime.LoggerFactory.CreateLogger<KafkaTransport>().LogInformation(
-                "Automatic failure acknowledgements are disabled for this application because the Kafka transport is in use. Kafka serialization failures cannot be acknowledged automatically, so a message that fails to deserialize is retried rather than acked and skipped.");
-        }
-
         var namedConnection = runtime.Services.GetService<KafkaNamedConnectionSource>();
         if (namedConnection != null)
         {

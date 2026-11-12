@@ -553,6 +553,18 @@ public void Handle(CompleteOrder complete, ILogger<Order> logger)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L35-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_saga_mark_completed' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Last Modified Time <Badge type="tip" text="7.0" />
+
+Every `Saga` has a `LastModified` property, a `DateTimeOffset` in UTC. Wolverine sets it whenever it inserts or
+updates the saga, whichever storage you use, so you can order saga instances by it or look for the ones that have not
+changed in a long time. It's set by Wolverine's saga persistence, not by your code: a value your handler assigns is
+overwritten on the next save.
+
+Sagas saved before Wolverine 7.0 get a value from the store's own modification timestamp where there is one (Marten's
+`mt_last_modified`, or the lightweight saga table's `last_modified` column on PostgreSQL, SQL Server, MySQL and SQLite),
+and otherwise read back as `default(DateTimeOffset)` until their next update. With EF Core the property is a mapped
+column on your saga entity, so it needs a migration; see the [7.0 migration guide](/guide/migration#saga-lastmodified-is-set-by-every-saga-store).
+
 ## Timeout Messages
 
 You may frequently want to create "timeout" messages as part of a `Saga` to enforce time limitations. This can be done

@@ -48,10 +48,10 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         IdSource = LambdaBuilder.Getter<T, TId>(definition.IdMember);
 
         var quotedSchema = settings.SchemaName.QuoteIdentifier();
-        _insertSql = $"insert into {quotedSchema}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}) values (@id, @body, 1)";
+        _insertSql = $"insert into {quotedSchema}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}, last_modified) values (@id, @body, 1, @last_modified)";
         _updateSql =
-            $"update {quotedSchema}.{definition.TableName} set {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = now() where {DatabaseConstants.Id} = @id and {DatabaseConstants.Version} = @version";
-        _loadSql = $"select body, version from {quotedSchema}.{definition.TableName} where {DatabaseConstants.Id} = @id";
+            $"update {quotedSchema}.{definition.TableName} set {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = @last_modified where {DatabaseConstants.Id} = @id and {DatabaseConstants.Version} = @version";
+        _loadSql = $"select body, version, last_modified from {quotedSchema}.{definition.TableName} where {DatabaseConstants.Id} = @id";
 
         _deleteSql = $"delete from {quotedSchema}.{definition.TableName} where id = @id";
         
@@ -92,6 +92,8 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public async Task InsertAsync(T saga, DbTransaction transaction, CancellationToken cancellationToken)
     {
+        // GH-5345: the storage, not user code, owns LastModified. Set before the body is serialized.
+        saga.LastModified = DateTimeOffset.UtcNow;
         var id = IdSource(saga);
         if (id == null || id.Equals(default(TId))) throw new ArgumentOutOfRangeException(nameof(saga), "You must define the saga id when using the lightweight saga storage");
         
@@ -99,6 +101,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         await transaction.CreateCommand(_insertSql).As<NpgsqlCommand>()
             .With("id", id!)
             .With("body", JsonSerializer.SerializeToUtf8Bytes(saga, _settings.SagaSerializerOptions), NpgsqlDbType.Jsonb)
+            .With("last_modified", saga.LastModified)
             .ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
@@ -106,6 +109,8 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public async Task UpdateAsync(T saga, DbTransaction transaction, CancellationToken cancellationToken)
     {
+        // GH-5345: the storage, not user code, owns LastModified. Set before the body is serialized.
+        saga.LastModified = DateTimeOffset.UtcNow;
         await EnsureStorageExistsAsync(cancellationToken);
 
         var id = IdSource(saga);
@@ -113,6 +118,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
             .With("body", JsonSerializer.SerializeToUtf8Bytes(saga, _settings.SagaSerializerOptions), NpgsqlDbType.Jsonb)
             .With("id", id!)
             .With("version", saga.Version)
+            .With("last_modified", saga.LastModified)
             .ExecuteNonQueryAsync(cancellationToken);
 
         if (count == 0)
@@ -146,6 +152,9 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         var body = await reader.GetFieldValueAsync<byte[]>(0, cancellationToken);
         var saga = JsonSerializer.Deserialize<T>(body, _settings.SagaSerializerOptions);
         saga!.Version = await reader.GetFieldValueAsync<int>(1, cancellationToken);
+        // GH-5345: the column is written with the same value as the property, and it was already maintained
+        // before 7.0, so reading it back also backfills sagas whose stored body predates the property
+        saga.LastModified = await reader.GetFieldValueAsync<DateTimeOffset>(2, cancellationToken);
 
         await reader.CloseAsync();
 

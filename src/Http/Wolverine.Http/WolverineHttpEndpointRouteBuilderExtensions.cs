@@ -267,6 +267,12 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         // GH-5195: after the user's configuration, so RestoreV6Defaults() and explicit settings are both seen
         options.ResolveVersionDefaults(runtime.Options.V6DefaultsRestored);
 
+        // GH-5520: the 7.0 defaults that belong to other Wolverine.Http packages, such as FluentValidation
+        foreach (var versionDefaults in serviceProvider.GetServices<IHttpVersionDefaults>())
+        {
+            versionDefaults.Apply(options, runtime.Options, serviceProvider);
+        }
+
         options.Policies.Add(new ProblemDetailsFromMiddleware());
 
         // If ApiVersioning is enabled, append a finalization policy that re-positions the header
@@ -292,6 +298,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         options.Endpoints.RejectUnparseableQueryValues = options.RejectUnparseableQueryValues;
         options.Endpoints.RejectUnparseableHeaderValues = options.RejectUnparseableHeaderValues;
         options.Endpoints.ApplyCorrelationIdHeaderToAllEndpoints = options.ApplyCorrelationIdHeaderToAllEndpoints;
+        options.Endpoints.UserNameClaimType = options.UserNameClaimType;
         options.Endpoints.DiscoverEndpoints(options);
         runtime.Options.Parts.Add(options.Endpoints);
 

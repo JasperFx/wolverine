@@ -23,7 +23,6 @@ public class publish_and_receive_raw_json : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                //opts.EnableAutomaticFailureAcks = false;
                 opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.ListenToKafkaTopic("json")
 

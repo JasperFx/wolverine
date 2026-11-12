@@ -62,10 +62,10 @@ public sealed partial class WolverineOptions
         // the EnvelopeIdGeneration getter reads V6DefaultsRestored, so an explicit setting still wins and a SQL
         // Server-only application still switches to NewIdSqlServerOrder at startup, as it did in 6.x.
 
-        // GH-5200: three more core defaults read the flags set above when they are resolved, so an explicit setting
-        // still wins: Durability.CompressAgentCommands (on in 7.0), GroupByGroupId() for a batch whose element type
-        // is in a partitioned topology (resolved at startup) and the in-memory idempotency guard on NativeAck
-        // endpoints (resolved in Endpoint.Compile()).
+        // GH-5200: two more core defaults read the flags set above when they are resolved, so an explicit setting
+        // still wins: Durability.CompressAgentCommands (on in 7.0) and GroupByGroupId() for a batch whose element
+        // type is in a partitioned topology (resolved at startup). The in-memory idempotency guard on NativeAck
+        // endpoints stays opt-in in 7.0 (see Endpoint.Compile()).
 
         // GH-5201: three transport defaults read V6DefaultsRestored when the transport starts: SQS
         // ExtendVisibilityWhileHandling, Kafka idempotent producers and RabbitMQ DrainWaitForPrefetch.
@@ -78,6 +78,16 @@ public sealed partial class WolverineOptions
         // in 7.0. Each database transport (PostgreSQL, SQL Server, MySQL, Oracle, SQLite) reads V6DefaultsRestored when
         // it starts, before its first queue table is built, so an explicit setting still wins and an existing table is
         // never rebuilt by the default either way.
+
+        // GH-5520: 7.0 relays the authenticated user name (EnableRelayOfUserName) by default. Nothing to assign: the
+        // getter reads V6DefaultsRestored, so an explicit setting still wins. Wolverine.Http's
+        // RejectUnparseableHeaderValues and automatic FluentValidation ProblemDetails read the flag when the
+        // endpoints are mapped.
+
+        // GH-5523: in the Production profile a Wolverine host uses TypeLoadMode.Static with AssertAllPreGeneratedTypesExist in
+        // 7.0, 6.x JasperFx's Dynamic without the assertion. Nothing to assign: the JasperFxOptions post-configuration
+        // registered by UseWolverine() (ResolveProductionCodeGeneration) reads V6DefaultsRestored, so an explicit setting
+        // still wins.
 
         // GH-5519: four durability defaults read Durability.V6DefaultsRestored, set above, when they are resolved, so an
         // explicit setting still wins:

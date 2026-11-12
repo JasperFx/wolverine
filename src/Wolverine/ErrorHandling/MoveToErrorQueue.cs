@@ -30,15 +30,11 @@ internal class MoveToErrorQueue : IContinuation
         IWolverineRuntime runtime,
         DateTimeOffset now, Activity? activity)
     {
-        // TODO -- at some point, we need a more systematic way of doing this
-        // Defensive: a malformed system envelope (no Destination) shouldn't NRE here before
-        // EnableAutomaticFailureAcks even gets a chance to short-circuit. The envelope itself is
-        // always present (the block below already relies on it); only Destination can be null. GH-3013.
-        var scheme = lifecycle.Envelope!.Destination?.Scheme;
-        var sendFailureAck = scheme is not null && runtime.Options.EnableAutomaticFailureAcks &&
-                             scheme != TransportConstants.Local && scheme != "external-table";
-
-        if (lifecycle.Envelope.Message != null)
+        // GH-5521: moving a message to the error queue no longer sends a failure acknowledgement to the
+        // sender. WolverineOptions.EnableAutomaticFailureAcks, off by default since 4.6, was removed in 7.0.
+        // Nothing here reads Envelope.Destination, so a malformed system envelope without one (GH-3013)
+        // is safe too.
+        if (lifecycle.Envelope!.Message != null)
         {
             lifecycle.Envelope.MessageType = lifecycle.Envelope.Message.GetType().ToMessageTypeName();
         }
@@ -55,23 +51,13 @@ internal class MoveToErrorQueue : IContinuation
         {
             // The transport could not move the envelope and left the delivery with the broker, which delivers it
             // again. Nothing was dead lettered, so no fault, no completion -- that would settle, and so lose, the
-            // only copy -- and no error queue record. No failure ack either: the redelivery arrives as a new
-            // envelope that the latch on this one cannot see, so the sender would get one per redelivery
+            // only copy -- and no error queue record
             runtime.Logger.LogWarning(e,
                 "Could not move envelope {EnvelopeId} to the error queue; the transport left it to be delivered again",
                 lifecycle.Envelope.Id);
             lifecycle.CompletionTrackerFor(runtime).Requeued(lifecycle.Envelope);
             return;
         }
-        catch (Exception)
-        {
-            // Any other failure of the move ends this envelope's processing all the same, so the sender still
-            // hears about it
-            if (sendFailureAck) await sendFailureAckAsync(lifecycle);
-            throw;
-        }
-
-        if (sendFailureAck) await sendFailureAckAsync(lifecycle);
 
         // Auto-publish Fault<T> if opted in. The publish enrols in the active
         // outbox transaction when one is open on the inbound MessageContext;
@@ -89,13 +75,6 @@ internal class MoveToErrorQueue : IContinuation
         // both that sweep and the guarantee that the ending record is present. Its dead-letter counter,
         // effective time and failure wire tap now live in MovedToErrorQueue, so no metric is lost.
         lifecycle.CompletionTrackerFor(runtime).MovedToErrorQueue(lifecycle.Envelope, Exception);
-    }
-
-    // Sent after the move rather than before it, so a move the transport hands back for redelivery sends none
-    private ValueTask sendFailureAckAsync(IEnvelopeLifecycle lifecycle)
-    {
-        return lifecycle.SendFailureAcknowledgementAsync(
-            $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{Exception}");
     }
 
     public override string ToString()

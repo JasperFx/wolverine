@@ -317,6 +317,12 @@ internal class MartenOverrides : IConfigureMarten
                 // ignores any derived shadow of a different type.
                 mapping.Metadata.Revision.Member = mapping.DocumentType.GetProperty(
                     nameof(Saga.Version), typeof(int))!;
+
+                // GH-5345: Wolverine's saga frames stamp Saga.LastModified on every insert and update.
+                // Mapping it onto Marten's own mt_last_modified column as well means a saga loaded from
+                // Marten carries the store's modification time -- which also backfills sagas written
+                // before 7.0, whose JSON has no LastModified at all.
+                mapping.Metadata.LastModified.Member = typeof(Saga).GetProperty(nameof(Saga.LastModified))!;
             }
         });
     }

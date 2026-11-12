@@ -610,6 +610,12 @@ public partial class WolverineRuntime
 
     private void logCodeGenerationConfiguration()
     {
+        if (Options.ProductionCodeGenerationSkippedForTestRunner)
+        {
+            Logger.LogInformation(
+                "This process has a test framework loaded, so Wolverine left the Production profile's code generation at JasperFx's default (TypeLoadMode.Dynamic) instead of applying the 7.0 default of TypeLoadMode.Static with pre-generated types (GH-5523). Outside a test host, a Production application loads pre-generated code.");
+        }
+
         switch (Options.CodeGeneration.TypeLoadMode)
         {
             case TypeLoadMode.Dynamic:

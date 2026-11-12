@@ -122,7 +122,7 @@
          promoted to an error. Weasel took it for GHSA-473q-m89c-ghf8 (weasel#767), so the advisory
          closes for WolverineFx.MySql here too. -->
     <PackageVersion Include="MySqlConnector" Version="2.6.1" />
-    <PackageVersion Include="NATS.Net" Version="2.8.2" />
+    <PackageVersion Include="NATS.Net" Version="3.3.2" />
     <!-- The cron EXPRESSION PARSER behind opts.Schedules (recurring messages). A parser, not a
          scheduling engine — Wolverine's own scheduled-message machinery is the engine. MIT, zero
          transitive dependencies, correct DST handling. In core by explicit decision (CritterWatch
