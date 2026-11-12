@@ -83,6 +83,7 @@ public class static_multi_tenancy : MultiTenancyContext
             .ShouldBeOfType<MultiTenantedMessageStore>();
         var tables = await store.Main.As<SqlServerMessageStore>().SchemaTables(TestContext.Current.CancellationToken);
 
+        // The 7.0 defaults add the hashed deduplication and deduplicated-responses tables (GH-5194)
         var expected = @"
 static_multi_tenancy2.blues
 static_multi_tenancy2.reds
@@ -90,6 +91,8 @@ static_multi_tenancy2.wolverine_agent_restrictions
 static_multi_tenancy2.wolverine_control_queue
 static_multi_tenancy2.wolverine_dead_letter_history
 static_multi_tenancy2.wolverine_dead_letters
+static_multi_tenancy2.wolverine_deduplicated_responses
+static_multi_tenancy2.wolverine_deduplication_hashed
 static_multi_tenancy2.wolverine_incoming_envelopes
 static_multi_tenancy2.wolverine_node_assignments
 static_multi_tenancy2.wolverine_node_records
@@ -109,11 +112,14 @@ static_multi_tenancy2.wolverine_outgoing_envelopes
 
         await store.Source.RefreshAsync();
 
+        // The 7.0 defaults add the hashed deduplication and deduplicated-responses tables (GH-5194)
         var expected = @"
 static_multi_tenancy2.blues
 static_multi_tenancy2.reds
 static_multi_tenancy2.wolverine_dead_letter_history
 static_multi_tenancy2.wolverine_dead_letters
+static_multi_tenancy2.wolverine_deduplicated_responses
+static_multi_tenancy2.wolverine_deduplication_hashed
 static_multi_tenancy2.wolverine_incoming_envelopes
 static_multi_tenancy2.wolverine_outgoing_envelopes
 ".ReadLines().Where(x => x.IsNotEmpty()).ToArray();
