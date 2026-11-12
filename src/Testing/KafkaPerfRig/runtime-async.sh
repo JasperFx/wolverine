@@ -36,6 +36,15 @@ ART="$(pwd)/.runtime-async-artifacts"
 OUT="$(pwd)/rig-results/runtime-async-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$OUT"
 
+# What else the box was doing when the batch started (shared machine): load, and the containers' footprint
+{
+  date
+  uptime
+  echo "RIG_INPROC_CONCURRENCY=${RIG_INPROC_CONCURRENCY:-} RIG_INPROC_YIELD_EVERY=${RIG_INPROC_YIELD_EVERY:-0}"
+  echo "RIG_WARMUP_S=$RIG_WARMUP_S RIG_DURATION_S=$RIG_DURATION_S rounds=$ROUNDS"
+  docker stats --no-stream 2>&1 || echo "(docker stats unavailable)"
+} >"$OUT/environment.txt"
+
 VARIANTS=(net10 net11 net11-ra)
 
 framework_of() { [[ "$1" == net10 ]] && echo net10.0 || echo net11.0; }
@@ -77,19 +86,23 @@ PY
   done
 done
 
-echo "[runtime-async.sh] medians:"
+echo "[runtime-async.sh] medians (min..max across rounds; % is the median against net10):"
 python3 -I - "$OUT/results.tsv" <<'PY' | tee "$OUT/medians.txt"
 import csv, statistics, sys
 rows = list(csv.DictReader(open(sys.argv[1]), delimiter="\t"))
-cols = ["msgPerSec", "cpuUsPerMsg", "allocBytesPerMsg", "p50us", "p99us"]
+cols = ["msgPerSec", "cpuUsPerMsg", "allocBytesPerMsg", "p50us", "p95us", "p99us"]
 print("variant\t" + "\t".join(cols))
-base = {}
+base = None
 for v in ["net10", "net11", "net11-ra"]:
     sel = [r for r in rows if r["variant"] == v]
-    med = {c: statistics.median(float(r[c]) for r in sel) for c in cols}
-    base.setdefault("net10", med)
-    print(v + "\t" + "\t".join(
-        f"{med[c]:.3f} ({(med[c] / base['net10'][c] - 1) * 100:+.1f}%)" if base["net10"][c] else f"{med[c]:.3f}"
-        for c in cols))
+    if not sel:
+        continue
+    vals = {c: [float(r[c]) for r in sel] for c in cols}
+    med = {c: statistics.median(vals[c]) for c in cols}
+    base = base or med
+    def cell(c):
+        text = f"{med[c]:.3f} [{min(vals[c]):.3f}..{max(vals[c]):.3f}]"
+        return text + (f" ({(med[c] / base[c] - 1) * 100:+.1f}%)" if base[c] else "")
+    print(v + "\t" + "\t".join(cell(c) for c in cols))
 PY
 echo "[runtime-async.sh] results in $OUT"

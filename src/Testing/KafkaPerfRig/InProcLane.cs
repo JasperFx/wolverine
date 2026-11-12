@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using JasperFx;
+using JasperFx.CodeGeneration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine;
@@ -41,6 +43,11 @@ public static class InProcLane
 
         var builder = Host.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning))
+            // Wolverine 7.0 (GH-5523) loads pre-generated code in the Production profile. This lane measures the
+            // runtime-compiled handler on purpose (CodeGeneration.UseRuntimeAsync only affects runtime compilation),
+            // so it asks for Dynamic explicitly.
+            .ConfigureServices(services =>
+                services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic))
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.MediatorOnly;
