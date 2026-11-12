@@ -406,6 +406,32 @@ public static class WolverineTracing
         }
     }
 
+    /// <summary>
+    /// GH-5547. Called by the continuations that retry a failed envelope inline (retry now, retry with cooldown,
+    /// do then retry) immediately before the next attempt runs. That attempt runs from inside the failed one's
+    /// error handling, so without this the failed attempt's span would stay open across every retry after it and
+    /// the dead letter move at the end -- temporally containing the attempts it is only linked to (see
+    /// <see cref="LinkToPreviousAttempt"/>), and no longer measuring how long the handler ran.
+    ///
+    /// Only the execution span started for this attempt is ended: <paramref name="activity"/> is whatever span the
+    /// caller handed the continuation, and an inline listener hands over its receive span, which it stops itself
+    /// and which is meant to contain everything done for the delivery. Whoever started the execution span still
+    /// stops it in a finally block, which is a no-op on a stopped activity. The error status and the
+    /// <c>exception</c> event are already on the span by now, since the executor records both before it chooses
+    /// the continuation.
+    /// </summary>
+    internal static void EndAttemptBeforeInlineRetry(Envelope? envelope, Activity? activity)
+    {
+        if (activity == null || envelope == null || !ReferenceEquals(envelope.ExecutingActivity, activity))
+        {
+            return;
+        }
+
+        // Stop() also hands Activity.Current back to this span's parent in the flow that runs the retry, so a next
+        // attempt with no parent id is started as a sibling of this one rather than as its child
+        activity.Stop();
+    }
+
     // GH-5311. Holds the exception last recorded on an activity, so the several catch blocks one
     // failure can pass through (executor, pipeline, receiver) add the "exception" event only once.
     private const string RecordedExceptionProperty = "wolverine.recorded_exception";
