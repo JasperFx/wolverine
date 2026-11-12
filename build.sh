@@ -17,6 +17,9 @@ DOTNET_INSTALL_URL="https://dot.net/v1/dotnet-install.sh"
 DOTNET_CHANNEL="STS"
 
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
+# Nuke's telemetry "awareness" check evaluates the build project through MSBuild, which fails on the .NET 11 SDK
+# (NuGet.Frameworks 7.9 vs. the one Nuke loads) and logs a suppressed exception on every run. Opting out skips it.
+export NUKE_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
 
 ###########################################################################
