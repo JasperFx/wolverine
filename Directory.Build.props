@@ -62,14 +62,14 @@
     </PropertyGroup>
 
     <!--
-      Runtime-async (GH-5150, plan decision D4; mirrors JasperFx's JasperFxRuntimeAsync from jasperfx#1040). Opt-in:
-      build with -p:WolverineRuntimeAsync=true to compile the net11.0 assemblies with the C# compiler's runtime-async
-      feature. net11.0 only: on net10.0 the compiler refuses it (SYSLIB5007) and the runtime will not load it. Changing
-      it does not trigger a recompile, so build into a separate artifacts path (or clean bin/ and obj/). The generated
-      handler code has its own switch, WolverineOptions.CodeGeneration.UseRuntimeAsync. The KafkaPerfRig's
-      runtime-async.sh measures both against plain net10.0 and net11.0.
+      Runtime-async (GH-5150, plan decision D4: on by default for net11.0; mirrors JasperFx's JasperFxRuntimeAsync from
+      jasperfx#1040). The net11.0 assemblies are compiled with the C# compiler's runtime-async feature unless the build
+      passes -p:WolverineRuntimeAsync=false. net11.0 only: on net10.0 the compiler refuses it (SYSLIB5007) and the
+      runtime will not load it. Changing it does not trigger a recompile, so build into a separate artifacts path (or
+      clean bin/ and obj/). The generated handler code has its own switch, WolverineOptions.CodeGeneration.UseRuntimeAsync,
+      also on by default for net11.0. The KafkaPerfRig's runtime-async.sh measures both against plain net10.0 and net11.0.
     -->
-    <PropertyGroup Condition="'$(WolverineRuntimeAsync)' == 'true' And '$(TargetFramework)' == 'net11.0'">
+    <PropertyGroup Condition="'$(WolverineRuntimeAsync)' != 'false' And '$(TargetFramework)' == 'net11.0'">
         <Features>$(Features);runtime-async=on</Features>
     </PropertyGroup>
 

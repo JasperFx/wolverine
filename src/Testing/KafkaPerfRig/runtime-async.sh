@@ -7,7 +7,8 @@
 # assemblies (the runtime-async compiler switch does not trigger a recompile on its own):
 #
 #   net10     net10.0, ordinary async state machines
-#   net11     net11.0, ordinary async state machines
+#   net11     net11.0, ordinary async state machines (-p:WolverineRuntimeAsync=false and
+#             CodeGeneration.UseRuntimeAsync=false, since runtime-async is the net11.0 default after D4)
 #   net11-ra  net11.0, Wolverine (and the rig) compiled with -p:WolverineRuntimeAsync=true, and the
 #             runtime-compiled handlers generated with CodeGeneration.UseRuntimeAsync (RIG_RUNTIME_ASYNC=1)
 #
@@ -53,6 +54,8 @@ binary_of() { echo "$ART/$1/bin/KafkaPerfRig/release_$(framework_of "$1")/KafkaP
 if [[ "${RA_SKIP_BUILD:-0}" != 1 ]]; then
   for v in "${VARIANTS[@]}"; do
     extra=()
+    # Runtime-async is the net11.0 default since D4 (GH-5150), so the plain net11 variant opts out explicitly
+    [[ "$v" == net11 ]] && extra=(-p:WolverineRuntimeAsync=false)
     [[ "$v" == net11-ra ]] && extra=(-p:WolverineRuntimeAsync=true)
     echo "[runtime-async.sh] building $v"
     rm -rf "${ART:?}/$v"
