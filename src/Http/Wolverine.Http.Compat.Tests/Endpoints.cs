@@ -10,6 +10,11 @@ namespace Wolverine.Http.Compat.Tests;
 
 public record CompatDto(string Name);
 
+public class CompatForm
+{
+    public string? Name { get; set; }
+}
+
 public class CsrfEndpoints
 {
     [WolverineGet("/compat/csrf/get")]
@@ -17,6 +22,9 @@ public class CsrfEndpoints
 
     [WolverinePost("/compat/csrf/form")]
     public string PostForm([FromForm] string name) => "form:" + name;
+
+    [WolverinePost("/compat/csrf/form-bound")]
+    public string PostBoundForm([FromForm] CompatForm form) => "form-bound:" + form.Name;
 
     [WolverinePost("/compat/csrf/file")]
     public string PostFile(IFormFile file) => "file:" + file.FileName;

@@ -219,4 +219,23 @@ public class csrf_default_can_be_changed
 
         (await result.ReadAsTextAsync()).ShouldContain("Antiforgery validation failed");
     }
+
+    [Fact]
+    public async Task with_UseAntiforgery_a_bound_form_post_without_a_token_is_refused_with_400()
+    {
+        await using var host = await CompatHost.For(
+            opts => opts.AutoAntiforgeryOnFormEndpoints(),
+            services => services.AddAntiforgery(),
+            app => app.UseAntiforgery());
+
+        // GH-5463: the asynchronous form read behind a [FromForm] type is hoisted to the front of the method,
+        // and must still wait for the antiforgery check. ASP.NET Core throws on reading a refused request's form.
+        var result = await host.Scenario(x =>
+        {
+            x.Post.FormData(new Dictionary<string, string> { ["Name"] = "jeremy" }).ToUrl("/compat/csrf/form-bound");
+            x.StatusCodeShouldBe(StatusCodes.Status400BadRequest);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldContain("Antiforgery validation failed");
+    }
 }
