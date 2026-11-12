@@ -50,11 +50,15 @@ partial class Build
     /// The services a run may start fresh, keyed by the compose service a target asks for. Each recreates
     /// as a group: the emulators' SQL backends are what pile up the state, and <c>depends_on</c> alone
     /// does not recreate them.
+    ///
+    /// <para>The second emulator pair (5674/5301, Servers' tenant connection strings) is recreated only
+    /// when this compose project already has it running, which DockerUp leaves behind: no test uses it
+    /// today, so a clean CI runner should not pay for booting it.</para>
     /// </summary>
-    static readonly (string Requested, string Lock, string[] Recreate, string[] Await)[] FreshServices =
+    static readonly (string Requested, string Lock, string[] Recreate, string[] IfRunning)[] FreshServices =
     [
-        ("sqlserver", "sqlserver", ["sqlserver"], ["sqlserver"]),
-        ("asb-emulator", "asb", ["asb-sql", "asb-emulator", "asb-sql-2", "asb-emulator-2"], ["asb-emulator", "asb-emulator-2"])
+        ("sqlserver", "sqlserver", ["sqlserver"], []),
+        ("asb-emulator", "asb", ["asb-sql", "asb-emulator"], ["asb-sql-2", "asb-emulator-2"])
     ];
 
     static readonly HashSet<string> _startedFresh = new(StringComparer.OrdinalIgnoreCase);
@@ -92,7 +96,8 @@ partial class Build
         foreach (var fresh in FreshServices.Where(f => services.Contains(f.Requested)))
         {
             rest.Remove(fresh.Requested);
-            if (!startFresh(fresh.Lock, fresh.Recreate, fresh.Await))
+            var recreate = fresh.Recreate.Concat(fresh.IfRunning.Where(composeProjectHas)).ToArray();
+            if (!startFresh(fresh.Lock, recreate))
                 StartDockerServices(fresh.Requested);
         }
 
@@ -100,7 +105,7 @@ partial class Build
     }
 
     /// <summary>True when it recreated the services and they answer; false when the caller should start or reuse them as usual.</summary>
-    bool startFresh(string name, string[] recreate, string[] awaitServices)
+    bool startFresh(string name, string[] recreate)
     {
         if (freshContainersDisabled)
         {
@@ -131,7 +136,7 @@ partial class Build
         // This process's own pooled connections point at the container about to go away.
         Microsoft.Data.SqlClient.SqlConnection.ClearAllPools();
         ComposeUp(composeArgs("up -d --force-recreate --renew-anon-volumes " + list), list);
-        AwaitDockerServices(awaitServices);
+        AwaitDockerServices(recreate);
 
         freshLock.MarkFresh();
         Log.Information("{Services} started fresh and answering", list);

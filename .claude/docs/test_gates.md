@@ -186,9 +186,9 @@ test (`StartServicesFresh` in `build/FreshContainers.cs`).
 |--------|--------------|
 | `CISqlServer`, `CISqlServerTransport` | `sqlserver` |
 | `CIPolecat*` shards | `sqlserver` |
-| `CIAzureServiceBus`, `CIAzureServiceBusLeader`, `CIAzureServiceBusRouting` | `asb-sql`, `asb-emulator`, `asb-sql-2`, `asb-emulator-2` |
+| `CIAzureServiceBus`, `CIAzureServiceBusLeader`, `CIAzureServiceBusRouting` | `asb-sql`, `asb-emulator`, plus `asb-sql-2` and `asb-emulator-2` when they are already running (no test uses that pair today, so a clean runner does not boot it) |
 | `TestAllPersistence` | `sqlserver` (through the `FreshContainers` target, before `DockerUp`) |
-| `TestAllTransports` | the four ASB containers (same) |
+| `TestAllTransports` | the ASB containers, as above (same) |
 | `LocalGate` / `LocalGateSuites` | whichever of the two the selected suites need (any suite with `sqlserver` or `asb-emulator` among its compose services, lanes included), once, after the build and before any unit provisions a database |
 
 Nothing else starts anything fresh: not `DockerUp` (plenty of targets that do not own these services
