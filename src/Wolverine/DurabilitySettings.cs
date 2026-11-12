@@ -259,18 +259,37 @@ public class DurabilitySettings : IDescribeMyself
     /// than the configured time even if the message is marked as owned by an active node
     /// </summary>
     /// <remarks>
-    /// Under <see cref="DurabilityMode.ServerlessWithOutbox"/> this defaults to 60 seconds. A value set
-    /// explicitly always wins.
+    /// Defaults to 1 hour since 7.0 (GH-5519), and to 60 seconds under <see cref="DurabilityMode.ServerlessWithOutbox"/>.
+    /// The outbox has no heartbeat, so this has to be longer than any time a live node legitimately holds an outgoing
+    /// row it owns -- a sender latched by its circuit breaker through a broker outage, say -- or the row is sent twice.
+    /// Orphaned rows of a node that died are recovered without it, so this is only a backstop for rows a live node
+    /// owns and has lost track of. <see cref="WolverineOptions.RestoreV6Defaults"/> restores 6.x's null outside
+    /// ServerlessWithOutbox. A value set explicitly always wins, and outside ServerlessWithOutbox an explicit null turns it off.
     /// </remarks>
     public TimeSpan? OutboxStaleTime
     {
-        get => _outboxStaleTime ?? (Mode == DurabilityMode.ServerlessWithOutbox ? ServerlessWithOutboxDefaultOutboxStaleTime : null);
-        set => _outboxStaleTime = value;
+        // Under ServerlessWithOutbox an explicit null still means that mode's default, as it did in 6.x
+        get => Mode == DurabilityMode.ServerlessWithOutbox
+            ? _outboxStaleTime ?? ServerlessWithOutboxDefaultOutboxStaleTime
+            : _outboxStaleTimeSet
+                ? _outboxStaleTime
+                : V6DefaultsRestored ? null : DefaultOutboxStaleTime;
+        set
+        {
+            _outboxStaleTime = value;
+            _outboxStaleTimeSet = true;
+        }
     }
 
     private TimeSpan? _outboxStaleTime;
+    private bool _outboxStaleTimeSet;
 
     internal static readonly TimeSpan ServerlessWithOutboxDefaultOutboxStaleTime = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// GH-5519. The 7.0 default of <see cref="OutboxStaleTime"/> outside ServerlessWithOutbox
+    /// </summary>
+    internal static readonly TimeSpan DefaultOutboxStaleTime = TimeSpan.FromHours(1);
 
     /// <summary>
     /// The owner id stamped onto outgoing envelopes when they are written to the outbox. Under
@@ -371,18 +390,36 @@ public class DurabilitySettings : IDescribeMyself
     /// <see cref="Wolverine.Persistence.Durability.IMessageInboxHeartbeat" />, which every relational store does.
     /// Under <see cref="DurabilityMode.ServerlessWithOutbox"/> this defaults to 5 minutes, so a durability pass
     /// recovers the inbox rows of a process that died before its handler finished (GH-5037). That mode runs no
-    /// durable receivers and so no heartbeat, so there it must be longer than the longest handler. A value set
-    /// explicitly always wins.
+    /// durable receivers and so no heartbeat, so there it must be longer than the longest handler.
+    /// Everywhere else this defaults to 1 hour since 7.0 (GH-5519): a backstop for rows a live node owns and has lost
+    /// track of, long enough that a store without the heartbeat does not release a long handler's row underneath it.
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/> restores 6.x's null outside ServerlessWithOutbox. A value set
+    /// explicitly always wins, and outside ServerlessWithOutbox an explicit null turns it off.
     /// </remarks>
     public TimeSpan? InboxStaleTime
     {
-        get => _inboxStaleTime ?? (Mode == DurabilityMode.ServerlessWithOutbox ? ServerlessWithOutboxDefaultInboxStaleTime : null);
-        set => _inboxStaleTime = value;
+        // Under ServerlessWithOutbox an explicit null still means that mode's default, as it did in 6.x
+        get => Mode == DurabilityMode.ServerlessWithOutbox
+            ? _inboxStaleTime ?? ServerlessWithOutboxDefaultInboxStaleTime
+            : _inboxStaleTimeSet
+                ? _inboxStaleTime
+                : V6DefaultsRestored ? null : DefaultInboxStaleTime;
+        set
+        {
+            _inboxStaleTime = value;
+            _inboxStaleTimeSet = true;
+        }
     }
 
     private TimeSpan? _inboxStaleTime;
+    private bool _inboxStaleTimeSet;
 
     internal static readonly TimeSpan ServerlessWithOutboxDefaultInboxStaleTime = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// GH-5519. The 7.0 default of <see cref="InboxStaleTime"/> outside ServerlessWithOutbox
+    /// </summary>
+    internal static readonly TimeSpan DefaultInboxStaleTime = TimeSpan.FromHours(1);
 
     /// <summary>
     /// GH-4659. How long a tenant database's writes are held after it refuses one, before a single probe
@@ -441,8 +478,27 @@ public class DurabilitySettings : IDescribeMyself
     /// which is the only path to <see cref="MaximumBrokerRedeliveries"/>. That setting dead-letters a delivery the
     /// inbox rejected as a duplicate and the listener could not settle; it does not bound duplicate execution, and
     /// that pair does not reach it.
+    ///
+    /// GH-5519: on by default since 7.0, for the PostgreSQL message store only. An existing unpartitioned inbox is
+    /// rebuilt as a partitioned one on the first 7.0 start, under an exclusive lock on the inbox table for as long as
+    /// the copy takes; see the migration guide. The other relational stores keep their unpartitioned inbox and only
+    /// use the partition-aware statements when this is set to true explicitly, as in 6.x. Set this to false, or call
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/>, to keep PostgreSQL's 6.x unpartitioned inbox. A value set
+    /// explicitly always wins.
     /// </summary>
-    public bool EnableInboxPartitioning { get; set; }
+    public bool EnableInboxPartitioning
+    {
+        get => _enableInboxPartitioning ?? !V6DefaultsRestored;
+        set => _enableInboxPartitioning = value;
+    }
+
+    private bool? _enableInboxPartitioning;
+
+    /// <summary>
+    /// GH-5519. Whether a store other than PostgreSQL, which never took the 7.0 default, uses the partition-aware inbox
+    /// statements: only when <see cref="EnableInboxPartitioning"/> was set to true explicitly
+    /// </summary>
+    internal bool EnableInboxPartitioningExplicitly => _enableInboxPartitioning == true;
 
     /// <summary>
     ///     Should the message durability agent be enabled during execution.
@@ -460,8 +516,26 @@ public class DurabilitySettings : IDescribeMyself
     /// Other scheduling paths already provide durability without this flag — see the
     /// XML doc on <see cref="IPolicies.AlwaysMakeScheduledMessagesDurable"/> for the
     /// full matrix. No-ops when no message store is configured.
+    ///
+    /// GH-5519: on by default since 7.0, which only changes anything for an application with a message store; without
+    /// one, scheduled messages to a buffered local queue stay in process as before, and no startup warning is written
+    /// (that warning is only for an explicit opt-in). Set this to false, or call
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/>, for 6.x's in-process scheduling. A value set explicitly
+    /// always wins.
     /// </summary>
-    public bool AlwaysMakeScheduledMessagesDurable { get; set; }
+    public bool AlwaysMakeScheduledMessagesDurable
+    {
+        get => _alwaysMakeScheduledMessagesDurable ?? !V6DefaultsRestored;
+        set => _alwaysMakeScheduledMessagesDurable = value;
+    }
+
+    private bool? _alwaysMakeScheduledMessagesDurable;
+
+    /// <summary>
+    /// GH-5519. True when <see cref="AlwaysMakeScheduledMessagesDurable"/> was turned on explicitly rather than by the
+    /// 7.0 default, which is the only case worth warning about when there is no message store
+    /// </summary>
+    internal bool AlwaysMakeScheduledMessagesDurableExplicitly => _alwaysMakeScheduledMessagesDurable == true;
 
     /// <summary>
     ///     How long should successfully handled messages be kept to use in idempotency checking
@@ -1190,10 +1264,20 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan DeadLetterQueueExpiration { get; set; } = 10.Days();
     
     /// <summary>
-    /// Opt-in flag governs whether or not dead letter queued messages have expiration
-    /// enforced for database stored dead letter messages. The default is false.
+    /// Governs whether or not dead letter queued messages have expiration enforced for database stored dead letter
+    /// messages, after <see cref="DeadLetterQueueExpiration"/>. On by default since 7.0 (GH-5519); it was opt-in
+    /// before. On a relational store this adds the <c>expires</c> column and its index to the dead letter table, an
+    /// additive migration on the first start. Dead letters already stored have no expiration and are kept. Set this to
+    /// false, or call <see cref="WolverineOptions.RestoreV6Defaults"/>, to keep dead letters until they are replayed
+    /// or deleted. A value set explicitly always wins.
     /// </summary>
-    public bool DeadLetterQueueExpirationEnabled { get; set; }
+    public bool DeadLetterQueueExpirationEnabled
+    {
+        get => _deadLetterQueueExpirationEnabled ?? !V6DefaultsRestored;
+        set => _deadLetterQueueExpirationEnabled = value;
+    }
+
+    private bool? _deadLetterQueueExpirationEnabled;
 
     /// <summary>
     /// GH-5209. How long an archived dead letter is retained in database storage, measured from when it was

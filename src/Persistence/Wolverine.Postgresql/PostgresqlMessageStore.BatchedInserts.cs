@@ -84,6 +84,9 @@ internal partial class PostgresqlMessageStore
     // inbox insert -- one envelope or many -- goes through it and reads a short row count as the duplicate
     protected override bool incomingInsertRefusesHandled => Durability.EnableInboxPartitioning;
 
+    // GH-5519: PostgreSQL takes the 7.0 default of EnableInboxPartitioning; the other stores only an explicit opt-in
+    protected override bool inboxPartitioned => Durability.EnableInboxPartitioning;
+
     private string batchedOutgoingSql()
     {
         return _batchedOutgoingSql ??=

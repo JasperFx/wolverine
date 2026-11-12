@@ -150,7 +150,9 @@ public partial class WolverineRuntime
             // to in-process scheduling (lost on restart) — defeating the policy. Surface
             // this as a startup warning so a misconfiguration is observable rather than a
             // silent durability gap.
-            if (Options.Durability.AlwaysMakeScheduledMessagesDurable && Storage is NullMessageStore)
+            // GH-5519: only for an explicit opt-in. The policy is on by default since 7.0, and without a store the
+            // default deliberately changes nothing.
+            if (Options.Durability.AlwaysMakeScheduledMessagesDurableExplicitly && Storage is NullMessageStore)
             {
                 Logger.LogWarning(
                     "Policies.AlwaysMakeScheduledMessagesDurable() is set but no message store is configured. " +

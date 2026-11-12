@@ -89,6 +89,13 @@ public sealed partial class WolverineOptions
         // registered by UseWolverine() (ResolveProductionCodeGeneration) reads V6DefaultsRestored, so an explicit setting
         // still wins.
 
+        // GH-5519: four durability defaults read Durability.V6DefaultsRestored, set above, when they are resolved, so an
+        // explicit setting still wins:
+        // - Durability.AlwaysMakeScheduledMessagesDurable (on in 7.0; changes nothing without a message store)
+        // - Durability.EnableInboxPartitioning (on in 7.0, honoured by PostgreSQL only; other stores need it set explicitly)
+        // - Durability.DeadLetterQueueExpirationEnabled (on in 7.0)
+        // - Durability.InboxStaleTime / OutboxStaleTime (1 hour in 7.0 outside ServerlessWithOutbox, null in 6.x)
+
         // Add one line here for each core default 7.x flips, a row to the 7.0 defaults
         // table in docs/guide/migration.md and an entry to restore_v6_defaults_tests.
         // Defaults owned by extension packages read V6DefaultsRestored instead.

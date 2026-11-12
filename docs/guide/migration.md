@@ -134,6 +134,10 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `EnableDeterministicQueueOrdering` (PostgreSQL, SQL Server, MySQL, Oracle and SQLite transports) | off: new queue tables are dequeued in timestamp order alone | on for **new** queue tables: a `queue_order` identity column and indexes (an index over the rowid on SQLite) break timestamp ties. Existing tables keep their layout; see [queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout) | `.DisableDeterministicQueueOrdering()` on the persistence registration | `queue_tables_new_only` |
 | `SqlServerTransport.OptimizeQueueThroughput` | off: new SQL Server queue tables get the classic layout | on for **new** queue tables: the throughput layout, a clustered `seq` identity. Existing tables keep their layout | `.UseClassicQueueLayout()` on the persistence registration (explicit, so it also rebuilds existing throughput tables) | `queue_tables_new_only` |
 | `JasperFxOptions.Production.GeneratedCodeMode` / `AssertAllPreGeneratedTypesExist` (Wolverine hosts) | `Dynamic` / `false`: a Production application compiles its handlers and HTTP endpoints at runtime, which needs `WolverineFx.RuntimeCompilation` | `Static` / `true`: a Production application loads pre-generated code, and fails at startup naming any type that is missing. Only when `UseWolverine()` is present, and not in a process with a test framework loaded; JasperFx's own default, and so a Marten, Polecat or Fisher application without Wolverine, is unchanged. See [deploying 7.0 to production](#deploying-7-0-to-production) | `services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic)` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.AlwaysMakeScheduledMessagesDurable` | `false`: a message scheduled to a buffered (non-durable) local queue waits in the in-process scheduler and is lost on restart | `true`: with a message store it is stored in the inbox as Scheduled and run by the scheduled message poller. Without a message store nothing changes and nothing is logged. See [durability defaults](#scheduled-messages-inbox-partitioning-dead-letter-expiration-and-stale-times-in-7-0) | `opts.Durability.AlwaysMakeScheduledMessagesDurable = false` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.EnableInboxPartitioning` | `false` | `true`, honoured by the PostgreSQL message store only: the inbox table is `PARTITION BY LIST (status)`. **An existing inbox is rebuilt on the first 7.0 start, under an exclusive lock**, and one message can now exist as both Incoming and Scheduled; see [the PostgreSQL inbox](#the-postgresql-inbox-is-partitioned) | `opts.Durability.EnableInboxPartitioning = false` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.DeadLetterQueueExpirationEnabled` | `false`: database dead letters are kept until replayed or deleted | `true`: a dead letter expires `DeadLetterQueueExpiration` (10 days) after it is stored. The relational stores add the dead letter `expires` column and its index, an additive migration | `opts.Durability.DeadLetterQueueExpirationEnabled = false` | `restore_v6_defaults_tests` |
+| `DurabilitySettings.InboxStaleTime` / `OutboxStaleTime` | `null` (except under `ServerlessWithOutbox`: 5 minutes / 60 seconds) | 1 hour each outside `ServerlessWithOutbox`, which keeps its own values | `opts.Durability.InboxStaleTime = null;` and `opts.Durability.OutboxStaleTime = null;` | `restore_v6_defaults_tests` |
 
 ### Deploying 7.0 to production
 
@@ -436,6 +440,73 @@ An early 7.0 build turned `WithInMemoryIdempotency()` on for native-ack listener
 before release, because the guard acknowledges a redelivery of a message that is still being handled, and on a
 broker like Pulsar that settles the message while its first delivery is in flight, so a draining node can lose it
 (GH-5533). Opting in works as it did in 6.x and carries the same caveat until that is fixed.
+
+### Scheduled messages, inbox partitioning, dead letter expiration and stale times in 7.0
+
+Four durability settings that were opt-in through 6.x are on in 7.0 (GH-5519, from GH-5344). `RestoreV6Defaults()` puts
+back all four, and an explicit setting wins over both, whichever order the two are in.
+
+**Scheduled local messages are durable when there is a message store.** `AlwaysMakeScheduledMessagesDurable` is on, so
+a message scheduled to a buffered local queue is stored in the inbox as Scheduled, survives a restart and is run by the
+scheduled message poller instead of the in-process scheduler. The poller checks every `ScheduledJobPollingTime`, so a
+message can run up to that long after its scheduled time. An application without a message store keeps in-process
+scheduling, and the startup warning about a missing store is only written when you call
+`opts.Policies.AlwaysMakeScheduledMessagesDurable()` (or set the property) yourself.
+
+**Dead letters expire.** `DeadLetterQueueExpirationEnabled` is on, so a dead letter in database storage is deleted
+`DeadLetterQueueExpiration` (10 days by default) after it is stored, or at its `DeliverBy` time if it has one. The
+relational stores add a nullable `expires` column and an index on it to the dead letter table on the first 7.0 start.
+Dead letters stored before then have no expiration and are kept. Set `DeadLetterQueueExpiration` for a longer window,
+or turn the setting off to keep dead letters until they are replayed or deleted.
+
+**Inbox and outbox stale times are 1 hour.** `InboxStaleTime` and `OutboxStaleTime` are a backstop for rows a live node
+owns and has lost track of; rows of a node that died are recovered without them. Once a row is older than the stale
+time, any node may take it over. 1 hour is deliberately long:
+
+- The outbox has no heartbeat, so `OutboxStaleTime` has to be longer than any time a live node legitimately holds an
+  outgoing row, such as a sender latched through a broker outage, or the message is sent twice.
+- The relational stores restart the inbox clock of every row a node holds three times per `InboxStaleTime` (every 20
+  minutes at 1 hour), so a long handler is not released underneath itself. A shorter value costs more of those writes.
+
+Under `ServerlessWithOutbox` the two keep that mode's defaults of 5 minutes and 60 seconds. The `timestamp` columns
+they read are already always created in 7.0 ([optional schema objects](#optional-message-storage-schema-objects-are-always-created-in-7-0)).
+
+#### The PostgreSQL inbox is partitioned
+
+`EnableInboxPartitioning` is on, and the PostgreSQL message store (including Marten's) honours it: the inbox table is
+`PARTITION BY LIST (status)`, with `incoming`, `scheduled` and `handled` partitions and the status in the primary key.
+The other relational stores keep their unpartitioned inbox and only use the partition-aware statements when you set
+`EnableInboxPartitioning = true` explicitly, as in 6.x.
+
+**An existing inbox is rebuilt on the first 7.0 start.** PostgreSQL cannot partition a table in place, so with
+`AutoCreate.CreateOrUpdate` the first 7.0 node to start changes the inbox's primary key, copies the table aside, drops
+it, creates it again partitioned and copies the rows back, in one transaction. Main database and every tenant database
+alike. The primary key change takes an `ACCESS EXCLUSIVE` lock first, so the copy sees every committed row and **every
+read and write of the inbox waits until the rebuild commits**. That takes as long as the copies take, so it grows with
+the number of rows, including the Handled rows kept for `KeepAfterMessageHandling`. As a guide, an inbox of 100,000
+rows with 500-byte bodies was rebuilt in well under a second on a laptop's PostgreSQL in Docker. Wolverine serializes its
+migrations with an advisory lock, so a second node starting at the same time waits and then finds nothing left to do. To keep the wait short, start the first 7.0 node while
+the inbox is small, and before a scheduled backlog builds up.
+
+Plan the rollout around it:
+
+* **6.x nodes don't know the inbox is partitioned** and don't use the partition-aware statements, and a 6.x node that
+  starts afterwards rebuilds the inbox unpartitioned again. Stop the 6.x nodes before the first 7.0 node starts, or set `opts.Durability.EnableInboxPartitioning = false` until every node runs 7.0,
+  then remove it and let the next start rebuild the inbox.
+* **With `AutoCreate.None`** nothing is migrated, but 7.0 still writes to the inbox as if it were partitioned. Apply
+  the migration first (`dotnet run -- resources setup`, `db-apply` or your own process), or keep partitioning off.
+* **One message can now exist as both Incoming and Scheduled.** PostgreSQL only enforces a primary key within a
+  partition, so a broker redelivery can be stored as Incoming while the earlier attempt is parked as a scheduled retry.
+  The scheduled message poller discards the scheduled copy in favour of the incoming one, which runs with the attempt
+  count it was stored with, so the retry budget restarts and the message can be tried more times than the error
+  policy nominally allows. A scheduled retry for a message that has meanwhile been handled is dropped. A redelivery
+  arriving while a handled copy is retained is still refused as a duplicate. The XML documentation on
+  `EnableInboxPartitioning` has the details.
+
+To keep the 6.x unpartitioned inbox, set `opts.Durability.EnableInboxPartitioning = false` or call
+`RestoreV6Defaults()`. Doing that after a 7.0 start has partitioned the inbox rebuilds it unpartitioned again, under the
+same exclusive lock. Where one message is stored more than once, it keeps the row that supersedes the others: the
+Handled row, then the Incoming one, then the Scheduled one.
 
 ### Dead and obsolete flags removed (BREAKING)
 
@@ -777,6 +848,11 @@ the main message database and every tenant database. Everything it adds is addit
   ([optional schema objects](#optional-message-storage-schema-objects-are-always-created-in-7-0))
 * the ordering indexes on existing SQLite queue tables
   ([queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout))
+* the dead letter `expires` column and its index
+  ([dead letter expiration](#scheduled-messages-inbox-partitioning-dead-letter-expiration-and-stale-times-in-7-0))
+
+On PostgreSQL it also **rebuilds the inbox table as a partitioned table**, which is not additive: see
+[the PostgreSQL inbox](#the-postgresql-inbox-is-partitioned) for the lock it takes and how to roll it out.
 
 Before the first 7.0 node starts:
 
@@ -787,8 +863,8 @@ Before the first 7.0 node starts:
 * **On PostgreSQL**, adding the outgoing `timestamp` column rewrites the outbox table under an exclusive lock. Migrate
   while a large outbox is drained.
 
-`RestoreV6Defaults()` turns off the deduplication tables and the optional schema objects, so it avoids all of this
-except the SQLite queue indexes.
+`RestoreV6Defaults()` turns off the deduplication tables, the optional schema objects, the dead letter expiration
+column and inbox partitioning, so it avoids all of this except the SQLite queue indexes.
 
 ### OpenTelemetry meter and metric names (BREAKING)
 

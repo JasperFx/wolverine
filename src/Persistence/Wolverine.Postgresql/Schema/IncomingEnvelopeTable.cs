@@ -1,4 +1,5 @@
-﻿using Weasel.Core;
+﻿using System.Data.Common;
+using Weasel.Core;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
 using Wolverine.RDBMS;
@@ -107,5 +108,15 @@ internal class IncomingEnvelopeTable : Table
             Columns = [DatabaseConstants.GroupId],
             Predicate = $"{DatabaseConstants.Status} = 'Scheduled'"
         });
+    }
+
+    /// <summary>
+    /// GH-5519. Rebuilds a partitioned inbox as an unpartitioned one in a way PostgreSQL accepts, see
+    /// <see cref="IncomingEnvelopeTableDelta" />
+    /// </summary>
+    public override async Task<ISchemaObjectDelta> CreateDeltaAsync(DbDataReader reader, CancellationToken ct = default)
+    {
+        var delta = (TableDelta)await base.CreateDeltaAsync(reader, ct);
+        return new IncomingEnvelopeTableDelta(this, delta.Actual);
     }
 }

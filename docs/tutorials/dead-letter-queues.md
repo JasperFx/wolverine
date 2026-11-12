@@ -303,8 +303,8 @@ the header matches. Narrow the query with a message type or time range where you
 ## Keeping the dead letter table from growing forever
 
 A busy system can accumulate a lot of dead letters, and an oversized table will eventually drag on performance.
-Dead letter expiration is off by default (for backwards compatibility), but you can opt in so Wolverine expires
-and expunges old dead letters automatically:
+Since 7.0 dead letter expiration is on by default, so Wolverine expires and expunges old dead letters automatically
+after 10 days. Turn it off with `opts.Durability.DeadLetterQueueExpirationEnabled = false`, or change the retention period:
 
 <!-- snippet: sample_enabling_dead_letter_queue_expiration -->
 <a id='snippet-sample_enabling_dead_letter_queue_expiration'></a>
