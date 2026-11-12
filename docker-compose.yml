@@ -14,6 +14,11 @@ services:
 
   postgresql:
     image: "postgres:17"
+    # Docker's default /dev/shm is 64MB. Postgres keeps its dynamic shared memory
+    # (parallel query, hash joins) there, and the persistence suites filled it:
+    # "53100: could not resize shared memory segment ... No space left on device"
+    # failed 91 EfCoreTests in one TestAllPersistence run. Matches Marten's compose.
+    shm_size: '512mb'
     ports:
       - "5433:5432"
     environment:
