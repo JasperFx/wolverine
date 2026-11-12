@@ -998,7 +998,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             if (!assigned)
             {
                 chain.RegisterEndpoint(options.Transports.GetOrCreate<LocalTransport>()
-                    .QueueFor(handlerCall.HandlerType.FullNameInCode().ToLowerInvariant()));
+                    .QueueFor(LocalTransport.QueueNameForHandlerType(handlerCall.HandlerType)));
             }
 
             chain.TypeName = HandlerChain.GeneratedTypeNameFor(handlerCall.HandlerType, HandlerChain.HandlerSuffix);

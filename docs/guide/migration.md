@@ -629,6 +629,10 @@ ordering) no longer apply**, so move them to the handler types' queues, for exam
 With conventional broker routing, a listener for such a message type is now named for the handler type, as it was with
 `Separated` in 6.x, so expect new broker queues or subscriptions.
 
+To name the local queue of every handler type by the handler type, even when a message type has only one, use
+`opts.Policies.ConfigureConventionalLocalRouting().NameQueuesByHandlerType()` (GH-5518). It's off by default, and it
+doesn't change broker queue names. See [naming local queues by handler type](/guide/messaging/transports/local#naming-local-queues-by-handler-type).
+
 **Message identity is unchanged.** `DurabilitySettings.MessageIdentity` still defaults to `MessageIdentity.IdOnly`, so
 the inbox and dead letter tables keep their 6.x primary keys. If a broker can deliver one message to more than one of a
 message type's durable listening endpoints in the same process, every copy has the same envelope id, and under `IdOnly`

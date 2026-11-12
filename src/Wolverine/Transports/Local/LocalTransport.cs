@@ -20,6 +20,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
     private Action<Type, IListenerConfiguration> _customization = (_, _) => { };
     private Func<Type, string> _determineName = t => t.ToMessageTypeName().Replace('+', '.').Replace("[", "").Replace("]", "");
+    private bool _queuesNamedByHandlerType;
 
 
     public LocalTransport() : base(TransportConstants.Local, "Local (In Memory)", ["local"])
@@ -78,6 +79,24 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         _customization = customization ?? throw new ArgumentNullException(nameof(customization));
         return this;
     }
+
+    /// <summary>
+    ///     GH-5518. Name the local queue of every handler chain that is not sticky for its handler type,
+    ///     even when the message type has only one handler type. Off by default
+    /// </summary>
+    /// <returns></returns>
+    public ILocalMessageRoutingConvention NameQueuesByHandlerType()
+    {
+        _queuesNamedByHandlerType = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     The name of the local queue of a handler type: its full name, lower case. Used for each handler type
+    ///     of a message type with several handler types, and for every handler type that is not sticky with
+    ///     <see cref="NameQueuesByHandlerType"/>
+    /// </summary>
+    internal static string QueueNameForHandlerType(Type handlerType) => handlerType.FullNameInCode().ToLowerInvariant();
 
     public ILocalMessageRoutingConvention IsAdditive(bool additive)
     {
@@ -176,7 +195,14 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
                 var group = runtime.Options.HandlerGraph.GroupFor(messageType);
                 if (group != null && hasUnboundChain(group))
                 {
-                    FindOrCreateQueueForMessageTypeByConvention(messageType);
+                    if (_queuesNamedByHandlerType)
+                    {
+                        findOrCreateQueueForHandlerType(messageType, group);
+                    }
+                    else
+                    {
+                        FindOrCreateQueueForMessageTypeByConvention(messageType);
+                    }
                 }
             }
         }
@@ -208,10 +234,32 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         }
     }
 
+    // GH-5518. With NameQueuesByHandlerType(), the message type's only chain runs on the queue named for its handler
+    // type, the same queue it would get next to a second handler type. The chain itself stays unbound -- it still
+    // runs wherever the message type is received -- so the broker routing conventions, which name a listener for
+    // the handler type only when a chain is bound to an endpoint of its own, keep their message type names. And
+    // envelopes persisted to the message type's queue before the opt-in still run on that chain when recovered.
+    // [LocalQueue] on the message type still names the queue
+    private LocalQueue findOrCreateQueueForHandlerType(Type messageType, MessageHandlerGroup group)
+    {
+        if (messageType.HasAttribute<LocalQueueAttribute>())
+        {
+            return FindOrCreateQueueForMessageTypeByConvention(messageType);
+        }
+
+        var chain = group.UnboundChains().First(x => x.Handlers.Any());
+        return findOrCreateQueue(messageType, QueueNameForHandlerType(MessageHandlerGroup.HandlerTypeOf(chain)));
+    }
+
     internal LocalQueue FindOrCreateQueueForMessageTypeByConvention(Type messageType)
     {
         var queueName = messageType.GetAttribute<LocalQueueAttribute>()?.QueueName ?? _determineName(messageType);
 
+        return findOrCreateQueue(messageType, queueName);
+    }
+
+    private LocalQueue findOrCreateQueue(Type messageType, string queueName)
+    {
         if (queueName.IsEmpty())
         {
             return _queues[TransportConstants.Default];
