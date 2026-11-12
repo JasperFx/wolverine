@@ -14,8 +14,8 @@ using Xunit;
 namespace CoreTests.Configuration;
 
 /// <summary>
-/// GH-5136. Wolverine 7 builds one handler chain per (message type, handler type), whatever
-/// MultipleHandlerBehavior says. Every host here leaves MultipleHandlerBehavior at its default.
+/// GH-5136. Wolverine 7 builds one handler chain per (message type, handler type). GH-5139 removed
+/// MultipleHandlerBehavior, so there is nothing to configure.
 /// </summary>
 public class one_handler_chain_per_handler_type
 {

@@ -27,8 +27,8 @@ public class batch_handler_conflict_diagnostic
     public async Task no_conflict_by_default_because_the_direct_and_the_batch_handler_both_run()
     {
         // GH-5136. Each handler type has its own chain, so the direct handler never shadows the batch handler:
-        // the batch moves to a queue of its own and both run. Nothing to warn about, even when opted in to
-        // throwing.
+        // the batch moves to a queue of its own and both run. Nothing to warn about. GH-5139 removed the
+        // obsolete AssertNoBatchHandlerConflicts() that used to opt in to throwing.
         var logger = new CapturingLogger();
 
         using var host = await buildHost(opts =>
@@ -36,7 +36,6 @@ public class batch_handler_conflict_diagnostic
             opts.Discovery.IncludeType<ConflictDirectHandler>();
             opts.Discovery.IncludeType<ConflictBatchHandler>();
             opts.BatchMessagesOf<ConflictMessage>();
-            opts.AssertNoBatchHandlerConflicts();
         }, logger).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         logger.Entries.ShouldNotContain(x => x.Message.Contains("Batch handler conflict"));
@@ -52,26 +51,6 @@ public class batch_handler_conflict_diagnostic
         {
             opts.Discovery.IncludeType<ConflictBatchHandler>();
             opts.BatchMessagesOf<ConflictMessage>();
-            opts.AssertNoBatchHandlerConflicts();
-        }, logger).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-
-        logger.Entries.ShouldNotContain(x => x.Message.Contains("Batch handler conflict"));
-    }
-
-    [Fact]
-    public async Task no_conflict_under_separated_mode_even_with_both_handlers()
-    {
-        // Separated legitimately runs both handlers (the batch is moved to its own queue), so the
-        // conflict diagnostic must stay silent even when opted in to throwing.
-        var logger = new CapturingLogger();
-
-        using var host = await buildHost(opts =>
-        {
-            opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-            opts.Discovery.IncludeType<ConflictDirectHandler>();
-            opts.Discovery.IncludeType<ConflictBatchHandler>();
-            opts.BatchMessagesOf<ConflictMessage>();
-            opts.AssertNoBatchHandlerConflicts();
         }, logger).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         logger.Entries.ShouldNotContain(x => x.Message.Contains("Batch handler conflict"));

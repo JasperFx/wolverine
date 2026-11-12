@@ -278,9 +278,9 @@ These metrics can be used to understand when a Wolverine system is distressed wh
 
 Wolverine emits observable gauge metrics for the size of the persisted inbox, outbox, and scheduled message counts:
 
-1. `wolverine-inbox-count` - number of persisted, `Incoming` envelopes in the durable inbox
-2. `wolverine-outbox-count` - number of persisted, `Outgoing` envelopes in the durable outbox
-3. `wolverine-scheduled-count` - number of persisted, `Scheduled` envelopes in the durable inbox
+1. `wolverine.inbox.count` - number of persisted, `Incoming` envelopes in the durable inbox
+2. `wolverine.outbox.count` - number of persisted, `Outgoing` envelopes in the durable outbox
+3. `wolverine.scheduled.count` - number of persisted, `Scheduled` envelopes in the durable inbox
 
 In all cases, if you are using some sort of multi-tenancy where envelopes are stored in separate databsases per tenant,
 the metric names above will be suffixed with ".[database name]".

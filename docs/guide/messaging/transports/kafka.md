@@ -694,7 +694,6 @@ through Kafka and Wolverine by using the options shown below in test harness cod
 _receiver = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        //opts.EnableAutomaticFailureAcks = false;
         opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
         opts.ListenToKafkaTopic("json")
 
@@ -730,7 +729,7 @@ _sender = await Host.CreateDefaultBuilder()
             .PublishRawJson(new JsonSerializerOptions());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L22-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L22-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -1362,7 +1361,7 @@ transport, and the factors behind them.
   sharded execution keeps same-key messages sequential while unrelated keys proceed in
   parallel, without tying up worker slots in custom middleware waits. Custom middleware that
   blocks (semaphores, locks) both occupies a worker slot and inflates the
-  `wolverine-execution-time` metric, since execution time is measured around the whole
+  `wolverine.execution.time` metric, since execution time is measured around the whole
   middleware chain.
 
 ### Offset commits
@@ -1416,8 +1415,8 @@ payload size.
 ### Interpreting Wolverine's metrics
 
 When comparing Wolverine's numbers to your own measurements, note the interval definitions:
-`wolverine-execution-time` measures the handler *and all middleware* (including any time
-blocked inside middleware), while `wolverine-effective-time` is wall-clock from the producer's
+`wolverine.execution.time` measures the handler *and all middleware* (including any time
+blocked inside middleware), while `wolverine.effective.time` is wall-clock from the producer's
 `SentAt` stamp through handling, cascading message flush, *and* the final acknowledgement —
 and it is sensitive to clock skew between producing and consuming machines.
 

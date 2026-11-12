@@ -4,6 +4,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using MySqlConnector;
 using Weasel.Core;
+using Wolverine.RDBMS;
 
 namespace Wolverine.MySql;
 
@@ -12,7 +13,7 @@ namespace Wolverine.MySql;
 /// MySQL named locks are connection-scoped (automatically released on disconnect).
 /// Lock names are limited to 64 characters.
 /// </summary>
-internal class MySqlAdvisoryLock : IAdvisoryLock
+internal class MySqlAdvisoryLock : IWolverineAdvisoryLock
 {
     // GH-4261. One long-lived MySqlConnection shared by a SYNCHRONOUS HasLock and three ASYNC methods,
     // with nothing serialising them. Reported against Postgres, where the interleaving desynced the
@@ -48,6 +49,10 @@ internal class MySqlAdvisoryLock : IAdvisoryLock
         _databaseName = databaseName;
     }
 
+    /// <summary>
+    /// The synchronous probe the JasperFx <see cref="IAdvisoryLock" /> contract requires. Wolverine's own
+    /// callers use <see cref="HasLockAsync" />, which does the same ping without blocking a thread (GH-5135).
+    /// </summary>
     public bool HasLock(int lockId)
     {
         // Cheap negative outside the gate: an id we never took cannot be held.
@@ -76,6 +81,36 @@ internal class MySqlAdvisoryLock : IAdvisoryLock
         }
     }
 
+    public async Task<bool> HasLockAsync(int lockId, CancellationToken token)
+    {
+        // Cheap negative outside the gate: an id we never took cannot be held.
+        if (!holdsId(lockId)) return false;
+
+        // GH-5135: the token bounds only this wait. A cancelled wait throws back to the caller and touches
+        // no held id -- shutting down says nothing about the session that holds the lock.
+        if (!await _gate.WaitAsync(GateTimeout, token).ConfigureAwait(false))
+        {
+            // GH-4261: a busy gate means another advisory-lock operation on THIS node is in flight, not
+            // that the server dropped our session. A wrong `false` here is read by
+            // NodeAgentController.DoHealthChecksInternalAsync as lost leadership and fires
+            // stepDownAsync -- exactly the churn GH-2602 and GH-3604 were fighting. Report the last
+            // state we established and skip the keepalive for this tick.
+            _logger.LogDebug(
+                "Advisory lock connection for database {Database} was busy; reporting the last known state of lock {LockId} without pinging",
+                _databaseName, lockId);
+            return true;
+        }
+
+        try
+        {
+            return await hasLockUnsafeAsync(lockId).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary>
     /// The GH-2602 liveness ping. Callers MUST hold <c>_gate</c> -- it does synchronous I/O on the
     /// shared connection and may replace it.
@@ -97,6 +132,51 @@ internal class MySqlAdvisoryLock : IAdvisoryLock
             cmd.CommandText = "select 1";
             cmd.CommandTimeout = 2;
             cmd.ExecuteScalar();
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e,
+                "Lost advisory-lock connection for database {Database}; clearing held lock ids {Locks}",
+                _databaseName, heldIds());
+
+            clearIds();
+            try
+            {
+                _conn.Dispose();
+            }
+            catch
+            {
+                // Already broken; nothing to do.
+            }
+            _conn = null;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The GH-2602 liveness ping, asynchronously (GH-5135). Callers MUST hold <c>_gate</c> -- it does I/O on the
+    /// shared connection and may replace it.
+    /// </summary>
+    private async Task<bool> hasLockUnsafeAsync(int lockId)
+    {
+        if (_conn is null) return false;
+        if (!holdsId(lockId)) return false;
+
+        // MySQL named locks (GET_LOCK / RELEASE_LOCK) are session-scoped,
+        // so the lock evaporates the moment the connection's MySQL session
+        // dies — KILL CONNECTION, network drop, idle-cull. MySqlConnection
+        // doesn't surface that immediately, so we ping. Without this,
+        // HasLock keeps returning true after the lock has been transferred
+        // and two nodes race as leader. See GH-2602.
+        try
+        {
+            // No cancellation token on purpose: CommandTimeout bounds the ping, and a cancelled ping would land
+            // in the catch below and read as a lost session.
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "select 1";
+            cmd.CommandTimeout = 2;
+            await cmd.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
             return true;
         }
         catch (Exception e)
@@ -166,9 +246,9 @@ internal class MySqlAdvisoryLock : IAdvisoryLock
             // and _locks non-empty, so the connection is never closed either. Failover stalls
             // silently: no error logged, just an election a new leader can never win.
             //
-            // GH-4261: hasLockUnsafe, not HasLock — we already hold the gate, and SemaphoreSlim is
+            // GH-4261: hasLockUnsafeAsync, not HasLockAsync — we already hold the gate, and SemaphoreSlim is
             // not reentrant.
-            if (hasLockUnsafe(lockId))
+            if (await hasLockUnsafeAsync(lockId).ConfigureAwait(false))
             {
                 return true;
             }

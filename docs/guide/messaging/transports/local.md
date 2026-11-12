@@ -32,7 +32,7 @@ Some things to know about the local queues:
 If you want to enqueue a message locally to a specific worker queue, you can use this syntax:
 
 <!-- snippet: sample_IServiceBus.Enqueue_to_specific_worker_queue -->
-<a id='snippet-sample_iservicebus.enqueue_to_specific_worker_queue'></a>
+<a id='snippet-sample_IServiceBus.Enqueue_to_specific_worker_queue'></a>
 ```cs
 public ValueTask EnqueueToQueue(IMessageContext bus)
 {
@@ -49,7 +49,7 @@ public ValueTask EnqueueToQueue(IMessageContext bus)
     return bus.EndpointFor("highpriority").SendAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L134-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iservicebus.enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L134-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IServiceBus.Enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Scheduling Local Execution
@@ -227,7 +227,7 @@ This feature was added in reaction to the newer "sticky" handler to local queue 
 message types that are happily handled without any "sticky" handler configuration.
 :::
 
-The advent of ["sticky handlers"](/guide/handlers/sticky) or the [separated handler mode](/guide/handlers/#multiple-handlers-for-the-same-message-type) for better Wolverine usage in modular monoliths admittedly
+The advent of ["sticky handlers"](/guide/handlers/sticky) or [one handler chain per handler type](/guide/handlers/#multiple-handlers-for-the-same-message-type) for better Wolverine usage in modular monoliths admittedly
 made it a little harder to fine tune the local queue behavior for different message types or message handlers without understanding
 the Wolverine naming conventions. To get back to leaning more on the type system, Wolverine introduced the static `IConfigureLocalQueue`
 interface that can be implemented on any handler type to configure the local queue where that handler would run:
@@ -273,7 +273,7 @@ public class MultipleMessage1Handler : IConfigureLocalQueue
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/configuring_local_queues.cs#L102-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_iconfigurelocalqueue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/configuring_local_queues.cs#L101-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_iconfigurelocalqueue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Durable Local Messages

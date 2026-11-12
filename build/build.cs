@@ -233,7 +233,14 @@ partial class Build : NukeBuild
             // environment (e.g. ASPNETCORE_ENVIRONMENT=Development on CI) intact instead of letting
             // launchSettings.json override it; Development turns on DI scope validation, which also
             // guards the GH-2911 fix.
+            //
+            // GH-5523: http.yml sets Development for the whole job; a local run (./build.sh OpenApiCommand)
+            // gets the same unless the caller chose an environment. Without it the sample is a Production app,
+            // which in 7.0 loads pre-generated code, and TodoWebService commits none.
+            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
+
             DotNetRun(c => c
+                .SetProcessEnvironmentVariable("ASPNETCORE_ENVIRONMENT", environment)
                 .SetProjectFile(project)
                 .SetConfiguration(Configuration)
                 .EnableNoLaunchProfile()
@@ -242,6 +249,7 @@ partial class Build : NukeBuild
 
             // The fuzzy --route filter, which emits only the matching paths and their schemas
             DotNetRun(c => c
+                .SetProcessEnvironmentVariable("ASPNETCORE_ENVIRONMENT", environment)
                 .SetProjectFile(project)
                 .SetConfiguration(Configuration)
                 .EnableNoBuild()
@@ -339,12 +347,12 @@ partial class Build : NukeBuild
                 Solution.Wolverine,
                 Solution.Wolverine_RuntimeCompilation,
                 Solution.Wolverine_HealthChecks,
+                Solution.Wolverine_ServiceDefaults,
                 Solution.Transports.RabbitMQ.Wolverine_RabbitMQ,
                 Solution.Transports.Azure.Wolverine_AzureServiceBus,
                 Solution.Transports.AWS.Wolverine_AmazonSqs,
                 Solution.Transports.AWS.Wolverine_AmazonSns,
                 Solution.Transports.MQTT.Wolverine_MQTT,
-                Solution.Transports.MQTT.Wolverine_Mqtt5,
                 Solution.Transports.Kafka.Wolverine_Kafka,
                 Solution.Transports.Pulsar.Wolverine_Pulsar,
                 Solution.Transports.GCP.Wolverine_Pubsub,

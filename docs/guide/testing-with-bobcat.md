@@ -247,7 +247,7 @@ message**, so the guard says nothing about it: after `WhenPosted(...)` to an end
 
 ### HTTP without WolverineFx.Bobcat.Http {#http-without-wolverinefx-bobcat-http}
 
-`WolverineFx.Bobcat.Http` depends on Alba 9 (currently 9.0.0-rc.2, see Bobcat's
+`WolverineFx.Bobcat.Http` depends on Alba 9 (9.0.0 or later, see Bobcat's
 [Compatibility](https://bobcat.jasperfx.net/compatibility) page), so a suite on Alba 8.x often acts over HTTP with
 `WhenTracked("…", () => host.Scenario(…))` instead. That works, but two verdicts differ from `WhenPosted` and the other
 HTTP acts:

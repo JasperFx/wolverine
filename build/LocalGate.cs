@@ -244,10 +244,6 @@ partial class Build
         {
             Holds = ["mqtt-broker-ports"], Postgres = ServerUse.OwnDatabase, SqlServer = ServerUse.OwnDatabase
         },
-        new("src/Transports/MQTT/Wolverine.Mqtt5.Tests/Wolverine.Mqtt5.Tests.csproj", "CIMQTT5")
-        {
-            Holds = ["mqtt-broker-ports"], Postgres = ServerUse.OwnDatabase, SqlServer = ServerUse.OwnDatabase
-        },
         // Uses the compose NATS on 4222 when it answers (it does: ClaimCheck.Nats needs it), so it
         // shares that track; CINATS itself never starts nats and the suite falls back to Testcontainers.
         new("src/Transports/NATS/Wolverine.Nats.Tests/Wolverine.Nats.Tests.csproj", "CINATS")
@@ -275,6 +271,7 @@ partial class Build
 
         // ─── http.yml ───
         new("src/Http/Wolverine.Http.Tests/Wolverine.Http.Tests.csproj", "CIHttp") { Postgres = ServerUse.OwnDatabase },
+        new("src/Http/Wolverine.Http.Compat.Tests/Wolverine.Http.Compat.Tests.csproj", "CIHttpCompat"),
         new("src/Http/Wolverine.Http.AspVersioning.Tests/Wolverine.Http.AspVersioning.Tests.csproj", "CIHttpAspVersioning")
         {
             Frameworks = ["net10.0"]

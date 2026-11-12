@@ -45,7 +45,6 @@ public class Bug_1427_no_endpoint_error_on_retries : IAsyncLifetime
 
             options.Policies.LogMessageStarting(LogLevel.Information);
 
-            options.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
             options.Discovery.DisableConventionalDiscovery()
                 .IncludeType(typeof(StartBatchHandler));

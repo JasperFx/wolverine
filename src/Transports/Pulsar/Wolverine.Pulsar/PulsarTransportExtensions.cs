@@ -836,11 +836,6 @@ public class PulsarNativeResiliencyConfig
 
                 // Set retry configuration
                 endpoint.RetryLetterTopic = RetryLetterTopic;
-
-                if (endpoint.Runtime?.Options != null)
-                {
-                    endpoint.Runtime.Options.EnableAutomaticFailureAcks = false;
-                }
             }
         };
     }

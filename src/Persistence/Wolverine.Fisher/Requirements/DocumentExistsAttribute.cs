@@ -28,6 +28,7 @@ namespace Wolverine.Fisher.Requirements;
 /// public void Handle(AddUser command) { }
 /// </code>
 /// </example>
+[Obsolete("Use Wolverine.Persistence.Requirements.DocumentExistsAttribute<TDoc>; this type will be removed in Wolverine 8.0")]
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
 public class DocumentExistsAttribute<TDoc> : ModifyChainAttribute where TDoc : class
 {
@@ -69,6 +70,7 @@ public class DocumentExistsAttribute<TDoc> : ModifyChainAttribute where TDoc : c
 /// public void Handle(CreateUser command) { }
 /// </code>
 /// </example>
+[Obsolete("Use Wolverine.Persistence.Requirements.DocumentDoesNotExistAttribute<TDoc>; this type will be removed in Wolverine 8.0")]
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
 public class DocumentDoesNotExistAttribute<TDoc> : ModifyChainAttribute where TDoc : class
 {

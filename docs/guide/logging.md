@@ -12,9 +12,9 @@ to selectively filter logging levels in your application, rely on the message ty
 ## Configuring Message Logging Levels
 
 Wolverine automatically logs the execution start and stop of all message handling with `LogLevel.Debug`. Likewise, Wolverine
-logs the successful completion of all messages (including the capture of cascading messages and all middleware) with `LogLevel.Information`.
-However, many folks have found this logging to be too intrusive. Not to worry, you can quickly override the log levels
-within Wolverine for your system like so:
+logs the successful completion of all messages (including the capture of cascading messages and all middleware) with `LogLevel.Debug`.
+That success log was `LogLevel.Information` before 6.21 (GH-3490); call `opts.Policies.MessageSuccessLogLevel(LogLevel.Information)`
+if you want it back. You can override either log level for your whole system like so:
 
 <!-- snippet: sample_turning_down_message_logging -->
 <a id='snippet-sample_turning_down_message_logging'></a>
@@ -26,9 +26,9 @@ using var host = await Host.CreateDefaultBuilder()
         // The default is Debug
         opts.Policies.MessageExecutionLogLevel(LogLevel.None);
 
-        // Turn down Wolverine's built in logging of all successful
-        // message processing
-        opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
+        // Turn off Wolverine's built in logging of all successful
+        // message processing. The default is Debug
+        opts.Policies.MessageSuccessLogLevel(LogLevel.None);
     }).StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LoggingUsage.cs#L25-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_turning_down_message_logging' title='Start of snippet'>anchor</a></sup>
@@ -90,7 +90,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 When `InvokeTracingMode.Full` is enabled, `InvokeAsync()` will emit:
 - **Execution started** — logged at the configured `MessageExecutionLogLevel` (default `Debug`)
-- **Message succeeded** — logged at the configured `MessageSuccessLogLevel` (default `Information`)
+- **Message succeeded** — logged at the configured `MessageSuccessLogLevel` (default `Debug`)
 - **Message failed** — logged at `Error` level with the exception
 - **Execution finished** — logged at the configured `MessageExecutionLogLevel`
 
@@ -445,16 +445,18 @@ builder.Services.AddOpenTelemetryTracing(x =>
 ```cs
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracing => { tracing.AddSource("Wolverine"); })
-    .WithMetrics(metrics => { metrics.AddMeter("Wolverine*"); })
+    .WithMetrics(metrics => { metrics.AddMeter("Wolverine"); })
     .UseOtlpExporter();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/Program.cs#L36-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
-The exported `Meter` is named `Wolverine:{ApplicationName}` (e.g. `Wolverine:MyService`), so the wildcard
-`AddMeter("Wolverine*")` is required — a bare `AddMeter("Wolverine")` matches nothing. The `ActivitySource`
-for traces is still just `Wolverine`.
+As of 7.0 the exported `Meter` is named exactly `Wolverine`, the same as the `ActivitySource` for traces, so
+`AddMeter("Wolverine")` collects every Wolverine metric. The service is identified by the OpenTelemetry resource
+(`OTEL_SERVICE_NAME`) and by the `source` tag on every measurement, not by the meter name. Before 7.0 the meter
+was named `Wolverine:{ServiceName}` and needed `AddMeter("Wolverine*")`; the wildcard still works, and also picks up
+the separate `Wolverine.AI` and `Wolverine.CritterWatch` meters. See the [migration guide](/guide/migration#opentelemetry-meter-and-metric-names-breaking).
 :::
 
 ::: tip
@@ -877,6 +879,42 @@ builder.UseWolverine(opts =>
 
 The setting also covers the `wolverine.deserialize` span described above.
 
+## Starting a New Trace per Message
+
+By default, the spans a message produces on the receiving side are children of the activity that sent it, so
+everything a message causes lands in the sender's trace. When one handler fans out into many messages, that trace
+grows with every message it sends, and the work for each message is hard to look at on its own.
+
+Mark an outgoing message to have the receiving side start a new trace instead. The first span Wolverine starts for
+that message is the root of a new trace, with a span link back to the activity that sent it, which is how the
+OpenTelemetry messaging conventions correlate a producer with its consumers. Spans started later for the same
+message, including retries, join the new trace. The correlation id is unchanged, so it still ties the whole flow
+together.
+
+```cs
+await bus.SendAsync(new ProcessItem(id), new DeliveryOptions { StartsNewLinkedTrace = true });
+```
+
+The same flag is available on the envelope, so a metadata rule can set it:
+
+```cs
+public class NewTracePerItem : IEnvelopeRule
+{
+    public void Modify(Envelope envelope)
+    {
+        if (envelope.Message is ProcessItem)
+        {
+            envelope.StartsNewLinkedTrace = true;
+        }
+    }
+}
+
+opts.MetadataRules.Add(new NewTracePerItem());
+```
+
+The flag travels as the `starts-new-linked-trace` header, so it crosses external transports and the durable inbox
+like any other header.
+
 ## Handler Type Tagging
 
 Wolverine automatically tags Open Telemetry activity spans with the handler type name during message processing. This provides per-handler tracing visibility in observability backends like Jaeger, Zipkin, or Honeycomb without any additional configuration.
@@ -946,15 +984,15 @@ will be added back to Wolverine in 4.0.
 
 | Metric Name                  | Metric Type                                                                                               | Description                                                                                                                                                                                                                                                                            |
 |------------------------------|-----------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| wolverine-messages-sent      | [Counter](https://opentelemetry.io/docs/reference/specification/metrics/api/#counter)                     | Number of messages sent                                                                                                                                                                                                                                                                |
-| wolverine-execution-time     | [Histogram](https://opentelemetry.io/docs/reference/specification/metrics/api/#histogram)                 | Execution time in milliseconds                                                                                                                                                                                                                                                         |
-| wolverine-messages-succeeded | Counter                                                                                                   | Number of messages successfully processed                                                                                                                                                                                                                                              |
-| wolverine-dead-letter-queue  | Counter                                                                                                   | Number of messages moved to dead letter queues                                                                                                                                                                                                                                         |
-| wolverine-effective-time     | Histogram                                                                                                 | Effective time between a message being sent and being completely handled in milliseconds. Right now this works between Wolverine to Wolverine application sending and from NServiceBus applications sending to Wolverine applications through Wolverine’s NServiceBus interoperability. |
-| wolverine-execution-failure  | Counter                                                                                                   | Number of message execution failures. Tagged by exception type                                                                                                                                                                                                                         |
-| wolverine-inbox-count        | [Observable Gauge](https://opentelemetry.io/docs/specs/otel/metrics/api/#asynchronous-gauge)             | Current number of persisted incoming (inbox) messages. Tagged by `source` and `database`                                                                                                                                                                                                |
-| wolverine-outbox-count       | Observable Gauge                                                                                          | Current number of persisted outgoing (outbox) messages. Tagged by `source` and `database`                                                                                                                                                                                              |
-| wolverine-scheduled-count    | Observable Gauge                                                                                          | Current number of persisted scheduled messages. Tagged by `source` and `database`                                                                                                                                                                                                      |
+| wolverine.messages.sent      | [Counter](https://opentelemetry.io/docs/reference/specification/metrics/api/#counter)                     | Number of messages sent                                                                                                                                                                                                                                                                |
+| wolverine.execution.time     | [Histogram](https://opentelemetry.io/docs/reference/specification/metrics/api/#histogram)                 | Execution time in milliseconds                                                                                                                                                                                                                                                         |
+| wolverine.messages.succeeded | Counter                                                                                                   | Number of messages successfully processed                                                                                                                                                                                                                                              |
+| wolverine.dead_letter_queue  | Counter                                                                                                   | Number of messages moved to dead letter queues                                                                                                                                                                                                                                         |
+| wolverine.effective.time     | Histogram                                                                                                 | Effective time between a message being sent and being completely handled in milliseconds. Right now this works between Wolverine to Wolverine application sending and from NServiceBus applications sending to Wolverine applications through Wolverine’s NServiceBus interoperability. |
+| wolverine.execution.failure  | Counter                                                                                                   | Number of message execution failures. Tagged by exception type                                                                                                                                                                                                                         |
+| wolverine.inbox.count        | [Observable Gauge](https://opentelemetry.io/docs/specs/otel/metrics/api/#asynchronous-gauge)             | Current number of persisted incoming (inbox) messages. Tagged by `source` and `database`                                                                                                                                                                                                |
+| wolverine.outbox.count       | Observable Gauge                                                                                          | Current number of persisted outgoing (outbox) messages. Tagged by `source` and `database`                                                                                                                                                                                              |
+| wolverine.scheduled.count    | Observable Gauge                                                                                          | Current number of persisted scheduled messages. Tagged by `source` and `database`                                                                                                                                                                                                      |
 
 ::: tip System traffic is not counted <Badge type="tip" text="6.25" />
 Wolverine's own internal traffic — node agent commands on the control queues, acknowledgements, and
@@ -972,13 +1010,13 @@ observability tooling:
 
 | Tag                   | Description                                                                            |
 |-----------------------|----------------------------------------------------------------------------------------|
-| `message.type`        | The message type name                                                                  |
+| `wolverine.message.type` | The message type name (`message.type` before 7.0, see the [migration guide](/guide/migration#opentelemetry-meter-and-metric-names-breaking)) |
 | `message.destination` | The endpoint URI the message was sent to / received at (when known)                    |
 | `tenant.id`           | The tenant id (when the message is tenant-scoped)                                       |
 | `source`              | The Wolverine `ServiceName` of the application emitting the metric                      |
 | `schedule.name`       | The `opts.Schedules` recurring schedule that published the occurrence (occurrences only) |
 
-The `wolverine-execution-failure` instrument additionally carries an `exception.type` tag. You can attach your
+The `wolverine.execution.failure` instrument additionally carries an `exception.type` tag. You can attach your
 own per-message tags with [`Envelope.SetMetricsTag`](#additional-metrics-tags).
 
 ::: tip The `schedule.name` tag <Badge type="tip" text="6.38" />
@@ -993,15 +1031,15 @@ which would make the series unbounded in cardinality. It rides the trace instead
 :::
 
 ::: tip The `source` tag <Badge type="tip" text="6.14.1" />
-Before 6.14.1 the `source` (service-name) tag was only present on `wolverine-messages-sent` and
-`wolverine-messages-received`. As of **6.14.1** it is added to **every** instrument, so a shared metrics backend
+Before 6.14.1 the `source` (service-name) tag was only present on `wolverine.messages.sent` and
+`wolverine.messages.received`. As of **6.14.1** it is added to **every** instrument, so a shared metrics backend
 that scrapes many services can slice each series per service — `{source="my-service"}` /
 `sum by (source, ...)` works uniformly across all Wolverine metrics.
 :::
 
 ### Histogram Buckets <Badge type="tip" text="6.14.1" />
 
-The `wolverine-execution-time` and `wolverine-effective-time` histograms record millisecond latencies, but the
+The `wolverine.execution.time` and `wolverine.effective.time` histograms record millisecond latencies, but the
 default OpenTelemetry histogram buckets are tuned for seconds — so quantile baselines computed from a
 time-series database (Prometheus / VictoriaMetrics) over those instruments are coarse. Wolverine therefore
 applies a millisecond-oriented set of explicit bucket boundaries (as instrument
@@ -1133,8 +1171,8 @@ public static async Task publish_operation(IMessageBus bus, string tenantId, str
 
 ### Queue Depth Gauge Tags <Badge type="tip" text="6.14.1" />
 
-The inbox / outbox / scheduled queue-depth gauges (`wolverine-inbox-count`, `wolverine-outbox-count`,
-`wolverine-scheduled-count`) are tagged so you can slice persisted message depth from a shared metrics backend:
+The inbox / outbox / scheduled queue-depth gauges (`wolverine.inbox.count`, `wolverine.outbox.count`,
+`wolverine.scheduled.count`) are tagged so you can slice persisted message depth from a shared metrics backend:
 
 | Tag        | Description                                                                                          |
 |------------|------------------------------------------------------------------------------------------------------|
@@ -1143,8 +1181,8 @@ The inbox / outbox / scheduled queue-depth gauges (`wolverine-inbox-count`, `wol
 
 ::: tip
 Before **6.14.1**, the multi-database build emitted one gauge *per database* by appending the database name to the
-instrument **name** (`wolverine-inbox-count.<database>`). That made the depth impossible to group across databases
-in a TSDB. The database is now a `database` **tag** on the canonical `wolverine-inbox-count` instrument instead, so
+instrument **name** (`wolverine-inbox-count.<database>`, as it was then spelled). That made the depth impossible to group across databases
+in a TSDB. The database is now a `database` **tag** on the canonical `wolverine.inbox.count` instrument instead, so
 `sum by (database) (wolverine_inbox_count)` works as expected. Update any dashboards that referenced the old
 per-database instrument names.
 :::

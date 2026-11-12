@@ -66,16 +66,64 @@ public class scheduled_messages_use_message_store_when_AlwaysMakeScheduledMessag
     }
 
     [Fact]
-    public async Task local_queue_uses_in_memory_scheduling_without_the_policy()
+    public async Task local_queue_persists_scheduled_messages_to_message_store_by_default_in_7_0()
     {
-        // Negative control: same wiring as the test above MINUS AlwaysMakeScheduledMessagesDurable.
-        // BufferedLocalQueue's existing path stays intact — scheduled envelopes go to the
-        // in-process scheduler and the store's Scheduled count stays at zero.
-        const string schema = "always_durable_off";
+        // GH-5519: the policy is on by default when there is a message store
+        using var host = await startAsync("always_durable_default", _ => { });
 
-        using var host = await Host.CreateDefaultBuilder()
+        host.Services.GetRequiredService<WolverineOptions>().Durability.AlwaysMakeScheduledMessagesDurable.ShouldBeTrue();
+
+        await scheduleTwoAsync(host);
+
+        var counts = await pollScheduledCountAsync(host.Services.GetRequiredService<IMessageStore>(), expected: 2);
+        counts.Scheduled.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task local_queue_uses_in_memory_scheduling_when_the_policy_is_turned_off()
+    {
+        // Negative control: same wiring as the tests above with the policy explicitly off. BufferedLocalQueue's
+        // in-process path stays intact -- scheduled envelopes go to the in-process scheduler and the store's
+        // Scheduled count stays at zero.
+        using var host = await startAsync("always_durable_off",
+            opts => opts.Durability.AlwaysMakeScheduledMessagesDurable = false);
+
+        await scheduleTwoAsync(host);
+        await assertNothingScheduledInTheStoreAsync(host);
+    }
+
+    [Fact]
+    public async Task local_queue_uses_in_memory_scheduling_after_restoring_the_v6_defaults()
+    {
+        // GH-5519
+        using var host = await startAsync("always_durable_v6", opts => opts.RestoreV6Defaults());
+
+        await scheduleTwoAsync(host);
+        await assertNothingScheduledInTheStoreAsync(host);
+    }
+
+    [Fact]
+    public async Task an_explicit_opt_in_wins_over_restoring_the_v6_defaults()
+    {
+        // GH-5519
+        using var host = await startAsync("always_durable_v6_on", opts =>
+        {
+            opts.RestoreV6Defaults();
+            opts.Policies.AlwaysMakeScheduledMessagesDurable();
+        });
+
+        await scheduleTwoAsync(host);
+
+        var counts = await pollScheduledCountAsync(host.Services.GetRequiredService<IMessageStore>(), expected: 2);
+        counts.Scheduled.ShouldBe(2);
+    }
+
+    private static async Task<IHost> startAsync(string schema, Action<WolverineOptions> configure)
+    {
+        return await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                configure(opts);
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, schema);
                 opts.Durability.Mode = DurabilityMode.Solo;
 
@@ -84,17 +132,21 @@ public class scheduled_messages_use_message_store_when_AlwaysMakeScheduledMessag
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
+    }
 
+    private static async Task scheduleTwoAsync(IHost host)
+    {
         var bus = host.MessageBus();
-        var store = host.Services.GetRequiredService<IMessageStore>();
-
         await bus.ScheduleAsync(new DurableTimeoutTestMessage(Guid.NewGuid()), 5.Minutes());
         await bus.ScheduleAsync(new DurableTimeoutTestReminder(Guid.NewGuid()), 5.Minutes());
+    }
 
+    private static async Task assertNothingScheduledInTheStoreAsync(IHost host)
+    {
         // Give any async outgoing flush a moment to complete; no scheduled rows should appear
         // because the in-memory scheduler is the destination, not the message store.
         await Task.Delay(500, TestContext.Current.CancellationToken);
-        var counts = await store.Admin.FetchCountsAsync();
+        var counts = await host.Services.GetRequiredService<IMessageStore>().Admin.FetchCountsAsync();
         counts.Scheduled.ShouldBe(0);
     }
 

@@ -141,10 +141,10 @@ See [Aspire Integration](/guide/aspire) for the full picture.
 
 ## Optimizing the Message Store <Badge type="tip" text="5.3" />
 
-For PostgreSQL, you can enable PostgreSQL backed partitioning for the inbox table
-as an optimization. This is not enabled by default just to avoid causing database
-migrations in a minor point release. Note that this will have some significant benefits
-for inbox/outbox metrics gathering in the future:
+For PostgreSQL, Wolverine partitions the inbox table by envelope status as an optimization. This is on by default
+since 7.0 (it was opt-in in 5.x and 6.x), and the first 7.0 start rebuilds an existing unpartitioned inbox under an
+exclusive lock; see [the migration guide](/guide/migration#the-postgresql-inbox-is-partitioned) for how long that takes
+and how to roll it out. Set it explicitly to keep, or to turn off, partitioning:
 
 <!-- snippet: sample_enabling_inbox_partitioning -->
 <a id='snippet-sample_enabling_inbox_partitioning'></a>

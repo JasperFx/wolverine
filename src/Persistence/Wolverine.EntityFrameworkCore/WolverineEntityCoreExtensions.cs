@@ -543,6 +543,7 @@ public static class WolverineEntityCoreExtensions
             eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired();
             eb.Property(x => x.ReceivedAt).HasColumnName(DatabaseConstants.ReceivedAt);
             eb.Property(x => x.KeepUntil).HasColumnName(DatabaseConstants.KeepUntil);
+            eb.Property(x => x.GroupId).HasColumnName(DatabaseConstants.GroupId);
         });
 
         modelBuilder.Entity<OutgoingMessage>(eb =>

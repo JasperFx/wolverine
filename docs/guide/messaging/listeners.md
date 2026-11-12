@@ -231,11 +231,11 @@ opts.ListenToRabbitQueue("webhooks")
     .WithInMemoryIdempotency(window: 5.Minutes(), maxTracked: 100_000);
 ```
 
-::: tip On by default for native-ack listeners in 7.0
-As of Wolverine 7.0 a `ProcessInParallelWithNativeAcks()` listener gets this guard without asking, with the default
-window and ceiling. Call `WithInMemoryIdempotency(window, maxTracked)` to change them, or `WithoutInMemoryIdempotency()`
-to turn the guard off on that listener. `RestoreV6Defaults()` turns it off for every native-ack listener. Buffered and
-inline listeners still opt in.
+::: warning In-flight redeliveries on native-ack listeners
+The guard treats a redelivery of a message that is still being handled as a duplicate and acknowledges it. On a broker
+like Pulsar that settles the message while its first delivery is in flight, so a node that drains or dies at that
+moment loses it. Until GH-5533 lands, weigh that before turning the guard on for a `ProcessInParallelWithNativeAcks()`
+listener.
 :::
 
 To turn it on everywhere rather than endpoint by endpoint, use a policy:
@@ -288,7 +288,7 @@ minutes — and leave `maxTracked` alone unless you are running a flood at a sus
 
 | Mode | Guard |
 | --- | --- |
-| `NativeAck` | ✔️ — the primary use case, and on by default as of 7.0 |
+| `NativeAck` | ✔️ — the primary use case |
 | `BufferedInMemory` | ✔️ |
 | `Inline` | ✔️ |
 | `Durable` | ignored (warns at startup) — the inbox already deduplicates, and does it better |
@@ -304,8 +304,8 @@ Both are also metered <Badge type="tip" text="6.32" />, tagged by endpoint:
 
 | Meter | Answers |
 | --- | --- |
-| `wolverine-duplicates-suppressed` | "Is my redelivery rate normal?" — how many duplicate deliveries this guard has dropped |
-| `wolverine-idempotency-early-rotation` | "Is my window big enough?" — how often the `maxTracked` ceiling forced a rotation *before* the window elapsed |
+| `wolverine.duplicates.suppressed` | "Is my redelivery rate normal?" — how many duplicate deliveries this guard has dropped |
+| `wolverine.idempotency.early_rotation` | "Is my window big enough?" — how often the `maxTracked` ceiling forced a rotation *before* the window elapsed |
 
 The second is the one to alert on. A non-zero and rising count means the early-rotation row in the table
 above is firing, so the effective suppression window is **shorter than the `window` you configured** — the
@@ -349,8 +349,8 @@ delivery again and is going to redeliver it. Wolverine's response depends on whe
 * **Already executing.** A running handler cannot be un-run. This one stays at-least-once — NativeAck's
   documented contract — and Wolverine's only job is to not compound it, so its defer is suppressed too.
 
-Both are metered. `wolverine-leases-lost` is tagged `lease.loss.stage` = `not-started` (duplication prevented)
-or `executing` (duplication realized); `wolverine-leases-renewed` and `wolverine-lease-ceiling-reached` round
+Both are metered. `wolverine.leases.lost` is tagged `lease.loss.stage` = `not-started` (duplication prevented)
+or `executing` (duplication realized); `wolverine.leases.renewed` and `wolverine.lease.ceiling_reached` round
 out the picture. A rising `executing` count means lane depth has outgrown the configured lease — raise the
 lease, raise the slot count, or lower the prefetch.
 :::
@@ -514,7 +514,7 @@ callback. Settings that size or shard that block therefore do nothing on an `Inl
 | `ListenWithStrictOrdering()` / `ListenOnlyAtLeader()` | ✔️ (exclusivity only) | ✔️ | ✔️ | ✔️ |
 | `ExclusiveNodeWithParallelism(n)` | ✔️ exclusivity, parallelism ignored (warns) | ✔️ | ✔️ | ✔️ |
 | `CircuitBreaker()` | ✔️ | ✔️ | ✔️ (a [local queue](/guide/messaging/transports/local#circuit-breakers-on-local-queues) **throws at startup**) | ✔️ |
-| [`WithInMemoryIdempotency()`](#in-memory-idempotency-guard) | ✔️ | ✔️ (on by default in 7.0) | ✔️ | ignored (warns) |
+| [`WithInMemoryIdempotency()`](#in-memory-idempotency-guard) | ✔️ | ✔️ | ✔️ | ignored (warns) |
 
 As of Wolverine 6.30, these combinations are no longer silently accepted:
 

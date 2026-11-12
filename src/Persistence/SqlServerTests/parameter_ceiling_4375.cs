@@ -94,8 +94,9 @@ public class parameter_ceiling_4375 : IAsyncLifetime
     }
 
     /// <summary>
-    /// The arithmetic that broke: the largest batch that fits must actually fit. Both are one envelope
-    /// under the measured failure points (350 outgoing, 234 incoming).
+    /// The arithmetic that broke: the largest batch that fits must actually fit. Outgoing is one envelope
+    /// under the measured failure point (350). Incoming is the largest unchunked batch since GH-5167 added
+    /// group_id: ten parameters each, 209 of them inside the budget the driver's two reserved arguments leave.
     /// </summary>
     [Fact]
     public async Task the_largest_unchunked_batch_still_fits()
@@ -105,7 +106,7 @@ public class parameter_ceiling_4375 : IAsyncLifetime
         await using var tx = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         await theStore.StoreOutgoingAsync(tx, envelopes(349, EnvelopeStatus.Outgoing));
-        await theStore.StoreIncomingAsync(tx, envelopes(233, EnvelopeStatus.Incoming));
+        await theStore.StoreIncomingAsync(tx, envelopes(209, EnvelopeStatus.Incoming));
 
         await tx.CommitAsync(TestContext.Current.CancellationToken);
     }
@@ -131,7 +132,7 @@ public class parameter_ceiling_4375 : IAsyncLifetime
     }
 
     /// <summary>
-    /// 1,000 incoming envelopes is 9,000 parameters unchunked -- over 4x the ceiling.
+    /// 1,000 incoming envelopes is 10,000 parameters unchunked -- over 4x the ceiling.
     /// </summary>
     [Fact]
     public async Task a_transaction_can_receive_far_more_messages_than_the_parameter_ceiling_allows()

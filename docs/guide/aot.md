@@ -141,6 +141,7 @@ A handful of Wolverine APIs **require** runtime codegen by design. They carry `[
 - Reflective handler / saga / transport discovery (`HandlerDiscovery.IncludeAssembly` type-scan, the saga-type-descriptor `StartingMessages` reflection, transport `IMessageRoutingConvention` reflection). Static-mode + a pre-generated handler manifest avoid these.
 - `MakeGenericType` / `Activator.CreateInstance` driven factories — the few that still exist in core.
 - The `WolverineFx.Newtonsoft` companion package (Newtonsoft.Json itself isn't AOT-friendly; if you need Newtonsoft, you're not on the AOT path).
+- The default System.Text.Json message serializer reads message types by reflection. Pass a source generated `JsonSerializerContext` with `opts.UseSystemTextJsonForSerialization(MyMessagesContext.Default)` and it uses the AOT-safe `JsonTypeInfo` path instead; see [source generated System.Text.Json](/guide/messages#source-generated-system-text-json-trimming-and-native-aot).
 - `LlmCallout.Ask(prompt, context)` in `WolverineFx.AI` -- serializing an arbitrary context object means reflecting over its shape, and there's no way around that. Use `.WithContext(context, typeInfo)` instead, which the annotation's message tells you right at the call site.
 
 If you publish AOT in `Dynamic` mode (the default), expect warnings from these surfaces — they tell you what to migrate before you can ship a working AOT binary.

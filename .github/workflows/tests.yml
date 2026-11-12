@@ -75,7 +75,6 @@ jobs:
           - CIMartenDistribution
           - CIMartenTenancy
           - CIMQTT
-          - CIMQTT5
           - CIMySql
           - CINATS
           - CIOracle

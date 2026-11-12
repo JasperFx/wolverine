@@ -402,9 +402,9 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
         return Task.FromResult((IReadOnlyList<NodeRecord>)Array.Empty<NodeRecord>());
     }
 
-    public bool HasLeadershipLock()
+    public Task<bool> HasLeadershipLockAsync(CancellationToken token)
     {
-        return false;
+        return Task.FromResult(false);
     }
 
     public Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)

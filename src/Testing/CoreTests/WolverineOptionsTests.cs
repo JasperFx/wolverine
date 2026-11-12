@@ -56,23 +56,12 @@ public class WolverineOptionsTests
     }
 
     [Fact]
-    public void inbox_partitioning_is_off_by_default()
+    public void inbox_partitioning_is_on_by_default()
     {
-        new WolverineOptions().Durability.EnableInboxPartitioning.ShouldBeFalse();
+        // GH-5519: honoured by PostgreSQL only
+        new WolverineOptions().Durability.EnableInboxPartitioning.ShouldBeTrue();
     }       
     
-    [Fact]
-    public void failure_acks_are_NOT_enabled_by_default()
-    {
-        new WolverineOptions().EnableAutomaticFailureAcks.ShouldBeFalse();
-    }
-    
-    [Fact]
-    public void multiple_handler_behavior_is_classic_mode_by_default()
-    {
-        new WolverineOptions().MultipleHandlerBehavior.ShouldBe(MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler);
-    }
-
     [Fact]
     public void default_id_behavior_is_id_only()
     {
@@ -80,11 +69,12 @@ public class WolverineOptionsTests
     }
 
     [Fact]
-    public void dlq_expiration_is_off_by_default()
+    public void dlq_expiration_is_on_by_default()
     {
+        // GH-5519
         var wolverineOptions = new WolverineOptions();
         wolverineOptions.Durability.DeadLetterQueueExpiration.ShouldBe(10.Days());
-        wolverineOptions.Durability.DeadLetterQueueExpirationEnabled.ShouldBeFalse();
+        wolverineOptions.Durability.DeadLetterQueueExpirationEnabled.ShouldBeTrue();
     }
     
     [Fact]

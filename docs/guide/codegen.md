@@ -43,9 +43,20 @@ Not to worry though, Wolverine has several facilities to either preview the gene
 really understand how Wolverine is interacting with your code and to optimize the "cold start" by generating the dynamic
 code ahead of time so that it can be embedded directly into your application's main assembly and discovered from there.
 
-By default, Wolverine runs with "dynamic" code generation where all the necessary generated types are built on demand
-the first time they are needed. This is perfect for a quick start to Wolverine, and might be fine in smaller projects even
-at production time.
+At development time, Wolverine runs with "dynamic" code generation where all the necessary generated types are built on
+demand the first time they are needed. This is perfect for a quick start to Wolverine.
+
+::: info Production defaults to pre-generated code in 7.0
+As of Wolverine 7.0, a Wolverine application in the JasperFx `Production` profile (any environment other than
+`Development`) defaults to `TypeLoadMode.Static` with `AssertAllPreGeneratedTypesExist = true`. Run
+`dotnet run -- codegen write` as part of your build, or the application fails at startup with a
+`MissingPreBuiltTypesException` naming every missing type. This covers handlers, HTTP endpoints, gRPC services and the
+Marten, Polecat and Fisher chains. Wolverine only changes the profile when `UseWolverine()` is present and you haven't
+set either value yourself, and not in a process with a test framework loaded. JasperFx's shared default is untouched.
+To compile at runtime in production as 6.x did, call `opts.RestoreV6Defaults()` or set
+`x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic` in `CritterStackDefaults()`, and keep
+`WolverineFx.RuntimeCompilation`. See [deploying 7.0 to production](/guide/migration#deploying-7-0-to-production).
+:::
 
 ::: warning
 Note that you may need to delete the existing source code when you change
@@ -521,6 +532,12 @@ your own session building still runs everywhere the handler's session is not in 
 ## Environment Check for Expected Types
 
 ::: tip
+As of Wolverine 7.0, the `Production` profile of a Wolverine application turns `AssertAllPreGeneratedTypesExist` on by
+default, together with `TypeLoadMode.Static`. The sample below is only needed for other profiles, or if you changed
+the Production defaults.
+:::
+
+::: tip
 As of Wolverine 6.30, **message handlers** no longer need this opt in. In `TypeLoadMode.Static` Wolverine
 asserts at startup that every handler chain's pre-generated type is really in the application assembly, and
 throws a `MissingPreBuiltTypesException` naming the chains it could not load if any are missing. The check
@@ -656,6 +673,9 @@ Which will use:
 
 1. `TypeLoadMode.Dynamic` when the .NET environment is "Development" and dynamically generate types on the first usage
 2. `TypeLoadMode.Static` for other .NET environments for optimized cold start times
+
+In Wolverine 7.0, the `Production` values for code generation above are already the defaults of a Wolverine
+application, so you only need to set them for a Marten, Polecat or Fisher application without Wolverine.
 
 ::: tip
 `ResourceAutoCreate = AutoCreate.None` only disables the *automatic* migrations that run at startup. An explicit

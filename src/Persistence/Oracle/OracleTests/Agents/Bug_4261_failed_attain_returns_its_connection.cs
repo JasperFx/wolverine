@@ -119,6 +119,7 @@ public class Bug_4261_failed_attain_returns_its_connection : OracleContext
         {
             (await advisoryLock.TryAttainLockAsync(LockId, CancellationToken.None)).ShouldBeTrue();
             advisoryLock.HasLock(LockId).ShouldBeTrue();
+            (await advisoryLock.HasLockAsync(LockId, CancellationToken.None)).ShouldBeTrue();
 
             // Not asserted here: the renewal TryAttainLeadershipLockAsync drives on every tick answers
             // FALSE on Oracle, because the row lock the first attain took on its own connection blocks

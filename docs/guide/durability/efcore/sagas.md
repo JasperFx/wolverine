@@ -125,6 +125,20 @@ public class OrdersDbContext : DbContext
 There's no other registration to do other than adding the `OrdersDbContext` to your IoC container and enabling
 the Wolverine EF Core middleware as shown in the [getting started with EF Core](/guide/durability/efcore/#getting-started) section. 
 
+## The LastModified Column <Badge type="tip" text="7.0" />
+
+The base `Saga` type has a `LastModified` property (`DateTimeOffset`) that Wolverine sets on every insert and update.
+Because it's a public property of your saga entity, EF Core maps it as a column by convention, so upgrading to 7.0
+needs an EF Core migration that adds it. If you'd rather keep your schema as it is, ignore it in your model; Wolverine
+still sets the property in memory:
+
+```cs
+modelBuilder.Entity<OrderSaga>().Ignore(x => x.LastModified);
+```
+
+Setting the property marks a loaded saga as modified, so Wolverine now writes the saga (and increments `Version`) for
+every message it handles, even one that changed nothing else.
+
 ## When to Use EF Core vs Lightweight Storage?
 
 As to the question, when should you opt for lightweight storage where Wolverine just sticks serialized JSON into a single 

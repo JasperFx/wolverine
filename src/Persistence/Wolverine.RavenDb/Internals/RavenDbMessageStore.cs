@@ -22,7 +22,9 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
     {
         _identity = options.Durability.MessageIdentity == MessageIdentity.IdOnly
             ? e => e.Id.ToString()
-            : e => $"{e.Id}/{e.Destination!.ToString().Replace(":/", "").TrimEnd('/')}";
+            // GH-5139. Under IdAndDestination an envelope can still be dead-lettered without a
+            // destination (GH-3166); its incoming identity then has no destination part to delete by
+            : e => $"{e.Id}/{e.Destination?.ToString().Replace(":/", "").TrimEnd('/')}";
 
         _store = store;
         _options = options;

@@ -16,10 +16,12 @@
     <PackageReference Include="coverlet.collector" PrivateAssets="All" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="OpenTelemetry.Exporter.InMemory" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Wolverine.HealthChecks\Wolverine.HealthChecks.csproj"/>
+    <ProjectReference Include="..\Wolverine.ServiceDefaults\Wolverine.ServiceDefaults.csproj"/>
   </ItemGroup>
 
   <ItemGroup>

@@ -49,6 +49,12 @@ jobs:
           CI_JOB_NAME: CIHttpAspVersioning
         run: ./build/run-with-cancellation-relay.sh CIHttpAspVersioning
 
+      # Both net10.0 and net11.0, whatever the framework: the behaviour differs between them (GH-5147)
+      - name: Run HTTP ASP.NET Core 11 compatibility Tests
+        env:
+          CI_JOB_NAME: CIHttpCompat
+        run: ./build/run-with-cancellation-relay.sh CIHttpCompat
+
       - name: Stop containers
         if: always()
         run: docker compose down

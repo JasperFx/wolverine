@@ -108,6 +108,8 @@ public partial class HttpGraph
         }
 
         message.AppendLine();
+        message.AppendLine(MissingPreBuiltTypesException.HowToFix);
+        message.AppendLine();
         message.Append("See https://wolverinefx.net/guide/http/codegen.html");
 
         return message.ToString();

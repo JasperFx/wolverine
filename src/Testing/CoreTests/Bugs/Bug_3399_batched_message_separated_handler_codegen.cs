@@ -31,7 +31,6 @@ public class Bug_3399_batched_message_separated_handler_codegen
                 opts.Discovery.IncludeType<OtherCreatedHandler3399>();
                 opts.Discovery.IncludeType<OtherDeletedHandler3399>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.BatchMessagesOf<ItemDeleted3399>();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
@@ -69,7 +68,6 @@ public class Bug_3399_batched_message_separated_handler_codegen
                 opts.Discovery.IncludeType<OtherCreatedHandler3399>();
                 opts.Discovery.IncludeType<OtherDeletedHandler3399>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.BatchMessagesOf<ItemDeleted3399>();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);

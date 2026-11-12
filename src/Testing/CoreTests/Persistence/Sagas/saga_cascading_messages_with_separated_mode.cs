@@ -20,7 +20,6 @@ public class saga_cascading_messages_with_separated_mode
                     .IncludeType(typeof(ExternalHandler));
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var id = Guid.NewGuid();
@@ -62,7 +61,6 @@ public class saga_cascading_messages_with_separated_mode
                     .IncludeType(typeof(CascadingFromStartSaga));
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var id = Guid.NewGuid();
