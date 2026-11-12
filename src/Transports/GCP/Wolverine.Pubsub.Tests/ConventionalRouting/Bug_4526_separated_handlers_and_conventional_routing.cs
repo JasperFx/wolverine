@@ -109,6 +109,11 @@ public class Bug_4526_separated_handlers_and_conventional_routing(Bug4526Fixture
         var tracked = await _host.TrackActivity()
             .IncludeExternalTransports()
             .Timeout(30.Seconds())
+
+            // GH-5536. The topic hands one copy of the message -- with the same envelope id -- to each
+            // subscription, and the tracked session only sees the one send to the topic. Without this it
+            // completes as soon as the first copy is handled, and the second copy lands after the assertion
+            .WaitForCondition(new MessageSucceededAtEverySubscription<SeparatedPubsubMessage>(2))
             .SendMessageAndWaitAsync(message);
 
         foreach (var record in tracked.AllRecordsInOrder())
@@ -129,6 +134,45 @@ public class Bug_4526_separated_handlers_and_conventional_routing(Bug4526Fixture
         ex.Message.ShouldContain("not a valid name!");
         ex.Message.ShouldContain("must start with a letter");
         ex.Message.ShouldContain("goog");
+    }
+}
+
+/// <summary>
+/// Holds a tracked session open until a message of type T has been handled successfully at the expected
+/// number of distinct subscriptions. The same shape as the RabbitMQ one from GH-5416: a broker that fans a
+/// message out is invisible to the tracked session, which counts envelopes, not copies.
+/// </summary>
+public class MessageSucceededAtEverySubscription<T>(int expected) : ITrackedCondition
+{
+    private readonly HashSet<Uri> _subscriptions = new();
+    private readonly object _lock = new();
+
+    public void Record(EnvelopeRecord record)
+    {
+        if (record.MessageEventType != MessageEventType.MessageSucceeded) return;
+        if (record.Message is not T) return;
+        if (record.Envelope?.Destination is not { } subscription) return;
+
+        lock (_lock)
+        {
+            _subscriptions.Add(subscription);
+        }
+    }
+
+    public bool IsCompleted()
+    {
+        lock (_lock)
+        {
+            return _subscriptions.Count >= expected;
+        }
+    }
+
+    public override string ToString()
+    {
+        lock (_lock)
+        {
+            return $"{typeof(T).Name} succeeded at {_subscriptions.Count} of {expected} subscriptions";
+        }
     }
 }
 

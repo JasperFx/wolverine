@@ -19,8 +19,6 @@ public class when_discovering_a_listening_endpoint_with_overridden_queue_naming 
         theEndpoint = runtime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<PubsubEndpoint>();
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
-
     [Fact]
     public void endpoint_should_be_a_listener()
     {
