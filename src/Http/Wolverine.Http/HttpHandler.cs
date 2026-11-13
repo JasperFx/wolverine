@@ -448,12 +448,17 @@ public abstract partial class HttpHandler
 
                 var headers = section.Headers ?? [];
 
-                // Counted and length-prefixed, so a header cannot shift into the next one or into the content
+                // Counted and length-prefixed, so a header or one of its values cannot shift into the next one or
+                // into the content
                 appendLength(part, headers.Count);
                 foreach (var header in headers.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
                 {
                     appendWithLength(part, header.Key.ToLowerInvariant());
-                    appendWithLength(part, header.Value.ToString());
+                    appendLength(part, header.Value.Count);
+                    foreach (var value in header.Value)
+                    {
+                        appendWithLength(part, value ?? string.Empty);
+                    }
                 }
 
                 await appendToEndAsync(part, section.Body, buffer, context.RequestAborted).ConfigureAwait(false);

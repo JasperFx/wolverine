@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Primitives;
@@ -41,6 +42,19 @@ public class fingerprinting_a_deduplicated_request
         var second = await fingerprint(await multipart("second-boundary", "one", "two"));
 
         second.ShouldBe(first);
+    }
+
+    [Fact]
+    public async Task a_part_header_sent_twice_is_not_the_same_as_its_values_joined()
+    {
+        static HttpContext part(string headers) => request("multipart/form-data; boundary=boundary",
+            Encoding.UTF8.GetBytes(
+                $"--boundary\r\nContent-Disposition: form-data; name=\"file\"\r\n{headers}\r\n\r\ncontent\r\n--boundary--\r\n"));
+
+        var twice = await fingerprint(part("X-Values: one\r\nX-Values: two"));
+        var joined = await fingerprint(part("X-Values: one,two"));
+
+        joined.ShouldNotBe(twice);
     }
 
     [Fact]
