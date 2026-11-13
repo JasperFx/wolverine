@@ -12,8 +12,7 @@ public static class CompatHost
     public static async Task<IAlbaHost> For(
         Action<WolverineHttpOptions>? configureHttp = null,
         Action<IServiceCollection>? configureServices = null,
-        Action<WebApplication>? configureApp = null,
-        Action<WolverineOptions>? configureWolverine = null)
+        Action<WebApplication>? configureApp = null)
     {
         var builder = WebApplication.CreateBuilder(Array.Empty<string>());
         builder.Environment.EnvironmentName = "Development";
@@ -23,7 +22,6 @@ public static class CompatHost
             opts.Discovery.DisableConventionalDiscovery();
             opts.Discovery.IncludeAssembly(typeof(CompatHost).Assembly);
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
-            configureWolverine?.Invoke(opts);
         });
         builder.Services.AddWolverineHttp();
         configureServices?.Invoke(builder.Services);

@@ -3,8 +3,8 @@
     <!--
       GH-5147: Wolverine.Http against ASP.NET Core 11: the CSRF default on form endpoints, the async
       DataAnnotations executor, [ShortCircuit] and OpenAPI 3.2, and the same scenarios on ASP.NET Core 10,
-      where the behaviour deliberately differs. Both frameworks, no database server and no broker:
-      Wolverine.Http.Tests is net10.0-only (WolverineWebApi) and cannot see the .NET 11 surface at all.
+      where the behaviour deliberately differs. Both frameworks, no database and no broker: Wolverine.Http.Tests
+      is net10.0-only (WolverineWebApi) and cannot see the .NET 11 surface at all.
     -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
@@ -31,7 +31,6 @@
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
-        <ProjectReference Include="..\..\Persistence\Wolverine.Sqlite\Wolverine.Sqlite.csproj" />
         <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
     </ItemGroup>
 
