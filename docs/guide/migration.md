@@ -125,7 +125,6 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `DurabilitySettings.MessageDeduplicationMode` | `None`: no deduplication table | `CompareByHash`: every message store provisions `wolverine_deduplication_hashed` and its cleanup job | `opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None` | `restore_v6_defaults_tests` |
 | `DurabilitySettings.EnableDeduplicatedResponses` | `false` | `true`: every message store provisions `wolverine_deduplicated_responses` and its cleanup job | `opts.Durability.EnableDeduplicatedResponses = false` | `restore_v6_defaults_tests` |
 | `DurabilitySettings.AlwaysProvisionOptionalSchemaObjects` | not there (new in 7.0; `EnableOutgoingTimestampIndex` is removed): the inbox/outbox `timestamp` columns only exist with `InboxStaleTime`/`OutboxStaleTime`, `wolverine_nodes.load_factor` only with `CapacityAwareAssignment`, and the outbox stale index only with `EnableOutgoingTimestampIndex` | `true`: the relational stores always create all four, a one-time additive migration on first start; reading and writing them stays opt-in | `opts.Durability.AlwaysProvisionOptionalSchemaObjects = false` | `restore_v6_defaults_tests` |
-| `WolverineOptions.EnvelopeIdGeneration` | `NewId` (MassTransit NewId: machine identity, process id and a timestamp) | `GuidV7` (`Guid.CreateVersion7()`). Either way, a SQL Server-only (or Polecat-only) application still switches to `NewIdSqlServerOrder` at startup | `opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId` | `restore_v6_defaults_tests` |
 | `DurabilitySettings.CompressAgentCommands` | `false`: agent commands travel under the plain intrinsic content type | `true`: agent commands are gzipped under `binary/wolverine+gzip`. **Every node in the cluster must run 6.44 or later before the first 7.0 node starts**; a node older than 6.44 rejects the command and stops taking agent assignments | `opts.Durability.CompressAgentCommands = false` | `restore_v6_defaults_tests` |
 | `BatchingOptions.GroupByGroupId()` for a batched message type in a partitioned topology | off unless the batch executes on the topology's local slots: a batch envelope has no group id and draws a random slot downstream | on whenever the element type is in a partitioned topology (`GlobalPartitioned`, `PublishToPartitionedLocalMessaging` or a sharded listener topology), including with `ExecuteOnDedicatedLocalQueue()` or a named queue. Non-partitioned batching and a custom `IMessageBatcher` are unchanged | `batching.DoNotGroupByGroupId()` in `BatchMessagesOf<T>()` | `core_default_flips_5200` |
 | `AmazonSqsQueue.ExtendVisibilityWhileHandling` (SQS `ProcessInline()` listeners) | `false`: the visibility timeout is set once on receive, and the later messages of a batch that outlives it are redelivered while still being handled | `true`: the visibility of every unsettled message in the batch is extended every half `VisibilityTimeout`. Needs the `sqs:ChangeMessageVisibility` IAM permission | `.DoNotExtendVisibilityWhileHandling()` on the listener | `inline_visibility_heartbeat_4019` |
@@ -382,31 +381,6 @@ is explicit, it rebuilds any existing throughput-layout table back to classic, s
 To convert an existing table on purpose, follow "Converting an existing queue table" on the page for your database,
 for example [SQL Server](/guide/durability/sqlserver#converting-an-existing-queue-table). Every application that
 shares the queue tables has to be configured the same way.
-
-### `GuidV7` is the default envelope id in 7.0
-
-Wolverine 7 creates envelope ids with `Guid.CreateVersion7()` (`EnvelopeIdGeneration.GuidV7`) instead of MassTransit's
-NewId (GH-5197). NewId builds its ids from the machine's network identity, the process id and a timestamp, so
-containers, Cloud Run instances and serverless functions that share a network identity can draw the same ids. `GuidV7`
-ids carry a millisecond timestamp and RFC 9562 random bits, so they don't depend on anything about the machine. They
-still sort by time in a PostgreSQL `uuid` column, a MySQL `CHAR(36)` column and a SQLite `TEXT` column, and on Oracle's
-`RAW(16)` they are no worse than NewId was.
-
-SQL Server is the exception, and nothing changes there. When every message store in the application is SQL Server
-(including the SQL Server transport, EF Core on SQL Server and Polecat) and you haven't set `EnvelopeIdGeneration`
-yourself, Wolverine still switches to `EnvelopeIdGeneration.NewIdSqlServerOrder` at startup, which keeps SQL Server's
-clustered envelope tables in order. See [envelope IDs for SQL Server](/guide/messages#envelope-ids-for-sql-server).
-
-What to watch for on the upgrade:
-
-* There is no schema change. Envelope ids are still `Guid`s, and old and new ids live side by side in the same tables.
-* Ids created in the same millisecond are in random order, where NewId ids from one process were strictly sequential.
-  Nothing in Wolverine relies on that order, but check your own code if you sort envelopes by id.
-* `optimizeEnvelopeIdsForSqlServer: false` on the SQL Server and Polecat registrations now keeps `GuidV7`, the new
-  default, instead of `NewId`.
-
-To keep the 6.x ids, call `opts.RestoreV6Defaults()` or set `opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId`.
-An explicit setting always wins, over the default and over what the message stores prefer.
 
 ### Agent command compression and batch grouping are on in 7.0
 
@@ -944,7 +918,7 @@ These changed in 6.x minor releases, so `RestoreV6Defaults()` doesn't put them b
 | **Kafka `CommitMode` default** became `StoreThenAutoFlush` (GH-3150): offsets are stored per finished message and committed by the client's background committer, where earlier releases committed synchronously after every message | 6.13 | Nothing, unless you need strict per-message commits: then call `.CommitOffsets(CommitMode.PerMessage)`. See [Kafka behaviour changes](#kafka-behaviour-changes) for how commits run on Dekaf |
 | **GCP Pub/Sub competing consumers share one subscription** (GH-4615), named after the topic, where each node used to create its own `{subscription}.{node number}` and handle every message | 6.41 | Let the old nodes drain their per-node subscriptions, then delete them by hand; Wolverine doesn't. Expect duplicates during a rolling deploy unless the listener is durable. `.SubscriptionPerNode()` on a listener keeps the old behaviour. See [GCP Pub/Sub listening](/guide/messaging/transports/gcp-pubsub/listening) |
 | **NATS named consumers are created or updated on startup**: an existing JetStream consumer is brought in line with the listener's ack, `AckWait`, `MaxDeliver`, filter subject and `MaxAckPending` settings, where it used to be reused as it was | 6.47 | If you manage consumers outside the application, call `.Provisioning(NatsProvisioning.CreateOnly)` on `UseNats(...)`. See [NATS](/guide/messaging/transports/nats) |
-| **SQL Server-ordered envelope ids** (GH-4902): when every message store is SQL Server (including the SQL Server transport, EF Core on SQL Server and Polecat) and `EnvelopeIdGeneration` isn't set, Wolverine switches to `NewIdSqlServerOrder` at startup | 6.49 | Nothing; no schema change. Set `EnvelopeIdGeneration` yourself, or pass `optimizeEnvelopeIdsForSqlServer: false`, to opt out. See [`GuidV7`](#guidv7-is-the-default-envelope-id-in-7-0) |
+| **SQL Server-ordered envelope ids** (GH-4902): when every message store is SQL Server (including the SQL Server transport, EF Core on SQL Server and Polecat) and `EnvelopeIdGeneration` isn't set, Wolverine switches to `NewIdSqlServerOrder` at startup | 6.49 | Nothing; no schema change. Set `EnvelopeIdGeneration` yourself, or pass `optimizeEnvelopeIdsForSqlServer: false`, to opt out. See [envelope IDs for SQL Server](/guide/messages#envelope-ids-for-sql-server) |
 | **Cosmos DB inbox documents are partitioned by message identity** (GH-5059) under `MessageIdentity.IdOnly`, where they were partitioned by destination, so the same id arriving at two addresses is now recognized as a duplicate | 6.51 | Nothing; the container and partition key path are unchanged, and documents written by older versions still drain. Until they have, a redelivery of one of them isn't rejected. See [Cosmos DB](/guide/durability/cosmosdb) |
 | **Omitted HTTP values bind the declared default** (GH-5099): an omitted query string, header or form value binds the parameter's default (`int limit = 50` binds 50, not 0) | 6.51.2 | Nothing; see [Wolverine.Http defaults](#wolverine-http-defaults-that-changed-in-7-0) |
 ### `.NET 9.0` support dropped (BREAKING)

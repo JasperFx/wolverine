@@ -146,10 +146,9 @@ public static class SqlServerConfigurationExtensions
     /// <see cref="EnvelopeIdGeneration.NewIdSqlServerOrder"/> at startup, unless
     /// <see cref="WolverineOptions.EnvelopeIdGeneration"/> was set explicitly. True sets it explicitly anyway,
     /// for example alongside a message store that has no preference. False opts out of the automatic switch and
-    /// keeps the default ids (<see cref="EnvelopeIdGeneration.GuidV7"/> in 7.0, <see cref="EnvelopeIdGeneration.NewId"/>
-    /// after <see cref="WolverineOptions.RestoreV6Defaults"/>) -- use that when this application sends messages to
-    /// services that store their envelopes in PostgreSQL. Either way an explicit EnvelopeIdGeneration, set before
-    /// or after, is left alone when false, and there is no schema change.
+    /// keeps the default ids -- use that when this application sends messages to services that store their
+    /// envelopes in PostgreSQL. Either way an explicit EnvelopeIdGeneration set earlier is left alone when false,
+    /// and there is no schema change.
     /// </param>
     /// <param name="schema">Potentially override the schema name for Wolverine envelope storage. Default is to use WolverineOptions.Durability.MessageStorageSchemaName ?? "dbo". This has to be a single database identifier</param>
     public static ISqlServerBackedPersistence PersistMessagesWithSqlServer(this WolverineOptions options, string connectionString,
@@ -160,18 +159,17 @@ public static class SqlServerConfigurationExtensions
         return options.PersistMessagesWithSqlServer(connectionString, schema, role);
     }
 
-    // GH-4902. True forces SQL Server-ordered ids; false keeps the default ids (GuidV7, or NewId after
-    // RestoreV6Defaults()) by turning the automatic switch off; an explicit choice still wins
+    // GH-4902. True forces SQL Server-ordered ids; false pins the default ids so the automatic switch does not
+    // apply, unless something was chosen explicitly already
     private static void applyEnvelopeIdChoice(WolverineOptions options, bool optimizeEnvelopeIdsForSqlServer)
     {
         if (optimizeEnvelopeIdsForSqlServer)
         {
             options.EnvelopeIdGeneration = EnvelopeIdGeneration.NewIdSqlServerOrder;
         }
-        else
+        else if (!options.EnvelopeIdGenerationIsExplicit)
         {
-            // GH-5197. Keep the default -- GuidV7, or NewId after RestoreV6Defaults() -- rather than pinning one here
-            options.IgnoreStorePreferredEnvelopeIdGeneration();
+            options.EnvelopeIdGeneration = EnvelopeIdGeneration.NewId;
         }
     }
 
@@ -238,10 +236,9 @@ public static class SqlServerConfigurationExtensions
     /// <see cref="EnvelopeIdGeneration.NewIdSqlServerOrder"/> at startup, unless
     /// <see cref="WolverineOptions.EnvelopeIdGeneration"/> was set explicitly. True sets it explicitly anyway,
     /// for example alongside a message store that has no preference. False opts out of the automatic switch and
-    /// keeps the default ids (<see cref="EnvelopeIdGeneration.GuidV7"/> in 7.0, <see cref="EnvelopeIdGeneration.NewId"/>
-    /// after <see cref="WolverineOptions.RestoreV6Defaults"/>) -- use that when this application sends messages to
-    /// services that store their envelopes in PostgreSQL. Either way an explicit EnvelopeIdGeneration, set before
-    /// or after, is left alone when false, and there is no schema change.
+    /// keeps the default ids -- use that when this application sends messages to services that store their
+    /// envelopes in PostgreSQL. Either way an explicit EnvelopeIdGeneration set earlier is left alone when false,
+    /// and there is no schema change.
     /// </param>
     /// <param name="schema">Schema name for the Wolverine envelope storage. A single database identifier, not a multi-part name</param>
     public static SqlServerPersistenceExpression UseSqlServerPersistenceAndTransport(this WolverineOptions options,

@@ -20,7 +20,7 @@ public class sql_server_ordered_envelope_ids : IDisposable
     public void Dispose()
     {
         // The id generator is static, so put the default back for every other test in this assembly
-        Envelope.IdGenerator = Guid.CreateVersion7;
+        Envelope.IdGenerator = EnvelopeIds.NextSequentialGuid;
     }
 
     [Fact]
@@ -29,28 +29,6 @@ public class sql_server_ordered_envelope_ids : IDisposable
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Services.AddPolecat(m =>
-                {
-                    m.ConnectionString = Servers.SqlServerConnectionString;
-                    m.DatabaseSchemaName = "polecat_ordered_ids";
-                }).IntegrateWithWolverine();
-
-                opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync(TestContext.Current.CancellationToken);
-
-        host.Services.GetRequiredService<WolverineOptions>().EnvelopeIdGeneration
-            .ShouldBe(EnvelopeIdGeneration.NewIdSqlServerOrder);
-        Envelope.IdGenerator.Method.ShouldBe(typeof(EnvelopeIds).GetMethod(nameof(EnvelopeIds.NextGuid), Type.EmptyTypes));
-    }
-
-    // GH-5197. Polecat keeps SQL Server-ordered ids after RestoreV6Defaults() too
-    [Fact]
-    public async Task a_polecat_only_application_keeps_sql_server_ordered_ids_after_restoring_the_v6_defaults()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.RestoreV6Defaults();
                 opts.Services.AddPolecat(m =>
                 {
                     m.ConnectionString = Servers.SqlServerConnectionString;
@@ -87,9 +65,8 @@ public class sql_server_ordered_envelope_ids : IDisposable
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync(TestContext.Current.CancellationToken);
 
-        // GH-5197. The default ids are GuidV7 in 7.0
         host.Services.GetRequiredService<WolverineOptions>().EnvelopeIdGeneration
-            .ShouldBe(EnvelopeIdGeneration.GuidV7);
-        Envelope.IdGenerator.Method.ShouldBe(typeof(Guid).GetMethod(nameof(Guid.CreateVersion7), Type.EmptyTypes));
+            .ShouldBe(EnvelopeIdGeneration.NewId);
+        Envelope.IdGenerator.Method.ShouldBe(typeof(EnvelopeIds).GetMethod(nameof(EnvelopeIds.NextSequentialGuid), Type.EmptyTypes));
     }
 }
