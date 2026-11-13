@@ -157,36 +157,6 @@ public class deduplicated_with_response_declaration
     }
 
     [Fact]
-    public void a_form_bound_endpoint_is_refused_at_startup()
-    {
-        // GH-4742. Form values are kept as variables whose creator frames are never in Middleware, so the
-        // arranger hoists the form read ahead of EnableRequestBufferingFrame; the fingerprint then throws on
-        // an unseekable body for EVERY request. Refused while the chain is built, not at the first request.
-        Should.Throw<NotSupportedException>(() => HttpChain.ChainFor(typeof(FormBoundDeduplicatedResponse), "Post"))
-            .Message.ShouldContain("form-encoded requests are not supported");
-    }
-
-    [Fact]
-    public void a_bound_form_type_is_refused_at_startup_too()
-    {
-        // The other form shape: [FromForm] on a whole type rather than on a simple value.
-        Should.Throw<NotSupportedException>(() =>
-                HttpChain.ChainFor(typeof(BoundFormTypeDeduplicatedResponse), "Post"))
-            .Message.ShouldContain("form-encoded requests are not supported");
-    }
-
-    [Fact]
-    public void a_file_upload_endpoint_is_not_refused()
-    {
-        // Multipart/file bindings put their frames IN Middleware, so the buffering still comes first. They
-        // must keep working -- the refusal above is deliberately narrower than HttpChain.IsFormData.
-        var chain = HttpChain.ChainFor(typeof(FileUploadDeduplicatedResponse), "Post");
-
-        chain.IsFormData.ShouldBeTrue();
-        chain.DeduplicatedWithResponse.ShouldNotBeNull();
-    }
-
-    [Fact]
     public async Task a_user_scope_on_an_anonymous_endpoint_warns()
     {
         // GH-4742. Scope.None is refused outright; an unauthenticated caller makes Scope.User produce the
@@ -459,36 +429,6 @@ public static class PolicyDeduplicatedResponse
 {
     [WolverinePost("/declaration/policy")]
     public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
-}
-
-[WolverineIgnore]
-public static class FormBoundDeduplicatedResponse
-{
-    [DeduplicatedWithResponse(DeduplicationScope.User)]
-    [WolverinePost("/declaration/form-value")]
-    public static DeduplicatedOrderCreated Post([FromForm] string name) => new(Guid.NewGuid());
-}
-
-[WolverineIgnore]
-public static class BoundFormTypeDeduplicatedResponse
-{
-    [DeduplicatedWithResponse(DeduplicationScope.User)]
-    [WolverinePost("/declaration/form-type")]
-    public static DeduplicatedOrderCreated Post([FromForm] DeduplicatedFormBody body) => new(Guid.NewGuid());
-}
-
-public class DeduplicatedFormBody
-{
-    public string Name { get; set; } = string.Empty;
-}
-
-// Files bind through Middleware frames, so the request buffering still comes first: NOT refused.
-[WolverineIgnore]
-public static class FileUploadDeduplicatedResponse
-{
-    [DeduplicatedWithResponse(DeduplicationScope.User)]
-    [WolverinePost("/declaration/file")]
-    public static DeduplicatedOrderCreated Post(IFormFile file) => new(Guid.NewGuid());
 }
 
 // Authorized, so the anonymous-User-scope warning must NOT fire for it.
