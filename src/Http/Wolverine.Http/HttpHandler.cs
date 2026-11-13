@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
@@ -348,6 +349,10 @@ public abstract partial class HttpHandler
     /// GH-4742. SHA-256 of the method and path, the query string and the body bytes: what was sent, not the
     /// bound object. The endpoint is always included, so a key reused on another endpoint is a different request
     /// even when the scope leaves the endpoint out. Requires a buffered body; null when there is no key.
+    /// <para>
+    /// A multipart body is hashed as its parts, each part's headers and content, so the boundary is left out: a
+    /// client picks a new one whenever it builds the request again.
+    /// </para>
     /// </summary>
     public static async Task<string?> ComputeDeduplicationFingerprintAsync(HttpContext context,
         string? deduplicationId)
@@ -370,11 +375,24 @@ public abstract partial class HttpHandler
         var buffer = ArrayPool<byte>.Shared.Rent(FingerprintBufferSize);
         try
         {
-            request.Body.Position = 0;
-            int read;
-            while ((read = await request.Body.ReadAsync(buffer, context.RequestAborted).ConfigureAwait(false)) > 0)
+            if (await hashMultipartSectionsAsync(context, buffer).ConfigureAwait(false) is { } sections)
             {
-                hash.AppendData(buffer, 0, read);
+                hash.AppendData(sections);
+            }
+            else
+            {
+                request.Body.Position = 0;
+                var length = await appendToEndAsync(hash, request.Body, buffer, context.RequestAborted)
+                    .ConfigureAwait(false);
+
+                // Something ahead of the endpoint read the form before the body was buffered, as the antiforgery
+                // middleware does for a token sent as a form field: there are no bytes left to compare
+                if (length == 0 && context.Features.Get<IFormFeature>()?.Form is { } form &&
+                    (form.Count > 0 || form.Files.Count > 0))
+                {
+                    throw new InvalidOperationException(
+                        $"The form of {request.Method} {request.Path} was read before its body was buffered, so its deduplication fingerprint cannot be computed. Middleware that reads the form ahead of the endpoint does this, such as antiforgery validation of a token sent as a form field; send the token in the request header instead. See GH-4742");
+                }
             }
         }
         finally
@@ -384,6 +402,106 @@ public abstract partial class HttpHandler
         }
 
         return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    /// <summary>
+    /// A hash of each part's headers and content, in the order sent, or null when the body is not multipart,
+    /// cannot be read as multipart or has more parts than a form may have values, which the caller hashes as the
+    /// bytes sent.
+    /// </summary>
+    private static async Task<byte[]?> hashMultipartSectionsAsync(HttpContext context, byte[] buffer)
+    {
+        var request = context.Request;
+
+        if (!MediaTypeHeaderValue.TryParse(request.ContentType, out var mediaType) ||
+            !mediaType.MediaType.StartsWith("multipart/", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var boundary = HeaderUtilities.RemoveQuotes(mediaType.Boundary).Value;
+        if (string.IsNullOrWhiteSpace(boundary)) return null;
+
+        // The header limits the endpoint's own read applies, so a request it accepts is one this can read
+        var options = context.RequestServices?.GetService<IOptions<FormOptions>>()?.Value ?? new FormOptions();
+        var limits = context.GetEndpoint()?.Metadata.GetMetadata<IFormOptionsMetadata>();
+
+        var partsLimit = limits?.ValueCountLimit ?? options.ValueCountLimit;
+        var parts = 0;
+
+        using var sections = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using var part = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+        try
+        {
+            request.Body.Position = 0;
+
+            var reader = new MultipartReader(boundary, request.Body)
+            {
+                HeadersCountLimit = limits?.MultipartHeadersCountLimit ?? options.MultipartHeadersCountLimit,
+                HeadersLengthLimit = limits?.MultipartHeadersLengthLimit ?? options.MultipartHeadersLengthLimit
+            };
+
+            while (await reader.ReadNextSectionAsync(context.RequestAborted).ConfigureAwait(false) is { } section)
+            {
+                if (++parts > partsLimit) return null;
+
+                var headers = section.Headers ?? [];
+
+                // Counted and length-prefixed, so a header or one of its values cannot shift into the next one or
+                // into the content
+                appendLength(part, headers.Count);
+                foreach (var header in headers.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    appendWithLength(part, header.Key.ToLowerInvariant());
+                    appendLength(part, header.Value.Count);
+                    foreach (var value in header.Value)
+                    {
+                        appendWithLength(part, value ?? string.Empty);
+                    }
+                }
+
+                await appendToEndAsync(part, section.Body, buffer, context.RequestAborted).ConfigureAwait(false);
+
+                // One fixed-size hash per part, so content cannot shift from one part into the next
+                sections.AppendData(part.GetHashAndReset());
+            }
+        }
+        // An ArgumentException is a boundary too long for the reader
+        catch (Exception e) when (e is InvalidDataException or IOException or ArgumentException)
+        {
+            return null;
+        }
+
+        return sections.GetHashAndReset();
+    }
+
+    private static async Task<long> appendToEndAsync(IncrementalHash hash, Stream stream, byte[] buffer,
+        CancellationToken cancellation)
+    {
+        long length = 0;
+        int read;
+        while ((read = await stream.ReadAsync(buffer, cancellation).ConfigureAwait(false)) > 0)
+        {
+            hash.AppendData(buffer, 0, read);
+            length += read;
+        }
+
+        return length;
+    }
+
+    private static void appendWithLength(IncrementalHash hash, string value)
+    {
+        var bytes = Encoding.UTF8.GetBytes(value);
+        appendLength(hash, bytes.Length);
+        hash.AppendData(bytes);
+    }
+
+    private static void appendLength(IncrementalHash hash, int length)
+    {
+        Span<byte> bytes = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, length);
+        hash.AppendData(bytes);
     }
 
     private static string endpointOf(HttpRequest request)
