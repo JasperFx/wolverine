@@ -40,10 +40,6 @@ public class restore_v6_defaults_tests
             ["`DurabilitySettings.AlwaysProvisionOptionalSchemaObjects`"] = (
                 o => o.Durability.AlwaysProvisionOptionalSchemaObjects.ShouldBeTrue(),
                 o => o.Durability.AlwaysProvisionOptionalSchemaObjects.ShouldBeFalse()),
-            // GH-5197. With no message store preference; SQL Server-only applications keep NewIdSqlServerOrder both ways
-            ["`WolverineOptions.EnvelopeIdGeneration`"] = (
-                o => o.EnvelopeIdGeneration.ShouldBe(EnvelopeIdGeneration.GuidV7),
-                o => o.EnvelopeIdGeneration.ShouldBe(EnvelopeIdGeneration.NewId)),
             // GH-5200
             ["`DurabilitySettings.CompressAgentCommands`"] = (
                 o => o.Durability.CompressAgentCommands.ShouldBeTrue(),

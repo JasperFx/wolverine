@@ -58,10 +58,6 @@ public sealed partial class WolverineOptions
         // on and the index is not created. Resolved through the flag so an explicit setting still wins.
         Durability.V6DefaultsRestored = true;
 
-        // GH-5197: 7.0 creates envelope ids with EnvelopeIdGeneration.GuidV7, 6.x with NewId. Nothing to assign:
-        // the EnvelopeIdGeneration getter reads V6DefaultsRestored, so an explicit setting still wins and a SQL
-        // Server-only application still switches to NewIdSqlServerOrder at startup, as it did in 6.x.
-
         // GH-5200: two more core defaults read the flags set above when they are resolved, so an explicit setting
         // still wins: Durability.CompressAgentCommands (on in 7.0) and GroupByGroupId() for a batch whose element
         // type is in a partitioned topology (resolved at startup). The in-memory idempotency guard on NativeAck

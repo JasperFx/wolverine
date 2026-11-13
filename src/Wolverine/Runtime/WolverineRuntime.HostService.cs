@@ -70,9 +70,12 @@ public partial class WolverineRuntime
     // SQL Server-ordered ids when SQL Server is the only message storage -- use it
     private void applyStorePreferredEnvelopeIdGeneration()
     {
-        if (!Options.ApplyStorePreferredEnvelopeIdGeneration(_stores.Value.AllStores())) return;
+        if (Options.EnvelopeIdGenerationIsExplicit) return;
 
-        var generation = Options.EnvelopeIdGeneration;
+        var agreed = MessageStoreCollection.AgreedEnvelopeIdGeneration(_stores.Value.AllStores());
+        if (agreed is not { } generation || generation == Options.EnvelopeIdGeneration) return;
+
+        Options.UseStorePreferredEnvelopeIdGeneration(generation);
         Envelope.IdGenerator = IdGeneratorFor(generation);
 
         Logger.LogInformation(

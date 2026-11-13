@@ -89,8 +89,7 @@ public enum InvokeTracingMode
 public enum EnvelopeIdGeneration
 {
     /// <summary>
-    /// The Wolverine 6.x default, now an explicit opt-in (and what <see cref="WolverineOptions.RestoreV6Defaults"/>
-    /// restores). Uses MassTransit's NewId algorithm (<c>NewId.NextSequentialGuid()</c>), which builds
+    /// Default. Uses MassTransit's NewId algorithm (<c>NewId.NextSequentialGuid()</c>), which builds
     /// GUIDs from machine identity (MAC/DNS), the process id and a timestamp, laid out so they sort in time
     /// order the way .NET and PostgreSQL compare GUIDs. Wolverine adds the process id to NewId's own layout
     /// so that several processes on one machine cannot draw the same ids. SQL Server compares a <c>uniqueidentifier</c> starting from its
@@ -101,12 +100,11 @@ public enum EnvelopeIdGeneration
     NewId,
 
     /// <summary>
-    /// Default as of Wolverine 7.0 (GH-5197). Uses Guid.CreateVersion7() which produces GUIDs with a millisecond
-    /// timestamp and cryptographically strong random bits per RFC 9562, so instances that share network identity
-    /// cannot draw the same ids. Guaranteed unique without relying on machine-specific properties. The ids sort
-    /// by time for PostgreSQL <c>uuid</c>, MySQL <c>CHAR(36)</c> and SQLite <c>TEXT</c>. Ids created within the
-    /// same millisecond are in random order, and SQL Server does not sort them by time at all, which is why a
-    /// SQL Server-only application still gets <see cref="NewIdSqlServerOrder"/>.
+    /// Uses Guid.CreateVersion7() which produces GUIDs with a millisecond timestamp and cryptographically
+    /// strong random bits per RFC 9562. Recommended for greenfield applications and cloud environments
+    /// where instances may share network identity. Guaranteed unique without relying on machine-specific
+    /// properties. Ids created within the same millisecond are in random order, and SQL Server does not
+    /// sort them by time at all.
     /// </summary>
     GuidV7,
 
@@ -115,12 +113,10 @@ public enum EnvelopeIdGeneration
     /// timestamp in the last six bytes (<c>NewId.NextGuid()</c>) so the ids sort in time order the way SQL
     /// Server compares a <c>uniqueidentifier</c>. This keeps SQL Server's clustered inbox, outbox and
     /// dead-letter tables from fragmenting. Wolverine switches to this automatically when every message store
-    /// in the application is SQL Server and nothing was set explicitly, in 7.0 and after
-    /// <see cref="WolverineOptions.RestoreV6Defaults"/> alike. The id travels with the message and
+    /// in the application is SQL Server and nothing was set explicitly. The id travels with the message and
     /// becomes the key in the RECEIVING application's inbox, and on PostgreSQL these ids index worse than
-    /// random GUIDs, so if a SQL Server-only application sends to services that store envelopes in PostgreSQL,
-    /// set <see cref="WolverineOptions.EnvelopeIdGeneration"/> explicitly to <see cref="GuidV7"/> or pass
-    /// <c>optimizeEnvelopeIdsForSqlServer: false</c> to keep the default.
+    /// random GUIDs, so set <see cref="WolverineOptions.EnvelopeIdGeneration"/> explicitly to
+    /// <see cref="NewId"/> if a SQL Server-only application sends to services that store envelopes in PostgreSQL.
     /// </summary>
     NewIdSqlServerOrder
 }
@@ -473,18 +469,17 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     /// Controls how Wolverine generates unique identifiers for message envelopes.
-    /// Default is <see cref="EnvelopeIdGeneration.GuidV7"/> as of Wolverine 7.0 (GH-5197), and
-    /// <see cref="EnvelopeIdGeneration.NewId"/> after <see cref="RestoreV6Defaults"/>. Either way, when this is
-    /// not set explicitly and every message store in the application prefers the same value --
+    /// Default is <see cref="EnvelopeIdGeneration.NewId"/> for backward compatibility, except that when this is
+    /// not set explicitly and every message store in the application prefers the same value -- for example
     /// <see cref="EnvelopeIdGeneration.NewIdSqlServerOrder"/> when SQL Server is the only message storage --
-    /// Wolverine switches to that value at startup. Setting this explicitly, to any value, turns that automatic
-    /// switch off.
+    /// Wolverine switches to that value at startup. Setting this explicitly, even to
+    /// <see cref="EnvelopeIdGeneration.NewId"/>, turns that automatic switch off.
+    /// Use <see cref="EnvelopeIdGeneration.GuidV7"/> for greenfield applications or
+    /// cloud environments where multiple instances may share network identity.
     /// </summary>
     public EnvelopeIdGeneration EnvelopeIdGeneration
     {
-        get => _envelopeIdGeneration
-               ?? (_ignoreStorePreferredEnvelopeIdGeneration ? null : _storePreferredEnvelopeIdGeneration)
-               ?? (V6DefaultsRestored ? EnvelopeIdGeneration.NewId : EnvelopeIdGeneration.GuidV7);
+        get => _envelopeIdGeneration ?? _storePreferredEnvelopeIdGeneration ?? EnvelopeIdGeneration.NewId;
         set => _envelopeIdGeneration = value;
     }
 
@@ -494,43 +489,11 @@ public sealed partial class WolverineOptions
     // GH-4902. What every message store agreed on at startup, used only when nothing was set explicitly
     private EnvelopeIdGeneration? _storePreferredEnvelopeIdGeneration;
 
-    // GH-5197. optimizeEnvelopeIdsForSqlServer: false. Keeps the default -- whichever default RestoreV6Defaults()
-    // leaves in place, however late it is called -- instead of pinning one at registration
-    private bool _ignoreStorePreferredEnvelopeIdGeneration;
-
     internal bool EnvelopeIdGenerationIsExplicit => _envelopeIdGeneration.HasValue;
-
-    internal bool StorePreferredEnvelopeIdGenerationIsIgnored => _ignoreStorePreferredEnvelopeIdGeneration;
 
     internal void UseStorePreferredEnvelopeIdGeneration(EnvelopeIdGeneration generation)
     {
         _storePreferredEnvelopeIdGeneration = generation;
-    }
-
-    /// <summary>
-    /// GH-4902 / GH-5197. When nothing was set explicitly and every message store prefers the same envelope id
-    /// layout, use it. Returns true when that changed <see cref="EnvelopeIdGeneration"/>.
-    /// </summary>
-    internal bool ApplyStorePreferredEnvelopeIdGeneration(IReadOnlyList<IMessageStore> stores)
-    {
-        if (EnvelopeIdGenerationIsExplicit || _ignoreStorePreferredEnvelopeIdGeneration) return false;
-
-        var agreed = MessageStoreCollection.AgreedEnvelopeIdGeneration(stores);
-        if (agreed is not { } generation || generation == EnvelopeIdGeneration) return false;
-
-        UseStorePreferredEnvelopeIdGeneration(generation);
-        return true;
-    }
-
-    /// <summary>
-    /// GH-5197. Opt out of the message stores' preferred envelope id layout and keep the default
-    /// (<see cref="EnvelopeIdGeneration.GuidV7"/>, or <see cref="EnvelopeIdGeneration.NewId"/> after
-    /// <see cref="RestoreV6Defaults"/>). An explicit <see cref="EnvelopeIdGeneration"/> still wins. Used by the
-    /// <c>optimizeEnvelopeIdsForSqlServer: false</c> overloads.
-    /// </summary>
-    internal void IgnoreStorePreferredEnvelopeIdGeneration()
-    {
-        _ignoreStorePreferredEnvelopeIdGeneration = true;
     }
 
     /// <summary>

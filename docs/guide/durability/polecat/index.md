@@ -70,7 +70,7 @@ opts.Services.AddPolecat(m =>
     // envelopes in PostgreSQL, so keep the default envelope ids
     .IntegrateWithWolverine(optimizeEnvelopeIdsForSqlServer: false);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/sql_server_ordered_envelope_ids.cs#L74-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_polecat_integration_with_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/sql_server_ordered_envelope_ids.cs#L52-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_polecat_integration_with_sql_server_ordered_ids' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Setting `opts.EnvelopeIdGeneration` explicitly in your Wolverine configuration works too, and always wins.
