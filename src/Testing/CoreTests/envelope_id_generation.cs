@@ -191,6 +191,21 @@ public class envelope_id_generation : IDisposable
         ids.Distinct().Count().ShouldBe(10_000);
     }
 
+    // NewId keeps a 16-bit sequence per tick and borrows the next tick when it runs out. The lock-free generator
+    // packs the tick and the sequence into one counter, so the borrow is a carry: the ids must stay unique straight
+    // through it, and the ids drawn on the borrowed tick sort after the first tick's. (Within one tick NewId's
+    // layout stores the sequence byte-swapped, so ids of the same tick don't sort by sequence; that was always so.)
+    [Fact]
+    public void ids_stay_unique_through_a_full_sequence_in_one_tick()
+    {
+        var generator = EnvelopeIds.Create(new FixedTicks(), new FixedProcessId(1001));
+
+        var ids = Enumerable.Range(0, 70_000).Select(_ => generator.NextSequentialGuid()).ToArray();
+
+        ids.Distinct().Count().ShouldBe(ids.Length);
+        ids[69_999].CompareTo(ids[0]).ShouldBeGreaterThan(0);
+    }
+
     private static Guid[] draw(INewIdGenerator generator) =>
         Enumerable.Range(0, 1000).Select(_ => generator.NextSequentialGuid()).ToArray();
 
