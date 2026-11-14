@@ -211,6 +211,12 @@ same bytes: a client that reorders JSON properties, changes whitespace or reseri
 a 422. A key reused on another endpoint is a different request even when the scope leaves the endpoint
 out.
 
+A multipart body is the exception. A client picks a new boundary whenever it builds the request again, so
+the same upload sent twice is two different byte streams. A `multipart/*` body is compared by its parts
+instead: each part's headers and content, in the order sent. A retry with a new boundary is the same
+request; a different file, file name or field value is still a 422. A body that cannot be read as multipart,
+or that has more parts than `FormOptions.ValueCountLimit`, is compared by its bytes.
+
 ### The window
 
 Claims last for the [deduplication window](/guide/durability/idempotency#the-deduplication-window), or
@@ -351,9 +357,10 @@ releasing it with a rolled-back transaction.
 - The request body is buffered to compute the fingerprint, and the resource is serialized a second
   time to store it.
 - Only the status, body and `Location` are replayed; other response headers are not.
-- Form-encoded requests are not supported: the fingerprint has to re-read the body after binding, and
-  the form read consumes it first. An endpoint that binds a form value is refused at startup. File and
-  multipart uploads are unaffected.
+- Form posts and file uploads are supported, whether the endpoint binds `[FromForm]` values, an
+  `IFormFile`, an `IFormCollection` or a `MultipartReader`. Middleware that reads the form before the
+  endpoint runs leaves no body to compare, and the request fails. Antiforgery validation does that for a
+  token sent as a form field, so send the token in the request header.
 - Response bodies are stored for the whole window, in a `wolverine_deduplicated_responses` table of their
   own. It is only provisioned when the setting is on, so nothing changes for anyone else; with
   `AutoCreate.None`, create it before turning the setting on.

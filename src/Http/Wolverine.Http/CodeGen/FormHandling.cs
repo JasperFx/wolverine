@@ -32,7 +32,8 @@ internal class ReadFormCollection : AsyncFrame
     ///     <see cref="FormCollectionSource" />, and JasperFx's <c>MethodFrameArranger</c> inserts a frame it
     ///     reaches that way at the very front of the method, ahead of the antiforgery check. ASP.NET Core
     ///     refuses to read the form of a request that failed antiforgery validation and throws instead (a 500),
-    ///     so the read has to follow the check that answers 400.
+    ///     so the read has to follow the check that answers 400. It has to follow the request buffering of a
+    ///     <c>[DeduplicatedWithResponse]</c> endpoint too, or the fingerprint has no body left to read.
     /// </summary>
     internal void MustFollow(Frame frame)
     {

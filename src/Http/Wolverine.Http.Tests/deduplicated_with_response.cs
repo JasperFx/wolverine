@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http;
 using System.Security.Claims;
 using Alba;
 using IntegrationTests;
@@ -10,8 +12,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Net.Http.Headers;
 using Npgsql;
 using Shouldly;
 using Wolverine.Http.Resources;
@@ -62,7 +66,8 @@ public class deduplicated_with_response : IAsyncLifetime
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a [DeduplicatedWithResponse] test endpoint",
                     type => type != typeof(DeduplicatedResponseEndpoints) && type != typeof(EarlyExitDeduplicatedResponseEndpoint)
-                            && type != typeof(MissingResourceDeduplicatedEndpoint)));
+                            && type != typeof(MissingResourceDeduplicatedEndpoint)
+                            && type != typeof(UploadDeduplicatedResponseEndpoints)));
         }));
 
         await ((IHost)theHost).ResetResourceState();
@@ -100,6 +105,74 @@ public class deduplicated_with_response : IAsyncLifetime
         await postAsync(new DeduplicatedOrder("changed"), key, 422);
 
         DeduplicatedResponseEndpoints.Runs("changed").ShouldBe(0);
+    }
+
+    [Theory]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.StreamedUrl)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.FileWithFormValueUrl)]
+    public async Task a_repeat_of_a_multipart_upload_under_a_new_boundary_is_answered_with_the_first_response(
+        string url)
+    {
+        var key = Guid.NewGuid().ToString();
+
+        using var first = await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3]);
+        using var repeat = await uploadAsync(url, key, "second-boundary", "report.pdf", [1, 2, 3]);
+
+        first.StatusCode.ShouldBe(HttpStatusCode.Created);
+        repeat.StatusCode.ShouldBe(HttpStatusCode.Created);
+        (await repeat.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
+            .ShouldBe(await first.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        repeat.Headers.Location.ShouldBe(first.Headers.Location);
+
+        DeduplicatedResponseEndpoints.Runs("report.pdf").ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "report.pdf", 4, "Quarterly report")]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "other.pdf", 3, "Quarterly report")]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "report.pdf", 3, "Annual report")]
+    [InlineData(UploadDeduplicatedResponseEndpoints.StreamedUrl, "report.pdf", 4, "Quarterly report")]
+    public async Task a_different_multipart_upload_under_the_same_key_is_a_422(string url, string fileName,
+        byte lastByte, string title)
+    {
+        var key = Guid.NewGuid().ToString();
+
+        using var first = await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3]);
+        using var changed = await uploadAsync(url, key, "second-boundary", fileName, [1, 2, lastByte], title);
+
+        first.StatusCode.ShouldBe(HttpStatusCode.Created);
+        changed.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+    }
+
+    [Theory]
+    [InlineData(UploadDeduplicatedResponseEndpoints.FormValueUrl)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.FormTypeUrl)]
+    public async Task a_repeat_of_a_form_post_is_answered_with_the_first_response(string url)
+    {
+        var key = Guid.NewGuid().ToString();
+
+        async Task<HttpResponseMessage> post(string name)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["name"] = name })
+            };
+            request.Headers.Add("Idempotency-Key", key);
+
+            return await theHost.Server.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
+        }
+
+        using var first = await post("form");
+        using var repeat = await post("form");
+        using var changed = await post("changed");
+
+        first.StatusCode.ShouldBe(HttpStatusCode.Created);
+        repeat.StatusCode.ShouldBe(HttpStatusCode.Created);
+        repeat.Headers.Location.ShouldBe(first.Headers.Location);
+        changed.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+
+        DeduplicatedResponseEndpoints.Runs("form").ShouldBe(1);
     }
 
     [Fact]
@@ -593,6 +666,19 @@ public class deduplicated_with_response : IAsyncLifetime
             x.StatusCodeShouldBe(status);
         });
 
+    private async Task<HttpResponseMessage> uploadAsync(string url, string key, string boundary, string fileName,
+        byte[] file, string title = "Quarterly report")
+    {
+        using var content = new MultipartFormDataContent(boundary);
+        content.Add(new StringContent(title), "title");
+        content.Add(new ByteArrayContent(file), "file", fileName);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+        request.Headers.Add("Idempotency-Key", key);
+
+        return await theHost.Server.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
     private static async Task<T> scalarAsync<T>(string sql, string id)
     {
         var token = TestContext.Current.CancellationToken;
@@ -815,6 +901,69 @@ public static class MissingResourceDeduplicatedEndpoint
         DeduplicatedResponseEndpoints.Count("maybe");
         return null;
     }
+}
+
+public static class UploadDeduplicatedResponseEndpoints
+{
+    public const string BufferedUrl = "/deduplicated-response/upload";
+    public const string StreamedUrl = "/deduplicated-response/upload/stream";
+    public const string FileWithFormValueUrl = "/deduplicated-response/upload/titled";
+    public const string FormValueUrl = "/deduplicated-response/form/value";
+    public const string FormTypeUrl = "/deduplicated-response/form/type";
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost(BufferedUrl)]
+    public static DeduplicatedOrderCreated Post(IFormFile file)
+    {
+        DeduplicatedResponseEndpoints.Count(file.FileName);
+        return new DeduplicatedOrderCreated(Guid.NewGuid());
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost(StreamedUrl)]
+    public static async Task<DeduplicatedOrderCreated> PostStream(MultipartReader reader,
+        CancellationToken cancellation)
+    {
+        while (await reader.ReadNextSectionAsync(cancellation) is { } section)
+        {
+            if (ContentDispositionHeaderValue.TryParse(section.ContentDisposition, out var disposition) &&
+                disposition.IsFileDisposition())
+            {
+                DeduplicatedResponseEndpoints.Count(disposition.FileName.Value!);
+            }
+        }
+
+        return new DeduplicatedOrderCreated(Guid.NewGuid());
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost(FileWithFormValueUrl)]
+    public static DeduplicatedOrderCreated PostTitled(IFormFile file, [FromForm] string title)
+    {
+        DeduplicatedResponseEndpoints.Count(file.FileName);
+        return new DeduplicatedOrderCreated(Guid.NewGuid());
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost(FormValueUrl)]
+    public static DeduplicatedOrderCreated PostFormValue([FromForm] string name)
+    {
+        DeduplicatedResponseEndpoints.Count(name);
+        return new DeduplicatedOrderCreated(Guid.NewGuid());
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost(FormTypeUrl)]
+    public static DeduplicatedOrderCreated PostFormType([FromForm] DeduplicatedFormBody body)
+    {
+        DeduplicatedResponseEndpoints.Count(body.Name);
+        return new DeduplicatedOrderCreated(Guid.NewGuid());
+    }
+}
+
+public class DeduplicatedFormBody
+{
+    public string Name { get; set; } = string.Empty;
 }
 
 public static class EarlyExitDeduplicatedResponseEndpoint

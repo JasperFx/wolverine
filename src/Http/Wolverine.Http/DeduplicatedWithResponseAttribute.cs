@@ -11,7 +11,8 @@ namespace Wolverine.Http;
 /// <para>
 /// Unlike <c>[Deduplicated]</c>, which refuses a repeat, this tells a client whose connection dropped
 /// mid-request what it created. The two cannot be combined. The key is the caller's; the request is compared by
-/// a hash of the bytes sent (method, path, query string and body), so a retry must resend the same bytes.
+/// a hash of the bytes sent (method, path, query string and body), so a retry must resend the same bytes. A
+/// multipart body is compared by its parts, so a retry may use a new boundary.
 /// </para>
 ///
 /// <para>
