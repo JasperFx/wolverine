@@ -41,13 +41,10 @@ public static class InProcLane
     {
         InProcHandler.YieldEvery = cfg.InProcYieldEvery;
 
-        var builder = Host.CreateDefaultBuilder()
+        var builder = RigHost.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning))
-            // Wolverine 7.0 (GH-5523) loads pre-generated code in the Production profile. This lane measures the
-            // runtime-compiled handler on purpose (CodeGeneration.UseRuntimeAsync only affects runtime compilation),
-            // so it asks for Dynamic explicitly.
-            .ConfigureServices(services =>
-                services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic))
+            // RigHost asks for TypeLoadMode.Dynamic. This lane depends on it: CodeGeneration.UseRuntimeAsync only
+            // affects runtime compilation.
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.MediatorOnly;

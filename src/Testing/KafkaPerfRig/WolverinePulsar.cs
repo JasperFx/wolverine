@@ -19,7 +19,7 @@ public static class WolverinePulsar
         RigHandlerSettings.HandlerMs = cfg.HandlerMs;
         RigHandlerSettings.SequenceByGame = cfg.Sequencing == "semaphore";
 
-        var builder = Host.CreateDefaultBuilder()
+        var builder = RigHost.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning))
             .UseWolverine(opts =>
             {
@@ -86,7 +86,7 @@ public static class WolverinePulsar
 
     public static async Task RunPublisherAsync(RigConfig cfg)
     {
-        var builder = Host.CreateDefaultBuilder()
+        var builder = RigHost.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning))
             .UseWolverine(opts =>
             {
