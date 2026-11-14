@@ -100,17 +100,6 @@ public partial class HttpChain
             throw new NotSupportedException(
                 $"{Description} has [DeduplicatedWithResponse], which replays the response as its status, System.Text.Json body and Location, but this endpoint returns {ResourceType!.FullNameInCode()}, which writes its response another way. Return Ok, Created, Accepted, NoContent, StatusCode or Empty results, or a resource written as JSON. See GH-4742");
         }
-
-        if (BindsFormValues)
-        {
-            // The fingerprint reads the body after binding, which needs a rewindable stream --
-            // EnableRequestBufferingFrame, at Middleware[0]. A form value's creator frame is never IN
-            // Middleware (HttpChain.BindsFormValues says why), so the arranger hoists the form read ahead of
-            // the buffering and ComputeDeduplicationFingerprintAsync then fails its !Body.CanSeek guard on
-            // EVERY request. Refuse while the chain is being built rather than 500 at runtime.
-            throw new NotSupportedException(
-                $"[DeduplicatedWithResponse] on {Description} binds a form value, and form-encoded requests are not supported by this attribute: the request fingerprint needs to re-read the body after binding, and the form read consumes it first. Take a JSON body instead, or use [Deduplicated], which does not fingerprint the request. See GH-4742");
-        }
     }
 
     /// <summary>
@@ -314,7 +303,12 @@ public partial class HttpChain
     {
         if (DeduplicatedWithResponse != null && !Middleware.OfType<EnableRequestBufferingFrame>().Any())
         {
-            Middleware.Insert(0, new EnableRequestBufferingFrame());
+            var buffering = new EnableRequestBufferingFrame();
+            Middleware.Insert(0, buffering);
+
+            // A form value's read is hoisted ahead of the middleware, and would consume the body before it is
+            // buffered
+            ReadFormCollection.MustFollow(buffering);
         }
     }
 }
