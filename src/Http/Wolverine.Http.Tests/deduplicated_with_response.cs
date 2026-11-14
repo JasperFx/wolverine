@@ -34,6 +34,9 @@ public class deduplicated_with_response : IAsyncLifetime
 {
     private const string SchemaName = "http_deduplicated_response";
 
+    // Asks the test host to read the form before the endpoint runs
+    private const string FormReadFirstHeader = "X-Read-Form-First";
+
     private IAlbaHost theHost = null!;
 
     public async ValueTask InitializeAsync()
@@ -60,15 +63,37 @@ public class deduplicated_with_response : IAsyncLifetime
         builder.Services.AddWolverineHttp();
 
         // No tenant id detection, deliberately -- see a_tenant_scope_needs_tenant_detection.
-        theHost = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
+        theHost = await AlbaHost.For(builder, app =>
         {
-            opts.AddResourceWriterPolicy<CustomAnswerWriterPolicy>();
-            opts.CustomizeHttpEndpointDiscovery(q =>
-                q.Excludes.WithCondition("Not a [DeduplicatedWithResponse] test endpoint",
-                    type => type != typeof(DeduplicatedResponseEndpoints) && type != typeof(EarlyExitDeduplicatedResponseEndpoint)
-                            && type != typeof(MissingResourceDeduplicatedEndpoint)
-                            && type != typeof(UploadDeduplicatedResponseEndpoints)));
-        }));
+            app.Use(async (context, next) =>
+            {
+                if (context.Request.HasFormContentType)
+                {
+                    // Alba hands the request a MemoryStream, which can simply be rewound, so a form read ahead of
+                    // the buffering would go unnoticed. A server's body can only be read once
+                    context.Request.Body = new ForwardOnlyStream(context.Request.Body);
+
+                    // Reads the form ahead of the endpoint, before Wolverine buffers the body, as antiforgery
+                    // validation of a token sent as a form field does
+                    if (context.Request.Headers.ContainsKey(FormReadFirstHeader))
+                    {
+                        await context.Request.ReadFormAsync(context.RequestAborted);
+                    }
+                }
+
+                await next(context);
+            });
+
+            app.MapWolverineEndpoints(opts =>
+            {
+                opts.AddResourceWriterPolicy<CustomAnswerWriterPolicy>();
+                opts.CustomizeHttpEndpointDiscovery(q =>
+                    q.Excludes.WithCondition("Not a [DeduplicatedWithResponse] test endpoint",
+                        type => type != typeof(DeduplicatedResponseEndpoints) && type != typeof(EarlyExitDeduplicatedResponseEndpoint)
+                                && type != typeof(MissingResourceDeduplicatedEndpoint)
+                                && type != typeof(UploadDeduplicatedResponseEndpoints)));
+            });
+        });
 
         await ((IHost)theHost).ResetResourceState();
 
@@ -108,71 +133,103 @@ public class deduplicated_with_response : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl)]
-    [InlineData(UploadDeduplicatedResponseEndpoints.StreamedUrl)]
-    [InlineData(UploadDeduplicatedResponseEndpoints.FileWithFormValueUrl)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, false)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.StreamedUrl, false)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.FileWithFormValueUrl, false)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, true)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.FileWithFormValueUrl, true)]
     public async Task a_repeat_of_a_multipart_upload_under_a_new_boundary_is_answered_with_the_first_response(
-        string url)
+        string url, bool formReadFirst)
     {
         var key = Guid.NewGuid().ToString();
 
-        using var first = await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3]);
-        using var repeat = await uploadAsync(url, key, "second-boundary", "report.pdf", [1, 2, 3]);
+        var first = await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3], 201,
+            formReadFirst: formReadFirst);
+        var repeat = await uploadAsync(url, key, "second-boundary", "report.pdf", [1, 2, 3], 201,
+            formReadFirst: formReadFirst);
 
-        first.StatusCode.ShouldBe(HttpStatusCode.Created);
-        repeat.StatusCode.ShouldBe(HttpStatusCode.Created);
-        (await repeat.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
-            .ShouldBe(await first.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        repeat.Headers.Location.ShouldBe(first.Headers.Location);
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        repeat.Context.Response.Headers.Location.ToString()
+            .ShouldBe(first.Context.Response.Headers.Location.ToString());
 
         DeduplicatedResponseEndpoints.Runs("report.pdf").ShouldBe(1);
     }
 
     [Theory]
-    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "report.pdf", 4, "Quarterly report")]
-    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "other.pdf", 3, "Quarterly report")]
-    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "report.pdf", 3, "Annual report")]
-    [InlineData(UploadDeduplicatedResponseEndpoints.StreamedUrl, "report.pdf", 4, "Quarterly report")]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "report.pdf", 4, "Quarterly report", false)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "other.pdf", 3, "Quarterly report", false)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "report.pdf", 3, "Annual report", false)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.StreamedUrl, "report.pdf", 4, "Quarterly report", false)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "report.pdf", 4, "Quarterly report", true)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "other.pdf", 3, "Quarterly report", true)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "report.pdf", 3, "Annual report", true)]
     public async Task a_different_multipart_upload_under_the_same_key_is_a_422(string url, string fileName,
-        byte lastByte, string title)
+        byte lastByte, string title, bool formReadFirst)
     {
         var key = Guid.NewGuid().ToString();
 
-        using var first = await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3]);
-        using var changed = await uploadAsync(url, key, "second-boundary", fileName, [1, 2, lastByte], title);
-
-        first.StatusCode.ShouldBe(HttpStatusCode.Created);
-        changed.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3], 201, formReadFirst: formReadFirst);
+        await uploadAsync(url, key, "second-boundary", fileName, [1, 2, lastByte], 422, title, formReadFirst);
     }
 
     [Theory]
-    [InlineData(UploadDeduplicatedResponseEndpoints.FormValueUrl)]
-    [InlineData(UploadDeduplicatedResponseEndpoints.FormTypeUrl)]
-    public async Task a_repeat_of_a_form_post_is_answered_with_the_first_response(string url)
+    [InlineData(UploadDeduplicatedResponseEndpoints.FormValueUrl, false)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.FormTypeUrl, false)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.FormValueUrl, true)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.FormTypeUrl, true)]
+    public async Task a_repeat_of_a_form_post_is_answered_with_the_first_response(string url, bool formReadFirst)
     {
         var key = Guid.NewGuid().ToString();
 
-        async Task<HttpResponseMessage> post(string name)
+        Task<IScenarioResult> post(string name, int status) => theHost.Scenario(x =>
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, url)
-            {
-                Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["name"] = name })
-            };
-            request.Headers.Add("Idempotency-Key", key);
+            x.Post.FormData(new Dictionary<string, string> { ["name"] = name }).ToUrl(url);
+            x.WithRequestHeader("Idempotency-Key", key);
+            if (formReadFirst) x.WithRequestHeader(FormReadFirstHeader, "true");
+            x.StatusCodeShouldBe(status);
+        });
 
-            return await theHost.Server.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
-        }
+        var first = await post("form", 201);
+        var repeat = await post("form", 201);
+        await post("changed", 422);
 
-        using var first = await post("form");
-        using var repeat = await post("form");
-        using var changed = await post("changed");
-
-        first.StatusCode.ShouldBe(HttpStatusCode.Created);
-        repeat.StatusCode.ShouldBe(HttpStatusCode.Created);
-        repeat.Headers.Location.ShouldBe(first.Headers.Location);
-        changed.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        repeat.Context.Response.Headers.Location.ToString()
+            .ShouldBe(first.Context.Response.Headers.Location.ToString());
 
         DeduplicatedResponseEndpoints.Runs("form").ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(nameof(UploadDeduplicatedResponseEndpoints.PostFormValue), UploadDeduplicatedResponseEndpoints.FormValueUrl)]
+    [InlineData(nameof(UploadDeduplicatedResponseEndpoints.PostTitled), UploadDeduplicatedResponseEndpoints.FileWithFormValueUrl)]
+    public async Task the_body_is_buffered_before_the_endpoint_reads_the_form(string method, string url)
+    {
+        // A form read that came first would consume the body. The fingerprint would still fall back to the form
+        // that was read, so this is the only place the order shows
+        var key = Guid.NewGuid().ToString();
+        if (url == UploadDeduplicatedResponseEndpoints.FormValueUrl)
+        {
+            await theHost.Scenario(x =>
+            {
+                x.Post.FormData(new Dictionary<string, string> { ["name"] = "order" }).ToUrl(url);
+                x.WithRequestHeader("Idempotency-Key", key);
+                x.StatusCodeShouldBe(201);
+            });
+        }
+        else
+        {
+            await uploadAsync(url, key, "boundary", "report.pdf", [1, 2, 3], 201);
+        }
+
+        var chain = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.Chains
+            .Single(x => x.Method.Method.Name == method);
+        var code = chain.SourceCode.ShouldNotBeNull();
+
+        var buffering = code.IndexOf("EnableBuffering(", StringComparison.Ordinal);
+        var formRead = code.IndexOf(".ReadFormAsync(", StringComparison.Ordinal);
+
+        buffering.ShouldBeGreaterThan(-1);
+        formRead.ShouldBeGreaterThan(buffering);
     }
 
     [Fact]
@@ -666,17 +723,24 @@ public class deduplicated_with_response : IAsyncLifetime
             x.StatusCodeShouldBe(status);
         });
 
-    private async Task<HttpResponseMessage> uploadAsync(string url, string key, string boundary, string fileName,
-        byte[] file, string title = "Quarterly report")
+    private async Task<IScenarioResult> uploadAsync(string url, string key, string boundary, string fileName,
+        byte[] file, int status, string title = "Quarterly report", bool formReadFirst = false)
     {
+        // Built here rather than by Alba, so the test chooses the boundary
         using var content = new MultipartFormDataContent(boundary);
         content.Add(new StringContent(title), "title");
         content.Add(new ByteArrayContent(file), "file", fileName);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
-        request.Headers.Add("Idempotency-Key", key);
+        var contentType = content.Headers.ContentType!.ToString();
+        var body = await content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken);
 
-        return await theHost.Server.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
+        return await theHost.Scenario(x =>
+        {
+            x.Post.ByteArray(body).ToUrl(url).ContentType(contentType);
+            x.WithRequestHeader("Idempotency-Key", key);
+            if (formReadFirst) x.WithRequestHeader(FormReadFirstHeader, "true");
+            x.StatusCodeShouldBe(status);
+        });
     }
 
     private static async Task<T> scalarAsync<T>(string sql, string id)
@@ -976,4 +1040,37 @@ public static class EarlyExitDeduplicatedResponseEndpoint
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/deduplicated-response/early-exit")]
     public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
+}
+
+/// <summary>
+/// A request body as a server has it: read once, from the start, with no going back.
+/// </summary>
+internal class ForwardOnlyStream(Stream inner) : Stream
+{
+    public override bool CanRead => true;
+    public override bool CanSeek => false;
+    public override bool CanWrite => false;
+    public override long Length => throw new NotSupportedException();
+
+    public override long Position
+    {
+        get => throw new NotSupportedException();
+        set => throw new NotSupportedException();
+    }
+
+    public override int Read(byte[] buffer, int offset, int count) => inner.Read(buffer, offset, count);
+
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        => inner.ReadAsync(buffer, cancellationToken);
+
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        => inner.ReadAsync(buffer, offset, count, cancellationToken);
+
+    public override void Flush()
+    {
+    }
+
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 }

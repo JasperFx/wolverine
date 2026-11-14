@@ -215,7 +215,13 @@ A multipart body is the exception. A client picks a new boundary whenever it bui
 the same upload sent twice is two different byte streams. A `multipart/*` body is compared by its parts
 instead: each part's headers and content, in the order sent. A retry with a new boundary is the same
 request; a different file, file name or field value is still a 422. A body that cannot be read as multipart,
-or that has more parts than `FormOptions.ValueCountLimit`, is compared by its bytes.
+that has more parts than `FormOptions.ValueCountLimit` or a boundary longer than
+`FormOptions.MultipartBoundaryLengthLimit`, is compared by its bytes.
+
+When middleware has already read the form before the endpoint runs, there are no bytes left to compare, so
+Wolverine compares the form that was read: its fields, then each file's headers and content. Antiforgery
+validation does this for a token sent as a form field, and on .NET 11 that validation is on for every form
+endpoint by default.
 
 ### The window
 
@@ -358,9 +364,8 @@ releasing it with a rolled-back transaction.
   time to store it.
 - Only the status, body and `Location` are replayed; other response headers are not.
 - Form posts and file uploads are supported, whether the endpoint binds `[FromForm]` values, an
-  `IFormFile`, an `IFormCollection` or a `MultipartReader`. Middleware that reads the form before the
-  endpoint runs leaves no body to compare, and the request fails. Antiforgery validation does that for a
-  token sent as a form field, so send the token in the request header.
+  `IFormFile`, an `IFormCollection` or a `MultipartReader`. That includes forms protected by antiforgery
+  validation with the token sent as a form field.
 - Response bodies are stored for the whole window, in a `wolverine_deduplicated_responses` table of their
   own. It is only provisioned when the setting is on, so nothing changes for anyone else; with
   `AutoCreate.None`, create it before turning the setting on.
