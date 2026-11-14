@@ -321,8 +321,16 @@ internal class DurabilityAgent : IAgent
     /// </summary>
     internal void PruneNodeRecords()
     {
-        _runningBlock.Post(new DatabaseOperationBatch(_database,
-            [new DeleteOldNodeEventRecords(_database, _settings)]));
+        // GH-5498: a store whose engine cannot run the one-statement sweep safely (MySQL) supplies its own
+        if (_database.Nodes is ISweepExpiredNodeRecords sweep)
+        {
+            _runningBlock.Post(new SweepExpiredNodeRecordsCommand(_database, sweep, _settings, _logger));
+        }
+        else
+        {
+            _runningBlock.Post(new DatabaseOperationBatch(_database,
+                [new DeleteOldNodeEventRecords(_database, _settings)]));
+        }
 
         if (_settings.NodeRecordRetention > 0)
         {
