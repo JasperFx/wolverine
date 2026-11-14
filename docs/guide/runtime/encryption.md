@@ -251,3 +251,20 @@ filter on `Envelope.Headers["exception-type"]` when storage is configured.
   ready-made adapter packages may ship later.
 - **Replay protection** — encryption does not prevent replay; use Wolverine's
   existing `DeduplicationId` / `MessageIdentity` if you need it.
+- **Field-level encryption and crypto-shredding** — see the next section.
+
+## Personal data and crypto-shredding with Tayra
+
+Wolverine's `UseEncryption()` protects a message body *in flight and at rest in Wolverine's own
+storage*, with one key per message type or endpoint. It is not a tool for protecting individual
+fields of personal data, and it cannot "forget" one person's data on request.
+
+For that, the officially sanctioned answer for the Critter Stack is [Tayra](https://tayra.dev).
+Tayra provides field-level encryption of personal data, HMAC blind indexes so you can still query
+on encrypted fields, and GDPR Article 17 erasure by deleting a data subject's key
+(crypto-shredding). `Tayra.Wolverine` covers message bodies, the outbox, the inbox and dead
+letters, and `Tayra.Marten` covers documents, events and projections. See the
+[Tayra documentation](https://docs.tayra.dev) to get started.
+
+Wolverine will not build its own crypto-shredding mechanism; use Tayra for that job, and use
+`UseEncryption()` alongside it if you also want whole-envelope encryption on the wire.
