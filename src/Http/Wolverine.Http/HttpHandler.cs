@@ -9,6 +9,7 @@ using System.Text.Json;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.Headers;
@@ -19,6 +20,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 using Wolverine.Http.Runtime;
 using Wolverine.Http.Runtime.MultiTenancy;
@@ -299,7 +301,16 @@ public abstract partial class HttpHandler
     
     private const int FingerprintBufferSize = 16 * 1024;
 
+    // MultipartReader's own default
+    private const int MultipartReaderBufferSize = 4 * 1024;
+
     private static readonly byte[] _fingerprintSeparator = [0];
+
+    // What follows the query string when the body is hashed as something other than the bytes sent. UTF-8 never
+    // encodes 0xFF, so neither the endpoint nor the query string can contain it, and a body hashed as its bytes
+    // (which follows the 0 separator) can never produce the same input as one hashed as its parts or its form.
+    private static readonly byte[] _multipartFingerprintMarker = [0xFF, (byte)'M'];
+    private static readonly byte[] _formFingerprintMarker = [0xFF, (byte)'F'];
 
     // Set once the endpoint's work is done: from then on its [DeduplicatedWithResponse] claim is kept.
     private static readonly object _deduplicatedWorkDone = new();
@@ -353,6 +364,11 @@ public abstract partial class HttpHandler
     /// A multipart body is hashed as its parts, each part's headers and content, so the boundary is left out: a
     /// client picks a new one whenever it builds the request again.
     /// </para>
+    /// <para>
+    /// A form-encoded body is hashed as its fields, by name. A form that middleware read before the body was
+    /// buffered, as antiforgery validation does for a token sent as a form field, leaves no body to hash, so that form
+    /// is hashed the same way, with its files in the order sent. The antiforgery token field is always left out.
+    /// </para>
     /// </summary>
     public static async Task<string?> ComputeDeduplicationFingerprintAsync(HttpContext context,
         string? deduplicationId)
@@ -370,28 +386,42 @@ public abstract partial class HttpHandler
         hash.AppendData(Encoding.UTF8.GetBytes(endpointOf(request)));
         hash.AppendData(_fingerprintSeparator);
         hash.AppendData(Encoding.UTF8.GetBytes(request.QueryString.Value ?? string.Empty));
-        hash.AppendData(_fingerprintSeparator);
 
         var buffer = ArrayPool<byte>.Shared.Rent(FingerprintBufferSize);
         try
         {
             if (await hashMultipartSectionsAsync(context, buffer).ConfigureAwait(false) is { } sections)
             {
+                hash.AppendData(_multipartFingerprintMarker);
                 hash.AppendData(sections);
+            }
+            else if (await readUrlEncodedFormAsync(context).ConfigureAwait(false) is { Count: > 0 } fields)
+            {
+                hash.AppendData(_formFingerprintMarker);
+                hash.AppendData(await hashFormAsync(context, fields, null, buffer).ConfigureAwait(false));
             }
             else
             {
                 request.Body.Position = 0;
-                var length = await appendToEndAsync(hash, request.Body, buffer, context.RequestAborted)
-                    .ConfigureAwait(false);
+                var read = await request.Body.ReadAsync(buffer, context.RequestAborted).ConfigureAwait(false);
 
-                // Something ahead of the endpoint read the form before the body was buffered, as the antiforgery
-                // middleware does for a token sent as a form field: there are no bytes left to compare
-                if (length == 0 && context.Features.Get<IFormFeature>()?.Form is { } form &&
-                    (form.Count > 0 || form.Files.Count > 0))
+                if (read == 0 && formReadAhead(context) is { } form)
                 {
-                    throw new InvalidOperationException(
-                        $"The form of {request.Method} {request.Path} was read before its body was buffered, so its deduplication fingerprint cannot be computed. Middleware that reads the form ahead of the endpoint does this, such as antiforgery validation of a token sent as a form field; send the token in the request header instead. See GH-4742");
+                    // Hashed as a body read here would be, so a host that leaves the body readable after the form
+                    // read and one that does not give the same fingerprint for a form-encoded body
+                    hash.AppendData(_formFingerprintMarker);
+                    hash.AppendData(await hashFormAsync(context, form, form.Files, buffer).ConfigureAwait(false));
+                }
+                else
+                {
+                    // Unchanged from GH-4742, so a claim stored by an earlier version still matches its retry
+                    hash.AppendData(_fingerprintSeparator);
+                    hash.AppendData(buffer, 0, read);
+                    if (read > 0)
+                    {
+                        await appendToEndAsync(hash, request.Body, buffer, context.RequestAborted)
+                            .ConfigureAwait(false);
+                    }
                 }
             }
         }
@@ -422,12 +452,19 @@ public abstract partial class HttpHandler
         var boundary = HeaderUtilities.RemoveQuotes(mediaType.Boundary).Value;
         if (string.IsNullOrWhiteSpace(boundary)) return null;
 
-        // The header limits the endpoint's own read applies, so a request it accepts is one this can read
+        // The limits the endpoint's own read applies, so a request it accepts is one this can read
         var options = context.RequestServices?.GetService<IOptions<FormOptions>>()?.Value ?? new FormOptions();
         var limits = context.GetEndpoint()?.Metadata.GetMetadata<IFormOptionsMetadata>();
 
+        // The endpoint's form read refuses a longer boundary anyway
+        if (boundary.Length > (limits?.MultipartBoundaryLengthLimit ?? options.MultipartBoundaryLengthLimit))
+        {
+            return null;
+        }
+
         var partsLimit = limits?.ValueCountLimit ?? options.ValueCountLimit;
         var parts = 0;
+        var antiforgeryField = antiforgeryFieldOf(context);
 
         using var sections = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         using var part = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -436,7 +473,10 @@ public abstract partial class HttpHandler
         {
             request.Body.Position = 0;
 
-            var reader = new MultipartReader(boundary, request.Body)
+            // The reader wants its buffer 128 bytes longer than the boundary, which a raised boundary limit can push
+            // past its default
+            var reader = new MultipartReader(boundary, request.Body,
+                Math.Max(MultipartReaderBufferSize, boundary.Length + 128))
             {
                 HeadersCountLimit = limits?.MultipartHeadersCountLimit ?? options.MultipartHeadersCountLimit,
                 HeadersLengthLimit = limits?.MultipartHeadersLengthLimit ?? options.MultipartHeadersLengthLimit
@@ -446,20 +486,13 @@ public abstract partial class HttpHandler
             {
                 if (++parts > partsLimit) return null;
 
-                var headers = section.Headers ?? [];
-
-                // Counted and length-prefixed, so a header or one of its values cannot shift into the next one or
-                // into the content
-                appendLength(part, headers.Count);
-                foreach (var header in headers.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+                if (isAntiforgeryToken(section, antiforgeryField))
                 {
-                    appendWithLength(part, header.Key.ToLowerInvariant());
-                    appendLength(part, header.Value.Count);
-                    foreach (var value in header.Value)
-                    {
-                        appendWithLength(part, value ?? string.Empty);
-                    }
+                    await section.Body.DrainAsync(context.RequestAborted).ConfigureAwait(false);
+                    continue;
                 }
+
+                appendHeaders(part, section.Headers ?? []);
 
                 await appendToEndAsync(part, section.Body, buffer, context.RequestAborted).ConfigureAwait(false);
 
@@ -467,13 +500,135 @@ public abstract partial class HttpHandler
                 sections.AppendData(part.GetHashAndReset());
             }
         }
-        // An ArgumentException is a boundary too long for the reader
-        catch (Exception e) when (e is InvalidDataException or IOException or ArgumentException)
+        catch (Exception e) when (e is InvalidDataException or IOException)
         {
             return null;
         }
 
         return sections.GetHashAndReset();
+    }
+
+    /// <summary>
+    /// The form, when something ahead of the endpoint read it before the body was buffered and left no body behind
+    /// </summary>
+    private static IFormCollection? formReadAhead(HttpContext context)
+    {
+        return context.Features.Get<IFormFeature>()?.Form is { } form && (form.Count > 0 || form.Files.Count > 0)
+            ? form
+            : null;
+    }
+
+    /// <summary>
+    /// The fields of a form-encoded body, or null when the body is not form-encoded or cannot be read as a form
+    /// within the limits the endpoint's own read applies, which the caller hashes as the bytes sent.
+    /// </summary>
+    private static async Task<Dictionary<string, StringValues>?> readUrlEncodedFormAsync(HttpContext context)
+    {
+        var request = context.Request;
+        if (!MediaTypeHeaderValue.TryParse(request.ContentType, out var mediaType) ||
+            !mediaType.MediaType.Equals("application/x-www-form-urlencoded", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var options = context.RequestServices?.GetService<IOptions<FormOptions>>()?.Value ?? new FormOptions();
+        var limits = context.GetEndpoint()?.Metadata.GetMetadata<IFormOptionsMetadata>();
+
+        try
+        {
+            request.Body.Position = 0;
+
+            using var reader = new FormReader(request.Body, mediaType.Encoding ?? Encoding.UTF8)
+            {
+                ValueCountLimit = limits?.ValueCountLimit ?? options.ValueCountLimit,
+                KeyLengthLimit = limits?.KeyLengthLimit ?? options.KeyLengthLimit,
+                ValueLengthLimit = limits?.ValueLengthLimit ?? options.ValueLengthLimit
+            };
+
+            return await reader.ReadFormAsync(context.RequestAborted).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is InvalidDataException or IOException or DecoderFallbackException)
+        {
+            return null;
+        }
+    }
+
+    // A form field of this name is left out of the fingerprint: a client that loads the page again is given a new
+    // antiforgery token for the same request
+    private static string? antiforgeryFieldOf(HttpContext context)
+        => context.RequestServices?.GetService<IOptions<AntiforgeryOptions>>()?.Value.FormFieldName;
+
+    private static bool isAntiforgeryToken(MultipartSection section, string? antiforgeryField)
+    {
+        return antiforgeryField != null &&
+               ContentDispositionHeaderValue.TryParse(section.ContentDisposition, out var disposition) &&
+               disposition.IsFormDisposition() &&
+               string.Equals(HeaderUtilities.RemoveQuotes(disposition.Name).Value, antiforgeryField,
+                   StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A hash of a form's fields by name, as a form keeps no order for them, and its files in the order sent,
+    /// leaving out the antiforgery token.
+    /// </summary>
+    private static async Task<byte[]> hashFormAsync(HttpContext context,
+        IEnumerable<KeyValuePair<string, StringValues>> form, IFormFileCollection? files, byte[] buffer)
+    {
+        var antiforgeryField = antiforgeryFieldOf(context);
+
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using var file = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
+        var fields = form
+            .Where(x => antiforgeryField == null || !string.Equals(x.Key, antiforgeryField, StringComparison.Ordinal))
+            .OrderBy(x => x.Key, StringComparer.Ordinal)
+            .ToArray();
+
+        appendLength(hash, fields.Length);
+        foreach (var field in fields)
+        {
+            appendWithLength(hash, field.Key);
+            appendLength(hash, field.Value.Count);
+            foreach (var value in field.Value)
+            {
+                appendWithLength(hash, value ?? string.Empty);
+            }
+        }
+
+        files ??= new FormFileCollection();
+        appendLength(hash, files.Count);
+        foreach (var formFile in files)
+        {
+            appendWithLength(file, formFile.Name);
+            appendWithLength(file, formFile.FileName);
+            appendHeaders(file, formFile.Headers ?? (IEnumerable<KeyValuePair<string, StringValues>>)[]);
+
+            await using var content = formFile.OpenReadStream();
+            await appendToEndAsync(file, content, buffer, context.RequestAborted).ConfigureAwait(false);
+
+            // One fixed-size hash per file, so content cannot shift from one file into the next
+            hash.AppendData(file.GetHashAndReset());
+        }
+
+        return hash.GetHashAndReset();
+    }
+
+    // Counted and length-prefixed, so a header or one of its values cannot shift into the next one or into the
+    // content that follows
+    private static void appendHeaders(IncrementalHash hash, IEnumerable<KeyValuePair<string, StringValues>> headers)
+    {
+        var sorted = headers.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase).ToArray();
+
+        appendLength(hash, sorted.Length);
+        foreach (var header in sorted)
+        {
+            appendWithLength(hash, header.Key.ToLowerInvariant());
+            appendLength(hash, header.Value.Count);
+            foreach (var value in header.Value)
+            {
+                appendWithLength(hash, value ?? string.Empty);
+            }
+        }
     }
 
     private static async Task<long> appendToEndAsync(IncrementalHash hash, Stream stream, byte[] buffer,
