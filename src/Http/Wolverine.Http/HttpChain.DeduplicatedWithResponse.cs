@@ -301,14 +301,17 @@ public partial class HttpChain
     /// </summary>
     private void bufferRequestForDeduplicatedWithResponse()
     {
-        if (DeduplicatedWithResponse != null && !Middleware.OfType<EnableRequestBufferingFrame>().Any())
-        {
-            var buffering = new EnableRequestBufferingFrame();
-            Middleware.Insert(0, buffering);
+        if (DeduplicatedWithResponse == null) return;
 
-            // A form value's read is hoisted ahead of the middleware, and would consume the body before it is
-            // buffered
-            ReadFormCollection.MustFollow(buffering);
+        var buffering = Middleware.OfType<EnableRequestBufferingFrame>().FirstOrDefault();
+        if (buffering == null)
+        {
+            buffering = new EnableRequestBufferingFrame();
+            Middleware.Insert(0, buffering);
         }
+
+        // A form value's read is hoisted ahead of the middleware, and would consume the body before it is
+        // buffered. Ordered whether this call inserted the buffering or found it already in place
+        ReadFormCollection.MustFollow(buffering);
     }
 }

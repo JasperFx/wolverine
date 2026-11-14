@@ -116,14 +116,13 @@ public class deduplicated_with_response : IAsyncLifetime
     {
         var key = Guid.NewGuid().ToString();
 
-        using var first = await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3]);
-        using var repeat = await uploadAsync(url, key, "second-boundary", "report.pdf", [1, 2, 3]);
+        var first = await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3], HttpStatusCode.Created);
+        var repeat = await uploadAsync(url, key, "second-boundary", "report.pdf", [1, 2, 3],
+            HttpStatusCode.Created);
 
-        first.StatusCode.ShouldBe(HttpStatusCode.Created);
-        repeat.StatusCode.ShouldBe(HttpStatusCode.Created);
-        (await repeat.Content.ReadAsStringAsync(TestContext.Current.CancellationToken))
-            .ShouldBe(await first.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
-        repeat.Headers.Location.ShouldBe(first.Headers.Location);
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        repeat.Context.Response.Headers.Location.ToString()
+            .ShouldBe(first.Context.Response.Headers.Location.ToString());
 
         DeduplicatedResponseEndpoints.Runs("report.pdf").ShouldBe(1);
     }
@@ -138,11 +137,9 @@ public class deduplicated_with_response : IAsyncLifetime
     {
         var key = Guid.NewGuid().ToString();
 
-        using var first = await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3]);
-        using var changed = await uploadAsync(url, key, "second-boundary", fileName, [1, 2, lastByte], title);
-
-        first.StatusCode.ShouldBe(HttpStatusCode.Created);
-        changed.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3], HttpStatusCode.Created);
+        await uploadAsync(url, key, "second-boundary", fileName, [1, 2, lastByte], HttpStatusCode.UnprocessableEntity,
+            title);
     }
 
     [Theory]
@@ -152,25 +149,19 @@ public class deduplicated_with_response : IAsyncLifetime
     {
         var key = Guid.NewGuid().ToString();
 
-        async Task<HttpResponseMessage> post(string name)
+        Task<IScenarioResult> post(string name, HttpStatusCode status) => theHost.Scenario(x =>
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, url)
-            {
-                Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["name"] = name })
-            };
-            request.Headers.Add("Idempotency-Key", key);
+            x.Post.FormData(new Dictionary<string, string> { ["name"] = name }).ToUrl(url);
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(status);
+        });
 
-            return await theHost.Server.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
-        }
+        var first = await post("form", HttpStatusCode.Created);
+        var repeat = await post("form", HttpStatusCode.Created);
+        await post("changed", HttpStatusCode.UnprocessableEntity);
 
-        using var first = await post("form");
-        using var repeat = await post("form");
-        using var changed = await post("changed");
-
-        first.StatusCode.ShouldBe(HttpStatusCode.Created);
-        repeat.StatusCode.ShouldBe(HttpStatusCode.Created);
-        repeat.Headers.Location.ShouldBe(first.Headers.Location);
-        changed.StatusCode.ShouldBe(HttpStatusCode.UnprocessableEntity);
+        repeat.Context.Response.Headers.Location.ToString()
+            .ShouldBe(first.Context.Response.Headers.Location.ToString());
 
         DeduplicatedResponseEndpoints.Runs("form").ShouldBe(1);
     }
@@ -666,17 +657,24 @@ public class deduplicated_with_response : IAsyncLifetime
             x.StatusCodeShouldBe(status);
         });
 
-    private async Task<HttpResponseMessage> uploadAsync(string url, string key, string boundary, string fileName,
-        byte[] file, string title = "Quarterly report")
+    private async Task<IScenarioResult> uploadAsync(string url, string key, string boundary, string fileName,
+        byte[] file, HttpStatusCode status, string title = "Quarterly report")
     {
-        using var content = new MultipartFormDataContent(boundary);
+        var content = new MultipartFormDataContent(boundary);
         content.Add(new StringContent(title), "title");
         content.Add(new ByteArrayContent(file), "file", fileName);
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
-        request.Headers.Add("Idempotency-Key", key);
+        var result = await theHost.Scenario(x =>
+        {
+            x.Post.MultipartFormData(content).ToUrl(url);
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(status);
+        });
 
-        return await theHost.Server.CreateClient().SendAsync(request, TestContext.Current.CancellationToken);
+        // The boundary has to reach the endpoint unchanged, or a test of a new boundary proves nothing
+        result.Context.Request.ContentType.ShouldNotBeNull().ShouldContain(boundary);
+
+        return result;
     }
 
     private static async Task<T> scalarAsync<T>(string sql, string id)
