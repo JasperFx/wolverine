@@ -676,7 +676,11 @@ internal partial class MySqlMessageStore : MessageDatabase<MySqlConnection>, ISa
             eventTable.AddColumn<int>("id").AsPrimaryKey().AutoIncrement();
             eventTable.AddColumn<int>("node_number").NotNull();
             eventTable.AddColumn("event_name", "varchar(500)").NotNull();
-            eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
+            // GH-5498: the age sweep filters on timestamp. Without this index it was a full scan that
+            // next-key locked every row in the table under REPEATABLE READ and deadlocked with the row trim.
+            // It has to live here: an index added outside Wolverine is dropped by the next migration.
+            eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull()
+                .AddIndex();
             eventTable.AddColumn("description", $"varchar({NodeRecord.DescriptionLength})").AllowNulls();
             yield return eventTable;
 
