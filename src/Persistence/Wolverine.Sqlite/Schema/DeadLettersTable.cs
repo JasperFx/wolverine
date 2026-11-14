@@ -50,6 +50,13 @@ internal class DeadLettersTable : Table
             Columns = [DatabaseConstants.FailureGroup]
         });
 
+        // GH-5557: the saga id of the dead lettered envelope, so one saga's dead letters can be found. Nullable
+        AddColumn(DatabaseConstants.SagaId, "TEXT");
+        Indexes.Add(new IndexDefinition($"idx_{tableName}_{DatabaseConstants.SagaId}")
+        {
+            Columns = [DatabaseConstants.SagaId]
+        });
+
         if (durability.DeadLetterQueueExpirationEnabled)
         {
             // GH-3071 — every other RDBMS backend (Postgres, SqlServer, MySql,

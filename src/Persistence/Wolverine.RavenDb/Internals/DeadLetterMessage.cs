@@ -23,6 +23,7 @@ public class DeadLetterMessage
         FailureGroup = fingerprint.Group;
         FailureTitle = fingerprint.Title;
         FailedAt = DateTimeOffset.UtcNow;
+        SagaId = envelope.SagaId;
 
         Id = "dlq/" + envelope.Id.ToString();
         EnvelopeId = envelope.Id;
@@ -59,6 +60,9 @@ public class DeadLetterMessage
     public DateTimeOffset? FailedAt { get; set; }
     public DateTimeOffset? ArchivedAt { get; set; }
 
+    // GH-5557
+    public string? SagaId { get; set; }
+
     public DeadLetterEnvelope ToEnvelope()
     {
         return new DeadLetterEnvelope(EnvelopeId, ScheduledTime, readBody(), MessageType,
@@ -69,7 +73,8 @@ public class DeadLetterMessage
             FailureTitle = FailureTitle,
             FailedAt = FailedAt,
             FirstFailedAt = FailedAt,
-            ArchivedAt = ArchivedAt
+            ArchivedAt = ArchivedAt,
+            SagaId = SagaId
         };
     }
 

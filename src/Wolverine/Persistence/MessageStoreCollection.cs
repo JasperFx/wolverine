@@ -682,6 +682,7 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
             Range = new TimeRange(request.From, request.Until),
             ExceptionMessageMatch = request.ExceptionMessageMatch,
             FailureGroup = request.FailureGroup,
+            SagaId = request.SagaId,
             Archived = request.Archived
         };
 

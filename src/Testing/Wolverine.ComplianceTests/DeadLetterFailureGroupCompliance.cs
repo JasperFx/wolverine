@@ -183,6 +183,49 @@ public abstract class DeadLetterFailureGroupCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task saga_id_is_recorded_and_filters_query_replay_and_discard()
+    {
+        if (!supports(DeadLetterCapabilities.SagaIds | DeadLetterCapabilities.OperationCounts)) return;
+
+        var sagaId = Guid.NewGuid().ToString();
+        var otherSagaId = Guid.NewGuid().ToString();
+
+        await deadLetters(3, i => Failures.CardDeclined(i.ToString()), e => e.SagaId = sagaId);
+        await deadLetters(2, i => Failures.CardDeclined(i.ToString()), e => e.SagaId = otherSagaId);
+        await deadLetters(2, i => Failures.OutOfStock(i.ToString()));
+
+        // Recorded from Envelope.SagaId, null when the message had no saga
+        var stored = await all();
+        stored.Count.ShouldBe(7);
+        stored.Count(x => x.SagaId == sagaId).ShouldBe(3);
+        stored.Count(x => x.SagaId == null).ShouldBe(2);
+
+        var byId = await theDeadLetters.DeadLetterEnvelopeByIdAsync(stored.First(x => x.SagaId == sagaId).Id);
+        byId!.SagaId.ShouldBe(sagaId);
+
+        // One saga's dead letters
+        var mine = await all(new DeadLetterEnvelopeQuery { SagaId = sagaId });
+        mine.Count.ShouldBe(3);
+        mine.ShouldAllBe(x => x.SagaId == sagaId);
+
+        // Combines with the other criteria
+        (await all(new DeadLetterEnvelopeQuery { SagaId = sagaId, MessageType = "nonexistent" })).ShouldBeEmpty();
+
+        // And drives the bulk operations
+        var replayed = await theDeadLetters.ReplayMatchingAsync(new DeadLetterEnvelopeQuery { SagaId = sagaId },
+            CancellationToken.None);
+        replayed.Affected.ShouldBe(3);
+        (await all(new DeadLetterEnvelopeQuery { Replayable = true })).ShouldAllBe(x => x.SagaId == sagaId);
+
+        var discarded = await theDeadLetters.DiscardMatchingAsync(
+            new DeadLetterEnvelopeQuery { SagaId = otherSagaId }, CancellationToken.None);
+        discarded.Affected.ShouldBe(2);
+        (await all()).Count.ShouldBe(5);
+
+        (await all(new DeadLetterEnvelopeQuery { SagaId = "no-such-saga" })).ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task summarize_by_failure_group()
     {
         if (!supports(DeadLetterCapabilities.FailureGroups)) return;

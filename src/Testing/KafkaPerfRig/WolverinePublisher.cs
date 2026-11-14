@@ -10,7 +10,7 @@ public static class WolverinePublisher
 {
     public static async Task RunAsync(RigConfig cfg)
     {
-        var builder = Host.CreateDefaultBuilder()
+        var builder = RigHost.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning))
             .UseWolverine(opts =>
             {

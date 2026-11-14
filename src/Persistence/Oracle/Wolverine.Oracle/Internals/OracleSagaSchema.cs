@@ -87,6 +87,12 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
         table.AddColumn<DateTimeOffset>("created").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'").NotNull();
         table.AddColumn<DateTimeOffset>("last_modified").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'").NotNull();
 
+        // GH-5558: "sagas idle for more than N days" filters on last_modified
+        table.Indexes.Add(new IndexDefinition(SagaTableIndexes.LastModifiedIndexName(tableName, 128))
+        {
+            Columns = [SagaTableIndexes.LastModifiedColumn]
+        });
+
         Table = table;
     }
 

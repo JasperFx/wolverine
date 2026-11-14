@@ -42,6 +42,13 @@ public class DeadLetterEnvelopeQuery
     public string? FailureGroup { get; set; }
 
     /// <summary>
+    /// GH-5557. When set, restricts results to the dead letters of one saga instance: the messages that failed
+    /// while they were addressed to, or sent from, that saga (<see cref="Envelope.SagaId"/>). Only honored by
+    /// a store that reports <see cref="DeadLetterCapabilities.SagaIds"/>
+    /// </summary>
+    public string? SagaId { get; set; }
+
+    /// <summary>
     /// When set, scopes the query to one tenant. Dead letters are stored per database, so for a multi-tenanted
     /// message store this routes the query to the tenant's database. A message store that serves a single
     /// database ignores it
@@ -80,6 +87,7 @@ public class DeadLetterEnvelopeQuery
             ExceptionMessage = ExceptionMessage,
             ExceptionMessageMatch = ExceptionMessageMatch,
             FailureGroup = FailureGroup,
+            SagaId = SagaId,
             TenantId = TenantId,
             Archived = Archived,
             Replayable = Replayable,
@@ -122,6 +130,15 @@ public class DeadLetterEnvelopeQuery
         }
 
         return string.Equals(failureGroup, FailureGroup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Does this dead letter satisfy the <see cref="SagaId"/> criteria? For stores that match in memory
+    /// </summary>
+    public bool MatchesSagaId(string? sagaId)
+    {
+        if (string.IsNullOrEmpty(SagaId)) return true;
+        return string.Equals(sagaId, SagaId, StringComparison.Ordinal);
     }
 
     /// <summary>

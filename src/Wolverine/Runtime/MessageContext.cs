@@ -718,6 +718,14 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             return;
         }
 
+        // GH-5557. A saga handler resolves its saga id from the message, so the incoming envelope usually carries
+        // none. Record the id the handler resolved, so the dead letter can be found by its saga. The same string
+        // form outgoing envelopes get from this context
+        if (Envelope.SagaId.IsEmpty() && _sagaId != null)
+        {
+            Envelope.SagaId = _sagaId.ToString();
+        }
+
         var deadLetterQueue = tryGetDeadLetterQueue(_channel, Envelope);
         if (deadLetterQueue is not null)
         {

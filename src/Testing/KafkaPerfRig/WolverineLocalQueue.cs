@@ -38,7 +38,7 @@ public static class WolverineLocalQueue
     {
         LocalRigHandlers.HandlerMs = cfg.HandlerMs;
 
-        var builder = Host.CreateDefaultBuilder()
+        var builder = RigHost.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning))
             .UseWolverine(opts =>
             {

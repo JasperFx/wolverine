@@ -315,6 +315,12 @@ public abstract partial class MessageDatabase<T>
             }
         }
 
+        if (query.SagaId.IsNotEmpty())
+        {
+            builder.Append($" and {DatabaseConstants.SagaId} = ");
+            builder.AppendParameter(query.SagaId);
+        }
+
         switch (archived)
         {
             case DeadLetterArchiveFilter.Exclude:

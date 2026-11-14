@@ -139,6 +139,13 @@ modelBuilder.Entity<OrderSaga>().Ignore(x => x.LastModified);
 Setting the property marks a loaded saga as modified, so Wolverine now writes the saga (and increments `Version`) for
 every message it handles, even one that changed nothing else.
 
+If you look for sagas by how long they have been idle, index the column in your model as well, since Wolverine does
+not own your EF Core schema:
+
+```cs
+modelBuilder.Entity<OrderSaga>().HasIndex(x => x.LastModified);
+```
+
 ## When to Use EF Core vs Lightweight Storage?
 
 As to the question, when should you opt for lightweight storage where Wolverine just sticks serialized JSON into a single 
