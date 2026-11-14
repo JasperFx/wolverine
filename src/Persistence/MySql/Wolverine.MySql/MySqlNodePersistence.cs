@@ -11,7 +11,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.MySql;
 
-internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
+internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence, ISweepExpiredNodeRecords
 {
     public static int LeaderLockId = 9999999;
     private readonly DbObjectName _assignmentTable;
@@ -437,16 +437,55 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
     // GH-3701: the row cap that bounds the node record table alongside the age sweep. Without this the
     // store fell through to the interface's no-op default and only the age bound applied. MySQL rejects
     // a LIMIT inside a subquery of the same table being deleted ("This version of MySQL doesn't yet
-    // support 'LIMIT & IN/ALL/ANY/SOME subquery'"), so the surviving window is resolved to a floor id in
-    // a derived table first and the delete is a plain range scan on the primary key.
+    // support 'LIMIT & IN/ALL/ANY/SOME subquery'"), so the surviving window is resolved to a floor id
+    // first and the delete is a plain range scan on the primary key.
+    //
+    // GH-5498: the floor id is read in its OWN statement. Inside the DELETE, under REPEATABLE READ, the
+    // subquery was a locking read: it took shared next-key locks on the newest @retain rows and the gap
+    // above them, top down, and deadlocked against PersistNodeRecord transactions inserting into that gap.
+    // A standalone SELECT is a plain consistent read and locks nothing.
     public async Task DeleteOldNodeRecordsAsync(int retainCount)
     {
         if (retainCount <= 0) return;
 
-        await _dataSource.CreateCommand(
-                $"DELETE FROM {_settings.SchemaName}.{NodeRecordTableName} WHERE id < COALESCE((SELECT floor_id FROM (SELECT MIN(id) AS floor_id FROM (SELECT id FROM {_settings.SchemaName}.{NodeRecordTableName} ORDER BY id DESC LIMIT @retain) AS keep) AS floor), 0)")
-            .With("retain", retainCount)
-            .ExecuteNonQueryAsync();
+        await using var conn = await _dataSource.OpenConnectionAsync();
+
+        await using var floorCmd = conn.CreateCommand();
+        floorCmd.CommandText =
+            $"SELECT MIN(id) FROM (SELECT id FROM {_settings.SchemaName}.{NodeRecordTableName} ORDER BY id DESC LIMIT @retain) AS keep";
+        floorCmd.Parameters.AddWithValue("retain", retainCount);
+        var floor = await floorCmd.ExecuteScalarAsync();
+        if (floor is null or DBNull) return;
+
+        await using var deleteCmd = conn.CreateCommand();
+        deleteCmd.CommandText = $"DELETE FROM {_settings.SchemaName}.{NodeRecordTableName} WHERE id < @floor";
+        deleteCmd.Parameters.AddWithValue("floor", Convert.ToInt64(floor));
+        await deleteCmd.ExecuteNonQueryAsync();
+    }
+
+    // GH-5498: the age sweep, replacing the generic one-statement DeleteOldNodeEventRecords on MySQL. That
+    // statement had no index to use, so it was a full scan that next-key locked every row in the table --
+    // including the newest ones still being inserted -- in ascending id order, while the trim's subquery
+    // locked in descending order, and the two deadlocked whenever they overlapped. Now the upper id bound is
+    // a plain read through the timestamp index, and the delete is a primary-key range in the same ascending
+    // order as the trim's. The timestamp predicate stays on the delete so the age semantics are unchanged.
+    public async Task DeleteExpiredNodeRecordsAsync(DateTimeOffset cutoff, CancellationToken token)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(token);
+
+        await using var maxCmd = conn.CreateCommand();
+        maxCmd.CommandText =
+            $"SELECT MAX(id) FROM {_settings.SchemaName}.{NodeRecordTableName} WHERE timestamp < @cutoff";
+        maxCmd.Parameters.AddWithValue("cutoff", cutoff);
+        var maxId = await maxCmd.ExecuteScalarAsync(token);
+        if (maxId is null or DBNull) return;
+
+        await using var deleteCmd = conn.CreateCommand();
+        deleteCmd.CommandText =
+            $"DELETE FROM {_settings.SchemaName}.{NodeRecordTableName} WHERE id <= @max_id AND timestamp < @cutoff";
+        deleteCmd.Parameters.AddWithValue("max_id", Convert.ToInt64(maxId));
+        deleteCmd.Parameters.AddWithValue("cutoff", cutoff);
+        await deleteCmd.ExecuteNonQueryAsync(token);
     }
 
     public bool HasLeadershipLock()
