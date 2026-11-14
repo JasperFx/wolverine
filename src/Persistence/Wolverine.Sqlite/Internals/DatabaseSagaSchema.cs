@@ -68,6 +68,12 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         table.AddColumn("created", "TEXT").NotNull().DefaultValueByExpression("(datetime('now'))");
         table.AddColumn("last_modified", "TEXT").NotNull().DefaultValueByExpression("(datetime('now'))");
 
+        // GH-5558: "sagas idle for more than N days" filters on last_modified
+        table.Indexes.Add(new IndexDefinition(SagaTableIndexes.LastModifiedIndexName(tableName, 128))
+        {
+            Columns = [SagaTableIndexes.LastModifiedColumn]
+        });
+
         Table = table;
     }
 

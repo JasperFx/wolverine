@@ -62,6 +62,12 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         table.AddColumn<DateTimeOffset>("created").DefaultValueByExpression("now()").NotNull();
         table.AddColumn<DateTimeOffset>("last_modified").DefaultValueByExpression("now()").NotNull();
 
+        // GH-5558: "sagas idle for more than N days" filters on last_modified
+        table.Indexes.Add(new IndexDefinition(SagaTableIndexes.LastModifiedIndexName(definition.TableName, 63))
+        {
+            Columns = [SagaTableIndexes.LastModifiedColumn]
+        });
+
         Table = table;
     }
 

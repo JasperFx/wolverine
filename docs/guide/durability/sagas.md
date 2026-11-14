@@ -565,6 +565,10 @@ Sagas saved before Wolverine 7.0 get a value from the store's own modification t
 and otherwise read back as `default(DateTimeOffset)` until their next update. With EF Core the property is a mapped
 column on your saga entity, so it needs a migration; see the [7.0 migration guide](/guide/migration#saga-lastmodified-is-set-by-every-saga-store).
 
+The lightweight saga tables (PostgreSQL, SQL Server, MySQL, SQLite and Oracle) index `last_modified`, so finding the
+sagas that have been idle for a while does not scan the table. With EF Core, add the index to your own model; see
+[the EF Core saga docs](/guide/durability/efcore/sagas#the-lastmodified-column).
+
 ## Timeout Messages
 
 You may frequently want to create "timeout" messages as part of a `Saga` to enforce time limitations. This can be done

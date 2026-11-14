@@ -831,6 +831,7 @@ the main message database and every tenant database. Everything it adds is addit
   ([queue tables](#new-queue-tables-get-deterministic-ordering-and-sql-server-s-throughput-layout))
 * the dead letter `expires` column and its index
   ([dead letter expiration](#scheduled-messages-inbox-partitioning-dead-letter-expiration-and-stale-times-in-7-0))
+* an index on `last_modified` for every lightweight saga table (PostgreSQL, SQL Server, MySQL, SQLite, Oracle)
 * the nullable dead letter `saga_id` column and its index
   ([saga ids on dead letters](/guide/durability/dead-letter-storage#finding-a-saga-s-dead-letters)). This one is
   not behind a flag, so `RestoreV6Defaults()` does not avoid it
@@ -848,8 +849,8 @@ Before the first 7.0 node starts:
   while a large outbox is drained.
 
 `RestoreV6Defaults()` turns off the deduplication tables, the optional schema objects, the dead letter expiration
-column and inbox partitioning, so it avoids all of this except the SQLite queue indexes and the dead letter `saga_id`
-column.
+column and inbox partitioning, so it avoids all of this except the SQLite queue indexes, the saga `last_modified`
+indexes and the dead letter `saga_id` column.
 
 ### OpenTelemetry meter and metric names (BREAKING)
 
