@@ -58,6 +58,13 @@ public class DeadLetterEnvelope
     public string? FailureTitle { get; set; }
 
     /// <summary>
+    /// GH-5557. The saga id the failed envelope carried (<see cref="Envelope.SagaId"/>), so one saga
+    /// instance's dead letters can be found with <see cref="DeadLetterManagement.DeadLetterEnvelopeQuery.SagaId"/>.
+    /// Null when the message had nothing to do with a saga, or was dead lettered before this was recorded
+    /// </summary>
+    public string? SagaId { get; set; }
+
+    /// <summary>
     /// When the message was moved to dead letter storage this time
     /// </summary>
     public DateTimeOffset? FailedAt { get; set; }

@@ -184,7 +184,8 @@ public partial class CosmosDbMessageStore : IDeadLetters
     public DeadLetterCapabilities Capabilities => DeadLetterCapabilities.FailureGroups |
                                                   DeadLetterCapabilities.OperationCounts |
                                                   DeadLetterCapabilities.ArchiveAndRestore |
-                                                  DeadLetterCapabilities.ExceptionMessageMatching;
+                                                  DeadLetterCapabilities.ExceptionMessageMatching |
+                                                  DeadLetterCapabilities.SagaIds;
 
     public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
@@ -434,6 +435,9 @@ public partial class CosmosDbMessageStore : IDeadLetters
                 : "c.failureGroup = @failureGroup");
         }
 
+        // GH-5557
+        if (query.SagaId.IsNotEmpty()) conditions.Add("c.sagaId = @sagaId");
+
         if (archived == DeadLetterArchiveFilter.Exclude)
         {
             conditions.Add(NotArchived);
@@ -467,6 +471,8 @@ public partial class CosmosDbMessageStore : IDeadLetters
                 ? queryDef.WithParameter("@legacyExceptionType", legacyType)
                 : queryDef.WithParameter("@failureGroup", query.FailureGroup);
         }
+
+        if (query.SagaId.IsNotEmpty()) queryDef = queryDef.WithParameter("@sagaId", query.SagaId);
 
         return queryDef;
     }
