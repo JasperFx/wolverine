@@ -422,6 +422,12 @@ public sealed partial class WolverineOptions
     public TrackingOptions Tracking { get; } = new();
 
     /// <summary>
+    /// GH-5537. Application wide OpenTelemetry tracing rules for outgoing messages, like choosing the
+    /// message types that start a new trace linked back to their sender.
+    /// </summary>
+    public TracingOptions Tracing { get; } = new();
+
+    /// <summary>
     /// Global default settings for entity loading behavior with [Entity], [Document],
     /// [Aggregate], [ReadAggregate], and [WriteAggregate] attributes.
     /// Per-attribute settings always take precedence over these defaults.

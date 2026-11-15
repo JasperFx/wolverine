@@ -227,7 +227,7 @@ public class AuditedMessage
     [Audit("AccountIdentifier")] public int AccountId;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L101-L110' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_audit_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L114-L123' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_audit_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you are okay using a common message interface for common identification like "this message targets an account/organization/tenant/client"
@@ -245,7 +245,7 @@ public interface IAccountMessage
 // A possible command that uses our marker interface above
 public record DebitAccount(int AccountId, decimal Amount) : IAccountMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L135-L145' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_message_for_auditing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L148-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_message_for_auditing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can specify audited members through this syntax:
@@ -427,20 +427,20 @@ code sample:
 <a id='snippet-sample_enabling_open_telemetry'></a>
 ```cs
 // builder.Services is an IServiceCollection object
-builder.Services.AddOpenTelemetryTracing(x =>
-{
-    x.SetResourceBuilder(ResourceBuilder
-            .CreateDefault()
-            .AddService("OtelWebApi")) // <-- sets service name
-        .AddJaegerExporter()
-        .AddAspNetCoreInstrumentation()
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("OtelWebApi")) // <-- sets service name
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
 
-        // This is absolutely necessary to collect the Wolverine
-        // open telemetry tracing information in your application
-        .AddSource("Wolverine");
-});
+            // This is absolutely necessary to collect the Wolverine
+            // open telemetry tracing information in your application
+            .AddSource("Wolverine");
+    })
+    .UseOtlpExporter();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApi/Program.cs#L36-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApi/Program.cs#L37-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_enabling_open_telemetry-1'></a>
 ```cs
 builder.Services.AddOpenTelemetry()
@@ -644,6 +644,29 @@ public const string SagaId = "wolverine.saga.id";
 public const string MessageScheduled = "wolverine.message.scheduled";
 
 /// <summary>
+/// The name of the opts.Schedules recurring schedule that published this envelope, carried on
+/// every activity for an occurrence (and consumed downstream by CritterWatch). Absent for
+/// everything that is not a recurring-message occurrence.
+/// </summary>
+public const string ScheduleName = "wolverine.schedule.name";
+
+/// <summary>
+/// The occurrence instant of the recurring schedule that published this envelope — which
+/// scheduled firing this span belongs to — as a round-trippable UTC timestamp. Absent for
+/// everything that is not a recurring-message occurrence. Deliberately a trace tag only and
+/// never a metrics tag: one distinct value per firing would make it unbounded cardinality.
+/// </summary>
+public const string ScheduleOccurrence = "wolverine.schedule.occurrence";
+
+/// <summary>
+/// Span emitted by the recurring message agent around the publish of each occurrence of an
+/// opts.Schedules schedule, tagged with <see cref="ScheduleName"/> and <see cref="ScheduleOccurrence"/>.
+/// It is the parent the occurrence's envelope points at, so every firing is its own bounded trace
+/// rather than a child of whatever activity happened to be current when the agent started.
+/// </summary>
+public const string RecurringOccurrence = "wolverine.recurring.occurrence";
+
+/// <summary>
 /// Activity tag for the saga type full name when processing a saga message
 /// </summary>
 public const string SagaType = "wolverine.saga.type";
@@ -722,7 +745,7 @@ public const string EnvelopeReceiveDwellMs = "wolverine.envelope.receive_dwell_m
 /// </summary>
 public const string Deserialize = "wolverine.deserialize";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L257' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L280' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Opt-in Handler Execution Diagnostics <Badge type="tip" text="5.38" />
@@ -914,6 +937,70 @@ opts.MetadataRules.Add(new NewTracePerItem());
 
 The flag travels as the `starts-new-linked-trace` header, so it crosses external transports and the durable inbox
 like any other header.
+
+### Choosing the Message Types Once <Badge type="tip" text="7.0" />
+
+Rather than remembering `DeliveryOptions` at every place that sends a message, you can decide once, by message
+type, which messages start a new linked trace. The rule applies on every route, local and external, and to
+messages cascaded from a handler. Wolverine works out the rules for each message type once, when it builds the
+route, so there is no extra cost per message.
+
+Register the message types in `opts.Tracing`, either by a type a message can be cast to, or with a predicate:
+
+<!-- snippet: sample_start_new_linked_trace_for_message_types -->
+<a id='snippet-sample_start_new_linked_trace_for_message_types'></a>
+```cs
+_host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Discovery.DisableConventionalDiscovery().IncludeType<LinkedTraceTriggerHandler>();
+
+        // Every message that can be cast to ILinkedTraceEvent starts a new trace
+        // linked to the activity that sent it
+        opts.Tracing.StartNewLinkedTraceFor<ILinkedTraceEvent>();
+
+        // Or choose the message types with a predicate
+        opts.Tracing.StartNewLinkedTraceFor(type => type.Name.StartsWith("LinkedByPredicate"));
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/new_linked_trace_by_message_type.cs#L118-L131' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_start_new_linked_trace_for_message_types' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or let the message type opt in by itself with the `[StartsNewLinkedTrace]` attribute:
+
+<!-- snippet: sample_starts_new_linked_trace_attribute -->
+<a id='snippet-sample_starts_new_linked_trace_attribute'></a>
+```cs
+[StartsNewLinkedTrace]
+public record LinkedByAttribute(Guid Id, bool OptedOut = false);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/new_linked_trace_by_message_type.cs#L231-L234' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starts_new_linked_trace_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+or with the `IStartsNewLinkedTrace` marker interface, if you would rather use an interface than an attribute:
+
+<!-- snippet: sample_starts_new_linked_trace_marker_interface -->
+<a id='snippet-sample_starts_new_linked_trace_marker_interface'></a>
+```cs
+public record LinkedByMarker(Guid Id) : IStartsNewLinkedTrace;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/new_linked_trace_by_message_type.cs#L236-L238' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starts_new_linked_trace_marker_interface' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+An explicit `DeliveryOptions.StartsNewLinkedTrace` on a send always wins. Setting it to `false` keeps one message
+in the sender's trace even when its type has a rule:
+
+<!-- snippet: sample_opt_out_of_linked_trace_rule -->
+<a id='snippet-sample_opt_out_of_linked_trace_rule'></a>
+```cs
+// An explicit DeliveryOptions setting wins over the attribute, the marker and opts.Tracing
+await bus.SendAsync(new LinkedByAttribute(Guid.NewGuid(), OptedOut: true),
+    new DeliveryOptions { StartsNewLinkedTrace = false });
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/new_linked_trace_by_message_type.cs#L255-L259' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opt_out_of_linked_trace_rule' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Leave `DeliveryOptions.StartsNewLinkedTrace` unset (it is `null` by default) to let the rules decide.
 
 ## Handler Type Tagging
 
