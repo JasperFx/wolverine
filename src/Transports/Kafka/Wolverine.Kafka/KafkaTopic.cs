@@ -211,6 +211,9 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         // the RabbitMQ / NATS CompoundListener multi-tenancy pattern.
         if (Parent.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
         {
+            // GH-5196: dead letter a received message for a tenant id no registered tenant matches
+            UnknownBrokerTenantGuard.Install(this, Parent.TenantedIdBehavior, Parent.Tenants.Select(x => x.TenantId));
+
             var compound = new CompoundListener(Uri);
             compound.Inner.Add(listener);
 

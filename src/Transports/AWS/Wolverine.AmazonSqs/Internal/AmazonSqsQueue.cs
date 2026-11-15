@@ -724,6 +724,9 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         // CompoundListener multi-tenancy pattern used by RabbitMQ / NATS / Kafka.
         if (_parent.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
         {
+            // GH-5196: dead letter a received message for a tenant id no registered tenant matches
+            UnknownBrokerTenantGuard.Install(this, _parent.TenantedIdBehavior, _parent.Tenants.Select(x => x.TenantId));
+
             var compound = new CompoundListener(Uri);
             compound.Inner.Add(listener);
 

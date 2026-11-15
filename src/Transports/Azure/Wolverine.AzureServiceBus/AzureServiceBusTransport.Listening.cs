@@ -37,6 +37,9 @@ public partial class AzureServiceBusTransport
 
         if (Tenants.Any() && queue.TenancyBehavior == TenancyBehavior.TenantAware)
         {
+            // GH-5196: dead letter a received message for a tenant id no registered tenant matches
+            UnknownBrokerTenantGuard.Install(queue, TenantedIdBehavior, Tenants.Select(x => x.TenantId));
+
             var compound = new CompoundListener(queue.Uri);
             compound.Inner.Add(listener);
 
@@ -117,6 +120,9 @@ public partial class AzureServiceBusTransport
         var listener = await buildListenerForSubscription(runtime, receiver, subscription, mapper);
         if (Tenants.Any() && subscription.TenancyBehavior == TenancyBehavior.TenantAware)
         {
+            // GH-5196: dead letter a received message for a tenant id no registered tenant matches
+            UnknownBrokerTenantGuard.Install(subscription, TenantedIdBehavior, Tenants.Select(x => x.TenantId));
+
             var compound = new CompoundListener(subscription.Uri);
             compound.Inner.Add(listener);
 

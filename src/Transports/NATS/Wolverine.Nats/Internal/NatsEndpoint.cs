@@ -619,6 +619,14 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         // so consume each over its own connection and stamp the tenant id onto inbound envelopes. Mirrors the
         // RabbitMQ / Azure Service Bus CompoundListener multi-tenancy pattern; per-envelope completion routes
         // back to the right connection via Envelope.Listener.
+        if (tenantAware)
+        {
+            // GH-5196: dead letter a received message for a tenant id no registered tenant matches, with every
+            // registered tenant counted, not only the ones with their own connection
+            UnknownBrokerTenantGuard.Install(this, _transport.TenantedIdBehavior,
+                _transport.Tenants.Select(x => x.TenantId));
+        }
+
         var dedicatedTenants = tenantAware
             ? _transport.Tenants.Where(t => t.HasOwnConnection).ToArray()
             : [];

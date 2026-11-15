@@ -293,6 +293,9 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
     {
         if (Tenants.Any() && endpoint.TenancyBehavior == TenancyBehavior.TenantAware)
         {
+            // GH-5196: dead letter a received message for a tenant id no registered tenant matches
+            UnknownBrokerTenantGuard.Install(endpoint, TenantedIdBehavior, Tenants.Select(x => x.TenantId));
+
             var compound = new CompoundListener(endpoint.Uri);
             compound.Inner.Add(buildSingleListener(endpoint, receiver, this, null, runtime));
 

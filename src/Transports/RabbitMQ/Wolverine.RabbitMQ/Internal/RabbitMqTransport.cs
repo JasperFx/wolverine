@@ -524,6 +524,9 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
         if (Tenants.Any() && queue.TenancyBehavior == TenancyBehavior.TenantAware)
         {
+            // GH-5196: dead letter a received message for a tenant id no registered tenant matches
+            UnknownBrokerTenantGuard.Install(queue, TenantedIdBehavior, Tenants.Select(x => x.TenantId));
+
             var compound = new CompoundListener(queue.Uri);
             compound.Inner.Add(listener);
 

@@ -46,12 +46,28 @@ public enum TenantedIdBehavior
 /// </summary>
 public class UnknownBrokerTenantException : UnknownTenantIdException
 {
-    public UnknownBrokerTenantException(string tenantId, string? messageType, Uri endpoint) : base(
+    public UnknownBrokerTenantException(string tenantId, string? messageType, Uri endpoint) : this(
         $"Unknown tenant id '{tenantId}' for message type '{messageType}' at endpoint {endpoint}. No tenant with this id is registered with the transport, and a broker is a trust boundary, so the message was not sent to the default broker or any other tenant's. Register the tenant, or choose TenantedIdBehavior.FallbackToDefault for the transport to send it to the default broker as Wolverine 6.x did",
-        tenantId)
+        tenantId, messageType, endpoint)
+    {
+    }
+
+    private UnknownBrokerTenantException(string message, string tenantId, string? messageType, Uri endpoint) : base(
+        message, tenantId)
     {
         MessageType = messageType;
         Endpoint = endpoint;
+    }
+
+    /// <summary>
+    /// GH-5196. The reason a message <b>received</b> at a tenant-aware endpoint with a tenant id that no registered
+    /// tenant matches is dead lettered rather than handled
+    /// </summary>
+    internal static UnknownBrokerTenantException Received(string tenantId, string? messageType, Uri endpoint)
+    {
+        return new UnknownBrokerTenantException(
+            $"Unknown tenant id '{tenantId}' for message type '{messageType}' at endpoint {endpoint}. No tenant with this id is registered with the transport, and a broker is a trust boundary, so the received message was moved to the dead letter queue instead of being handled. Register the tenant, or choose TenantedIdBehavior.FallbackToDefault for the transport to handle it as Wolverine 6.x did",
+            tenantId, messageType, endpoint);
     }
 
     /// <summary>
@@ -203,14 +219,14 @@ public class TenantedSender : ISender, IAsyncDisposable, IConditionalNativeSched
     public bool IsUnknownTenantToDeadLetter(Envelope envelope)
     {
         if (TenantedIdBehavior != TenantedIdBehavior.DeadLetterUnknownTenants) return false;
-        if (isUntenanted(envelope.TenantId)) return false;
+        if (IsUntenanted(envelope.TenantId)) return false;
 
         return !_senders.TryFind(envelope.TenantId!, out _);
     }
 
     // The default tenant's ids mean "no tenant" here: a message from a default-tenant session goes to the default
     // broker, as one with no tenant id does
-    private static bool isUntenanted(string? tenantId)
+    internal static bool IsUntenanted(string? tenantId)
     {
         return tenantId.IsEmpty() || tenantId == StorageConstants.DefaultTenantId ||
                tenantId == TransportConstants.Default;
@@ -250,7 +266,7 @@ public class TenantedSender : ISender, IAsyncDisposable, IConditionalNativeSched
                 return invalid;
 
             case TenantedIdBehavior.DeadLetterUnknownTenants:
-                if (isUntenanted(tenantId)) return _defaultSender;
+                if (IsUntenanted(tenantId)) return _defaultSender;
 
                 // The sending agents divert these to dead letter storage before they get this far
                 // (UnknownBrokerTenants). Reaching here means a caller sent straight through the

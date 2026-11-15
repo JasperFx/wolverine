@@ -427,6 +427,9 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         // consumed over its own project via a dedicated listener that stamps the tenant id onto inbound envelopes
         // (mirrors the NATS / RabbitMQ / Azure Service Bus CompoundListener pattern). Pub/Sub acknowledges inline
         // in the streaming callback, so per-envelope completion never routes back through CompoundListener.
+        // GH-5196: dead letter a received message for a tenant id no registered tenant matches
+        UnknownBrokerTenantGuard.Install(this, _transport.TenantedIdBehavior, _transport.Tenants.Select(x => x.TenantId));
+
         var compound = new CompoundListener(Uri);
         compound.Inner.Add(buildListener(runtime, receiver, _transport.DefaultClients));
 

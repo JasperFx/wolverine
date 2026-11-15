@@ -573,6 +573,12 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     internal IWolverineRuntime? Runtime { get; set; }
 
     /// <summary>
+    ///     GH-5196. Set by a tenant-aware broker transport under <see cref="TenantedIdBehavior.DeadLetterUnknownTenants" />:
+    ///     an incoming message for a tenant id no registered tenant matches is dead lettered instead of handled
+    /// </summary>
+    internal UnknownBrokerTenantGuard? UnknownTenantGuard { get; set; }
+
+    /// <summary>
     /// When true, this endpoint will resolve an <see cref="IWireTap"/> from the IoC container
     /// to record message success/failure for auditing purposes.
     /// </summary>
