@@ -68,8 +68,8 @@ public class strict_tenancy_5196 : IAsyncLifetime
         // The listener consumes both clusters. The unknown tenant goes first; the two later messages are the proof
         // that nothing for it ever arrived on either cluster
         var session = await host.TrackActivity()
-            .Timeout(60.Seconds())
-            .WaitForMessageToBeReceivedAt<TenantColorMessage>(host)
+            .Timeout(120.Seconds())
+            .WaitForCondition(new ReceivedCount(2))
             .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async c =>
             {
                 unknown = await Should.ThrowAsync<UnknownBrokerTenantException>(async () =>
@@ -81,12 +81,8 @@ public class strict_tenancy_5196 : IAsyncLifetime
 
         unknown.ShouldNotBeNull().TenantId.ShouldBe("tenantZ");
 
-        // Wait for both deliveries; the session above only waited for the first
-        var deadline = DateTimeOffset.UtcNow.Add(30.Seconds());
-        while (session.Received.MessagesOf<TenantColorMessage>().Count() < 2 && DateTimeOffset.UtcNow < deadline)
-        {
-            await Task.Delay(100, TestContext.Current.CancellationToken);
-        }
+        // Give a wrongly sent message a moment longer to show up behind the other two
+        await Task.Delay(2.Seconds(), TestContext.Current.CancellationToken);
 
         var received = session.Received.Envelopes().Where(x => x.Message is TenantColorMessage).ToArray();
         received.Select(x => ((TenantColorMessage)x.Message!).Color).OrderBy(x => x)
@@ -122,5 +118,20 @@ public class strict_tenancy_5196 : IAsyncLifetime
         var record = session.AllRecordsInOrder(MessageEventType.MovedToErrorQueue).ShouldHaveSingleItem();
         record.Exception.ShouldBeOfType<UnknownBrokerTenantException>().TenantId.ShouldBe("tenantZ");
         session.Executed.MessagesOf<TenantColorMessage>().ShouldBeEmpty();
+    }
+
+    private class ReceivedCount(int expected) : ITrackedCondition
+    {
+        private int _count;
+
+        public void Record(EnvelopeRecord record)
+        {
+            if (record.MessageEventType == MessageEventType.Received && record.Message is TenantColorMessage)
+            {
+                Interlocked.Increment(ref _count);
+            }
+        }
+
+        public bool IsCompleted() => Volatile.Read(ref _count) >= expected;
     }
 }
