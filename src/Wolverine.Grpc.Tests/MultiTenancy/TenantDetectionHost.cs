@@ -24,7 +24,8 @@ public sealed class TenantDetectionHost : IAsyncDisposable
 
     public static async Task<TenantDetectionHost> StartAsync(
         Action<WolverineGrpcOptions>? configureGrpc = null,
-        Action<WebApplication>? configureApp = null)
+        Action<WebApplication>? configureApp = null,
+        Action<WolverineOptions>? configureWolverine = null)
     {
         var host = new TenantDetectionHost();
 
@@ -39,6 +40,8 @@ public sealed class TenantDetectionHost : IAsyncDisposable
             // For the hand-written-flavor test: PropagationEchoGrpcService delegates to the bus,
             // whose handler must be discoverable in this host too.
             opts.Discovery.IncludeType(typeof(ServerPropagation.PropagationEchoHandler));
+
+            configureWolverine?.Invoke(opts);
         });
 
         builder.Services.AddCodeFirstGrpc();

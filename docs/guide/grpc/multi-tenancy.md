@@ -61,13 +61,53 @@ There are no gRPC equivalents of HTTP's route-argument, query-string, or sub-dom
 those concepts don't exist on a gRPC call. Metadata headers and claims are the idiomatic carriers,
 and anything else can be plugged in with a custom strategy.
 
+## Trusting the `tenant-id` Header <Badge type="warning" text="7.0" />
+
+Any gRPC client can put any value in a `tenant-id` metadata header. Since 7.0 (GH-5196), Wolverine does **not**
+trust that header unless you say so: with no detection configured on `WolverineGrpcOptions.TenantId`, the header is
+ignored, both by the generated service wrappers and by the runtime
+[`WolverineGrpcServicePropagationInterceptor`](./client#envelope-header-propagation), and the call runs untenanted.
+
+To read the tenant from the header, configure the detection explicitly, and refuse calls that carry none:
+
+<!-- snippet: sample_grpc_trusting_the_tenant_id_header_explicitly -->
+<a id='snippet-sample_grpc_trusting_the_tenant_id_header_explicitly'></a>
+```cs
+await using var host = await TenantDetectionHost.StartAsync(o =>
+{
+    // 7.0 ignores the client's tenant-id header unless you opt in. Name the header
+    // explicitly, and refuse a call that carries none
+    o.TenantId.IsRequestHeaderValue("tenant-id");
+    o.TenantId.AssertExists();
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine.Grpc.Tests/MultiTenancy/tenant_detection_tests.cs#L256-L264' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_grpc_trusting_the_tenant_id_header_explicitly' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Or, better when the caller is authenticated, take the tenant from a claim with `IsClaimTypeNamed(...)`.
+
+Between your own services on a private network, you can trust the header again:
+
+```csharp
+builder.Services.AddWolverineGrpc(grpc =>
+{
+    // Trust the tenant-id header stamped by the Wolverine gRPC client,
+    // the 6.x behavior
+    grpc.TrustTenantIdHeader = true;
+});
+```
+
+`TrustTenantIdHeader` is a `bool?`. Null, the default, means not trusted, and trusted after
+`opts.RestoreV6Defaults()`. An explicit `true` or `false` wins over both.
+
 ## Zero-Config Default
 
-If you never configure `TenantId` at all and `WolverineGrpcOptions.PropagateEnvelopeHeaders`
-is `true` (its default), Wolverine automatically detects the tenant from the `tenant-id` request
-metadata header — the exact header that [`AddWolverineGrpcClient<T>()`](./client)'s propagation
-interceptor stamps on outgoing calls from `IMessageContext.TenantId`. In other words, a
-Wolverine-to-Wolverine gRPC hop round-trips the tenant id **with zero server configuration**:
+When the header is trusted (`TrustTenantIdHeader`, above), you never configure `TenantId`, and
+`WolverineGrpcOptions.PropagateEnvelopeHeaders` is `true` (its default), Wolverine automatically detects the tenant
+from the `tenant-id` request metadata header — the exact header that
+[`AddWolverineGrpcClient<T>()`](./client)'s propagation interceptor stamps on outgoing calls from
+`IMessageContext.TenantId`. In other words, a Wolverine-to-Wolverine gRPC hop round-trips the tenant id with no other
+server configuration:
 
 ```
 caller handler (TenantId = "tenant1")
@@ -81,8 +121,8 @@ Explicitly configuring any `TenantId` strategy replaces the zero-config default 
 own strategies), and setting `PropagateEnvelopeHeaders = false` suppresses it entirely.
 
 Note that the zero-config default overlaps with the runtime
-[`WolverineGrpcServicePropagationInterceptor`](./client#envelope-header-propagation), which also
-copies the `tenant-id` header onto the scoped `IMessageContext`. The two are complementary: the
+[`WolverineGrpcServicePropagationInterceptor`](./client#envelope-header-propagation), which, when the header is
+trusted, also copies the `tenant-id` header onto the scoped `IMessageContext`. The two are complementary: the
 interceptor covers *every* mapped gRPC service (including services Wolverine did not generate)
 at runtime, while the detection frame makes the tenant a structural part of the generated code —
 visible in `codegen preview`, available to persistence frames as the `tenantId` variable, and

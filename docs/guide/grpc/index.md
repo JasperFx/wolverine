@@ -40,8 +40,8 @@ building:
   `Grpc.Net.ClientFactory` that adds envelope-header propagation and `RpcException` → typed-exception
   translation on the consuming side.
 - [Multi-Tenancy](./multi-tenancy) — server-side tenant id detection (metadata headers, claims, or
-  custom strategies) mirroring Wolverine.HTTP's `TenantId` API, including the zero-config
-  round-trip default for Wolverine-to-Wolverine hops.
+  custom strategies) mirroring Wolverine.HTTP's `TenantId` API, and when to trust the client's
+  `tenant-id` header for Wolverine-to-Wolverine hops.
 - [Integration with Sagas](./sagas) — starting and continuing Wolverine sagas through gRPC calls
   with message-carried saga identity, and the one identity model that doesn't cross the hop.
 - [Samples](./samples) — runnable end-to-end samples with pointers to the equivalent official

@@ -118,8 +118,9 @@ On the server side of a Wolverine→Wolverine hop, propagation is fully **round-
 complementary server-side mechanisms read the stamped headers back in:
 
 1. `WolverineGrpcServicePropagationInterceptor` (registered automatically by `AddWolverineGrpc()`)
-   reads the `correlation-id` and `tenant-id` headers off the inbound call and applies them to the
-   ambient `IMessageContext` before the service method runs. Only those two identifiers round-trip
+   reads the `correlation-id` header, and the `tenant-id` header when
+   [it is trusted](./multi-tenancy#trusting-the-tenant-id-header) (not by default since 7.0), off the inbound call
+   and applies them to the ambient `IMessageContext` before the service method runs. Only those two identifiers round-trip
    this way — `parent-id` and `conversation-id` live on an `Envelope`, and there is no envelope yet
    at this point in the pipeline (`IMessageContext.Envelope` is null outside of message handling).
    Once the service method calls `Bus.InvokeAsync(...)`, Wolverine copies the now-set
@@ -128,8 +129,8 @@ complementary server-side mechanisms read the stamped headers back in:
    further wiring needed.
 2. For the tenant id specifically, Wolverine-generated gRPC service wrappers additionally run
    [server-side tenant id detection](./multi-tenancy) as part of the generated code. With no
-   configuration at all, the detection defaults to reading the same `tenant-id` header the client
-   interceptor stamps, assigning it to the scoped `IMessageBus.TenantId` and to the `tenantId`
+   other configuration and `WolverineGrpcOptions.TrustTenantIdHeader = true`, the detection defaults to reading the
+   same `tenant-id` header the client interceptor stamps, assigning it to the scoped `IMessageBus.TenantId` and to the `tenantId`
    code-generation variable that persistence middleware consumes — structurally, without relying
    on the ambient context. Custom detection (other headers, claims, your own strategy) is
    configured on `WolverineGrpcOptions.TenantId`.
