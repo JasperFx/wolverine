@@ -23,7 +23,8 @@ public class StrictTenancyColorHandler
 /// neither namespace, a send to a registered tenant reaches only its namespace, and a message received with an
 /// unknown tenant id is dead lettered
 /// </summary>
-[Collection("acceptance")]
+// No [Collection] attribute: this suite is one collection per assembly (NoParallelization.cs), and a named collection
+// would run beside the classes that delete every object in the shared emulator
 public class strict_tenancy_5196 : IAsyncLifetime
 {
     public async ValueTask InitializeAsync()
