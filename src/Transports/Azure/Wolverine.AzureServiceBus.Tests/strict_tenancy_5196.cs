@@ -37,9 +37,9 @@ public class strict_tenancy_5196 : IAsyncLifetime
     private static void configureTenantedTransport(WolverineOptions opts)
     {
         // No TenantIdBehavior(): the 7.0 default
-        opts.UseAzureServiceBusEmulator(Servers.AzureServiceBusConnectionString,
-                Servers.AzureServiceBusManagementConnectionString)
-            .AutoProvision()
+        // UseAzureServiceBusTesting(), not UseAzureServiceBusEmulator(): the suite deletes every object in the shared
+        // emulator the first time it is called, and that must not happen after this host has provisioned its queues
+        opts.UseAzureServiceBusTesting()
             .AutoPurgeOnStartup()
             .AddTenantByConnectionString("tenantB", Servers.AzureServiceBusTenantConnectionString);
 
@@ -109,8 +109,7 @@ public class strict_tenancy_5196 : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.ServiceName = "UntenantedSender";
-                opts.UseAzureServiceBusEmulator(Servers.AzureServiceBusConnectionString,
-                    Servers.AzureServiceBusManagementConnectionString).AutoProvision();
+                opts.UseAzureServiceBusTesting();
 
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.Discovery.DisableConventionalDiscovery();
