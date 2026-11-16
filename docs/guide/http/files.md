@@ -77,8 +77,10 @@ Each `IFormFile` parameter is matched to the uploaded file by its parameter name
 
 ## Streaming Large Uploads <Badge type="tip" text="6.42" />
 
-`IFormFile`, `IFormFileCollection`, `IFormCollection` and `[FromForm]` all read the request through `Request.Form`,
-which buffers the entire body before your endpoint runs: in memory up to 64 KB per file, on disk beyond that. For
+`IFormFile`, `IFormFileCollection`, `IFormCollection` and `[FromForm]` all share one `Request.ReadFormAsync()` call,
+which buffers the entire body before your endpoint runs: in memory up to 64 KB per file, on disk beyond that. The
+read is asynchronous, so the request thread is not blocked while the body arrives, but the whole form is still
+buffered. For
 large uploads, take a `MultipartReader` parameter instead. Wolverine opens it over the unbuffered request body and
 your endpoint reads each section as it arrives. This is the pattern ASP.NET Core describes in
 [Upload large files with streaming](https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads?view=aspnetcore-10.0#upload-large-files-with-streaming),
