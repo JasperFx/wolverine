@@ -1838,7 +1838,10 @@ partial class Build
     static readonly string[] AsbLeaderShard =
     [
         "Wolverine.AzureServiceBus.Tests.leader_election",            // 212.3s / 15 tests — 26% of the suite
-        "Wolverine.AzureServiceBus.Tests.StatefulResourceSmokeTests"  //  68.0s /  6 tests
+        "Wolverine.AzureServiceBus.Tests.StatefulResourceSmokeTests", //  68.0s /  6 tests
+        // 209s / 2 tests on CI (#5574's CIAzureServiceBus log): the most expensive class left in the "everything
+        // else" shard, which was still at 19m18s of the 20 minute cap after strict_tenancy_5196 moved out.
+        "Wolverine.AzureServiceBus.Tests.Bugs.Bug_1933_multi_tenant_conventional_routing"
     ];
 
     /// <summary>
