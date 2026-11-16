@@ -98,6 +98,7 @@ public class HttpFSharpFrameTests
         Code.ShouldContain("do! this.AnswerDeduplicatedRepeatAsync(httpContext, deduplicatedResponseClaim");
         Code.ShouldContain(
             "this.CompleteDeduplicatedRequest<Wolverine.Http.FSharpContracts.ThingCreated>(httpContext");
+        Code.ShouldContain("thingCreated_response, 404, false)");
 
         // 4. The release of an unanswered claim is a C# `finally`, which F# cannot express here: `do!` is
         //    illegal in a computation expression's finally. It is split into the end of the `try` and a

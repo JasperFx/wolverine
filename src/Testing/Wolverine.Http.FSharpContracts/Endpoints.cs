@@ -112,13 +112,14 @@ public class ThingEndpoints
     // buffering, the scoped key, the fingerprint, the claim (with its short-circuit when the claim is
     // lost), the try/finally that releases an unanswered claim, and the record of the response. Tenant is
     // in the scope so the frame's tenant-id dependency is emitted too, and WindowInSeconds is non-zero so
-    // the TimeSpan literal is emitted rather than the null window.
+    // the TimeSpan literal is emitted rather than the null window. StoreBody is off so the trailing
+    // storeBody argument of CompleteDeduplicatedRequest is emitted too.
     //
     // Required is FALSE deliberately: a required key also weaves DeduplicationIdMissingFrame and
     // DeduplicationProblemDetailsFrame, which have no F# emitter yet and are still in the
     // FSharpCoverageRatchet baseline. Turn this on once they do.
     [DeduplicatedWithResponse(DeduplicationScope.Tenant | DeduplicationScope.User | DeduplicationScope.Endpoint,
-        Required = false, WindowInSeconds = 60)]
+        Required = false, WindowInSeconds = 60, StoreBody = false)]
     [WolverinePost("/fsharp/deduplicated")]
     public ThingCreated Deduplicated(CreateThing command)
     {
