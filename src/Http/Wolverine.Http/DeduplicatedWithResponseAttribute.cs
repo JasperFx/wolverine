@@ -5,8 +5,9 @@ namespace Wolverine.Http;
 
 /// <summary>
 /// GH-4742. Deduplicate this endpoint on an idempotency key and answer a repeat of the same request with the
-/// first response: its status, body and <c>Location</c>. A key reused for a different request gets 422, and a
-/// repeat while the first is still running gets 409, unless <see cref="ClaimInTransaction" /> is set.
+/// first response: its status, body and <c>Location</c>, or without the body when <see cref="StoreBody" /> is
+/// false. A key reused for a different request gets 422, and a repeat while the first is still running gets 409,
+/// unless <see cref="ClaimInTransaction" /> is set.
 ///
 /// <para>
 /// Unlike <c>[Deduplicated]</c>, which refuses a repeat, this tells a client whose connection dropped
@@ -68,6 +69,9 @@ public class DeduplicatedWithResponseAttribute : ModifyHttpChainAttribute
         set => _claimInTransaction = value;
     }
 
+    /// <inheritdoc cref="DeduplicatedWithResponseRequirement.StoreBody" />
+    public bool StoreBody { get; set; } = true;
+
     // Null until somebody actually writes ClaimInTransaction on the attribute, so an endpoint that said nothing can
     // inherit WolverineHttpOptions.DefaultClaimInTransaction while one that said false keeps false
     private bool? _claimInTransaction;
@@ -88,7 +92,8 @@ public class DeduplicatedWithResponseAttribute : ModifyHttpChainAttribute
             Key = Key,
             Required = Required,
             Window = WindowInSeconds == 0 ? null : TimeSpan.FromSeconds(WindowInSeconds),
-            ExplicitClaimInTransaction = _claimInTransaction
+            ExplicitClaimInTransaction = _claimInTransaction,
+            StoreBody = StoreBody
         };
     }
 }

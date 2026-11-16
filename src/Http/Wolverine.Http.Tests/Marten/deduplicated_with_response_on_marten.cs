@@ -424,6 +424,32 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
     }
 
     [Fact]
+    public async Task with_store_body_off_the_claim_written_inside_the_commit_has_no_body()
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("secret-" + key);
+
+        var first = await postAsync("/marten-deduplicated-response/secret", request, key, 201);
+        (await first.ReadAsJsonAsync<DeduplicatedSecret>()).ShouldNotBeNull().Secret.ShouldNotBeNullOrEmpty();
+
+        var location = first.Context.Response.Headers.Location.ToString();
+        location.ShouldStartWith("/marten-deduplicated-response/orders/");
+
+        var stored = (await findClaimAsync(key)).ShouldNotBeNull().Response.ShouldNotBeNull();
+        stored.StatusCode.ShouldBe(201);
+        stored.Location.ShouldBe(location);
+        stored.Body.ShouldBeNull();
+
+        var repeat = await postAsync("/marten-deduplicated-response/secret", request, key, 201);
+
+        (await repeat.ReadAsTextAsync()).ShouldBeEmpty();
+        repeat.Context.Response.Headers.Location.ToString().ShouldBe(location);
+        MartenDeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+
+        sourceFor("/marten-deduplicated-response/secret").ShouldNotContain(".TryClaimAsync(");
+    }
+
+    [Fact]
     public async Task the_failure_arm_of_a_result_union_claims_nothing_and_its_retry_runs()
     {
         var key = Guid.NewGuid().ToString();
@@ -971,6 +997,15 @@ public static class MartenDeduplicatedResponseEndpoints
 
         var created = PostOrder(request, session);
         return TypedResults.Created($"/marten-deduplicated-response/orders/{created.Id}", created);
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true, StoreBody = false)]
+    [WolverinePost("/marten-deduplicated-response/secret")]
+    public static Created<DeduplicatedSecret> PostSecret(DeduplicatedOrder request, IDocumentSession session)
+    {
+        var created = PostOrder(request, session);
+        return TypedResults.Created($"/marten-deduplicated-response/orders/{created.Id}",
+            new DeduplicatedSecret(created.Id, Guid.NewGuid().ToString()));
     }
 
     [DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true, Required = false)]

@@ -337,7 +337,7 @@ type POST_fsharp_deduplicated(wolverineHttpOptions: Wolverine.Http.WolverineHttp
                         let thingCreated_response = thingEndpoints.Deduplicated(command)
 
                         // GH-4742: the work is done; record the response, so a repeat is answered with it
-                        do! _deduplicatedResponses.RecordResponseAsync(scopedDeduplicationId, deduplicationClaimToken, this.CompleteDeduplicatedRequest<Wolverine.Http.FSharpContracts.ThingCreated>(httpContext, scopedDeduplicationId, thingCreated_response, 404), null)
+                        do! _deduplicatedResponses.RecordResponseAsync(scopedDeduplicationId, deduplicationClaimToken, this.CompleteDeduplicatedRequest<Wolverine.Http.FSharpContracts.ThingCreated>(httpContext, scopedDeduplicationId, thingCreated_response, 404, false), null)
                         // Writing the response body to JSON because this was the first 'return variable' in the method signature
                         do! this.WriteJsonAsync(httpContext, thingCreated_response, 404)
                     if not (Wolverine.Http.HttpHandler.IsDeduplicatedWorkDone(httpContext)) then

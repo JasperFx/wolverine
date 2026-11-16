@@ -20,7 +20,9 @@ using Npgsql;
 using Shouldly;
 using Wolverine.Http.Resources;
 using Wolverine.Http.Runtime;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -435,6 +437,37 @@ public class deduplicated_with_response : IAsyncLifetime
         DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
     }
 
+    [Theory]
+    [InlineData("/deduplicated-response/secret-resource")]
+    [InlineData("/deduplicated-response/secret-result")]
+    public async Task with_store_body_off_the_body_is_not_stored_and_a_repeat_gets_the_status_and_location(string url)
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("secret-" + key);
+
+        var first = await postAsync(request, key, 201, url: url);
+        (await first.ReadAsJsonAsync<DeduplicatedSecret>()).ShouldNotBeNull().Secret.ShouldNotBeNullOrEmpty();
+
+        var location = first.Context.Response.Headers.Location.ToString();
+        location.ShouldStartWith("/deduplicated-response/orders/");
+
+        var store = (IReplayableDeduplicationStore)theHost.Services.GetRequiredService<IWolverineRuntime>().Storage;
+        var anonymousUserScopedId = DeduplicatedResponses.StorageIdFor("0:|0:|0:|" + key);
+        var claim = await store.FindAsync(anonymousUserScopedId, TestContext.Current.CancellationToken);
+
+        var stored = claim.ShouldNotBeNull().Response.ShouldNotBeNull();
+        stored.StatusCode.ShouldBe(201);
+        stored.Location.ShouldBe(location);
+        stored.Body.ShouldBeNull();
+
+        var repeat = await postAsync(request, key, 201, url: url);
+
+        (await repeat.ReadAsTextAsync()).ShouldBeEmpty();
+        repeat.Context.Response.Headers.Location.ToString().ShouldBe(location);
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
     [Fact]
     public async Task an_ok_result_is_replayed_as_its_value_was_written()
     {
@@ -701,6 +734,11 @@ public record DeduplicatedOrderCreated(Guid Id) : CreationResponse($"/deduplicat
 
 public record DeduplicatedOrderPlaced(Guid Id);
 
+public record DeduplicatedSecret(Guid Id, string Secret);
+
+public record DeduplicatedSecretCreated(Guid Id, string Secret)
+    : CreationResponse($"/deduplicated-response/orders/{Id}");
+
 // Gives the cascaded DeduplicatedOrderPlaced somewhere to go, so a tracked session can actually count it
 // (a message with no routes is only ever recorded as NoRoutes, never as sent). Body is irrelevant.
 public class DeduplicatedOrderPlacedHandler
@@ -804,6 +842,20 @@ public static class DeduplicatedResponseEndpoints
     {
         var created = run(request);
         return TypedResults.Created($"/deduplicated-response/orders/{created.Id}", created);
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
+    [WolverinePost("/deduplicated-response/secret-resource")]
+    public static DeduplicatedSecretCreated PostSecretResource(DeduplicatedOrder request)
+        => new(run(request).Id, Guid.NewGuid().ToString());
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
+    [WolverinePost("/deduplicated-response/secret-result")]
+    public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder request)
+    {
+        var created = run(request);
+        return TypedResults.Created($"/deduplicated-response/orders/{created.Id}",
+            new DeduplicatedSecret(created.Id, Guid.NewGuid().ToString()));
     }
 
     [DeduplicatedWithResponse(DeduplicationScope.User)]
