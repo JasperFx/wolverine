@@ -567,7 +567,8 @@ column on your saga entity, so it needs a migration; see the [7.0 migration guid
 
 The lightweight saga tables (PostgreSQL, SQL Server, MySQL, SQLite and Oracle) index `last_modified`, so finding the
 sagas that have been idle for a while does not scan the table. With EF Core, add the index to your own model; see
-[the EF Core saga docs](/guide/durability/efcore/sagas#the-lastmodified-column).
+[the EF Core saga docs](/guide/durability/efcore/sagas#the-lastmodified-column). With Marten, add Marten's last-modified
+index to the saga's document mapping; see [the Marten saga docs](/guide/durability/marten/sagas#indexing-lastmodified-for-idle-sagas).
 
 ### Finding Idle Sagas <Badge type="tip" text="7.0" />
 
@@ -601,7 +602,7 @@ Which saga storage answers depends on where the saga lives:
 | Saga storage | Idle saga queries |
 |---|---|
 | Lightweight tables (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) | Yes, over the indexed `last_modified` column. Under database-per-tenant message storage, pass the tenant id to read that tenant's database |
-| Marten, Polecat, Fisher | Yes, over the saga document's `LastModified`, for the default tenant |
+| Marten, Polecat, Fisher | Yes, over the saga document's `LastModified`, for the default tenant. On Marten that is the `mt_last_modified` column, which `IndexLastModified()` indexes |
 | EF Core | Yes, when `LastModified` is mapped (not `Ignore()`d) in your `DbContext`, for the `DbContext` the container resolves |
 | RavenDB, CosmosDB | Not yet: `SupportsIdleQueries` returns false and the calls throw `NotSupportedException` |
 
