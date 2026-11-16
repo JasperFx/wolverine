@@ -1,5 +1,3 @@
-using JasperFx.CodeGeneration;
-using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Raven.Client.Documents;
 using Wolverine;
@@ -21,10 +19,6 @@ public class saga_idle_diagnostics_5558 : SagaIdleDiagnosticsCompliance
         _store = _driver.StartRavenStore();
 
         opts.Durability.Mode = DurabilityMode.Solo;
-        opts.CodeGeneration.GeneratedCodeOutputPath =
-            AppContext.BaseDirectory.ParentDirectory()!.ParentDirectory()!.ParentDirectory()!
-                .AppendPath("Internal", "Generated");
-        opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
 
         opts.Services.AddSingleton(_store);
         opts.UseRavenDbPersistence();
