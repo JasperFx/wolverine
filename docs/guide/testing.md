@@ -280,6 +280,25 @@ var tracked = await host.TrackActivity()
 `WaitForExecutionOf<T>(count)` is a simpler option when you only need a count of executions of the message
 type across every queue.
 
+
+### Messages that are expected to dead letter or be retried later
+
+`WaitForMessageToBeReceivedAt<T>()` completes when the message succeeds or fails, but deliberately not when it is
+moved to the dead letter queue, because a dead letter can be replayed and a test usually wants that second pass.
+For a message that only ever dead-letters it can therefore do nothing but time out. Wait for the dead letter itself
+instead:
+
+```csharp
+var session = await host.TrackActivity()
+    .DoNotAssertOnExceptionsDetected()
+    .WaitForMessageToBeDeadLettered<PlaceOrder>()
+    .SendMessageAndWaitAsync(new PlaceOrder());
+```
+
+To prove that a failure is retried later (`ScheduleRetry()`, `Requeue()`) rather than dead-lettered, use
+`WaitForMessageToBeRequeued<T>()`. The tracked session ends when the message is requeued, so it does not have to
+wait for the retry delay. Deferring or rescheduling a message also counts as a requeue.
+
 ### Scoping a session by envelope
 
 `IgnoreMessageType<T>()` and `IgnoreMessagesMatchingType()` can only separate traffic by *message type*,
