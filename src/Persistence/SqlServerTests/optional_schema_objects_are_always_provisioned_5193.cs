@@ -58,7 +58,7 @@ public class optional_schema_objects_are_always_provisioned_5193
     }
 
     private static Task<int> columnCountAsync(string table, string column) => countAsync(
-        $"select count(*) from information_schema.columns where table_schema = '{SchemaName}' and table_name = '{table}' and column_name = '{column}'");
+        $"select count(*) from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = '{SchemaName}' and TABLE_NAME = '{table}' and COLUMN_NAME = '{column}'");
 
     private static Task<int> staleIndexCountAsync() => countAsync(
         $"select count(*) from sys.indexes i join sys.tables t on i.object_id = t.object_id join sys.schemas s on t.schema_id = s.schema_id where s.name = '{SchemaName}' and i.name = 'idx_{DatabaseConstants.OutgoingTable}_stale'");

@@ -91,7 +91,7 @@ public class rate_limiting_storage : RateLimitStoreCompliance
         await conn.OpenAsync(TestContext.Current.CancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema = @schema AND table_name = @name";
+            "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = @schema AND TABLE_NAME = @name";
         cmd.Parameters.Add(new SqlParameter("@schema", _schemaName));
         cmd.Parameters.Add(new SqlParameter("@name", "wolverine_rate_limits"));
 

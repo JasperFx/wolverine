@@ -136,7 +136,7 @@ DECLARE @moved TABLE (id uniqueidentifier, body varbinary(max), message_type var
 WITH due AS (
     SELECT TOP({batchSize}) id, body, message_type, keep_until, {columns(ordering)}
     FROM {scheduledTable} WITH (UPDLOCK, READPAST, ROWLOCK)
-    WHERE {DatabaseConstants.ExecutionTime} <= SYSDATETIMEOFFSET() AND ID NOT IN (select id from {queueTable})
+    WHERE {DatabaseConstants.ExecutionTime} <= SYSDATETIMEOFFSET() AND id NOT IN (select id from {queueTable})
     ORDER BY {columns(ordering, scheduledTable.ToString())})
 DELETE FROM due
 OUTPUT deleted.id, deleted.body, deleted.message_type, deleted.keep_until, {columns(ordering, "deleted")} INTO @moved;

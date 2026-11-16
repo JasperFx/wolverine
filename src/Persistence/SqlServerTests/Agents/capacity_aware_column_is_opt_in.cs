@@ -55,7 +55,7 @@ public class capacity_aware_column_is_opt_in
         await conn.OpenAsync(Ct);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            $"select count(*) from information_schema.columns where table_schema = '{schema}' and table_name = 'wolverine_nodes' and column_name = 'load_factor'";
+            $"select count(*) from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = '{schema}' and TABLE_NAME = 'wolverine_nodes' and COLUMN_NAME = 'load_factor'";
         return Convert.ToInt32(await cmd.ExecuteScalarAsync(Ct));
     }
 

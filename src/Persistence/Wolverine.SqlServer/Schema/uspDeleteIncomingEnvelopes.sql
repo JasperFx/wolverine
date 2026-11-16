@@ -4,4 +4,4 @@ AS
 
 DELETE
 FROM %SCHEMA%.wolverine_incoming_envelopes
-WHERE id IN (SELECT ID FROM @IDLIST);
+WHERE id IN (SELECT id FROM @IDLIST);
