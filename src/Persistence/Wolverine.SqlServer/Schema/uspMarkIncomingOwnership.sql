@@ -8,4 +8,4 @@ AS
 -- and keeps the promotion from touching a row it never selected.
 UPDATE %SCHEMA%.wolverine_incoming_envelopes
 SET owner_id = @owner, status = 'Incoming'
-WHERE status = 'Scheduled' AND id IN (SELECT ID FROM @IDLIST);
+WHERE status = 'Scheduled' AND id IN (SELECT id FROM @IDLIST);

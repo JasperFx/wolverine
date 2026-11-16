@@ -5,4 +5,4 @@ AS
 
 UPDATE %SCHEMA%.wolverine_outgoing_envelopes
 SET owner_id = @owner
-WHERE id IN (SELECT ID FROM @IDLIST);
+WHERE id IN (SELECT id FROM @IDLIST);

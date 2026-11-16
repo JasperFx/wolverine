@@ -147,7 +147,7 @@ public partial class SqlServerMessageStore : MessageDatabase<SqlConnection>, ICo
         var tables = new List<DbObjectName>();
         foreach (var schemaName in schemaNames)
         {
-            var sql = $"SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema = @schema";
+            var sql = $"SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = @schema";
             await using var cmd = conn.CreateCommand(sql).With("schema", schemaName);
 
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
