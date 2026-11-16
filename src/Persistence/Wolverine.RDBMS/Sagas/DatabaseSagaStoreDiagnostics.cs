@@ -79,12 +79,17 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
         try
         {
             var qualified = qualifyTableName(definition.TableName);
-            var sql = $"select {DatabaseConstants.Body}, {DatabaseConstants.Version} from {qualified} where {DatabaseConstants.Id} = @id";
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = sql;
+            var prefix = isOracle(conn) ? ":" : "@";
+            cmd.CommandText =
+                $"select {DatabaseConstants.Body}, {DatabaseConstants.Version} from {qualified} where {DatabaseConstants.Id} = {prefix}id";
             var p = cmd.CreateParameter();
             p.ParameterName = "id";
-            p.Value = identity?.ToString() ?? (object)DBNull.Value;
+
+            // GH-5558: Oracle keeps a Guid id as RAW(16), the bytes of Guid.ToByteArray()
+            p.Value = isOracle(conn) && Guid.TryParse(identity?.ToString(), out var guid)
+                ? guid.ToByteArray()
+                : identity?.ToString() ?? (object)DBNull.Value;
             cmd.Parameters.Add(p);
 
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
@@ -155,7 +160,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
             {
-                var id = await reader.IsDBNullAsync(0, ct).ConfigureAwait(false) ? string.Empty : reader.GetValue(0)!;
+                var id = await reader.IsDBNullAsync(0, ct).ConfigureAwait(false) ? string.Empty : readIdentity(reader, 0);
                 var body = readBody(reader, 1);
                 list.Add(buildInstance(definition, id, body));
             }
@@ -238,7 +243,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
             {
-                var id = await reader.IsDBNullAsync(0, ct).ConfigureAwait(false) ? string.Empty : reader.GetValue(0)!;
+                var id = await reader.IsDBNullAsync(0, ct).ConfigureAwait(false) ? string.Empty : readIdentity(reader, 0);
                 var body = readBody(reader, 1);
                 list.Add(buildInstance(definition, id, body));
             }
@@ -276,6 +281,19 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
         return _database;
     }
 
+    private static bool isOracle(DbConnection conn)
+        => (conn.GetType().FullName ?? string.Empty).StartsWith("Oracle.", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The saga id as the application knows it. Oracle keeps a Guid id as RAW(16) (Guid.ToByteArray()), which reads
+    /// back as a byte array (GH-5558)
+    /// </summary>
+    private static object readIdentity(DbDataReader reader, int ordinal)
+    {
+        var value = reader.GetValue(ordinal);
+        return value is byte[] { Length: 16 } bytes ? new Guid(bytes) : value;
+    }
+
     /// <summary>
     /// Adds the range's parameters to <paramref name="cmd" /> and returns the where clause (with a leading space),
     /// or an empty string for an open range. SQLite keeps last_modified as UTC text in a sortable format, so it
@@ -284,7 +302,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
     private static string renderLastModifiedFilter(DbCommand cmd, SagaLastModifiedRange range)
     {
         var dialect = cmd.Connection!.GetType().FullName ?? string.Empty;
-        var prefix = dialect.StartsWith("Oracle.", StringComparison.OrdinalIgnoreCase) ? ":" : "@";
+        var prefix = isOracle(cmd.Connection!) ? ":" : "@";
         var isSqlite = dialect.Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
 
         var clauses = new List<string>();
