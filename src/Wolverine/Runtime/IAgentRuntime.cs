@@ -20,7 +20,9 @@ public interface IAgentRuntime
     /// <c>MultiTenantedWithShardedDatabases</c> store with database-affine assignment, a node only runs
     /// the daemon for the databases it owns; use this to scope per-node work (readiness gates, health
     /// checks, progress queries) to exactly those databases instead of fanning out a connection pool to
-    /// every shard. Returns an empty list on nodes that own no such agents. See GH-3340.
+    /// every shard. Returns an empty list on nodes that own no such agents. See GH-3340. Under Solo this is empty
+    /// because no managed agents run; prefer <c>IWolverineRuntime.LocallyOwnedDatabases()</c>, which handles Solo
+    /// and answers with a database id.
     /// </summary>
     IReadOnlyList<DatabaseId> AllLocallyOwnedDatabaseIds();
 
