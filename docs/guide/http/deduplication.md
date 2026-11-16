@@ -230,11 +230,21 @@ API key is one example. So is anything else the server generates and returns onc
 secret, a webhook signing secret, a temporary password, a one-time token. Set `StoreBody = false` to keep
 it out:
 
-```csharp
+<!-- snippet: sample_deduplicated_with_response_without_storing_the_body -->
+<a id='snippet-sample_deduplicated_with_response_without_storing_the_body'></a>
+```cs
+// The secret is in the first response and is never stored. A repeat gets the 201 and Location alone
 [DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
-[WolverinePost("/api-keys")]
-public static Created<NewApiKey> Post(CreateApiKey command)
+[WolverinePost("/deduplicated-response/secret-result")]
+public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder request)
+{
+    var created = run(request);
+    return TypedResults.Created($"/deduplicated-response/orders/{created.Id}",
+        new DeduplicatedSecret(created.Id, Guid.NewGuid().ToString()));
+}
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response.cs#L852-L862' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_with_response_without_storing_the_body' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 The body is never serialized or written. The claim still stores the status and `Location`, so a repeat
 is answered with those and no body, and the caller follows `Location` to the resource. The secret is not
