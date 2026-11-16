@@ -58,7 +58,9 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         table.AddColumn(DatabaseConstants.Body, "JSON").NotNull();
         table.AddColumn(DatabaseConstants.Version, "INT").DefaultValue(1).NotNull();
         table.AddColumn<DateTimeOffset>("created").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
-        table.AddColumn<DateTimeOffset>("last_modified").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
+        // GH-5558: DATETIME(6), not the plain DATETIME a DateTimeOffset column maps to, which keeps whole seconds
+        // only, so idle saga ranges and their least-recently-modified ordering were accurate to the second
+        table.AddColumn("last_modified", "DATETIME(6)").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
 
         // GH-5558: "sagas idle for more than N days" filters on last_modified
         table.Indexes.Add(new IndexDefinition(SagaTableIndexes.LastModifiedIndexName(definition.TableName, 64))
