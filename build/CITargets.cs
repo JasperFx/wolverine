@@ -1842,12 +1842,15 @@ partial class Build
     ];
 
     /// <summary>
-    /// ASB shard 2: the whole ConventionalRouting namespace, plus native scheduling to balance it.
+    /// ASB shard 2: the whole ConventionalRouting namespace, plus native scheduling and the GH-5196 strict
+    /// tenancy tests to balance it. strict_tenancy_5196 landed in the "everything else" shard, which already ran
+    /// 18-19.5 minutes on main, and pushed it past the 20 minute job cap; this shard and the leader shard ran ~9.
     /// </summary>
     static readonly string[] AsbRoutingShard =
     [
         "Wolverine.AzureServiceBus.Tests.ConventionalRouting",        // 221.6s / 22 tests — a real namespace
-        "Wolverine.AzureServiceBus.Tests.using_native_scheduling"     //  55.9s /  5 tests
+        "Wolverine.AzureServiceBus.Tests.using_native_scheduling",    //  55.9s /  5 tests
+        "Wolverine.AzureServiceBus.Tests.strict_tenancy_5196"         // GH-5196, uses the second emulator pair
     ];
 
     void runAzureServiceBusShard(Func<WorkerTest, bool> testFilter)
