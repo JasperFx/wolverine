@@ -29,7 +29,7 @@ namespace Wolverine.Persistence.Sagas;
 ///     catch-all document stores — so a host that also runs EF Core sagas does not see them listed twice.
 ///     </para>
 /// </remarks>
-internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics
+internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics
 {
     private readonly IWolverineRuntime _runtime;
     private readonly IDocumentSessionFactory _sessions;
@@ -142,6 +142,92 @@ internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics
         where TSaga : notnull
     {
         var queryable = SagaQueryCriteria.Apply(options, session.Query<TSaga>(), "Id");
+        try
+        {
+            var total = await queryable.CountAsync(ct).ConfigureAwait(false);
+            var sagas = await queryable.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync(ct)
+                .ConfigureAwait(false);
+
+            var list = new List<SagaInstanceState>(sagas.Count);
+            foreach (var saga in sagas)
+            {
+                var id = extractIdentity(saga, sagaType) ?? Guid.Empty;
+                list.Add(buildInstance(sagaType, id, saga));
+            }
+
+            return new SagaQueryResult(list, total, pageNumber, pageSize);
+        }
+        catch (Exception e) when (DocumentQueryCriteria.IsTranslationFailure(e))
+        {
+            throw options.Untranslatable(e);
+        }
+    }
+
+    // GH-5558: Saga.LastModified is a member of every saga document (Marten also maps it onto mt_last_modified), so
+    // the idle queries are plain LINQ over the saga type
+
+    private const string TenantRefusal =
+        "Idle saga queries on a document store read the default tenant's sagas only.";
+
+    public bool SupportsIdleQueries(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var entry) && entry.SagaType.CanBeCastTo<Saga>();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<long> CountIdleSagasAsync(string sagaTypeName, DateTimeOffset modifiedBefore, string? tenantId,
+        CancellationToken ct)
+    {
+        SagaQueryCriteria.RefuseTenant(tenantId, TenantRefusal);
+        if (!SupportsIdleQueries(sagaTypeName)) return 0;
+        var entry = sagaIndex()[sagaTypeName];
+
+        await using var session = _sessions.QuerySession();
+        var task = (Task<long>)typeof(DocumentStoreSagaStoreDiagnostics)
+            .GetMethod(nameof(countIdleAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(entry.SagaType)
+            .Invoke(null, [session, modifiedBefore, ct])!;
+        return await task.ConfigureAwait(false);
+    }
+
+    private static async Task<long> countIdleAsync<TSaga>(IDocumentReadOperations session, DateTimeOffset modifiedBefore,
+        CancellationToken ct) where TSaga : Saga
+    {
+        return await session.Query<TSaga>().Where(x => x.LastModified < modifiedBefore).CountAsync(ct)
+            .ConfigureAwait(false);
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<SagaQueryResult> QuerySagasByLastModifiedAsync(string sagaTypeName, SagaLastModifiedRange range,
+        DocumentQueryOptions options, CancellationToken ct)
+    {
+        var (tenantId, rest) = SagaQueryCriteria.TakeTenant(options);
+        SagaQueryCriteria.RefuseTenant(tenantId, TenantRefusal);
+
+        var (pageNumber, pageSize) = SagaQueryCriteria.Page(rest);
+        SagaQueryCriteria.RefuseCriteria(rest, GetQueryCapabilities(sagaTypeName));
+        if (!SupportsIdleQueries(sagaTypeName)) return SagaQueryResult.Empty(pageNumber, pageSize);
+        var entry = sagaIndex()[sagaTypeName];
+
+        await using var session = _sessions.QuerySession();
+        var task = (Task<SagaQueryResult>)typeof(DocumentStoreSagaStoreDiagnostics)
+            .GetMethod(nameof(queryByLastModifiedAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(entry.SagaType)
+            .Invoke(null, [session, entry.SagaType, range, rest, pageNumber, pageSize, ct])!;
+        return await task.ConfigureAwait(false);
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga criteria are refused through GetQueryCapabilities when dynamic code is unavailable.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Saga criteria are refused through GetQueryCapabilities when dynamic code is unavailable.")]
+    private static async Task<SagaQueryResult> queryByLastModifiedAsync<TSaga>(IDocumentReadOperations session,
+        Type sagaType, SagaLastModifiedRange range, DocumentQueryOptions options, int pageNumber, int pageSize,
+        CancellationToken ct) where TSaga : Saga
+    {
+        var queryable = SagaLastModifiedQueries.Filter(session.Query<TSaga>(), range);
+        queryable = SagaLastModifiedQueries.Order(queryable, options, "Id");
+
         try
         {
             var total = await queryable.CountAsync(ct).ConfigureAwait(false);

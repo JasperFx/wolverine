@@ -26,7 +26,7 @@ namespace Wolverine.Persistence.Sagas;
 /// at runtime, so any duplication here points at a duplicate
 /// <c>IPersistenceFrameProvider</c> registration upstream.
 /// </remarks>
-internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, IDisposable
+internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics, IDisposable
 {
     private readonly IReadOnlyList<ISagaStoreDiagnostics> _children;
     private readonly SemaphoreSlim _routeLock = new(1, 1);
@@ -88,6 +88,48 @@ internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, IDi
 
         var (pageNumber, pageSize) = SagaQueryCriteria.Page(options);
         return SagaQueryResult.Empty(pageNumber, pageSize);
+    }
+
+    // GH-5558: idle diagnostics route like everything else, to the storage that owns the saga type
+
+    public bool SupportsIdleQueries(string sagaTypeName)
+    {
+        foreach (var child in _children)
+        {
+            if (child is ISagaIdleDiagnostics idle && idle.SupportsIdleQueries(sagaTypeName)) return true;
+        }
+
+        return false;
+    }
+
+    public async Task<long> CountIdleSagasAsync(string sagaTypeName, DateTimeOffset modifiedBefore, string? tenantId,
+        CancellationToken ct)
+    {
+        var routes = await ensureRoutesAsync(ct).ConfigureAwait(false);
+        if (!routes.TryGetValue(sagaTypeName, out var child)) return 0;
+
+        return await idleFor(child, sagaTypeName).CountIdleSagasAsync(sagaTypeName, modifiedBefore, tenantId, ct)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<SagaQueryResult> QuerySagasByLastModifiedAsync(string sagaTypeName, SagaLastModifiedRange range,
+        DocumentQueryOptions options, CancellationToken ct)
+    {
+        var routes = await ensureRoutesAsync(ct).ConfigureAwait(false);
+        if (!routes.TryGetValue(sagaTypeName, out var child))
+        {
+            var (pageNumber, pageSize) = SagaQueryCriteria.Page(options);
+            return SagaQueryResult.Empty(pageNumber, pageSize);
+        }
+
+        return await idleFor(child, sagaTypeName).QuerySagasByLastModifiedAsync(sagaTypeName, range, options, ct)
+            .ConfigureAwait(false);
+    }
+
+    private static ISagaIdleDiagnostics idleFor(ISagaStoreDiagnostics child, string sagaTypeName)
+    {
+        return child as ISagaIdleDiagnostics ?? throw new NotSupportedException(
+            $"Saga type {sagaTypeName} is stored by {child.GetType().FullName}, which does not support idle saga queries ({nameof(ISagaIdleDiagnostics)}).");
     }
 
     private async Task<Dictionary<string, ISagaStoreDiagnostics>> ensureRoutesAsync(CancellationToken ct)

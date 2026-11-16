@@ -35,6 +35,27 @@ public static class SagaQueryCriteria
     }
 
     /// <summary>
+    /// GH-5558. Split the tenant off <paramref name="options" /> for <see cref="ISagaIdleDiagnostics" />, which
+    /// honours <see cref="DocumentQueryOptions.TenantId" /> where <see cref="ISagaStoreDiagnostics.QuerySagasAsync" />
+    /// refuses it. The tenant comes back normalized: null for the default tenant.
+    /// </summary>
+    public static (string? TenantId, DocumentQueryOptions Options) TakeTenant(DocumentQueryOptions options)
+    {
+        if (options.AllTenants) refuse(true, nameof(DocumentQueryOptions.AllTenants));
+        return (DocumentQueryOptions.NormalizeTenantId(options.TenantId), options with { TenantId = null });
+    }
+
+    /// <summary>
+    /// GH-5558. Refuse a tenant a storage cannot scope an idle saga query to, rather than answer it from another
+    /// tenant's sagas. A null or default tenant id always passes.
+    /// </summary>
+    public static void RefuseTenant(string? tenantId, string reason)
+    {
+        if (DocumentQueryOptions.NormalizeTenantId(tenantId) is not null)
+            throw new DocumentCriteriaNotSupportedException(nameof(DocumentQueryOptions.TenantId), reason);
+    }
+
+    /// <summary>
     /// Refuse a query that carries a <c>Where</c> and/or <c>OrderBy</c> the storage cannot honour.
     /// </summary>
     public static void RefuseCriteria(DocumentQueryOptions options, SagaQueryCapabilities capabilities)

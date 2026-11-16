@@ -48,7 +48,7 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
     Justification = "EFCore saga diagnostics — reflective method invoke on DbContext member; bounded by saga registration. See AOT guide.")]
 [UnconditionalSuppressMessage("AOT", "IL3050",
     Justification = "EFCore saga diagnostics — MakeGenericMethod over runtime saga / DbContext types. See AOT guide.")]
-internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics
+internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics
 {
     private readonly IWolverineRuntime _runtime;
     private readonly IServiceProvider _services;
@@ -175,6 +175,101 @@ internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics
         catch (Exception e) when (DocumentQueryCriteria.IsTranslationFailure(e))
         {
             throw options.Untranslatable(e);
+        }
+    }
+
+    // GH-5558: idle saga diagnostics over the mapped Saga.LastModified property
+
+    private const string TenantRefusal =
+        "Idle saga queries on EF Core read the DbContext the container resolves, not a tenant's.";
+
+    public bool SupportsIdleQueries(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var pair) && pair.sagaType.CanBeCastTo<global::Wolverine.Saga>();
+
+    public async Task<long> CountIdleSagasAsync(string sagaTypeName, DateTimeOffset modifiedBefore, string? tenantId,
+        CancellationToken ct)
+    {
+        SagaQueryCriteria.RefuseTenant(tenantId, TenantRefusal);
+        if (!SupportsIdleQueries(sagaTypeName)) return 0;
+        var pair = sagaIndex()[sagaTypeName];
+
+        using var scope = _services.CreateScope();
+        var dbContext = (DbContext)scope.ServiceProvider.GetRequiredService(pair.dbContextType);
+        assertLastModifiedIsMapped(dbContext, pair.sagaType);
+
+        var task = (Task<long>)typeof(EFCoreSagaStoreDiagnostics)
+            .GetMethod(nameof(countIdleAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(pair.sagaType)
+            .Invoke(null, [dbContext, modifiedBefore, ct])!;
+        return await task.ConfigureAwait(false);
+    }
+
+    private static Task<long> countIdleAsync<TSaga>(DbContext dbContext, DateTimeOffset modifiedBefore,
+        CancellationToken ct) where TSaga : global::Wolverine.Saga
+    {
+        return dbContext.Set<TSaga>().AsNoTracking().Where(x => x.LastModified < modifiedBefore).LongCountAsync(ct);
+    }
+
+    public async Task<SagaQueryResult> QuerySagasByLastModifiedAsync(string sagaTypeName, SagaLastModifiedRange range,
+        DocumentQueryOptions options, CancellationToken ct)
+    {
+        var (tenantId, rest) = SagaQueryCriteria.TakeTenant(options);
+        SagaQueryCriteria.RefuseTenant(tenantId, TenantRefusal);
+
+        var (pageNumber, pageSize) = SagaQueryCriteria.Page(rest);
+        SagaQueryCriteria.RefuseCriteria(rest, GetQueryCapabilities(sagaTypeName));
+        if (!SupportsIdleQueries(sagaTypeName)) return SagaQueryResult.Empty(pageNumber, pageSize);
+        var pair = sagaIndex()[sagaTypeName];
+
+        using var scope = _services.CreateScope();
+        var dbContext = (DbContext)scope.ServiceProvider.GetRequiredService(pair.dbContextType);
+        assertLastModifiedIsMapped(dbContext, pair.sagaType);
+
+        var task = (Task<SagaQueryResult>)typeof(EFCoreSagaStoreDiagnostics)
+            .GetMethod(nameof(queryByLastModifiedAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(pair.sagaType)
+            .Invoke(null, [dbContext, pair.sagaType, range, rest, pageNumber, pageSize, ct])!;
+        return await task.ConfigureAwait(false);
+    }
+
+    private static async Task<SagaQueryResult> queryByLastModifiedAsync<TSaga>(DbContext dbContext, Type sagaType,
+        SagaLastModifiedRange range, DocumentQueryOptions options, int pageNumber, int pageSize, CancellationToken ct)
+        where TSaga : global::Wolverine.Saga
+    {
+        var keyName = dbContext.Model.FindEntityType(sagaType)?.FindPrimaryKey()?.Properties[0].Name ?? "Id";
+        var queryable = SagaLastModifiedQueries.Filter(dbContext.Set<TSaga>().AsNoTracking(), range);
+        queryable = SagaLastModifiedQueries.Order(queryable, options, keyName);
+
+        try
+        {
+            var total = await queryable.LongCountAsync(ct).ConfigureAwait(false);
+            var sagas = await queryable.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync(ct)
+                .ConfigureAwait(false);
+            var list = new List<SagaInstanceState>(sagas.Count);
+            foreach (var saga in sagas)
+            {
+                var id = extractIdentity(dbContext, saga, sagaType) ?? Guid.Empty;
+                list.Add(buildInstance(sagaType, id, saga));
+            }
+
+            return new SagaQueryResult(list, total, pageNumber, pageSize);
+        }
+        catch (Exception e) when (DocumentQueryCriteria.IsTranslationFailure(e))
+        {
+            throw options.Untranslatable(e);
+        }
+    }
+
+    /// <summary>
+    /// The 7.0 migration guide lets an application Ignore() Saga.LastModified instead of adding the column. Such a
+    /// model cannot answer an idle query, so refuse it by name rather than surface EF's translation error.
+    /// </summary>
+    private static void assertLastModifiedIsMapped(DbContext dbContext, Type sagaType)
+    {
+        if (dbContext.Model.FindEntityType(sagaType)?.FindProperty(nameof(global::Wolverine.Saga.LastModified)) is null)
+        {
+            throw new DocumentCriteriaNotSupportedException(nameof(global::Wolverine.Saga.LastModified),
+                $"Saga.LastModified is not mapped for {sagaType.FullNameInCode()} in {dbContext.GetType().FullNameInCode()}. Map it (and add a migration) to query idle sagas");
         }
     }
 
