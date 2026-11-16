@@ -226,8 +226,10 @@ token for the same request.
 ### Leaving the body out
 
 A stored response is a copy of whatever the endpoint answered, kept for the whole window. For an endpoint
-that returns a one-time secret, such as a newly created API key, that is a plaintext copy of the secret
-in the database. Set `StoreBody = false` to keep it out:
+that returns a one-time secret, that is a plaintext copy of the secret in the database. A newly created
+API key is one example. So is anything else the server generates and returns once: an OAuth client
+secret, a webhook signing secret, a temporary password, a one-time token. Set `StoreBody = false` to keep
+it out:
 
 ```csharp
 [DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
