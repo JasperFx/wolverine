@@ -28,7 +28,7 @@ namespace Wolverine.RavenDb.Internals;
 /// regardless of the saga's id member type - see
 /// <see cref="RavenDbPersistenceFrameProvider.DetermineSagaIdType"/>.
 /// </remarks>
-internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
+internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics
 {
     private readonly IWolverineRuntime _runtime;
     private readonly IDocumentStore _store;
@@ -132,6 +132,93 @@ internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
         try
         {
             var total = await queryable.CountAsync(ct).ConfigureAwait(false);
+            var sagas = await queryable.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync(ct)
+                .ConfigureAwait(false);
+            var list = new List<SagaInstanceState>(sagas.Count);
+            foreach (var saga in sagas)
+            {
+                var id = session.Advanced.GetDocumentId(saga) ?? extractIdentity(saga, sagaType);
+                list.Add(buildInstance(sagaType, id ?? string.Empty, saga));
+            }
+
+            return new SagaQueryResult(list, total, pageNumber, pageSize);
+        }
+        catch (Exception e) when (DocumentQueryCriteria.IsTranslationFailure(e))
+        {
+            throw options.Untranslatable(e);
+        }
+    }
+
+    // GH-5558: idle saga diagnostics over the LastModified member of the saga document. RavenDB answers queries
+    // from an index that catches up after each write, so these wait (bounded) for it: an idle count that missed
+    // the last writes would be wrong in exactly the direction an alert cares about
+
+    private static readonly TimeSpan NonStaleWait = TimeSpan.FromSeconds(15);
+
+    private const string TenantRefusal =
+        "Idle saga queries on RavenDB read the registered document store's database, not a tenant's.";
+
+    public bool SupportsIdleQueries(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var sagaType) && sagaType.CanBeCastTo<global::Wolverine.Saga>();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<long> CountIdleSagasAsync(string sagaTypeName, DateTimeOffset modifiedBefore, string? tenantId,
+        CancellationToken ct)
+    {
+        SagaQueryCriteria.RefuseTenant(tenantId, TenantRefusal);
+        if (!SupportsIdleQueries(sagaTypeName)) return 0;
+        var sagaType = sagaIndex()[sagaTypeName];
+
+        using var session = _store.OpenAsyncSession();
+        var task = (Task<long>)typeof(RavenDbSagaStoreDiagnostics)
+            .GetMethod(nameof(countIdleAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sagaType)
+            .Invoke(null, [session, modifiedBefore.ToUniversalTime(), ct])!;
+        return await task.ConfigureAwait(false);
+    }
+
+    private static async Task<long> countIdleAsync<TSaga>(IAsyncDocumentSession session, DateTimeOffset modifiedBefore,
+        CancellationToken ct) where TSaga : global::Wolverine.Saga
+    {
+        return await session.Query<TSaga>()
+            .Customize(x => x.WaitForNonStaleResults(NonStaleWait))
+            .Where(x => x.LastModified < modifiedBefore)
+            .LongCountAsync(ct).ConfigureAwait(false);
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<SagaQueryResult> QuerySagasByLastModifiedAsync(string sagaTypeName, SagaLastModifiedRange range,
+        DocumentQueryOptions options, CancellationToken ct)
+    {
+        var (tenantId, rest) = SagaQueryCriteria.TakeTenant(options);
+        SagaQueryCriteria.RefuseTenant(tenantId, TenantRefusal);
+
+        var (pageNumber, pageSize) = SagaQueryCriteria.Page(rest);
+        SagaQueryCriteria.RefuseCriteria(rest, GetQueryCapabilities(sagaTypeName));
+        if (!SupportsIdleQueries(sagaTypeName)) return SagaQueryResult.Empty(pageNumber, pageSize);
+        var sagaType = sagaIndex()[sagaTypeName];
+
+        using var session = _store.OpenAsyncSession();
+        var utc = new SagaLastModifiedRange(range.ModifiedAfter?.ToUniversalTime(), range.ModifiedBefore?.ToUniversalTime());
+        var task = (Task<SagaQueryResult>)typeof(RavenDbSagaStoreDiagnostics)
+            .GetMethod(nameof(queryByLastModifiedAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sagaType)
+            .Invoke(null, [session, sagaType, utc, rest, pageNumber, pageSize, ct])!;
+        return await task.ConfigureAwait(false);
+    }
+
+    private static async Task<SagaQueryResult> queryByLastModifiedAsync<TSaga>(IAsyncDocumentSession session,
+        Type sagaType, SagaLastModifiedRange range, DocumentQueryOptions options, int pageNumber, int pageSize,
+        CancellationToken ct) where TSaga : global::Wolverine.Saga
+    {
+        IQueryable<TSaga> source = session.Query<TSaga>().Customize(x => x.WaitForNonStaleResults(NonStaleWait));
+        var queryable = SagaLastModifiedQueries.Order(SagaLastModifiedQueries.Filter(source, range), options, "Id");
+
+        try
+        {
+            var total = await queryable.LongCountAsync(ct).ConfigureAwait(false);
             var sagas = await queryable.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToListAsync(ct)
                 .ConfigureAwait(false);
             var list = new List<SagaInstanceState>(sagas.Count);

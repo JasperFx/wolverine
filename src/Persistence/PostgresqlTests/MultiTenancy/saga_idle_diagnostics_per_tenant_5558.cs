@@ -40,12 +40,12 @@ public class saga_idle_diagnostics_per_tenant_5558 : MultiTenancyContext
         await Task.Delay(300.Milliseconds(), TestContext.Current.CancellationToken);
 
         var red = Guid.NewGuid();
-        await theHost.TrackActivity().ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("red", new StartIdleDiagnosticsSaga(red, "red")));
+        await theHost.TrackActivity().ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("red", new StartIdleDiagnosticsSaga(red.ToString(), "red")));
 
         var blue1 = Guid.NewGuid();
         var blue2 = Guid.NewGuid();
-        await theHost.TrackActivity().ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("blue", new StartIdleDiagnosticsSaga(blue1, "blue")));
-        await theHost.TrackActivity().ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("blue", new StartIdleDiagnosticsSaga(blue2, "blue")));
+        await theHost.TrackActivity().ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("blue", new StartIdleDiagnosticsSaga(blue1.ToString(), "blue")));
+        await theHost.TrackActivity().ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("blue", new StartIdleDiagnosticsSaga(blue2.ToString(), "blue")));
 
         await Task.Delay(300.Milliseconds(), TestContext.Current.CancellationToken);
         var end = DateTimeOffset.UtcNow;

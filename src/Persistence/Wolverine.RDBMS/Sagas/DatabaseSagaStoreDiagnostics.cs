@@ -87,7 +87,8 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
             p.ParameterName = "id";
 
             // GH-5558: Oracle keeps a Guid id as RAW(16), the bytes of Guid.ToByteArray()
-            p.Value = isOracle(conn) && Guid.TryParse(identity?.ToString(), out var guid)
+            p.Value = isOracle(conn) && idTypeOf(definition) == typeof(Guid) &&
+                      Guid.TryParse(identity?.ToString(), out var guid)
                 ? guid.ToByteArray()
                 : identity?.ToString() ?? (object)DBNull.Value;
             cmd.Parameters.Add(p);
@@ -280,6 +281,13 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
             "this message store is not multi-tenanted, so there are no per-tenant saga tables to read");
         return _database;
     }
+
+    private static Type idTypeOf(SagaTableDefinition definition) => definition.IdMember switch
+    {
+        System.Reflection.PropertyInfo p => p.PropertyType,
+        System.Reflection.FieldInfo f => f.FieldType,
+        _ => typeof(object)
+    };
 
     private static bool isOracle(DbConnection conn)
         => (conn.GetType().FullName ?? string.Empty).StartsWith("Oracle.", StringComparison.OrdinalIgnoreCase);

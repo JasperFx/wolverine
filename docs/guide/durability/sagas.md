@@ -604,7 +604,8 @@ Which saga storage answers depends on where the saga lives:
 | Lightweight tables (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) | Yes, over the indexed `last_modified` column. Under database-per-tenant message storage, pass the tenant id to read that tenant's database |
 | Marten, Polecat, Fisher | Yes, over the saga document's `LastModified`, for the default tenant. On Marten that is the `mt_last_modified` column, which `IndexLastModified()` indexes |
 | EF Core | Yes, when `LastModified` is mapped (not `Ignore()`d) in your `DbContext`, for the `DbContext` the container resolves |
-| RavenDB, CosmosDB | Not yet: `SupportsIdleQueries` returns false and the calls throw `NotSupportedException` |
+| RavenDB | Yes, over the saga document's `LastModified`, for the registered document store's database. The calls wait up to 15 seconds for RavenDB's index to catch up with the latest writes, so the count includes them |
+| CosmosDB | Yes, over the saga document's `LastModified`, but only when that saga type is the only one your application stores in CosmosDB. Saga documents share the Wolverine container and carry no type marker, so with several saga types a count would mix them: `SupportsIdleQueries` returns false and the calls throw `NotSupportedException` instead |
 
 A tenant id a storage cannot scope the query to is refused with a `DocumentCriteriaNotSupportedException`, rather than
 answered from another tenant's sagas. Saga types are named as they are for the other saga diagnostics: the full type

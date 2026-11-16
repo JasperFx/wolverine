@@ -8,13 +8,14 @@ using Xunit;
 
 namespace Wolverine.ComplianceTests.Sagas;
 
-public record StartIdleDiagnosticsSaga(Guid Id, string Name);
+// String ids, not Guid ids, because RavenDB only stores a saga with a string identity
+public record StartIdleDiagnosticsSaga(string Id, string Name);
 
-public record TouchIdleDiagnosticsSaga(Guid Id);
+public record TouchIdleDiagnosticsSaga(string Id);
 
 public class IdleDiagnosticsSaga : Saga
 {
-    public Guid Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public int Touches { get; set; }
 
@@ -75,7 +76,7 @@ public abstract class SagaIdleDiagnosticsCompliance : IAsyncLifetime
         for (var i = 0; i < count; i++)
         {
             var id = Guid.NewGuid();
-            await Host.InvokeMessageAndWaitAsync(new StartIdleDiagnosticsSaga(id, "saga-" + i));
+            await Host.InvokeMessageAndWaitAsync(new StartIdleDiagnosticsSaga(id.ToString(), "saga-" + i));
             ids.Add(id);
 
             // Keeps the instances in a known last-modified order
@@ -144,7 +145,7 @@ public abstract class SagaIdleDiagnosticsCompliance : IAsyncLifetime
         idsOf(page).ShouldBe([older[2], newer[0]]);
 
         // Writing a saga again makes it recent
-        await Host.InvokeMessageAndWaitAsync(new TouchIdleDiagnosticsSaga(older[0]));
+        await Host.InvokeMessageAndWaitAsync(new TouchIdleDiagnosticsSaga(older[0].ToString()));
         (await idle.CountIdleSagasAsync(SagaTypeName, cutoff, null, token) - beforeStart).ShouldBe(2);
         idsOf(await idle.QuerySagasByLastModifiedAsync(SagaTypeName, SagaLastModifiedRange.After(cutoff),
             new DocumentQueryOptions(1, 50), token)).ShouldBe([..newer, older[0]]);
