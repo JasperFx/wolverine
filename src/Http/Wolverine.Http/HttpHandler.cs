@@ -690,6 +690,11 @@ public abstract partial class HttpHandler
 
         context.Response.StatusCode = response.StatusCode;
 
+        if (_options.MarkDeduplicatedReplays)
+        {
+            context.Response.Headers[_options.DeduplicatedReplayHeaderName] = "true";
+        }
+
         if (response.Location != null)
         {
             context.Response.Headers.Location = response.Location;

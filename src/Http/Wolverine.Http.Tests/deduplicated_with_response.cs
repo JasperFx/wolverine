@@ -95,7 +95,51 @@ public class deduplicated_with_response : IAsyncLifetime
         repeat.Context.Response.Headers.Location.ToString()
             .ShouldBe(first.Context.Response.Headers.Location.ToString());
 
+        first.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
+        repeat.Context.Response.Headers["Idempotent-Replayed"].ToString().ShouldBe("true");
+
         DeduplicatedResponseEndpoints.Runs("first").ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_replay_is_marked_with_the_configured_header()
+    {
+        theHost.Services.GetRequiredService<WolverineHttpOptions>().DeduplicatedReplayHeaderName = "X-Replayed";
+
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("renamed-" + key);
+
+        var first = await postAsync(request, key, 201);
+        var repeat = await postAsync(request, key, 201);
+
+        first.Context.Response.Headers.ContainsKey("X-Replayed").ShouldBeFalse();
+        repeat.Context.Response.Headers["X-Replayed"].ToString().ShouldBe("true");
+        repeat.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task with_replay_marking_off_a_replay_is_not_marked()
+    {
+        theHost.Services.GetRequiredService<WolverineHttpOptions>().MarkDeduplicatedReplays = false;
+
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("unmarked-" + key);
+
+        var first = await postAsync(request, key, 201);
+        var repeat = await postAsync(request, key, 201);
+
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        repeat.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void a_blank_replay_header_name_is_refused(string? name)
+    {
+        // Instead of a 500 on every replay
+        Should.Throw<ArgumentException>(() => new WolverineHttpOptions().DeduplicatedReplayHeaderName = name!);
     }
 
     [Fact]
@@ -104,7 +148,9 @@ public class deduplicated_with_response : IAsyncLifetime
         var key = Guid.NewGuid().ToString();
 
         await postAsync(new DeduplicatedOrder("original"), key, 201);
-        await postAsync(new DeduplicatedOrder("changed"), key, 422);
+        var different = await postAsync(new DeduplicatedOrder("changed"), key, 422);
+
+        different.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
 
         DeduplicatedResponseEndpoints.Runs("changed").ShouldBe(0);
     }
@@ -233,7 +279,8 @@ public class deduplicated_with_response : IAsyncLifetime
 
         try
         {
-            await postAsync(request, key, 409);
+            var refused = await postAsync(request, key, 409);
+            refused.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
         }
         finally
         {
@@ -464,6 +511,7 @@ public class deduplicated_with_response : IAsyncLifetime
 
         (await repeat.ReadAsTextAsync()).ShouldBeEmpty();
         repeat.Context.Response.Headers.Location.ToString().ShouldBe(location);
+        repeat.Context.Response.Headers["Idempotent-Replayed"].ToString().ShouldBe("true");
 
         DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
     }
@@ -850,7 +898,7 @@ public static class DeduplicatedResponseEndpoints
         => new(run(request).Id, Guid.NewGuid().ToString());
 
     #region sample_deduplicated_with_response_without_storing_the_body
-    // The secret is in the first response and is never stored. A repeat gets the 201 and Location alone
+    // The secret is in the first response and is never stored. A repeat gets the 201 and Location, with no body
     [DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
     [WolverinePost("/deduplicated-response/secret-result")]
     public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder request)

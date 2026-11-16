@@ -168,7 +168,7 @@ For a given `Idempotency-Key`:
 | Request | Answer |
 |---|---|
 | The first | Runs normally |
-| The same request again | The first response: its status, body and `Location` (no body with [`StoreBody = false`](#leaving-the-body-out)). The endpoint does not run |
+| The same request again | The first response: its status, body and `Location` (no body with [`StoreBody = false`](#leaving-the-body-out)), [marked as a replay](#marking-a-replay). The endpoint does not run |
 | A different request | **422** with a `ProblemDetails` body. Send a new key for a new request |
 | The same request while the first is still running | **409** with a `ProblemDetails` body. With [`ClaimInTransaction`](#claiming-inside-the-transaction), it runs too ([see below](#claiming-inside-the-transaction)) |
 | No key | **400**, unless `Required = false` |
@@ -234,7 +234,7 @@ it out:
 <!-- snippet: sample_deduplicated_with_response_without_storing_the_body -->
 <a id='snippet-sample_deduplicated_with_response_without_storing_the_body'></a>
 ```cs
-// The secret is in the first response and is never stored. A repeat gets the 201 and Location alone
+// The secret is in the first response and is never stored. A repeat gets the 201 and Location, with no body
 [DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
 [WolverinePost("/deduplicated-response/secret-result")]
 public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder request)
@@ -244,7 +244,7 @@ public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder req
         new DeduplicatedSecret(created.Id, Guid.NewGuid().ToString()));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response.cs#L852-L862' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_with_response_without_storing_the_body' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response.cs#L900-L910' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_with_response_without_storing_the_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The body is never serialized or written. The claim still stores the status and `Location`, so a repeat
@@ -252,7 +252,27 @@ is answered with those and no body, and the caller follows `Location` to the res
 shown again.
 
 This fits an endpoint that answers with a `Location`, such as `Created`. One that sets no `Location`
-answers a repeat with the bare status, which a client cannot tell from an empty success.
+answers a repeat with the bare status and the [replay header](#marking-a-replay), and nothing else.
+
+### Marking a replay
+
+By default, Wolverine marks every replayed response with an `Idempotent-Replayed: true` header. The first
+response, and the 409 and 422 refusals, never carry it.
+
+A browser on another origin can read the header only if your CORS policy exposes it, for example with
+`WithExposedHeaders("Idempotent-Replayed")`.
+
+Rename the header, or turn it off, application-wide:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    opts.DeduplicatedReplayHeaderName = "X-Idempotent-Replay";
+
+    // or send no header at all
+    opts.MarkDeduplicatedReplays = false;
+});
+```
 
 ### The window
 
@@ -393,7 +413,8 @@ releasing it with a rolled-back transaction.
   replayed results is refused at startup.
 - The request body is buffered to compute the fingerprint, and the resource is serialized a second
   time to store it, unless [`StoreBody = false`](#leaving-the-body-out).
-- Only the status, body and `Location` are replayed; other response headers are not.
+- Only the status, body and `Location` are replayed; other response headers are not. The replay adds
+  its own [replay header](#marking-a-replay).
 - Form posts and file uploads are supported, whether the endpoint binds `[FromForm]` values, an
   `IFormFile`, an `IFormCollection` or a `MultipartReader`, and whether the antiforgery token is sent in
   the request header or as a form field.

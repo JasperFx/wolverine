@@ -71,6 +71,12 @@ public sealed class DeduplicatedWithResponseRequirement
     /// </summary>
     public bool StoreBody { get; init; } = true;
 
+    /// <summary>
+    /// The header that marks a replayed response unless
+    /// <see cref="WolverineHttpOptions.DeduplicatedReplayHeaderName" /> names another.
+    /// </summary>
+    public const string DefaultReplayHeaderName = "Idempotent-Replayed";
+
     internal string KeyName => Key ?? DeduplicationRequirement.DefaultHeaderName;
 
     public override string ToString()
