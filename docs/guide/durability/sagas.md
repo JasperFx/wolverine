@@ -567,7 +567,49 @@ column on your saga entity, so it needs a migration; see the [7.0 migration guid
 
 The lightweight saga tables (PostgreSQL, SQL Server, MySQL, SQLite and Oracle) index `last_modified`, so finding the
 sagas that have been idle for a while does not scan the table. With EF Core, add the index to your own model; see
-[the EF Core saga docs](/guide/durability/efcore/sagas#the-lastmodified-column).
+[the EF Core saga docs](/guide/durability/efcore/sagas#the-lastmodified-column). With Marten, add Marten's last-modified
+index to the saga's document mapping; see [the Marten saga docs](/guide/durability/marten/sagas#indexing-lastmodified-for-idle-sagas).
+
+### Finding Idle Sagas <Badge type="tip" text="7.0" />
+
+A saga that has not been written for days is usually stuck waiting for a message that is never coming. The saga
+diagnostics on `IWolverineRuntime.SagaStorage` also implement `ISagaIdleDiagnostics`, which counts and lists the
+instances of a saga type by `LastModified`. Monitoring tools like CritterWatch use it for idle saga counts and alerts,
+and you can call it yourself:
+
+```cs
+var idle = (ISagaIdleDiagnostics)host.GetRuntime().SagaStorage;
+var sagaType = typeof(OrderSaga).FullName!;
+
+if (idle.SupportsIdleQueries(sagaType))
+{
+    var twoDaysAgo = DateTimeOffset.UtcNow.AddDays(-2);
+
+    // How many OrderSaga instances have not been written for two days?
+    var count = await idle.CountIdleSagasAsync(sagaType, twoDaysAgo, tenantId: null, cancellationToken);
+
+    // And which are they, least recently modified first, 50 at a time?
+    var page = await idle.QuerySagasByLastModifiedAsync(sagaType,
+        SagaLastModifiedRange.Before(twoDaysAgo), new DocumentQueryOptions(1, 50), cancellationToken);
+}
+```
+
+`SagaLastModifiedRange` takes a modified-after bound (inclusive) and a modified-before bound (exclusive), and either can
+be left open. Completed sagas are deleted, so every instance these calls find is still open.
+
+Which saga storage answers depends on where the saga lives:
+
+| Saga storage | Idle saga queries |
+|---|---|
+| Lightweight tables (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) | Yes, over the indexed `last_modified` column. Under database-per-tenant message storage, pass the tenant id to read that tenant's database |
+| Marten, Polecat, Fisher | Yes, over the saga document's `LastModified`, for the default tenant. On Marten that is the `mt_last_modified` column, which `IndexLastModified()` indexes |
+| EF Core | Yes, when `LastModified` is mapped (not `Ignore()`d) in your `DbContext`, for the `DbContext` the container resolves |
+| RavenDB | Yes, over the saga document's `LastModified`, for the registered document store's database. The calls wait up to 15 seconds for RavenDB's index to catch up with the latest writes, so the count includes them |
+| CosmosDB | Yes, over the saga document's `LastModified`, but only when that saga type is the only one your application stores in CosmosDB. Saga documents share the Wolverine container and carry no type marker, so with several saga types a count would mix them: `SupportsIdleQueries` returns false and the calls throw `NotSupportedException` instead |
+
+A tenant id a storage cannot scope the query to is refused with a `DocumentCriteriaNotSupportedException`, rather than
+answered from another tenant's sagas. Saga types are named as they are for the other saga diagnostics: the full type
+name, or the short name.
 
 ## Timeout Messages
 

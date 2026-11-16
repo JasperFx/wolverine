@@ -209,9 +209,9 @@ internal class OracleBackedPersistence : IOracleBackedPersistence, IWolverineExt
         // picks this up alongside any Marten / EF Core / RavenDB
         // diagnostics in mixed-storage hosts.
         options.Services.AddSingleton<Wolverine.Persistence.Sagas.ISagaStoreDiagnostics>(s =>
-            new Wolverine.RDBMS.Sagas.DatabaseSagaStoreDiagnostics(
+            Wolverine.RDBMS.Sagas.DatabaseSagaStoreDiagnostics.For(
                 s.GetRequiredService<IWolverineRuntime>(),
-                (IMessageDatabase)s.GetRequiredService<IMessageStore>()));
+                s.GetRequiredService<IMessageStore>()));
     }
 
     public IMessageStore BuildMessageStore(IWolverineRuntime runtime)
