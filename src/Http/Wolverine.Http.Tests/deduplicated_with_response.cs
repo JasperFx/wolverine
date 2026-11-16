@@ -849,6 +849,8 @@ public static class DeduplicatedResponseEndpoints
     public static DeduplicatedSecretCreated PostSecretResource(DeduplicatedOrder request)
         => new(run(request).Id, Guid.NewGuid().ToString());
 
+    #region sample_deduplicated_with_response_without_storing_the_body
+    // The secret is in the first response and is never stored. A repeat gets the 201 and Location alone
     [DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
     [WolverinePost("/deduplicated-response/secret-result")]
     public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder request)
@@ -857,6 +859,7 @@ public static class DeduplicatedResponseEndpoints
         return TypedResults.Created($"/deduplicated-response/orders/{created.Id}",
             new DeduplicatedSecret(created.Id, Guid.NewGuid().ToString()));
     }
+    #endregion
 
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/deduplicated-response/ok-result")]
