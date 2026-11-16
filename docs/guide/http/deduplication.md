@@ -168,7 +168,7 @@ For a given `Idempotency-Key`:
 | Request | Answer |
 |---|---|
 | The first | Runs normally |
-| The same request again | The first response: its status, body and `Location`. The endpoint does not run |
+| The same request again | The first response: its status, body and `Location` (no body with [`StoreBody = false`](#leaving-the-body-out)). The endpoint does not run |
 | A different request | **422** with a `ProblemDetails` body. Send a new key for a new request |
 | The same request while the first is still running | **409** with a `ProblemDetails` body. With [`ClaimInTransaction`](#claiming-inside-the-transaction), it runs too ([see below](#claiming-inside-the-transaction)) |
 | No key | **400**, unless `Required = false` |
@@ -222,6 +222,37 @@ form before the endpoint ran, as `UseAntiforgery()` does for a token sent as a f
 compared the same way, along with its files. In every case the antiforgery token field
 (`AntiforgeryOptions.FormFieldName`) is left out, because a browser that loads the page again is given a new
 token for the same request.
+
+### Leaving the body out
+
+A stored response is a copy of whatever the endpoint answered, kept for the whole window. For an endpoint
+that returns a one-time secret, that is a plaintext copy of the secret in the database. A newly created
+API key is one example. So is anything else the server generates and returns once: an OAuth client
+secret, a webhook signing secret, a temporary password, a one-time token. Set `StoreBody = false` to keep
+it out:
+
+<!-- snippet: sample_deduplicated_with_response_without_storing_the_body -->
+<a id='snippet-sample_deduplicated_with_response_without_storing_the_body'></a>
+```cs
+// The secret is in the first response and is never stored. A repeat gets the 201 and Location alone
+[DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
+[WolverinePost("/deduplicated-response/secret-result")]
+public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder request)
+{
+    var created = run(request);
+    return TypedResults.Created($"/deduplicated-response/orders/{created.Id}",
+        new DeduplicatedSecret(created.Id, Guid.NewGuid().ToString()));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response.cs#L852-L862' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_with_response_without_storing_the_body' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The body is never serialized or written. The claim still stores the status and `Location`, so a repeat
+is answered with those and no body, and the caller follows `Location` to the resource. The secret is not
+shown again.
+
+This fits an endpoint that answers with a `Location`, such as `Created`. One that sets no `Location`
+answers a repeat with the bare status, which a client cannot tell from an empty success.
 
 ### The window
 
@@ -361,11 +392,12 @@ releasing it with a rolled-back transaction.
   it expires, and an error is logged. An endpoint whose declared return type can never be one of the
   replayed results is refused at startup.
 - The request body is buffered to compute the fingerprint, and the resource is serialized a second
-  time to store it.
+  time to store it, unless [`StoreBody = false`](#leaving-the-body-out).
 - Only the status, body and `Location` are replayed; other response headers are not.
 - Form posts and file uploads are supported, whether the endpoint binds `[FromForm]` values, an
   `IFormFile`, an `IFormCollection` or a `MultipartReader`, and whether the antiforgery token is sent in
   the request header or as a form field.
-- Response bodies are stored for the whole window, in a `wolverine_deduplicated_responses` table of their
-  own. It is only provisioned when the setting is on, so nothing changes for anyone else; with
-  `AutoCreate.None`, create it before turning the setting on.
+- Responses are stored for the whole window, in a `wolverine_deduplicated_responses` table of their own,
+  with their bodies unless [`StoreBody = false`](#leaving-the-body-out). The table is only provisioned when
+  the setting is on, so nothing changes for anyone else; with `AutoCreate.None`, create it before turning
+  the setting on.

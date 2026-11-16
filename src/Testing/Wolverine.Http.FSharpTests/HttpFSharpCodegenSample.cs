@@ -75,6 +75,10 @@ public static class HttpFSharpCodegenSample
         // ReleaseUnansweredDeduplicatedResponseFrame and RecordDeduplicatedResponseFrame.
         var dedupChain   = HttpChain.ChainFor<ThingEndpoints>(x => x.Deduplicated(null!), httpGraph);
 
+        // The same frames with StoreBody off, which adds the storeBody argument to the record of the response
+        var dedupWithoutBodyChain =
+            HttpChain.ChainFor<ThingEndpoints>(x => x.DeduplicatedWithoutBody(null!), httpGraph);
+
         // GH-4978: a single-value wrapper (record struct ThingId(Guid Value)) bound from a route value and
         // one around a string (ThingCode) bound from the query string
         var thingIdChain   = HttpChain.ChainFor<ThingEndpoints>(x => x.GetByThingId(default), httpGraph);
@@ -92,7 +96,7 @@ public static class HttpFSharpCodegenSample
         {
             helloChain, createChain, getByIdChain, searchChain, getItemsChain,
             pagedChain, resultChain, deleteChain, publishChain, filterChain, uploadChain, dedupChain,
-            thingIdChain, thingCodeChain, authedChain
+            dedupWithoutBodyChain, thingIdChain, thingCodeChain, authedChain
         };
 
         // TagHttpHandlerFrame.GenerateFSharpCode — applied to all chains via TagHttpHandlerPolicy.

@@ -349,6 +349,57 @@ type POST_fsharp_deduplicated(wolverineHttpOptions: Wolverine.Http.WolverineHttp
         }
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type POST_fsharp_deduplicated_without_body(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions, deduplicatedResponses: Wolverine.Http.Runtime.DeduplicatedResponses) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+    let _deduplicatedResponses = deduplicatedResponses
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            if not (isNull (Wolverine.Http.HttpHandler.RequestActivity(httpContext))) then (Wolverine.Http.HttpHandler.RequestActivity(httpContext)).SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints").SetTag("http.route", "/fsharp/deduplicated-without-body").SetTag("http.request.method", "POST") |> ignore
+            // GH-4742: buffer the body so the deduplication fingerprint can read it after binding
+            Microsoft.AspNetCore.Http.HttpRequestRewindExtensions.EnableBuffering(httpContext.Request)
+            let Idempotency_Key = Wolverine.Http.HttpHandler.ReadSingleHeaderValue(httpContext, "Idempotency-Key")
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            // GH-4742: the deduplication key is unique within Tenant, User, Endpoint
+            let scopedDeduplicationId = Wolverine.Http.HttpHandler.ScopeDeduplicationId(httpContext, Idempotency_Key, enum<Wolverine.Http.DeduplicationScope>(7), tenantId)
+            // GH-4742: what a repeat must match to be answered with the stored response
+            let! deduplicationFingerprint = Wolverine.Http.HttpHandler.ComputeDeduplicationFingerprintAsync(httpContext, scopedDeduplicationId)
+            // GH-4742: claim the key, or answer from the claim this request lost to
+            let deduplicationClaimToken = System.Guid.NewGuid().ToString()
+            let! deduplicatedResponseClaim = _deduplicatedResponses.TryClaimAsync(scopedDeduplicationId, deduplicationFingerprint, deduplicationClaimToken, System.Nullable<System.TimeSpan>(System.TimeSpan.FromTicks(600000000L)), null)
+            if not (isNull deduplicatedResponseClaim) then
+                do! this.AnswerDeduplicatedRepeatAsync(httpContext, deduplicatedResponseClaim, deduplicationFingerprint, "Idempotency-Key")
+            else
+                // GH-4742: give the claim back unless the work was done, before a response is flushed
+                Wolverine.Http.HttpHandler.ReleaseDeduplicatedResponseBeforeFailureResponse(httpContext, _deduplicatedResponses, scopedDeduplicationId, deduplicationClaimToken, null)
+                try
+                    // Reading the request body via JSON deserialization
+                    let! struct (command, jsonContinue) = this.ReadJsonAsync<Wolverine.Http.FSharpContracts.CreateThing>(httpContext)
+                    if jsonContinue = Wolverine.HandlerContinuation.Stop then
+                        ()
+                    else
+                        let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+                        
+                        // The actual HTTP request handler execution
+                        let thingCreated_response = thingEndpoints.DeduplicatedWithoutBody(command)
+
+                        // GH-4742: the work is done; record the response, so a repeat is answered with it
+                        do! _deduplicatedResponses.RecordResponseAsync(scopedDeduplicationId, deduplicationClaimToken, this.CompleteDeduplicatedRequest<Wolverine.Http.FSharpContracts.ThingCreated>(httpContext, scopedDeduplicationId, thingCreated_response, 404, false), null)
+                        // Writing the response body to JSON because this was the first 'return variable' in the method signature
+                        do! this.WriteJsonAsync(httpContext, thingCreated_response, 404)
+                    if not (Wolverine.Http.HttpHandler.IsDeduplicatedWorkDone(httpContext)) then
+                        do! _deduplicatedResponses.ReleaseUnansweredAsync(scopedDeduplicationId, deduplicationClaimToken, null)
+                with ex ->
+                    if not (Wolverine.Http.HttpHandler.IsDeduplicatedWorkDone(httpContext)) then
+                        do! _deduplicatedResponses.ReleaseUnansweredAsync(scopedDeduplicationId, deduplicationClaimToken, null)
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw()
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GET_fsharp_things_by_id_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions

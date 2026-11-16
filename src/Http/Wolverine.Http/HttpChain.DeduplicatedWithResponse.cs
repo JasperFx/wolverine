@@ -174,7 +174,7 @@ public partial class HttpChain
         var flush = Postprocessors.FindIndex(x => x is FlushOutgoingMessages or IFlushesMessages);
         Postprocessors.Insert(flush < 0 ? Postprocessors.Count : flush,
             new RecordDeduplicatedResponseFrame(scoped.Variable, claim.ClaimToken, ResourceVariable ?? Method.Creates.First(),
-                MissingResponseBodyStatusCode, AncillaryStoreType));
+                MissingResponseBodyStatusCode, requirement.StoreBody, AncillaryStoreType));
     }
 
     /// <summary>
@@ -200,7 +200,7 @@ public partial class HttpChain
 
         var resource = ResourceVariable ?? Method.Creates.First();
         var prepare = new PrepareDeduplicatedResponseClaimFrame(scoped, fingerprint, resource,
-            MissingResponseBodyStatusCode, requirement.Window);
+            MissingResponseBodyStatusCode, requirement.StoreBody, requirement.Window);
         var storageId = new DeduplicationStorageIdFrame(scoped);
 
         // As [Deduplicated] on Marten: the lookup may join a batch only when the key is required

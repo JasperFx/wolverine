@@ -63,6 +63,14 @@ public sealed class DeduplicatedWithResponseRequirement
         init => _claimInTransaction = value;
     }
 
+    /// <summary>
+    /// Store the response body with the claim. Default is <see langword="true" />. Set it to <see langword="false" /> on
+    /// an endpoint whose response holds a one-time secret, such as a newly created API key: the body is then never
+    /// serialized or written, and a repeat is answered with the first response's status and <c>Location</c> and no
+    /// body.
+    /// </summary>
+    public bool StoreBody { get; init; } = true;
+
     internal string KeyName => Key ?? DeduplicationRequirement.DefaultHeaderName;
 
     public override string ToString()
@@ -73,6 +81,7 @@ public sealed class DeduplicatedWithResponseRequirement
 
         if (Window.HasValue) description += $", Window = {Window.Value}";
         if (_claimInTransaction.HasValue) description += $", ClaimInTransaction = {_claimInTransaction.Value}";
+        if (!StoreBody) description += ", StoreBody = False";
 
         return description + ")";
     }
