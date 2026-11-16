@@ -1,7 +1,11 @@
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
+using Wolverine.Http.CodeGen;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 
@@ -30,11 +34,38 @@ public sealed class DeduplicatedResponses
 
     private readonly IWolverineRuntime _runtime;
     private readonly ILogger<DeduplicatedResponses> _logger;
+    private readonly Counter<int> _outcomes;
 
     public DeduplicatedResponses(IWolverineRuntime runtime, ILogger<DeduplicatedResponses> logger)
     {
         _runtime = runtime;
         _logger = logger;
+
+        _outcomes = runtime.Meter.CreateCounter<int>(MetricsConstants.DeduplicationOutcomes, MetricsConstants.Requests,
+            "Number of requests with an idempotency key, by how they ended: claimed, replayed, mismatched or in_progress");
+    }
+
+    internal void RecordOutcome(HttpContext context, ClaimOutcome outcome)
+    {
+        var (value, eventName) = outcome switch
+        {
+            ClaimOutcome.Claimed => ("claimed", WolverineTracing.DeduplicationClaimed),
+            ClaimOutcome.Replayed => ("replayed", WolverineTracing.DeduplicationReplayed),
+            ClaimOutcome.Mismatched => ("mismatched", WolverineTracing.DeduplicationMismatched),
+            ClaimOutcome.InProgress => ("in_progress", WolverineTracing.DeduplicationInProgress),
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, null)
+        };
+
+        _outcomes.Add(1, new TagList
+        {
+            { MetricsConstants.DeduplicationOutcomeKey, value },
+            { TagHttpHandlerFrame.HttpRoute, (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText },
+            // Routing matches the method whatever its case, so "post" would otherwise be a series of its own
+            { TagHttpHandlerFrame.HttpRequestMethod, HttpMethods.GetCanonicalizedValue(context.Request.Method) },
+            { MetricsConstants.SourceKey, _runtime.Options.ServiceName }
+        });
+
+        HttpHandler.RequestActivity(context)?.AddEvent(new ActivityEvent(eventName));
     }
 
     /// <summary>
@@ -200,4 +231,12 @@ public sealed class DeduplicatedResponses
                 $"{nameof(DurabilitySettings)}.{nameof(DurabilitySettings.EnableDeduplicatedResponses)} is off",
             var store => $"the message store ({store.GetType().Name}) does not implement {nameof(IReplayableDeduplicationStore)}"
         };
+}
+
+internal enum ClaimOutcome
+{
+    Claimed,
+    Replayed,
+    Mismatched,
+    InProgress
 }

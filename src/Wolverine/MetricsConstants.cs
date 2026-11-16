@@ -24,6 +24,7 @@ public class MetricsConstants
 
     public const string Milliseconds = "Milliseconds";
     public const string Messages = "Messages";
+    public const string Requests = "Requests";
     public const string Connections = "Connections";
 
     public const string InboxCount = "wolverine.inbox.count";
@@ -73,6 +74,12 @@ public class MetricsConstants
     // GH-5320. Occurrences of a SkipWhileRunning() recurring schedule that came due while the previous
     // occurrence was still being handled, and so were skipped. Tagged with ScheduleNameKey.
     public const string RecurringOccurrencesSkipped = "wolverine.recurring.occurrences_skipped";
+
+    // How each request carrying an idempotency key ended: one measurement per request answered as a repeat or whose
+    // claim was kept, tagged with DeduplicationOutcomeKey. A first request that fails gives its claim back and is not
+    // counted.
+    public const string DeduplicationOutcomes = "wolverine.http.deduplication.outcomes";
+    public const string DeduplicationOutcomeKey = "wolverine.deduplication.outcome";
     public const string DatabaseKey = "database";
     public const string ServerKey = "server";
 }
