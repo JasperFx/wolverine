@@ -1858,8 +1858,10 @@ partial class Build
         // Postgres is needed for leader election tests. Started for every shard rather than only the
         // one holding leader_election: durability-backed tests are spread across all three, and the
         // container is cheap next to the emulator's warm-up.
-        // This run owns the emulators, so it starts both pairs fresh (GH-5532).
-        StartServicesFresh("asb-emulator", "postgresql");
+        // This run owns the emulators, so it starts both pairs fresh (GH-5532). GH-5196: strict_tenancy_5196 uses the
+        // second pair (asb-emulator-2, Servers' tenant connection strings) as a tenant's own namespace, so every shard
+        // starts it: the "everything else" shard holds that class today, and a rebalance must not strand it.
+        StartServicesFresh("asb-emulator", "asb-emulator-2", "postgresql");
 
         RunTestProject(tests, testFilter: testFilter);
     }

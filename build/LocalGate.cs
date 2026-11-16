@@ -234,7 +234,8 @@ partial class Build
         new("src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj",
             "CIAzureServiceBus, CIAzureServiceBusLeader, CIAzureServiceBusRouting")
         {
-            Services = ["asb-emulator"], Postgres = ServerUse.OwnDatabase
+            // GH-5196: asb-emulator-2 is a tenant's own namespace in strict_tenancy_5196
+            Services = ["asb-emulator", "asb-emulator-2"], Postgres = ServerUse.OwnDatabase
         },
         new("src/Transports/Kafka/Wolverine.Kafka.Tests/Wolverine.Kafka.Tests.csproj", "CIKafka")
         {

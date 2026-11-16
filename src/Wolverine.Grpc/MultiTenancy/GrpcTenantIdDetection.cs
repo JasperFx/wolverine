@@ -82,7 +82,10 @@ internal class GrpcTenantIdDetection : IGrpcTenantDetectionPolicies, IGrpcChainP
         // header the Wolverine gRPC client interceptor stamps on outgoing calls — so a
         // Wolverine-to-Wolverine hop round-trips the tenant id with no server configuration,
         // structurally in generated code rather than relying on the ambient IMessageContext.
-        if (!hasExplicitConfiguration && _parent.PropagateEnvelopeHeaders)
+        //
+        // GH-5196: only when the header is trusted (WolverineGrpcOptions.TrustTenantIdHeader, off by default in 7.0
+        // and on after RestoreV6Defaults()), because any client can stamp any tenant id on a call.
+        if (!hasExplicitConfiguration && _parent.PropagateEnvelopeHeaders && _parent.TrustsTenantIdHeader)
         {
             Strategies.Add(new MetadataHeaderDetection(EnvelopeConstants.TenantIdKey));
             ZeroConfigDefaultApplied = true;

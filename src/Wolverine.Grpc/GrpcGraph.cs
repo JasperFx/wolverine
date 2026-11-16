@@ -76,6 +76,10 @@ public partial class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMysel
     /// </summary>
     public void DiscoverServices(WolverineGrpcOptions grpcOptions)
     {
+        // GH-5196: the tenant-id header trust default depends on RestoreV6Defaults(), which is only
+        // known once the Wolverine options are built
+        grpcOptions.ResolveDefaults(_options);
+
         var logger = Container.GetInstance<ILogger<GrpcGraph>>();
 
         // Cold-start fast path (GH-2926): in TypeLoadMode.Static, rebuild the chains from the

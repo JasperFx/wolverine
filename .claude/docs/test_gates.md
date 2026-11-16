@@ -140,7 +140,7 @@ own projects.
 | `CIAmazonS3` | Wolverine.AmazonS3.Tests | localstack | |
 | `CIAzureBlobStorage` | Wolverine.AzureBlobStorage.Tests | azurite | |
 | `CIAWSSqs` / `CIAWSSqsCompliance` / `CIAWSSns` (`CIAWS` runs all three) | Wolverine.AmazonSqs.Tests, Wolverine.AmazonSns.Tests | localstack, postgresql | |
-| `CIAzureServiceBusLeader` / `CIAzureServiceBusRouting` / `CIAzureServiceBus` | Wolverine.AzureServiceBus.Tests shards | asb-emulator, postgresql | asb-emulator brings asb-sql |
+| `CIAzureServiceBusLeader` / `CIAzureServiceBusRouting` / `CIAzureServiceBus` | Wolverine.AzureServiceBus.Tests shards | asb-emulator, asb-emulator-2, postgresql | each emulator brings its SQL backend; asb-emulator-2 is a tenant namespace for GH-5196 |
 | `CIRabbitMQ` | Wolverine.RabbitMQ.Tests | rabbitmq, postgresql, sqlserver | |
 | `CICircuitBreaking` | CircuitBreakingTests | rabbitmq, postgresql | |
 | `CIKafka` | Wolverine.Kafka.Tests | kafka, postgresql | |
@@ -186,7 +186,7 @@ test (`StartServicesFresh` in `build/FreshContainers.cs`).
 |--------|--------------|
 | `CISqlServer`, `CISqlServerTransport` | `sqlserver` |
 | `CIPolecat*` shards | `sqlserver` |
-| `CIAzureServiceBus`, `CIAzureServiceBusLeader`, `CIAzureServiceBusRouting` | `asb-sql`, `asb-emulator`, plus `asb-sql-2` and `asb-emulator-2` when they are already running (no test uses that pair today, so a clean runner does not boot it) |
+| `CIAzureServiceBus`, `CIAzureServiceBusLeader`, `CIAzureServiceBusRouting` | `asb-sql`, `asb-emulator`, plus `asb-sql-2` and `asb-emulator-2` when they are already running. Each shard then starts that second pair if it is not up: `strict_tenancy_5196` uses it as a tenant's own namespace (GH-5196) |
 | `TestAllPersistence` | `sqlserver` (through the `FreshContainers` target, before `DockerUp`) |
 | `TestAllTransports` | the ASB containers, as above (same) |
 | `LocalGate` / `LocalGateSuites` | whichever of the two the selected suites need (any suite with `sqlserver` or `asb-emulator` among its compose services, lanes included), once, after the build and before any unit provisions a database |

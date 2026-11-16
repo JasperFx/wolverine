@@ -85,6 +85,9 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
         // Envelope.Listener — the same CompoundListener multi-tenancy pattern used by RabbitMQ / NATS / SQS.
         if (Parent.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
         {
+            // GH-5196: dead letter a received message for a tenant id no registered tenant matches
+            UnknownBrokerTenantGuard.Install(this, Parent.TenantedIdBehavior, Parent.Tenants.Select(x => x.TenantId));
+
             var compound = new CompoundListener(Uri);
             compound.Inner.Add(listener);
 

@@ -241,6 +241,14 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
         // inbound envelopes via a TenantIdRule. Mirrors the NATS / RabbitMQ CompoundListener pattern;
         // per-envelope completion routes back to the right connection via Envelope.Listener. GH-3309.
         var tenantAware = _transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware;
+        if (tenantAware)
+        {
+            // GH-5196: dead letter a received message for a tenant id no registered tenant matches, with every
+            // registered tenant counted, not only the ones with their own connection
+            UnknownBrokerTenantGuard.Install(this, _transport.TenantedIdBehavior,
+                _transport.Tenants.Select(x => x.TenantId));
+        }
+
         var dedicatedTenants = tenantAware
             ? _transport.Tenants.Where(t => t.HasOwnConnection).ToArray()
             : [];

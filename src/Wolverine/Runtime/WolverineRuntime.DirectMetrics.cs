@@ -133,7 +133,7 @@ public partial class WolverineRuntime
 
         public void MovedToErrorQueue(Envelope envelope, Exception ex)
         {
-            _runtime.ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId);
+            _runtime.ActiveSession?.Record(MessageEventType.MovedToErrorQueue, envelope, _serviceName, _uniqueNodeId, ex);
             _movedToErrorQueue(Logger, envelope.GetMessageTypeName(), envelope.Id, ex);
             _sink.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId!));
         }

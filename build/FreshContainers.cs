@@ -52,8 +52,8 @@ partial class Build
     /// does not recreate them.
     ///
     /// <para>The second emulator pair (5674/5301, Servers' tenant connection strings) is recreated only
-    /// when this compose project already has it running, which DockerUp leaves behind: no test uses it
-    /// today, so a clean CI runner should not pay for booting it.</para>
+    /// when this compose project already has it running. The Azure Service Bus shards start it themselves
+    /// (GH-5196: strict_tenancy_5196 uses it as a tenant's own namespace).</para>
     /// </summary>
     static readonly (string Requested, string Lock, string[] Recreate, string[] IfRunning)[] FreshServices =
     [

@@ -120,8 +120,9 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | FluentValidation ProblemDetails for HTTP (`WolverineFx.Http.FluentValidation`) | off unless `UseFluentValidationProblemDetailMiddleware()` is called as well as `UseFluentValidation()` | on wherever `UseFluentValidation()` is called: a failed validator answers 400 with `ValidationProblemDetails`. `UseFluentValidationProblemDetailMiddleware()` still works and is no longer needed | `opts.DoNotUseFluentValidationProblemDetailMiddleware()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
 | `WolverineOptions.EnableRelayOfUserName` | `false` | `true`: the authenticated HTTP user is relayed onto the message context, the outboxed Marten, Polecat or Fisher session, and **the `user-name` header of every message sent, to every transport**. `WolverineHttpOptions.UserNameClaimType` names the claim when `Identity.Name` is null | `opts.EnableRelayOfUserName = false` | `restore_v6_defaults_tests` |
 | `PushReceiverOptions.DeduplicateWithInbox` | `false` | `true` when the application has a message store | `o.DeduplicateWithInbox = false` in `MapWolverinePushReceiver()` | `push_receiver_5016` |
-| `BrokerTransport.TenantedIdBehavior` (RabbitMQ, Azure Service Bus, SQS, SNS, Kafka, GCP Pub/Sub, Redis, NATS; also MQTT, MQTT 5 and Pulsar) | `FallbackToDefault`: a message for an unregistered tenant id goes to the default broker | `DeadLetterUnknownTenants`: it goes to dead letter storage and is sent nowhere | `.TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)` (`ConfigureMultiTenancy(...)` on Redis and NATS) | `restore_v6_broker_tenancy_defaults` |
+| `BrokerTransport.TenantedIdBehavior` (RabbitMQ, Azure Service Bus, SQS, SNS, Kafka, GCP Pub/Sub, Redis, NATS; also MQTT, MQTT 5 and Pulsar) | `FallbackToDefault`: a message for an unregistered tenant id goes to the default broker, and one received with an unregistered tenant id is handled as that tenant | `DeadLetterUnknownTenants`: it goes to dead letter storage and is sent nowhere, and one received with an unregistered tenant id is dead lettered | `.TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)` (`ConfigureMultiTenancy(...)` on Redis and NATS) | `restore_v6_broker_tenancy_defaults` |
 | `NatsTransportConfiguration.TrustTenantIdHeader` | `true`: a tenant-aware listener takes the tenant from the `tenant-id` header | not trusted: the tenant comes from the connection or subject prefix the message arrived on | `nats.TrustTenantIdHeader = true` | `NatsTenantIdHeaderTests` |
+| `WolverineGrpcOptions.TrustTenantIdHeader` (`WolverineFx.Grpc`) | trusted: with no tenant detection configured, the server takes the tenant from the client's `tenant-id` metadata header, in the propagation interceptor and in the generated service wrappers | not trusted: with no detection configured the header is ignored. Configure detection explicitly (`grpc.TenantId.IsRequestHeaderValue("tenant-id")` with `AssertExists()`, or `IsClaimTypeNamed(...)`) | `grpc.TrustTenantIdHeader = true` in `AddWolverineGrpc()` | `tenant_detection_codegen_tests` |
 | `DurabilitySettings.MessageDeduplicationMode` | `None`: no deduplication table | `CompareByHash`: every message store provisions `wolverine_deduplication_hashed` and its cleanup job | `opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.None` | `restore_v6_defaults_tests` |
 | `DurabilitySettings.EnableDeduplicatedResponses` | `false` | `true`: every message store provisions `wolverine_deduplicated_responses` and its cleanup job | `opts.Durability.EnableDeduplicatedResponses = false` | `restore_v6_defaults_tests` |
 | `DurabilitySettings.AlwaysProvisionOptionalSchemaObjects` | not there (new in 7.0; `EnableOutgoingTimestampIndex` is removed): the inbox/outbox `timestamp` columns only exist with `InboxStaleTime`/`OutboxStaleTime`, `wolverine_nodes.load_factor` only with `CapacityAwareAssignment`, and the outbox stale index only with `EnableOutgoingTimestampIndex` | `true`: the relational stores always create all four, a one-time additive migration on first start; reading and writing them stays opt-in | `opts.Durability.AlwaysProvisionOptionalSchemaObjects = false` | `restore_v6_defaults_tests` |
@@ -255,7 +256,7 @@ shipped without a flag, so there is nothing for `RestoreV6Defaults()` to restore
 
 ### Broker-per-tenant tenancy is strict in 7.0
 
-A broker is a trust boundary in 7.0 (GH-5196). Two defaults flipped, and `RestoreV6Defaults()` puts back both:
+A broker is a trust boundary in 7.0 (GH-5196), and so is a gRPC call. These defaults flipped, and `RestoreV6Defaults()` puts back all of them:
 
 - **An unknown tenant id is dead lettered, not sent to the default broker.** With tenants registered on a transport
   (`AddTenant()`), a message with no tenant id still goes to the default broker and a message for a registered tenant
@@ -269,14 +270,30 @@ A broker is a trust boundary in 7.0 (GH-5196). Two defaults flipped, and `Restor
   match exactly (ordinal, case sensitive, no trimming). Explicit `FallbackToDefault`, `TenantIdRequired` and
   `IgnoreUnknownTenants` behave as they did in 6.x. `ConfigureMultiTenancy()` on Redis and NATS no longer pins
   `FallbackToDefault` when called without an argument.
+- **A received message for an unknown tenant is dead lettered too.** A tenant-aware listener stamps each tenant's own
+  messages with that tenant's id, but a message that reaches the default broker can carry any tenant id in its
+  header, for example from a 6.x node or from anything else that can publish there. When no registered tenant
+  matches that id, the message is moved to the endpoint's dead letter queue with an `UnknownBrokerTenantException`
+  of the same shape as the sending side's, instead of being handled as a tenant nobody registered. A message with no
+  tenant id, or the default tenant's id, is handled as before. Tracked sessions record it as moved to the error
+  queue. On NATS, with the `tenant-id` header not trusted (below), the tenant comes from the subject, and a subject
+  prefix that no tenant registered arrives with no tenant id.
 - **NATS does not trust the `tenant-id` header.** A tenant-aware NATS listener takes the tenant from the tenant's own
   connection, or from the subject's tenant prefix, so a producer with publish rights on tenant A's subjects can no
   longer stamp a message as tenant B. `NatsTransportConfiguration.TrustTenantIdHeader` is now a `bool?`; null means
   the default. The unused `NatsTransportConfiguration.TenantIdResolver` property and `ITenantIdResolver` interface
   were removed.
+- **gRPC does not trust the `tenant-id` header either.** With no tenant detection configured on
+  `WolverineGrpcOptions.TenantId`, a 6.x server took the tenant from whatever `tenant-id` metadata header the client
+  sent, so any caller could choose its tenant. In 7.0 the header is ignored unless you configure detection
+  explicitly, for example `grpc.TenantId.IsRequestHeaderValue("tenant-id")` with `grpc.TenantId.AssertExists()`, or a
+  claim of the authenticated principal with `grpc.TenantId.IsClaimTypeNamed(...)`. Set
+  `WolverineGrpcOptions.TrustTenantIdHeader = true` to trust it again, for example between your own services on a
+  private network. See [gRPC multi-tenancy](/guide/grpc/multi-tenancy#trusting-the-tenant-id-header).
 
 During a rolling upgrade, 6.x nodes in the same cluster still send unknown tenant ids to the default broker until they
-are upgraded.
+are upgraded, and a 7.0 node that receives one of those messages dead letters it. Register every tenant on every node
+before the first 7.0 node starts, or keep `FallbackToDefault` until the upgrade is done.
 
 ### Deduplication storage is on by default; `EnableMessageDeduplication` removed (BREAKING)
 

@@ -401,10 +401,12 @@
       "postgres": "OwnDatabase",
       "services": [
         "postgresql",
-        "asb-emulator"
+        "asb-emulator",
+        "asb-emulator-2"
       ],
       "tracks": [
-        "asb-emulator"
+        "asb-emulator",
+        "asb-emulator-2"
       ]
     },
     {
