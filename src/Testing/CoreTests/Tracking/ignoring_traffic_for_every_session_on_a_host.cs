@@ -107,8 +107,15 @@ public class ignoring_traffic_for_every_session_on_a_host
         await using var traffic = new BackgroundTraffic(host);
         await Task.Delay(100, TestContext.Current.CancellationToken);
 
+        // The continuous traffic only overlaps the session by timing: a stalled publisher loop on a busy box can
+        // leave a gap long enough for the session to complete, which made this control flaky. One background
+        // message published inside the session and held longer than its timeout makes the overlap certain.
         var session = await host.TrackActivity().Timeout(1.Seconds()).DoNotAssertOnTimeout()
-            .InvokeMessageAndWaitAsync(new TrackedThing());
+            .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async c =>
+            {
+                await c.PublishAsync(new TargetMessage1(Guid.NewGuid(), 0, BackgroundTrafficHandler.HoldingColor));
+                await c.InvokeAsync(new TrackedThing());
+            }));
 
         session.Status.ShouldBe(TrackingStatus.TimedOut);
         session.AllRecordsInOrder().ShouldContain(x => x.Envelope!.Message is TargetMessage1);
@@ -375,8 +382,19 @@ public static class BackgroundTrafficHandler
 {
     public const string FailingColor = "fail";
 
+    /// <summary>
+    ///     A background message that stays in flight for longer than a control session's timeout
+    /// </summary>
+    public const string HoldingColor = "hold";
+
     public static async Task Handle(TargetMessage1 message)
     {
+        if (message.Color == HoldingColor)
+        {
+            await Task.Delay(3.Seconds());
+            return;
+        }
+
         // Slow enough that some are always in flight while the publisher runs every 10ms
         await Task.Delay(50);
 

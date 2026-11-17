@@ -255,6 +255,8 @@ internal class ClaimDeduplicatedResponseFrame : AsyncFrame
         ? $"{typeof(TimeSpan?).FSharpName()}({typeof(TimeSpan).FSharpName()}.{nameof(TimeSpan.FromTicks)}({window.Value.Ticks}L))"
         : $"{typeof(TimeSpan?).FSharpName()}()";
 
+    internal static string TrailingStoreBodyArgument(bool storeBody) => storeBody ? string.Empty : ", false";
+
     internal static string MarkerUsage(Type? ancillaryStoreMarker) => ancillaryStoreMarker == null
         ? "null"
         : $"typeof({ancillaryStoreMarker.FullNameInCode()})";
@@ -397,17 +399,19 @@ internal class RecordDeduplicatedResponseFrame : AsyncFrame
     private readonly Variable _claimToken;
     private readonly Variable _resource;
     private readonly int _missingResourceStatusCode;
+    private readonly bool _storeBody;
     private readonly Type? _ancillaryStoreMarker;
     private Variable? _responses;
     private Variable? _httpContext;
 
     public RecordDeduplicatedResponseFrame(Variable deduplicationId, Variable claimToken, Variable resource,
-        int missingResourceStatusCode, Type? ancillaryStoreMarker)
+        int missingResourceStatusCode, bool storeBody, Type? ancillaryStoreMarker)
     {
         _deduplicationId = deduplicationId;
         _claimToken = claimToken;
         _resource = resource;
         _missingResourceStatusCode = missingResourceStatusCode;
+        _storeBody = storeBody;
         _ancillaryStoreMarker = ancillaryStoreMarker;
         uses.Add(resource);
     }
@@ -416,7 +420,7 @@ internal class RecordDeduplicatedResponseFrame : AsyncFrame
     {
         writer.WriteComment("GH-4742: the work is done; record the response, so a repeat is answered with it");
         writer.Write(
-            $"await {_responses!.Usage}.{nameof(DeduplicatedResponses.RecordResponseAsync)}({_deduplicationId.Usage}, {_claimToken.Usage}, {nameof(HttpHandler.CompleteDeduplicatedRequest)}({_httpContext!.Usage}, {_deduplicationId.Usage}, {_resource.Usage}, {_missingResourceStatusCode}), {ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
+            $"await {_responses!.Usage}.{nameof(DeduplicatedResponses.RecordResponseAsync)}({_deduplicationId.Usage}, {_claimToken.Usage}, {nameof(HttpHandler.CompleteDeduplicatedRequest)}({_httpContext!.Usage}, {_deduplicationId.Usage}, {_resource.Usage}, {_missingResourceStatusCode}{ClaimDeduplicatedResponseFrame.TrailingStoreBodyArgument(_storeBody)}), {ClaimDeduplicatedResponseFrame.MarkerUsage(_ancillaryStoreMarker)}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
 
@@ -429,7 +433,7 @@ internal class RecordDeduplicatedResponseFrame : AsyncFrame
         // inferred from the resource, which F# would otherwise have to pick up through the `T?`
         // parameter.
         var complete =
-            $"this.{nameof(HttpHandler.CompleteDeduplicatedRequest)}<{_resource.VariableType.FSharpName()}>({_httpContext!.FSharpUsage}, {_deduplicationId.FSharpUsage}, {_resource.FSharpUsage}, {_missingResourceStatusCode})";
+            $"this.{nameof(HttpHandler.CompleteDeduplicatedRequest)}<{_resource.VariableType.FSharpName()}>({_httpContext!.FSharpUsage}, {_deduplicationId.FSharpUsage}, {_resource.FSharpUsage}, {_missingResourceStatusCode}{ClaimDeduplicatedResponseFrame.TrailingStoreBodyArgument(_storeBody)})";
 
         writer.Write(
             $"do! {_responses!.FSharpUsage}.{nameof(DeduplicatedResponses.RecordResponseAsync)}({_deduplicationId.FSharpUsage}, {_claimToken.FSharpUsage}, {complete}, {ClaimDeduplicatedResponseFrame.FSharpMarkerUsage(_ancillaryStoreMarker)})");
@@ -689,17 +693,19 @@ internal class PrepareDeduplicatedResponseClaimFrame : SyncFrame
     private readonly Variable _fingerprint;
     private readonly Variable _resource;
     private readonly int _missingResourceStatusCode;
+    private readonly bool _storeBody;
     private readonly TimeSpan? _window;
     private Variable? _responses;
     private Variable? _httpContext;
 
     public PrepareDeduplicatedResponseClaimFrame(Variable deduplicationId, Variable fingerprint, Variable resource,
-        int missingResourceStatusCode, TimeSpan? window)
+        int missingResourceStatusCode, bool storeBody, TimeSpan? window)
     {
         _deduplicationId = deduplicationId;
         _fingerprint = fingerprint;
         _resource = resource;
         _missingResourceStatusCode = missingResourceStatusCode;
+        _storeBody = storeBody;
         _window = window;
         uses.Add(resource);
         Variable = new Variable(typeof(PendingDeduplicatedResponseClaim), "pendingDeduplicatedResponseClaim", this);
@@ -711,7 +717,7 @@ internal class PrepareDeduplicatedResponseClaimFrame : SyncFrame
     {
         writer.WriteComment("GH-5160: the work is done; the claim and its response commit with it, or not at all");
         writer.Write(
-            $"var {Variable.Usage} = {_responses!.Usage}.{nameof(DeduplicatedResponses.PrepareClaim)}({_httpContext!.Usage}, {_deduplicationId.Usage}, {_fingerprint.Usage}, {nameof(HttpHandler.CompleteDeduplicatedRequest)}({_httpContext.Usage}, {_deduplicationId.Usage}, {_resource.Usage}, {_missingResourceStatusCode}), {ClaimDeduplicatedResponseFrame.WindowUsage(_window)});");
+            $"var {Variable.Usage} = {_responses!.Usage}.{nameof(DeduplicatedResponses.PrepareClaim)}({_httpContext!.Usage}, {_deduplicationId.Usage}, {_fingerprint.Usage}, {nameof(HttpHandler.CompleteDeduplicatedRequest)}({_httpContext.Usage}, {_deduplicationId.Usage}, {_resource.Usage}, {_missingResourceStatusCode}{ClaimDeduplicatedResponseFrame.TrailingStoreBodyArgument(_storeBody)}), {ClaimDeduplicatedResponseFrame.WindowUsage(_window)});");
         Next?.GenerateCode(method, writer);
     }
 
@@ -721,7 +727,7 @@ internal class PrepareDeduplicatedResponseClaimFrame : SyncFrame
 
         // As RecordDeduplicatedResponseFrame: an inherited instance method, with its type argument written out.
         var complete =
-            $"this.{nameof(HttpHandler.CompleteDeduplicatedRequest)}<{_resource.VariableType.FSharpName()}>({_httpContext!.FSharpUsage}, {_deduplicationId.FSharpUsage}, {_resource.FSharpUsage}, {_missingResourceStatusCode})";
+            $"this.{nameof(HttpHandler.CompleteDeduplicatedRequest)}<{_resource.VariableType.FSharpName()}>({_httpContext!.FSharpUsage}, {_deduplicationId.FSharpUsage}, {_resource.FSharpUsage}, {_missingResourceStatusCode}{ClaimDeduplicatedResponseFrame.TrailingStoreBodyArgument(_storeBody)})";
 
         writer.Write(
             $"{Variable.FSharpAssignmentUsage} = {_responses!.FSharpUsage}.{nameof(DeduplicatedResponses.PrepareClaim)}({_httpContext.FSharpUsage}, {_deduplicationId.FSharpUsage}, {_fingerprint.FSharpUsage}, {complete}, {ClaimDeduplicatedResponseFrame.FSharpWindowUsage(_window)})");

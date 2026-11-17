@@ -101,8 +101,9 @@ public sealed class DeduplicatedResponses
     /// key or the work was not done, so nothing is claimed and a retry runs again.
     /// </summary>
     /// <param name="response">
-    /// From <see cref="HttpHandler.CompleteDeduplicatedRequest{T}" />. Null for done work is a response that could
-    /// not be stored: the claim is written unanswered, so repeats get 409 rather than run the work again.
+    /// From <see cref="HttpHandler.CompleteDeduplicatedRequest{T}(HttpContext, string, T, int, bool)" />. Null for
+    /// done work is a response that could not be stored: the claim is written unanswered, so repeats get 409 rather
+    /// than run the work again.
     /// </param>
     public PendingDeduplicatedResponseClaim? PrepareClaim(HttpContext context, string? deduplicationId,
         string? fingerprint, DeduplicatedResponse? response, TimeSpan? window)
