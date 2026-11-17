@@ -58,8 +58,8 @@ The `...UsingNamedConnection()` methods aren't Aspire specific at all. Anything 
 | [RabbitMQ](/guide/messaging/transports/rabbitmq/) | `UseRabbitMqUsingNamedConnection(name)` | `AddRabbitMQ(name)` |
 | [Kafka](/guide/messaging/transports/kafka) | `UseKafkaUsingNamedConnection(name)` | `AddKafka(name)` |
 | [Azure Service Bus](/guide/messaging/transports/azureservicebus/) | `UseAzureServiceBusUsingNamedConnection(name)` | `AddAzureServiceBus(name)` |
-| [Amazon SQS](/guide/messaging/transports/sqs/) | `UseAmazonSqsTransportUsingNamedConnection(name)` | `AddLocalStack(name)` or `AddFlociAws(name)` (emulators only) |
-| [Amazon SNS](/guide/messaging/transports/sns) | `UseAmazonSnsTransportUsingNamedConnection(name)` | `AddLocalStack(name)` or `AddFlociAws(name)` (emulators only) |
+| [Amazon SQS](/guide/messaging/transports/sqs/) | `UseAmazonSqsTransportUsingNamedConnection(name)` | `AddLocalStack(name)` (WolverineFx.Aspire.Hosting.LocalStack) or `AddFlociAws(name)` (emulators only) |
+| [Amazon SNS](/guide/messaging/transports/sns) | `UseAmazonSnsTransportUsingNamedConnection(name)` | `AddLocalStack(name)` (WolverineFx.Aspire.Hosting.LocalStack) or `AddFlociAws(name)` (emulators only) |
 | [NATS](/guide/messaging/transports/nats) | `UseNatsUsingNamedConnection(name)` | `AddNats(name)` |
 | [Redis](/guide/messaging/transports/redis) | `UseRedisTransportUsingNamedConnection(name)` | `AddRedis(name)` |
 | [Pulsar](/guide/messaging/transports/pulsar) | `UsePulsarUsingNamedConnection(name)` | `AddPulsar(name)` (WolverineFx.Aspire.Hosting.Pulsar) |

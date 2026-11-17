@@ -352,6 +352,7 @@ partial class Build : NukeBuild
                 Solution.Transports.Azure.Wolverine_AzureServiceBus,
                 Solution.Transports.AWS.Wolverine_AmazonSqs,
                 Solution.Transports.AWS.Wolverine_AmazonSns,
+                Solution.Transports.AWS.Wolverine_Aspire_Hosting_LocalStack,
                 Solution.Transports.MQTT.Wolverine_MQTT,
                 Solution.Transports.Kafka.Wolverine_Kafka,
                 Solution.Transports.Pulsar.Wolverine_Pulsar,

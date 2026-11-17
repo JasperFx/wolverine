@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Clears the net10.0;net11.0 the root Directory.Build.props sets. Beside it, a TargetFramework alone leaves
+         the project multi-targeted, and `dotnet run` (which is how the AppHost starts a project) refuses it with
+         "Your project targets multiple frameworks" -->
+    <TargetFrameworks></TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../Transports/AWS/Wolverine.AmazonSns/Wolverine.AmazonSns.csproj" />
+    <!-- Compiles Wolverine's generated handler code at runtime (TypeLoadMode.Dynamic) -->
+    <ProjectReference Include="../../../Wolverine.RuntimeCompilation/Wolverine.RuntimeCompilation.csproj" />
+    <ProjectReference Include="../../AspireServiceDefaults/AspireServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

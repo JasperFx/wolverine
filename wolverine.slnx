@@ -200,6 +200,10 @@
     <Project Path="src/Samples/AspireWithKafka/Consumer/Consumer.csproj" />
     <Project Path="src/Samples/AspireWithKafka/Publisher/Publisher.csproj" />
   </Folder>
+  <Folder Name="/Samples/AspireWithLocalStack/">
+    <Project Path="src/Samples/AspireWithLocalStack/AppHost/AspireWithLocalStack.AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithLocalStack/Pinger/AspireWithLocalStack.Pinger.csproj" />
+  </Folder>
   <Folder Name="/Samples/AspireWithPulsar/">
     <Project Path="src/Samples/AspireWithPulsar/AppHost/AspireWithPulsar.AppHost.csproj" />
     <Project Path="src/Samples/AspireWithPulsar/Pinger/AspireWithPulsar.Pinger.csproj" />
@@ -362,6 +366,7 @@
     <Project Path="src/Transports/AWS/Wolverine.AmazonSns/Wolverine.AmazonSns.csproj" />
     <Project Path="src/Transports/AWS/Wolverine.AmazonSqs.Tests/Wolverine.AmazonSqs.Tests.csproj" />
     <Project Path="src/Transports/AWS/Wolverine.AmazonSqs/Wolverine.AmazonSqs.csproj" />
+    <Project Path="src/Transports/AWS/Wolverine.Aspire.Hosting.LocalStack/Wolverine.Aspire.Hosting.LocalStack.csproj" />
   </Folder>
   <Folder Name="/Transports/Azure/">
     <Project Path="src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj" />
