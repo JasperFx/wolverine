@@ -31,6 +31,7 @@ public partial class NodeAgentController
 
     private int _lastUndeclaredAssignmentCount;
     private int _lastAwaitingCapacityCount;
+    private string _lastNoNodeForWorkloadReport = "";
 
     /// <summary>
     ///     GH-4897. How many assignment evaluations this node has run since it last assumed leadership; null
@@ -131,6 +132,40 @@ public partial class NodeAgentController
         logger.LogInformation(
             "{Count} agent(s) are waiting for capacity: no node is accepting new agents under capacity-aware assignment. They will be placed when a node has headroom again: {Sample}{More}",
             waiting.Length, sample, waiting.Length > 5 ? $", and {waiting.Length - 5} more" : "");
+    }
+
+    /// <summary>
+    ///     GH-5601. Agents no live node runs the workload of are left unassigned with
+    ///     <see cref="UnplacedReason.NoNodeForWorkload" />, and a parked steady state issues no commands, so say so.
+    ///     One line per workload, latched on what is missing, so the same steady state is not logged again on every
+    ///     evaluation.
+    /// </summary>
+    internal static void WarnAboutAgentsWithNoNodeForWorkload(AssignmentGrid grid, ILogger logger,
+        ref string lastReport)
+    {
+        var missing = grid.AllAgents
+            .Where(x => x.UnplacedReason == UnplacedReason.NoNodeForWorkload)
+            .GroupBy(x => grid.RequiredWorkloadFor(x.Uri.Scheme))
+            .OrderBy(x => x.Key)
+            .ToArray();
+
+        var report = string.Join(";", missing.Select(x => $"{x.Key}:{x.Count()}"));
+        if (report == lastReport)
+        {
+            return;
+        }
+
+        lastReport = report;
+
+        foreach (var group in missing)
+        {
+            var agents = group.ToArray();
+            var sample = string.Join(", ", agents.Take(5).Select(x => x.Uri.ToString()));
+
+            logger.LogWarning(
+                "{Count} agent(s) need a node running the {Workload} workload, and no live node in this cluster runs it (Durability.Workloads), so they are not running anywhere. Start a node with {Workload}: {Sample}{More}",
+                agents.Length, group.Key, group.Key, sample, agents.Length > 5 ? $", and {agents.Length - 5} more" : "");
+        }
     }
 
     /// <summary>
@@ -243,6 +278,12 @@ public partial class NodeAgentController
         var families = _agentFamilies.Values
             .OrderBy(x => x.Scheme == PersistenceConstants.AgentScheme ? 1 : 0);
 
+        // GH-5601: before any family distributes, so every pass knows which nodes run its agents' workload
+        foreach (var family in _agentFamilies.Values)
+        {
+            grid.RequireWorkload(family.Scheme, family.RequiredWorkload);
+        }
+
         foreach (var agentFamily in families)
         {
             try
@@ -318,6 +359,7 @@ public partial class NodeAgentController
 
         WarnAboutUndeclaredAssignments(grid, issued, _logger, ref _lastUndeclaredAssignmentCount);
         ReportAgentsAwaitingCapacity(grid, _logger, ref _lastAwaitingCapacityCount);
+        WarnAboutAgentsWithNoNodeForWorkload(grid, _logger, ref _lastNoNodeForWorkloadReport);
 
         // GH-3604 / D3+D6: before the observer logs anything, so a slow start isn't punished with a
         // duplicate control-queue flood and a matching burst of AssignmentChanged telemetry rows.

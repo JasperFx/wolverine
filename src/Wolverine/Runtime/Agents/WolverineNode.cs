@@ -28,6 +28,15 @@ public class WolverineNode
     public DateTimeOffset Started { get; set; }
     public DateTimeOffset LastHealthCheck { get; set; } = DateTimeOffset.UtcNow;
     
+    /// <summary>
+    ///     GH-5601. The workloads this node runs, read from the marker in its <see cref="Capabilities" />. A node
+    ///     without the marker -- every 6.x node, and every node left on the default -- runs
+    ///     <see cref="NodeWorkloads.All" />. A node with <see cref="NodeWorkloads.None" /> is an HTTP / publish-only
+    ///     node.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public NodeWorkloads Workloads => NodeAgentController.WorkloadsOf(Capabilities);
+
     public bool IsLeader()
     {
         return ActiveAgents.Contains(NodeAgentController.LeaderUri);

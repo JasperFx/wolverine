@@ -84,6 +84,37 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         await the.AgentsSettleAs(new Placement { [_first] = 12 });
     }
 
+    /// <summary>
+    ///     GH-5601. An HTTP-only node joins the cluster, heartbeats and takes agent commands, but the leader gives it
+    ///     nothing: the agents split over the two nodes that run Messaging.
+    /// </summary>
+    [BobcatSpec]
+    public async Task an_http_only_node_takes_no_agents()
+    {
+        var http = await the.AnHttpOnlyNodeStarts();
+        var third = await the.ANodeStarts();
+
+        await the.AgentsSettleAs(new Placement { [_first] = 6, [http] = 0, [third] = 6 });
+        the.NodeRunsNoAgents(http);
+        await the.NodeIsInTheNodeTableAs(http, NodeWorkloads.None);
+    }
+
+    /// <summary>
+    ///     GH-5601, decision D4. A node without Messaging never leads, so when the only node that could leaves, the
+    ///     cluster has no leader rather than an HTTP-only one.
+    /// </summary>
+    [BobcatSpec]
+    public async Task an_http_only_node_never_leads()
+    {
+        await the.NodeBecomesTheLeader(_first);
+        var http = await the.AnHttpOnlyNodeStarts();
+
+        await the.NodeStops(_first);
+
+        await the.NoNodeTakesTheLeadershipWithin(5);
+        the.NodeRunsNoAgents(http);
+    }
+
     [BobcatSpec]
     public async Task add_second_node_see_balanced_nodes()
     {

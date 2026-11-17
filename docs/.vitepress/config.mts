@@ -322,6 +322,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Durable Inbox and Outbox Messaging', link: '/guide/durability/'},
                         {text: 'Troubleshooting and Leadership Election', link: '/guide/durability/leadership-and-troubleshooting'},
                         {text: 'Connection Budgets', link: '/guide/durability/connection-budgets'},
+                        {text: 'Node Roles: HTTP, Messaging and Durability Nodes', link: '/guide/durability/node-roles'},
                         {text: 'Sagas', link: '/guide/durability/sagas'},
                         {text: 'Unit Testing Aggregate Handlers', link: '/guide/durability/unit-testing-aggregate-handlers'},
                         {text: 'Marten Integration', link: '/guide/durability/marten/',  collapsed: false, items: [

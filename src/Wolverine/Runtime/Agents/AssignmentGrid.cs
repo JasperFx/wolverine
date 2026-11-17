@@ -197,7 +197,8 @@ public partial class AssignmentGrid
         var agents = AvailableAgentsForScheme(scheme, filter);
 
         // Candidate nodes are ordered by AssignedId; sort the nodes once rather than once per agent
-        var byAssignedId = _nodes.OrderBy(x => x.AssignedId).ToList();
+        // GH-5601: inside a distribution pass, only the nodes running the scheme's workload
+        var byAssignedId = pool.OrderBy(x => x.AssignedId).ToList();
 
         foreach (var agent in agents)
         {
@@ -252,7 +253,7 @@ public partial class AssignmentGrid
     /// <summary>
     ///     GH-4569: whether any node of this grid is a <see cref="NodeRole.Warmup" /> node.
     /// </summary>
-    internal bool HasWarmupNodes => _nodes.Any(x => x.IsWarmup);
+    internal bool HasWarmupNodes => pool.Any(x => x.IsWarmup);
 
     /// <summary>
     ///     Whether some agent family owns this URI. A restriction may name one that no family does -- a

@@ -399,6 +399,9 @@ public partial class NodeAgentController
             await evictForRestartAsync(agentUri, existing);
         }
 
+        // GH-5601: before anything is marked as starting, so a refused agent leaves nothing behind
+        assertRunsWorkloadFor(agentUri);
+
         _startingAgents[agentUri] = default;
         try
         {

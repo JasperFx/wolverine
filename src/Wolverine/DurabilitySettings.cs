@@ -937,10 +937,98 @@ public class DurabilitySettings : IDescribeMyself
     public NodeRole NodeRole { get; set; } = NodeRole.Serving;
 
     /// <summary>
-    ///     Whether this node may contend for leadership: <see cref="LeadershipEligible"/>, and never on a
-    ///     <see cref="Wolverine.NodeRole.Warmup"/> node.
+    ///     GH-5601. The work this node takes on in a Balanced cluster. The default is <see cref="NodeWorkloads.All"/>.
+    ///     Every node of one application runs the same code against the same message store, and this setting is
+    ///     what lets one build run as an HTTP tier (<see cref="NodeWorkloads.None"/>), a messaging tier, and the
+    ///     nodes that hold the durability agents. Read it from deployment configuration, e.g.
+    ///     <c>Wolverine__Workloads=Messaging,Projections</c>.
     /// </summary>
-    internal bool CanLead => LeadershipEligible && NodeRole == NodeRole.Serving;
+    /// <remarks>
+    ///     <para>
+    ///         The setting travels to the leader as a marker in the node's capabilities, so no node table changes,
+    ///         and a node without the marker (every 6.x node, and every node left on the default) reads as
+    ///         <see cref="NodeWorkloads.All"/>. Roll workloads out only after every node runs 7.0.
+    ///     </para>
+    ///     <para>
+    ///         Checked at startup: <see cref="NodeWorkloads.Durability"/> needs <see cref="NodeWorkloads.Messaging"/>,
+    ///         a <see cref="DurabilityMode.Solo"/> node must run everything, and a <see cref="Wolverine.NodeRole.Warmup"/>
+    ///         node needs <see cref="NodeWorkloads.Projections"/>. <see cref="DurabilityMode.MediatorOnly"/> and the
+    ///         serverless modes ignore it.
+    ///     </para>
+    /// </remarks>
+    public NodeWorkloads Workloads { get; set; } = NodeWorkloads.All;
+
+    /// <summary>
+    ///     GH-5601. Run this node as an HTTP / publish-only node: it serves requests, invokes handlers inline, runs
+    ///     its local queues and publishes through the outbox, but starts no application listeners, holds no agents,
+    ///     does not poll for scheduled messages and never leads. Sets <see cref="Workloads"/> to
+    ///     <see cref="NodeWorkloads.None"/>.
+    /// </summary>
+    public void RunAsHttpOnlyNode() => Workloads = NodeWorkloads.None;
+
+    /// <summary>
+    ///     GH-5601. Run this node as a messaging node that never holds the durability agents: listeners, the
+    ///     listener agents, scheduled message polling, recurring schedules and projections. Sets
+    ///     <see cref="Workloads"/> to <see cref="NodeWorkloads.Messaging"/> | <see cref="NodeWorkloads.Projections"/>.
+    /// </summary>
+    public void RunAsMessagingNode() => Workloads = NodeWorkloads.Messaging | NodeWorkloads.Projections;
+
+    /// <summary>
+    ///     GH-5601. Run this node as a node that may hold the durability agents, which means everything. Sets
+    ///     <see cref="Workloads"/> to <see cref="NodeWorkloads.All"/>, the default, and is only named for symmetry
+    ///     with <see cref="RunAsHttpOnlyNode"/> and <see cref="RunAsMessagingNode"/>.
+    /// </summary>
+    public void RunAsDurabilityNode() => Workloads = NodeWorkloads.All;
+
+    /// <summary>
+    ///     GH-5601. Whether this node runs every workload in <paramref name="workloads"/>.
+    /// </summary>
+    internal bool Runs(NodeWorkloads workloads) => (Workloads & workloads) == workloads;
+
+    /// <summary>
+    ///     Whether this node may contend for leadership: <see cref="LeadershipEligible"/>, never on a
+    ///     <see cref="Wolverine.NodeRole.Warmup"/> node, and never on a node without
+    ///     <see cref="NodeWorkloads.Messaging"/> (GH-5601).
+    /// </summary>
+    internal bool CanLead => LeadershipEligible && NodeRole == NodeRole.Serving && Runs(NodeWorkloads.Messaging);
+
+    /// <summary>
+    ///     GH-5601. Refuse a <see cref="Workloads"/> setting this node could not honor. Called at startup, before the
+    ///     message store initializes.
+    /// </summary>
+    internal void AssertWorkloadsAreValid()
+    {
+        // These modes have no cluster to take part in, so there is nothing for the setting to decide
+        if (Mode is DurabilityMode.MediatorOnly or DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox)
+        {
+            return;
+        }
+
+        if (Runs(NodeWorkloads.Durability) && !Runs(NodeWorkloads.Messaging))
+        {
+            throw new InvalidOperationException(
+                $"Durability.Workloads is '{Workloads}', which has {nameof(NodeWorkloads.Durability)} without " +
+                $"{nameof(NodeWorkloads.Messaging)}. A node holding the durability agents recovers inbox envelopes " +
+                "by running them through its own listeners, so it has to run Messaging too. Use " +
+                $"'{NodeWorkloads.Messaging | NodeWorkloads.Durability}' or add {nameof(NodeWorkloads.Messaging)}.");
+        }
+
+        if (Mode == DurabilityMode.Solo && Workloads != NodeWorkloads.All)
+        {
+            throw new InvalidOperationException(
+                $"Durability.Workloads is '{Workloads}', but this node runs in {nameof(DurabilityMode.Solo)} mode, " +
+                "where the one node has to do everything. Leave Workloads at All in Solo mode, or use " +
+                $"{nameof(DurabilityMode.Balanced)} mode for a cluster of nodes with different workloads.");
+        }
+
+        if (NodeRole == NodeRole.Warmup && !Runs(NodeWorkloads.Projections))
+        {
+            throw new InvalidOperationException(
+                $"Durability.Workloads is '{Workloads}' on a {nameof(Wolverine.NodeRole.Warmup)} node. A warm-up node " +
+                $"only warms up projections, so without {nameof(NodeWorkloads.Projections)} it could do nothing. " +
+                $"Add {nameof(NodeWorkloads.Projections)}, or leave Workloads at All.");
+        }
+    }
 
     /// <summary>
     ///     GH-3604 / D3: the maximum number of agent assignments the leader packs into a single
@@ -1370,6 +1458,8 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(Mode), Mode);
         desc.AddValue(nameof(MessageIdentity), MessageIdentity);
         desc.AddValue(nameof(DurabilityAgentEnabled), DurabilityAgentEnabled);
+        desc.AddValue(nameof(Workloads), Workloads);
+        desc.AddValue(nameof(NodeRole), NodeRole);
         desc.AddValue(nameof(RecoveryBatchSize), RecoveryBatchSize);
         desc.AddValue(nameof(OrphanedMessageSweepPollingTime), OrphanedMessageSweepPollingTime);
         desc.AddValue(nameof(OrphanedMessageReleaseBatchSize), OrphanedMessageReleaseBatchSize);

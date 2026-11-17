@@ -223,6 +223,10 @@ public partial class NodeAgentController
         // Do it no matter what
         await ejectStaleNodes(staleNodes);
 
+        // GH-5601: only a Messaging node can lead, so with none alive there is no leader to notice that nothing
+        // consumes the queues. Every node says it instead.
+        WarnIfNoNodeRunsMessaging(nodes);
+
         // GH-3987: node-side assigned-vs-running reconciliation, follower-capable by design — the
         // divergences it heals live on the node that has them, and the leader structurally cannot see
         // them (a row with no runner looks assigned; a runner with no row is invisible to the grid).
@@ -257,7 +261,9 @@ public partial class NodeAgentController
             {
                 await stepDownAsync(_runtime.Options.Durability.NodeRole == NodeRole.Warmup
                     ? "this node is a warm-up node (Durability.NodeRole is Warmup)"
-                    : "this node is not eligible for leadership (Durability.LeadershipEligible is false)");
+                    : !_runtime.Options.Durability.Runs(NodeWorkloads.Messaging)
+                        ? "this node does not run the Messaging workload (Durability.Workloads)"
+                        : "this node is not eligible for leadership (Durability.LeadershipEligible is false)");
             }
 
             return AgentCommands.Empty;

@@ -29,6 +29,12 @@ public partial class AssignmentGrid
             throw new InvalidOperationException("There are no active nodes");
         }
 
+        // GH-5601: only the nodes running this scheme's workload take part
+        withinWorkload(scheme, filter, () => distributeEvenly(scheme, filter));
+    }
+
+    private void distributeEvenly(string scheme, Func<Uri, bool> filter)
+    {
         // Need to weed out agents that aren't "paused"
         var agents = AvailableAgentsForScheme(scheme, filter);
         if (agents.Count == 0)
@@ -50,7 +56,7 @@ public partial class AssignmentGrid
         // custom families that come through here are all messaging -- and gives back any it carries. The
         // detach comes after the early return, for the same reason as the shed pass: with no serving node to
         // move to, detaching would only stop the agent.
-        var receiving = _nodes.Where(x => x.IsAcceptingAgents && !x.IsWarmup).ToList();
+        var receiving = pool.Where(x => x.IsAcceptingAgents && !x.IsWarmup).ToList();
         if (receiving.Count == 0)
         {
             // No node has real headroom: leave the unassigned remainder waiting. The next evaluation
@@ -67,7 +73,10 @@ public partial class AssignmentGrid
             // GH-5163: say why, so a monitor can tell "waiting on capacity" from "never started". With no
             // serving node at all -- only warm-up nodes, which never take this work whatever their load -- that
             // is not a capacity problem, and more headroom would not place anything.
-            var reason = _nodes.Any(x => !x.IsWarmup) ? UnplacedReason.AwaitingCapacity : UnplacedReason.NoCapableNode;
+            //
+            // GH-5601: the pool here is already the nodes running this scheme's workload, so "no node runs the
+            // workload" never reaches this line; it is NoNodeForWorkload, stamped before the pass.
+            var reason = pool.Any(x => !x.IsWarmup) ? UnplacedReason.AwaitingCapacity : UnplacedReason.NoCapableNode;
             foreach (var agent in agents)
             {
                 if (agent.AssignedNode == null) agent.UnplacedReason = reason;
@@ -76,7 +85,7 @@ public partial class AssignmentGrid
             return;
         }
 
-        foreach (var node in _nodes.Where(x => x.IsWarmup))
+        foreach (var node in pool.Where(x => x.IsWarmup))
         {
             foreach (var agent in node.Agents.Where(x => agentSet.Contains(x) && !x.IsPinned).ToArray())
             {
@@ -90,7 +99,7 @@ public partial class AssignmentGrid
         // above has already established exists. An operator's pin outranks the shed: detaching a
         // pinned agent just makes ApplyRestrictions pin it right back next evaluation, a permanent
         // shed/pin fight.
-        foreach (var node in _nodes.Where(x => x.IsOverloaded))
+        foreach (var node in pool.Where(x => x.IsOverloaded))
         {
             foreach (var agent in node.Agents
                          .Where(x => agentSet.Contains(x) && !x.IsPinned)
@@ -100,7 +109,7 @@ public partial class AssignmentGrid
             }
         }
 
-        if (receiving.Count == 1 && _nodes.Count == 1)
+        if (receiving.Count == 1 && pool.Count == 1)
         {
             var node = receiving.Single();
             foreach (var agent in agents)
@@ -239,6 +248,12 @@ public partial class AssignmentGrid
             throw new InvalidOperationException("There are no active nodes");
         }
 
+        // GH-5601: only the nodes running this scheme's workload take part, in both pools
+        withinWorkload(scheme, filter, () => distributeByGroupAffinity(scheme, groupKey, filter));
+    }
+
+    private void distributeByGroupAffinity(string scheme, Func<Uri, string> groupKey, Func<Uri, bool> filter)
+    {
         // Mirror DistributeEvenlyWithBlueGreenSemantics: identical capabilities everywhere means placement
         // is capability-blind; otherwise match each agent to the nodes that declare it as a capability.
         var sameCapabilities = AllNodesHaveSameCapabilities(scheme, filter);
@@ -254,7 +269,7 @@ public partial class AssignmentGrid
 
         if (!HasWarmupNodes)
         {
-            groupAffinityPass(agents, _nodes, sameCapabilities, groupKey);
+            groupAffinityPass(agents, pool, sameCapabilities, groupKey);
             return;
         }
 
@@ -269,8 +284,8 @@ public partial class AssignmentGrid
             .ToList();
         var servingAgents = agents.Except(warmupAgents).ToList();
 
-        groupAffinityPass(servingAgents, _nodes.Where(x => !x.IsWarmup), sameCapabilities, groupKey);
-        groupAffinityPass(warmupAgents, _nodes.Where(x => x.IsWarmup), sameCapabilities, groupKey);
+        groupAffinityPass(servingAgents, pool.Where(x => !x.IsWarmup), sameCapabilities, groupKey);
+        groupAffinityPass(warmupAgents, pool.Where(x => x.IsWarmup), sameCapabilities, groupKey);
     }
 
     private void groupAffinityPass(IReadOnlyList<Agent> agents, IEnumerable<Node> pool, bool sameCapabilities,
@@ -652,6 +667,14 @@ public partial class AssignmentGrid
             throw new InvalidOperationException("There are no active nodes");
         }
 
+        // GH-5601: only the nodes running this scheme's workload take part. A preferred node outside it is then
+        // incapable, and dropped below like any other.
+        withinWorkload(scheme, _ => true, () => distributeEvenlyWithAffinity(scheme, preferredNodeFor, nodeIsCapable));
+    }
+
+    private void distributeEvenlyWithAffinity(string scheme, Func<Uri, Node?> preferredNodeFor,
+        Func<Node, bool> nodeIsCapable)
+    {
         var agents = AvailableAgentsForScheme(scheme);
         if (agents.Count == 0)
         {
@@ -660,7 +683,7 @@ public partial class AssignmentGrid
 
         // GH-4569: a warm-up node is never capable, whatever the predicate says -- it does not publish the
         // durability marker, so the predicates in use already agree, but a custom one might not.
-        var capableNodes = _nodes.Where(x => !x.IsWarmup && nodeIsCapable(x)).ToList();
+        var capableNodes = pool.Where(x => !x.IsWarmup && nodeIsCapable(x)).ToList();
 
         // Detach anything parked on a node that cannot run it, so the passes below can move it. This also
         // covers the "nobody is capable" case: everything ends up detached rather than latched onto a node
@@ -805,13 +828,13 @@ public partial class AssignmentGrid
         // every new tenant's agents on the newer nodes only.
         if (scheme.EqualsIgnoreCase(EventSubscriptionAgentFamily.SchemeName))
         {
-            var goldKeys = capabilityKeysFor(_nodes[0], scheme, filter);
-            return _nodes.Skip(1).All(node => goldKeys.SequenceEqual(capabilityKeysFor(node, scheme, filter)));
+            var goldKeys = capabilityKeysFor(pool[0], scheme, filter);
+            return pool.Skip(1).All(node => goldKeys.SequenceEqual(capabilityKeysFor(node, scheme, filter)));
         }
 
-        var gold = _nodes[0].OrderedCapabilitiesForScheme(scheme).Where(filter);
+        var gold = pool[0].OrderedCapabilitiesForScheme(scheme).Where(filter);
 
-        foreach (var node in _nodes.Skip(1))
+        foreach (var node in pool.Skip(1))
         {
             var matching = node.OrderedCapabilitiesForScheme(scheme).Where(filter);
 
@@ -854,11 +877,19 @@ public partial class AssignmentGrid
     /// <exception cref="InvalidOperationException"></exception>
     public void DistributeEvenlyWithBlueGreenSemantics(string scheme, Func<Uri, bool> filter)
     {
-        var nodes = _nodes;
-        if (nodes.Count == 0)
+        if (_nodes.Count == 0)
         {
             throw new InvalidOperationException("There are no active nodes");
         }
+
+        // GH-5601: only the nodes running this scheme's workload take part, which also makes a node outside it
+        // invisible to the "same capabilities everywhere" question
+        withinWorkload(scheme, filter, () => distributeEvenlyWithBlueGreenSemantics(scheme, filter));
+    }
+
+    private void distributeEvenlyWithBlueGreenSemantics(string scheme, Func<Uri, bool> filter)
+    {
+        var nodes = pool;
 
         if (AllNodesHaveSameCapabilities(scheme, filter))
         {

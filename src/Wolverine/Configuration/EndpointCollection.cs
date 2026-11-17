@@ -448,6 +448,13 @@ public class EndpointCollection : IEndpointCollection
             var controlEndpoints = WarmupControlEndpoints(_options);
             listeningEndpoints = listeningEndpoints.Where(controlEndpoints.Contains);
         }
+        // GH-5601: a node without the Messaging workload consumes no application queues. It still takes agent
+        // commands, and it still gets the replies to requests its HTTP endpoints make, from any transport.
+        else if (_options.Durability.Mode == DurabilityMode.Balanced && !_options.Durability.Runs(NodeWorkloads.Messaging))
+        {
+            var controlEndpoints = ControlAndReplyEndpoints(_options);
+            listeningEndpoints = listeningEndpoints.Where(controlEndpoints.Contains);
+        }
 
         foreach (var endpoint in listeningEndpoints)
         {
@@ -474,6 +481,32 @@ public class EndpointCollection : IEndpointCollection
         if (reply != null && !endpoints.Contains(reply))
         {
             endpoints.Add(reply);
+        }
+
+        return endpoints;
+    }
+
+    /// <summary>
+    ///     GH-5601: the only endpoints a node without the <see cref="NodeWorkloads.Messaging" /> workload listens to --
+    ///     what a warm-up node listens to (the control endpoint and its transport's reply endpoint), plus every other
+    ///     transport's dedicated reply endpoint, so request/reply from an HTTP endpoint works over any broker.
+    /// </summary>
+    /// <remarks>
+    ///     "Dedicated" is the point: a transport with no response queue of its own falls back to one of its
+    ///     application listeners as its reply endpoint, and listening to that would consume application messages.
+    ///     Only a system endpoint marked as used for replies counts -- the response queues the brokers create.
+    /// </remarks>
+    internal static IReadOnlyList<Endpoint> ControlAndReplyEndpoints(WolverineOptions options)
+    {
+        var endpoints = WarmupControlEndpoints(options).ToList();
+
+        foreach (var transport in options.Transports)
+        {
+            if (transport.ReplyEndpoint() is { IsUsedForReplies: true, Role: EndpointRole.System } reply &&
+                !endpoints.Contains(reply))
+            {
+                endpoints.Add(reply);
+            }
         }
 
         return endpoints;

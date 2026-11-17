@@ -134,6 +134,14 @@ public partial class WolverineRuntime
             // extensions because those may register more named connections.
             ApplyNamedConnectionStrings();
 
+            // GH-5601. A workload combination this node cannot honor, refused before the store initializes or any
+            // transport connects. After the async extensions, which may set the durability mode.
+            // A lightweight run (codegen, describe, OpenAPI) only reads metadata and joins no cluster.
+            if (!Options.LightweightMode)
+            {
+                Options.Durability.AssertWorkloadsAreValid();
+            }
+
             // Run after async extensions (which may mutate the options) and
             // before any listener is started so an early-arriving message
             // can't race the publish.

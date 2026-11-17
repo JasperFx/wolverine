@@ -8,6 +8,11 @@ public partial class MultiTenantedMessageStore : IAgentFamily
 {
     public string Scheme => PersistenceConstants.AgentScheme;
 
+    /// <summary>
+    ///     GH-5601: durability agents only go to nodes running the Durability workload
+    /// </summary>
+    public NodeWorkloads RequiredWorkload => NodeWorkloads.Durability;
+
     public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
         await Source.RefreshAsync();
