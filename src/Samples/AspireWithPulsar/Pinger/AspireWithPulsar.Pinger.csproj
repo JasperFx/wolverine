@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- The root Directory.Build.props sets TargetFrameworks to net10.0;net11.0. Beside this project's
+         TargetFramework, that list makes `dotnet run` (which is how an AppHost starts a project) refuse it with
+         "Your project targets multiple frameworks". Narrowing the list to net10.0, rather than clearing it, keeps
+         ProjectReferences passing TargetFramework=net10.0, so `dotnet build wolverine.slnx -f net10.0` builds one
+         instance of the project instead of two at once. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../Transports/Pulsar/Wolverine.Pulsar/Wolverine.Pulsar.csproj" />
+    <!-- Compiles Wolverine's generated handler code at runtime (TypeLoadMode.Dynamic) -->
+    <ProjectReference Include="../../../Wolverine.RuntimeCompilation/Wolverine.RuntimeCompilation.csproj" />
+    <ProjectReference Include="../../AspireServiceDefaults/AspireServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

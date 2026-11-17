@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <Description>.NET Aspire hosting integration for LocalStack (SQS and SNS), for Wolverine's Amazon SQS and SNS transports</Description>
+        <PackageId>WolverineFx.Aspire.Hosting.LocalStack</PackageId>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- AppHost side only: no reference to Wolverine or the AWS SDK. The AppHost starts LocalStack and hands
+             its endpoint to projects; the service project's WolverineFx.AmazonSqs / WolverineFx.AmazonSns read it
+             with UseAmazonSqsTransportUsingNamedConnection(name) / UseAmazonSnsTransportUsingNamedConnection(name). -->
+        <PackageReference Include="Aspire.Hosting" />
+    </ItemGroup>
+</Project>

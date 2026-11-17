@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- GH-5603/5604/5605: Wolverine's Aspire hosting integrations. Each sample AppHost is started through
+         Aspire.Hosting.Testing, so its broker or emulator runs in a container of its own on random host ports
+         (never the shared docker-compose services), and its Wolverine service sends and receives through it. -->
+    <PropertyGroup>
+        <!-- net10.0 alone, like the sample AppHosts it starts (Aspire.AppHost.Sdk). TargetFrameworks (plural) on
+             purpose: with a single <TargetFramework>, Microsoft.Testing.Platform.MSBuild ignores the
+             GenerateTestingPlatformEntryPoint=false that xunit.v3 sets and the build fails with CS0017. -->
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Aspire.Hosting.Testing" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="xunit.v3" />
+        <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
+        <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="All" />
+        <PackageReference Include="Shouldly" />
+    </ItemGroup>
+
+    <!-- SetTargetFramework on the AppHost references: an AppHost is single-targeted, so without it the reference builds
+         a second instance of the AppHost (no TargetFramework global property) racing the solution's
+         TargetFramework=net10.0 build of it. -->
+    <ItemGroup>
+        <ProjectReference Include="..\..\Samples\AspireWithLocalStack\AppHost\AspireWithLocalStack.AppHost.csproj" SetTargetFramework="TargetFramework=net10.0" />
+        <ProjectReference Include="..\..\Transports\AWS\Wolverine.Aspire.Hosting.LocalStack\Wolverine.Aspire.Hosting.LocalStack.csproj" />
+        <ProjectReference Include="..\..\Samples\AspireWithPubsub\AppHost\AspireWithPubsub.AppHost.csproj" SetTargetFramework="TargetFramework=net10.0" />
+        <ProjectReference Include="..\..\Transports\GCP\Wolverine.Aspire.Hosting.Pubsub\Wolverine.Aspire.Hosting.Pubsub.csproj" />
+        <ProjectReference Include="..\..\Samples\AspireWithPulsar\AppHost\AspireWithPulsar.AppHost.csproj" SetTargetFramework="TargetFramework=net10.0" />
+        <ProjectReference Include="..\..\Transports\Pulsar\Wolverine.Aspire.Hosting.Pulsar\Wolverine.Aspire.Hosting.Pulsar.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+</Project>

@@ -512,6 +512,14 @@
       "tracks": []
     },
     {
+      "name": "Wolverine.Aspire.Hosting.Tests",
+      "path": "src/Testing/Wolverine.Aspire.Hosting.Tests/Wolverine.Aspire.Hosting.Tests.csproj",
+      "ciTargets": "CIAspireHosting",
+      "workers": 1,
+      "services": [],
+      "tracks": []
+    },
+    {
       "name": "Wolverine.Http.Tests",
       "path": "src/Http/Wolverine.Http.Tests/Wolverine.Http.Tests.csproj",
       "ciTargets": "CIHttp",

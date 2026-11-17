@@ -24,6 +24,10 @@
          the same version as the Aspire.AppHost.Sdk those AppHost projects declare. -->
     <PackageVersion Include="Aspire.Hosting.Kafka" Version="13.6.5" />
     <PackageVersion Include="Aspire.Hosting.RabbitMQ" Version="13.6.5" />
+    <!-- Wolverine's own Aspire hosting integrations (WolverineFx.Aspire.Hosting.*, GH-5603/5604/5605) and their
+         tests. Same Aspire release as the samples above. -->
+    <PackageVersion Include="Aspire.Hosting" Version="13.6.5" />
+    <PackageVersion Include="Aspire.Hosting.Testing" Version="13.6.5" />
     <PackageVersion Include="Asp.Versioning.Abstractions" Version="[10.0.0,12.0.0)" />
     <PackageVersion Include="Asp.Versioning.Http" Version="[10.0.0,12.0.0)" />
     <PackageVersion Include="Asp.Versioning.Mvc.ApiExplorer" Version="[10.0.0,12.0.0)" />

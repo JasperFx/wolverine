@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <Description>.NET Aspire hosting integration for the Google Cloud Pub/Sub emulator, for Wolverine's GCP Pub/Sub transport</Description>
+        <PackageId>WolverineFx.Aspire.Hosting.Pubsub</PackageId>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- AppHost side only: no reference to Wolverine or the Google client libraries. The AppHost starts the
+             emulator and hands its endpoint to projects; the service project's WolverineFx.Pubsub reads it with
+             UsePubsubUsingNamedConnection(projectId, name). -->
+        <PackageReference Include="Aspire.Hosting" />
+    </ItemGroup>
+</Project>

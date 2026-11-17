@@ -1,0 +1,33 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+
+  <!-- Keep the SDK version above and the Aspire.Hosting.* versions in the root
+       Directory.Packages.props on the same Aspire release. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- The root Directory.Build.props sets TargetFrameworks to net10.0;net11.0. Beside this project's
+         TargetFramework, that list makes `dotnet run` (which is how an AppHost starts a project) refuse it with
+         "Your project targets multiple frameworks". Narrowing the list to net10.0, rather than clearing it, keeps
+         ProjectReferences passing TargetFramework=net10.0, so `dotnet build wolverine.slnx -f net10.0` builds one
+         instance of the project instead of two at once. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- ASPIRE010: this sample runs with `dotnet run` on the dashboard and orchestrator packages the
+         SDK references for us, not the Aspire CLI bundle -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WolverineFx.Aspire.Hosting.Pubsub as a NuGet package in your own AppHost. It is a library, not a
+         service, so it is not an Aspire project resource. -->
+    <ProjectReference Include="../../../Transports/GCP/Wolverine.Aspire.Hosting.Pubsub/Wolverine.Aspire.Hosting.Pubsub.csproj"
+                      IsAspireProjectResource="false" />
+    <!-- The AppHost SDK skips target framework negotiation for a project resource, so without SetTargetFramework
+         this reference builds the Pinger with no TargetFramework global property: a second instance of the project,
+         racing the solution's TargetFramework=net10.0 build of it on the same obj/ and bin/ files. -->
+    <ProjectReference Include="../Pinger/AspireWithPubsub.Pinger.csproj" SetTargetFramework="TargetFramework=net10.0" />
+  </ItemGroup>
+
+</Project>
