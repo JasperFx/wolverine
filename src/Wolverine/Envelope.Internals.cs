@@ -72,6 +72,14 @@ public partial class Envelope
     public bool WasPersistedInInbox { get; set; }
 
     /// <summary>
+    /// GH-5586. Set when this envelope's inbox row was written for any node because its durable local queue was full
+    /// (or latched) when the envelope joined a transaction. The flush after the commit leaves it in the inbox for
+    /// recovery instead of waiting for room in the queue.
+    /// </summary>
+    [JsonIgnore]
+    internal bool LeftInInboxForRecovery { get; set; }
+
+    /// <summary>
     /// GH-4135. Guards against reporting IMessageTracker.Received more than once for a single
     /// receipt. Partitioned processing deserializes an envelope up front -- through
     /// HandlerPipeline.TryDeserializeEnvelope, so it can read the group id off the message -- and the
@@ -685,6 +693,7 @@ public partial class Envelope
 
         // Public / internal settable properties — runtime-only (Envelope.Internals.cs)
         WasPersistedInInbox = false;
+        LeftInInboxForRecovery = false;
         WasTrackedAsReceived = false;
         Serializer = null;
         ResponseType = null;

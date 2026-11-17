@@ -42,6 +42,7 @@ list.
 | `Saga.LastModified` | not there | new `DateTimeOffset` property on the base `Saga`, set to UTC now by every saga store on insert and update *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga LastModified](#saga-lastmodified-is-set-by-every-saga-store) |
 | Code generation in the `Production` profile (Wolverine hosts) | `TypeLoadMode.Dynamic`: compiled at runtime | `TypeLoadMode.Static` with `AssertAllPreGeneratedTypesExist`: pre-generated code is required *(BREAKING for applications that deploy without `codegen write`)* | Run `dotnet run -- codegen write` in the build, or call `RestoreV6Defaults()`. See [deploying 7.0 to production](#deploying-7-0-to-production) |
 | Transport timestamp headers (`sent-at`, `time-to-send`, `deliver-by`) | written as `yyyy-MM-dd HH:mm:ss:ffffff Z` | written in round-trip ISO 8601 (`"o"`, UTC); both formats are still read | 5.x nodes running beside 7.0 nodes need WolverineFx 5.41.1 or later; 6.x already reads both. See [transport timestamp headers](#transport-timestamp-headers-are-written-in-round-trip-iso-8601) |
+| Publishing to a full durable local queue | once the queue held 10,000 messages, a publish to it, and the flush after a committed transaction, waited for room in the queue | the message waits in the inbox and the durability agent moves it into the queue as the queue drains; the publisher does not wait | None. See [a full durable local queue no longer holds the publisher](#a-full-durable-local-queue-no-longer-holds-the-publisher) |
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 
@@ -75,6 +76,17 @@ See the [Kafka transport docs](/guide/messaging/transports/kafka) for the full c
 ### Async serializers are awaited when sending
 
 Wolverine now awaits `IAsyncMessageSerializer.WriteAsync` (the schema registry serializers, encryption, claim checks) when it batches outgoing messages, rather than calling the synchronous `Write`. For a durable message the serialization runs when the message is published, before it is written to the outbox, so the outbox write does not block on an async serializer. A serializer failure, such as an unreachable schema registry, now fails the handler that published the message and goes through its error policies, rather than surfacing later when the outbox is flushed.
+
+### A full durable local queue no longer holds the publisher
+
+A durable local queue keeps up to 10,000 messages in memory. In 6.x, once its handlers fell that far behind, publishing another message to it waited for room. That included the flush after a transaction committed, so an HTTP request could stay open after its changes were already saved, and a client could time out and retry work that had succeeded.
+
+In 7.0 the publisher never waits on the queue. When the queue is full, the message is written to the inbox owned by any node instead of this one, and it stays there until the durability agent recovers it into the queue, which happens once the queue drains below its `BufferingLimits`. The queue stops taking new messages directly at 10,000 and starts again once it has drained to its `BufferingLimits.Restart`. Nothing changes for a queue that never fills.
+
+Two things to know:
+
+- Messages that waited in the inbox can run after messages published later. If you rely on the order of a sequential local queue under that kind of load, look at partitioned or global partitioned messaging instead.
+- Recovery runs on the durability agent's schedule, `DurabilitySettings.ScheduledJobPollingTime`, so a message that waited in the inbox starts up to that long after the queue has room.
 
 ### Disposal and receive loop changes for transport authors (BREAKING)
 
