@@ -67,7 +67,7 @@ public class Bug_2580_tenant_partitioning_with_inferred_grouping
             await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         await Task.WhenAll(aggregateIds.Select(id =>
             bus.PublishAsync(new TenantPartitioningProbe(id), new DeliveryOptions { TenantId = tenantId }).AsTask()));
 

@@ -40,7 +40,23 @@ list.
 | Wolverine metric instrument names | dashed (`wolverine-messages-sent`) | dotted (`wolverine.messages.sent`) *(BREAKING for dashboards and alerts)* | Rename the series in dashboards, alerts and recording rules; see [the full table](#opentelemetry-meter-and-metric-names-breaking) |
 | `WolverineOptions.ServiceName` default | the entry assembly name | `OTEL_SERVICE_NAME` when set, then the entry assembly name | None, unless a service relied on the assembly name while `OTEL_SERVICE_NAME` was set to something else: set `opts.ServiceName` explicitly |
 | `Saga.LastModified` | not there | new `DateTimeOffset` property on the base `Saga`, set to UTC now by every saga store on insert and update *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga LastModified](#saga-lastmodified-is-set-by-every-saga-store) |
+| Roslyn analyzers | none | **`WolverineFx.Analyzers`**, a dependency of `WolverineFx`: rules `WOLV0001`-`WOLV0004`, all warnings, on by default | Fix what they report, or lower a rule's severity in `.editorconfig` (`dotnet_diagnostic.WOLV0004.severity = none`). Builds that treat warnings as errors fail on them; see [Wolverine's analyzers](#wolverine-s-analyzers-are-on-by-default) |
 | Code generation in the `Production` profile (Wolverine hosts) | `TypeLoadMode.Dynamic`: compiled at runtime | `TypeLoadMode.Static` with `AssertAllPreGeneratedTypesExist`: pre-generated code is required *(BREAKING for applications that deploy without `codegen write`)* | Run `dotnet run -- codegen write` in the build, or call `RestoreV6Defaults()`. See [deploying 7.0 to production](#deploying-7-0-to-production) |
+
+### Wolverine's analyzers are on by default
+
+`WolverineFx` now depends on `WolverineFx.Analyzers`, a set of Roslyn analyzers for Wolverine's handler, saga and
+testing conventions. They report warnings, so a project that treats warnings as errors fails to build on whatever
+they find. Every rule is meant to report real mistakes only, but you can lower or turn off any of them in
+`.editorconfig`:
+
+```ini
+[*.cs]
+dotnet_diagnostic.WOLV0001.severity = suggestion
+dotnet_diagnostic.WOLV0004.severity = none
+```
+
+See [Analyzers](/guide/analyzers/) for the rules.
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 

@@ -31,7 +31,7 @@ public class result_types_end_to_end
     public async Task invokeasync_T_against_result_returning_handler_unwraps_success()
     {
         using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         var placed = await bus.InvokeAsync<OrderPlaced>(new CreateOrder("o-1", 5), TestContext.Current.CancellationToken);
 
@@ -48,7 +48,7 @@ public class result_types_end_to_end
     public async Task invokeasync_T_against_result_failure_throws_resultfailureexception()
     {
         using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         var ex = await Should.ThrowAsync<ResultFailureException>(async () =>
             await bus.InvokeAsync<OrderPlaced>(new CreateOrder("o-2", 0)));
@@ -65,7 +65,7 @@ public class result_types_end_to_end
     public async Task invokeasync_of_raw_result_T_returns_the_wrapper_on_both_branches()
     {
         using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         var success = await bus.InvokeAsync<Result<OrderPlaced>>(new CreateOrder("o-3", 5), TestContext.Current.CancellationToken);
         success.IsSuccess.ShouldBeTrue();
@@ -131,7 +131,7 @@ public class result_types_end_to_end
     public async Task async_handler_returning_task_of_result_unwraps_normally()
     {
         using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         var placed = await bus.InvokeAsync<OrderPlaced>(new CreateOrderAsync("o-7", 5), TestContext.Current.CancellationToken);
         placed.OrderId.ShouldBe("o-7");
@@ -142,7 +142,7 @@ public class result_types_end_to_end
     public async Task plain_non_result_handlers_are_unaffected_when_result_types_registered()
     {
         using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         // PlainCommand returns PlainResponse directly — no Result wrapper. The seam-3 policy
         // should leave its return-action source on the default CascadingMessageActionSource, and

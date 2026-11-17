@@ -120,7 +120,7 @@ public class Bug_concurrency_with_global_partitioning
             var random = new Random();
             // Round-robin across the 3 hosts so different nodes publish for the same aggregate
             var host = hosts[index % hosts.Length];
-            var bus = host.Services.GetRequiredService<IMessageBus>();
+            var bus = host.MessageBus();
 
             while (!cts.Token.IsCancellationRequested)
             {
