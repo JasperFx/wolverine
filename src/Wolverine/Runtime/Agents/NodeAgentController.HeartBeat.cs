@@ -211,7 +211,7 @@ public partial class NodeAgentController
         var selfRowIsPersisted = nodes.Any(x => x.NodeId == selfNodeId);
         if (!selfRowIsPersisted)
         {
-            nodes = nodes.Concat(new[] { WolverineNode.For(_runtime.Options) }).ToList();
+            nodes = nodes.Concat(new[] { syntheticSelf() }).ToList();
         }
 
         // The node list is final for this tick, so record the membership now -- on every node, whatever its

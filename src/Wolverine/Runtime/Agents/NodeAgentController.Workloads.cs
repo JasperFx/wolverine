@@ -148,4 +148,20 @@ public partial class NodeAgentController
         _logger.LogWarning(
             "No live node in this Wolverine cluster runs the Messaging workload (Durability.Workloads), so nothing consumes this application's queues or runs its scheduled messages, and there is no leader to assign agents. Start at least one node with Messaging");
     }
+
+    /// <summary>
+    ///     This node as a row with no persisted state behind it, for the defensive paths that inject self into a node
+    ///     list that lacks it (GH-2682). GH-5601: it carries this node's workloads marker, so a synthetic row never
+    ///     reads as <see cref="NodeWorkloads.All" /> on a node that runs less.
+    /// </summary>
+    private WolverineNode syntheticSelf()
+    {
+        var self = WolverineNode.For(_runtime.Options);
+        if (WorkloadsMarkerFor(_runtime.Options.Durability.Workloads) is { } marker)
+        {
+            self.Capabilities.Add(marker);
+        }
+
+        return self;
+    }
 }

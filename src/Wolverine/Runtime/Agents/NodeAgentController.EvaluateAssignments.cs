@@ -225,7 +225,7 @@ public partial class NodeAgentController
         if (!nodes.Any())
         {
             // At least use the current node
-            nodes = new List<WolverineNode> { WolverineNode.For(_runtime.Options) };
+            nodes = new List<WolverineNode> { syntheticSelf() };
             nodes[0].AssignAgents([LeaderUri]);
         }
         else if (nodes.All(x => x.NodeId != _runtime.Options.UniqueNodeId))
@@ -236,7 +236,7 @@ public partial class NodeAgentController
             // doesn't omit the leader. The current node only owes the LeaderUri
             // here when IsLeader is true on this tick — the heartbeat path
             // upstream is responsible for actually calling AddAssignmentAsync.
-            var self = WolverineNode.For(_runtime.Options);
+            var self = syntheticSelf();
             if (IsLeader) self.AssignAgents([LeaderUri]);
             nodes = nodes.Concat(new[] { self }).ToList();
         }
