@@ -89,28 +89,26 @@ public enum InvokeTracingMode
 public enum EnvelopeIdGeneration
 {
     /// <summary>
-    /// Default. Uses MassTransit's NewId algorithm (<c>NewId.NextSequentialGuid()</c>), which builds
-    /// GUIDs from machine identity (MAC/DNS), the process id and a timestamp, laid out so they sort in time
-    /// order the way .NET and PostgreSQL compare GUIDs. Wolverine adds the process id to NewId's own layout
-    /// so that several processes on one machine cannot draw the same ids. SQL Server compares a <c>uniqueidentifier</c> starting from its
-    /// last six bytes, so these ids arrive in effectively random order there and fragment SQL Server's
-    /// clustered envelope tables; see <see cref="NewIdSqlServerOrder"/>. Can produce duplicates in cloud
-    /// environments where multiple instances share network identity (containers, Cloud Run, serverless).
+    /// Default. Time-ordered GUIDs from JasperFx's <c>SequentialGuid.NextPostgresOrder()</c>: NewId's layout of a
+    /// 100 ns timestamp, a worker id and a sequence, laid out so they sort in time order the way .NET and
+    /// PostgreSQL compare GUIDs. The worker id is 6 random bytes drawn once per process, so several processes on one
+    /// machine, or containers that share a network identity, do not draw the same ids. SQL Server compares a
+    /// <c>uniqueidentifier</c> starting from its last six bytes, so these ids arrive in effectively random order
+    /// there and fragment SQL Server's clustered envelope tables; see <see cref="NewIdSqlServerOrder"/>.
     /// </summary>
     NewId,
 
     /// <summary>
     /// Uses Guid.CreateVersion7() which produces GUIDs with a millisecond timestamp and cryptographically
-    /// strong random bits per RFC 9562. Recommended for greenfield applications and cloud environments
-    /// where instances may share network identity. Guaranteed unique without relying on machine-specific
-    /// properties. Ids created within the same millisecond are in random order, and SQL Server does not
-    /// sort them by time at all.
+    /// strong random bits per RFC 9562. Ids created within the same millisecond are in random order, and SQL
+    /// Server does not sort them by time at all, so <see cref="NewId"/> (or <see cref="NewIdSqlServerOrder"/>)
+    /// indexes better.
     /// </summary>
     GuidV7,
 
     /// <summary>
-    /// GH-4902. The same NewId algorithm and uniqueness as <see cref="NewId"/>, but laid out with the
-    /// timestamp in the last six bytes (<c>NewId.NextGuid()</c>) so the ids sort in time order the way SQL
+    /// GH-4902. The same generator and uniqueness as <see cref="NewId"/>, but laid out with the
+    /// timestamp in the last six bytes (<c>SequentialGuid.NextSqlServerOrder()</c>) so the ids sort in time order the way SQL
     /// Server compares a <c>uniqueidentifier</c>. This keeps SQL Server's clustered inbox, outbox and
     /// dead-letter tables from fragmenting. Wolverine switches to this automatically when every message store
     /// in the application is SQL Server and nothing was set explicitly. The id travels with the message and

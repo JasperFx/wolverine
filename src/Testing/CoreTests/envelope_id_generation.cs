@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Data.SqlTypes;
-using MassTransit;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
@@ -160,21 +159,40 @@ public class envelope_id_generation : IDisposable
         outOfOrder.ShouldBeGreaterThan(0);
     }
 
-    // Two processes on one machine share NewId's network identity, and each counts its own sequence from zero
-    // within a tick, so without the process id they draw the very same ids. A fixed tick puts both "processes"
-    // in the same moment.
+    // GH-5626. Both orders come from JasperFx's SequentialGuid, which writes the sequence big-endian, so every id
+    // sorts after the one drawn before it in its own database's order, however many land in one 100 ns tick (the
+    // old generator wrote the sequence little-endian, so the 257th id of a tick sorted before the 256th in
+    // PostgreSQL order). JasperFx's own tests pin the fixed-clock case; this pins that Wolverine uses it.
     [Fact]
-    public void the_default_ids_differ_between_two_processes_drawing_them_at_the_same_moment()
+    public void every_default_id_sorts_after_the_one_before_it_in_postgresql_order()
     {
-        var tick = new FixedTicks();
+        var ids = Enumerable.Range(0, 70_000).Select(_ => EnvelopeIds.NextSequentialGuid()).ToArray();
 
-        var withoutProcessIds = draw(EnvelopeIds.Create(tick, null))
-            .Intersect(draw(EnvelopeIds.Create(tick, null)));
-        withoutProcessIds.ShouldNotBeEmpty("NewId's own layout collides across processes");
+        for (var i = 1; i < ids.Length; i++)
+        {
+            ids[i].CompareTo(ids[i - 1]).ShouldBeGreaterThan(0, $"id {i} sorted before id {i - 1} in PostgreSQL order");
+        }
+    }
 
-        draw(EnvelopeIds.Create(tick, new FixedProcessId(1001)))
-            .Intersect(draw(EnvelopeIds.Create(tick, new FixedProcessId(1002))))
-            .ShouldBeEmpty();
+    [Fact]
+    public void every_sql_server_order_id_sorts_after_the_one_before_it_in_sql_server_order()
+    {
+        var ids = Enumerable.Range(0, 70_000).Select(_ => new SqlGuid(EnvelopeIds.NextGuid())).ToArray();
+
+        for (var i = 1; i < ids.Length; i++)
+        {
+            ids[i].CompareTo(ids[i - 1]).ShouldBeGreaterThan(0, $"id {i} sorted before id {i - 1} in SQL Server order");
+        }
+    }
+
+    [Fact]
+    public void the_two_orders_are_unique_against_each_other()
+    {
+        var ids = Enumerable.Range(0, 10_000)
+            .SelectMany(_ => new[] { EnvelopeIds.NextSequentialGuid(), EnvelopeIds.NextGuid() })
+            .ToArray();
+
+        ids.Distinct().Count().ShouldBe(ids.Length);
     }
 
     [Fact]
@@ -189,34 +207,6 @@ public class envelope_id_generation : IDisposable
         await Task.WhenAll(tasks);
 
         ids.Distinct().Count().ShouldBe(10_000);
-    }
-
-    // NewId keeps a 16-bit sequence per tick and borrows the next tick when it runs out. The lock-free generator
-    // packs the tick and the sequence into one counter, so the borrow is a carry: the ids must stay unique straight
-    // through it, and the ids drawn on the borrowed tick sort after the first tick's. (Within one tick NewId's
-    // layout stores the sequence byte-swapped, so ids of the same tick don't sort by sequence; that was always so.)
-    [Fact]
-    public void ids_stay_unique_through_a_full_sequence_in_one_tick()
-    {
-        var generator = EnvelopeIds.Create(new FixedTicks(), new FixedProcessId(1001));
-
-        var ids = Enumerable.Range(0, 70_000).Select(_ => generator.NextSequentialGuid()).ToArray();
-
-        ids.Distinct().Count().ShouldBe(ids.Length);
-        ids[69_999].CompareTo(ids[0]).ShouldBeGreaterThan(0);
-    }
-
-    private static Guid[] draw(INewIdGenerator generator) =>
-        Enumerable.Range(0, 1000).Select(_ => generator.NextSequentialGuid()).ToArray();
-
-    private class FixedTicks : ITickProvider
-    {
-        public long Ticks { get; } = DateTime.UtcNow.Ticks;
-    }
-
-    private class FixedProcessId(int id) : IProcessIdProvider
-    {
-        public byte[] GetProcessId() => BitConverter.GetBytes(id);
     }
 
     [Fact]
