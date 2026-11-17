@@ -6,7 +6,9 @@ namespace Wolverine.Persistence.Sagas;
 /// GH-5553. Which messages a saga asks for the <see cref="Fault{T}" /> of: every <c>T</c> it has a handler for
 /// <c>Fault&lt;T&gt;</c> of. Keyed by the message the saga is handling when it sends, so the outgoing message is
 /// stamped with <see cref="FaultHeaders.ReplyTo" /> while the saga's own message is in hand. Worked out once, when the
-/// handler graph is compiled, so the send path only reads it
+/// handler graph is compiled, then narrowed once the transports have started: a <c>T</c> whose <c>Fault&lt;T&gt;</c>
+/// the application already receives through a route or a listener of its own is left out, so it keeps getting that
+/// fault exactly as it did before. The send path only reads it
 /// </summary>
 internal sealed class SagaFaultReplies
 {
@@ -50,6 +52,34 @@ internal sealed class SagaFaultReplies
         foreach (var pair in byIncoming) map = map.AddOrUpdate(pair.Key, pair.Value.ToArray());
 
         return new SagaFaultReplies(map, byIncoming.Count > 0);
+    }
+
+    /// <summary>
+    /// Every message type some saga asks for the fault of
+    /// </summary>
+    public Type[] RequestedMessageTypes()
+        => _byIncoming.Enumerate().SelectMany(x => x.Value).Distinct().ToArray();
+
+    /// <summary>
+    /// The same requests without <paramref name="messageTypes" />: the faults of those the application already
+    /// receives through a route or listener of its own, so asking again would deliver them twice
+    /// </summary>
+    public SagaFaultReplies Without(IReadOnlySet<Type> messageTypes)
+    {
+        if (messageTypes.Count == 0) return this;
+
+        var map = ImHashMap<Type, Type[]>.Empty;
+        var any = false;
+        foreach (var entry in _byIncoming.Enumerate())
+        {
+            var remaining = entry.Value.Where(x => !messageTypes.Contains(x)).ToArray();
+            if (remaining.Length == 0) continue;
+
+            map = map.AddOrUpdate(entry.Key, remaining);
+            any = true;
+        }
+
+        return any ? new SagaFaultReplies(map, true) : None;
     }
 
     /// <summary>

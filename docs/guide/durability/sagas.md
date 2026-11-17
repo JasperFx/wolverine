@@ -641,6 +641,10 @@ lettered, the receiving service sends the `Fault<ReserveInventory>` straight bac
 the failed message. A few more things to know:
 
 - It works the same for a step in the saga's own service, like `ChargeCard` above.
+- If the saga's service already routes `Fault<T>` to itself -- a routing rule for `Fault<T>` to anything other than a
+  local queue, or a listener with `DefaultIncomingMessage<Fault<T>>()` -- the saga doesn't ask for that fault. Your
+  routing already brings it, and asking as well would deliver it twice. Wolverine works this out when the application
+  starts.
 - The receiving service has to be on Wolverine 7.0 or later. An older receiver ignores the header, and only sends the
   fault if its own routing does.
 - A `NotFound(Fault<T>)` method on its own also asks for the fault, and is called when the saga is gone by the time

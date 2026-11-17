@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests;
+using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
@@ -60,6 +61,108 @@ public class saga_faults_and_IdNotProvided_5553
         await Poll(() => sagaService.Services.GetRequiredService<InMemorySagaPersistor>()
             .Load<FaultAwareShippingSaga>(id)?.ReservationFailed == true);
     }
+
+    // Jeremy's decision on GH-5553: an application that already routes Fault<T> to itself keeps doing exactly that.
+    // The saga does not ask for the fault as well, so it never hears it twice
+    [Fact]
+    public async Task a_saga_whose_service_already_routes_the_fault_to_itself_hears_it_once()
+    {
+        var sagaPort = PortFinder.GetAvailablePort();
+        var faultPort = PortFinder.GetAvailablePort();
+        var stockPort = PortFinder.GetAvailablePort();
+
+        using var sagaService = await sagaServiceAt(sagaPort, stockPort, opts =>
+        {
+            opts.ListenAtPort(faultPort);
+            opts.PublishMessage<Fault<ReserveStock>>().ToPort(faultPort);
+        });
+        using var stockService = await stockServiceAt(stockPort, faultPort);
+
+        await thenTheSagaHearsTheFaultOnce(sagaService, stockService);
+    }
+
+    [Fact]
+    public async Task a_saga_whose_service_listens_for_the_fault_hears_it_once()
+    {
+        var sagaPort = PortFinder.GetAvailablePort();
+        var faultPort = PortFinder.GetAvailablePort();
+        var stockPort = PortFinder.GetAvailablePort();
+
+        using var sagaService = await sagaServiceAt(sagaPort, stockPort,
+            opts => ((ListenerConfiguration)opts.ListenAtPort(faultPort)).DefaultIncomingMessage<Fault<ReserveStock>>());
+        using var stockService = await stockServiceAt(stockPort, faultPort);
+
+        await thenTheSagaHearsTheFaultOnce(sagaService, stockService);
+    }
+
+    [Fact]
+    public async Task an_explicit_FaultTo_is_kept_when_the_service_already_routes_the_fault()
+    {
+        var sagaPort = PortFinder.GetAvailablePort();
+        var faultPort = PortFinder.GetAvailablePort();
+        var stockPort = PortFinder.GetAvailablePort();
+
+        using var sagaService = await sagaServiceAt(sagaPort, stockPort, opts =>
+        {
+            opts.ListenAtPort(faultPort);
+            opts.PublishMessage<Fault<ReserveStock>>().ToPort(faultPort);
+        });
+
+        var address = new Uri($"tcp://localhost:{sagaPort}");
+        var session = await sagaService.TrackActivity()
+            .DoNotAssertOnExceptionsDetected()
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(new ReserveStock("sku-1"), new DeliveryOptions().FaultTo(address));
+
+        session.Sent.Envelopes().First(x => x.Message is ReserveStock)
+            .Headers[FaultHeaders.ReplyTo].ShouldBe(address.ToString());
+    }
+
+    private static async Task thenTheSagaHearsTheFaultOnce(IHost sagaService, IHost stockService)
+    {
+        var id = Guid.NewGuid();
+
+        var session = await sagaService.TrackActivity()
+            .AlsoTrack(stockService)
+            .IncludeExternalTransports()
+            .DoNotAssertOnExceptionsDetected()
+            .Timeout(30.Seconds())
+            .WaitForMessageToBeReceivedAt<Fault<ReserveStock>>(sagaService)
+            .InvokeMessageAndWaitAsync(new StartFaultAwareShipping(id));
+
+        // The saga did not ask for the fault: the service's own route brings it
+        var sent = session.Sent.Envelopes().First(x => x.Message is ReserveStock);
+        sent.Headers.ContainsKey(FaultHeaders.ReplyTo).ShouldBeFalse();
+
+        session.Received.Envelopes().Count(x => x.Message is Fault<ReserveStock>).ShouldBe(1);
+
+        await Poll(() => sagaService.Services.GetRequiredService<InMemorySagaPersistor>()
+            .Load<FaultAwareShippingSaga>(id)?.ReservationFailed == true);
+    }
+
+    private static Task<IHost> sagaServiceAt(int sagaPort, int stockPort, Action<WolverineOptions> configure)
+        => Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = "saga-service";
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<FaultAwareShippingSaga>();
+                opts.ListenAtPort(sagaPort).UseForReplies();
+                opts.PublishMessage<ReserveStock>().ToPort(stockPort);
+                configure(opts);
+            }).StartAsync(TestContext.Current.CancellationToken);
+
+    // Fault events on, and its faults routed to the saga service's fault listener
+    private static Task<IHost> stockServiceAt(int stockPort, int faultPort)
+        => Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = "stock-service";
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<ReserveStockHandler>();
+                opts.ListenAtPort(stockPort);
+                opts.PublishFaultEvents();
+                opts.PublishMessage<Fault<ReserveStock>>().ToPort(faultPort);
+                opts.OnException<StockUnavailableException>().RetryTimes(2);
+            }).StartAsync(TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task with_fault_events_on_in_one_service_the_saga_hears_the_fault_once()

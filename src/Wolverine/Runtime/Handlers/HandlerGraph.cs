@@ -1142,6 +1142,33 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     internal SagaFaultReplies FaultReplies { get; private set; } = SagaFaultReplies.None;
 
     /// <summary>
+    /// GH-5553. Once routing is known: a saga does not ask for the fault of a <c>T</c> when this application already
+    /// subscribes to <c>Fault&lt;T&gt;</c> -- a route for it to anywhere other than a local queue, or a listener whose
+    /// default incoming message type it is. Such an application gets the fault through its own routing, as before 7.0,
+    /// and asking for it as well would deliver it twice
+    /// </summary>
+    internal void DropFaultRepliesTheApplicationAlreadySubscribesTo(WolverineRuntime runtime)
+    {
+        var requested = FaultReplies.RequestedMessageTypes();
+        if (requested.Length == 0) return;
+
+        var subscribed = requested
+            .Where(x => alreadySubscribesToFaultsOf(runtime, typeof(Fault<>).MakeGenericType(x)))
+            .ToHashSet();
+
+        FaultReplies = FaultReplies.Without(subscribed);
+    }
+
+    private static bool alreadySubscribesToFaultsOf(WolverineRuntime runtime, Type faultType)
+    {
+        if (runtime.Options.Transports.AllEndpoints().Any(x => x.IsListener && x.MessageType == faultType)) return true;
+
+        // A local queue is where the saga's own handler for Fault<T> runs anyway, so only a route elsewhere counts
+        return runtime.RoutingFor(faultType).Routes
+            .Any(x => x.Describe().Endpoint.Scheme != TransportConstants.Local);
+    }
+
+    /// <summary>
     /// GH-4060 / GH-5133. Is any requeue-shaped error handling configured, globally or on any chain?
     /// </summary>
     internal bool AnyRequeuePolicies()

@@ -942,7 +942,8 @@ message is dead lettered on the receiving side, Wolverine sends its `Fault<T>` t
 - A receiver on an older version of Wolverine ignores the header, and routes the fault (or doesn't) like it always
   has.
 
-A saga that handles `Fault<T>` asks for the fault of every `T` it sends automatically. See
+A saga that handles `Fault<T>` asks for the fault of every `T` it sends automatically, unless its service already
+routes `Fault<T>` to itself. An explicit `FaultTo()` or `ReturnFaultToSender()` always asks. See
 [Sagas](/guide/durability/sagas#hearing-about-failed-steps).
 
 ### Per-type fault configuration
