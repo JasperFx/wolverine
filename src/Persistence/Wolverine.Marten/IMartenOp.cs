@@ -355,7 +355,7 @@ public static partial class MartenOps
     /// <returns></returns>
     public static IStartStream StartStream<T>(params object[] events) where T : class
     {
-        var streamId = CombGuidIdGeneration.NewGuid();
+        var streamId = SequentialGuid.NextPostgresOrder();
         return new StartStream<T>(streamId, events);
     }
 

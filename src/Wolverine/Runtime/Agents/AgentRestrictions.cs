@@ -61,7 +61,7 @@ public class AgentRestrictions
 
         if (candidate == null)
         {
-            var restriction = new AgentRestriction(CombGuidIdGeneration.NewGuid(), agentUri,
+            var restriction = new AgentRestriction(SequentialGuid.NextPostgresOrder(), agentUri,
                 AgentRestrictionType.Pinned, nodeNumber);
             _current.Add(restriction);
         }
@@ -83,7 +83,7 @@ public class AgentRestrictions
         if (candidate == null)
         {
             var restriction =
-                new AgentRestriction(CombGuidIdGeneration.NewGuid(), agentUri, AgentRestrictionType.Paused, 0);
+                new AgentRestriction(SequentialGuid.NextPostgresOrder(), agentUri, AgentRestrictionType.Paused, 0);
             
             _current.Add(restriction);
             return;
