@@ -313,21 +313,60 @@ public class ErrorHandlingPolicy : IHandlerPolicy
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L191-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_errorhandlingpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-## Transient PostgreSQL Failures <Badge type="tip" text="7.0" />
+## Transient Database Failures <Badge type="tip" text="7.0" />
 
-With `WolverineFx.Marten`, `OnTransientPostgresFailure()` matches the failures that are about the moment and not
-about the message: a `NpgsqlException` where `IsTransient` is true (unreachable server, failover, dropped connection),
-a `MartenCommandException` wrapping one, and the `ObjectDisposedException` on `NpgsqlTransaction` a handler sees
-after its connection broke mid-transaction (nothing was committed). It is opt-in and does nothing until you give it an action:
+`OnException<NpgsqlException>()` or `OnException<SqlException>()` catches too much. The same exception type covers
+a dropped connection, which is worth retrying, and a unique constraint violation or a syntax error, which is never
+going to succeed no matter how many times you try. Each database integration has an opt-in rule that only matches
+the transient failures, the ones that are about the moment and not about the message:
+
+| Database | Package | Rule | Classifier |
+|----------|---------|------|------------|
+| PostgreSQL / Marten | `WolverineFx.Marten` | `opts.Policies.OnTransientPostgresFailure()` | `TransientPostgresFailure.Is(Exception)` |
+| SQL Server | `WolverineFx.SqlServer` | `opts.Policies.OnTransientSqlServerFailure()` | `TransientSqlServerFailure.Is(Exception)` |
+| MySQL | `WolverineFx.MySql` | `opts.Policies.OnTransientMySqlFailure()` | `TransientMySqlFailure.Is(Exception)` |
+| SQLite | `WolverineFx.Sqlite` | `opts.Policies.OnTransientSqliteFailure()` | `TransientSqliteFailure.Is(Exception)` |
+| Oracle | `WolverineFx.Oracle` | `opts.Policies.OnTransientOracleFailure()` | `TransientOracleFailure.Is(Exception)` |
+| RavenDB | `WolverineFx.RavenDb` | `opts.Policies.OnTransientRavenDbFailure()` | `TransientRavenDbFailure.Is(Exception)` |
+| Cosmos DB | `WolverineFx.CosmosDb` | `opts.Policies.OnTransientCosmosDbFailure()` | `TransientCosmosDbFailure.Is(Exception)` |
+
+Each one returns the usual `PolicyExpression`, so you pick the schedule, and does nothing until you give it an action:
 
 ```csharp
-opts.Policies.OnTransientPostgresFailure()
+opts.Policies.OnTransientSqlServerFailure()
     .ScheduleRetry(1.Seconds(), 5.Seconds(), 30.Seconds())
     .WithExponentialJitter();
 ```
 
-Rules are first match wins, so declare it before a broader rule that also matches `MartenCommandException`.
-The same classification is available as `TransientPostgresFailure.Is(Exception)` for use in your own predicates.
+Roughly, "transient" means:
+
+* **PostgreSQL** -- a `NpgsqlException` where `IsTransient` is true (unreachable server, failover, dropped connection,
+  deadlock, serialization failure), a `MartenCommandException` wrapping one, and the `ObjectDisposedException` on
+  `NpgsqlTransaction` a handler sees after its connection broke mid-transaction
+* **SQL Server** -- deadlock victims, lock timeouts, client timeouts, broken or refused connections and the Azure SQL
+  "busy, failing over or throttled" errors (the list is `TransientSqlServerFailure.ErrorNumbers`), and the
+  `ObjectDisposedException` on `SqlTransaction`
+* **MySQL** -- anything MySqlConnector reports as `IsTransient` (deadlocks, lock wait timeouts, connection failures),
+  plus server shutdown, aborted or lost connections, command timeouts and the `ObjectDisposedException` on `MySqlTransaction`
+* **SQLite** -- `SQLITE_BUSY` and `SQLITE_LOCKED`, including their extended codes
+* **Oracle** -- anything ODP.NET reports as transient or recoverable, plus deadlocks (ORA-00060), busy resources
+  (ORA-00054), serialization failures (ORA-08177) and lost or refused connections (ORA-03113, ORA-03114, ORA-12170, ORA-12541 and friends)
+* **RavenDB** -- every node down, a node unavailable, request timeouts, no cluster leader and a database that is still
+  loading. A `ConcurrencyException` is **not** matched, because retrying the same change will not get a different answer
+* **Cosmos DB** -- status 408, 429, 449 and 503, 410 (Gone) with a retryable sub status, and 404 with sub status 1002
+  (read session not available). The Cosmos DB client
+  already retries throttled requests on its own, honoring `RetryAfter`, so a 429 that reaches Wolverine has used those up
+
+All of them except PostgreSQL look through `InnerException` at any depth, so the same failure wrapped by EF Core,
+Polecat or Fisher still matches. Rules are first match wins, so declare these before a broader rule that also matches
+the same exception type. The classifiers are public if you want them in your own predicates.
+
+::: warning
+A retry is at-least-once, not "nothing happened." If the connection is lost while the transaction is being committed,
+your application can't know whether the commit made it to the database before the connection went away. The retried
+message may be running against work that the first attempt already committed, so handlers that write to the database
+need to be idempotent or check for their own earlier work.
+:::
 
 ## Exception Filtering
 
