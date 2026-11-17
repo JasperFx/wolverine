@@ -281,6 +281,35 @@ public class TrackedSessionConfiguration
         return this;
     }
 
+    /// <summary>
+    ///     Continue tracking until a message of type <typeparamref name="T" /> is moved to the dead letter queue.
+    ///     Use this for a message that is <em>meant</em> to fail for good: <see cref="WaitForMessageToBeReceivedAt{T}" />
+    ///     deliberately does not complete on a dead letter (it may be replayed), so on such a message it can only
+    ///     time out. Combine with <see cref="DoNotAssertOnExceptionsDetected" /> since the failure is expected.
+    /// </summary>
+    /// <typeparam name="T">The expected message type</typeparam>
+    /// <returns></returns>
+    public TrackedSessionConfiguration WaitForMessageToBeDeadLettered<T>()
+    {
+        Session.AddCondition(new WaitForMessageEventType<T>(MessageEventType.MovedToErrorQueue,
+            "to be moved to the dead letter queue"));
+        return this;
+    }
+
+    /// <summary>
+    ///     Continue tracking until a message of type <typeparamref name="T" /> is requeued. That is what a failure
+    ///     does when its error policy tries again later (<c>ScheduleRetry</c>, <c>Requeue</c>), and also what
+    ///     deferring or rescheduling a message does. The retry itself lies outside the session, so this lets a test
+    ///     prove a failure is retried rather than dead-lettered without waiting for the delay to pass.
+    /// </summary>
+    /// <typeparam name="T">The expected message type</typeparam>
+    /// <returns></returns>
+    public TrackedSessionConfiguration WaitForMessageToBeRequeued<T>()
+    {
+        Session.AddCondition(new WaitForMessageEventType<T>(MessageEventType.Requeued, "to be requeued"));
+        return this;
+    }
+
     public TrackedSessionConfiguration WaitForCondition(ITrackedCondition condition)
     {
         Session.AddCondition(condition);

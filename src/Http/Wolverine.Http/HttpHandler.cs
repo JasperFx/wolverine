@@ -784,13 +784,22 @@ public abstract partial class HttpHandler
     /// </summary>
     public DeduplicatedResponse? CompleteDeduplicatedRequest<T>(HttpContext context, string? deduplicationId,
         T? resource, int missingResourceStatusCode)
+        => CompleteDeduplicatedRequest(context, deduplicationId, resource, missingResourceStatusCode, true);
+
+    /// <summary>
+    /// As <see cref="CompleteDeduplicatedRequest{T}(HttpContext, string, T, int)" />. With
+    /// <paramref name="storeBody" /> false the body is never serialized, and the claim stores the status and
+    /// <c>Location</c> alone. See <see cref="DeduplicatedWithResponseRequirement.StoreBody" />.
+    /// </summary>
+    public DeduplicatedResponse? CompleteDeduplicatedRequest<T>(HttpContext context, string? deduplicationId,
+        T? resource, int missingResourceStatusCode, bool storeBody)
     {
         if (string.IsNullOrWhiteSpace(deduplicationId)) return null;
 
         // By the declared type, which picked the response writer: an IResult returned as object is written as JSON
         if (typeof(IResult).IsAssignableFrom(typeof(T)) && resource is IResult result)
         {
-            return completeDeduplicatedResult(context, deduplicationId, result);
+            return completeDeduplicatedResult(context, deduplicationId, result, storeBody);
         }
 
         var status = resource is null ? missingResourceStatusCode : context.Response.StatusCode;
@@ -803,7 +812,7 @@ public abstract partial class HttpHandler
         try
         {
             return new DeduplicatedResponse(status,
-                resource is null ? null : JsonSerializer.Serialize(resource, _jsonOptions),
+                resource is null || !storeBody ? null : JsonSerializer.Serialize(resource, _jsonOptions),
                 location.Count == 0 ? null : location.ToString());
         }
         catch (Exception e)
@@ -848,7 +857,7 @@ public abstract partial class HttpHandler
     }
 
     private static DeduplicatedResponse? completeDeduplicatedResult(HttpContext context, string deduplicationId,
-        IResult result)
+        IResult result, bool storeBody)
     {
         // Only ASP.NET Core's unions are known to write exactly what the arm they hold writes
         while (isResultUnion(result.GetType()) && result is INestedHttpResult nested) result = nested.Result;
@@ -875,7 +884,9 @@ public abstract partial class HttpHandler
             if (string.IsNullOrEmpty(location)) location = context.Response.Headers.Location.ToString();
 
             return new DeduplicatedResponse(status,
-                result is IValueHttpResult { Value: { } value } ? serializeAsResultWrites(context, type, value) : null,
+                storeBody && result is IValueHttpResult { Value: { } value }
+                    ? serializeAsResultWrites(context, type, value)
+                    : null,
                 string.IsNullOrEmpty(location) ? null : location);
         }
         catch (Exception e)
