@@ -128,6 +128,16 @@ public class saga_faults_and_IdNotProvided_5553
     }
 
     [Fact]
+    public async Task IdNotProvided_is_only_a_handler_method_on_a_saga()
+    {
+        using var host = await sagaHost(typeof(UnmatchedSaga), typeof(NotASaga));
+
+        var graph = host.Services.GetRequiredService<IWolverineRuntime>().Options.HandlerGraph;
+        graph.ChainFor(typeof(LonelyMessage)).ShouldBeNull();
+        graph.ChainFor(typeof(SagaNudge)).ShouldNotBeNull();
+    }
+
+    [Fact]
     public async Task a_saga_that_only_declares_NotFound_for_a_message_does_not_create_a_saga_for_it()
     {
         using var host = await sagaHost(typeof(UnmatchedSaga));
@@ -252,6 +262,15 @@ public class InstanceIdNotProvidedSaga : Saga
     }
 
     public void IdNotProvided(InstanceNudge nudge)
+    {
+    }
+}
+
+public record LonelyMessage;
+
+public class NotASaga
+{
+    public static void IdNotProvided(LonelyMessage message)
     {
     }
 }
