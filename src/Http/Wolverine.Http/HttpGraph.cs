@@ -292,10 +292,13 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     /// </summary>
     internal bool DefaultClaimInTransaction { get; private set; }
 
+    internal bool ThrowWhenClaimInTransactionFallsBack { get; private set; }
+
     public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)
     {
         DefaultDuplicateStatusCode = wolverineHttpOptions.DefaultDuplicateStatusCode;
         DefaultClaimInTransaction = wolverineHttpOptions.DefaultClaimInTransaction;
+        ThrowWhenClaimInTransactionFallsBack = wolverineHttpOptions.ThrowWhenClaimInTransactionFallsBack;
 
         var source = new HttpChainSource(_options.Assemblies, wolverineHttpOptions.EndpointDiscovery);
         var logger = Container.GetInstance<ILogger<HttpGraph>>();
