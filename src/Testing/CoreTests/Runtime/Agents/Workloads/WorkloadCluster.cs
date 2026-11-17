@@ -48,6 +48,7 @@ public sealed class WorkloadCluster
 
     private readonly List<SimulatedNode> _nodes = [];
     private readonly RecordingLogger _log = new();
+    private readonly IWolverineObserver _observer = Substitute.For<IWolverineObserver>();
 
     // Not static: like MessageStoreCollection, whose agent list grows with the tenant databases
     private readonly HarnessFamily _durability =
@@ -62,6 +63,7 @@ public sealed class WorkloadCluster
 
     private int? _leader;
     private NodeAgentController? _controller;
+    private NodeAgentController? _heartbeatController;
     private Guid _controllerNodeId;
     private bool _capacityAware;
     private AgentRestrictions _restrictions = new([]);
@@ -234,11 +236,27 @@ public sealed class WorkloadCluster
 
     /// <summary>A node's heartbeat reads the node table; every node does this, leader or not.</summary>
     [When("a node's heartbeat reads the node table")]
-    public void AHeartbeatReadsTheNodeTable()
+    public async Task AHeartbeatReadsTheNodeTable()
     {
+        // The same node's controller from one heartbeat to the next, as in a running node, so the latch holds
         var reader = _nodes.First();
-        var controller = buildController(reader);
-        controller.WarnIfNoNodeRunsMessaging(_nodes.Select(x => x.ToWolverineNode(this)).ToList());
+        var controller = _heartbeatController ??= buildController(reader);
+        await controller.WarnIfNoNodeRunsMessagingAsync(_nodes.Select(x => x.ToWolverineNode(this)).ToList());
+    }
+
+    /// <summary>The <see cref="IWolverineObserver" /> event a monitor such as CritterWatch alerts on.</summary>
+    [Then("the observer is told that no live node runs Messaging")]
+    public void TheObserverIsToldNoNodeRunsMessaging()
+    {
+        var calls = _observer.ReceivedCalls().Count(x => x.GetMethodInfo().Name == nameof(IWolverineObserver.NoLiveNodeRunsMessaging));
+        SpecAssert.Check("times the observer was told", calls, 1);
+    }
+
+    [Then("the observer is not told anything about Messaging")]
+    public void TheObserverIsNotTold()
+    {
+        var calls = _observer.ReceivedCalls().Count(x => x.GetMethodInfo().Name == nameof(IWolverineObserver.NoLiveNodeRunsMessaging));
+        SpecAssert.Check("times the observer was told", calls, 0);
     }
 
     // -------------------------------------------------------------------------------------------------------------
@@ -431,7 +449,7 @@ public sealed class WorkloadCluster
         var runtime = Substitute.For<IWolverineRuntime>();
         runtime.Options.Returns(options);
         runtime.DurabilitySettings.Returns(options.Durability);
-        runtime.Observer.Returns(Substitute.For<IWolverineObserver>());
+        runtime.Observer.Returns(_observer);
 
         return new NodeAgentController(runtime, Substitute.For<INodeAgentPersistence>(), _families, _log,
             CancellationToken.None);

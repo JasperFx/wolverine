@@ -1,6 +1,9 @@
 using Bobcat;
 using Bobcat.Xunit;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
 using Wolverine;
 using Xunit;
 
@@ -40,12 +43,18 @@ public class node_workloads_are_checked_at_startup_5601
         the.ItStarts();
     }
 
+    /// <summary>
+    ///     A test fixture that runs an application configured as an HTTP-only node in Solo mode still works: the one
+    ///     node of a Solo "cluster" has to do everything, so the setting is ignored, out loud.
+    /// </summary>
     [BobcatSpec]
-    public async Task a_solo_node_has_to_run_everything()
+    public async Task a_solo_node_ignores_its_workloads_and_runs_everything()
     {
-        await the.ANodeStartsInMode(DurabilityMode.Solo, NodeWorkloads.Messaging);
+        await the.ANodeStartsInMode(DurabilityMode.Solo, NodeWorkloads.None);
 
-        the.ItRefusesToStartSaying("Solo mode, where the one node has to do everything");
+        the.ItStarts();
+        the.ItRunsWorkloads(NodeWorkloads.All);
+        the.ItWarns("runs in Solo mode, where the one node has to do everything, so it is ignored");
     }
 
     [BobcatSpec]
@@ -69,6 +78,8 @@ public class node_workloads_are_checked_at_startup_5601
 public sealed class NodeStartup
 {
     private Exception? _failure;
+    private NodeWorkloads? _workloads;
+    private readonly List<string> _warnings = [];
 
     [When("a node starts with workloads {workloads}")]
     public Task ANodeStarts(NodeWorkloads workloads) => startAsync(DurabilityMode.Balanced, workloads, NodeRole.Serving);
@@ -90,6 +101,19 @@ public sealed class NodeStartup
         }
     }
 
+    [Then("it runs workloads {workloads}")]
+    public void ItRunsWorkloads(NodeWorkloads workloads)
+    {
+        SpecAssert.Check("workloads", _workloads?.ToString() ?? "it never started", workloads.ToString());
+    }
+
+    [Then("it warns \"{text}\"")]
+    public void ItWarns(string text)
+    {
+        var found = _warnings.Any(x => x.Contains(text));
+        SpecAssert.Check("a warning saying", found ? text : $"none, among: {(_warnings.Count == 0 ? "no warnings" : string.Join(" | ", _warnings))}", text);
+    }
+
     [Then("it starts")]
     public void ItStarts()
     {
@@ -107,7 +131,10 @@ public sealed class NodeStartup
                     opts.Durability.Mode = mode;
                     opts.Durability.Workloads = workloads;
                     opts.Durability.NodeRole = role;
+                    opts.Services.AddSingleton<ILoggerProvider>(new WarningRecorder(_warnings));
                 }).StartAsync(TestContext.Current.CancellationToken);
+
+            _workloads = host.Services.GetRequiredService<IWolverineRuntime>().Options.Durability.Workloads;
 
             await host.StopAsync(TestContext.Current.CancellationToken);
         }
@@ -116,5 +143,20 @@ public sealed class NodeStartup
             _failure = e;
             SpecLog.Write($"{e.GetType().Name}: {e.Message}");
         }
+    }
+}
+
+internal sealed class WarningRecorder(List<string> warnings) : ILoggerProvider, ILogger
+{
+    public ILogger CreateLogger(string categoryName) => this;
+    public void Dispose() { }
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+        if (logLevel < LogLevel.Warning) return;
+        lock (warnings) warnings.Add(formatter(state, exception));
     }
 }

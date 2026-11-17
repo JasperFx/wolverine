@@ -272,23 +272,29 @@ public class only_a_messaging_node_leads_5601
     }
 
     [BobcatSpec]
-    public void with_only_http_nodes_left_there_is_no_leader_and_every_node_says_so()
+    public async Task with_only_http_nodes_left_there_is_no_leader_and_every_node_says_so()
     {
         the.Nodes("1 (HTTP only), 2 (HTTP only)");
 
         the.NoNodeMayLead();
 
-        the.AHeartbeatReadsTheNodeTable();
+        await the.AHeartbeatReadsTheNodeTable();
         the.ItWarns("No live node in this Wolverine cluster runs the Messaging workload");
+        the.TheObserverIsToldNoNodeRunsMessaging();
+
+        // Said once per transition, not on every heartbeat
+        await the.AHeartbeatReadsTheNodeTable();
+        the.TheObserverIsToldNoNodeRunsMessaging();
     }
 
     [BobcatSpec]
-    public void a_node_from_before_workloads_may_lead()
+    public async Task a_node_from_before_workloads_may_lead()
     {
         the.Nodes("1 (HTTP only), 2 (6.x)");
 
         the.NodeMayLead(2);
-        the.AHeartbeatReadsTheNodeTable();
+        await the.AHeartbeatReadsTheNodeTable();
         the.ItDoesNotWarn("runs the Messaging workload");
+        the.TheObserverIsNotTold();
     }
 }

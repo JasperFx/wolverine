@@ -134,7 +134,7 @@ public partial class NodeAgentController
     ///     application's queues or runs its scheduled messages, and there is no leader either, because only a
     ///     Messaging node leads. Latched, so it is said once per transition rather than on every heartbeat.
     /// </summary>
-    internal void WarnIfNoNodeRunsMessaging(IReadOnlyList<WolverineNode> liveNodes)
+    internal async Task WarnIfNoNodeRunsMessagingAsync(IReadOnlyList<WolverineNode> liveNodes)
     {
         if (liveNodes.Count == 0 || liveNodes.Any(x => x.Workloads.HasFlag(NodeWorkloads.Messaging)))
         {
@@ -147,6 +147,16 @@ public partial class NodeAgentController
 
         _logger.LogWarning(
             "No live node in this Wolverine cluster runs the Messaging workload (Durability.Workloads), so nothing consumes this application's queues or runs its scheduled messages, and there is no leader to assign agents. Start at least one node with Messaging");
+
+        // What a monitor such as CritterWatch alerts on
+        try
+        {
+            await _observer.NoLiveNodeRunsMessaging();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error notifying the observer that no live node runs the Messaging workload");
+        }
     }
 
     /// <summary>

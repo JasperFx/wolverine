@@ -225,7 +225,7 @@ public partial class NodeAgentController
 
         // GH-5601: only a Messaging node can lead, so with none alive there is no leader to notice that nothing
         // consumes the queues. Every node says it instead.
-        WarnIfNoNodeRunsMessaging(nodes);
+        await WarnIfNoNodeRunsMessagingAsync(nodes);
 
         // GH-3987: node-side assigned-vs-running reconciliation, follower-capable by design — the
         // divergences it heals live on the node that has them, and the leader structurally cannot see

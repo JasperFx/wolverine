@@ -139,7 +139,7 @@ public partial class WolverineRuntime
             // A lightweight run (codegen, describe, OpenAPI) only reads metadata and joins no cluster.
             if (!Options.LightweightMode)
             {
-                Options.Durability.AssertWorkloadsAreValid();
+                Options.Durability.ValidateWorkloads(Logger);
             }
 
             // Run after async extensions (which may mutate the options) and

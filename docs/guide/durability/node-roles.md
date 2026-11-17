@@ -105,6 +105,12 @@ It never:
   sends it when it comes due
 * Becomes the leader
 
+::: warning
+"Dedicated reply queue" means an endpoint marked as used for replies. If you've marked one of your *application*
+listeners with `UseForReplies()`, an HTTP-only node listens to that queue too, and will handle whatever application
+messages arrive on it. Give replies a queue of their own if you don't want that.
+:::
+
 If an HTTP node dies with messages still in its outbox, those rows are released and the durability agent on a
 `Durability` node sends them. That works because that node runs the same code and can build the same senders.
 
@@ -120,13 +126,12 @@ Durability.Workloads is 'Durability', which has Durability without Messaging. A 
 recovers inbox envelopes by running them through its own listeners, so it has to run Messaging too.
 ```
 
-Two more combinations are refused at startup:
+A [warm-up node](/guide/durability/marten/distribution#warming-up-a-new-release-on-its-own-nodes) without
+`Projections` is refused too, because projections are the only thing a warm-up node does.
 
-* Anything other than `All` in `Solo` mode, because the one node has to do everything
-* A [warm-up node](/guide/durability/marten/distribution#warming-up-a-new-release-on-its-own-nodes) without
-  `Projections`, because projections are the only thing a warm-up node does
-
-`MediatorOnly` and the serverless modes ignore the setting.
+In `Solo` mode the one node has to do everything, so Wolverine ignores the setting there, logs a warning and runs
+`All`. That's so your test harness can still run the application in `Solo` mode even when its configuration says
+it's an HTTP-only node. `MediatorOnly` and the serverless modes ignore the setting as well.
 
 ## Who leads
 
@@ -196,9 +201,10 @@ handlers it has. During a blue/green rollout that means the same build per color
 
 * The workloads travel to the leader as a marker in each node's capabilities, so there's no database change. A
   node without the marker, which is every 6.x node and every node left on the default, reads as `All`
-* Roll workloads out only after every node runs Wolverine 7.0. A node that doesn't run a workload also refuses to
-  start an agent of it, which covers an older leader during the upgrade, but expect some reassignment churn until
-  the upgrade is done
+* Roll workloads out only after every node runs Wolverine 7.0. During a rolling upgrade a 6.x leader can still
+  send listeners to an HTTP-only node, because its even spread doesn't look at capabilities. The HTTP-only node
+  refuses to start them, so nothing runs there, but the leader keeps reassigning them until it's on 7.0 itself.
+  Expect that churn for the length of the upgrade
 * `opts.Durability.DurabilityAgentEnabled = false` is **not** a way to make a messaging node. It also turns off
   storage migration, the outbox batcher and inbox recovery loops on that node. Use `Workloads` instead
 

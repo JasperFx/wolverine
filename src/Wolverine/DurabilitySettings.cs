@@ -951,9 +951,9 @@ public class DurabilitySettings : IDescribeMyself
     ///     </para>
     ///     <para>
     ///         Checked at startup: <see cref="NodeWorkloads.Durability"/> needs <see cref="NodeWorkloads.Messaging"/>,
-    ///         a <see cref="DurabilityMode.Solo"/> node must run everything, and a <see cref="Wolverine.NodeRole.Warmup"/>
-    ///         node needs <see cref="NodeWorkloads.Projections"/>. <see cref="DurabilityMode.MediatorOnly"/> and the
-    ///         serverless modes ignore it.
+    ///         and a <see cref="Wolverine.NodeRole.Warmup"/> node needs <see cref="NodeWorkloads.Projections"/>. A
+    ///         <see cref="DurabilityMode.Solo"/> node runs everything whatever this says, and logs a warning when it
+    ///         says otherwise. <see cref="DurabilityMode.MediatorOnly"/> and the serverless modes ignore it.
     ///     </para>
     /// </remarks>
     public NodeWorkloads Workloads { get; set; } = NodeWorkloads.All;
@@ -994,9 +994,10 @@ public class DurabilitySettings : IDescribeMyself
 
     /// <summary>
     ///     GH-5601. Refuse a <see cref="Workloads"/> setting this node could not honor. Called at startup, before the
-    ///     message store initializes.
+    ///     message store initializes. A Solo node's setting is ignored instead, with a warning, so a test fixture can
+    ///     run an application configured as, say, an HTTP-only node in Solo mode.
     /// </summary>
-    internal void AssertWorkloadsAreValid()
+    internal void ValidateWorkloads(Microsoft.Extensions.Logging.ILogger logger)
     {
         // These modes have no cluster to take part in, so there is nothing for the setting to decide
         if (Mode is DurabilityMode.MediatorOnly or DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox)
@@ -1013,12 +1014,18 @@ public class DurabilitySettings : IDescribeMyself
                 $"'{NodeWorkloads.Messaging | NodeWorkloads.Durability}' or add {nameof(NodeWorkloads.Messaging)}.");
         }
 
-        if (Mode == DurabilityMode.Solo && Workloads != NodeWorkloads.All)
+        if (Mode == DurabilityMode.Solo)
         {
-            throw new InvalidOperationException(
-                $"Durability.Workloads is '{Workloads}', but this node runs in {nameof(DurabilityMode.Solo)} mode, " +
-                "where the one node has to do everything. Leave Workloads at All in Solo mode, or use " +
-                $"{nameof(DurabilityMode.Balanced)} mode for a cluster of nodes with different workloads.");
+            if (Workloads != NodeWorkloads.All)
+            {
+                Microsoft.Extensions.Logging.LoggerExtensions.LogWarning(logger,
+                    "Durability.Workloads is '{Workloads}', but this node runs in Solo mode, where the one node has to do everything, so it is ignored and the node runs All. Workloads only apply in Balanced mode",
+                    Workloads);
+
+                Workloads = NodeWorkloads.All;
+            }
+
+            return;
         }
 
         if (NodeRole == NodeRole.Warmup && !Runs(NodeWorkloads.Projections))
