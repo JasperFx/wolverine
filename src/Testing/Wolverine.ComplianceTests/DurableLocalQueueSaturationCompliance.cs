@@ -6,6 +6,8 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.Persistence;
+using Wolverine.Tracking;
+using Wolverine.Transports.Local;
 using Xunit;
 
 namespace Wolverine.ComplianceTests;
@@ -13,7 +15,7 @@ namespace Wolverine.ComplianceTests;
 /// <summary>
 /// GH-5586. A durable local queue holds at most <see cref="Block{T}.DefaultBoundedCapacity"/> envelopes in memory.
 /// Once its handler falls that far behind, a publish to it must not wait for room: the envelope is already in the
-/// inbox, so it waits there for a worker or for recovery. Before 7.0 the flush after a committed transaction, and an
+/// inbox, so it waits there for a worker or for recovery. Before GH-5586 the flush after a committed transaction, and an
 /// ordinary publish, both waited for the queue to take the envelope, so a request stayed open after its business
 /// changes had committed.
 /// </summary>
@@ -129,6 +131,27 @@ public abstract class DurableLocalQueueSaturationCompliance : IAsyncLifetime
 
         Gate.Release();
         await Gate.WaitForAsync(FillCount + 250, 2.Minutes());
+    }
+
+    [Fact]
+    public async Task the_queue_takes_messages_directly_again_once_it_has_drained()
+    {
+        var runtime = Host.GetRuntime();
+        var queue = (DurableLocalQueue)runtime.Endpoints.GetOrBuildSendingAgent(new Uri("local://" + QueueName));
+
+        await fillTheQueueAsync();
+        queue.IsFull.ShouldBeTrue();
+
+        Gate.Release();
+        await Gate.WaitForAsync(FillCount, 2.Minutes());
+        queue.IsFull.ShouldBeFalse();
+
+        var tracked = await Host.TrackActivity().Timeout(30.Seconds())
+            .PublishMessageAndWaitAsync(new SaturatingLocalMessage(Guid.NewGuid()));
+
+        // Owned by this node and enqueued right away, not left in the inbox for recovery
+        tracked.Sent.SingleEnvelope<SaturatingLocalMessage>().OwnerId
+            .ShouldBe(runtime.DurabilitySettings.AssignedNodeNumber);
     }
 
     [Fact]

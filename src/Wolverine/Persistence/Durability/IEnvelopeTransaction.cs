@@ -1,4 +1,6 @@
+using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 
 namespace Wolverine.Persistence.Durability;
 
@@ -20,6 +22,14 @@ public static class EnvelopeTransactionExtensions
     {
         if (envelope.Destination!.Scheme == TransportConstants.Local)
         {
+            // GH-5586. A full local queue leaves the envelope in the inbox for recovery rather than making the flush
+            // after the commit wait for room. Not when the message context is its own transaction: nothing is written
+            // until its flush, which stores and forwards and makes the same choice there.
+            if (transaction is not MessageContext && envelope.Sender is DurableLocalQueue queue)
+            {
+                queue.ChooseInboxOwner(envelope);
+            }
+
             return transaction.PersistIncomingAsync(envelope);
         }
 
