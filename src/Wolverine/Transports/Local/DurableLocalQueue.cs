@@ -41,6 +41,23 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     // so the old receiver's release can never hand back rows the new receiver has already taken.
     private Task? _pausedDrain;
 
+    // GH-5586. Set once the queue holds InMemoryLimit envelopes, and cleared once it has drained to its
+    // BufferingLimits.Restart. While it is set, what is published here is written to the inbox for any node and left
+    // there for recovery, instead of the publisher waiting for room.
+    private volatile bool _full;
+
+    // GH-5586. Leaving a message in the inbox only works when something will recover it from there: a real message
+    // store and a durability agent. Without them the queue takes everything published to it, as before, but
+    // without ever making the publisher wait for room.
+    private readonly bool _canLeaveInInbox;
+
+    /// <summary>
+    /// GH-5586. How many envelopes a durable local queue holds in memory before what is published to it waits in the
+    /// inbox instead. The same number its in-memory block was bounded at before GH-5586, so a queue that never filled that
+    /// far behaves exactly as it did.
+    /// </summary>
+    internal const int InMemoryLimit = Block<Envelope>.DefaultBoundedCapacity;
+
     public DurableLocalQueue(Endpoint endpoint, WolverineRuntime runtime)
     {
         Uri = endpoint.Uri;
@@ -82,7 +99,11 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             Pipeline = new HandlerPipeline(runtime, runtime, endpoint);
         }
 
-        _receiver = new DurableReceiver(endpoint, runtime, Pipeline);
+        _receiver = new DurableReceiver(endpoint, runtime, Pipeline, Block<Envelope>.Unbounded);
+
+        _canLeaveInInbox = runtime.Storage is not NullMessageStore
+                           && _settings.DurabilityAgentEnabled
+                           && _settings.Mode is DurabilityMode.Solo or DurabilityMode.Balanced;
 
         if (_settings.StoreIncomingBatchSize > 1)
         {
@@ -280,7 +301,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 #pragma warning restore VSTHRD003
         }
 
-        var receiver = new DurableReceiver(Endpoint, _runtime, Pipeline)
+        var receiver = new DurableReceiver(Endpoint, _runtime, Pipeline, Block<Envelope>.Unbounded)
         {
             AlsoReleaseIncomingAt = _partitionSlotUri
         };
@@ -472,6 +493,46 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public bool IsDurable => true;
 
+    /// <summary>
+    /// GH-5586. Is the queue holding all it should in memory? Once it is, it stays full until it has drained to its
+    /// BufferingLimits.Restart, so a publisher's messages do not flip between the queue and the inbox one by one.
+    /// </summary>
+    internal bool IsFull
+    {
+        get
+        {
+            if (!_canLeaveInInbox) return false;
+
+            var count = _receiver?.QueueCount ?? 0;
+            if (_full)
+            {
+                if (count <= Math.Min(Endpoint.BufferingLimits.Restart, InMemoryLimit / 2)) _full = false;
+            }
+            else if (count >= InMemoryLimit)
+            {
+                _full = true;
+            }
+
+            return _full;
+        }
+    }
+
+    /// <summary>
+    /// GH-5586. Called as an envelope bound here joins a transaction. If the queue is full (or latched), its inbox row
+    /// is written for any node and the flush after the commit leaves it for recovery, so the publisher never waits for
+    /// room in the queue.
+    /// </summary>
+    internal void ChooseInboxOwner(Envelope envelope)
+    {
+        if (envelope.Status != EnvelopeStatus.Incoming) return;
+
+        if (Latched || IsFull)
+        {
+            envelope.OwnerId = TransportConstants.AnyNode;
+            envelope.LeftInInboxForRecovery = true;
+        }
+    }
+
     public async ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
         // The envelope would be persisted regardless
@@ -481,6 +542,13 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         }
 
         _messageLogger.Sent(envelope);
+
+        // GH-5586. Its row was written for any node because the queue was full when it joined the transaction, so
+        // recovery brings it into the queue once there is room
+        if (envelope.LeftInInboxForRecovery)
+        {
+            return;
+        }
 
         // A pause can land between the check above and here
         var receiver = receiverOrHold(envelope);
@@ -537,12 +605,14 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     private async Task storeAndEnqueueAsync(Envelope envelope)
     {
-        var isLatched = Latched;
+        // GH-5586. A full queue is treated like a latched one: the row is written for any node and left for
+        // recovery, rather than the publisher waiting for room once it is written
+        var leaveForRecovery = Latched || IsFull;
 
         try
         {
-            // Use AnyNode when latched so the durability agent can recover the message.
-            envelope.OwnerId = isLatched
+            // Use AnyNode when latched or full so the durability agent can recover the message.
+            envelope.OwnerId = leaveForRecovery
                 ? TransportConstants.AnyNode
                 : _settings.AssignedNodeNumber;
 
@@ -569,7 +639,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             return;
         }
 
-        if (isLatched)
+        if (leaveForRecovery)
         {
             return;
         }
