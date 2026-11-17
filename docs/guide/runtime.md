@@ -414,9 +414,16 @@ public interface IAgentFamily
     /// <param name="assignments"></param>
     /// <returns></returns>
     ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments);
+
+    /// <summary>
+    ///     GH-5601. The workload a node has to run (<see cref="DurabilitySettings.Workloads" />) to be given this
+    ///     family's agents. The default is <see cref="NodeWorkloads.Messaging" />, so a custom family is treated as
+    ///     messaging work unless it says otherwise
+    /// </summary>
+    NodeWorkloads RequiredWorkload => NodeWorkloads.Messaging;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgentFamily.cs#L16-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagentfamily' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgentFamily.cs#L16-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagentfamily' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Built in examples of the agent and agent family are:
