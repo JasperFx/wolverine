@@ -742,8 +742,12 @@ What each store needs from you:
 |---|---|---|
 | Marten | none; the property is also mapped to Marten's own `mt_last_modified` column | loaded with their `mt_last_modified` value |
 | Lightweight saga tables (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) | none; every table already had a `last_modified` column. It is now written with the property's value | PostgreSQL, SQL Server, MySQL and SQLite load the column into the property. Oracle reads `default(DateTimeOffset)` until the saga's next update |
-| EF Core | **yes**: the base-class property becomes a mapped column in your `DbContext`. Add an EF Core migration for it, or `modelBuilder.Entity<MySaga>().Ignore(x => x.LastModified)` to keep the old schema (the property is still set in memory) | the column's value from your migration's default (or `default(DateTimeOffset)`) until the saga's next update |
+| EF Core | **yes**: the base-class property becomes a mapped column in your `DbContext`. With `UseEntityFrameworkCoreWolverineManagedMigrations()`, Wolverine adds the column to the existing table at startup. With EF Core migrations, add a migration for it, or `modelBuilder.Entity<MySaga>().Ignore(x => x.LastModified)` to keep the old schema (the property is still set in memory) | `DateTimeOffset.MinValue`, the column's default, until the saga's next update |
 | Polecat, Fisher, RavenDb, CosmosDb, Redis, Azure Blob Storage, Amazon S3, in-memory | none; the value is saved with the rest of the saga | `default(DateTimeOffset)` until the saga's next update |
+
+On EF Core, Wolverine gives the mapped `LastModified` column a default of `DateTimeOffset.MinValue` (unless you
+configured a default yourself), so the column can be added to a table that already has rows (GH-5636). Your next EF
+Core migration picks that default up.
 
 On EF Core, a saga that is loaded and saved again is now always written: setting `LastModified` makes the entity
 `Modified`, which also increments `Version`. Before 7.0, a message that changed nothing on the saga left the row and
