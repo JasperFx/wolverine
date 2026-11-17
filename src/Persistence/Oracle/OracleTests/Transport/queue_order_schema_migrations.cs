@@ -161,6 +161,11 @@ public class queue_order_schema_migrations : OracleContext
                         {
                             x.EnableDeterministicQueueOrdering();
                         }
+                        else
+                        {
+                            // GH-5192: ordering is the 7.0 default, so the classic schema has to opt out
+                            x.DisableDeterministicQueueOrdering();
+                        }
                     });
 
                 opts.ListenToOracleQueue(queueName).PollingInterval(1.Hours());

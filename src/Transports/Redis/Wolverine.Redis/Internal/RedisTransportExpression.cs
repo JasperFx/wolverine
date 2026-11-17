@@ -69,9 +69,15 @@ public class RedisTransportExpression : BrokerExpression<RedisTransport, RedisSt
     /// have been registered with <see cref="AddTenant(string,string)"/>. GH-3309.
     /// </summary>
     public RedisTransportExpression ConfigureMultiTenancy(
-        TenantedIdBehavior behavior = TenantedIdBehavior.FallbackToDefault)
+        TenantedIdBehavior? behavior = null)
     {
-        _transport.TenantedIdBehavior = behavior;
+        // GH-5196. Leaving the behavior out takes the transport's default (DeadLetterUnknownTenants in 7.0,
+        // FallbackToDefault after RestoreV6Defaults()) rather than pinning the 6.x value
+        if (behavior.HasValue)
+        {
+            _transport.TenantedIdBehavior = behavior.Value;
+        }
+
         return this;
     }
 

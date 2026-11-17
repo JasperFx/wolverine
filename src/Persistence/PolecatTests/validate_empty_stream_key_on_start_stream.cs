@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx.Events;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -23,7 +24,12 @@ public class validate_empty_stream_key_on_start_stream : IAsyncLifetime
                     .AddPolecat(m =>
                     {
                         m.ConnectionString = Servers.SqlServerConnectionString;
-                        m.DatabaseSchemaName = "start_stream_val";
+                        m.DatabaseSchemaName = "start_stream_key";
+
+                        // These ops start streams by string key. Since JasperFx 3.0 the shared
+                        // EventOperationsBase validates the key against the store's StreamIdentity before
+                        // anything is read, so a Guid-identity store refuses a string key outright.
+                        m.Events.StreamIdentity = StreamIdentity.AsString;
                     })
                     .IntegrateWithWolverine();
 
@@ -70,7 +76,7 @@ public class validate_empty_stream_key_on_start_stream : IAsyncLifetime
 
 public class PcTrip
 {
-    public Guid Id { get; set; }
+    public string Id { get; set; } = null!;
 }
 
 public record PcTripStarted;

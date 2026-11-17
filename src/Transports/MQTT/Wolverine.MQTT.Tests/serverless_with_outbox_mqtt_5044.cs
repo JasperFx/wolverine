@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
@@ -325,12 +326,12 @@ internal class Serverless5044MqttSubscriber : IAsyncDisposable
 
     public static async Task<Serverless5044MqttSubscriber> StartAsync(int port, string topic)
     {
-        var client = new MqttFactory().CreateManagedMqttClient();
+        var client = new MqttClientFactory().CreateManagedMqttClient();
         var subscriber = new Serverless5044MqttSubscriber(client);
 
         client.ApplicationMessageReceivedAsync += e =>
         {
-            subscriber._messages.Enqueue(Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment));
+            subscriber._messages.Enqueue(Encoding.UTF8.GetString(e.ApplicationMessage.Payload.ToArray()));
             return Task.CompletedTask;
         };
 

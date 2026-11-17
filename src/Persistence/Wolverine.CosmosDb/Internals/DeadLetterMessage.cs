@@ -25,6 +25,7 @@ public class DeadLetterMessage
         FailureGroup = fingerprint.Group;
         FailureTitle = fingerprint.Title;
         FailedAt = DateTimeOffset.UtcNow;
+        SagaId = envelope.SagaId;
 
         Id = $"deadletter|{envelope.Id}";
         EnvelopeId = envelope.Id;
@@ -112,6 +113,11 @@ public class DeadLetterMessage
     [JsonPropertyName("archivedAt")]
     public DateTimeOffset? ArchivedAt { get; set; }
 
+    // GH-5557
+    [JsonProperty("sagaId")]
+    [JsonPropertyName("sagaId")]
+    public string? SagaId { get; set; }
+
     [JsonProperty("_etag")]
     [JsonPropertyName("_etag")]
     public string? ETag { get; set; }
@@ -126,7 +132,8 @@ public class DeadLetterMessage
             FailureTitle = FailureTitle,
             FailedAt = FailedAt,
             FirstFailedAt = FailedAt,
-            ArchivedAt = ArchivedAt
+            ArchivedAt = ArchivedAt,
+            SagaId = SagaId
         };
     }
 

@@ -141,6 +141,8 @@ public class HandlerPipeline : IHandlerPipeline
         }
         finally
         {
+            // GH-5547. An inline retry has already stopped this attempt's span before running the next attempt
+            // (WolverineTracing.EndAttemptBeforeInlineRetry), and Stop() is a no-op on a stopped activity
             activity?.Stop();
         }
     }
@@ -388,6 +390,15 @@ public class HandlerPipeline : IHandlerPipeline
     // was one box per message.
     private async ValueTask<IContinuation> executeAsync(MessageContext context, Envelope envelope, Activity? activity)
     {
+        // GH-5196: a tenant-aware broker endpoint dead letters a message for a tenant nobody registered
+        if (_endpoint?.UnknownTenantGuard?.Check(envelope) is { } unknownTenant)
+        {
+            // It was received, just not handled; a tracked session needs the receipt to close the sender's record
+            recordReceivedOnce(envelope);
+            activity?.SetStatus(ActivityStatusCode.Error, unknownTenant.GetType().Name);
+            return new MoveToErrorQueue(unknownTenant);
+        }
+
         if (envelope.IsExpired())
         {
             return new DiscardEnvelope(new EnvelopeExpiredException(envelope));

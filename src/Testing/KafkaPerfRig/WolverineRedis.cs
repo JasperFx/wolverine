@@ -29,7 +29,7 @@ public static class WolverineRedis
         RigHandlerSettings.HandlerMs = cfg.HandlerMs;
         RigHandlerSettings.SequenceByGame = cfg.Sequencing == "semaphore";
 
-        var builder = Host.CreateDefaultBuilder()
+        var builder = RigHost.CreateDefaultBuilder()
             .ConfigureLogging(logging =>
             {
                 logging.SetMinimumLevel(LogLevel.Warning);
@@ -126,7 +126,7 @@ public static class WolverineRedis
 
     public static async Task RunPublisherAsync(RigConfig cfg)
     {
-        var builder = Host.CreateDefaultBuilder()
+        var builder = RigHost.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning))
             .UseWolverine(opts =>
             {

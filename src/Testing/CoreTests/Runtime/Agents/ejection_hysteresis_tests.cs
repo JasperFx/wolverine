@@ -122,7 +122,7 @@ public class ejection_hysteresis_tests
     {
         // Isolate leader protection from hysteresis: one observation is enough to reach the threshold.
         _options.Durability.StaleNodeEjectionThreshold = 1;
-        _persistence.HasLeadershipLock().Returns(false); // this node is a follower
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(false); // this node is a follower
 
         snapshotIs(Self(), Peer(stale: true, isLeader: true));
 
@@ -138,7 +138,7 @@ public class ejection_hysteresis_tests
     public async Task the_leadership_lock_holder_may_eject_a_stale_leader()
     {
         _options.Durability.StaleNodeEjectionThreshold = 1;
-        _persistence.HasLeadershipLock().Returns(true); // this node has taken over leadership
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(true); // this node has taken over leadership
 
         snapshotIs(Self(), Peer(stale: true, isLeader: true));
 
@@ -169,7 +169,7 @@ public class ejection_hysteresis_tests
     public async Task records_no_ejection_for_a_stale_leader_a_follower_may_not_delete()
     {
         _options.Durability.StaleNodeEjectionThreshold = 1;
-        _persistence.HasLeadershipLock().Returns(false);
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(false);
 
         snapshotIs(Self(), Peer(stale: true, isLeader: true));
 

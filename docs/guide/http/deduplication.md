@@ -5,7 +5,7 @@
 ::: tip
 This is the HTTP half of Wolverine's [logical message
 deduplication](/guide/durability/idempotency#logical-message-deduplication). Read that page first
-for the storage, the retention window, and why this is opt-in — everything here builds on it.
+for the storage, the retention window, and how to turn it off — everything here builds on it.
 :::
 
 A `POST` that creates something is the classic at-most-once problem. The user double-clicks; the
@@ -151,7 +151,8 @@ caller reading another's response, so it requires a scope.
 created. `[DeduplicatedWithResponse]` answers it instead:
 
 ```csharp
-// Program.cs
+// Program.cs. On by default since 7.0; set it to false, or call
+// opts.RestoreV6Defaults(), to provision no wolverine_deduplicated_responses table
 opts.Durability.EnableDeduplicatedResponses = true;
 
 [DeduplicatedWithResponse(DeduplicationScope.User | DeduplicationScope.Endpoint)]
@@ -167,7 +168,7 @@ For a given `Idempotency-Key`:
 | Request | Answer |
 |---|---|
 | The first | Runs normally |
-| The same request again | The first response: its status, body and `Location`. The endpoint does not run |
+| The same request again | The first response: its status, body and `Location` (no body with [`StoreBody = false`](#leaving-the-body-out)), [marked as a replay](#marking-a-replay). The endpoint does not run |
 | A different request | **422** with a `ProblemDetails` body. Send a new key for a new request |
 | The same request while the first is still running | **409** with a `ProblemDetails` body. With [`ClaimInTransaction`](#claiming-inside-the-transaction), it runs too ([see below](#claiming-inside-the-transaction)) |
 | No key | **400**, unless `Required = false` |
@@ -209,6 +210,69 @@ body — never by the bound message, and the key itself is always the caller's. 
 same bytes: a client that reorders JSON properties, changes whitespace or reserializes the body gets
 a 422. A key reused on another endpoint is a different request even when the scope leaves the endpoint
 out.
+
+Forms are the exception. A client picks a new boundary whenever it builds the request again, so
+the same upload sent twice is two different byte streams. A `multipart/*` body is compared by its parts
+instead: each part's headers and content, in the order sent. A retry with a new boundary is the same
+request; a different file, file name or field value is still a 422. A body that cannot be read as multipart,
+or that has more parts than `FormOptions.ValueCountLimit`, is compared by its bytes.
+
+An `application/x-www-form-urlencoded` body is compared by its fields, by name. If middleware read the
+form before the endpoint ran, as `UseAntiforgery()` does for a token sent as a form field, the form it read is
+compared the same way, along with its files. In every case the antiforgery token field
+(`AntiforgeryOptions.FormFieldName`) is left out, because a browser that loads the page again is given a new
+token for the same request.
+
+### Leaving the body out
+
+A stored response is a copy of whatever the endpoint answered, kept for the whole window. For an endpoint
+that returns a one-time secret, that is a plaintext copy of the secret in the database. A newly created
+API key is one example. So is anything else the server generates and returns once: an OAuth client
+secret, a webhook signing secret, a temporary password, a one-time token. Set `StoreBody = false` to keep
+it out:
+
+<!-- snippet: sample_deduplicated_with_response_without_storing_the_body -->
+<a id='snippet-sample_deduplicated_with_response_without_storing_the_body'></a>
+```cs
+// The secret is in the first response and is never stored. A repeat gets the 201 and Location, with no body
+[DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
+[WolverinePost("/deduplicated-response/secret-result")]
+public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder request)
+{
+    var created = run(request);
+    return TypedResults.Created($"/deduplicated-response/orders/{created.Id}",
+        new DeduplicatedSecret(created.Id, Guid.NewGuid().ToString()));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response.cs#L900-L910' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_with_response_without_storing_the_body' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The body is never serialized or written. The claim still stores the status and `Location`, so a repeat
+is answered with those and no body, and the caller follows `Location` to the resource. The secret is not
+shown again.
+
+This fits an endpoint that answers with a `Location`, such as `Created`. One that sets no `Location`
+answers a repeat with the bare status and the [replay header](#marking-a-replay), and nothing else.
+
+### Marking a replay
+
+By default, Wolverine marks every replayed response with an `Idempotent-Replayed: true` header. The first
+response, and the 409 and 422 refusals, never carry it.
+
+A browser on another origin can read the header only if your CORS policy exposes it, for example with
+`WithExposedHeaders("Idempotent-Replayed")`.
+
+Rename the header, or turn it off, application-wide:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    opts.DeduplicatedReplayHeaderName = "X-Idempotent-Replay";
+
+    // or send no header at all
+    opts.MarkDeduplicatedReplays = false;
+});
+```
 
 ### The window
 
@@ -334,7 +398,7 @@ releasing it with a rolled-back transaction.
 
 ### Requirements and limits
 
-- `Durability.EnableDeduplicatedResponses`, and the PostgreSQL, SQL Server, MySQL or SQLite message store
+- `Durability.EnableDeduplicatedResponses` (on by default since 7.0), and the PostgreSQL, SQL Server, MySQL or SQLite message store
   (including Marten's). With a database per tenant, claims are kept in the main database. Without them
   the host logs a warning at startup and the endpoint throws at its first request.
 - The endpoint must return a resource, written as JSON by System.Text.Json, or an `IResult` (below); any
@@ -348,11 +412,13 @@ releasing it with a rolled-back transaction.
   it expires, and an error is logged. An endpoint whose declared return type can never be one of the
   replayed results is refused at startup.
 - The request body is buffered to compute the fingerprint, and the resource is serialized a second
-  time to store it.
-- Only the status, body and `Location` are replayed; other response headers are not.
-- Form-encoded requests are not supported: the fingerprint has to re-read the body after binding, and
-  the form read consumes it first. An endpoint that binds a form value is refused at startup. File and
-  multipart uploads are unaffected.
-- Response bodies are stored for the whole window, in a `wolverine_deduplicated_responses` table of their
-  own. It is only provisioned when the setting is on, so nothing changes for anyone else; with
-  `AutoCreate.None`, create it before turning the setting on.
+  time to store it, unless [`StoreBody = false`](#leaving-the-body-out).
+- Only the status, body and `Location` are replayed; other response headers are not. The replay adds
+  its own [replay header](#marking-a-replay).
+- Form posts and file uploads are supported, whether the endpoint binds `[FromForm]` values, an
+  `IFormFile`, an `IFormCollection` or a `MultipartReader`, and whether the antiforgery token is sent in
+  the request header or as a form field.
+- Responses are stored for the whole window, in a `wolverine_deduplicated_responses` table of their own,
+  with their bodies unless [`StoreBody = false`](#leaving-the-body-out). The table is only provisioned when
+  the setting is on, so nothing changes for anyone else; with `AutoCreate.None`, create it before turning
+  the setting on.

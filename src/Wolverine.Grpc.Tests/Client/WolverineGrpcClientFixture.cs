@@ -41,7 +41,9 @@ public class WolverineGrpcClientFixture : IAsyncLifetime
 
         builder.Services.AddCodeFirstGrpc();
         builder.Services.AddGrpc();
-        builder.Services.AddWolverineGrpc();
+        // GH-5196: the server propagation tests drive the tenant id through the 'tenant-id' header, which
+        // 7.0 no longer trusts by default
+        builder.Services.AddWolverineGrpc(o => o.TrustTenantIdHeader = true);
         builder.Services.AddSingleton<PingTracker>();
 
         _app = builder.Build();

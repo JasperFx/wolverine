@@ -9,7 +9,6 @@ public class separated_handlers_and_using_external_routing_conventions : Message
     protected override void configure(WolverineOptions opts)
     {
         opts.UseRabbitMq().AutoProvision().UseConventionalRouting();
-        opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
     }
     
         

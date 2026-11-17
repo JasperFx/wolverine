@@ -26,6 +26,9 @@ public class SqlServerTransportDatabase : DatabaseBase<SqlConnection>
     {
         _transport = runtime.Options.SqlServerTransport();
         _runtime = runtime;
+
+        // GH-5511. This database can be built without the host starting (db-apply), so resolve before its tables are built
+        _transport.ResolveQueueV6Defaults(runtime.Options);
         
         // ReSharper disable once VirtualMemberCallInConstructor
         var descriptor = Describe();

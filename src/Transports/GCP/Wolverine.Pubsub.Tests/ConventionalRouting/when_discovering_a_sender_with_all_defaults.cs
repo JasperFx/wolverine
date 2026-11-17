@@ -15,8 +15,6 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
         theRoute = (await PublishingRoutesFor<PublishedMessage>()).Single().As<MessageRoute>();
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
-
     [Fact]
     public void should_have_exactly_one_route()
     {

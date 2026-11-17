@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http;
 using System.Security.Claims;
 using Alba;
 using IntegrationTests;
@@ -10,13 +12,17 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Net.Http.Headers;
 using Npgsql;
 using Shouldly;
 using Wolverine.Http.Resources;
 using Wolverine.Http.Runtime;
+using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
+using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -62,7 +68,8 @@ public class deduplicated_with_response : IAsyncLifetime
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a [DeduplicatedWithResponse] test endpoint",
                     type => type != typeof(DeduplicatedResponseEndpoints) && type != typeof(EarlyExitDeduplicatedResponseEndpoint)
-                            && type != typeof(MissingResourceDeduplicatedEndpoint)));
+                            && type != typeof(MissingResourceDeduplicatedEndpoint)
+                            && type != typeof(UploadDeduplicatedResponseEndpoints)));
         }));
 
         await ((IHost)theHost).ResetResourceState();
@@ -88,7 +95,51 @@ public class deduplicated_with_response : IAsyncLifetime
         repeat.Context.Response.Headers.Location.ToString()
             .ShouldBe(first.Context.Response.Headers.Location.ToString());
 
+        first.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
+        repeat.Context.Response.Headers["Idempotent-Replayed"].ToString().ShouldBe("true");
+
         DeduplicatedResponseEndpoints.Runs("first").ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_replay_is_marked_with_the_configured_header()
+    {
+        theHost.Services.GetRequiredService<WolverineHttpOptions>().DeduplicatedReplayHeaderName = "X-Replayed";
+
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("renamed-" + key);
+
+        var first = await postAsync(request, key, 201);
+        var repeat = await postAsync(request, key, 201);
+
+        first.Context.Response.Headers.ContainsKey("X-Replayed").ShouldBeFalse();
+        repeat.Context.Response.Headers["X-Replayed"].ToString().ShouldBe("true");
+        repeat.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task with_replay_marking_off_a_replay_is_not_marked()
+    {
+        theHost.Services.GetRequiredService<WolverineHttpOptions>().MarkDeduplicatedReplays = false;
+
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("unmarked-" + key);
+
+        var first = await postAsync(request, key, 201);
+        var repeat = await postAsync(request, key, 201);
+
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        repeat.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void a_blank_replay_header_name_is_refused(string? name)
+    {
+        // Instead of a 500 on every replay
+        Should.Throw<ArgumentException>(() => new WolverineHttpOptions().DeduplicatedReplayHeaderName = name!);
     }
 
     [Fact]
@@ -97,9 +148,70 @@ public class deduplicated_with_response : IAsyncLifetime
         var key = Guid.NewGuid().ToString();
 
         await postAsync(new DeduplicatedOrder("original"), key, 201);
-        await postAsync(new DeduplicatedOrder("changed"), key, 422);
+        var different = await postAsync(new DeduplicatedOrder("changed"), key, 422);
+
+        different.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
 
         DeduplicatedResponseEndpoints.Runs("changed").ShouldBe(0);
+    }
+
+    [Theory]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.StreamedUrl)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.FileWithFormValueUrl)]
+    public async Task a_repeat_of_a_multipart_upload_under_a_new_boundary_is_answered_with_the_first_response(
+        string url)
+    {
+        var key = Guid.NewGuid().ToString();
+
+        var first = await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3], HttpStatusCode.Created);
+        var repeat = await uploadAsync(url, key, "second-boundary", "report.pdf", [1, 2, 3],
+            HttpStatusCode.Created);
+
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        repeat.Context.Response.Headers.Location.ToString()
+            .ShouldBe(first.Context.Response.Headers.Location.ToString());
+
+        DeduplicatedResponseEndpoints.Runs("report.pdf").ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "report.pdf", 4, "Quarterly report")]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "other.pdf", 3, "Quarterly report")]
+    [InlineData(UploadDeduplicatedResponseEndpoints.BufferedUrl, "report.pdf", 3, "Annual report")]
+    [InlineData(UploadDeduplicatedResponseEndpoints.StreamedUrl, "report.pdf", 4, "Quarterly report")]
+    public async Task a_different_multipart_upload_under_the_same_key_is_a_422(string url, string fileName,
+        byte lastByte, string title)
+    {
+        var key = Guid.NewGuid().ToString();
+
+        await uploadAsync(url, key, "first-boundary", "report.pdf", [1, 2, 3], HttpStatusCode.Created);
+        await uploadAsync(url, key, "second-boundary", fileName, [1, 2, lastByte], HttpStatusCode.UnprocessableEntity,
+            title);
+    }
+
+    [Theory]
+    [InlineData(UploadDeduplicatedResponseEndpoints.FormValueUrl)]
+    [InlineData(UploadDeduplicatedResponseEndpoints.FormTypeUrl)]
+    public async Task a_repeat_of_a_form_post_is_answered_with_the_first_response(string url)
+    {
+        var key = Guid.NewGuid().ToString();
+
+        Task<IScenarioResult> post(string name, HttpStatusCode status) => theHost.Scenario(x =>
+        {
+            x.Post.FormData(new Dictionary<string, string> { ["name"] = name }).ToUrl(url);
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(status);
+        });
+
+        var first = await post("form", HttpStatusCode.Created);
+        var repeat = await post("form", HttpStatusCode.Created);
+        await post("changed", HttpStatusCode.UnprocessableEntity);
+
+        repeat.Context.Response.Headers.Location.ToString()
+            .ShouldBe(first.Context.Response.Headers.Location.ToString());
+
+        DeduplicatedResponseEndpoints.Runs("form").ShouldBe(1);
     }
 
     [Fact]
@@ -167,7 +279,8 @@ public class deduplicated_with_response : IAsyncLifetime
 
         try
         {
-            await postAsync(request, key, 409);
+            var refused = await postAsync(request, key, 409);
+            refused.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
         }
         finally
         {
@@ -367,6 +480,38 @@ public class deduplicated_with_response : IAsyncLifetime
         var location = first.Context.Response.Headers.Location.ToString();
         location.ShouldStartWith("/deduplicated-response/orders/");
         repeat.Context.Response.Headers.Location.ToString().ShouldBe(location);
+
+        DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
+    }
+
+    [Theory]
+    [InlineData("/deduplicated-response/secret-resource")]
+    [InlineData("/deduplicated-response/secret-result")]
+    public async Task with_store_body_off_the_body_is_not_stored_and_a_repeat_gets_the_status_and_location(string url)
+    {
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("secret-" + key);
+
+        var first = await postAsync(request, key, 201, url: url);
+        (await first.ReadAsJsonAsync<DeduplicatedSecret>()).ShouldNotBeNull().Secret.ShouldNotBeNullOrEmpty();
+
+        var location = first.Context.Response.Headers.Location.ToString();
+        location.ShouldStartWith("/deduplicated-response/orders/");
+
+        var store = (IReplayableDeduplicationStore)theHost.Services.GetRequiredService<IWolverineRuntime>().Storage;
+        var anonymousUserScopedId = DeduplicatedResponses.StorageIdFor("0:|0:|0:|" + key);
+        var claim = await store.FindAsync(anonymousUserScopedId, TestContext.Current.CancellationToken);
+
+        var stored = claim.ShouldNotBeNull().Response.ShouldNotBeNull();
+        stored.StatusCode.ShouldBe(201);
+        stored.Location.ShouldBe(location);
+        stored.Body.ShouldBeNull();
+
+        var repeat = await postAsync(request, key, 201, url: url);
+
+        (await repeat.ReadAsTextAsync()).ShouldBeEmpty();
+        repeat.Context.Response.Headers.Location.ToString().ShouldBe(location);
+        repeat.Context.Response.Headers["Idempotent-Replayed"].ToString().ShouldBe("true");
 
         DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
     }
@@ -593,6 +738,26 @@ public class deduplicated_with_response : IAsyncLifetime
             x.StatusCodeShouldBe(status);
         });
 
+    private async Task<IScenarioResult> uploadAsync(string url, string key, string boundary, string fileName,
+        byte[] file, HttpStatusCode status, string title = "Quarterly report")
+    {
+        var content = new MultipartFormDataContent(boundary);
+        content.Add(new StringContent(title), "title");
+        content.Add(new ByteArrayContent(file), "file", fileName);
+
+        var result = await theHost.Scenario(x =>
+        {
+            x.Post.MultipartFormData(content).ToUrl(url);
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(status);
+        });
+
+        // The boundary has to reach the endpoint unchanged, or a test of a new boundary proves nothing
+        result.Context.Request.ContentType.ShouldNotBeNull().ShouldContain(boundary);
+
+        return result;
+    }
+
     private static async Task<T> scalarAsync<T>(string sql, string id)
     {
         var token = TestContext.Current.CancellationToken;
@@ -616,6 +781,11 @@ public record DeduplicatedOrder(string Name);
 public record DeduplicatedOrderCreated(Guid Id) : CreationResponse($"/deduplicated-response/orders/{Id}");
 
 public record DeduplicatedOrderPlaced(Guid Id);
+
+public record DeduplicatedSecret(Guid Id, string Secret);
+
+public record DeduplicatedSecretCreated(Guid Id, string Secret)
+    : CreationResponse($"/deduplicated-response/orders/{Id}");
 
 // Gives the cascaded DeduplicatedOrderPlaced somewhere to go, so a tracked session can actually count it
 // (a message with no routes is only ever recorded as NoRoutes, never as sent). Body is irrelevant.
@@ -722,6 +892,23 @@ public static class DeduplicatedResponseEndpoints
         return TypedResults.Created($"/deduplicated-response/orders/{created.Id}", created);
     }
 
+    [DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
+    [WolverinePost("/deduplicated-response/secret-resource")]
+    public static DeduplicatedSecretCreated PostSecretResource(DeduplicatedOrder request)
+        => new(run(request).Id, Guid.NewGuid().ToString());
+
+    #region sample_deduplicated_with_response_without_storing_the_body
+    // The secret is in the first response and is never stored. A repeat gets the 201 and Location, with no body
+    [DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
+    [WolverinePost("/deduplicated-response/secret-result")]
+    public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder request)
+    {
+        var created = run(request);
+        return TypedResults.Created($"/deduplicated-response/orders/{created.Id}",
+            new DeduplicatedSecret(created.Id, Guid.NewGuid().ToString()));
+    }
+    #endregion
+
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/deduplicated-response/ok-result")]
     public static Ok<DeduplicatedAnswer> PostOkResult(DeduplicatedOrder request)
@@ -815,6 +1002,69 @@ public static class MissingResourceDeduplicatedEndpoint
         DeduplicatedResponseEndpoints.Count("maybe");
         return null;
     }
+}
+
+public static class UploadDeduplicatedResponseEndpoints
+{
+    public const string BufferedUrl = "/deduplicated-response/upload";
+    public const string StreamedUrl = "/deduplicated-response/upload/stream";
+    public const string FileWithFormValueUrl = "/deduplicated-response/upload/titled";
+    public const string FormValueUrl = "/deduplicated-response/form/value";
+    public const string FormTypeUrl = "/deduplicated-response/form/type";
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost(BufferedUrl)]
+    public static DeduplicatedOrderCreated Post(IFormFile file)
+    {
+        DeduplicatedResponseEndpoints.Count(file.FileName);
+        return new DeduplicatedOrderCreated(Guid.NewGuid());
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost(StreamedUrl)]
+    public static async Task<DeduplicatedOrderCreated> PostStream(MultipartReader reader,
+        CancellationToken cancellation)
+    {
+        while (await reader.ReadNextSectionAsync(cancellation) is { } section)
+        {
+            if (ContentDispositionHeaderValue.TryParse(section.ContentDisposition, out var disposition) &&
+                disposition.IsFileDisposition())
+            {
+                DeduplicatedResponseEndpoints.Count(disposition.FileName.Value!);
+            }
+        }
+
+        return new DeduplicatedOrderCreated(Guid.NewGuid());
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost(FileWithFormValueUrl)]
+    public static DeduplicatedOrderCreated PostTitled(IFormFile file, [FromForm] string title)
+    {
+        DeduplicatedResponseEndpoints.Count(file.FileName);
+        return new DeduplicatedOrderCreated(Guid.NewGuid());
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost(FormValueUrl)]
+    public static DeduplicatedOrderCreated PostFormValue([FromForm] string name)
+    {
+        DeduplicatedResponseEndpoints.Count(name);
+        return new DeduplicatedOrderCreated(Guid.NewGuid());
+    }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost(FormTypeUrl)]
+    public static DeduplicatedOrderCreated PostFormType([FromForm] DeduplicatedFormBody body)
+    {
+        DeduplicatedResponseEndpoints.Count(body.Name);
+        return new DeduplicatedOrderCreated(Guid.NewGuid());
+    }
+}
+
+public class DeduplicatedFormBody
+{
+    public string Name { get; set; } = string.Empty;
 }
 
 public static class EarlyExitDeduplicatedResponseEndpoint

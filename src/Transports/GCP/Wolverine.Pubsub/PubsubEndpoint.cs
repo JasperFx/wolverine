@@ -67,7 +67,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     /// <summary>
     /// GH-4526. A listener on its OWN subscription to a topic another endpoint publishes to -- the shape
-    /// MultipleHandlerBehavior.Separated needs, one subscription per handler type on the message type's topic.
+    /// a message type with several handler types needs, one subscription per handler type on the message type's topic.
     /// Its Uri is <c>pubsub://{projectId}/{topicName}/{subscriptionName}</c>, so it is distinct from the topic
     /// endpoint that shares the topic, and it never publishes: the topic endpoint is the sender.
     /// </summary>
@@ -427,6 +427,9 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         // consumed over its own project via a dedicated listener that stamps the tenant id onto inbound envelopes
         // (mirrors the NATS / RabbitMQ / Azure Service Bus CompoundListener pattern). Pub/Sub acknowledges inline
         // in the streaming callback, so per-envelope completion never routes back through CompoundListener.
+        // GH-5196: dead letter a received message for a tenant id no registered tenant matches
+        UnknownBrokerTenantGuard.Install(this, _transport.TenantedIdBehavior, _transport.Tenants.Select(x => x.TenantId));
+
         var compound = new CompoundListener(Uri);
         compound.Inner.Add(buildListener(runtime, receiver, _transport.DefaultClients));
 

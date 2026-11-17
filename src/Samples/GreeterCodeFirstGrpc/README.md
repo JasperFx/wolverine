@@ -30,13 +30,13 @@ three generated code-first shapes.
 In one terminal:
 
 ```sh
-dotnet run --project src/Samples/GreeterCodeFirstGrpc/Server --framework net9.0
+dotnet run --project src/Samples/GreeterCodeFirstGrpc/Server --framework net10.0
 ```
 
 In another:
 
 ```sh
-dotnet run --project src/Samples/GreeterCodeFirstGrpc/Client --framework net9.0
+dotnet run --project src/Samples/GreeterCodeFirstGrpc/Client --framework net10.0
 ```
 
 Expected output on the client:

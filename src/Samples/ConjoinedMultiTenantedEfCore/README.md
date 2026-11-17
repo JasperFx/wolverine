@@ -46,7 +46,7 @@ dotnet add package WolverineFx.RuntimeCompilation
 # from the wolverine repo root: dockerized PostgreSQL on port 5433
 docker compose up -d postgresql
 
-dotnet run --framework net9.0 --project src/Samples/ConjoinedMultiTenantedEfCore
+dotnet run --framework net10.0 --project src/Samples/ConjoinedMultiTenantedEfCore
 ```
 
 The app listens on `http://localhost:5581` and seeds two fictional tenants,

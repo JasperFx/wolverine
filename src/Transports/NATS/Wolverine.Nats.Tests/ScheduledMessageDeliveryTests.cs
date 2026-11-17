@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -114,7 +114,7 @@ public class ScheduledMessageDeliveryTests : IAsyncLifetime
 
         // Guard: confirm the native path is engaged, not the durable-scheduling fallback that would mask the bug.
         var agent = runtime.Endpoints.GetOrBuildSendingAgent(new Uri($"nats://subject/{_receiverSubject}"));
-        agent.SupportsNativeScheduledSend.Should().BeTrue();
+        agent.SupportsNativeScheduledSend.ShouldBeTrue();
 
         var message = new ScheduledPing(Guid.NewGuid(), "scheduled");
 
@@ -125,7 +125,7 @@ public class ScheduledMessageDeliveryTests : IAsyncLifetime
             .WaitForMessageToBeReceivedAt<ScheduledPing>(_receiver!)
             .ExecuteAndWaitAsync(c => c.ScheduleAsync(message, 5.Seconds()).AsTask());
 
-        session.Received.SingleMessage<ScheduledPing>().Should().BeEquivalentTo(message);
+        session.Received.SingleMessage<ScheduledPing>().ShouldBe(message);
     }
 }
 

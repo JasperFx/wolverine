@@ -49,6 +49,14 @@ public partial class Envelope
         ReplyUri = agent.ReplyUri?.MaybeCorrectScheme(agent.Destination.Scheme);
     }
 
+    /// <summary>
+    /// GH-5167. The group id a message store keeps for this envelope. A message scheduled for an endpoint without
+    /// native scheduling is stored as a wrapper around the real envelope, and the group id is the real envelope's.
+    /// The wrapper itself carries none, so releasing it is not grouped or sharded under the business identifier.
+    /// </summary>
+    [JsonIgnore]
+    public string? StoredGroupId => GroupId ?? (Message as Envelope)?.GroupId;
+
     internal Envelope(object message, IMessageSerializer writer)
     {
         Message = message;
@@ -227,7 +235,7 @@ public partial class Envelope
     /// Returns the elapsed handler execution time in fractional milliseconds, or -1 if timing
     /// never started. Previously this truncated to whole milliseconds, which — combined with the
     /// callers' "only record positive values" guard — silently dropped every sub-millisecond
-    /// execution and biased the wolverine-execution-time histogram upward for fast handlers
+    /// execution and biased the wolverine.execution.time histogram upward for fast handlers
     /// (GH-3490).
     /// </summary>
     internal double StopTiming()
@@ -337,6 +345,19 @@ public partial class Envelope
         UserName = source.UserName;
         ParentId = source.ParentId;
         SagaId = source.SagaId;
+    }
+
+    /// <summary>
+    ///     GH-5138. A copy of a received envelope for one of several handler chains that each run it inline, so
+    ///     that each one has an envelope of its own: its own id, attempt count and response
+    /// </summary>
+    internal Envelope CloneForInlineInvocation()
+    {
+        var copy = (Envelope)MemberwiseClone();
+        copy.Id = IdGenerator();
+        copy.Attempts = 0;
+        copy.Response = null;
+        return copy;
     }
 
     /// <summary>
@@ -518,6 +539,28 @@ public partial class Envelope
         if (TryGetHeader(RecurringMessage.OccurrenceHeaderKey, out var occurrence))
         {
             activity.MaybeSetTag(WolverineTracing.ScheduleOccurrence, occurrence);
+        }
+    }
+
+    /// <summary>
+    ///     Serializes the message now when its serializer is an <see cref="IAsyncMessageSerializer" />, so that a
+    ///     later synchronous read of <see cref="Data" />, like the one every message store does when it writes the
+    ///     envelope, finds the bytes in place instead of blocking on the async serializer
+    /// </summary>
+    internal ValueTask SerializeAheadAsync()
+    {
+        return Serializer is IAsyncMessageSerializer && _message != null ? EnsureDataAsync() : ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    ///     Serializes the message unless the bytes already exist, awaiting an <see cref="IAsyncMessageSerializer" />
+    ///     where reading <see cref="Data" /> would block on it
+    /// </summary>
+    internal async ValueTask EnsureDataAsync()
+    {
+        if (MessagePayloadSize == null)
+        {
+            await GetDataAsync().ConfigureAwait(false);
         }
     }
 

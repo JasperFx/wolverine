@@ -480,8 +480,6 @@ public class StoreManyDocs<T> : DocumentsOp where T : notnull
 
 public class StoreObjects : DocumentsOp
 {
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, System.Reflection.MethodInfo> _storeMethods = new();
-
     public StoreObjects(params object[] documents) : base(documents) { }
 
     public StoreObjects(IList<object> documents) : this(documents.ToArray()) { }
@@ -502,24 +500,9 @@ public class StoreObjects : DocumentsOp
 
     public override void Execute(IDocumentSession session)
     {
-        // Polecat does not have a single StoreObjects(IEnumerable<object>) method like Marten,
-        // so we dispatch each document to Store<T> by its runtime type.
-        var target = ResolveSession(session);
-        foreach (var document in Documents)
-        {
-            if (document is null) continue;
-            var docType = document.GetType();
-            var method = _storeMethods.GetOrAdd(docType, t =>
-            {
-                var open = typeof(IDocumentOperations).GetMethods()
-                    .First(m => m.Name == nameof(IDocumentOperations.Store)
-                        && m.IsGenericMethodDefinition
-                        && m.GetParameters().Length == 1
-                        && !m.GetParameters()[0].ParameterType.IsArray);
-                return open.MakeGenericMethod(t);
-            });
-            method.Invoke(target, new[] { document });
-        }
+        // GH-5143: Polecat has StoreObjects(IEnumerable<object>) now, so this no longer dispatches each
+        // document to Store<T> by reflection
+        ResolveSession(session).StoreObjects(Documents.Where(x => x is not null));
     }
 }
 

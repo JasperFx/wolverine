@@ -1,6 +1,5 @@
 using System.Text.Json;
-using Confluent.Kafka;
-using Confluent.Kafka.Admin;
+using Dekaf.Admin;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
 using Wolverine.Runtime.Serialization;
@@ -38,7 +37,7 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
     /// <param name="configure"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public KafkaSubscriberConfiguration Specification(Action<TopicSpecification> configure)
+    public KafkaSubscriberConfiguration Specification(Action<KafkaTopicSpecification> configure)
     {
         if (configure == null)
         {
@@ -81,11 +80,11 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
     /// </summary>
     /// <param name="configuration"></param>
     /// <returns></returns>
-    public KafkaSubscriberConfiguration ConfigureProducer(Action<ProducerConfig> configuration)
+    public KafkaSubscriberConfiguration ConfigureProducer(Action<KafkaProducerOptions> configuration)
     {
         add(topic =>
         {
-            var config = new ProducerConfig();
+            var config = new KafkaProducerOptions();
             configuration(config);
 
             topic.ProducerConfig = config;
@@ -94,17 +93,34 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
     }
 
     /// <summary>
-    /// Opt this topic's producer into the idempotent producer (<c>enable.idempotence = true</c>, which
+    /// Pin this topic's producer to the idempotent producer (<c>enable.idempotence = true</c>, which
     /// implies <c>acks=all</c> and bounded in-flight requests) so producer-side retries can't write
-    /// duplicates to the broker. Opt-in; producer→broker de-duplication only (not transactional
+    /// duplicates to the broker. Producers are idempotent by default since Wolverine 7.0, so this only
+    /// matters when other configuration, or <c>RestoreV6Defaults()</c>, turns idempotence off. Producer→broker de-duplication only (not transactional
     /// exactly-once). See GH-3149. Call after <see cref="ConfigureProducer"/> if you also use that.
     /// </summary>
     public KafkaSubscriberConfiguration UseIdempotentProducer()
     {
         add(topic =>
         {
-            topic.ProducerConfig ??= new ProducerConfig();
+            topic.ProducerConfig ??= new KafkaProducerOptions();
             topic.ProducerConfig.EnableIdempotence = true;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// GH-5201. Opt this topic's producer out of the idempotent producer that is the default since Wolverine 7.0
+    /// (<c>enable.idempotence = false</c>), so it can use <see cref="KafkaProducerOptions.Acks" /> below
+    /// <c>Acks.All</c>. Gives the topic its own producer options, and so its own producer. Call after
+    /// <see cref="ConfigureProducer"/> if you also use that.
+    /// </summary>
+    public KafkaSubscriberConfiguration DisableIdempotentProducer()
+    {
+        add(topic =>
+        {
+            topic.ProducerConfig ??= new KafkaProducerOptions();
+            topic.ProducerConfig.EnableIdempotence = false;
         });
         return this;
     }

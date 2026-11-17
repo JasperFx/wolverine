@@ -32,7 +32,7 @@ Some things to know about the local queues:
 If you want to enqueue a message locally to a specific worker queue, you can use this syntax:
 
 <!-- snippet: sample_IServiceBus.Enqueue_to_specific_worker_queue -->
-<a id='snippet-sample_iservicebus.enqueue_to_specific_worker_queue'></a>
+<a id='snippet-sample_IServiceBus.Enqueue_to_specific_worker_queue'></a>
 ```cs
 public ValueTask EnqueueToQueue(IMessageContext bus)
 {
@@ -49,7 +49,7 @@ public ValueTask EnqueueToQueue(IMessageContext bus)
     return bus.EndpointFor("highpriority").SendAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L134-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iservicebus.enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L134-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IServiceBus.Enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Scheduling Local Execution
@@ -145,6 +145,33 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EnqueueSamples.cs#L53-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_local_queue_conventions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Naming Local Queues by Handler Type <Badge type="tip" text="7.0" />
+
+When a message type has more than one handler type, Wolverine gives each handler type that isn't sticky its own local
+queue named `local://{handler type's full name, lower case}`. A message type with one handler type uses the message
+type's queue instead, so adding a second handler type later moves that message to new queues. To name every local
+queue by its handler type from the start, opt in with `NameQueuesByHandlerType()`:
+
+<!-- snippet: sample_name_local_queues_by_handler_type -->
+<a id='snippet-sample_name_local_queues_by_handler_type'></a>
+```cs
+// Name the local queue of every handler type that is not sticky
+// for the handler type, even when it's the only handler of its message type
+opts.Policies.ConfigureConventionalLocalRouting().NameQueuesByHandlerType();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Transports/Local/naming_local_queues_by_handler_type_5518.cs#L31-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_name_local_queues_by_handler_type' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A few notes:
+
+* This only changes local queue names. Conventional broker routing names its queues and listeners the same way it does
+  without this setting.
+* Sticky handlers still run only on their own endpoints.
+* `[LocalQueue]` on a message type still names that message type's queue.
+* `LocalQueueFor<T>()` configures the handler type's queue.
+* Messages already persisted to the message type's queue, like durable local queue rows from before you turned this
+  on, are still handled.
+
 ## Disable Conventional Local Routing
 
 Sometimes you'll want to disable the conventional routing to local queues, especially if you want to evenly distribute work across active
@@ -227,7 +254,7 @@ This feature was added in reaction to the newer "sticky" handler to local queue 
 message types that are happily handled without any "sticky" handler configuration.
 :::
 
-The advent of ["sticky handlers"](/guide/handlers/sticky) or the [separated handler mode](/guide/handlers/#multiple-handlers-for-the-same-message-type) for better Wolverine usage in modular monoliths admittedly
+The advent of ["sticky handlers"](/guide/handlers/sticky) or [one handler chain per handler type](/guide/handlers/#multiple-handlers-for-the-same-message-type) for better Wolverine usage in modular monoliths admittedly
 made it a little harder to fine tune the local queue behavior for different message types or message handlers without understanding
 the Wolverine naming conventions. To get back to leaning more on the type system, Wolverine introduced the static `IConfigureLocalQueue`
 interface that can be implemented on any handler type to configure the local queue where that handler would run:
@@ -273,7 +300,7 @@ public class MultipleMessage1Handler : IConfigureLocalQueue
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/configuring_local_queues.cs#L102-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_iconfigurelocalqueue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/configuring_local_queues.cs#L101-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_iconfigurelocalqueue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Durable Local Messages

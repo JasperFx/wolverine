@@ -30,6 +30,7 @@ using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Postgresql.MultiTenancy;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using ManagedDistributionDaemonModeValidator = Wolverine.Persistence.EventSourcing.Distribution.ManagedDistributionDaemonModeValidator;
 using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
 
 namespace Wolverine.Marten;
@@ -91,7 +92,7 @@ public static class WolverineOptionsMartenExtensions
         // GH-3956: Marten registers its own interfaces, never the store-agnostic JasperFx.Events.Documents
         // contracts its session types already implement, so a service depending on one of those could not
         // be resolved at all on a stock host. Handler PARAMETERS are satisfied by codegen
-        // (SharedDocumentOperationsSource); these registrations cover everything codegen does not see --
+        // (DocumentSessionContractSource, GH-5141); these registrations cover everything codegen does not see --
         // a service-located contract, or one injected into a class that a handler depends on.
         //
         // Deliberately delegating to IDocumentSession / IQuerySession rather than to a fresh session, so
@@ -149,15 +150,22 @@ public static class WolverineOptionsMartenExtensions
 
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {
+            // GH-5141: the agent family, coordinator and validator are Wolverine core's, shared with Polecat
+            // and Fisher. Marten's IProjectionCoordinator resolves the one coordinator instance.
+            expression.Services.AddEventSubscriptionAgentFamily();
             expression.Services.AddSingleton<WolverineProjectionCoordinator>();
-            expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
-            expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
-            expression.Services.AddSingleton<IEventSubscriptionAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
-            expression.Services.AddSingleton<IProjectionCoordinator, WolverineProjectionCoordinator>();
+            expression.Services.AddSingleton<IProjectionCoordinator>(s => s.GetRequiredService<WolverineProjectionCoordinator>());
 
             // GH-3388 — refuse a competing Marten-side daemon (Solo/HotCold) at host start, where
             // the store's options are final regardless of the order AddAsyncDaemon() was called in.
-            expression.Services.AddSingleton<IHostedService, ManagedDistributionDaemonModeValidator>();
+            ManagedDistributionDaemonModeValidator.Register(expression.Services, s =>
+            {
+                var mode = ((DocumentStore)s.GetRequiredService<IDocumentStore>()).Options.Projections.AsyncMode;
+                return mode is JasperFx.Events.Daemon.DaemonMode.Solo or JasperFx.Events.Daemon.DaemonMode.HotCold
+                    ? ManagedDistributionDaemonModeValidator.MessageFor("Marten's async daemon", mode,
+                        $"Remove the Marten-side daemon choice (MartenDaemonModeIsSolo() / AddAsyncDaemon(DaemonMode.{mode}))")
+                    : null;
+            });
         }
 
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MessageDatabaseDiscovery),
@@ -169,12 +177,15 @@ public static class WolverineOptionsMartenExtensions
 
         // CritterWatch / saga-explorer diagnostic surface — Marten owns
         // every saga whose state class is a Marten document, so register
-        // a Marten-backed ISagaStoreDiagnostics that the runtime
-        // aggregator fans out to.
+        // the document-store ISagaStoreDiagnostics that the runtime
+        // aggregator fans out to. GH-5142: one implementation shared with
+        // Polecat and Fisher.
         expression.Services.AddSingleton<ISagaStoreDiagnostics>(s =>
-            new MartenSagaStoreDiagnostics(
+            new DocumentStoreSagaStoreDiagnostics(
                 s.GetRequiredService<IWolverineRuntime>(),
-                s.GetRequiredService<IDocumentStore>()));
+                s.GetRequiredService<IDocumentStore>(),
+                typeof(MartenPersistenceFrameProvider),
+                "Marten"));
 
         return expression;
     }

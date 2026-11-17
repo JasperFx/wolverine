@@ -19,7 +19,7 @@ public partial class HandlerGraph
         }
         else
         {
-            var hasStickys = Chains.Any(x => x.ByEndpoint.Any());
+            var hasStickys = Chains.Any(x => x.Endpoints.Any());
         
             var table = new Table(){Title = new TableTitle("Message Handlers"){Style = new Style(decoration:Decoration.Bold)}};
             table.AddColumn("Message Name");
@@ -33,31 +33,21 @@ public partial class HandlerGraph
                 table.AddColumn("Endpoints");
             }
 
+            // GH-5136. One row per handler chain, which is one per (message type, handler type)
             foreach (var chain in Chains)
             {
                 var messageType = $"[bold]{chain.MessageType.NameInCode().EscapeMarkup()}[/]\n  [dim]{chain.MessageType.Namespace.EscapeMarkup()}[/]";
                 var chainTypeName = chain.TypeName.EscapeMarkup();
                 var messageTypeName = chain.MessageType.ToMessageTypeName().EscapeMarkup();
-                
+                var handlerType = FormatHandlerType(chain.Handlers);
+
                 if (hasStickys)
                 {
-                    // Default handlers
-                    if (chain.Handlers.Any())
-                    {
-                        var handlerType = FormatHandlerType(chain.Handlers);
-                        table.AddRow(messageTypeName, messageType, handlerType, chainTypeName, "");
-                    }
-
-                    foreach (var handlerChain in chain.ByEndpoint)
-                    {
-                        var handlerType = FormatHandlerType(handlerChain.Handlers);
-                        var endpoints = handlerChain.Endpoints.Select(x => x.Uri.ToString()).Join(", ");
-                        table.AddRow(messageTypeName, messageType, handlerType, handlerChain.TypeName.EscapeMarkup(), endpoints);
-                    }
+                    var endpoints = chain.Endpoints.Select(x => x.Uri.ToString()).Join(", ");
+                    table.AddRow(messageTypeName, messageType, handlerType, chainTypeName, endpoints);
                 }
                 else
                 {
-                    var handlerType = FormatHandlerType(chain.Handlers);
                     table.AddRow(messageTypeName, messageType, handlerType, chainTypeName);
                 }
             }

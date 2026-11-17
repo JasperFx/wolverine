@@ -1,35 +1,28 @@
 using System.Diagnostics.CodeAnalysis;
 using JasperFx.CodeGeneration.Model;
 using Wolverine.Configuration;
-using Wolverine.Polecat;
-
-// GH-3907: AggregateHandling moved into Wolverine core with the rest of the shared aggregate handler
-// workflow. The chain tag key is unchanged, so these extensions read exactly what they always did.
-using Wolverine.Persistence.EventSourcing;
 
 namespace Wolverine.Http.Polecat;
 
+/// <summary>
+///     Reads the aggregate handler workflow's choices back off a chain.
+/// </summary>
+/// <remarks>
+///     GH-5142: the Marten, Polecat and Fisher copies of this class were identical, and now all forward to
+///     one implementation in Wolverine.Http. The class stays so existing calls keep compiling; GH-5145
+///     retires the per-store copies.
+/// </remarks>
 public static class ChainAggregateHandlingExtensions
 {
     public static Variable? GetAggregateIdVariable(this IChain chain)
-        => chain.Tags.TryGetValue(nameof(AggregateHandling), out var obj) && obj is AggregateHandling aggregateHandling
-            ? aggregateHandling.AggregateId
-            : null;
+        => AggregateChainLookups.AggregateIdVariable(chain);
 
     public static bool TryGetAggregateIdVariable(this IChain chain, [MaybeNullWhen(false)] out Variable variable)
-    {
-        variable = chain.GetAggregateIdVariable();
-        return variable != null;
-    }
+        => AggregateChainLookups.TryGetAggregateIdVariable(chain, out variable);
 
     public static Type? GetAggregateType(this IChain chain)
-        => chain.Tags.TryGetValue(nameof(AggregateHandling), out var obj) && obj is AggregateHandling aggregateHandling
-            ? aggregateHandling.AggregateType
-            : null;
+        => AggregateChainLookups.AggregateType(chain);
 
     public static bool TryGetAggregateType(this IChain chain, [MaybeNullWhen(false)] out Type type)
-    {
-        type = chain.GetAggregateType();
-        return type != null;
-    }
+        => AggregateChainLookups.TryGetAggregateType(chain, out type);
 }

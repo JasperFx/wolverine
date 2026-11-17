@@ -205,7 +205,8 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
 
     /// <summary>
     /// GH-4701. The mark-as-handled that transactional middleware (EfCoreEnvelopeTransaction) issues inside the
-    /// application's own transaction has to survive the same pair. It used to be a separate statement matching the id
+    /// application's own transaction has to survive the same pair. Since GH-5423 "survive" means refusing the
+    /// duplicate cleanly, because the identity is already handled and the copy's work must not commit. It used to be a separate statement matching the id
     /// alone with no status predicate, so moving the redelivered row into the handled partition collided with the
     /// retained one.
     /// </summary>
@@ -234,10 +235,21 @@ public abstract class PartitionedInboxScheduledPromotionContext : IAsyncLifetime
         await using (var conn = await database.DataSource.OpenConnectionAsync(cancellation))
         {
             await using var tx = await conn.BeginTransactionAsync(cancellation);
-            await database.MarkIncomingEnvelopeAsHandledInTransactionAsync(conn, tx, redelivered,
-                DateTimeOffset.UtcNow.AddMinutes(5), cancellation);
-            await tx.CommitAsync(cancellation);
+
+            // GH-5423: the identity is already handled, so the redelivered copy's work must not commit. The
+            // refusal is the duplicate exception, not the 23505 the partitioned key used to raise here (GH-4701)
+            await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(() =>
+                database.MarkIncomingEnvelopeAsHandledInTransactionAsync(conn, tx, redelivered,
+                    DateTimeOffset.UtcNow.AddMinutes(5), cancellation));
+
+            await tx.RollbackAsync(cancellation);
         }
+
+        // Nothing the caller's transaction did was kept
+        (await statusesForAsync(envelope.Id)).ShouldBe(["Handled", "Incoming"]);
+
+        // The default policy discards a DuplicateIncomingEnvelopeException, and the discard retires the copy
+        await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(redelivered);
 
         (await statusesForAsync(envelope.Id)).ShouldBe(["Handled"]);
     }

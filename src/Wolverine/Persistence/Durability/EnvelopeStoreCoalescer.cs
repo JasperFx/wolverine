@@ -46,7 +46,7 @@ internal class EnvelopeStoreCoalescer : IEnvelopeStoreCoalescer
     private readonly int _maximumBatchSize;
     private readonly ILogger _logger;
     private readonly Uri _uri;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private readonly List<Pending> _pending = new();
     private bool _flushing;
     private Task? _flushLoop;
@@ -73,7 +73,7 @@ internal class EnvelopeStoreCoalescer : IEnvelopeStoreCoalescer
     {
         get
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 return _pending.Count;
             }
@@ -91,7 +91,7 @@ internal class EnvelopeStoreCoalescer : IEnvelopeStoreCoalescer
             new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
 
         var startLoop = false;
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             _pending.Add(pending);
             if (!_flushing)
@@ -107,7 +107,7 @@ internal class EnvelopeStoreCoalescer : IEnvelopeStoreCoalescer
             // caller happened to arrive first must not be conscripted into flushing everyone else's
             // writes forever.
             var loop = Task.Run(flushLoopAsync);
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 _flushLoop = loop;
             }
@@ -122,7 +122,7 @@ internal class EnvelopeStoreCoalescer : IEnvelopeStoreCoalescer
     public Task DrainAsync()
     {
         Task? loop;
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             loop = _flushLoop;
         }
@@ -135,7 +135,9 @@ internal class EnvelopeStoreCoalescer : IEnvelopeStoreCoalescer
         while (true)
         {
             Pending[] batch;
-            lock (_lock)
+            // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+            _lock.Enter();
+            try
             {
                 if (_pending.Count == 0)
                 {
@@ -148,6 +150,10 @@ internal class EnvelopeStoreCoalescer : IEnvelopeStoreCoalescer
                 batch = new Pending[take];
                 _pending.CopyTo(0, batch, 0, take);
                 _pending.RemoveRange(0, take);
+            }
+            finally
+            {
+                _lock.Exit();
             }
 
             await flushAsync(batch).ConfigureAwait(false);

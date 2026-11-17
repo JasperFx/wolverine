@@ -39,22 +39,31 @@ public class using_messaging_conventions_for_both_external_and_local : MessageRo
         assertRoutesAre<M4>("local://messageroutingtests.m4");
     }
     
+    // GH-5136. One handler chain per handler type, and the conventional routing gives each chain that is bound
+    // to a queue of its own -- sticky, or one of several handler types -- a broker queue named for its handler
+    // type too: the topology MultipleHandlerBehavior.Separated built in 6.x
     [Fact]
-    public void multiple_handlers_are_still_routed_to_one_place_in_default_mode()
+    public void multiple_handlers_each_get_their_own_local_and_broker_queue_by_default()
     {
-        assertRoutesAre<M2>("local://messageroutingtests.m2");
+        assertRoutesAre<M2>("local://messageroutingtests.anotherm2handler", "local://messageroutingtests.mainm2handler",
+            "local://messageroutingtests.otherm2handler", "rabbitmq://queue/MessageRoutingTests.AnotherM2Handler",
+            "rabbitmq://queue/MessageRoutingTests.MainM2Handler", "rabbitmq://queue/MessageRoutingTests.OtherM2Handler");
     }
 
     [Fact]
-    public void respect_sticky_attributes_but_default_is_still_there_too()
+    public void respect_sticky_attributes_and_the_unsticky_handler_gets_its_own_queue()
     {
-        assertRoutesAre<M5>("local://green/", "local://blue/", "local://messageroutingtests.m5");
+        assertRoutesAre<M5>("local://green/", "local://blue/", "local://messageroutingtests.mhandler",
+            "rabbitmq://queue/MessageRoutingTests.BlueM5Handler", "rabbitmq://queue/MessageRoutingTests.GreenM5Handler",
+            "rabbitmq://queue/MessageRoutingTests.MHandler");
     }
 
     [Fact]
     public void respect_sticky_attributes_no_default()
     {
-        assertRoutesAre<OnlyStickyMessage>("local://purple", "local://red");
+        assertRoutesAre<OnlyStickyMessage>("local://purple", "local://red",
+            "rabbitmq://queue/MessageRoutingTests.PurpleOnlyStickMessageHandler",
+            "rabbitmq://queue/MessageRoutingTests.RedOnlyStickMessageHandler");
     }
 
     [Fact]

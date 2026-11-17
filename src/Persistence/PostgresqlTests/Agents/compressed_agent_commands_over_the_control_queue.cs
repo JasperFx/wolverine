@@ -112,3 +112,88 @@ public class compressed_agent_commands_over_the_control_queue : PostgresqlContex
         started.AgentUris.OrderBy(x => x.ToString()).ShouldBe(agents.OrderBy(x => x.ToString()));
     }
 }
+
+/// <summary>
+/// GH-5200. CompressAgentCommands is on by default in 7.0. A cluster mid-upgrade has nodes that write compressed
+/// agent commands and nodes that do not, and both have to read each other: the compressed content type has been
+/// readable since 6.44 whatever the setting says. Here one node runs the 7.0 default and the other has the 6.x
+/// defaults restored, so it writes the plain format and stands in for a 6.44+ node. Commands cross the real
+/// control queue in both directions. A node older than 6.44 cannot read the compressed content type at all,
+/// which is the documented floor: every node on 6.44 or later before the first 7.0 node starts.
+/// </summary>
+public class mixed_agent_command_compression_over_the_control_queue : PostgresqlContext, IAsyncLifetime
+{
+    private const string SchemaName = "pgmixedcompression";
+    private const int AgentCount = 500;
+
+    private IHost _compressing = null!;
+    private IHost _plain = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
+        {
+            await conn.OpenAsync();
+            await conn.DropSchemaAsync(SchemaName);
+            await conn.CloseAsync();
+        }
+
+        _compressing = await startHost("MixedCompressing", restoreV6Defaults: false);
+        _plain = await startHost("MixedPlain", restoreV6Defaults: true);
+    }
+
+    private static Task<IHost> startHost(string serviceName, bool restoreV6Defaults)
+    {
+        return Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                if (restoreV6Defaults) opts.RestoreV6Defaults();
+
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, SchemaName);
+                opts.ServiceName = serviceName;
+                opts.Services.AddSingleton<IAgentFamily>(new FakeAgentFamily("fake", AgentCount));
+                opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _compressing.StopAsync();
+        _compressing.Dispose();
+        await _plain.StopAsync();
+        _plain.Dispose();
+    }
+
+    private static async Task startAgentsOn(IHost sender, IHost receiver)
+    {
+        var receiverRuntime = receiver.GetRuntime();
+        var agents = new FakeAgentFamily("fake", AgentCount).AllAgentUris();
+        var destination = new NodeDestination(receiverRuntime.Options.UniqueNodeId,
+            new Uri($"dbcontrol://{receiverRuntime.Options.UniqueNodeId}"));
+
+        var started = await sender.GetRuntime().Agents
+            .InvokeAsync<AgentsStarted>(destination, new StartAgents(agents), 120.Seconds());
+
+        started.ShouldNotBeNull();
+        started.AgentUris.OrderBy(x => x.ToString()).ShouldBe(agents.OrderBy(x => x.ToString()));
+    }
+
+    [Fact]
+    public void the_settings_differ_as_intended()
+    {
+        _compressing.GetRuntime().Options.Durability.CompressAgentCommands.ShouldBeTrue();
+        _plain.GetRuntime().Options.Durability.CompressAgentCommands.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task a_node_writing_the_plain_format_reads_a_compressed_command()
+    {
+        await startAgentsOn(_compressing, _plain);
+    }
+
+    [Fact]
+    public async Task a_compressing_node_reads_a_plain_command()
+    {
+        await startAgentsOn(_plain, _compressing);
+    }
+}

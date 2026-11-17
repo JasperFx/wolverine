@@ -14,6 +14,7 @@ using Wolverine.ComplianceTests;
 using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Marten;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;

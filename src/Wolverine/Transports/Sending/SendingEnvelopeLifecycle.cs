@@ -62,6 +62,7 @@ internal class SendingEnvelopeLifecycle : IEnvelopeLifecycle
 
             if (_outbox != null)
             {
+                await Envelope.SerializeAheadAsync();
                 await _outbox.StoreOutgoingAsync(Envelope, Envelope.OwnerId);
             }
         }

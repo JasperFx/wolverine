@@ -17,7 +17,7 @@ namespace MartenTests;
 /// GH-4198. The GH-3001 scope priming is documented as self-guarding: a chain with no session of its own
 /// primes nothing. It was not. The guard asked <c>TryFindVariable(typeof(IDocumentSession),
 /// VariableSource.NotServices)</c>, and a variable source is a FACTORY -- Wolverine.Marten's
-/// <c>SessionVariableSource</c> answers that question by building an outbox-enrolled session. So every
+/// <c>DocumentSessionVariableSource</c> answers that question by building an outbox-enrolled session. So every
 /// chain that service-located anything, for any reason, gained a Marten session it never asked for:
 /// opened, handed to the priming holder, never read, and never committed. Its cascading messages then
 /// left through the un-committed outbox rather than inline, and under sharded multi-tenancy

@@ -38,9 +38,11 @@ public class routing_rules
 
         var runtime = host.GetRuntime();
 
+        // GH-5136. Message1 has several handler types in this assembly, each on its own local queue, so
+        // describe the route to one of them
         var routes = runtime.RoutingFor(typeof(Message1)).Routes;
-        var descriptor = routes.Single().Describe();
-        descriptor.Endpoint.ShouldBe(new Uri("local://message1"));
+        var recordingQueue = new Uri("local://" + typeof(CoreTests.Transports.RecordingHandler).FullNameInCode().ToLowerInvariant());
+        var descriptor = routes.Select(x => x.Describe()).Single(x => x.Endpoint == recordingQueue);
         descriptor.ContentType.ShouldBe("application/json");
 
     }

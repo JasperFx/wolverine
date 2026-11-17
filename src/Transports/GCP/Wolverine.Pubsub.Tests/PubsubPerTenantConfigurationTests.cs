@@ -38,10 +38,11 @@ public class PubsubPerTenantConfigurationTests
     }
 
     [Fact]
-    public void tenant_id_behavior_defaults_to_fallback_to_default()
+    public void tenant_id_behavior_defaults_to_dead_letter_unknown_tenants()
     {
+        // GH-5196: the 7.0 default. RestoreV6Defaults() restores FallbackToDefault
         var transport = new PubsubTransport { ProjectId = "wolverine" };
-        transport.TenantedIdBehavior.ShouldBe(TenantedIdBehavior.FallbackToDefault);
+        transport.TenantedIdBehavior.ShouldBe(TenantedIdBehavior.DeadLetterUnknownTenants);
     }
 
     [Fact]

@@ -2,6 +2,7 @@
 
 namespace Internal.Generated.WolverineHandlers
 
+open Microsoft.Extensions.Logging
 open System
 open System.Threading
 open System.Threading.Tasks
@@ -31,6 +32,41 @@ type CreateProductCommandHandler1629670092(outboxedSessionFactory: Wolverine.Mar
             
             // Outgoing, cascaded message
             do! context.EnqueueCascadingAsync(outgoing1)
+
+            
+            // Save all pending changes to this Marten session
+            do! documentSession.SaveChangesAsync(cancellation)
+
+            
+            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+            do! context.FlushOutgoingMessagesAsync()
+
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type RenameProductCommandHandler878548494(loggerForMessage: Microsoft.Extensions.Logging.ILogger<WolverineMartenFSharpSample.RenameProductCommand>, outboxedSessionFactory: Wolverine.Marten.Publishing.OutboxedSessionFactory) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _loggerForMessage = loggerForMessage
+    let _outboxedSessionFactory = outboxedSessionFactory
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        task {
+            // Building the Marten session
+            use documentSession = _outboxedSessionFactory.OpenSession(context)
+            // The actual message body
+            let renameProductCommand = context.Envelope.Message :?> WolverineMartenFSharpSample.RenameProductCommand
+
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenFSharpSample.RenameProductHandler") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenFSharpSample.RenameProductHandler") |> ignore
+            // Verify that WolverineMartenFSharpSample.Product exists
+            let! docExists1 = documentSession.CheckExistsAsync<WolverineMartenFSharpSample.Product>((context.Envelope.Message :?> WolverineMartenFSharpSample.RenameProductCommand).ProductId, cancellation)
+            if not docExists1 then
+                Microsoft.Extensions.Logging.LoggerExtensions.LogWarning((_loggerForMessage :> Microsoft.Extensions.Logging.ILogger), "Marten data requirement failure: {Message}", [| box "No Product with the specified identity exists" |])
+                raise (Wolverine.Persistence.RequiredDataMissingException("No Product with the specified identity exists"))
+            
+            // The actual message execution
+            WolverineMartenFSharpSample.RenameProductHandler.Handle(renameProductCommand, documentSession)
 
             
             // Save all pending changes to this Marten session

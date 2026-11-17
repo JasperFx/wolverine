@@ -29,7 +29,7 @@ public class InlineSendingAgentRejectionTests
     {
         var sender = new RefusingSender();
         var logger = new RecordingLogger();
-        using var agent = buildAgent(sender, logger, useSyncRetryBlock);
+        await using var agent = buildAgent(sender, logger, useSyncRetryBlock);
 
         var envelope = new Envelope { Message = new RejectedMessage(), Destination = sender.Destination };
 
@@ -45,7 +45,7 @@ public class InlineSendingAgentRejectionTests
     public async Task a_rejection_of_one_message_does_not_leak_into_the_next()
     {
         var sender = new RefusingSender { RefuseOnlyFirst = true };
-        using var agent = buildAgent(sender, new RecordingLogger(), useSyncRetryBlock: true);
+        await using var agent = buildAgent(sender, new RecordingLogger(), useSyncRetryBlock: true);
 
         await Should.ThrowAsync<SendRejectedException>(() =>
             agent.EnqueueOutgoingAsync(new Envelope { Message = new RejectedMessage(), Destination = sender.Destination }).AsTask());
@@ -60,7 +60,7 @@ public class InlineSendingAgentRejectionTests
     {
         // Fails once with an ordinary exception, then succeeds, so the retry block's second attempt sends it
         var sender = new RefusingSender { Transient = true };
-        using var agent = buildAgent(sender, new RecordingLogger(), useSyncRetryBlock: true);
+        await using var agent = buildAgent(sender, new RecordingLogger(), useSyncRetryBlock: true);
 
         await agent.EnqueueOutgoingAsync(new Envelope { Message = new RejectedMessage(), Destination = sender.Destination });
 

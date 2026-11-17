@@ -323,11 +323,12 @@ app.MapWolverineEndpoints(opts =>
 
 ### Applying the Correlation Id to Every Endpoint <Badge type="tip" text="6.49" />
 
-By default, `RequestIdMiddleware` above is only applied to endpoints that use `IMessageBus` or `IMessageContext`, and
+On its own, `RequestIdMiddleware` above is only applied to endpoints that use `IMessageBus` or `IMessageContext`, and
 even then it runs *after* any Marten, Polecat or Fisher session the endpoint uses has been opened. The messages the
 endpoint sends carry the request's `X-Correlation-ID`, but the events it appends record an Activity id or a new
-`Guid` instead. If you need the caller's correlation id on those events too -- say a test is finding everything a
-request caused by its correlation id -- you can opt into this:
+`Guid` instead. To get the caller's correlation id on those events too -- say a test is finding everything a
+request caused by its correlation id -- Wolverine.Http applies the header to every endpoint. That is the default from
+Wolverine 7.0; in 6.x it was opt-in through this setting:
 
 <!-- snippet: sample_apply_correlation_id_header_to_all_endpoints -->
 <a id='snippet-sample_apply_correlation_id_header_to_all_endpoints'></a>
@@ -341,7 +342,8 @@ opts.ApplyCorrelationIdHeaderToAllEndpoints = true;
 <!-- endSnippet -->
 
 With that setting on, Wolverine applies the header right where each endpoint creates its message context, before
-any event store session is opened from it. This is off by default, so nothing changes unless you ask for it.
+any event store session is opened from it. It is on by default from Wolverine 7.0. Set it to `false`, or call
+`opts.RestoreV6Defaults()` in `UseWolverine`, for the 6.x behavior.
 
 ## Required Inputs
 

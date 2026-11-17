@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Configuration.Capabilities;
@@ -19,6 +20,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
     private Action<Type, IListenerConfiguration> _customization = (_, _) => { };
     private Func<Type, string> _determineName = t => t.ToMessageTypeName().Replace('+', '.').Replace("[", "").Replace("]", "");
+    private bool _queuesNamedByHandlerType;
 
 
     public LocalTransport() : base(TransportConstants.Local, "Local (In Memory)", ["local"])
@@ -77,6 +79,24 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         _customization = customization ?? throw new ArgumentNullException(nameof(customization));
         return this;
     }
+
+    /// <summary>
+    ///     GH-5518. Name the local queue of every handler chain that is not sticky for its handler type,
+    ///     even when the message type has only one handler type. Off by default
+    /// </summary>
+    /// <returns></returns>
+    public ILocalMessageRoutingConvention NameQueuesByHandlerType()
+    {
+        _queuesNamedByHandlerType = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     The name of the local queue of a handler type: its full name, lower case. Used for each handler type
+    ///     of a message type with several handler types, and for every handler type that is not sticky with
+    ///     <see cref="NameQueuesByHandlerType"/>
+    /// </summary>
+    internal static string QueueNameForHandlerType(Type handlerType) => handlerType.FullNameInCode().ToLowerInvariant();
 
     public ILocalMessageRoutingConvention IsAdditive(bool additive)
     {
@@ -170,10 +190,19 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         {
             foreach (var messageType in handledMessageTypes)
             {
-                var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
-                if (chain != null && chain.Handlers.Any())
+                // GH-5136. The message type's own queue is for a chain that is not bound to an endpoint of
+                // its own: the only chain of a message type with one handler type that is not sticky
+                var group = runtime.Options.HandlerGraph.GroupFor(messageType);
+                if (group != null && hasUnboundChain(group))
                 {
-                    FindOrCreateQueueForMessageTypeByConvention(messageType);
+                    if (_queuesNamedByHandlerType)
+                    {
+                        findOrCreateQueueForHandlerType(messageType, group);
+                    }
+                    else
+                    {
+                        FindOrCreateQueueForMessageTypeByConvention(messageType);
+                    }
                 }
             }
         }
@@ -183,12 +212,54 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         {
             delayedConfiguration.Apply();
         }
+
+        warnAboutMessageTypeQueuesNothingRoutesTo(runtime);
+    }
+
+    private static bool hasUnboundChain(MessageHandlerGroup group) => group.UnboundChains().Any(x => x.Handlers.Any());
+
+    // GH-5137. LocalQueueFor<T>() or [LocalQueue] on a message type with several handler types configures a queue
+    // that only drains envelopes persisted before the handler types were split: each handler type runs on a
+    // queue of its own
+    private void warnAboutMessageTypeQueuesNothingRoutesTo(IWolverineRuntime runtime)
+    {
+        foreach (var (messageType, queue) in Assignments)
+        {
+            var group = runtime.Options.HandlerGraph.GroupFor(messageType);
+            if (group == null || group.Chains.Count == 0 || hasUnboundChain(group)) continue;
+
+            runtime.Logger.LogWarning(
+                "Local queue {Queue} is configured for message type {MessageType}, but that message type is handled by {HandlerTypes}, each on a local queue of its own, so nothing routes to {Queue}. Configure the handler types' queues instead",
+                queue.Uri, messageType.FullNameInCode(), group.DescribeBindings(), queue.Uri);
+        }
+    }
+
+    // GH-5518. With NameQueuesByHandlerType(), the message type's only chain runs on the queue named for its handler
+    // type, the same queue it would get next to a second handler type. The chain itself stays unbound -- it still
+    // runs wherever the message type is received -- so the broker routing conventions, which name a listener for
+    // the handler type only when a chain is bound to an endpoint of its own, keep their message type names. And
+    // envelopes persisted to the message type's queue before the opt-in still run on that chain when recovered.
+    // [LocalQueue] on the message type still names the queue
+    private LocalQueue findOrCreateQueueForHandlerType(Type messageType, MessageHandlerGroup group)
+    {
+        if (messageType.HasAttribute<LocalQueueAttribute>())
+        {
+            return FindOrCreateQueueForMessageTypeByConvention(messageType);
+        }
+
+        var chain = group.UnboundChains().First(x => x.Handlers.Any());
+        return findOrCreateQueue(messageType, QueueNameForHandlerType(MessageHandlerGroup.HandlerTypeOf(chain)));
     }
 
     internal LocalQueue FindOrCreateQueueForMessageTypeByConvention(Type messageType)
     {
         var queueName = messageType.GetAttribute<LocalQueueAttribute>()?.QueueName ?? _determineName(messageType);
 
+        return findOrCreateQueue(messageType, queueName);
+    }
+
+    private LocalQueue findOrCreateQueue(Type messageType, string queueName)
+    {
         if (queueName.IsEmpty())
         {
             return _queues[TransportConstants.Default];
@@ -215,22 +286,25 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
 
     internal IEnumerable<Endpoint> DiscoverSenders(Type messageType, IWolverineRuntime runtime)
     {
-        var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
+        var group = runtime.Options.HandlerGraph.GroupFor(messageType);
         
-        // This only covers the default message type to local queue routing
-        if (Assignments.TryGetValue(messageType, out var queue))
+        // This only covers the default message type to local queue routing. GH-5137: when every chain of the
+        // message type is bound to a queue of its own, the message type's queue -- created anyway by
+        // LocalQueueFor<T>() or [LocalQueue] -- only drains what was persisted to it before the handler types
+        // were split. Routing there too would relay a second copy to every handler type
+        if (Assignments.TryGetValue(messageType, out var queue) && (group == null || hasUnboundChain(group)))
         {
             yield return queue;
         }
         
         // Now do "sticky" assignments too
 
-        if (chain == null)
+        if (group == null)
         {
             yield break;
         }
         
-        foreach (var endpoint in chain.ByEndpoint.SelectMany(x => x.Endpoints))
+        foreach (var endpoint in group.BoundChains().SelectMany(x => x.Endpoints))
         {
             // GH-4510. A sticky handler binding says "deliver this message type to this listener". It is NOT a
             // claim that anything can send to the endpoint, and conflating the two crashed host startup: an
@@ -274,12 +348,6 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         Justification = "Runtime-resolved handler types; AOT-clean apps in TypeLoadMode.Static have these baked into source-generated registration. See AOT guide.")]
     internal void ApplyConfiguration(HandlerChain chain)
     {
-        // Gotta go recursive
-        foreach (var handlerChain in chain.ByEndpoint)
-        {
-            ApplyConfiguration(handlerChain);
-        }
-
         var configured = chain.Handlers.Select(x => x.HandlerType)
             .Where(x => x.CanBeCastTo(typeof(IConfigureLocalQueue))).ToArray();
 

@@ -45,11 +45,11 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         IdSource = LambdaBuilder.Getter<T, TId>(definition.IdMember);
 
         _insertSql =
-            $"INSERT INTO {settings.SchemaName}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}) VALUES (@id, @body, 1)";
+            $"INSERT INTO {settings.SchemaName}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}, last_modified) VALUES (@id, @body, 1, @last_modified)";
         _updateSql =
-            $"UPDATE {settings.SchemaName}.{definition.TableName} SET {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = UTC_TIMESTAMP(6) WHERE {DatabaseConstants.Id} = @id AND {DatabaseConstants.Version} = @version";
+            $"UPDATE {settings.SchemaName}.{definition.TableName} SET {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = @last_modified WHERE {DatabaseConstants.Id} = @id AND {DatabaseConstants.Version} = @version";
         _loadSql =
-            $"SELECT body, version FROM {settings.SchemaName}.{definition.TableName} WHERE {DatabaseConstants.Id} = @id";
+            $"SELECT body, version, last_modified FROM {settings.SchemaName}.{definition.TableName} WHERE {DatabaseConstants.Id} = @id";
 
         _deleteSql = $"DELETE FROM {settings.SchemaName}.{definition.TableName} WHERE id = @id";
 
@@ -58,7 +58,15 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         table.AddColumn(DatabaseConstants.Body, "JSON").NotNull();
         table.AddColumn(DatabaseConstants.Version, "INT").DefaultValue(1).NotNull();
         table.AddColumn<DateTimeOffset>("created").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
-        table.AddColumn<DateTimeOffset>("last_modified").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
+        // GH-5558: DATETIME(6), not the plain DATETIME a DateTimeOffset column maps to, which keeps whole seconds
+        // only, so idle saga ranges and their least-recently-modified ordering were accurate to the second
+        table.AddColumn("last_modified", "DATETIME(6)").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
+
+        // GH-5558: "sagas idle for more than N days" filters on last_modified
+        table.Indexes.Add(new IndexDefinition(SagaTableIndexes.LastModifiedIndexName(definition.TableName, 64))
+        {
+            Columns = [SagaTableIndexes.LastModifiedColumn]
+        });
 
         Table = table;
     }
@@ -91,6 +99,8 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public async Task InsertAsync(T saga, DbTransaction transaction, CancellationToken cancellationToken)
     {
+        // GH-5345: the storage, not user code, owns LastModified. Set before the body is serialized.
+        saga.LastModified = DateTimeOffset.UtcNow;
         var id = IdSource(saga);
         if (id == null || id.Equals(default(TId)))
             throw new ArgumentOutOfRangeException(nameof(saga),
@@ -104,6 +114,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         cmd.Parameters.AddWithValue("@id", id);
         // MySQL JSON columns require string input, not binary
         cmd.Parameters.AddWithValue("@body", JsonSerializer.Serialize(saga, _settings.SagaSerializerOptions));
+        cmd.Parameters.AddWithValue("@last_modified", saga.LastModified.UtcDateTime);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
@@ -111,6 +122,8 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
     public async Task UpdateAsync(T saga, DbTransaction transaction, CancellationToken cancellationToken)
     {
+        // GH-5345: the storage, not user code, owns LastModified. Set before the body is serialized.
+        saga.LastModified = DateTimeOffset.UtcNow;
         await EnsureStorageExistsAsync(cancellationToken);
 
         var id = IdSource(saga);
@@ -122,6 +135,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         cmd.Parameters.AddWithValue("@body", JsonSerializer.Serialize(saga, _settings.SagaSerializerOptions));
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@version", saga.Version);
+        cmd.Parameters.AddWithValue("@last_modified", saga.LastModified.UtcDateTime);
         var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         if (count == 0)
@@ -162,6 +176,10 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         var body = await reader.GetFieldValueAsync<string>(0, cancellationToken);
         var saga = JsonSerializer.Deserialize<T>(body, _settings.SagaSerializerOptions);
         saga!.Version = await reader.GetFieldValueAsync<int>(1, cancellationToken);
+        // GH-5345: the column (UTC, no offset) is written with the same value as the property, and it was
+        // already maintained before 7.0, so reading it back also backfills sagas whose stored body predates it
+        var lastModified = reader.GetDateTime(2);
+        saga.LastModified = new DateTimeOffset(DateTime.SpecifyKind(lastModified, DateTimeKind.Utc));
 
         await reader.CloseAsync();
 

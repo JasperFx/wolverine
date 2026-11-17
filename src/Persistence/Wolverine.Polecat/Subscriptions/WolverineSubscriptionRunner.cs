@@ -1,8 +1,8 @@
-using JasperFx.Core;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
 using Polecat;
 using Polecat.Subscriptions;
+using Wolverine.Persistence.EventSourcing.Subscriptions;
 using Wolverine.Runtime;
 
 namespace Wolverine.Polecat.Subscriptions;
@@ -25,16 +25,9 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
     public override async Task<global::Polecat.IChangeListener> ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
         CancellationToken cancellationToken)
     {
-        var context = new MessageContext(_runtime);
-
-        // Use the session's tenant id for multi-tenant support
-        var tenantId = operations.TenantId;
-        if (tenantId.IsNotEmpty() && tenantId != JasperFx.StorageConstants.DefaultTenantId)
-        {
-            context.TenantId = tenantId;
-        }
-
-        await context.EnlistInOutboxAsync(new PolecatEnvelopeTransaction((IDocumentSession)operations, context));
+        // The session's tenant id, for multi-tenant support
+        var context = await SubscriptionMessageContext.StartAsync(_runtime, operations.TenantId,
+            c => new PolecatEnvelopeTransaction((IDocumentSession)operations, c));
 
         await _subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);
 

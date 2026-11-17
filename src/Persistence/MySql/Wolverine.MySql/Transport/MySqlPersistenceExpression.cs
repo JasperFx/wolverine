@@ -33,14 +33,26 @@ public class MySqlPersistenceExpression : BrokerExpression<MySqlTransport, MySql
     }
 
     /// <summary>
-    ///     Opt into deterministic ordering for messages with the same timestamp in MySQL
-    ///     queues. This changes the ready and scheduled queue schemas. With <c>AutoCreate.None</c>,
-    ///     apply the schema migration before starting listeners with this option enabled. Configure
-    ///     this before startup; changing it at runtime is not supported.
+    ///     Order messages with the same timestamp deterministically in MySQL queues, and add the
+    ///     <c>queue_order</c> column to queue tables that already exist without it. Deterministic ordering is the
+    ///     default from 7.0 for the queue tables Wolverine creates (GH-5192); call this only to migrate existing
+    ///     tables too. Adding the column rewrites each table and numbers its rows, so drain the queue first. With <c>AutoCreate.None</c>, apply the schema migration before starting
+    ///     listeners. Configure this before startup; changing it at runtime is not supported.
     /// </summary>
     public MySqlPersistenceExpression EnableDeterministicQueueOrdering()
     {
         Transport.EnableDeterministicQueueOrdering = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     GH-5192. Turn off the <c>queue_order</c> tie-breaker that 7.0 adds to the queue tables it creates, and
+    ///     dequeue in timestamp order only, as Wolverine 6.x did. Tables that already have the column keep it.
+    ///     Configure this before startup.
+    /// </summary>
+    public MySqlPersistenceExpression DisableDeterministicQueueOrdering()
+    {
+        Transport.EnableDeterministicQueueOrdering = false;
         return this;
     }
 

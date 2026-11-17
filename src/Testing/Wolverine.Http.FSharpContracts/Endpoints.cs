@@ -124,6 +124,16 @@ public class ThingEndpoints
     {
         return new ThingCreated(command.Name);
     }
+
+    // The same endpoint with StoreBody off, so the trailing storeBody argument of
+    // CompleteDeduplicatedRequest is emitted. The endpoint above covers the call without it.
+    [DeduplicatedWithResponse(DeduplicationScope.Tenant | DeduplicationScope.User | DeduplicationScope.Endpoint,
+        Required = false, WindowInSeconds = 60, StoreBody = false)]
+    [WolverinePost("/fsharp/deduplicated-without-body")]
+    public ThingCreated DeduplicatedWithoutBody(CreateThing command)
+    {
+        return new ThingCreated(command.Name);
+    }
 }
 
 /// <summary>

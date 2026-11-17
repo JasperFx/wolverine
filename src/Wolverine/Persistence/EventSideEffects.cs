@@ -13,12 +13,13 @@ using Wolverine.Persistence.Sagas;
 namespace Wolverine.Persistence;
 
 /// <summary>
-///     Shared codegen for <see cref="AppendEvents" /> and <see cref="StartStream" />.
+///     Shared codegen for <see cref="AppendEvents" />, <see cref="StartStream" /> and the other store agnostic
+///     side effects in <c>DocumentSideEffects.cs</c> that run against a Marten, Polecat or Fisher session.
 /// </summary>
 internal static class EventSideEffectFrames
 {
     /// <summary>
-    ///     Build the frame that invokes the side effect's <c>Execute(IEventOperations)</c>, having first enrolled
+    ///     Build the frame that invokes the side effect's <c>Execute(...)</c>, having first enrolled
     ///     the chain in the event store's transaction.
     /// </summary>
     /// <remarks>
@@ -66,9 +67,9 @@ internal static class EventSideEffectFrames
         {
             throw new InvalidOperationException(
                 $"{chain.Description} returns {effectType.NameInCode()}, but this application has no registered " +
-                "event store. Storage.AppendEvents() and Storage.StartStream() require an event store " +
-                "integration -- call IntegrateWithWolverine() on your Marten, Polecat, or Fisher store " +
-                "registration.");
+                "event store. The Storage event and document side effects (AppendEvents, StartStream, ArchiveStream, " +
+                "TombstoneStream, DeleteWhere, DeleteById) require an event store integration -- call " +
+                "IntegrateWithWolverine() on your Marten, Polecat, or Fisher store registration.");
         }
 
         // More than one event store is a real configuration, and there is nothing on the side effect itself

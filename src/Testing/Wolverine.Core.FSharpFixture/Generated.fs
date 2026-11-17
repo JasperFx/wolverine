@@ -128,6 +128,7 @@ type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence
             if countingSaga.IsCompleted() then
                 _inMemorySagaPersistor.Delete<Wolverine.Core.FSharpContracts.CountingSaga>(sagaId)
             else
+                (countingSaga :> Wolverine.Saga).LastModified <- System.DateTimeOffset.UtcNow
                 _inMemorySagaPersistor.Store<Wolverine.Core.FSharpContracts.CountingSaga>(countingSaga)
             // No unit of work
         System.Threading.Tasks.Task.CompletedTask
@@ -156,6 +157,7 @@ type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sa
             (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.id", startCount.Id.ToString()) |> ignore
             (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
         if not (outgoing1.IsCompleted()) then
+            (outgoing1 :> Wolverine.Saga).LastModified <- System.DateTimeOffset.UtcNow
             _inMemorySagaPersistor.Store<Wolverine.Core.FSharpContracts.CountingSaga>(outgoing1)
         // No unit of work
         System.Threading.Tasks.Task.CompletedTask

@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -45,7 +45,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         {
             opts.UseKafka(KafkaContainerFixture.ConnectionString).ConfigureConsumers(x =>
             {
-                x.EnableAutoCommit = false;
+                x.OffsetCommitMode = OffsetCommitMode.Manual;
                 x.AutoOffsetReset = AutoOffsetReset.Earliest;
             });
 
@@ -118,8 +118,8 @@ internal static class KafkaComplianceTopics
     {
         try
         {
-            using var admin = new AdminClientBuilder(
-                new AdminClientConfig { BootstrapServers = KafkaContainerFixture.ConnectionString }).Build();
+            using var admin = new Confluent.Kafka.AdminClientBuilder(
+                new Confluent.Kafka.AdminClientConfig { BootstrapServers = KafkaContainerFixture.ConnectionString }).Build();
             await admin.DeleteTopicsAsync(topics);
         }
         catch

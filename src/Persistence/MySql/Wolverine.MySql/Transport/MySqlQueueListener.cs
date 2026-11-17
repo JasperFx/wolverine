@@ -25,15 +25,15 @@ internal class MySqlQueueListener : IListener
     private readonly DurabilitySettings _settings;
     private Task? _scheduledTask;
     private readonly MySqlQueueSender _sender;
-    private readonly string _tryPopMessagesDirectlySql;
+    private string _tryPopMessagesDirectlySql = null!;
     private readonly string _queueTableName;
     private readonly string _queueName;
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
-    private readonly bool _deterministicQueueOrdering;
-    private readonly string _queueOrderBy;
-    private readonly string _scheduledOrderBy;
+    private bool _deterministicQueueOrdering;
+    private string _queueOrderBy = null!;
+    private string _scheduledOrderBy = null!;
     private readonly string _tempPopTable;
     private readonly string _tempMoveTable;
 
@@ -61,19 +61,26 @@ internal class MySqlQueueListener : IListener
         _schemaName = _queue.Parent.MessageStorageSchemaName;
         _queueName = _queue.Name;
 
-        // GH-4862: the queue_order tie-breaker is only referenced when its schema is enabled. Without it,
-        // rows are still handed over in timestamp (and execution_time) order, but ties stay arbitrary.
-        _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
-        var tieBreaker = _deterministicQueueOrdering ? $", {QueueOrdering.QueueOrderColumn}" : string.Empty;
-        _queueOrderBy = $"timestamp{tieBreaker}";
-        _scheduledOrderBy = $"{DatabaseConstants.ExecutionTime}{tieBreaker}";
-
         // These temporary tables carry the ordering columns so the batch can be read back in order. They
         // have new names because a pooled connection keeps the temporary tables of an earlier session,
         // and CREATE TEMPORARY TABLE IF NOT EXISTS would silently reuse the older temp_pop_* /
         // temp_move_* shape that has no ordering columns.
         _tempPopTable = MySqlIdentifier.Shorten($"temp_pop_ordered_{_queueName}");
         _tempMoveTable = MySqlIdentifier.Shorten($"temp_move_ordered_{_queueName}");
+
+        useQueueOrdering(queue.Parent.EnableDeterministicQueueOrdering);
+    }
+
+    // GH-5192: the configured value is only a first guess. StartAsync swaps in what this database's queue tables
+    // really have, because 7.0 adopts an existing table without queue_order as it stands.
+    private void useQueueOrdering(bool deterministicQueueOrdering)
+    {
+        // GH-4862: the queue_order tie-breaker is only referenced when its schema is enabled. Without it,
+        // rows are still handed over in timestamp (and execution_time) order, but ties stay arbitrary.
+        _deterministicQueueOrdering = deterministicQueueOrdering;
+        var tieBreaker = _deterministicQueueOrdering ? $", {QueueOrdering.QueueOrderColumn}" : string.Empty;
+        _queueOrderBy = $"timestamp{tieBreaker}";
+        _scheduledOrderBy = $"{DatabaseConstants.ExecutionTime}{tieBreaker}";
 
         // MySQL doesn't have CTID, so we use a different approach:
         // Select rows with FOR UPDATE SKIP LOCKED, delete them, and return the bodies
@@ -330,7 +337,10 @@ WHERE id IN (SELECT id FROM {_tempMoveTable})");
                     // is not latched until it returns, so a shutdown drain defers whatever it is still holding.
                     await _receiver.ReceivedAsync(this, messages.ToArray());
 
-                    pause = messages.Count > _queue.MaximumMessagesToReceive
+                    // GH-5413: a full batch means more is probably waiting, so poll again shortly. This was
+                    // `>`, which a pop limited to MaximumMessagesToReceive can never satisfy, so every batch
+                    // waited the whole polling interval and a backlog drained one batch per interval
+                    pause = messages.Count >= _queue.MaximumMessagesToReceive
                         ? 250.Milliseconds()
                         : _pollingInterval;
                 }
@@ -363,6 +373,37 @@ WHERE id IN (SELECT id FROM {_tempMoveTable})");
                 }
             }
         }
+    }
+
+    private async Task discardEnvelopesTheInboxHoldsAsync(Func<string, MySqlCommand> createCmd, ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        // Matches the inbox's identity: received_at is part of it only under IdAndDestination
+        var identity = _settings.MessageIdentity == MessageIdentity.IdAndDestination
+            ? $" AND existing.{DatabaseConstants.ReceivedAt} = @receivedAt"
+            : "";
+        var held = $"SELECT existing.id FROM {_schemaName}.{DatabaseConstants.IncomingTable} existing WHERE existing.id = popped.id{identity}";
+
+        var duplicates = new List<object>();
+        await using (var findCmd = createCmd($"SELECT popped.id FROM {_tempPopTable} popped WHERE EXISTS ({held})"))
+        {
+            findCmd.Parameters.AddWithValue("@receivedAt", Address.ToString());
+            await using var reader = await findCmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) duplicates.Add(reader.GetValue(0));
+        }
+
+        if (duplicates.Count == 0) return;
+
+        foreach (var id in duplicates)
+        {
+            logger.LogInformation(
+                "Discarding a duplicate delivery of envelope {EnvelopeId} at {Uri}, which the inbox already holds",
+                id, Address);
+        }
+
+        await using var deleteCmd = createCmd($"DELETE popped FROM {_tempPopTable} popped WHERE EXISTS ({held})");
+        deleteCmd.Parameters.AddWithValue("@receivedAt", Address.ToString());
+        await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<Envelope>> TryPopDurablyAsync(int count, DurabilitySettings settings,
@@ -423,6 +464,11 @@ FOR UPDATE SKIP LOCKED");
             // Delete from queue table
             await using var deleteCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM {_tempPopTable})");
             await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+
+            // GH-5411: an envelope the inbox already holds (say, handled after being received at another
+            // address) would fail the whole INSERT below with a duplicate key, rolling every envelope of the
+            // batch back onto the queue on every poll. It has left the queue above; drop it from the batch too.
+            await discardEnvelopesTheInboxHoldsAsync(CreateCmd, logger, cancellationToken);
 
             // Insert into incoming table
             await using var insertCmd = CreateCmd($@"
@@ -641,6 +687,8 @@ AND {DatabaseConstants.KeepUntil} <= UTC_TIMESTAMP(6)")
         {
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _dataSource);
         }
+
+        useQueueOrdering(await _queue.UsesQueueOrderingAsync(_databaseName ?? string.Empty, _dataSource));
 
         _task = Task.Run(listenForMessagesAsync, _cancellation.Token);
         _scheduledTask = Task.Run(lookForScheduledMessagesAsync, _cancellation.Token);

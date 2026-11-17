@@ -163,6 +163,10 @@ public record InvoiceCreated;
 
 public record RejectInvoice([property: Identity] Guid Something);
 
+// GH-5136. Two Handle(ApproveInvoice...) overloads on one class are a startup error now that every handler
+// type gets one handler chain per message type. The tests build this class's chains directly with
+// HandlerChain.For(), so it stays out of conventional discovery and out of every other host in the assembly.
+[Wolverine.Attributes.WolverineIgnore]
 public class InvoiceHandler
 {
     public InvoiceCreated Handle(CreateInvoice command)

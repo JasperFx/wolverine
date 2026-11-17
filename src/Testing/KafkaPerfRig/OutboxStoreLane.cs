@@ -209,7 +209,7 @@ public static class OutboxStoreLane
 
     private static Task<IHost> buildHostAsync(string store, RigConfig cfg)
     {
-        var builder = Host.CreateDefaultBuilder()
+        var builder = RigHost.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning))
             .UseWolverine(opts =>
             {

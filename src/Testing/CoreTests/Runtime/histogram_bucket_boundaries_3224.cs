@@ -1,16 +1,16 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using OpenTelemetry;
-using OpenTelemetry.Metrics;
 using Shouldly;
 using Wolverine;
-using Wolverine.Tracking;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace CoreTests.Runtime;
 
-// GH-3224: configurable, millisecond-tuned histogram bucket boundaries for wolverine-execution-time and
-// wolverine-effective-time, applied via instrument advice.
+// GH-3224: configurable, millisecond-tuned histogram bucket boundaries for wolverine.execution.time and
+// wolverine.effective.time, applied via instrument advice.
 public class histogram_bucket_boundaries_3224
 {
     [Fact]
@@ -25,66 +25,38 @@ public class histogram_bucket_boundaries_3224
     [Fact]
     public async Task histograms_use_the_configured_bucket_boundaries()
     {
-        var serviceName = "buckets-" + Guid.NewGuid().ToString("N");
-
         // Distinctive custom boundaries that won't match the OTel defaults.
         var boundaries = new double[] { 7, 42, 99, 654 };
-
-        var exporter = new CapturingMetricExporter();
-        using var meterProvider = Sdk.CreateMeterProviderBuilder()
-            .AddMeter("Wolverine:" + serviceName)
-            .AddReader(new BaseExportingMetricReader(exporter))
-            .Build();
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.ServiceName = serviceName;
+                opts.ServiceName = "buckets-" + Guid.NewGuid().ToString("N");
                 opts.Metrics.HistogramBucketBoundaries = boundaries;
-                opts.Discovery.DisableConventionalDiscovery().IncludeType<MetricSuccessHandler>();
+                opts.Discovery.DisableConventionalDiscovery();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        // Drive a message so both histograms (execution-time + effective-time) record.
-        await host.TrackActivity().SendMessageAndWaitAsync(new MetricSuccess());
+        // GH-5128: every runtime publishes on a meter named "Wolverine", and an OpenTelemetry MeterProvider
+        // folds same-named instruments from every live host in the process into one stream (keeping the
+        // first one's advice), so a parallel test's host could decide what an exporter sees. Read the advice
+        // off THIS runtime's own instruments instead, which is what OpenTelemetry applies.
+        var meter = host.Services.GetRequiredService<IWolverineRuntime>().Meter;
+        var advice = new ConcurrentDictionary<string, double[]>();
 
-        meterProvider!.ForceFlush(5000);
-
-        exporter.BoundsFor(MetricsConstants.ExecutionTime).ShouldBe(boundaries);
-        exporter.BoundsFor(MetricsConstants.EffectiveMessageTime).ShouldBe(boundaries);
-    }
-
-    private sealed class CapturingMetricExporter : BaseExporter<Metric>
-    {
-        private readonly ConcurrentDictionary<string, double[]> _bounds = new();
-
-        public double[] BoundsFor(string instrumentName) =>
-            _bounds.TryGetValue(instrumentName, out var b) ? b : Array.Empty<double>();
-
-        public override ExportResult Export(in Batch<Metric> batch)
+        using var listener = new MeterListener
         {
-            foreach (var metric in batch)
+            InstrumentPublished = (instrument, _) =>
             {
-                if (metric.MetricType != MetricType.Histogram)
+                if (ReferenceEquals(instrument.Meter, meter) && instrument is Histogram<double> histogram)
                 {
-                    continue;
-                }
-
-                foreach (ref readonly var point in metric.GetMetricPoints())
-                {
-                    var explicitBounds = new List<double>();
-                    foreach (var bucket in point.GetHistogramBuckets())
-                    {
-                        if (!double.IsPositiveInfinity(bucket.ExplicitBound))
-                        {
-                            explicitBounds.Add(bucket.ExplicitBound);
-                        }
-                    }
-
-                    _bounds[metric.Name] = explicitBounds.ToArray();
+                    advice[instrument.Name] = histogram.Advice?.HistogramBucketBoundaries?.ToArray() ?? [];
                 }
             }
+        };
 
-            return ExportResult.Success;
-        }
+        listener.Start();
+
+        advice[MetricsConstants.ExecutionTime].ShouldBe(boundaries);
+        advice[MetricsConstants.EffectiveMessageTime].ShouldBe(boundaries);
     }
 }

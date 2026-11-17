@@ -7,31 +7,29 @@
 
       Microsoft.AspNetCore.OpenApi 10.0.0 (net10.0) pulls in the vulnerable Microsoft.OpenApi
       2.0.0 transitively. With TreatWarningsAsErrors=true the NU1903 restore audit turns that
-      into a hard build break. Add a direct reference to the patched 2.7.5 (same 2.x major, so
-      API-compatible with AspNetCore.OpenApi 10.x; version pinned centrally in
-      Directory.Packages.props) so it wins over the transitive 2.0.0.
+      into a hard build break. Add a direct reference to the patched version (pinned per TFM
+      centrally in Directory.Packages.props: 2.x on net10.0, 3.x on net11.0) so it wins over the
+      transitive 2.0.0.
 
-      Scoped deliberately to (net10.0 AND references Microsoft.AspNetCore.OpenApi):
-        * net9.0 resolves Microsoft.OpenApi 1.6.x, which is not in the affected range — leave it.
-        * Swashbuckle-only web apps resolve Microsoft.OpenApi 1.2.x — forcing 2.x would break
-          Swashbuckle 6.5.0, and they aren't vulnerable, so leave them too.
+      Scoped to projects that reference Microsoft.AspNetCore.OpenApi. Swashbuckle-only web apps
+      need no help: Swashbuckle 10 (net10.0) floors Microsoft.OpenApi at the patched 2.7.5 and
+      Swashbuckle 11 (net11.0) at 3.11.0 (GH-5149).
       Non-web test projects that reference these web apps inherit the pin transitively.
     -->
-    <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0' And @(PackageReference->AnyHaveMetadataValue('Identity', 'Microsoft.AspNetCore.OpenApi')) ">
+    <ItemGroup Condition=" ('$(TargetFramework)' == 'net10.0' Or '$(TargetFramework)' == 'net11.0') And @(PackageReference->AnyHaveMetadataValue('Identity', 'Microsoft.AspNetCore.OpenApi')) ">
         <PackageReference Include="Microsoft.OpenApi" />
     </ItemGroup>
 
     <!--
-      Security remediation for GHSA-p3jp-9v83-76w9 (GH-5387). The Native AOT publish smokes pull
-      Microsoft.DotNet.ILCompiler (and the matching NativeAOT runtime pack) at whatever version the
-      installed SDK's known-pack table names, and that was 9.0.11 / 10.0.1, both in the affected
-      range; NU1903 plus TreatWarningsAsErrors breaks the build. An explicit PackageReference to the
-      patched compiler (9.0.22 / 10.0.14, pinned per TFM in Directory.Packages.props) beats the SDK's
-      implicit one. Scoped to PublishAot projects, the only ones that restore the compiler.
+      GH-5387 pinned Microsoft.DotNet.ILCompiler explicitly here (9.0.22 / 10.0.14) because the SDKs of
+      the day named ILCompiler packs inside GHSA-p3jp-9v83-76w9's range. That pin is gone again: with
+      the .NET 11 SDK on the box (global.json rolls forward to it), the SDK resolves the NativeAOT
+      runtime pack at ITS known version (10.0.15 for net10.0) while the explicit reference held the
+      compiler targets at 10.0.14, and the mismatch fails every PublishAot with "The PrivateSdkAssemblies
+      ItemGroup is required for _ComputeAssembliesToCompileToNative" (wolverine#5467's first CI run on
+      net11.0). Every SDK the repo builds with now names a patched compiler (10.0.14+, 11.0.0), so the
+      implicit pack is both safe and the only version that cannot skew.
     -->
-    <ItemGroup Condition=" '$(PublishAot)' == 'true' ">
-        <PackageReference Include="Microsoft.DotNet.ILCompiler" />
-    </ItemGroup>
 
     <!--
       Every test process builds hundreds of hosts, and Host.CreateDefaultBuilder() attaches a

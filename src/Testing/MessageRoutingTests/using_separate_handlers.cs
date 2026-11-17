@@ -14,8 +14,8 @@ public class using_separate_handlers : MessageRoutingContext
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                // Right here, tell Wolverine to make every handler "sticky"
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+                // GH-5139. Nothing to configure: Wolverine 7 always gives every handler type of a
+                // message type its own handler chain and its own local queue
             }).StartAsync();
 
         #endregion
@@ -23,7 +23,6 @@ public class using_separate_handlers : MessageRoutingContext
     
     protected override void configure(WolverineOptions opts)
     {
-        opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
     }
 
     [Fact]

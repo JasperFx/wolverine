@@ -122,4 +122,25 @@ public class Bug_3290_externally_managed_daemon_mode
 
         store.Options.DaemonSettings.AsyncMode.ShouldBe(DaemonMode.Solo);
     }
+
+    // GH-5141 (Polecat parity with Marten's GH-3388): the combination of an explicit Polecat-side daemon and
+    // Wolverine-managed distribution runs two competing coordinators against the same daemon, which shows up as
+    // a hang rather than an error. Marten refused it at host start; Polecat did not until the validator moved
+    // into Wolverine core and every integration registered it. Checked at START, so both call orders are caught.
+    [Theory]
+    [InlineData(DaemonMode.Solo, false)]
+    [InlineData(DaemonMode.Solo, true)]
+    [InlineData(DaemonMode.HotCold, false)]
+    [InlineData(DaemonMode.HotCold, true)]
+    public async Task explicit_polecat_daemon_alongside_managed_distribution_is_rejected_at_start(DaemonMode mode,
+        bool explicitDaemonBeforeIntegration)
+    {
+        using var host = configureHost(useWolverineManagedDistribution: true, mode,
+            explicitDaemonBeforeIntegration).Build();
+
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => host.StartAsync());
+
+        ex.Message.ShouldContain("UseWolverineManagedEventSubscriptionDistribution");
+        ex.Message.ShouldContain($"AddAsyncDaemon(DaemonMode.{mode})");
+    }
 }

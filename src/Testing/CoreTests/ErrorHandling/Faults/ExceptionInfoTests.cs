@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Wolverine.Runtime.Serialization;
 using Xunit;
 
 namespace CoreTests.ErrorHandling.Faults;
@@ -166,4 +168,103 @@ public class ExceptionInfoTests
         current.StackTrace.ShouldBeNull();
         current.InnerExceptions.ShouldBeEmpty();
     }
+
+    [Fact]
+    public void from_captures_the_type_hierarchy_most_derived_first_stopping_before_exception()
+    {
+        var info = ExceptionInfo.From(new OutOfStockException("sku-1"));
+
+        info.TypeHierarchy.ShouldBe([
+            typeof(OutOfStockException).FullName!,
+            typeof(InventoryException).FullName!
+        ]);
+    }
+
+    [Fact]
+    public void from_captures_the_type_hierarchy_of_inner_exceptions()
+    {
+        var info = ExceptionInfo.From(new InvalidOperationException("outer", new OutOfStockException("sku-1")));
+
+        info.TypeHierarchy.ShouldBe([
+            typeof(InvalidOperationException).FullName!,
+            typeof(SystemException).FullName!
+        ]);
+        info.InnerExceptions[0].TypeHierarchy.ShouldBe([
+            typeof(OutOfStockException).FullName!,
+            typeof(InventoryException).FullName!
+        ]);
+    }
+
+    [Fact]
+    public void redaction_flags_keep_the_type_hierarchy()
+    {
+        var info = ExceptionInfo.From(new OutOfStockException("sku-1"), includeMessage: false,
+            includeStackTrace: false);
+
+        info.TypeHierarchy.Count.ShouldBe(2);
+        info.Is<InventoryException>().ShouldBeTrue();
+    }
+
+    #region sample_matching_a_remote_exception_by_base_type
+
+    [Fact]
+    public void match_a_fault_by_its_exception_type_or_a_base_type()
+    {
+        var info = ExceptionInfo.From(new OutOfStockException("sku-1"));
+
+        // The thrown type, any base type, and System.Exception all match
+        info.Is<OutOfStockException>().ShouldBeTrue();
+        info.Is<InventoryException>().ShouldBeTrue();
+        info.Is<Exception>().ShouldBeTrue();
+
+        // By full type name, for a receiver that cannot reference the sender's exception types
+        info.Is("CoreTests.ErrorHandling.Faults.InventoryException").ShouldBeTrue();
+
+        // Unrelated types do not
+        info.Is<InvalidOperationException>().ShouldBeFalse();
+        info.Is<SomeOtherInventoryException>().ShouldBeFalse();
+    }
+
+    #endregion
+
+    [Fact]
+    public void a_fault_from_an_older_sender_has_no_hierarchy_and_matches_its_own_type_only()
+    {
+        // What a Wolverine 6.x sender writes: no typeHierarchy property at all
+        var json = """
+                   {"type":"CoreTests.ErrorHandling.Faults.OutOfStockException","message":"sku-1","stackTrace":null,"innerExceptions":[]}
+                   """;
+
+        var info = JsonSerializer.Deserialize<ExceptionInfo>(json, SystemTextJsonSerializer.DefaultOptions())!;
+
+        info.TypeHierarchy.ShouldBeEmpty();
+        info.Is<OutOfStockException>().ShouldBeTrue();
+        info.Is<InventoryException>().ShouldBeFalse();
+        info.Is<Exception>().ShouldBeTrue();
+    }
+
+    [Fact]
+    public void the_type_hierarchy_survives_a_round_trip_through_the_default_serializer()
+    {
+        var serializer = new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions());
+        var fault = new Fault<FaultedMessage>(new FaultedMessage("sku-1"),
+            ExceptionInfo.From(new InvalidOperationException("outer", new OutOfStockException("sku-1"))),
+            Attempts: 3, FailedAt: DateTimeOffset.UtcNow, CorrelationId: null, ConversationId: Guid.NewGuid(),
+            TenantId: null, Source: "tests", Headers: new Dictionary<string, string?>());
+
+        var envelope = new Envelope { Data = serializer.WriteMessage(fault) };
+        var copy = (Fault<FaultedMessage>)serializer.ReadFromData(typeof(Fault<FaultedMessage>), envelope);
+
+        copy.Exception.TypeHierarchy.ShouldBe(fault.Exception.TypeHierarchy);
+        copy.Exception.InnerExceptions[0].TypeHierarchy.ShouldBe(fault.Exception.InnerExceptions[0].TypeHierarchy);
+        copy.Exception.InnerExceptions[0].Is<InventoryException>().ShouldBeTrue();
+    }
 }
+
+public record FaultedMessage(string Sku);
+
+public class InventoryException(string message) : Exception(message);
+
+public class OutOfStockException(string sku) : InventoryException($"{sku} is out of stock");
+
+public class SomeOtherInventoryException(string message) : InventoryException(message);

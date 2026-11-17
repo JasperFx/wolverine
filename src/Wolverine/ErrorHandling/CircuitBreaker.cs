@@ -99,6 +99,11 @@ internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
     private readonly IWolverineObserver? _observer;
     private bool _disposed;
 
+    // GH-5446. 1 from the moment this breaker trips until the listener it paused accepts messages again, or until
+    // a pause the breaker did not cause supersedes its own. Claimed with an exchange so that one trip is reported
+    // as exactly one reset, however many starts race to report it.
+    private int _awaitingReset;
+
     public CircuitBreaker(CircuitBreakerOptions options, IListenerCircuit circuit, IWolverineObserver? observer = null)
     {
         Options = options;
@@ -185,6 +190,10 @@ internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
 
         if (failures > 0 && ShouldStopProcessing())
         {
+            // Marked BEFORE the pause, because the pause installs the restart: with a short PauseTime the listener
+            // can be accepting again before PauseWithDrainAsync even returns
+            Volatile.Write(ref _awaitingReset, 1);
+
             await _circuit.PauseWithDrainAsync(Options.PauseTime);
 
             if (_observer != null)
@@ -214,6 +223,42 @@ internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
     public void Reset()
     {
         _generations.Clear();
+    }
+
+    /// <summary>
+    /// GH-5446. True between a trip and the reset it is waiting for. Test seam.
+    /// </summary>
+    internal bool IsAwaitingReset => Volatile.Read(ref _awaitingReset) == 1;
+
+    /// <summary>
+    /// GH-5446. A pause this breaker did not cause -- an operator's, or a handler's AndPauseProcessing -- has replaced
+    /// the breaker's own, so the start that ends it is not a breaker recovery and must not be reported as one.
+    /// </summary>
+    internal void PauseSuperseded()
+    {
+        Volatile.Write(ref _awaitingReset, 0);
+    }
+
+    /// <summary>
+    /// GH-5446. Called by the listener circuit every time it becomes Accepting. Raises
+    /// <see cref="IWolverineObserver.CircuitBreakerReset(Endpoint, CircuitBreakerResetReason)" /> only when this
+    /// breaker's pause is the one ending, and only once per trip. An observer that throws is logged and swallowed:
+    /// the listener is already accepting, and a failed notification must not fail the start that got it there.
+    /// </summary>
+    internal async ValueTask ListenerResumedAsync(CircuitBreakerResetReason reason, ILogger logger)
+    {
+        if (Interlocked.Exchange(ref _awaitingReset, 0) == 0) return;
+        if (_observer == null) return;
+
+        try
+        {
+            await _observer.CircuitBreakerReset(_circuit.Endpoint, reason);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Error notifying the observer that the circuit breaker for {Uri} has reset",
+                _circuit.Endpoint.Uri);
+        }
     }
 
     internal class Generation

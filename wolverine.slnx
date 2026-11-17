@@ -23,16 +23,12 @@
     <File Path="README.md" />
   </Folder>
   <Folder Name="/Bobcat/">
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          CIBobcat builds and runs them at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
     <Project Path="src/Bobcat/Wolverine.Bobcat.EventModel.Tests/Wolverine.Bobcat.EventModel.Tests.csproj" />
     <Project Path="src/Bobcat/Wolverine.Bobcat.EventModel/Wolverine.Bobcat.EventModel.csproj" />
-    <Project Path="src/Bobcat/Wolverine.Bobcat.Http.Tests/Wolverine.Bobcat.Http.Tests.csproj">
-      <Build Project="false" />
-    </Project>
-    <Project Path="src/Bobcat/Wolverine.Bobcat.Http/Wolverine.Bobcat.Http.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Bobcat/Wolverine.Bobcat.Http.Tests/Wolverine.Bobcat.Http.Tests.csproj" />
+    <Project Path="src/Bobcat/Wolverine.Bobcat.Http/Wolverine.Bobcat.Http.csproj" />
     <Project Path="src/Bobcat/Bobcat.CritterStackScenario.Tests/Bobcat.CritterStackScenario.Tests.csproj" />
     <Project Path="src/Bobcat/Wolverine.Bobcat.Tests/Wolverine.Bobcat.Tests.csproj" />
     <Project Path="src/Bobcat/Wolverine.Bobcat/Wolverine.Bobcat.csproj" />
@@ -61,26 +57,21 @@
     <Project Path="src/Http/OpenApiDemonstrator/OpenApiDemonstrator.csproj" />
     <Project Path="src/Http/StaticCodeGenDemonstrator/StaticCodeGenDemonstrator.csproj" />
     <Project Path="src/Http/Wolverine.AdminApi/Wolverine.AdminApi.csproj" />
-    <!-- net10.0-only, and the Compile target builds wolverine.slnx pinned to net9.0
-         (.nuke/parameters.json), so including these makes the solution build fail NETSDK1005.
-         Gated by the CIHttpAspVersioning target instead, which builds and tests them at net10.0.
-         GH-3841: the reason, which no flag here previously carried. -->
-    <Project Path="src/Http/Wolverine.Http.AspVersioning.Tests/Wolverine.Http.AspVersioning.Tests.csproj">
-      <Build Project="false" />
-    </Project>
-    <Project Path="src/Http/Wolverine.Http.AspVersioning/Wolverine.Http.AspVersioning.csproj">
-      <Build Project="false" />
-    </Project>
+    <!-- net10.0-only, and the Compile target builds wolverine.slnx pinned to net10.0
+         (.nuke/parameters.json), which they declare, so they build with the rest of the solution.
+         The CIHttpAspVersioning target builds and tests them. -->
+    <Project Path="src/Http/Wolverine.Http.AspVersioning.Tests/Wolverine.Http.AspVersioning.Tests.csproj" />
+    <Project Path="src/Http/Wolverine.Http.AspVersioning/Wolverine.Http.AspVersioning.csproj" />
+    <!-- net10.0;net11.0 (GH-5147); the CIHttpCompat target runs it on both. -->
+    <Project Path="src/Http/Wolverine.Http.Compat.Tests/Wolverine.Http.Compat.Tests.csproj" />
     <Project Path="src/Http/Wolverine.Http.FluentValidation/Wolverine.Http.FluentValidation.csproj" />
     <Project Path="src/Http/Wolverine.Http.Marten/Wolverine.Http.Marten.csproj" />
     <Project Path="src/Http/Wolverine.Http.Tests.AncillaryStore/Wolverine.Http.Tests.AncillaryStore.csproj" />
     <Project Path="src/Http/Wolverine.Http.Tests.DifferentAssembly/Wolverine.Http.Tests.DifferentAssembly.csproj" />
     <Project Path="src/Http/Wolverine.Http.Tests.EfCoreOnly/Wolverine.Http.Tests.EfCoreOnly.csproj" />
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Http/Wolverine.Http.Tests/Wolverine.Http.Tests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Http/Wolverine.Http.Tests/Wolverine.Http.Tests.csproj" />
     <Project Path="src/Http/Wolverine.Http/Wolverine.Http.csproj" />
     <Project Path="src/Http/WolverineWebApi/WolverineWebApi.csproj" />
     <Project Path="src/Http/WolverineWebApiFSharp/WolverineWebApiFSharp.fsproj" />
@@ -121,11 +112,9 @@
     <Project Path="src/Persistence/Wolverine.CosmosDb/Wolverine.CosmosDb.csproj" />
   </Folder>
   <Folder Name="/Persistence/EFCore/">
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj" />
     <Project Path="src/Persistence/EfCoreTests/EfCoreTests.csproj" />
     <Project Path="src/Persistence/MultiTenantedEfCoreWithPostgreSQL/MultiTenantedEfCoreWithPostgreSQL.csproj" />
     <Project Path="src/Persistence/MultiTenantedEfCoreWithSqlServer/MultiTenantedEfCoreWithSqlServer.csproj" />
@@ -159,30 +148,22 @@
   </Folder>
   <Folder Name="/Persistence/Fisher/">
     <Project Path="src/Http/Wolverine.Http.Fisher/Wolverine.Http.Fisher.csproj" />
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Persistence/FisherTests/FisherTests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Persistence/FisherTests/FisherTests.csproj" />
     <Project Path="src/Persistence/Wolverine.Fisher/Wolverine.Fisher.csproj" />
   </Folder>
   <Folder Name="/Persistence/Polecat/">
     <Project Path="src/Http/Wolverine.Http.Polecat/Wolverine.Http.Polecat.csproj" />
-    <!-- net10.0-only; same net9.0-pinned Compile constraint as the AspVersioning pair above.
+    <!-- net10.0-only; built by the net10.0-pinned Compile like the AspVersioning pair above.
          Gated by the CIPolecat target, which builds and runs PolecatIncidentService.Tests at
          net10.0 (GH-3839 — before that it ran nowhere at all, which is how it sat un-compilable
          for four months). -->
-    <Project Path="src/Persistence/Polecat/PolecatIncidentService.Tests/PolecatIncidentService.Tests.csproj">
-      <Build Project="false" />
-    </Project>
-    <Project Path="src/Persistence/Polecat/PolecatIncidentService/PolecatIncidentService.csproj">
-      <Build Project="false" />
-    </Project>
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <Project Path="src/Persistence/Polecat/PolecatIncidentService.Tests/PolecatIncidentService.Tests.csproj" />
+    <Project Path="src/Persistence/Polecat/PolecatIncidentService/PolecatIncidentService.csproj" />
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Persistence/PolecatTests/PolecatTests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Persistence/PolecatTests/PolecatTests.csproj" />
     <Project Path="src/Persistence/Wolverine.Polecat/Wolverine.Polecat.csproj" />
   </Folder>
   <Folder Name="/Persistence/PostgreSQL/">
@@ -233,29 +214,23 @@
   <Folder Name="/Samples/Diagnostics/">
     <Project Path="src/Samples/Diagnostics/DiagnosticsApp/DiagnosticsApp.csproj" />
     <Project Path="src/Samples/Diagnostics/DiagnosticsModule/DiagnosticsModule.csproj" />
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Samples/Diagnostics/DiagnosticsTests/DiagnosticsTests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Samples/Diagnostics/DiagnosticsTests/DiagnosticsTests.csproj" />
   </Folder>
   <Folder Name="/Persistence/EFCore/DomainEventsWithEfCore/">
     <Project Path="src/Persistence/EFCore/DomainEventsWithEfCore/BackLogService/BackLogService.csproj" />
   </Folder>
   <Folder Name="/Samples/EFCoreSample/">
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Samples/EFCoreSample/ItemService.Tests/ItemService.Tests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Samples/EFCoreSample/ItemService.Tests/ItemService.Tests.csproj" />
     <Project Path="src/Samples/EFCoreSample/ItemService/ItemService.csproj" />
   </Folder>
   <Folder Name="/Samples/IncidentService/">
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Samples/IncidentService/IncidentService.Tests/IncidentService.Tests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Samples/IncidentService/IncidentService.Tests/IncidentService.Tests.csproj" />
     <Project Path="src/Samples/IncidentService/IncidentService/IncidentService.csproj" />
   </Folder>
   <Folder Name="/Samples/KitchenSink/">
@@ -264,20 +239,16 @@
     <Project Path="src/Samples/KitchenSink/MartenAndRabbitMessages/MartenAndRabbitMessages.csproj" />
   </Folder>
   <Folder Name="/Samples/Middleware/">
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Samples/Middleware/AppWithMiddleware.Tests/AppWithMiddleware.Tests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Samples/Middleware/AppWithMiddleware.Tests/AppWithMiddleware.Tests.csproj" />
     <Project Path="src/Samples/Middleware/AppWithMiddleware/AppWithMiddleware.csproj" />
   </Folder>
   <Folder Name="/Samples/MultiTenantedTodoService/">
     <Project Path="src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/MultiTenantedTodoWebService.csproj" />
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/MultiTenantedTodoWebService.Tests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/MultiTenantedTodoWebService.Tests.csproj" />
   </Folder>
   <Folder Name="/Samples/OrderManagement/">
     <Project Path="src/Samples/OrderManagement/Messages/Messages.csproj" />
@@ -291,11 +262,9 @@
   </Folder>
   <Folder Name="/Samples/ProcessManagerViaHandlers/">
     <Project Path="src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers/ProcessManagerViaHandlers.csproj" />
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers.Tests/ProcessManagerViaHandlers.Tests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers.Tests/ProcessManagerViaHandlers.Tests.csproj" />
   </Folder>
   <Folder Name="/Samples/PingPongWithGrpc/">
     <Project Path="src/Samples/PingPongWithGrpc/Messages/Messages.csproj" />
@@ -333,20 +302,16 @@
     <Project Path="src/Samples/RacerWithGrpc/RacerServer/RacerServer.csproj" />
   </Folder>
   <Folder Name="/Samples/TestHarness/">
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Samples/TestHarness/BankingService.Tests/BankingService.Tests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Samples/TestHarness/BankingService.Tests/BankingService.Tests.csproj" />
     <Project Path="src/Samples/TestHarness/BankingService/BankingService.csproj" />
   </Folder>
   <Folder Name="/Samples/TodoWebService/">
     <Project Path="src/Samples/TodoWebService/TodoWebService/TodoWebService.csproj" />
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Samples/TodoWebService/TodoWebServiceTests/TodoWebServiceTests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Samples/TodoWebService/TodoWebServiceTests/TodoWebServiceTests.csproj" />
   </Folder>
   <Folder Name="/Testing/">
     <Project Path="src/Testing/BackPressureTests/BackPressureTests.csproj" />
@@ -370,11 +335,9 @@
     <Project Path="src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/OtelWebApiWolverineMarten.csproj" />
     <Project Path="src/Testing/OpenTelemetry/Subscriber1/Subscriber1.csproj" />
     <Project Path="src/Testing/OpenTelemetry/Subscriber2/Subscriber2.csproj" />
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Testing/OpenTelemetry/TracingTests/TracingTests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Testing/OpenTelemetry/TracingTests/TracingTests.csproj" />
     <Project Path="src/Testing/OrderExtension/OrderExtension.csproj" />
     <Project Path="src/Testing/PolicyTests/PolicyTests.csproj" />
     <Project Path="src/Testing/SlowTests/SlowTests.csproj" />
@@ -406,18 +369,14 @@
   </Folder>
   <Folder Name="/Transports/Kafka/">
     <Project Path="src/Transports/Kafka/BatchMessaging/BatchMessaging.csproj" />
-    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net9.0.
+    <!-- net10.0-only: Alba 9 targets net10.0+, and Compile builds this solution pinned to net10.0, which they declare.
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
-    <Project Path="src/Transports/Kafka/Wolverine.Kafka.Tests/Wolverine.Kafka.Tests.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Transports/Kafka/Wolverine.Kafka.Tests/Wolverine.Kafka.Tests.csproj" />
     <Project Path="src/Transports/Kafka/Wolverine.Kafka/Wolverine.Kafka.csproj" />
   </Folder>
   <Folder Name="/Transports/MQTT/">
     <Project Path="src/Transports/MQTT/Wolverine.MQTT.Tests/Wolverine.MQTT.Tests.csproj" />
     <Project Path="src/Transports/MQTT/Wolverine.MQTT/Wolverine.MQTT.csproj" />
-    <Project Path="src/Transports/MQTT/Wolverine.Mqtt5.Tests/Wolverine.Mqtt5.Tests.csproj" />
-    <Project Path="src/Transports/MQTT/Wolverine.Mqtt5/Wolverine.Mqtt5.csproj" />
   </Folder>
   <Folder Name="/Transports/NATS/">
     <Project Path="src/Transports/NATS/Wolverine.Nats.Tests/Wolverine.Nats.Tests.csproj" />
@@ -457,5 +416,6 @@
   <Project Path="src/Wolverine/Wolverine.csproj" />
   <Project Path="src/Wolverine.HealthChecks/Wolverine.HealthChecks.csproj" />
   <Project Path="src/Wolverine.HealthChecks.Tests/Wolverine.HealthChecks.Tests.csproj" />
+  <Project Path="src/Wolverine.ServiceDefaults/Wolverine.ServiceDefaults.csproj" />
   <Project Path="src/Wolverine.RuntimeCompilation/Wolverine.RuntimeCompilation.csproj" />
 </Solution>

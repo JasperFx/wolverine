@@ -545,9 +545,16 @@ internal class SqliteQueueListener : IListener
             cmd.With($"id{i}", rows[i].RawId.ToLowerInvariant());
         }
 
+        // GH-5411: matches the inbox's identity. Under IdOnly the inbox key is the id alone, so an envelope handled
+        // after being received at ANOTHER address is a duplicate here too: inserting it would fail the store's
+        // INSERT with a unique violation and roll the whole batch back onto the queue on every poll.
         cmd.CommandText =
-            $"select lower({DatabaseConstants.Id}) from {_incomingTableName} where lower({DatabaseConstants.Id}) in ({string.Join(", ", placeholders)}) and {DatabaseConstants.ReceivedAt} = @address";
-        cmd.With("address", Address.ToString());
+            $"select lower({DatabaseConstants.Id}) from {_incomingTableName} where lower({DatabaseConstants.Id}) in ({string.Join(", ", placeholders)})";
+        if (_settings.MessageIdentity == MessageIdentity.IdAndDestination)
+        {
+            cmd.CommandText += $" and {DatabaseConstants.ReceivedAt} = @address";
+            cmd.With("address", Address.ToString());
+        }
 
         var found = new HashSet<string>();
 
@@ -572,8 +579,8 @@ internal class SqliteQueueListener : IListener
             if (skip != null && skip.Contains(row.RawId.ToLowerInvariant()))
             {
                 _logger.LogInformation(
-                    "Discarding queue row {Id} from SQLite queue {Queue}: its envelope is already in the inbox for {Address}",
-                    row.RawId, _queueName, Address);
+                    "Discarding a duplicate delivery of envelope {EnvelopeId} at {Uri}, which the inbox already holds",
+                    row.RawId, Address);
                 continue;
             }
 

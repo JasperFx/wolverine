@@ -11,6 +11,8 @@ using JasperFx.Core.TypeScanning;
 [assembly: InternalsVisibleTo("Wolverine.Http.AspVersioning.Tests")]
 
 [assembly: InternalsVisibleTo("Wolverine.Http.Tests")]
+// GH-5147: the net10.0;net11.0 ASP.NET Core 11 compatibility suite reads chains and the OpenAPI document provider
+[assembly: InternalsVisibleTo("Wolverine.Http.Compat.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.Http.FSharpTests")]
 // GH-4605: the Polecat and Fisher HTTP deduplication mirrors assert on the generated source of an
 // endpoint, which means reaching WolverineHttpOptions.Endpoints. They live in the store test projects
@@ -25,4 +27,11 @@ using JasperFx.Core.TypeScanning;
 // only acknowledges the System.Text.Json default. The grant is intentional
 // and scoped to this one consumer.
 [assembly: InternalsVisibleTo("Wolverine.Http.Newtonsoft")]
+// GH-5142: the store HTTP packages share one implementation of their aggregate chain extensions
+// (AggregateChainLookups) instead of carrying three identical copies.
+[assembly: InternalsVisibleTo("Wolverine.Http.Marten")]
+[assembly: InternalsVisibleTo("Wolverine.Http.Polecat")]
+[assembly: InternalsVisibleTo("Wolverine.Http.Fisher")]
+// GH-5520: WolverineFx.Http.FluentValidation contributes its 7.0 default through IHttpVersionDefaults
+[assembly: InternalsVisibleTo("Wolverine.Http.FluentValidation")]
 [assembly: IgnoreAssembly]

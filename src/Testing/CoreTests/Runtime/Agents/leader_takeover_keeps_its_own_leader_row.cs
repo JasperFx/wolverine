@@ -45,7 +45,7 @@ public class leader_takeover_keeps_its_own_leader_row
         _persistence = Substitute.For<INodeAgentPersistence>();
 
         // The predecessor's advisory lock died with its connection, so the survivor wins it on this tick
-        _persistence.HasLeadershipLock().Returns(false);
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(false);
         _persistence.TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(true);
 
         _controller = new NodeAgentController(
@@ -134,7 +134,7 @@ public class leader_takeover_keeps_its_own_leader_row
 
         // Next tick: the lease renews, the predecessor has been ejected, and the leader row is gone from the
         // table (this is what the field saw for 17 minutes). The lock holder puts the row back.
-        _persistence.HasLeadershipLock().Returns(true);
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(true);
         _persistence.LoadNodeAgentStateAsync(Arg.Any<CancellationToken>())
             .Returns(new NodeAgentState([survivor()], new AgentRestrictions()));
 
@@ -151,7 +151,7 @@ public class leader_takeover_keeps_its_own_leader_row
     {
         await takeOverWithSnapshot(survivor(), crashedPredecessor());
 
-        _persistence.HasLeadershipLock().Returns(true);
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(true);
         var self = survivor();
         self.AssignAgents([NodeAgentController.LeaderUri]);
         _persistence.LoadNodeAgentStateAsync(Arg.Any<CancellationToken>())

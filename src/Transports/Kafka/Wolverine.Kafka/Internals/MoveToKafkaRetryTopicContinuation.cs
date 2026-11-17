@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
-using Confluent.Kafka;
 using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
@@ -38,7 +37,7 @@ internal sealed class MoveToKafkaRetryTopicContinuation : UserDefinedContinuatio
     // Kafka retry-topic routing can never be applied to a different transport. See GH-3148.
     public override IContinuation Build(Exception ex, Envelope envelope)
     {
-        if (envelope.Listener is KafkaListener or KafkaTopicGroupListener)
+        if (envelope.Listener is KafkaListener)
         {
             return new MoveToKafkaRetryTopicContinuation(_delays, ex);
         }
@@ -84,21 +83,20 @@ internal sealed class MoveToKafkaRetryTopicContinuation : UserDefinedContinuatio
         // diagnostic headers as dead letter moves; the mapper writes them as Kafka headers
         DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
 
-        var message = await retryTopic.EnvelopeMapper!.CreateMessage(envelope);
-        message.Headers ??= new Headers();
+        var record = await retryTopic.EnvelopeMapper!.CreateMessage(envelope);
 
-        StampHeader(message, KafkaRetryNaming.SourceTopicHeader, sourceTopic);
-        StampHeader(message, KafkaRetryNaming.TierHeader, nextTier.ToString(CultureInfo.InvariantCulture));
-        StampHeader(message, KafkaRetryNaming.AttemptHeader, attempt.ToString(CultureInfo.InvariantCulture));
-        StampHeader(message, KafkaRetryNaming.FirstFailedHeader, firstFailed);
-        StampHeader(message, KafkaRetryNaming.ExceptionTypeHeader, exception.GetType().FullName ?? "Unknown");
-        StampHeader(message, KafkaRetryNaming.ExceptionMessageHeader, exception.Message);
+        StampHeader(record, KafkaRetryNaming.SourceTopicHeader, sourceTopic);
+        StampHeader(record, KafkaRetryNaming.TierHeader, nextTier.ToString(CultureInfo.InvariantCulture));
+        StampHeader(record, KafkaRetryNaming.AttemptHeader, attempt.ToString(CultureInfo.InvariantCulture));
+        StampHeader(record, KafkaRetryNaming.FirstFailedHeader, firstFailed);
+        StampHeader(record, KafkaRetryNaming.ExceptionTypeHeader, exception.GetType().FullName ?? "Unknown");
+        StampHeader(record, KafkaRetryNaming.ExceptionMessageHeader, exception.Message);
 
         try
         {
-            using var producer = transport.CreateProducer(retryTopic.GetEffectiveProducerConfig());
-            await producer.ProduceAsync(retryTopicName, message);
-            producer.Flush();
+            // ProduceAsync completes on the broker's ack, so the record is durable once it returns
+            var producer = await transport.ProducerFor(retryTopic).GetAsync();
+            await producer.ProduceAsync(record.ToProducerMessage(retryTopicName), CancellationToken.None);
 
             // Commit the *source* offset so the partition advances past this message.
             await lifecycle.CompleteAsync();
@@ -116,10 +114,10 @@ internal sealed class MoveToKafkaRetryTopicContinuation : UserDefinedContinuatio
         }
     }
 
-    private static void StampHeader(Message<string, byte[]> message, string key, string value)
+    private static void StampHeader(OutgoingKafkaRecord record, string key, string value)
     {
-        message.Headers!.Remove(key);
-        message.Headers.Add(key, Encoding.UTF8.GetBytes(value));
+        record.Headers.Remove(key);
+        record.Headers.Add(key, Encoding.UTF8.GetBytes(value));
     }
 
     private static string? ReadStringHeader(Envelope envelope, string key)

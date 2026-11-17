@@ -2,6 +2,7 @@ using JasperFx.Events;
 using Marten.Events;
 using Shouldly;
 using Wolverine.Marten;
+using Wolverine.Persistence.EventSourcing;
 
 namespace MartenTests;
 

@@ -47,8 +47,8 @@ public enum MessageDeduplicationMode
     /// can still be identified in the database.
     ///
     /// <para>
-    /// Identical on every engine, because a binary column has no collation to apply. What
-    /// <c>true</c> on the obsolete <c>EnableMessageDeduplication</c> flag now means.
+    /// Identical on every engine, because a binary column has no collation to apply. The default
+    /// for <see cref="DurabilitySettings.MessageDeduplicationMode" /> as of 7.0.
     /// </para>
     /// </summary>
     CompareByHash

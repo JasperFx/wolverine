@@ -24,7 +24,6 @@ public class deduplication_with_separated_handlers : IAsyncLifetime
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "dedup_separated");
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;

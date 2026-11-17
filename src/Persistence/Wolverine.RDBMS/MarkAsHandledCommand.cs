@@ -32,6 +32,16 @@ public sealed record MarkAsHandledStatement(string Sql, object[] Arguments);
 /// </remarks>
 public sealed record MarkAsHandledCommand
 {
+    /// <summary>
+    /// GH-5423. The keep_until a mark-as-handled writes is also how an execution recognises its own Handled row
+    /// (see <c>BuildHandledElsewhereCheck</c>), so it is cut to whole milliseconds, which every supported database
+    /// stores exactly.
+    /// </summary>
+    public static DateTimeOffset KeepUntilForMark(DateTimeOffset keepUntil)
+    {
+        return new DateTimeOffset(keepUntil.Ticks - keepUntil.Ticks % TimeSpan.TicksPerMillisecond, keepUntil.Offset);
+    }
+
     public MarkAsHandledCommand(string sql, object[] arguments)
         : this(new MarkAsHandledStatement(sql, arguments))
     {

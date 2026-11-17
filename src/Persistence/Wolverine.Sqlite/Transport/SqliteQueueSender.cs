@@ -24,7 +24,7 @@ internal class SqliteQueueSender : ISqliteQueueSender
 
     private readonly string _moveFromOutgoingToQueueSql;
     private readonly string _moveFromOutgoingToScheduledSql;
-    private readonly string _deleteFromIncomingAndScheduleSql;
+    private readonly string _deleteFromIncomingSql;
     private readonly string _writeDirectlyToQueueTableSql;
     private readonly string _writeDirectlyToTheScheduledTable;
     private readonly string _outgoingTable;
@@ -75,8 +75,7 @@ insert or replace into {queue.ScheduledTable.Identifier} ({DatabaseConstants.Id}
 values (@id, @body, @type, @time)
 ".Trim();
 
-        _deleteFromIncomingAndScheduleSql =
-            $"DELETE FROM {incomingTable} WHERE lower(id) = lower(@id);" + _writeDirectlyToTheScheduledTable;
+        _deleteFromIncomingSql = $"DELETE FROM {incomingTable} WHERE lower(id) = lower(@id)";
     }
 
     public bool SupportsNativeScheduledSend => true;
@@ -143,14 +142,39 @@ values (@id, @body, @type, @time)
 
     public async Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellationToken)
     {
+        // GH-5426. The retry is fenced on the inbox row's owner. A node ejected as stale while it held the envelope in
+        // memory resumes and fails it again after another node has recovered the row; unfenced, it deleted whatever
+        // inbox row the other execution held for the id and wrote a second scheduled copy, and both copies ran the
+        // retry. The scheduled row is written only if this node's inbox row was deleted, in the same transaction.
+        // Only the durable receiver calls this, and every envelope it holds from a database queue has an inbox row
+        // owned by this node -- the durable pop, inbox recovery and dead letter replay all write one -- so the fence
+        // does not depend on WasPersistedInInbox, which the pop does not set.
+        var owner = _queue.Parent.Store?.Durability.AssignedNodeNumber;
+
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        await conn.CreateCommand(_deleteFromIncomingAndScheduleSql)
-            .With("id", $"{envelope.Id:D}")
-            .With("body", EnvelopeSerializer.Serialize(envelope))
-            .With("type", envelope.MessageType!)
-            .With("time", (envelope.ScheduledTime ?? DateTimeOffset.UtcNow).UtcDateTime.ToString(SqliteDateTimeFormat))
-            .ExecuteNonQueryAsync(cancellationToken);
+        // The inbox delete and the scheduled write commit together or not at all: autocommitted one by one, a
+        // failed scheduled write left the inbox row deleted with nothing scheduled
+        await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+
+        var delete = _deleteFromIncomingSql;
+        if (owner.HasValue) delete += $" AND {DatabaseConstants.OwnerId} = @owner";
+
+        await using (var deleteCmd = conn.CreateCommand(delete).With("id", $"{envelope.Id:D}"))
+        {
+            if (owner.HasValue) deleteCmd.With("owner", owner.Value);
+            deleteCmd.Transaction = tx;
+
+            if (await deleteCmd.ExecuteNonQueryAsync(cancellationToken) == 0 && owner.HasValue)
+            {
+                // Another execution owns the message now: drop this stale copy
+                await tx.RollbackAsync(cancellationToken);
+                return;
+            }
+        }
+
+        await writeToScheduledTableAsync(envelope, cancellationToken, conn, tx);
+        await tx.CommitAsync(cancellationToken);
     }
 
     public async ValueTask SendAsync(Envelope envelope)
@@ -211,11 +235,17 @@ values (@id, @body, @type, @time)
 
         try
         {
-            var count = await conn.CreateCommand(_moveFromOutgoingToQueueSql)
-                .With("id", $"{envelope.Id:D}")
-                .ExecuteNonQueryAsync(cancellationToken);
+            // GH-5438. The INSERT and the DELETE commit together. Autocommitted one by one, a process killed
+            // between them left the envelope in the queue AND the outbox, and outbox recovery sent it a second time
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+            var cmd = conn.CreateCommand(_moveFromOutgoingToQueueSql)
+                .With("id", $"{envelope.Id:D}");
+            cmd.Transaction = tx;
+            var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
             if (count == 0) throw new InvalidOperationException("No matching outgoing envelope");
+
+            await tx.CommitAsync(cancellationToken);
         }
         catch (SqliteException e)
         {
@@ -233,12 +263,17 @@ values (@id, @body, @type, @time)
 
         try
         {
-            var count = await conn.CreateCommand(_moveFromOutgoingToScheduledSql)
+            // GH-5438: the INSERT and the DELETE commit together, as in MoveFromOutgoingToQueueAsync
+            await using var tx = await conn.BeginTransactionAsync(cancellationToken);
+            var cmd = conn.CreateCommand(_moveFromOutgoingToScheduledSql)
                 .With("id", $"{envelope.Id:D}")
-                .With("time", envelope.ScheduledTime!.Value.UtcDateTime.ToString(SqliteDateTimeFormat))
-                .ExecuteNonQueryAsync(cancellationToken);
+                .With("time", envelope.ScheduledTime!.Value.UtcDateTime.ToString(SqliteDateTimeFormat));
+            cmd.Transaction = tx;
+            var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
             if (count == 0) throw new InvalidOperationException($"No matching outgoing envelope for {envelope}");
+
+            await tx.CommitAsync(cancellationToken);
         }
         catch (SqliteException e)
         {

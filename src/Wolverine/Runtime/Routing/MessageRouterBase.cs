@@ -46,25 +46,14 @@ public abstract class MessageRouterBase : IMessageRouter
                                 ? null!
                                 : runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri));
 
-        var chain = runtime.Handlers.ChainFor(messageType);
-        if (chain != null)
+        // GH-5136. Every handler chain of the message type, one per handler type
+        foreach (var chain in runtime.Handlers.GroupFor(messageType)?.Chains ?? [])
         {
             foreach (var handler in chain.Handlers)
             {
                 foreach (var attribute in handler.Method.GetAllAttributes<ModifyEnvelopeAttribute>())
                 {
                     if (attribute is IEnvelopeRule rule) HandlerRules.Add(rule);
-                }
-            }
-
-            foreach (var byEndpoint in chain.ByEndpoint)
-            {
-                foreach (var handler in byEndpoint.Handlers)
-                {
-                    foreach (var attribute in handler.Method.GetAllAttributes<ModifyEnvelopeAttribute>())
-                    {
-                        if (attribute is IEnvelopeRule rule) HandlerRules.Add(rule);
-                    }
                 }
             }
         }

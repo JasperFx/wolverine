@@ -11,7 +11,7 @@ namespace Wolverine.RDBMS;
 public abstract partial class MessageDatabase<T>
 {
     // GH-3166: sentinel "received at" for dead letters whose envelope had no Destination (received_at is NULL).
-    internal static readonly Uri UnknownReceivedAtUri = new("unknown://none");
+    internal static readonly Uri UnknownReceivedAtUri = new(DatabaseConstants.UnknownReceivedAt);
 
     public async Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range,
         CancellationToken token)
@@ -313,6 +313,12 @@ public abstract partial class MessageDatabase<T>
                 builder.Append($" and {DatabaseConstants.FailureGroup} = ");
                 builder.AppendParameter(query.FailureGroup);
             }
+        }
+
+        if (query.SagaId.IsNotEmpty())
+        {
+            builder.Append($" and {DatabaseConstants.SagaId} = ");
+            builder.AppendParameter(query.SagaId);
         }
 
         switch (archived)

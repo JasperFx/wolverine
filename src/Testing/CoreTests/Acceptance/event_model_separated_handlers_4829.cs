@@ -19,7 +19,6 @@ namespace CoreTests.Acceptance.EventModel4829
                 .UseWolverine(opts =>
                 {
                     opts.ServiceName = "Orders";
-                    opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                     var discovery = opts.Discovery.DisableConventionalDiscovery();
                     foreach (var handler in handlers) discovery.IncludeType(handler);

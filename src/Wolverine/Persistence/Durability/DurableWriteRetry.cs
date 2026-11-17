@@ -47,8 +47,8 @@ internal static class DurableWriteRetry
             catch (Exception e) when (attempt < Pauses.Length && !cancellation.IsCancellationRequested)
             {
                 logger.LogWarning(e,
-                    "Attempt {Attempt} of {Total} to persist {Envelope} failed, retrying in {Pause}",
-                    attempt + 1, Pauses.Length + 1, envelope, Pauses[attempt]);
+                    "Attempt {Attempt} of {Total} to persist {Name}#{Id} failed, retrying in {Pause}",
+                    attempt + 1, Pauses.Length + 1, envelope.GetMessageTypeName(), envelope.Id, Pauses[attempt]);
 
                 await Task.Delay(Pauses[attempt], cancellation).ConfigureAwait(false);
             }

@@ -9,7 +9,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Sqlite;
 
-internal class SqliteAdvisoryLock : IAdvisoryLock
+internal class SqliteAdvisoryLock : IWolverineAdvisoryLock
 {
     // wolverine_locks rows are not bound to the writing connection (unlike the
     // BEGIN EXCLUSIVE migration lock), so a hard-killed holder leaves a row
@@ -66,6 +66,10 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
         _lockTtl = lockTtl;
     }
 
+    /// <summary>
+    /// The synchronous probe the JasperFx <see cref="IAdvisoryLock" /> contract requires. Wolverine's own
+    /// callers use <see cref="HasLockAsync" />, which does the same ping without blocking a thread (GH-5135).
+    /// </summary>
     public bool HasLock(int lockId)
     {
         // Cheap negative outside the gate: an id we never took cannot be held.
@@ -94,6 +98,36 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
         }
     }
 
+    public async Task<bool> HasLockAsync(int lockId, CancellationToken token)
+    {
+        // Cheap negative outside the gate: an id we never took cannot be held.
+        if (!holdsId(lockId)) return false;
+
+        // GH-5135: the token bounds only this wait. A cancelled wait throws back to the caller and touches
+        // no held id -- shutting down says nothing about the session that holds the lock.
+        if (!await _gate.WaitAsync(GateTimeout, token).ConfigureAwait(false))
+        {
+            // GH-4261: a busy gate means another advisory-lock operation on THIS node is in flight, not
+            // that the row was reaped. A wrong `false` here is read by
+            // NodeAgentController.DoHealthChecksInternalAsync as lost leadership and fires
+            // stepDownAsync -- exactly the churn GH-2602 and GH-3604 were fighting. Report the last
+            // state we established and skip the keepalive for this tick.
+            _logger.LogDebug(
+                "Advisory lock connection for database {Database} was busy; reporting the last known state of lock {LockId} without pinging",
+                _databaseName, lockId);
+            return true;
+        }
+
+        try
+        {
+            return await hasLockUnsafeAsync(lockId).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary>
     /// The GH-2602 liveness ping. Callers MUST hold <c>_gate</c> -- it does synchronous I/O on the
     /// shared connection and may replace it.
@@ -114,6 +148,50 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
             cmd.CommandText = "select 1";
             cmd.CommandTimeout = 2;
             cmd.ExecuteScalar();
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e,
+                "Lost advisory-lock connection for database {Database}; clearing held lock ids {Locks}",
+                _databaseName, heldIds());
+
+            clearIds();
+            try
+            {
+                _conn.Dispose();
+            }
+            catch
+            {
+                // Already broken; nothing to do.
+            }
+            _conn = null;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The GH-2602 liveness ping, asynchronously (GH-5135). Callers MUST hold <c>_gate</c> -- it does I/O on the
+    /// shared connection and may replace it.
+    /// </summary>
+    private async Task<bool> hasLockUnsafeAsync(int lockId)
+    {
+        if (_conn is null) return false;
+        if (!holdsId(lockId)) return false;
+
+        // SQLite advisory locks are table rows; in single-process tests
+        // the connection is unlikely to die out from under us, but for
+        // parity with the Postgres / MySQL fix and to detect any held
+        // connection that has gone bad (e.g. file deleted under us),
+        // ping before reporting the lock as held. See GH-2602.
+        try
+        {
+            // No cancellation token on purpose: CommandTimeout bounds the ping, and a cancelled ping would land
+            // in the catch below and read as a lost session.
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "select 1";
+            cmd.CommandTimeout = 2;
+            await cmd.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
             return true;
         }
         catch (Exception e)
@@ -176,9 +254,9 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
             // re-attempting must report success. The previous implementation would run
             // INSERT OR IGNORE again, get result==0, and falsely return false.
             //
-            // GH-4261: hasLockUnsafe, not HasLock — we already hold the gate, and SemaphoreSlim is not
+            // GH-4261: hasLockUnsafeAsync, not HasLockAsync — we already hold the gate, and SemaphoreSlim is not
             // reentrant.
-            if (hasLockUnsafe(lockId))
+            if (await hasLockUnsafeAsync(lockId).ConfigureAwait(false))
             {
                 await refreshHeartbeatAsync(lockId, token).ConfigureAwait(false);
                 return true;

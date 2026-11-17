@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Fisher.Distribution;
 using Wolverine.Runtime.Agents;
+using ManagedDistributionDaemonModeValidator = Wolverine.Persistence.EventSourcing.Distribution.ManagedDistributionDaemonModeValidator;
 using Wolverine.Fisher.Publishing;
 using Wolverine.Fisher.Subscriptions;
 using Wolverine.Persistence;
@@ -61,7 +62,7 @@ public static class WolverineOptionsFisherExtensions
         // GH-3956: Fisher registers its own interfaces, never the store-agnostic
         // JasperFx.Events.Documents contracts its session types already implement, so a service depending
         // on one of those could not be resolved at all on a stock host. Handler PARAMETERS are satisfied by
-        // codegen (SharedDocumentOperationsSource); these registrations cover everything codegen does not
+        // codegen (DocumentSessionContractSource, GH-5141); these registrations cover everything codegen does not
         // see -- a service-located contract, or one injected into a class that a handler depends on.
         //
         // Deliberately delegating to IDocumentSession / IQuerySession rather than to a fresh session, so
@@ -113,15 +114,18 @@ public static class WolverineOptionsFisherExtensions
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
-        // CritterWatch / saga-explorer diagnostic surface — Fisher
-        // builds a SqliteMessageStore underneath, so the lightweight
-        // SQLite saga storage owns every Fisher-driven saga. The
-        // runtime aggregator picks this up alongside any other saga
-        // storages (Marten / EF Core / RavenDB) for mixed-storage hosts.
+        // CritterWatch / saga-explorer diagnostic surface. GH-5142: a Fisher
+        // saga is a Fisher document, not a row in Wolverine's lightweight
+        // SQLite saga tables, so this used to register DatabaseSagaStoreDiagnostics
+        // over tables Fisher sagas are never written to, and the saga explorer
+        // showed nothing. The document-store diagnostics read the documents,
+        // with the same implementation Marten uses.
         expression.Services.AddSingleton<Wolverine.Persistence.Sagas.ISagaStoreDiagnostics>(s =>
-            new DatabaseSagaStoreDiagnostics(
+            new Wolverine.Persistence.Sagas.DocumentStoreSagaStoreDiagnostics(
                 s.GetRequiredService<IWolverineRuntime>(),
-                (IMessageDatabase)s.GetRequiredService<IMessageStore>()));
+                s.GetRequiredService<IDocumentStore>(),
+                typeof(Wolverine.Fisher.Persistence.Sagas.FisherPersistenceFrameProvider),
+                "Fisher"));
 
         // GH-3365: do NOT bridge the primary store to the store-agnostic JasperFx.Events.IEventStore
         // here. Fisher's own AddFisher() registers IEventStore for the primary DocumentStore on every
@@ -139,15 +143,19 @@ public static class WolverineOptionsFisherExtensions
         // Polecat.
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {
+            // GH-5141: the agent family, coordinator and validator are Wolverine core's, shared with Marten
+            // and Polecat.
+            expression.Services.AddEventSubscriptionAgentFamily();
             expression.Services.AddSingleton<WolverineProjectionCoordinator>();
-            expression.Services.TryAddSingleton<EventSubscriptionAgentFamily>();
-            expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
-            expression.Services.AddSingleton<IEventSubscriptionAgentFamily>(s =>
-                s.GetRequiredService<EventSubscriptionAgentFamily>());
             expression.Services.AddSingleton<IProjectionCoordinator>(s =>
                 s.GetRequiredService<WolverineProjectionCoordinator>());
 
-            expression.Services.AddSingleton<IHostedService, ManagedDistributionDaemonModeValidator>();
+            // Fisher's Solo mode hosts its own daemon as JasperFx's IProjectionCoordinator, and Wolverine's agents
+            // would run the same projections against the same SQLite file beside it.
+            ManagedDistributionDaemonModeValidator.Register(expression.Services, s =>
+                s.GetServices<JasperFx.Events.Daemon.IProjectionCoordinator>().Any()
+                    ? FisherDaemonConflict.MessageFor("Fisher's async daemon")
+                    : null);
         }
 
         return expression;

@@ -1,3 +1,4 @@
+using Dekaf.Consumer;
 using Confluent.Kafka;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,7 +40,7 @@ public class BufferedComplianceWithDlqFixture : TransportComplianceFixture, IAsy
         {
             opts.UseKafka(KafkaContainerFixture.ConnectionString)
                 .AutoProvision()
-                .ConfigureConsumers(x => x.EnableAutoCommit = false);
+                .ConfigureConsumers(x => x.OffsetCommitMode = OffsetCommitMode.Manual);
 
             opts.ListenToKafkaTopic(senderTopic);
 

@@ -1,7 +1,8 @@
 # Using NATS
 
 ::: tip
-Wolverine uses the official [NATS.Net client](https://github.com/nats-io/nats.net) to connect to NATS.
+Wolverine uses the official [NATS.Net client](https://github.com/nats-io/nats.net) to connect to NATS. Wolverine 7
+is built on NATS.Net 3.x; Wolverine 6 used NATS.Net 2.x.
 :::
 
 ## Installing
@@ -193,14 +194,14 @@ opts.UseNats("nats://localhost:4222")
     {
         // Core NATS subscriptions buffer up to SubPendingChannelCapacity messages per subscription
         // and, by default, drop the newest ones once that buffer is full
-        SubPendingChannelCapacity = 4096,
+        SubPendingChannelCapacity = 65_536,
 
         // Notice a dead connection sooner than the client default of 2 minutes x 2 missed pings
         PingInterval = TimeSpan.FromSeconds(10)
     });
 ```
 
-Without the hook the NATS.Net defaults apply unchanged: a pending channel of 1,024 messages per subscription
+Without the hook the NATS.Net defaults apply unchanged: a pending channel of 16,384 messages per subscription
 that drops the newest message when full (`BoundedChannelFullMode.DropNewest`), and a ping every two minutes with
 two outstanding pings allowed. Think twice before switching `SubPendingChannelFullMode` to `Wait`: a full channel
 then stalls the connection's read loop instead of dropping, so one slow core NATS listener holds up every
@@ -219,13 +220,14 @@ opts.UseNats("nats://shared:4222")
     .AddTenant("tenant-a", cfg =>
     {
         cfg.ConnectionString = "nats://tenant-a-host:4222";
-        cfg.ConfigureNatsOpts = o => o with { SubPendingChannelCapacity = 10_000 };
+        cfg.ConfigureNatsOpts = o => o with { SubPendingChannelCapacity = 65_536 };
     });
 ```
 
 ### Dropped Core NATS Messages <Badge type="tip" text="6.47" />
 
-A core NATS subscription buffers incoming messages in a pending channel of 1,024 messages, and NATS.Net drops the
+A core NATS subscription buffers incoming messages in a pending channel of 16,384 messages (1,024 before NATS.Net 3,
+which Wolverine 7 uses), and NATS.Net drops the
 newest message once that channel is full. Core NATS never redelivers it. Wolverine logs a warning from
 `NatsTransport` for every dropped message (subject, subscription, connection) and one for each slow-consumer
 episode of a subscription, on the shared and on the tenant connections. If you see them, raise
@@ -563,7 +565,7 @@ JetStream's `Nats-Msg-Id` duplicate window (see [JetStream Configuration](#jetst
 **publish**, at stream ingest. It does not deduplicate *redeliveries* — a redelivered message was already accepted
 into the stream, so the window never sees it again. Native acks are at-least-once by design and produce a burst of
 redeliveries on every rolling deploy, so if you want those suppressed, that is what `WithInMemoryIdempotency()` is
-for. The two are complementary, not alternatives.
+for, and as of Wolverine 7.0 it is on by default for native-ack listeners. The two are complementary, not alternatives.
 :::
 
 ### Named Endpoints
@@ -975,22 +977,24 @@ transport's, unless its action changed them — are provisioned on each tenant s
 ### Where the Tenant Id Comes From
 
 A message that arrives on a tenant's dedicated connection always belongs to that tenant. On the shared connection
-a tenant-aware listener takes the tenant id from the message's `tenant-id` header, and otherwise from the subject's
-tenant prefix — so any producer that may publish to the subject can act in any tenant's name. When producers you
-do not control publish there, turn that off:
+a tenant-aware listener takes the tenant id only from the subject's tenant prefix, and only for a configured
+tenant; a message on the plain subject has no tenant, whatever its `tenant-id` header says. A broker is a trust
+boundary: a producer with publish rights on tenant A's subjects cannot stamp a message as tenant B.
+
+That is the default since Wolverine 7.0. In 6.x a tenant-aware listener trusted the `tenant-id` header first, so any
+producer that could publish to the subject could act in any tenant's name. `opts.RestoreV6Defaults()` brings that
+back, and so does setting `TrustTenantIdHeader` yourself, which is only safe when every producer that can publish
+there is trusted:
 
 ```csharp
 opts.UseNats(nats =>
 {
     nats.ConnectionString = "nats://shared:4222";
-    nats.TrustTenantIdHeader = false;
+    nats.TrustTenantIdHeader = true;
 })
 .AddTenant("tenant-a")
 .AddTenant("tenant-b");
-```
-
-The tenant id then comes only from the subject prefix, and only for a configured tenant; a message on the plain
-subject has no tenant, whatever its header says. Keep the shared connection out of the tenants' accounts as well:
+``` Keep the shared connection out of the tenants' accounts as well:
 in the same account, the shared and the tenant's listener both receive a core NATS message, and on a JetStream
 consumer they share, which of the two takes a message is left to chance.
 

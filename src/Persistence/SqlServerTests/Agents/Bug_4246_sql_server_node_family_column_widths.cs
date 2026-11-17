@@ -69,8 +69,8 @@ public class Bug_4246_sql_server_node_family_column_widths : IAsyncLifetime
         await conn.OpenAsync(TestContext.Current.CancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "select character_maximum_length from information_schema.columns " +
-            "where table_schema = @schema and table_name = @table and column_name = @column";
+            "select CHARACTER_MAXIMUM_LENGTH from INFORMATION_SCHEMA.COLUMNS " +
+            "where TABLE_SCHEMA = @schema and TABLE_NAME = @table and COLUMN_NAME = @column";
         cmd.Parameters.AddWithValue("schema", SchemaName);
         cmd.Parameters.AddWithValue("table", table);
         cmd.Parameters.AddWithValue("column", column);

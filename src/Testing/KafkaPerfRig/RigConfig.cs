@@ -116,6 +116,25 @@ public class RigConfig
     public string PulsarSmallTopic => $"persistent://public/default/rig-small-{RunId}";
     public string PulsarLargeTopic => $"persistent://public/default/rig-large-{RunId}";
 
+    // --- In-process dispatch / runtime-async (GH-5150) ---
+    // RIG_RUNTIME_ASYNC=1 sets CodeGeneration.UseRuntimeAsync, so the runtime-compiled handlers are emitted
+    // as runtime-async methods. Only honored on net11.0; JasperFx ignores it on net10.0.
+    public bool RuntimeAsync { get; } = envInt("RIG_RUNTIME_ASYNC", 0) == 1;
+
+    // When set (0 or 1), the inproc lane refuses to measure unless the IL agrees: 1 = Wolverine.dll and the
+    // generated handler are runtime-async, 0 = neither is. Guards against a flag that was silently ignored.
+    public bool? ExpectRuntimeAsync { get; } =
+        Environment.GetEnvironmentVariable("RIG_EXPECT_RUNTIME_ASYNC") switch { "1" => true, "0" => false, _ => null };
+
+    // Free-text label for the build variant, carried into the summary (net10 | net11 | net11-ra)
+    public string Variant { get; } = env("RIG_VARIANT", "dev");
+
+    // Concurrent InvokeAsync loops; 0 = Environment.ProcessorCount
+    public int InProcConcurrency { get; } = envInt("RIG_INPROC_CONCURRENCY", 0);
+
+    // 0 = every await in the handler completes synchronously; n = every n-th call really suspends (Task.Yield)
+    public int InProcYieldEvery { get; } = envInt("RIG_INPROC_YIELD_EVERY", 0);
+
     private static string env(string key, string fallback)
     {
         return Environment.GetEnvironmentVariable(key) is { Length: > 0 } value ? value : fallback;

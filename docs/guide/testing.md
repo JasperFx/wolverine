@@ -203,6 +203,102 @@ yourself:
 acknowledgement APIs depend on them.
 :::
 
+### Messages fanned out by the broker
+
+A tracked session follows each message by its envelope id. When a broker fans one message out to several
+queues, as a RabbitMQ exchange with several bound queues does, every copy arrives with the **same** envelope
+id. That is the usual shape for a message type with several handler types and conventional routing by handler type,
+where each handler gets its own queue. The session cannot see the broker's bindings, so it does not know how
+many copies to expect. With `IncludeExternalTransports()` it can report `Completed` as soon as the first copy
+is handled, while another queue's handler is still running.
+
+Tell the session what to wait for with a custom `ITrackedCondition`. This one holds the session open until the
+message has been handled at a given number of queues:
+
+<!-- snippet: sample_tracked_condition_for_a_message_fanned_out_by_the_broker -->
+<a id='snippet-sample_tracked_condition_for_a_message_fanned_out_by_the_broker'></a>
+```cs
+/// <summary>
+/// Holds a tracked session open until a message of type T has been handled successfully at
+/// the expected number of distinct receiving endpoints
+/// </summary>
+public class MessageSucceededAtEveryQueue<T> : ITrackedCondition
+{
+    private readonly int _expected;
+    private readonly HashSet<Uri> _queues = new();
+    private readonly object _lock = new();
+
+    public MessageSucceededAtEveryQueue(int expected)
+    {
+        _expected = expected;
+    }
+
+    public void Record(EnvelopeRecord record)
+    {
+        if (record.MessageEventType != MessageEventType.MessageSucceeded) return;
+        if (record.Message is not T) return;
+        if (record.Envelope?.Destination is not { } queue) return;
+
+        lock (_lock)
+        {
+            _queues.Add(queue);
+        }
+    }
+
+    public bool IsCompleted()
+    {
+        lock (_lock)
+        {
+            return _queues.Count >= _expected;
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Bugs/Bug_5416_tracked_session_waits_for_every_fanned_out_copy.cs#L62-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tracked_condition_for_a_message_fanned_out_by_the_broker' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Then add it to the session with `WaitForCondition()`:
+
+<!-- snippet: sample_waiting_for_a_message_fanned_out_by_the_broker -->
+<a id='snippet-sample_waiting_for_a_message_fanned_out_by_the_broker'></a>
+```cs
+var message = new FanOut5416(Guid.NewGuid());
+
+var tracked = await host.TrackActivity()
+    .IncludeExternalTransports()
+    .Timeout(30.Seconds())
+
+    // RabbitMQ delivers one copy of the message to each queue bound to the exchange, and
+    // the tracked session has no way to know how many queues that is. Tell it instead:
+    // keep waiting until the message has been handled successfully at both queues
+    .WaitForCondition(new MessageSucceededAtEveryQueue<FanOut5416>(2))
+    .SendMessageAndWaitAsync(message);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Bugs/Bug_5416_tracked_session_waits_for_every_fanned_out_copy.cs#L41-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_waiting_for_a_message_fanned_out_by_the_broker' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`WaitForExecutionOf<T>(count)` is a simpler option when you only need a count of executions of the message
+type across every queue.
+
+
+### Messages that are expected to dead letter or be retried later
+
+`WaitForMessageToBeReceivedAt<T>()` completes when the message succeeds or fails, but deliberately not when it is
+moved to the dead letter queue, because a dead letter can be replayed and a test usually wants that second pass.
+For a message that only ever dead-letters it can therefore do nothing but time out. Wait for the dead letter itself
+instead:
+
+```csharp
+var session = await host.TrackActivity()
+    .DoNotAssertOnExceptionsDetected()
+    .WaitForMessageToBeDeadLettered<PlaceOrder>()
+    .SendMessageAndWaitAsync(new PlaceOrder());
+```
+
+To prove that a failure is retried later (`ScheduleRetry()`, `Requeue()`) rather than dead-lettered, use
+`WaitForMessageToBeRequeued<T>()`. The tracked session ends when the message is requeued, so it does not have to
+wait for the retry delay. Deferring or rescheduling a message also counts as a requeue.
+
 ### Scoping a session by envelope
 
 `IgnoreMessageType<T>()` and `IgnoreMessagesMatchingType()` can only separate traffic by *message type*,
@@ -743,7 +839,8 @@ A few things to know:
   say yet, it just waits on every database before reading through the tenant. An act that carried no tenant at all is
   looked for in every database. That's still exact, because a correlation id only ever belongs to one act.
 * For an HTTP act, `WhenPosted()` sends the act's correlation id as the `X-Correlation-ID` header. For the events an
-  endpoint appends to record it, turn on `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` -- see
+  endpoint appends to record it, `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` has to be on, which
+  it is by default from Wolverine 7.0 -- see
   [applying the correlation id to every endpoint](/guide/http/middleware#applying-the-correlation-id-to-every-endpoint).
   If you make your own HTTP call inside `WhenTracked()`, send `ActCorrelationId` as that header yourself.
 
@@ -1384,7 +1481,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L53-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L54-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you're using something like [WebHostFactory](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests?view=aspnetcore-8.0) to 

@@ -243,8 +243,10 @@ internal class Executor : IExecutor
         // GH-4322: one linked source with CancelAfter replaces the previous timeout-CTS +
         // linked-CTS pair — the token still cancels on whichever of the execution timeout or the
         // caller's token fires first, at half the per-message allocations and registrations.
+        // Linked through a per-thread intermediate rather than straight to the receiver's token, which every
+        // message on every thread would otherwise register on: see CancellationShards
         using var cts = cancellation.CanBeCanceled
-            ? CancellationTokenSource.CreateLinkedTokenSource(cancellation)
+            ? CancellationTokenSource.CreateLinkedTokenSource(CancellationShards.For(cancellation))
             : new CancellationTokenSource();
         cts.CancelAfter(_timeout);
 
@@ -432,7 +434,7 @@ internal class Executor : IExecutor
         var handler = handlerGraph.HandlerFor(messageType);
         if (handler == null )
         {
-            var batching = runtime.Options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
+            var batching = handlerGraph.BatchFor(messageType);
             if (batching != null)
             {
                 handler = batching.BuildHandler((WolverineRuntime)runtime);

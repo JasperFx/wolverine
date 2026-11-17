@@ -1,5 +1,7 @@
-using Confluent.Kafka;
-using JasperFx.Core;
+using System.Runtime.ExceptionServices;
+using Dekaf;
+using Dekaf.Consumer;
+using Dekaf.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -8,45 +10,73 @@ using Wolverine.Util;
 
 namespace Wolverine.Kafka.Internals;
 
-public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IReportReceiveLoopHealth,
-    IReportConnectionState
+/// <summary>
+/// The Wolverine listener over a Dekaf consumer. Handles both a single-topic endpoint
+/// (<see cref="KafkaTopic"/>) and a multi-topic group (<see cref="KafkaTopicGroup"/>) — the
+/// subscription is just one consumer over one or more topic names.
+/// </summary>
+public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveLoopHealth,
+    IReportConnectionState, IKafkaClientHealthSource
 {
-    // GH-3454: degrade-only connection state derived from the consumer's error callback; a successful
-    // consume clears back to Unknown. Never Connected — see KafkaConnectionStateTracker.
-    private readonly KafkaConnectionStateTracker _connectionState;
+    // How long a single poll waits for a record before the consume loop just loops again. Short enough
+    // to keep the receive loop's heartbeat fresh and observe cancellation promptly.
+    private static readonly TimeSpan _pollTimeout = TimeSpan.FromSeconds(1);
+
+    // Budget for one consumer-initialization attempt. The consumer is built unconnected so hosts can
+    // start while the broker is down; each failed attempt degrades the connection state and the
+    // receive loop backs off and retries.
+    private static readonly TimeSpan _initializeTimeout = TimeSpan.FromSeconds(10);
+    private volatile bool _initialized;
+    private volatile bool _initializeFailed;
+
     private readonly KafkaTopic _endpoint;
-    private readonly IConsumer<string, byte[]> _consumer;
+    private readonly IKafkaConsumer<string, byte[]> _consumer;
     private CancellationTokenSource _cancellation = new();
 
     // Captured once: DeferAsync() can run after _cancellation is disposed, and a token taken from a disposed
     // source throws. The captured token still reports the cancellation that always precedes the dispose.
     private readonly CancellationToken _stopping;
-    // GH-3236: the consume loop now runs on the shared BackgroundReceiveLoop (backoff on Consume errors instead of
-    // the previous hot-loop, plus a heartbeat + fault detection). Offset flush + consumer close still happen in
+    // GH-3236: the consume loop runs on the shared BackgroundReceiveLoop (backoff on consume errors,
+    // plus a heartbeat + fault detection). Offset flush + consumer close still happen in
     // StopAsync/Dispose AFTER the loop has fully exited, so consumer access stays single-threaded (GH-3150).
     private readonly BackgroundReceiveLoop _loop;
     private readonly IReceiver _receiver;
     private readonly string? _messageTypeName;
     private readonly ILogger _logger;
     private readonly KafkaOffsetCommitter _committer;
-    // GH-3434: bounded drain budget for shutdown so StopAsync/Dispose can never block forever waiting on a
-    // consume loop whose blocking IConsumer.Consume(token) hasn't observed cancellation. Sourced from
-    // DurabilitySettings.DrainTimeout (default 30s), matching the SQS and RDBMS listeners.
+    // GH-3434: bounded drain budget for shutdown so StopAsync/Dispose can never block forever waiting on
+    // a consume loop that hasn't observed cancellation. Sourced from DurabilitySettings.DrainTimeout
+    // (default 30s), matching the SQS and RDBMS listeners.
     private readonly TimeSpan _drainTimeout;
     // Broker-per-tenant (GH-3303): the cluster this listener's DLQ records are produced to. Null for the shared
     // (default-cluster) listener, which falls back to the topic's parent transport.
     private readonly KafkaTransport? _tenantTransport;
-    // GH-4422: set when a teardown step blew through the drain budget and was abandoned on its own thread.
-    // The consumer handle is still owned by that thread, so it must NOT be disposed underneath it.
+    // GH-4422: set when the flush and close blew through the drain budget and were abandoned. The close may
+    // still be running, so the consumer must not be disposed underneath it.
     private volatile bool _teardownAbandoned;
     // Gives a record without an id of its own the id of its position in the log, so the durable inbox sees a
     // redelivery of it as the duplicate it is. Null for an endpoint without an inbox to deduplicate against.
     private readonly KafkaRecordIdentity? _recordIdentity;
 
-    public KafkaListener(KafkaTopic topic, ConsumerConfig config,
-        IConsumer<string, byte[]> consumer, IReceiver receiver,
-        ILogger<KafkaListener> logger, TimeSpan drainTimeout, KafkaTransport? tenantTransport = null,
-        KafkaConnectionStateTracker? connectionState = null)
+    // Retry-tier topics gate on per-record produce timestamps, and batching only helps inbox-backed endpoints, so
+    // everything else hands the receiver one record at a time
+    private readonly bool _receivesBatches;
+
+    // Retry-tier partitions paused until their head record is due. Only the consume loop touches it
+    private readonly Dictionary<TopicPartition, DateTime> _pausedUntil = new();
+
+    public KafkaListener(KafkaTopic topic, KafkaConsumerOptions config,
+        IKafkaConsumer<string, byte[]> consumer, string[] topicNames, IReceiver receiver,
+        ILogger<KafkaListener> logger, TimeSpan drainTimeout, KafkaTransport? tenantTransport = null)
+        : this(topic, config, consumer, topicNames, receiver, logger, drainTimeout, tenantTransport, null)
+    {
+    }
+
+    // rebalance is the relay the consumer was built with, so revocations reach this listener's committer
+    internal KafkaListener(KafkaTopic topic, KafkaConsumerOptions config,
+        IKafkaConsumer<string, byte[]> consumer, string[] topicNames, IReceiver receiver,
+        ILogger<KafkaListener> logger, TimeSpan drainTimeout, KafkaTransport? tenantTransport,
+        KafkaRebalanceRelay? rebalance)
     {
         _endpoint = topic;
         _logger = logger;
@@ -54,24 +84,6 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
         _tenantTransport = tenantTransport;
         Address = topic.Uri;
         _consumer = consumer;
-
-        _connectionState = connectionState ?? new KafkaConnectionStateTracker();
-
-        // GH-4522: this used to be an Information line saying reporting was simply off. It is now a Warning
-        // that names the consequence -- and it should be unreachable, because Wolverine composes its tracking
-        // behind a user handler rather than losing the race to register one.
-        if (_connectionState.ErrorHandlerSuppressed)
-        {
-            _logger.LogWarning(
-                "Wolverine could not install its Kafka consumer error handler for {Uri}, so it cannot observe connection errors and TransportConnectionState will report Unknown for the lifetime of the host. Health checks, wolverine-diagnostics and CritterWatch will not be able to tell a healthy consumer from one that has been disconnected for an hour. Drop the custom error handler registered through ConfigureConsumerBuilders(), or chain Wolverine's tracking from it.",
-                Address);
-        }
-        else if (_connectionState.ComposedWithUserErrorHandler)
-        {
-            _logger.LogInformation(
-                "Wolverine composed its Kafka connection-state tracking behind the consumer error handler registered through ConfigureConsumerBuilders for {Uri}. Both handlers run; yours runs first.",
-                Address);
-        }
 
         _messageTypeName = topic.MessageType?.ToMessageTypeName();
 
@@ -81,157 +93,253 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
             ? KafkaRecordIdentity.For(topic.Parent, tenantTransport, config)
             : null;
 
+        _receivesBatches = topic.Mode == EndpointMode.Durable && topic.MaximumMessagesToReceive > 1 &&
+                           topic.RetryTierDelay == null;
+
         Config = config;
         _receiver = receiver;
         _stopping = _cancellation.Token;
         _committer = new KafkaOffsetCommitter(consumer, config, topic.CommitMode, topic.CommitBatchCount,
             topic.CommitBatchInterval, logger);
-
-        _consumer.Subscribe(topic.TopicName);
-        // GH-4330: IConsumer.Consume(CancellationToken) blocks synchronously, so this loop holds
-        // its thread for the listener's whole lifetime. On the pool that is one worker gone per
-        // Kafka listener -- multiply by topics and ListenerCount and it eats into the same pool
-        // the handler pipeline and every other transport's continuations run on.
-        _loop = new BackgroundReceiveLoop(Address, logger, consumeOnceAsync, _cancellation.Token)
+        if (rebalance != null)
         {
-            UsesBlockingIteration = true
-        };
+            rebalance.Committer = _committer;
+        }
+
+        _consumer.Subscribe(topicNames);
+        _loop = new BackgroundReceiveLoop(Address, logger, consumeOnceAsync, _cancellation.Token);
         _loop.Start();
+
+        // Registered with the transport of the cluster it consumes, for the health check
+        clusterTransport.TrackClient(this);
     }
 
-    // One consume-and-process iteration. _consumer.Consume blocks until a record (or throws). An
-    // OperationCanceledException ends the loop; any other Consume error flows to BackgroundReceiveLoop's
-    // log -> backoff -> continue (previously this hot-looped on every error). A processing error AFTER a
-    // successful consume is a poison pill — advance past its offset and continue, exactly as before.
+    private KafkaTransport clusterTransport => _tenantTransport ?? _endpoint.Parent;
+
+    // One consume-and-dispatch pass. ConsumeOneAsync waits up to the poll timeout for a record; a null result means
+    // a quiet topic, so just loop. An OperationCanceledException from shutdown ends the loop; any other consume
+    // error flows to BackgroundReceiveLoop's log, backoff and retry.
     //
-    // GH-3490: durable endpoints additionally drain whatever records librdkafka has already
-    // fetched (up to MaximumMessagesToReceive) and hand them to the receiver as one array, so
-    // the durable inbox persists them with a single batched insert instead of gating the
-    // consume loop on one INSERT round trip per record. Measured locally, the per-record path
-    // capped a durable listener around ~1-2k msg/s while the broker backlog grew unbounded.
+    // Every record goes through tryBuild: tracked so no commit passes it, then mapped. A record that can't be mapped
+    // is a poison pill and is completed so its partition moves on.
+    //
+    // GH-3490: durable endpoints additionally drain whatever records the consumer has already fetched (up to
+    // MaximumMessagesToReceive) and hand them to the receiver as one array, so the durable inbox persists them with
+    // a single batched insert instead of gating the consume loop on one INSERT round trip per record.
     private async Task<bool> consumeOnceAsync(CancellationToken token)
     {
-        var result = _consumer.Consume(token);
-
-        _connectionState.MarkSuccessfulConsume();
-
-        try
+        if (!_initialized)
         {
-            // Retry-tier topics gate on per-record produce timestamps and durable batching only
-            // helps inbox-backed endpoints, so everything else keeps strict one-at-a-time consumption.
-            if (_endpoint.Mode == EndpointMode.Durable
-                && _endpoint.MaximumMessagesToReceive > 1
-                && _endpoint.RetryTierDelay == null)
+            try
             {
-                await consumeManyAsync(result);
+                using var initTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+                initTimeout.CancelAfter(_initializeTimeout);
+                await _consumer.InitializeAsync(initTimeout.Token);
+                _initialized = true;
             }
-            else
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
-                await consumeSingleAsync(result, token);
+                // shutting down, let the loop stop
+                throw;
+            }
+            catch (Exception)
+            {
+                // Broker unreachable (or slow): report it and let the receive loop back off and retry, so the
+                // host stays up
+                _initializeFailed = true;
+                throw;
             }
         }
-        catch (OperationCanceledException)
+
+        // Commits what handlers finished since the last pass, here on the loop that owns the consumer
+        await _committer.CommitCompletedAsync();
+        resumeDuePartitions();
+
+        var maybe = await _consumer.ConsumeOneAsync(pollTimeout(), token);
+        if (maybe == null)
         {
-            // shutting down mid-process — let the loop stop
-            throw;
+            // Poll timeout on a quiet topic; nothing to do this iteration
+            return true;
         }
-        catch (Exception e)
+
+        var record = maybe.Value;
+        if (_endpoint.RetryTierDelay is { } retryDelay && deferUntilDue(record, retryDelay))
         {
-            // Might be a poison pill message; advance past its specific offset so we don't get stuck re-consuming it.
-            _committer.Complete(result.Topic, result.Partition.Value, result.Offset.Value);
-            _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
+            return true;
+        }
+
+        if (!_receivesBatches)
+        {
+            if (tryBuild(record) is { } envelope)
+            {
+                await dispatchAsync(envelope, token);
+            }
+
+            return true;
+        }
+
+        var envelopes = new List<Envelope>(Math.Min(_endpoint.MaximumMessagesToReceive, 32));
+        Exception? consumeFailure = null;
+        while (true)
+        {
+            if (tryBuild(record) is { } envelope)
+            {
+                envelopes.Add(envelope);
+                if (envelopes.Count >= _endpoint.MaximumMessagesToReceive) break;
+            }
+
+            // Zero-timeout poll: only drains records the consumer already holds locally, never waits on the broker,
+            // so a quiet topic still processes each record immediately
+            ConsumeResult<string, byte[]>? next;
+            try
+            {
+                next = await _consumer.ConsumeOneAsync(TimeSpan.Zero, CancellationToken.None);
+            }
+            catch (Exception e)
+            {
+                // The records already taken are tracked, so they are dispatched before the failure reaches the loop
+                consumeFailure = e;
+                break;
+            }
+
+            if (next == null) break;
+            record = next.Value;
+        }
+
+        await dispatchAsync(envelopes, token);
+
+        if (consumeFailure != null)
+        {
+            ExceptionDispatchInfo.Throw(consumeFailure);
         }
 
         return true;
     }
 
-    private async Task consumeSingleAsync(ConsumeResult<string, byte[]> result, CancellationToken token)
+    // Tracks the record so no commit passes it, then maps it. Null for a poison pill, which is completed instead.
+    private Envelope? tryBuild(ConsumeResult<string, byte[]> record)
     {
-        var message = result.Message;
+        _committer.Track(record.Topic, record.Partition, record.Offset);
 
-        // Seed the offset watermark in consume (in-order) order so out-of-order handler completion can never
-        // commit past this still-in-flight offset (GH-3161).
-        _committer.Track(result.Topic, result.Partition.Value, result.Offset.Value);
-
-        // Non-blocking retry-tier topic (GH-3148): wait out the fixed delay relative to when the record was
-        // produced before reprocessing. Records in a tier are time-ordered, so the head record gates the rest.
-        if (_endpoint.RetryTierDelay is { } retryDelay)
+        try
         {
-            var due = message.Timestamp.UtcDateTime + retryDelay;
-            var wait = due - DateTime.UtcNow;
-            if (wait > TimeSpan.Zero)
-            {
-                await Task.Delay(wait, token);
-            }
+            return buildEnvelope(record);
         }
-
-        var envelope = buildEnvelope(result);
-        await _receiver.ReceivedAsync(this, envelope);
+        catch (Exception e)
+        {
+            _committer.Complete(record.Topic, record.Partition, record.Offset);
+            _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
+            return null;
+        }
     }
 
-    private async Task consumeManyAsync(ConsumeResult<string, byte[]> first)
+    private async Task dispatchAsync(Envelope envelope, CancellationToken token)
     {
-        var envelopes = new List<Envelope>(Math.Min(_endpoint.MaximumMessagesToReceive, 32));
-        var current = first;
-
-        while (true)
+        try
         {
-            // Track in consume order BEFORE dispatch so the watermark can never commit past an
-            // in-flight record (GH-3161), poison pills included.
-            _committer.Track(current.Topic, current.Partition.Value, current.Offset.Value);
-
-            try
-            {
-                envelopes.Add(buildEnvelope(current));
-            }
-            catch (Exception e)
-            {
-                // Poison pill mid-batch: advance past its offset, keep the rest of the batch.
-                _committer.Complete(current.Topic, current.Partition.Value, current.Offset.Value);
-                _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
-            }
-
-            if (envelopes.Count >= _endpoint.MaximumMessagesToReceive)
-            {
-                break;
-            }
-
-            // Zero-timeout poll: only drains records librdkafka already holds locally — never
-            // waits on the broker, so a quiet topic still processes each record immediately.
-            var next = _consumer.Consume(TimeSpan.Zero);
-            if (next == null)
-            {
-                break;
-            }
-
-            current = next;
+            await _receiver.ReceivedAsync(this, envelope);
         }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            completeUndelivered(envelope);
+            _logger.LogError(e, "The receiver for {Uri} rejected envelope {EnvelopeId}, so its record is skipped",
+                Address, envelope.Id);
+        }
+    }
 
+    private async Task dispatchAsync(List<Envelope> envelopes, CancellationToken token)
+    {
         switch (envelopes.Count)
         {
             case 0:
                 return;
             case 1:
-                await _receiver.ReceivedAsync(this, envelopes[0]);
-                return;
-            default:
-                await _receiver.ReceivedAsync(this, envelopes.ToArray());
+                await dispatchAsync(envelopes[0], token);
                 return;
         }
+
+        try
+        {
+            await _receiver.ReceivedAsync(this, envelopes.ToArray());
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            foreach (var envelope in envelopes) completeUndelivered(envelope);
+            _logger.LogError(e, "The receiver for {Uri} rejected a batch of {Count} envelopes, so their records are skipped",
+                Address, envelopes.Count);
+        }
+    }
+
+    // A record the receiver never took is completed like a poison pill, so its partition is not held at it forever
+    private void completeUndelivered(Envelope envelope)
+    {
+        _committer.Complete(envelope.TopicName!, envelope.PartitionId!.Value, envelope.Offset);
+    }
+
+    // Non-blocking retry-tier topic (GH-3148): a record is due its fixed delay after it was produced. Records in a
+    // tier are time-ordered, so one that is not due yet holds back its own partition only: the partition is paused and
+    // rewound to the record, which is delivered again once resumeDuePartitions lets the partition go.
+    private bool deferUntilDue(ConsumeResult<string, byte[]> record, TimeSpan retryDelay)
+    {
+        var due = record.Timestamp.UtcDateTime + retryDelay;
+        if (due <= DateTime.UtcNow)
+        {
+            return false;
+        }
+
+        var partition = new TopicPartition(record.Topic, record.Partition);
+        _consumer.Partitions.Pause(partition);
+        _consumer.Positions.Seek(new TopicPartitionOffset(record.Topic, record.Partition, record.Offset));
+        _pausedUntil[partition] = due;
+        return true;
+    }
+
+    private void resumeDuePartitions()
+    {
+        if (_pausedUntil.Count == 0) return;
+
+        var now = DateTime.UtcNow;
+        List<TopicPartition>? due = null;
+        foreach (var (partition, until) in _pausedUntil)
+        {
+            if (until <= now) (due ??= []).Add(partition);
+        }
+
+        if (due == null) return;
+
+        foreach (var partition in due) _pausedUntil.Remove(partition);
+        _consumer.Partitions.Resume(due.ToArray());
+    }
+
+    // Wakes the loop when the next paused retry-tier partition is due rather than up to a poll timeout later
+    private TimeSpan pollTimeout()
+    {
+        if (_pausedUntil.Count == 0) return _pollTimeout;
+
+        var next = _pausedUntil.Values.Min() - DateTime.UtcNow;
+        return next <= TimeSpan.Zero ? TimeSpan.Zero : next < _pollTimeout ? next : _pollTimeout;
     }
 
     private Envelope buildEnvelope(ConsumeResult<string, byte[]> result)
     {
         var envelope = _endpoint.EnvelopeMapper!.CreateEnvelope(result, _recordIdentity);
         envelope.TopicName = result.Topic;
-        envelope.Offset = result.Offset.Value;
-        envelope.PartitionId = result.Partition.Value;
+        envelope.Offset = result.Offset;
+        envelope.PartitionId = result.Partition;
         envelope.MessageType ??= _messageTypeName;
 
         if (_endpoint.GroupByMessageKey)
         {
             // GH-3140: shard by-key processing on the Kafka message key.
-            envelope.GroupId = result.Message.Key;
+            envelope.GroupId = result.Key;
         }
         else if (_endpoint.StampConsumerGroupIdOnEnvelope)
         {
@@ -241,7 +349,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
         return envelope;
     }
 
-    public ConsumerConfig Config { get; }
+    public KafkaConsumerOptions Config { get; }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
@@ -249,7 +357,49 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
     public ReceiveLoopStatus ReceiveLoopStatus => _loop.ReceiveLoopStatus;
     public DateTimeOffset? LastReceiveLoopActivityAt => _loop.LastReceiveLoopActivityAt;
 
-    public TransportConnectionState ConnectionState => _connectionState.ConnectionState;
+    // GH-3454: the consumer's own broker connection status. Before it first connects there is none, so a failed
+    // initialization reports Disconnected.
+    public TransportConnectionState ConnectionState
+    {
+        get
+        {
+            if (!_initialized)
+            {
+                return _initializeFailed ? TransportConnectionState.Disconnected : TransportConnectionState.Unknown;
+            }
+
+            var status = ((IKafkaClientHealthSource)this).Status;
+            return status == null ? TransportConnectionState.Unknown : KafkaConnectionState.From(status);
+        }
+    }
+
+    KafkaClientStatus? IKafkaClientHealthSource.Status =>
+        _initialized ? (_consumer as IKafkaClientStatusProvider)?.GetStatus() : null;
+
+    bool IKafkaClientHealthSource.FailedToConnect => !_initialized && _initializeFailed;
+
+    /// <summary>
+    /// Records waiting on the broker across this consumer's assigned partitions, as of its latest fetches. Null
+    /// until the lag of at least one partition is known.
+    /// </summary>
+    internal long? CurrentLag()
+    {
+        if (!_initialized || _consumer is not IConsumerLag lag)
+        {
+            return null;
+        }
+
+        long? total = null;
+        foreach (var partition in _consumer.Assignment)
+        {
+            if (lag.GetCurrentLag(partition) is { } partitionLag)
+            {
+                total = (total ?? 0) + partitionLag;
+            }
+        }
+
+        return total;
+    }
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
@@ -269,29 +419,27 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
 
     public async ValueTask DisposeAsync()
     {
+        clusterTransport.ForgetClient(this);
         await StopAsync();
         await _loop.DisposeAsync();
         _cancellation.Dispose();
-        disposeConsumerUnlessAbandoned();
-    }
 
-    /// <summary>
-    /// GH-4422. Disposing the consumer is normally safe and non-blocking -- Confluent's ReleaseHandle
-    /// passes RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE -- but only while nothing else holds the handle. When
-    /// a teardown step was abandoned mid-Close, an abandoned thread is still inside that native call, so
-    /// destroying the handle underneath it trades a hang for a crash. Leave it to process exit instead.
-    /// </summary>
-    private void disposeConsumerUnlessAbandoned()
-    {
         if (_teardownAbandoned)
         {
             _logger.LogDebug(
-                "Not disposing the Kafka consumer for {Uri} because a teardown step was abandoned and still owns the handle",
+                "Not disposing the Kafka consumer for {Uri} because its close was abandoned and may still be running",
                 Address);
             return;
         }
 
-        _consumer.SafeDispose();
+        try
+        {
+            await _consumer.DisposeAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Error disposing Kafka consumer");
+        }
     }
 
     public Uri Address { get; }
@@ -299,80 +447,39 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
     public async ValueTask StopAsync()
     {
         await _cancellation.CancelAsync();
-        // Drain the loop within a bounded budget so shutdown can never hang (GH-3434). On a clean drain the consume
-        // loop has exited and consumer access is single-threaded before we flush + close (GH-3150). If the loop is
-        // wedged in a blocking Consume that ignored cancellation, the drain logs and returns, and the _consumer.Close()
-        // below forces that Consume to unwind — bounded teardown instead of an infinite await.
+        // Drain the loop within a bounded budget so shutdown can never hang (GH-3434). On a clean drain the
+        // consume loop has exited and consumer access is single-threaded before we flush + close (GH-3150).
         await _loop.StopAsync(_drainTimeout);
 
-        // GH-4422: the drain above was bounded but what followed it was not, so the bound bought nothing.
-        // _committer.Flush() is a synchronous _consumer.Commit() and _consumer.Close() is a synchronous
-        // P/Invoke into rd_kafka_consumer_close, which waits on an infinite queue pop for the cgroup to
-        // finish revoke/commit/leave. librdkafka documents the wait as "roughly limited to
-        // session.timeout.ms" but against an unreachable broker or coordinator it never returns
-        // (librdkafka#4519, confluent-kafka-dotnet#2013), and a host was observed still wedged 20+ minutes
-        // later -- past both DrainTimeout and HostOptions.ShutdownTimeout. No cancellation token can help:
-        // IListener.StopAsync has none to thread, and a managed token cannot interrupt a blocked native
-        // call anyway. Bounding the wait is the only lever, so take the same trade the receivers and the
-        // GCP Pub/Sub listener (#4071) already take: stop within the budget and leave the rest unsettled
-        // for redelivery.
-        await runTeardownWithinBudgetAsync("flush offsets and close the consumer", () =>
+        // A consumer that never initialized (broker down since startup) has nothing to flush or close
+        if (!_initialized)
         {
-            _committer.Flush();
-            _consumer.Close();
-        });
-    }
+            return;
+        }
 
-    /// <summary>
-    /// Runs one blocking teardown step under the drain budget. On timeout the step is ABANDONED --
-    /// logged, flagged, and left running -- because a blocked native call cannot be cancelled and
-    /// shutdown finishing matters more than the offsets it was trying to commit.
-    /// </summary>
-    private async Task runTeardownWithinBudgetAsync(string description, Action teardown)
-    {
-        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        // A DEDICATED background thread, deliberately not the thread pool. If this step wedges it is
-        // never coming back, and abandoning a pool thread would permanently consume a worker shared by
-        // the handler pipeline and every other transport -- the same amplifier GH-4354 took out of the
-        // consume loop, reintroduced at shutdown. A background thread also cannot hold up process exit.
-        var thread = new Thread(() =>
-        {
-            try
-            {
-                teardown();
-                completion.TrySetResult();
-            }
-            catch (Exception e)
-            {
-                completion.TrySetException(e);
-            }
-        })
-        {
-            IsBackground = true,
-            Name = "wolverine-kafka-teardown"
-        };
-
-        thread.Start();
-
+        // GH-4422: the flush and close are bounded by the same drain budget, so an unreachable coordinator
+        // cannot hold shutdown past DrainTimeout. Anything left uncommitted is redelivered after the rebalance.
         try
         {
-            await completion.Task.WaitAsync(_drainTimeout);
+            await flushAndCloseAsync().WaitAsync(_drainTimeout);
         }
         catch (TimeoutException)
         {
             _teardownAbandoned = true;
             _logger.LogWarning(
-                "{Uri}: the Kafka consumer did not {Description} within the drain timeout of {DrainTimeout}. Abandoning the wait so shutdown can finish; uncommitted offsets will be redelivered and the group will rebalance after session.timeout.ms.",
-                Address, description, _drainTimeout);
+                "{Uri}: the Kafka consumer did not flush offsets and close within the drain timeout of {DrainTimeout}. Abandoning the wait so shutdown can finish; uncommitted offsets will be redelivered.",
+                Address, _drainTimeout);
         }
         catch (Exception e)
         {
-            // Preserves the previous behaviour for a Close() that throws rather than blocks: a consumer
-            // that is already closed, or a broker that refuses the commit, is not worth a louder log.
-            _logger.LogDebug(e, "Error trying to {Description} for Kafka listener {Uri} on shutdown",
-                description, Address);
+            _logger.LogDebug(e, "Error closing Kafka consumer on shutdown");
         }
+    }
+
+    private async Task flushAndCloseAsync()
+    {
+        await _committer.FlushAsync();
+        await _consumer.CloseAsync(CancellationToken.None);
     }
 
     public bool NativeDeadLetterQueueEnabled => _endpoint.NativeDeadLetterQueueEnabled;
@@ -380,22 +487,19 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
         // Broker-per-tenant (GH-3303): a tenant listener must DLQ onto its own cluster, not the shared one.
-        var transport = _tenantTransport ?? _endpoint.Parent;
+        var transport = clusterTransport;
         var dlqTopicName = transport.DeadLetterQueueTopicName;
-        var producerConfig = _tenantTransport != null
-            ? _tenantTransport.ProducerConfig
-            : _endpoint.GetEffectiveProducerConfig();
 
         try
         {
             // Stamp the standard failure metadata (exception info + original
             // destination/partition/offset) so the mapper carries it as Kafka headers. GH-3474
             DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
-            var message = await _endpoint.EnvelopeMapper!.CreateMessage(envelope);
+            var record = await _endpoint.EnvelopeMapper!.CreateMessage(envelope);
 
-            using var producer = transport.CreateProducer(producerConfig);
-            await producer.ProduceAsync(dlqTopicName, message);
-            producer.Flush();
+            // ProduceAsync completes on the broker's ack, so the record is durable once it returns
+            var producer = await transport.ProducerFor(_endpoint).GetAsync();
+            await producer.ProduceAsync(record.ToProducerMessage(dlqTopicName), CancellationToken.None);
 
             _logger.LogInformation(
                 "Moved envelope {EnvelopeId} to dead letter queue topic {DlqTopic}. Exception: {ExceptionType}: {ExceptionMessage}",
@@ -414,20 +518,5 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
                 envelope.Id, dlqTopicName);
             throw;
         }
-    }
-
-    public void Dispose()
-    {
-        _cancellation.Cancel();
-#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-        _loop.StopAsync(_drainTimeout).GetAwaiter().GetResult();
-
-        // GH-4422: _committer.Flush() is a synchronous _consumer.Commit(), which is as unbounded as
-        // Close() is. This path deliberately does NOT close the consumer -- it never has -- so only the
-        // flush is bounded here, leaving the rest of this method's behaviour unchanged.
-        runTeardownWithinBudgetAsync("flush offsets", () => _committer.Flush()).GetAwaiter().GetResult();
-#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
-        _cancellation.Dispose();
-        disposeConsumerUnlessAbandoned();
     }
 }

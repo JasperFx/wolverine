@@ -4,28 +4,49 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
+using Wolverine.Tracking;
 
 namespace Wolverine.AmazonSqs.Tests;
 
 /// <summary>
 /// GH-4019, against LocalStack. An inline handler that outlives the queue's visibility timeout. With
 /// the heartbeat the message executes once; without it SQS redelivers mid-execution and a second
-/// listener runs it again. The second test pins today's behavior on purpose, so the feature cannot
+/// listener runs it again. The opt-out tests pin that behavior on purpose, so the feature cannot
 /// silently stop doing anything without a test going red.
+///
+/// GH-5201: the heartbeat is the default since Wolverine 7.0. <c>DoNotExtendVisibilityWhileHandling()</c>
+/// and <c>RestoreV6Defaults()</c> each turn it off, and an explicit <c>ExtendVisibilityWhileHandling()</c>
+/// wins over <c>RestoreV6Defaults()</c>.
 /// </summary>
 public class inline_visibility_heartbeat_4019
 {
+    public enum HeartbeatSetting
+    {
+        // No call at all: the 7.0 default
+        Default,
+        DoNotExtendVisibilityWhileHandling,
+        RestoreV6Defaults,
+        RestoreV6DefaultsThenExtendVisibilityWhileHandling
+    }
+
     // Short enough to keep the tests quick, long enough that LocalStack's second-granularity
     // visibility clock is not the thing being measured
     private const int VisibilityTimeoutSeconds = 2;
     private static readonly TimeSpan ObservationWindow = 14.Seconds();
 
-    private static async Task<IHost> startHost(string queueName, bool extendVisibility)
+    private static async Task<IHost> startHost(string queueName, HeartbeatSetting setting)
     {
         return await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseAmazonSqsTransportLocally().AutoProvision();
+
+                // After UseAmazonSqsTransportLocally() on purpose: the transport reads the flag when it starts
+                if (setting is HeartbeatSetting.RestoreV6Defaults
+                    or HeartbeatSetting.RestoreV6DefaultsThenExtendVisibilityWhileHandling)
+                {
+                    opts.RestoreV6Defaults();
+                }
 
                 var listener = opts.ListenToSqsQueue(queueName, q =>
                     {
@@ -37,7 +58,11 @@ public class inline_visibility_heartbeat_4019
                     // running the handler
                     .ListenerCount(2);
 
-                if (extendVisibility)
+                if (setting == HeartbeatSetting.DoNotExtendVisibilityWhileHandling)
+                {
+                    listener.DoNotExtendVisibilityWhileHandling();
+                }
+                else if (setting == HeartbeatSetting.RestoreV6DefaultsThenExtendVisibilityWhileHandling)
                 {
                     listener.ExtendVisibilityWhileHandling();
                 }
@@ -53,13 +78,19 @@ public class inline_visibility_heartbeat_4019
         return SlowSqsMessageTracker.ExecutionsOf(id);
     }
 
-    [Fact]
-    public async Task with_the_heartbeat_a_handler_longer_than_the_visibility_timeout_executes_once()
+    [Theory]
+    [InlineData(HeartbeatSetting.Default)]
+    [InlineData(HeartbeatSetting.RestoreV6DefaultsThenExtendVisibilityWhileHandling)]
+    public async Task with_the_heartbeat_a_handler_longer_than_the_visibility_timeout_executes_once(
+        HeartbeatSetting setting)
     {
         var queueName = "heartbeat-on-" + Guid.NewGuid().ToString("N")[..8];
-        using var host = await startHost(queueName, extendVisibility: true);
+        using var host = await startHost(queueName, setting);
         try
         {
+            var queue = host.GetRuntime().Options.Transports.GetOrCreate<AmazonSqsTransport>().Queues[queueName];
+            queue.ExtendVisibilityWhileHandling.ShouldBeTrue();
+
             var id = Guid.NewGuid();
             var executions = await executionsAfterObservationWindow(host, id);
 
@@ -71,13 +102,19 @@ public class inline_visibility_heartbeat_4019
         }
     }
 
-    [Fact]
-    public async Task without_the_heartbeat_the_message_is_redelivered_and_executed_again_mid_handler()
+    [Theory]
+    [InlineData(HeartbeatSetting.DoNotExtendVisibilityWhileHandling)]
+    [InlineData(HeartbeatSetting.RestoreV6Defaults)]
+    public async Task without_the_heartbeat_the_message_is_redelivered_and_executed_again_mid_handler(
+        HeartbeatSetting setting)
     {
         var queueName = "heartbeat-off-" + Guid.NewGuid().ToString("N")[..8];
-        using var host = await startHost(queueName, extendVisibility: false);
+        using var host = await startHost(queueName, setting);
         try
         {
+            var queue = host.GetRuntime().Options.Transports.GetOrCreate<AmazonSqsTransport>().Queues[queueName];
+            queue.ExtendVisibilityWhileHandling.ShouldBeFalse();
+
             var id = Guid.NewGuid();
             var executions = await executionsAfterObservationWindow(host, id);
 

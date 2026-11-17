@@ -202,7 +202,7 @@ public class externally_owned_topics_are_skipped : IAsyncLifetime
                     .AutoProvision()
                     .ConfigureConsumers(c =>
                     {
-                        c.AutoOffsetReset = AutoOffsetReset.Earliest;
+                        c.AutoOffsetReset = Dekaf.Consumer.AutoOffsetReset.Earliest;
                         c.GroupId = $"ext-owned-{Guid.NewGuid():N}";
                     });
 

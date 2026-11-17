@@ -18,12 +18,16 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Polecat.Persistence.Sagas;
 
-internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
+internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvider, Wolverine.Persistence.DocumentStores.IDocumentStoreFrameProvider
 {
     // Polecat can persist any document, so CanPersist claims every type. Yield to selective
     // providers (EF Core) for the entity types they actually map, regardless of the order the
     // integrations were registered in
     public bool IsCatchAll => true;
+
+    // GH-5514: lets the store-agnostic [DocumentExists<T>] in Wolverine.Persistence.Requirements reach this store
+    Wolverine.Persistence.DocumentStores.Codegen.DocumentSessionTypes Wolverine.Persistence.DocumentStores.IDocumentStoreFrameProvider.SessionTypes
+        => PolecatIntegration.SessionTypes;
 
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
@@ -229,10 +233,17 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
 
     private static bool IsDocumentExistsAttribute(Attribute attribute)
     {
+        // GH-5514: the store-agnostic core [DocumentExists<T>] / [DocumentDoesNotExist<T>] ...
+        if (attribute is Wolverine.Persistence.DocumentStores.IDocumentExistenceAttribute) return true;
+
+        // ... and this store's own obsolete copies, but never another store's, so a host integrating
+        // several stores claims chains exactly as it did before
         var type = attribute.GetType();
         if (!type.IsGenericType) return false;
         var def = type.GetGenericTypeDefinition();
+#pragma warning disable CS0618
         return def == typeof(DocumentExistsAttribute<>) || def == typeof(DocumentDoesNotExistAttribute<>);
+#pragma warning restore CS0618
     }
 
     public bool TryBuildAllFrame(Type entityType, IServiceContainer container,

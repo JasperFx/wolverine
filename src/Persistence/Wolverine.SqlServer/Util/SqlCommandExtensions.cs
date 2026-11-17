@@ -12,7 +12,7 @@ internal static class SqlCommandExtensions
         string parameterName = "IDLIST")
     {
         var table = new DataTable();
-        table.Columns.Add(new DataColumn("ID", typeof(Guid)));
+        table.Columns.Add(new DataColumn(DatabaseConstants.Id, typeof(Guid)));
         foreach (var envelope in envelopes) table.Rows.Add(envelope.Id);
 
         var parameter = cmd.CreateParameter().As<SqlParameter>();

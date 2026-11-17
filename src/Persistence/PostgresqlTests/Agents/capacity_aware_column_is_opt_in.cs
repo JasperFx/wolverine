@@ -21,13 +21,15 @@ public class capacity_aware_column_is_opt_in : PostgresqlContext
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static Task<IHost> startAsync(string schema, bool capacityAware, AutoCreate autoCreate)
+    private static Task<IHost> startAsync(string schema, bool capacityAware, AutoCreate autoCreate,
+        bool alwaysProvisionOptionalSchemaObjects = true)
     {
         return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, schema);
                 opts.Durability.CapacityAwareAssignment = capacityAware;
+                opts.Durability.AlwaysProvisionOptionalSchemaObjects = alwaysProvisionOptionalSchemaObjects;
 
                 // GH-4589: capacity-aware assignment requires an explicit load monitor -- there is no
                 // default, and the runtime refuses to start without one. These tests are about the
@@ -62,13 +64,18 @@ public class capacity_aware_column_is_opt_in : PostgresqlContext
         await conn.DropSchemaAsync(schema, ct: Ct);
     }
 
-    [Fact]
-    public async Task no_column_and_a_working_agent_plane_when_the_flag_is_off()
+    // GH-5193: the column is always there since 7.0 (the 6.x layout, without it, is what
+    // AlwaysProvisionOptionalSchemaObjects = false and RestoreV6Defaults() put back), but with the flag off
+    // nothing reads or writes it either way
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task no_load_read_or_written_when_the_flag_is_off(bool alwaysProvisionOptionalSchemaObjects)
     {
-        const string schema = "capacity_off";
+        var schema = alwaysProvisionOptionalSchemaObjects ? "capacity_off" : "capacity_off_v6";
         await dropSchemaAsync(schema);
 
-        var host = await startAsync(schema, capacityAware: false, AutoCreate.CreateOrUpdate);
+        var host = await startAsync(schema, capacityAware: false, AutoCreate.CreateOrUpdate, alwaysProvisionOptionalSchemaObjects);
 
         try
         {
@@ -89,7 +96,7 @@ public class capacity_aware_column_is_opt_in : PostgresqlContext
             host.Dispose();
         }
 
-        (await loadFactorColumnCountAsync(schema)).ShouldBe(0);
+        (await loadFactorColumnCountAsync(schema)).ShouldBe(alwaysProvisionOptionalSchemaObjects ? 1 : 0);
     }
 
     [Fact]

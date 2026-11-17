@@ -26,7 +26,7 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
-    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport, ISagaSchemaSupplier, IExternalDbTransportStore where T : DbConnection, new()
+    IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport, ISagaSchemaSupplier, IExternalDbTransportStore, IPortQualifiedAgentUri where T : DbConnection, new()
 {
     /// <summary>
     /// GH-4375. The most parameters this provider accepts in one command. Batched durability commands
@@ -60,13 +60,24 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     /// Always yields at least one envelope per slice: a single envelope that cannot fit is a problem no
     /// amount of chunking solves, and silently yielding nothing would drop messages.
     /// </remarks>
-    protected IEnumerable<ArraySegment<Envelope>> chunkByParameterLimit(Envelope[] envelopes,
+    /// <summary>
+    /// Parameters the driver adds to every command on top of the ones Wolverine builds, kept out of the
+    /// <see cref="MaximumParameterCount"/> budget when a batch is chunked
+    /// </summary>
+    protected const int ReservedDriverParameters = 2;
+
+        protected IEnumerable<ArraySegment<Envelope>> chunkByParameterLimit(Envelope[] envelopes,
         int parametersPerEnvelope, int sharedParameters = 0)
     {
         // The shared parameters have to come off the budget BEFORE the division. Leaving them out puts
         // the chunk boundary exactly one envelope past what fits: the outgoing builder is 6N + 1 (owner
         // is shared), so 2100/6 = 350 chunks to precisely the size that was already known to fail.
-        var budget = Math.Max(1, MaximumParameterCount - sharedParameters);
+        //
+        // GH-5167: the budget also keeps back the two arguments SqlClient's sp_executesql call carries alongside the
+        // command's own parameters (the statement and the parameter definitions), which count against SQL Server's
+        // 2,100. With ten incoming columns, 2100 / 10 chunked to exactly 2,100 command parameters, which SQL Server
+        // refuses; nine columns had hidden it (2100 / 9 = 233, 2,097 parameters).
+        var budget = Math.Max(1, MaximumParameterCount - sharedParameters - ReservedDriverParameters);
         var perChunk = Math.Max(1, budget / Math.Max(1, parametersPerEnvelope));
 
         if (envelopes.Length <= perChunk)
@@ -156,6 +167,11 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         }
 
         Uri = new Uri($"{PersistenceConstants.AgentScheme}://{parts.Where(x => x.IsNotEmpty()).Join("/")}");
+
+        // GH-5435. Kept for the rare case where two tenant databases share the Uri above and only the port
+        // tells them apart. SQL Server spells the port into the server name ("host,port")
+        _agentUriPort = descriptor.Port ?? portAfterComma(descriptor.ServerName);
+        _agentUriParts = parts.ToArray();
 
         // Dynamic-listener registry (GH-2685). Only the Main store hosts the registry —
         // ancillary / tenant stores keep the no-op default and never see the
@@ -322,8 +338,29 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     }
 
     public Uri Uri { get; protected set; } = new Uri("null://null");
+
+    private readonly int? _agentUriPort;
+    private readonly string[] _agentUriParts = [];
+
+    int? IPortQualifiedAgentUri.AgentUriPort => _agentUriPort;
+
+    void IPortQualifiedAgentUri.UsePortQualifiedUri()
+    {
+        // Only built when two databases collide, so nothing about it can affect a store that never does
+        if (_agentUriPort == null || _agentUriParts.Length < 2) return;
+
+        var parts = _agentUriParts.ToArray();
+        parts[1] = $"{parts[1]}:{_agentUriPort}";
+        Uri = new Uri($"{PersistenceConstants.AgentScheme}://{parts.Where(x => x.IsNotEmpty()).Join("/")}");
+    }
+
+    private static int? portAfterComma(string serverName)
+    {
+        var comma = serverName.IndexOf(',');
+        return comma >= 0 && int.TryParse(serverName[(comma + 1)..].Trim(), out var port) ? port : null;
+    }
     
-    public IAdvisoryLock AdvisoryLock { get; protected set; } = null!;
+    public IWolverineAdvisoryLock AdvisoryLock { get; protected set; } = null!;
 
     public ILogger Logger { get; }
 

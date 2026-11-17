@@ -145,13 +145,23 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     /// <summary>
     /// When true, listener shutdown waits for prefetched messages in the RabbitMQ client's dispatch
     /// buffer to reach the consumer before closing the channel, preventing silent redeliveries of
-    /// messages that were prefetched but not yet handled. Default is false.
+    /// messages that were prefetched but not yet handled. Default is true since Wolverine 7.0 (GH-5201), false
+    /// in 6.x and after <see cref="WolverineOptions.RestoreV6Defaults" />; a value set here wins over both. The wait
+    /// is bounded by <c>DurabilitySettings.DrainTimeout</c>.
     ///
     /// Only a hard guarantee at <c>ConsumerDispatchConcurrency</c> of 1 (the default). At higher
     /// concurrency the client handles deliveries and cancel-ok in parallel, so it degrades to
     /// best-effort -- some messages may still be redelivered, but fewer than without waiting.
     /// </summary>
-    public bool DrainWaitForPrefetch { get; set; }
+    public bool DrainWaitForPrefetch
+    {
+        // GH-5201. Resolved through the transport's flag, which it reads when it starts, so RestoreV6Defaults()
+        // may come after UseRabbitMq()
+        get => _drainWaitForPrefetch ?? !_parent.V6DefaultsRestoredAtStartup;
+        set => _drainWaitForPrefetch = value;
+    }
+
+    private bool? _drainWaitForPrefetch;
 
     /// <summary>
     ///     Use to override the dead letter queue for this queue

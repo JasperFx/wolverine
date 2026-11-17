@@ -14,6 +14,11 @@ internal class FanoutMessageHandler<T> : MessageHandler<T>
         Chain = chain;
     }
 
+    /// <summary>
+    /// The local queues every message is relayed to
+    /// </summary>
+    internal IReadOnlyList<Uri> LocalQueueUris => _localQueueUris;
+
     protected override async Task HandleAsync(T message, MessageContext context, CancellationToken cancellation)
     {
         var incoming = context.Envelope!;

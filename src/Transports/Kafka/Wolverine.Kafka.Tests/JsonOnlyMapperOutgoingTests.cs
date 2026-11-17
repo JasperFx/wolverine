@@ -1,6 +1,4 @@
-using System.Text;
 using System.Text.Json;
-using Confluent.Kafka;
 using Shouldly;
 using Wolverine.Kafka.Internals;
 
@@ -21,12 +19,12 @@ public class JsonOnlyMapperOutgoingTests
             TenantId = "tenant-1",
             CorrelationId = "correlation-1"
         };
-        var outgoing = new Message<string, byte[]>();
+        var outgoing = new OutgoingKafkaRecord();
 
         buildMapper().MapEnvelopeToOutgoing(envelope, outgoing);
 
-        (outgoing.Headers?.Any() ?? false).ShouldBeFalse();
-        JsonSerializer.Deserialize<ColorMessage>(outgoing.Value)!.Color.ShouldBe("blue");
+        outgoing.Headers.Any().ShouldBeFalse();
+        JsonSerializer.Deserialize<ColorMessage>(outgoing.Value!)!.Color.ShouldBe("blue");
         outgoing.Key.ShouldBe("group-1");
     }
 
@@ -38,12 +36,12 @@ public class JsonOnlyMapperOutgoingTests
         // header (GH-2838), so the outgoing side must write that one header.
         var mapper = buildMapper();
         var ping = Envelope.ForPing(new Uri("kafka://localhost/pings"));
-        var outgoing = new Message<string, byte[]>();
+        var outgoing = new OutgoingKafkaRecord();
 
         mapper.MapEnvelopeToOutgoing(ping, outgoing);
 
         var received = new Envelope();
-        mapper.MapIncomingToEnvelope(received, outgoing);
+        mapper.MapIncomingToEnvelope(received, roundTrip(outgoing));
 
         received.MessageType.ShouldBe(Envelope.PingMessageType);
     }
@@ -53,12 +51,20 @@ public class JsonOnlyMapperOutgoingTests
     {
         var mapper = buildMapper();
         var ping = Envelope.ForPing(new Uri("kafka://localhost/pings"));
-        var outgoing = new Message<string, byte[]>();
+        var outgoing = new OutgoingKafkaRecord();
 
         mapper.MapEnvelopeToOutgoing(ping, outgoing);
 
         outgoing.Headers.Select(x => x.Key).Single().ShouldBe(EnvelopeConstants.MessageTypeKey);
         outgoing.Value.ShouldBe(ping.Data);
+    }
+
+    // Simulates the outgoing record arriving back off the broker
+    private static Dekaf.Consumer.ConsumeResult<string, byte[]> roundTrip(OutgoingKafkaRecord outgoing)
+    {
+        return TestRecords.Incoming("outgoing-mapping", outgoing.Key, outgoing.Value,
+            outgoing.Headers.Select(h =>
+                new KeyValuePair<string, byte[]?>(h.Key, h.IsValueNull ? null : h.GetValueAsArray())));
     }
 
     private static JsonOnlyMapper buildMapper()

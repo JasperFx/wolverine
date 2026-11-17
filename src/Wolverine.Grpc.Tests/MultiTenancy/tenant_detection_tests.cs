@@ -195,16 +195,81 @@ public class tenant_detection_tests
     [Fact]
     public async Task zero_config_default_detects_the_tenant_id_header_stamped_by_wolverine_clients()
     {
-        // No o.TenantId configuration at all — PropagateEnvelopeHeaders defaults to true, so the
-        // server should detect the same 'tenant-id' metadata header the Wolverine gRPC client
-        // propagation interceptor stamps on outgoing calls.
-        await using var host = await TenantDetectionHost.StartAsync();
+        // No o.TenantId configuration at all — PropagateEnvelopeHeaders defaults to true and the
+        // header is trusted explicitly (GH-5196), so the server should detect the same 'tenant-id'
+        // metadata header the Wolverine gRPC client propagation interceptor stamps on outgoing calls.
+        await using var host = await TenantDetectionHost.StartAsync(o => o.TrustTenantIdHeader = true);
 
         var client = host.CreateClient<ITenantEchoService>();
 
         var reply = await client.Echo(new TenantEchoRequest(), headers(("tenant-id", "hop-tenant")));
 
         reply.TenantId.ShouldBe("hop-tenant");
+    }
+
+    [Fact]
+    public async Task by_default_a_client_cannot_choose_its_tenant_with_the_header()
+    {
+        // GH-5196: with no detection configured, 7.0 does not trust the client's 'tenant-id' header
+        await using var host = await TenantDetectionHost.StartAsync();
+
+        var client = host.CreateClient<ITenantEchoService>();
+
+        var reply = await client.Echo(new TenantEchoRequest(), headers(("tenant-id", "hop-tenant")));
+
+        reply.TenantId.ShouldNotBe("hop-tenant");
+    }
+
+    [Fact]
+    public async Task by_default_a_hand_written_service_ignores_the_header_too()
+    {
+        // The hand-written wrapper has no detection frame without configuration, so this proves the
+        // propagation interceptor no longer moves the header onto the ambient IMessageContext either
+        await using var host = await TenantDetectionHost.StartAsync();
+
+        var client = host.CreateClient<ServerPropagation.IPropagationEchoService>();
+
+        var reply = await client.Echo(new ServerPropagation.PropagationEchoRequest(),
+            headers(("tenant-id", "hop-tenant")));
+
+        reply.TenantId.ShouldNotBe("hop-tenant");
+    }
+
+    [Fact]
+    public async Task restore_v6_defaults_trusts_the_header_again()
+    {
+        await using var host = await TenantDetectionHost.StartAsync(
+            configureWolverine: opts => opts.RestoreV6Defaults());
+
+        var codeFirst = await host.CreateClient<ITenantEchoService>()
+            .Echo(new TenantEchoRequest(), headers(("tenant-id", "hop-tenant")));
+        codeFirst.TenantId.ShouldBe("hop-tenant");
+
+        var handWritten = await host.CreateClient<ServerPropagation.IPropagationEchoService>()
+            .Echo(new ServerPropagation.PropagationEchoRequest(), headers(("tenant-id", "hop-tenant")));
+        handWritten.TenantId.ShouldBe("hop-tenant");
+    }
+
+    [Fact]
+    public async Task explicit_header_detection_with_assert_exists_still_reads_the_header_by_default()
+    {
+        #region sample_grpc_trusting_the_tenant_id_header_explicitly
+        await using var host = await TenantDetectionHost.StartAsync(o =>
+        {
+            // 7.0 ignores the client's tenant-id header unless you opt in. Name the header
+            // explicitly, and refuse a call that carries none
+            o.TenantId.IsRequestHeaderValue("tenant-id");
+            o.TenantId.AssertExists();
+        });
+        #endregion
+
+        var client = host.CreateClient<ITenantEchoService>();
+
+        var reply = await client.Echo(new TenantEchoRequest(), headers(("tenant-id", "hop-tenant")));
+        reply.TenantId.ShouldBe("hop-tenant");
+
+        var ex = await Should.ThrowAsync<RpcException>(async () => await client.Echo(new TenantEchoRequest()));
+        ex.StatusCode.ShouldBe(StatusCode.InvalidArgument);
     }
 
     [Fact]

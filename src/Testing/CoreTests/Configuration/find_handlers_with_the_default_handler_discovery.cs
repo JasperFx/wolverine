@@ -45,7 +45,8 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     [Fact]
     public void finds_classes_suffixed_as_Handler()
     {
-        chainFor<MovieAdded>().ShouldHaveHandler<NetflixHandler>(x => x.Consume(new MovieAdded()));
+        // GH-5136: one handler method per message type per handler class, so Consume() takes its own message
+        chainFor<EpisodeAvailable>().ShouldHaveHandler<NetflixHandler>(x => x.Consume(new EpisodeAvailable()));
     }
 
     [Fact]
@@ -131,7 +132,7 @@ public class customized_finding : IntegrationContext
     {
         await withTypeDiscovery(x => x.Includes.WithNameSuffix("Watcher"));
 
-        chainFor<MovieAdded>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null!));
+        chainFor<MovieAdded, MovieWatcher>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null!));
     }
 
     [Fact]
@@ -139,7 +140,7 @@ public class customized_finding : IntegrationContext
     {
         await withTypeDiscovery(x => x.Includes.Implements<IMovieThing>());
 
-        chainFor<MovieAdded>().ShouldHaveHandler<EpisodeWatcher>(x => x.Handle(new MovieAdded()));
+        chainFor<MovieAdded, EpisodeWatcher>().ShouldHaveHandler<EpisodeWatcher>(x => x.Handle(new MovieAdded()));
     }
 
     public record DifferentNameMessage;
@@ -246,7 +247,7 @@ public class NetflixHandler : IMovieSink
     {
     }
 
-    public void Consume(MovieAdded added)
+    public void Consume(EpisodeAvailable available)
     {
     }
 

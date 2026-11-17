@@ -14,7 +14,8 @@ namespace Wolverine.Grpc;
 /// </summary>
 /// <remarks>
 ///     <para>
-///         Only <c>correlation-id</c> and <c>tenant-id</c> are round-tripped this way.
+///         Only <c>correlation-id</c> and <c>tenant-id</c> are round-tripped this way, and <c>tenant-id</c> only
+///         when <see cref="WolverineGrpcOptions.TrustTenantIdHeader"/> is on (off by default in 7.0, GH-5196).
 ///         <see cref="IMessageContext.CorrelationId"/> and <see cref="IMessageBus.TenantId"/> are the
 ///         only envelope identifiers that can be set on the ambient context <em>before</em> a message
 ///         has been invoked — <c>parent-id</c> and <c>conversation-id</c> only exist on an
@@ -112,11 +113,27 @@ public sealed class WolverineGrpcServicePropagationInterceptor : Interceptor
             ctx.CorrelationId = correlationId;
         }
 
+        // GH-5196: a client can stamp any tenant id on a call, so the header only reaches the ambient context
+        // when it is trusted (off by default in 7.0, on after RestoreV6Defaults()). Explicitly configured tenant
+        // detection still runs in the generated service wrappers either way.
+        if (!trustsTenantIdHeader(services)) return;
+
         var tenantId = Find(context.RequestHeaders, EnvelopeConstants.TenantIdKey);
         if (!string.IsNullOrEmpty(tenantId))
         {
             ctx.TenantId = tenantId;
         }
+    }
+
+    private bool? _trustsTenantIdHeader;
+
+    private bool trustsTenantIdHeader(IServiceProvider services)
+    {
+        if (_options.TrustTenantIdHeader.HasValue) return _options.TrustTenantIdHeader.Value;
+
+        // Resolved once against RestoreV6Defaults(); the interceptor can run for services Wolverine never
+        // discovered, so it cannot rely on GrpcGraph having resolved the default first
+        return _trustsTenantIdHeader ??= services.GetService<WolverineOptions>()?.V6DefaultsRestored ?? false;
     }
 
     private static string? Find(Metadata headers, string key)

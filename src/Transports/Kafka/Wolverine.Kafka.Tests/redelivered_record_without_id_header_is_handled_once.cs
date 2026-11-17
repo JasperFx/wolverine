@@ -90,7 +90,7 @@ public class redelivered_record_without_id_header_is_handled_once
                     .ExtendConsumerConfiguration(c =>
                     {
                         c.GroupId = run.GroupId;
-                        c.AutoOffsetReset = AutoOffsetReset.Earliest;
+                        c.AutoOffsetReset = Dekaf.Consumer.AutoOffsetReset.Earliest;
                     })
                     .UseDurableInbox()
                     .Sequential();

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 
 namespace Wolverine.Http.Transport.Push;
@@ -18,9 +19,30 @@ public class PushReceiverOptions : ProtectedEndpointOptions
     /// <summary>
     ///     Claim each message id in the durable inbox before handling it, so a redelivery that arrives while the
     ///     message is still being handled gets the retry status instead of running it again, and a redelivery of a
-    ///     message that was already acked is acked without running it. Requires a message store. Default is false
+    ///     message that was already acked is acked without running it. Requires a message store.
     /// </summary>
-    public bool DeduplicateWithInbox { get; set; }
+    /// <remarks>
+    ///     GH-5195. Unless set explicitly, this is on from Wolverine 7.0 whenever the application has a message
+    ///     store, and off when it has none (the getter reports the 7.0 default, true, until then). It was off by
+    ///     default in 6.x; set it to false, or call <c>WolverineOptions.RestoreV6Defaults()</c>, for that behaviour.
+    ///     An explicit setting wins over both
+    /// </remarks>
+    public bool DeduplicateWithInbox
+    {
+        get => _deduplicateWithInbox ?? true;
+        set => _deduplicateWithInbox = value;
+    }
+
+    private bool? _deduplicateWithInbox;
+
+    /// <summary>
+    ///     GH-5195. Settled when the receiver is built, once the runtime has started: an explicit setting, else on
+    ///     when there is a message store to deduplicate with and the 6.x defaults were not restored
+    /// </summary>
+    internal bool ResolveDeduplicateWithInbox(IWolverineRuntime runtime)
+    {
+        return _deduplicateWithInbox ?? (!runtime.Options.V6DefaultsRestored && runtime.Storage is not NullMessageStore);
+    }
 
     /// <summary>
     ///     The status code that acks a message. Default is 200
@@ -76,7 +98,7 @@ public static class PushReceiverEndpointExtensions
         var route = endpoints.MapPost(pattern, async (HttpContext context, IWolverineRuntime runtime) =>
         {
             // Built on first use, once the Wolverine runtime has started
-            receiver ??= new PushReceiver(runtime, options.Address, options.DeduplicateWithInbox);
+            receiver ??= new PushReceiver(runtime, options.Address, options.ResolveDeduplicateWithInbox(runtime));
 
             IReadOnlyList<Envelope> envelopes;
             try

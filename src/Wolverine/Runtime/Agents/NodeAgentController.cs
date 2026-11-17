@@ -293,7 +293,9 @@ public partial class NodeAgentController
         {
             try
             {
-                if (_persistence.HasLeadershipLock())
+                // CancellationToken.None: this is the teardown path, and a cancelled probe must not skip
+                // the release.
+                if (await _persistence.HasLeadershipLockAsync(CancellationToken.None))
                 {
                     await _persistence.ReleaseLeadershipLockAsync();
                 }

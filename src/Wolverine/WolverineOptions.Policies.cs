@@ -32,15 +32,6 @@ public sealed partial class WolverineOptions : IPolicies
 {
     internal List<IWolverinePolicy> RegisteredPolicies { get; } = [new TagHandlerPolicy()];
 
-    internal bool PublishAgentEvents { get; set; } 
-    
-    bool IPolicies.PublishAgentEvents
-    {
-        get => PublishAgentEvents;
-        set => PublishAgentEvents = value;
-    }
-
-
     void IPolicies.AutoApplyTransactions()
     {
         RegisteredPolicies.Insert(0, new AutoApplyTransactions());
@@ -305,7 +296,7 @@ public sealed partial class WolverineOptions : IPolicies
 
     /// <summary>
     /// Logger level for Wolverine to use to log the successful processing of a message. The
-    /// default is Information
+    /// default is Debug (it was Information before 6.21, GH-3490)
     /// </summary>
     /// <param name="logLevel"></param>
     void IPolicies.MessageSuccessLogLevel(LogLevel logLevel)

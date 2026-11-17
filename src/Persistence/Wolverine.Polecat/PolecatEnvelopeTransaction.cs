@@ -4,6 +4,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.SqlServer.Persistence;
 using Wolverine.Runtime;
 using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
+using Wolverine.RDBMS.Outbox;
 
 namespace Wolverine.Polecat;
 
@@ -17,21 +18,11 @@ internal class PolecatEnvelopeTransaction : IEnvelopeTransaction
     public PolecatEnvelopeTransaction(IDocumentSession session, MessageContext context)
     {
         _context = context;
-        if (context.Storage is SqlServerMessageStore store)
-        {
-            Store = store;
-            _nodeId = store.Durability.OutgoingOwnerId;
-        }
-        else if (context.Storage is MultiTenantedMessageStore { Main: SqlServerMessageStore s })
-        {
-            Store = s;
-            _nodeId = s.Durability.OutgoingOwnerId;
-        }
-        else
-        {
-            throw new InvalidOperationException(
-                "This Wolverine application is not using SQL Server + Polecat as the backing message persistence");
-        }
+        // GH-5144: resolved the same way the session factory resolves it
+        Store = DocumentSessionOutboxSupport.TryResolveMessageStore<SqlServerMessageStore>(context.Storage)
+                ?? throw new InvalidOperationException(
+                    "This Wolverine application is not using SQL Server + Polecat as the backing message persistence");
+        _nodeId = Store.Durability.OutgoingOwnerId;
 
         Session = session;
     }

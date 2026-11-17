@@ -25,15 +25,15 @@ translated back to their original .NET types at the call site.
 Three terminals. Start the downstream first:
 
 ```sh
-dotnet run --project src/Samples/OrderChainWithGrpc/InventoryServer --framework net9.0
+dotnet run --project src/Samples/OrderChainWithGrpc/InventoryServer --framework net10.0
 ```
 
 ```sh
-dotnet run --project src/Samples/OrderChainWithGrpc/OrderServer --framework net9.0
+dotnet run --project src/Samples/OrderChainWithGrpc/OrderServer --framework net10.0
 ```
 
 ```sh
-dotnet run --project src/Samples/OrderChainWithGrpc/OrderClient --framework net9.0
+dotnet run --project src/Samples/OrderChainWithGrpc/OrderClient --framework net10.0
 ```
 
 Expected output on the client:

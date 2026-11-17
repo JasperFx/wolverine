@@ -146,7 +146,9 @@ public class queue_order_schema_migrations
             {
                 var expression = opts.UseMySqlPersistenceAndTransport(Servers.MySqlConnectionString, schema,
                     transportSchema: schema);
+                // GH-5192: ordering is the 7.0 default, so the classic case has to opt out
                 if (deterministicOrdering) expression.EnableDeterministicQueueOrdering();
+                else expression.DisableDeterministicQueueOrdering();
 
                 opts.ListenToMySqlQueue(queueName).PollingInterval(1.Hours());
                 opts.Durability.ScheduledJobFirstExecution = 1.Hours();

@@ -24,7 +24,7 @@ public class tenant_detection_codegen_tests
         // (GreeterMiddlewareTestStub, ValidateGreeterStub), code-first contracts
         // (ITenantEchoService, ICodeFirstTestService...), and hand-written service classes
         // (PropagationEchoGrpcService).
-        await using var host = await TenantDetectionHost.StartAsync();
+        await using var host = await TenantDetectionHost.StartAsync(o => o.TrustTenantIdHeader = true);
 
         var graph = host.Services.GetRequiredService<GrpcGraph>();
         var options = host.Services.GetRequiredService<WolverineGrpcOptions>();
@@ -64,7 +64,7 @@ public class tenant_detection_codegen_tests
     [Fact]
     public async Task detection_declares_the_persistence_tenant_id_codegen_variable()
     {
-        await using var host = await TenantDetectionHost.StartAsync();
+        await using var host = await TenantDetectionHost.StartAsync(o => o.TrustTenantIdHeader = true);
 
         var graph = host.Services.GetRequiredService<GrpcGraph>();
         var echoChain = graph.CodeFirstChains.Single(c => c.ServiceContractType == typeof(ITenantEchoService));
@@ -77,9 +77,56 @@ public class tenant_detection_codegen_tests
     }
 
     [Fact]
+    public async Task the_7_0_default_does_not_weave_zero_config_detection()
+    {
+        // GH-5196: the client's 'tenant-id' header is not trusted by default, so with no explicit
+        // detection configured there is nothing to weave
+        await using var host = await TenantDetectionHost.StartAsync();
+
+        var graph = host.Services.GetRequiredService<GrpcGraph>();
+        var options = host.Services.GetRequiredService<WolverineGrpcOptions>();
+
+        options.TenantIdDetection.ZeroConfigDefaultApplied.ShouldBeFalse();
+        options.TenantIdDetection.Strategies.ShouldBeEmpty();
+
+        var echoChain = graph.CodeFirstChains.Single(c => c.ServiceContractType == typeof(ITenantEchoService));
+        echoChain.SourceCode!.ShouldNotContain("TryDetectTenantIdAsync");
+    }
+
+    [Fact]
+    public async Task restore_v6_defaults_weaves_zero_config_detection_again()
+    {
+        await using var host = await TenantDetectionHost.StartAsync(
+            configureWolverine: opts => opts.RestoreV6Defaults());
+
+        var options = host.Services.GetRequiredService<WolverineGrpcOptions>();
+        options.TenantIdDetection.ZeroConfigDefaultApplied.ShouldBeTrue();
+
+        var graph = host.Services.GetRequiredService<GrpcGraph>();
+        var echoChain = graph.CodeFirstChains.Single(c => c.ServiceContractType == typeof(ITenantEchoService));
+        echoChain.SourceCode!.ShouldContain("TryDetectTenantIdAsync");
+    }
+
+    [Fact]
+    public async Task an_explicit_false_wins_over_restore_v6_defaults()
+    {
+        await using var host = await TenantDetectionHost.StartAsync(
+            o => o.TrustTenantIdHeader = false,
+            configureWolverine: opts => opts.RestoreV6Defaults());
+
+        var options = host.Services.GetRequiredService<WolverineGrpcOptions>();
+        options.TenantIdDetection.ZeroConfigDefaultApplied.ShouldBeFalse();
+        options.TenantIdDetection.Strategies.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task disabling_envelope_header_propagation_suppresses_the_zero_config_default()
     {
-        await using var host = await TenantDetectionHost.StartAsync(o => o.PropagateEnvelopeHeaders = false);
+        await using var host = await TenantDetectionHost.StartAsync(o =>
+        {
+            o.TrustTenantIdHeader = true;
+            o.PropagateEnvelopeHeaders = false;
+        });
 
         var graph = host.Services.GetRequiredService<GrpcGraph>();
         var options = host.Services.GetRequiredService<WolverineGrpcOptions>();

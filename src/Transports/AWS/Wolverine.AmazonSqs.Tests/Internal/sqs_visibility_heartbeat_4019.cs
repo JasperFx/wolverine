@@ -223,11 +223,12 @@ public class sqs_visibility_heartbeat_4019 : IAsyncDisposable
     }
 
     [Fact]
-    public void extend_visibility_while_handling_is_off_by_default_and_configurable()
+    public void extend_visibility_while_handling_is_on_by_default_and_configurable()
     {
         var transport = new AmazonSqsTransport();
         var queue = transport.Queues["inline"];
-        queue.ExtendVisibilityWhileHandling.ShouldBeFalse();
+        // GH-5201: on by default since 7.0
+        queue.ExtendVisibilityWhileHandling.ShouldBeTrue();
         queue.MaximumVisibilityExtension.ShouldBe(AmazonSqsQueue.MaximumSqsVisibilityExtension);
 
         var configuration = new AmazonSqsListenerConfiguration(queue);
@@ -237,5 +238,19 @@ public class sqs_visibility_heartbeat_4019 : IAsyncDisposable
         queue.Mode.ShouldBe(EndpointMode.Inline);
         queue.ExtendVisibilityWhileHandling.ShouldBeTrue();
         queue.MaximumVisibilityExtension.ShouldBe(2.Hours());
+    }
+
+    [Fact]
+    public void do_not_extend_visibility_while_handling_turns_the_7_0_default_off()
+    {
+        var transport = new AmazonSqsTransport();
+        var queue = transport.Queues["inline"];
+
+        var configuration = new AmazonSqsListenerConfiguration(queue);
+        configuration.ProcessInline().DoNotExtendVisibilityWhileHandling();
+        ((IDelayedEndpointConfiguration)configuration).Apply();
+
+        queue.ExtendVisibilityWhileHandling.ShouldBeFalse();
+        SqsListener.ShouldExtendVisibility(queue).ShouldBeFalse();
     }
 }

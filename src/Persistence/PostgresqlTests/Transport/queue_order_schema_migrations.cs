@@ -168,7 +168,9 @@ public class queue_order_schema_migrations : PostgresqlContext
             {
                 var expression = opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, schema,
                     transportSchema: schema);
+                // GH-5192: deterministic ordering is the 7.0 default, so the classic case has to opt out
                 if (deterministicOrdering) expression.EnableDeterministicQueueOrdering();
+                else expression.DisableDeterministicQueueOrdering();
 
                 opts.ListenToPostgresqlQueue(queueName).PollingInterval(1.Hours());
                 opts.Durability.ScheduledJobFirstExecution = 1.Hours();

@@ -1,6 +1,6 @@
 using System.Text;
 using JasperFx.Core;
-using MQTTnet.Client;
+using MQTTnet;
 using Shouldly;
 using Wolverine.MQTT.Internals;
 

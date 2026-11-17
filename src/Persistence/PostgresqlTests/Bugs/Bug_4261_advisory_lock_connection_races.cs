@@ -20,7 +20,7 @@ namespace PostgresqlTests.Bugs;
 /// <c>shutdownAsync</c> only cancels AFTER <c>teardownAgentsAsync</c> has returned; teardown "stops"
 /// them with <c>Task.SafeDispose()</c>, which disposes the Task object and does nothing whatsoever to
 /// the running loop. So a health check already past its own guard reaches
-/// <c>ejectStaleNodes -> HasLeadershipLock() -> HasLock</c> at the same moment teardown reaches
+/// <c>ejectStaleNodes -> HasLeadershipLockAsync() -> HasLockAsync</c> at the same moment teardown reaches
 /// <c>NodeAgentController.StopAsync -> ReleaseLeadershipLockAsync</c>.</para>
 ///
 /// <para>Two failure modes were reported, and the tests below cover both:</para>
@@ -54,7 +54,7 @@ public class Bug_4261_advisory_lock_connection_races : PostgresqlContext
         var failures = new List<Exception>();
         using var stop = new CancellationTokenSource();
 
-        // Four pingers, standing in for the health-check tick's HasLeadershipLock() call.
+        // Four pingers, standing in for the health-check tick's HasLeadershipLockAsync() call.
         var pingers = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
         {
             while (!stop.IsCancellationRequested)
@@ -144,6 +144,87 @@ public class Bug_4261_advisory_lock_connection_races : PostgresqlContext
         failures.ShouldBeEmpty();
         lostIt.ShouldBe(0,
             "HasLock reporting false on a lock nothing released is read as lost leadership by DoHealthChecksInternalAsync and fires stepDownAsync");
+    }
+
+    [Fact]
+    public async Task a_still_held_lock_is_never_reported_as_lost_by_HasLockAsync_while_the_connection_is_busy()
+    {
+        // GH-5135: the health check now probes with HasLockAsync. It has to keep the same two promises as
+        // the synchronous probe above -- never corrupt the shared connection, and never report a lock that
+        // nothing released as lost just because the connection was busy with a renewal.
+        await using var dataSource = NpgsqlDataSource.Create(Servers.PostgresConnectionString);
+        var advisoryLock = new AdvisoryLock(dataSource, NullLogger.Instance, "gh5135-async-stepdown");
+
+        (await advisoryLock.TryAttainLockAsync(LockId, CancellationToken.None)).ShouldBeTrue();
+
+        var lostIt = 0;
+        var failures = new List<Exception>();
+        using var stop = new CancellationTokenSource();
+
+        var pingers = Enumerable.Range(0, 4).Select(_ => Task.Run(async () =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                try
+                {
+                    if (!await advisoryLock.HasLockAsync(LockId, CancellationToken.None))
+                    {
+                        Interlocked.Increment(ref lostIt);
+                    }
+                }
+                catch (Exception e)
+                {
+                    lock (failures) failures.Add(e);
+                    return;
+                }
+            }
+        })).ToArray();
+
+        try
+        {
+            for (var i = 0; i < 60; i++)
+            {
+                (await advisoryLock.TryAttainLockAsync(LockId, CancellationToken.None))
+                    .ShouldBeTrue($"the renewal on tick {i} should still report the lock held");
+            }
+        }
+        finally
+        {
+            await stop.CancelAsync();
+            await Task.WhenAll(pingers);
+            await advisoryLock.DisposeAsync();
+        }
+
+        failures.ShouldBeEmpty();
+        lostIt.ShouldBe(0,
+            "HasLockAsync reporting false on a lock nothing released is read as lost leadership by DoHealthChecksInternalAsync and fires stepDownAsync");
+    }
+
+    [Fact]
+    public async Task a_cancelled_HasLockAsync_does_not_drop_the_held_lock()
+    {
+        // GH-5135: the token passed to HasLockAsync is the runtime's shutdown token. Cancelling it means the
+        // node is stopping, not that the session holding the lock went away, so no held id may be cleared.
+        await using var dataSource = NpgsqlDataSource.Create(Servers.PostgresConnectionString);
+        var advisoryLock = new AdvisoryLock(dataSource, NullLogger.Instance, "gh5135-cancelled-probe");
+
+        try
+        {
+            (await advisoryLock.TryAttainLockAsync(LockId, CancellationToken.None)).ShouldBeTrue();
+
+            using var cancelled = new CancellationTokenSource();
+            await cancelled.CancelAsync();
+
+            await Should.ThrowAsync<OperationCanceledException>(() =>
+                advisoryLock.HasLockAsync(LockId, cancelled.Token));
+
+            (await advisoryLock.HasLockAsync(LockId, CancellationToken.None))
+                .ShouldBeTrue("a cancelled probe must leave the lock held");
+        }
+        finally
+        {
+            await advisoryLock.DisposeAsync();
+        }
     }
 
     [Fact]

@@ -23,13 +23,12 @@ public class SqlServerPersistenceExpression : BrokerExpression<SqlServerTranspor
     }
 
     /// <summary>
-    /// Opt into a higher-throughput storage layout for the Sql Server queue and scheduled message
-    /// tables. The tables are clustered on a monotonic identity column (FIFO dequeue + contiguous
-    /// deletes) with a unique non-clustered index on the message id, rather than a clustered primary
-    /// key on a random Guid. This dramatically improves dequeue throughput and tail latency on
-    /// non-trivial queue depths, at the cost of a one-time table rebuild when first enabled on an
-    /// existing database. New applications should turn this on; existing applications should enable
-    /// it during a maintenance window (ideally with queues drained).
+    /// Use the higher-throughput storage layout for the Sql Server queue and scheduled message
+    /// tables, and move existing tables to it. The tables are clustered on a monotonic identity column (FIFO
+    /// dequeue + contiguous deletes) with a unique non-clustered index on the message id, rather than a clustered
+    /// primary key on a random Guid. This layout is the default from 7.0 for the queue tables Wolverine creates
+    /// (GH-5192); call this only to rebuild existing classic tables too, which takes an exclusive lock on each
+    /// table, so drain the queues and do it in a maintenance window.
     /// </summary>
     public SqlServerPersistenceExpression OptimizeQueueThroughput()
     {
@@ -38,16 +37,39 @@ public class SqlServerPersistenceExpression : BrokerExpression<SqlServerTranspor
     }
 
     /// <summary>
-    ///     Opt into deterministic ordering for messages with the same timestamp in Sql Server
-    ///     queues. This changes the ready and scheduled queue schemas of queues using the default
-    ///     storage layout; queues using <see cref="OptimizeQueueThroughput" /> already order by their
-    ///     <c>seq</c> identity and are not changed. With <c>AutoCreate.None</c>, apply the schema
-    ///     migration before starting listeners with this option enabled. Configure this before
-    ///     startup; changing it at runtime is not supported.
+    /// GH-5192. Use the classic storage layout of Wolverine 6.x (a clustered primary key on the message id and an
+    /// index on the timestamp) for the queue tables Wolverine creates, and move existing tables on the
+    /// <see cref="OptimizeQueueThroughput" /> layout back to it. Moving a table rebuilds it under an exclusive
+    /// lock, so drain the queues first.
+    /// </summary>
+    public SqlServerPersistenceExpression UseClassicQueueLayout()
+    {
+        Transport.OptimizeQueueThroughput = false;
+        return this;
+    }
+
+    /// <summary>
+    ///     Order messages with the same timestamp deterministically in Sql Server queues on the classic
+    ///     storage layout, and add the <c>queue_order</c> column to classic queue tables that already exist
+    ///     without it. This is the default from 7.0 for the tables Wolverine creates (GH-5192); queues using
+    ///     <see cref="OptimizeQueueThroughput" /> already order by their <c>seq</c> identity and are not changed.
+    ///     With <c>AutoCreate.None</c>, apply the schema migration before starting listeners. Configure this
+    ///     before startup; changing it at runtime is not supported.
     /// </summary>
     public SqlServerPersistenceExpression EnableDeterministicQueueOrdering()
     {
         Transport.EnableDeterministicQueueOrdering = true;
+        return this;
+    }
+
+    /// <summary>
+    ///     GH-5192. Turn off the <c>queue_order</c> tie-breaker that 7.0 adds to the classic queue tables it
+    ///     creates, and dequeue them in timestamp order only, as Wolverine 6.x did. Tables that already have the
+    ///     column keep it. Configure this before startup.
+    /// </summary>
+    public SqlServerPersistenceExpression DisableDeterministicQueueOrdering()
+    {
+        Transport.EnableDeterministicQueueOrdering = false;
         return this;
     }
 

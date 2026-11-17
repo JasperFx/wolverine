@@ -38,9 +38,11 @@ public class sqlite_advisory_lock : SqliteContext, IAsyncLifetime
         (await store.AdvisoryLock.TryAttainLockAsync(4242, TestContext.Current.CancellationToken)).ShouldBeTrue();
         (await store.AdvisoryLock.TryAttainLockAsync(4242, TestContext.Current.CancellationToken)).ShouldBeTrue();
         store.AdvisoryLock.HasLock(4242).ShouldBeTrue();
+        (await store.AdvisoryLock.HasLockAsync(4242, TestContext.Current.CancellationToken)).ShouldBeTrue();
 
         await store.AdvisoryLock.ReleaseLockAsync(4242);
         store.AdvisoryLock.HasLock(4242).ShouldBeFalse();
+        (await store.AdvisoryLock.HasLockAsync(4242, TestContext.Current.CancellationToken)).ShouldBeFalse();
     }
 
     [Fact]

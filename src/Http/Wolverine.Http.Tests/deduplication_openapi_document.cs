@@ -6,7 +6,7 @@ using JasperFx.Resources;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Shouldly;
 using Swashbuckle.AspNetCore.Swagger;
 using Wolverine.Attributes;
@@ -88,7 +88,7 @@ public class deduplication_openapi_document : IAsyncLifetime
         document.Paths.TryGetValue(path, out var item)
             .ShouldBeTrue($"The generated OpenAPI document has no path for {path}");
 
-        return item.Operations[OperationType.Post];
+        return item!.Operations![HttpMethod.Post];
     }
 
     [Fact]
@@ -96,10 +96,10 @@ public class deduplication_openapi_document : IAsyncLifetime
     {
         var operation = operationFor("/dedup-api/inherits");
 
-        operation.Responses.ContainsKey("422")
+        operation.Responses!.ContainsKey("422")
             .ShouldBeTrue("the duplicate refusal must appear as a response in the OpenAPI document");
 
-        operation.Responses["422"].Content.ContainsKey(ProblemDetails)
+        (operation.Responses!["422"].Content?.ContainsKey(ProblemDetails) ?? false)
             .ShouldBeTrue("a refusal is written as a problem document, and the document must say so");
     }
 
@@ -108,10 +108,10 @@ public class deduplication_openapi_document : IAsyncLifetime
     {
         var operation = operationFor("/dedup-api/inherits");
 
-        operation.Responses.ContainsKey("400")
+        operation.Responses!.ContainsKey("400")
             .ShouldBeTrue("the missing-key refusal must appear as a response in the OpenAPI document");
 
-        operation.Responses["400"].Content.ContainsKey(ProblemDetails).ShouldBeTrue();
+        (operation.Responses!["400"].Content?.ContainsKey(ProblemDetails) ?? false).ShouldBeTrue();
     }
 
     [Fact]
@@ -119,9 +119,9 @@ public class deduplication_openapi_document : IAsyncLifetime
     {
         var operation = operationFor("/dedup-api/explicit");
 
-        operation.Responses.ContainsKey("409")
+        operation.Responses!.ContainsKey("409")
             .ShouldBeTrue("an endpoint that stated 409 must advertise 409");
-        operation.Responses.ContainsKey("422")
+        operation.Responses!.ContainsKey("422")
             .ShouldBeFalse("the application default must not appear on an endpoint that overrode it");
     }
 
@@ -130,13 +130,13 @@ public class deduplication_openapi_document : IAsyncLifetime
     {
         var operation = operationFor("/dedup-api/benign");
 
-        operation.Responses.ContainsKey("204")
+        operation.Responses!.ContainsKey("204")
             .ShouldBeTrue("a benign replay status must still be discoverable");
 
         // The half that metadata assertions could not reach. A 2xx is emitted as a bare status
         // deliberately -- a problem document describing a response the application has declared benign
         // would be actively wrong -- and this is what proves the document agrees.
-        operation.Responses["204"].Content.ContainsKey(ProblemDetails)
+        (operation.Responses!["204"].Content?.ContainsKey(ProblemDetails) ?? false)
             .ShouldBeFalse("a benign replay returns no body, so it must not advertise problem details");
     }
 
@@ -162,7 +162,7 @@ public class deduplication_openapi_document : IAsyncLifetime
             x.StatusCodeShouldBe(422);
         });
 
-        var advertised = operationFor("/dedup-api/inherits").Responses.Keys;
+        var advertised = operationFor("/dedup-api/inherits").Responses!.Keys;
 
         advertised.ShouldContain(result.Context.Response.StatusCode.ToString());
     }

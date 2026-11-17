@@ -238,10 +238,16 @@ public class NatsTransportExpression
     /// Configure multi-tenancy support
     /// </summary>
     public NatsTransportExpression ConfigureMultiTenancy(
-        TenantedIdBehavior behavior = TenantedIdBehavior.FallbackToDefault
+        TenantedIdBehavior? behavior = null
     )
     {
-        Transport.TenantedIdBehavior = behavior;
+        // GH-5196. Leaving the behavior out takes the transport's default (DeadLetterUnknownTenants in 7.0,
+        // FallbackToDefault after RestoreV6Defaults()) rather than pinning the 6.x value
+        if (behavior.HasValue)
+        {
+            Transport.TenantedIdBehavior = behavior.Value;
+        }
+
         return this;
     }
 

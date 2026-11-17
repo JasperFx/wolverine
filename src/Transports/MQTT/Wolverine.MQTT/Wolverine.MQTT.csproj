@@ -15,13 +15,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="MQTTnet.Extensions.ManagedClient" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <!-- MQTTnet 4 keeps the client option builders in MQTTnet.Client; MQTTnet 5 moved them into MQTTnet.
-             Source shared with Wolverine.Mqtt5 imports MQTTnet, so the MQTTnet 4 build adds this one. -->
-        <Using Include="MQTTnet.Client" />
+        <!-- MQTTnet 5 (GH-5495). MQTTnet 5 has no managed client; ManagedMqttClientCompatibility.cs supplies
+             the reconnect / resubscribe / offline-queue behaviour MQTTnet.Extensions.ManagedClient gave on 4. -->
+        <PackageReference Include="MQTTnet" />
+        <PackageReference Include="MQTTnet.Server" />
     </ItemGroup>
 
 </Project>

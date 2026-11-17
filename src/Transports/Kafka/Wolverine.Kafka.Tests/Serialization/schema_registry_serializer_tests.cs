@@ -1,4 +1,4 @@
-using Confluent.SchemaRegistry;
+using Dekaf.SchemaRegistry;
 using NSubstitute;
 using Shouldly;
 using Wolverine.Kafka.Serialization;
@@ -107,6 +107,60 @@ public class schema_registry_serializer_tests
     {
         var serializer = new SchemaRegistryAvroSerializer(_mockRegistry);
         serializer.ShouldBeAssignableTo<Wolverine.Runtime.Serialization.IMessageSerializer>();
+    }
+
+    // The async serializer contract is what lets HandlerPipeline and Envelope.GetDataAsync await
+    // schema registration/lookup instead of blocking a thread
+    [Fact]
+    public void json_serializer_implements_IAsyncMessageSerializer()
+    {
+        var serializer = new SchemaRegistryJsonSerializer(_mockRegistry);
+        serializer.ShouldBeAssignableTo<Wolverine.Runtime.Serialization.IAsyncMessageSerializer>();
+    }
+
+    [Fact]
+    public void avro_serializer_implements_IAsyncMessageSerializer()
+    {
+        var serializer = new SchemaRegistryAvroSerializer(_mockRegistry);
+        serializer.ShouldBeAssignableTo<Wolverine.Runtime.Serialization.IAsyncMessageSerializer>();
+    }
+
+    [Fact]
+    public async Task json_serializer_write_async_throws_on_null_message()
+    {
+        var serializer = new SchemaRegistryJsonSerializer(_mockRegistry);
+        var envelope = new Envelope { Message = null };
+
+        await Should.ThrowAsync<ArgumentNullException>(async () => await serializer.WriteAsync(envelope));
+    }
+
+    [Fact]
+    public async Task avro_serializer_write_async_throws_on_null_message()
+    {
+        var serializer = new SchemaRegistryAvroSerializer(_mockRegistry);
+        var envelope = new Envelope { Message = null };
+
+        await Should.ThrowAsync<ArgumentNullException>(async () => await serializer.WriteAsync(envelope));
+    }
+
+    [Fact]
+    public async Task json_read_from_data_async_throws_on_empty_envelope()
+    {
+        var serializer = new SchemaRegistryJsonSerializer(_mockRegistry);
+        var envelope = new Envelope();
+
+        await Should.ThrowAsync<Exception>(async () =>
+            await serializer.ReadFromDataAsync(typeof(SampleKafkaMessage), envelope));
+    }
+
+    [Fact]
+    public async Task avro_read_from_data_async_throws_on_empty_envelope()
+    {
+        var serializer = new SchemaRegistryAvroSerializer(_mockRegistry);
+        var envelope = new Envelope();
+
+        await Should.ThrowAsync<Exception>(async () =>
+            await serializer.ReadFromDataAsync(typeof(SampleKafkaMessage), envelope));
     }
 }
 

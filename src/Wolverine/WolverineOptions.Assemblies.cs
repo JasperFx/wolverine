@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
@@ -294,6 +295,37 @@ public sealed partial class WolverineOptions
             $"The application assembly is a process-wide value pinned by whichever host started FIRST in this process (GH-3521), so handler discovery will NOT scan '{registered.GetName().Name}'. " +
             $"This typically only bites a test harness that stands up multiple Wolverine hosts across different assemblies. If handlers defined in '{registered.GetName().Name}' appear to be missing " +
             $"(e.g. \"No routes can be determined\"), set opts.ApplicationAssembly = typeof(SomeHandler).Assembly or opts.Discovery.IncludeAssembly(...) explicitly on this host.";
+    }
+
+    // GH-3576: Wolverine keeps its own detection rather than consolidating onto JasperFx's
+    // JasperFxOptions.ApplicationAssemblyReuseWarning. JasperFx's captures the registering assembly inside
+    // AddJasperFx, which IHostBuilder.UseWolverine() reaches only during Build() -- so a host registered in one
+    // assembly and built by a helper in another gets a false positive there, where Wolverine's entry-point
+    // capture (GH-3778) gets it right. JasperFx has no public way to accept the pre-captured assembly yet
+    // (jasperfx#1179). Revisit consolidation once it does.
+    //
+    // Until then, exactly one warning per host: Wolverine's. Marten, Polecat and Fisher log JasperFx's copy from
+    // their store activators, so in a Wolverine host it is cleared here before any store reads it. The setter is
+    // internal to JasperFx; no public alternative exists. If it ever disappears, this degrades to the old double
+    // warning rather than failing startup, and claiming_the_application_assembly_reuse_warning fails loudly.
+    private static readonly MethodInfo? _jasperFxReuseWarningSetter = typeof(JasperFxOptions)
+        .GetProperty(nameof(JasperFxOptions.ApplicationAssemblyReuseWarning), BindingFlags.Instance | BindingFlags.Public)
+        ?.GetSetMethod(nonPublic: true);
+
+    internal static bool CanClaimApplicationAssemblyReuseWarning => _jasperFxReuseWarningSetter != null;
+
+    // Runs as a PostConfigure<JasperFxOptions>, after the user's configure callback and before
+    // ReadJasperFxOptions, so a non-null _applicationAssembly here is an explicit choice.
+    [DynamicDependency("set_" + nameof(JasperFxOptions.ApplicationAssemblyReuseWarning), typeof(JasperFxOptions))]
+    internal void ClaimApplicationAssemblyReuseWarning(JasperFxOptions jasperfx)
+    {
+        if (jasperfx.ApplicationAssemblyReuseWarning == null) return;
+
+        // An explicit Wolverine ApplicationAssembly is honored silently, but the stores still adopt JasperFx's
+        // process pin. If the two differ, JasperFx's warning is the only one that speaks for the stores, so keep it.
+        if (_applicationAssembly != null && _applicationAssembly != jasperfx.ApplicationAssembly) return;
+
+        _jasperFxReuseWarningSetter?.Invoke(jasperfx, [null]);
     }
 
     internal void IncludeExtensionAssemblies(Assembly[] assemblies)

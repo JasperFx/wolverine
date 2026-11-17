@@ -1,14 +1,12 @@
-using ImTools;
 using JasperFx;
-using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
-using JasperFx.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Polecat;
 using Polecat.Storage;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.RDBMS.Sagas;
 using Wolverine.Runtime;
 using Wolverine.SqlServer.Persistence;
@@ -27,28 +25,23 @@ internal class PolecatMessageDatabaseSource<T> : PolecatMessageDatabaseSource wh
     }
 }
 
-internal class PolecatMessageDatabaseSource : ITenantedMessageSource
+/// <summary>
+///     One Wolverine message store per Polecat tenant database
+/// </summary>
+internal class PolecatMessageDatabaseSource : TenantedMessageDatabaseSource<PolecatMessageDatabaseSource.TenantDatabase>
 {
-    private readonly AutoCreate _autoCreate;
-    private readonly List<Func<IMessageDatabase, ValueTask>> _configurations = new();
-    private readonly object _locker = new();
-    private readonly IWolverineRuntime _runtime;
     private readonly string _schemaName;
     private readonly IDocumentStore _store;
     private readonly ITenancy _tenancy;
-    private ImHashMap<string, IMessageStore> _databases = ImHashMap<string, IMessageStore>.Empty;
-    private ImHashMap<string, IMessageStore> _stores = ImHashMap<string, IMessageStore>.Empty;
 
     public PolecatMessageDatabaseSource(
         string schemaName,
         AutoCreate autoCreate,
         IDocumentStore store,
-        IWolverineRuntime runtime)
+        IWolverineRuntime runtime) : base(autoCreate, runtime)
     {
         _schemaName = schemaName;
-        _autoCreate = autoCreate;
         _store = store;
-        _runtime = runtime;
 
         // Requires Polecat 1.1+ where StoreOptions.Tenancy is public
         _tenancy = store.Options.Tenancy
@@ -56,133 +49,50 @@ internal class PolecatMessageDatabaseSource : ITenantedMessageSource
                        "Polecat store does not have tenancy configured. Use MultiTenantedDatabases() in store setup.");
     }
 
-    public DatabaseCardinality Cardinality => _tenancy.Cardinality;
+    public override DatabaseCardinality Cardinality => _tenancy.Cardinality;
 
-    public async ValueTask<IMessageStore> FindAsync(string tenantId)
+    protected override ValueTask<TenantDatabase> findDatabaseAsync(string tenantId)
     {
-        if (_stores.TryFind(tenantId, out var store))
-        {
-            return store;
-        }
-
         var factory = _tenancy.GetConnectionFactory(tenantId);
         var database = _tenancy.GetDatabase(tenantId);
-        var identifier = database.Identifier;
-
-        if (_databases.TryFind(identifier, out store))
-        {
-            lock (_locker)
-            {
-                if (!_stores.Contains(tenantId))
-                {
-                    _stores = _stores.AddOrUpdate(tenantId, store);
-                }
-            }
-
-            return store;
-        }
-
-        lock (_locker)
-        {
-            if (_stores.TryFind(tenantId, out store))
-            {
-                return store;
-            }
-
-            if (_databases.TryFind(identifier, out store))
-            {
-                _stores = _stores.AddOrUpdate(tenantId, store);
-                return store;
-            }
-
-            store = createTenantWolverineStore(factory.ConnectionString, identifier);
-            store.Initialize(_runtime);
-
-            _stores = _stores.AddOrUpdate(tenantId, store);
-            _databases = _databases.AddOrUpdate(identifier, store);
-        }
-
-        foreach (var configuration in _configurations) await configuration((IMessageDatabase)store);
-
-        if (_autoCreate != AutoCreate.None)
-        {
-            await store.Admin.MigrateAsync();
-        }
-        else
-        {
-            _runtime.LoggerFactory.CreateLogger<PolecatMessageDatabaseSource>().LogInformation(
-                "Skipping message storage migration for tenant message database {Database} because AutoCreate is None",
-                identifier);
-        }
-
-        return store;
+        return ValueTask.FromResult(new TenantDatabase(database.Identifier, factory.ConnectionString));
     }
 
-    public Task RefreshAsync()
+    protected override ValueTask<IReadOnlyList<TenantDatabase>> allDatabasesAsync()
     {
-        return RefreshAsync(true);
+        IReadOnlyList<TenantDatabase> databases = _tenancy.AllDatabases()
+            .Select(x => new TenantDatabase(x.Identifier, x.ConnectionString ?? _store.Options.ConnectionString!))
+            .ToList();
+
+        return ValueTask.FromResult(databases);
     }
 
-    public Task RefreshLiteAsync()
+    protected override string identifierFor(TenantDatabase database)
     {
-        return RefreshAsync(false);
+        return database.Identifier;
     }
 
-    public async Task RefreshAsync(bool withMigration)
-    {
-        var polecatDatabases = _tenancy.AllDatabases();
-        foreach (var polecatDatabase in polecatDatabases)
-        {
-            if (!_databases.Contains(polecatDatabase.Identifier))
-            {
-                var connectionString = polecatDatabase.ConnectionString ?? _store.Options.ConnectionString!;
-
-                var wolverineStore = createTenantWolverineStore(connectionString, polecatDatabase.Identifier);
-                if (withMigration && _runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
-                {
-                    await wolverineStore.Admin.MigrateAsync();
-                }
-
-                _databases = _databases.AddOrUpdate(polecatDatabase.Identifier, wolverineStore);
-            }
-        }
-    }
-
-    public IReadOnlyList<IMessageStore> AllActive()
-    {
-        return _databases.Enumerate().Select(x => x.Value).ToList();
-    }
-
-    public IReadOnlyList<Assignment<IMessageStore>> AllActiveByTenant()
-    {
-        return _databases.Enumerate().Select(x => new Assignment<IMessageStore>(x.Key, x.Value)).ToList();
-    }
-
-    public async ValueTask ConfigureDatabaseAsync(Func<IMessageDatabase, ValueTask> configureDatabase)
-    {
-        foreach (var database in AllActive().OfType<IMessageDatabase>()) await configureDatabase(database);
-
-        _configurations.Add(configureDatabase);
-    }
-
-    private SqlServerMessageStore createTenantWolverineStore(string connectionString, string identifier)
+    protected override IMessageStore buildMessageStore(TenantDatabase database)
     {
         var settings = new DatabaseSettings
         {
             SchemaName = _schemaName,
             Role = MessageStoreRole.Tenant,
-            AutoCreate = _autoCreate,
+            AutoCreate = AutoCreate,
             CommandQueuesEnabled = false,
-            ConnectionString = connectionString
+            ConnectionString = database.ConnectionString
         };
 
-        var sagaTypes = _runtime.Services.GetServices<SagaTableDefinition>();
-        var store = new SqlServerMessageStore(settings, _runtime.Options.Durability,
-            _runtime.LoggerFactory.CreateLogger<SqlServerMessageStore>(), sagaTypes)
+        var sagaTypes = Runtime.Services.GetServices<SagaTableDefinition>();
+        return new SqlServerMessageStore(settings, Runtime.Options.Durability,
+            Runtime.LoggerFactory.CreateLogger<SqlServerMessageStore>(), sagaTypes)
         {
-            Name = identifier
+            Name = database.Identifier
         };
-
-        return store;
     }
+
+    /// <summary>
+    ///     A Polecat tenant database: its identifier and the connection string to reach it
+    /// </summary>
+    internal record TenantDatabase(string Identifier, string ConnectionString);
 }

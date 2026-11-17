@@ -49,6 +49,15 @@ public class saga_with_custom_table_name_5298
         cmd.Parameters.AddWithValue(":id", id);
         ((long)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!).ShouldBe(1);
 
+        // GH-5558: last_modified is indexed, for "sagas idle for more than N days"
+        await using (var indexCmd = connection.CreateCommand())
+        {
+            indexCmd.CommandText =
+                "select count(*) from pg_indexes where schemaname = :schema and tablename = 'myownsagatable' and indexdef like '%(last_modified)%'";
+            indexCmd.Parameters.AddWithValue(":schema", SchemaName);
+            ((long)(await indexCmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!).ShouldBe(1);
+        }
+
         // And nothing was created under the convention name
         (await new Table(new DbObjectName(SchemaName, "customtablesaga5298_saga"))
             .ExistsInDatabaseAsync(connection, TestContext.Current.CancellationToken)).ShouldBeFalse();

@@ -195,41 +195,30 @@ public static class HandlerWarmUp
         if (runtime is not WolverineRuntime concrete)
             return new HandlerWarmUpReport(0, skipped, allHandlers, watch.Elapsed);
 
-        foreach (var chain in concrete.Handlers.Chains)
+        // GH-5136. One chain per (message type, handler type). A chain bound to an endpoint -- one of several
+        // handler types of its message type, or a sticky handler -- is compiled for that endpoint; a message
+        // type's only, unbound chain is compiled as its default handler.
+        foreach (var messageGroup in concrete.Handlers.Chains.GroupBy(x => x.MessageType))
         {
+            var messageType = messageGroup.Key;
             var warmedForMessageType = false;
 
-            try
+            foreach (var chain in messageGroup)
             {
-                // Compiles the chain on first call, under Wolverine's own lock; a no-op afterwards.
-                concrete.Handlers.HandlerFor(chain.MessageType);
-                warmed++;
-                warmedForMessageType = true;
-            }
-            catch (NoHandlerForEndpointException)
-            {
-                // Only endpoint-specific handlers: there is no default handler to compile. Those are
-                // compiled per endpoint below.
-            }
-            catch (Exception e)
-            {
-                failures.Add((chain.MessageType, e));
-            }
-
-            // One compiled chain is enough to have started the compiler.
-            if (!allHandlers && warmed > 0) break;
-
-            // GH-5133. Under MultipleHandlerBehavior.Separated -- and for sticky handlers -- the handlers
-            // of the message type live in per-endpoint chains, each compiled for the endpoint it is bound
-            // to. Without this, warming skipped every message type with more than one Separated handler.
-            foreach (var separated in chain.ByEndpoint)
-            {
-                var endpoint = separated.Endpoints.FirstOrDefault();
-                if (endpoint == null) continue;
+                var endpoint = chain.Endpoints.FirstOrDefault();
 
                 try
                 {
-                    concrete.Handlers.HandlerFor(chain.MessageType, endpoint);
+                    // Compiles the chain on first call, under Wolverine's own lock; a no-op afterwards.
+                    if (endpoint == null)
+                    {
+                        concrete.Handlers.HandlerFor(messageType);
+                    }
+                    else
+                    {
+                        concrete.Handlers.HandlerFor(messageType, endpoint);
+                    }
+
                     warmed++;
                     warmedForMessageType = true;
                 }
@@ -239,15 +228,16 @@ public static class HandlerWarmUp
                 }
                 catch (Exception e)
                 {
-                    failures.Add((chain.MessageType, e));
+                    failures.Add((messageType, e));
                 }
 
+                // One compiled chain is enough to have started the compiler.
                 if (!allHandlers && warmed > 0) break;
             }
 
-            if (!warmedForMessageType && failures.All(x => x.Item1 != chain.MessageType))
+            if (!warmedForMessageType && failures.All(x => x.Item1 != messageType))
             {
-                skipped.Add(chain.MessageType);
+                skipped.Add(messageType);
             }
 
             if (!allHandlers && warmed > 0) break;

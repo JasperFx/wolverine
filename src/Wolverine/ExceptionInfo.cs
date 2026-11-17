@@ -10,6 +10,47 @@ public record ExceptionInfo(
     string? StackTrace,
     IReadOnlyList<ExceptionInfo> InnerExceptions)
 {
+    private const string BaseExceptionTypeName = "System.Exception";
+
+    /// <summary>
+    /// The full names of the exception's type and its base types, most derived first, stopping before
+    /// <see cref="System.Exception"/>. For <c>OutOfStockException : InventoryException</c> this is
+    /// <c>[OutOfStockException, InventoryException]</c> (as full names). It lets a receiver in another
+    /// process ask <see cref="Is{TException}"/> about a base type without loading the thrown type.
+    /// <para>
+    /// Empty when the snapshot came from a sender that predates this property; <see cref="Is(string)"/>
+    /// then falls back to matching <see cref="Type"/> alone. Type names carry no payload, so neither
+    /// redaction flag on <see cref="From(Exception, bool, bool)"/> affects it.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<string> TypeHierarchy { get; init; } = [];
+
+    /// <summary>
+    /// Is the captured exception of the type named by <paramref name="fullTypeName"/>, or derived from it?
+    /// Checks <see cref="Type"/>, then <see cref="TypeHierarchy"/>. <c>"System.Exception"</c> always matches.
+    /// </summary>
+    public bool Is(string fullTypeName)
+    {
+        ArgumentNullException.ThrowIfNull(fullTypeName);
+
+        if (fullTypeName == BaseExceptionTypeName) return true;
+        if (Type == fullTypeName) return true;
+
+        foreach (var name in TypeHierarchy)
+        {
+            if (name == fullTypeName) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Is the captured exception a <typeparamref name="TException"/>, or derived from it? Matches by full
+    /// type name, so it works for a failure that was thrown in another process.
+    /// </summary>
+    public bool Is<TException>() where TException : Exception
+        => Is(typeof(TException).FullName ?? typeof(TException).Name);
+
     /// <summary>
     /// Build a wire-stable snapshot from a live <see cref="Exception"/>, recursing
     /// through <see cref="Exception.InnerException"/> and
@@ -62,9 +103,25 @@ public record ExceptionInfo(
         };
 
         return new ExceptionInfo(
-            Type: exception.GetType().FullName ?? exception.GetType().Name,
+            Type: typeName(exception.GetType()),
             Message: includeMessage ? exception.Message : string.Empty,
             StackTrace: includeStackTrace ? exception.StackTrace : null,
-            InnerExceptions: inners);
+            InnerExceptions: inners)
+        {
+            TypeHierarchy = typeHierarchy(exception.GetType())
+        };
+    }
+
+    private static string typeName(Type type) => type.FullName ?? type.Name;
+
+    private static string[] typeHierarchy(Type exceptionType)
+    {
+        var names = new List<string>();
+        for (var type = exceptionType; type != null && type != typeof(Exception); type = type.BaseType)
+        {
+            names.Add(typeName(type));
+        }
+
+        return names.ToArray();
     }
 }

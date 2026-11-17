@@ -196,7 +196,7 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
 
     /// <summary>
     ///     Every described chain with its slice, in model order. GH-4829: a message with more than one
-    ///     handler chain — the modules of a modular monolith under <c>MultipleHandlerBehavior.Separated</c>
+    ///     handler chain — one per handler type, like the modules of a modular monolith
     ///     — gets one slice per chain, each named apart by <see cref="EventModelSliceDomains.QualifyNames" />,
     ///     instead of one name every module's slice folded into.
     /// </summary>
@@ -225,14 +225,6 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     private static IEnumerable<HandlerChain> describedChains(HandlerChain chain)
     {
         if (chain.MessageType.IsSystemMessageType()) yield break;
-
-        // sticky handlers live on per-endpoint sub-chains, so walk those whether or not the
-        // parent chain has a default handler of its own
-        foreach (var sticky in chain.ByEndpoint)
-        foreach (var described in describedChains(sticky))
-        {
-            yield return described;
-        }
 
         if (chain.Handlers.Count > 0) yield return chain;
     }

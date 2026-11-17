@@ -16,9 +16,8 @@ namespace Wolverine.Configuration.EventModeling;
 ///         applies them. Nothing here guesses a domain from a namespace or an assembly on its own.
 ///     </para>
 ///     <para>
-///         <b>Why the names.</b> A slice's name is the merge key. Under
-///         <c>MultipleHandlerBehavior.Separated</c> every module's handler of <c>OrderPlaced</c> is its own
-///         sticky chain, and naming each of them <c>OrderPlaced</c> folded them into one slice that named
+///         <b>Why the names.</b> A slice's name is the merge key. Every module's handler of <c>OrderPlaced</c>
+///         is its own handler chain, and naming each of them <c>OrderPlaced</c> folded them into one slice that named
 ///         the first handler and claimed every module's output. Each such slice is now qualified —
 ///         <c>OrderPlaced (Billing)</c> by its declared domain, else <c>OrderPlaced (Billing.OrderPlacedHandler)</c>
 ///         by its handler type — and a message with a single handler chain keeps its bare name, so the

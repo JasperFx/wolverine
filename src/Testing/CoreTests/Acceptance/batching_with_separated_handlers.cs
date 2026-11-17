@@ -33,7 +33,6 @@ public class batching_with_separated_handlers
                 opts.Discovery.IncludeType(typeof(InvoiceTelemetry));
             }
 
-            opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
             opts.BatchMessagesOf<InvoiceEvent>(b => b.TriggerTime = 250.Milliseconds());
         });
     }
@@ -56,7 +55,6 @@ public class batching_with_separated_handlers
                     .IncludeType(typeof(LoadPublisher))
                     .IncludeType(typeof(LoadTelemetry));
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.BatchMessagesOf<LoadEvent>(b => b.TriggerTime = 250.Milliseconds());
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);

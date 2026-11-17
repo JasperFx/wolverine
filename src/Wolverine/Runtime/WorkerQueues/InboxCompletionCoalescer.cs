@@ -24,7 +24,7 @@ internal class InboxCompletionCoalescer
     private readonly int _maximumBatchSize;
     private readonly ILogger _logger;
     private readonly Uri _uri;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     // GH-4332 swapped this for a Queue on the theory that List.RemoveRange(0, n) memmoves the
     // remainder and so goes quadratic under a deep backlog. The theory is right -- and irrelevant
@@ -67,7 +67,7 @@ internal class InboxCompletionCoalescer
     {
         get
         {
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 return _pending.Count;
             }
@@ -83,7 +83,7 @@ internal class InboxCompletionCoalescer
         var pending = new Pending(envelope, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
 
         var startLoop = false;
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             _pending.Add(pending);
             if (!_flushing)
@@ -99,7 +99,7 @@ internal class InboxCompletionCoalescer
             // that happened to arrive first must not be conscripted into flushing everyone else's
             // completions forever.
             var loop = Task.Run(flushLoopAsync);
-            lock (_lock)
+            using (_lock.EnterScope())
             {
                 _flushLoop = loop;
             }
@@ -114,7 +114,7 @@ internal class InboxCompletionCoalescer
     public Task DrainAsync()
     {
         Task? loop;
-        lock (_lock)
+        using (_lock.EnterScope())
         {
             loop = _flushLoop;
         }
@@ -127,7 +127,9 @@ internal class InboxCompletionCoalescer
         while (true)
         {
             Pending[] batch;
-            lock (_lock)
+            // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+            _lock.Enter();
+            try
             {
                 if (_pending.Count == 0)
                 {
@@ -140,6 +142,10 @@ internal class InboxCompletionCoalescer
                 batch = new Pending[take];
                 _pending.CopyTo(0, batch, 0, take);
                 _pending.RemoveRange(0, take);
+            }
+            finally
+            {
+                _lock.Exit();
             }
 
             await flushAsync(batch).ConfigureAwait(false);

@@ -81,7 +81,7 @@ public class PostgresqlQueueTests
         // who already worked keep their existing table/index identifiers.
         queue.QueueTable.Identifier.Name.ShouldBe("wolverine_queue_orders");
         queue.ScheduledTable.Identifier.Name.ShouldBe("wolverine_queue_orders_scheduled");
-        queue.ScheduledTable.Indexes.Single().Name
+        executionTimeIndex(queue).Name
             .ShouldBe("idx_wolverine_queue_orders_scheduled_execution_time");
     }
 
@@ -99,7 +99,11 @@ public class PostgresqlQueueTests
 
         queue.QueueTable.Identifier.Name.Length.ShouldBeLessThanOrEqualTo(63);
         queue.ScheduledTable.Identifier.Name.Length.ShouldBeLessThanOrEqualTo(63);
-        queue.ScheduledTable.Indexes.Single().Name.Length.ShouldBeLessThanOrEqualTo(63);
+        // GH-5192: every index, now that the queue_order composite index is there by default too
+        foreach (var index in queue.QueueTable.Indexes.Concat(queue.ScheduledTable.Indexes))
+        {
+            index.Name.Length.ShouldBeLessThanOrEqualTo(63);
+        }
     }
 
     [Fact]
@@ -119,7 +123,12 @@ public class PostgresqlQueueTests
 
         queueA.QueueTable.Identifier.Name.ShouldNotBe(queueB.QueueTable.Identifier.Name);
         queueA.ScheduledTable.Identifier.Name.ShouldNotBe(queueB.ScheduledTable.Identifier.Name);
-        queueA.ScheduledTable.Indexes.Single().Name
-            .ShouldNotBe(queueB.ScheduledTable.Indexes.Single().Name);
+        executionTimeIndex(queueA).Name.ShouldNotBe(executionTimeIndex(queueB).Name);
+    }
+
+    // GH-5192: the scheduled table also has the (execution_time, queue_order) index by default from 7.0
+    private static Weasel.Postgresql.Tables.IndexDefinition executionTimeIndex(PostgresqlQueue queue)
+    {
+        return queue.ScheduledTable.Indexes.Single(x => x.Columns!.SequenceEqual(["execution_time"]));
     }
 }

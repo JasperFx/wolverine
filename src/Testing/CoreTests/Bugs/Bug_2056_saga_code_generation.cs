@@ -20,7 +20,6 @@ public class Bug_2056_saga_code_generation : IAsyncLifetime
                     .IncludeType(typeof(BugReproSaga))
                     .IncludeType(typeof(AnotherHandler));
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             }).StartAsync();
     }
@@ -47,7 +46,9 @@ public class Bug_2056_saga_code_generation : IAsyncLifetime
         BugReproSaga.NotFoundCalled = false;
 
         // Send event that should be handled by existing saga
-        await _host.InvokeMessageAndWaitAsync(new SharedEvent { ReferenceId = id });
+        // GH-5136. The saga and AnotherHandler each have their own chain and local queue for SharedEvent, so
+        // send it and let both receive it, instead of invoking it inline
+        await _host.SendMessageAndWaitAsync(new SharedEvent { ReferenceId = id });
 
         // BUG: Handle() is never called because generated code creates new saga
         // instead of loading by ReferenceId
@@ -62,7 +63,9 @@ public class Bug_2056_saga_code_generation : IAsyncLifetime
         BugReproSaga.NotFoundCalled = false;
 
         // Send event without existing saga - should trigger NotFound
-        await _host.InvokeMessageAndWaitAsync(new SharedEvent { ReferenceId = Guid.NewGuid() });
+        // GH-5136. The saga and AnotherHandler each have their own chain and local queue for SharedEvent, so
+        // send it and let both receive it, instead of invoking it inline
+        await _host.SendMessageAndWaitAsync(new SharedEvent { ReferenceId = Guid.NewGuid() });
 
         // BUG: NotFound() is never called
         BugReproSaga.NotFoundCalled.ShouldBeTrue();

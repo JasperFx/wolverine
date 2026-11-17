@@ -56,7 +56,7 @@ public static class DbQueuePopLane
         var drainMessages = envInt("RIG_DRAIN_MESSAGES", 5000);
         var schema = Environment.GetEnvironmentVariable("RIG_POP_SCHEMA") ?? "rig_pop";
 
-        using var host = await Host.CreateDefaultBuilder()
+        using var host = await RigHost.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning))
             .UseWolverine(opts =>
             {

@@ -62,7 +62,7 @@ public class GrpcEndpoint : Endpoint, IInlineRequestReplyEndpoint
         try
         {
             var response = await client.CallAsync(message, cancellationToken: cancellation);
-            return EnvelopeSerializer.Deserialize(response.Data.ToByteArray());
+            return EnvelopeSerializer.Deserialize(response.Data.Memory);
         }
         catch (global::Grpc.Core.RpcException e)
         {

@@ -14,3 +14,8 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("OracleTests")]
 [assembly: InternalsVisibleTo("Wolverine.ComplianceTests")]
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")] // Castle Core proxies for NSubstitute
+// GH-5144: the document store integrations share the outbox commit sequence in Wolverine.RDBMS.Outbox
+[assembly: InternalsVisibleTo("Wolverine.Marten")]
+[assembly: InternalsVisibleTo("Wolverine.Polecat")]
+[assembly: InternalsVisibleTo("Wolverine.Fisher")]
+[assembly: InternalsVisibleTo("FisherTests")]

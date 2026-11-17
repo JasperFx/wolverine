@@ -14,13 +14,13 @@ streaming. The handler yields one `PongReply` per iteration and Wolverine's
 In one terminal:
 
 ```sh
-dotnet run --project src/Samples/PingPongWithGrpcStreaming/Ponger --framework net9.0
+dotnet run --project src/Samples/PingPongWithGrpcStreaming/Ponger --framework net10.0
 ```
 
 In another:
 
 ```sh
-dotnet run --project src/Samples/PingPongWithGrpcStreaming/Pinger --framework net9.0
+dotnet run --project src/Samples/PingPongWithGrpcStreaming/Pinger --framework net10.0
 ```
 
 Expected output on the client:

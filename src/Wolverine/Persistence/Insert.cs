@@ -26,7 +26,9 @@ public record Insert<T>(T Entity) : ISideEffectAware, IStorageAction<T>
 
             // GH-4613: see DetermineStorageUpdateFrame. Defaults to DetermineInsertFrame, so this is a
             // no-op for every provider that does not need to tell a returned entity from a saga.
-            return provider.DetermineStorageInsertFrame(value, container).WrapIfNotNull(variable);
+            // GH-5345: a saga inserted this way gets LastModified like one a saga chain inserts
+            return StampSagaLastModifiedFrame.ForStorageAction(typeof(T), value,
+                provider.DetermineStorageInsertFrame(value, container), throughHelper: false).WrapIfNotNull(variable);
         }
 
         throw new NoMatchingPersistenceProviderException(typeof(T));

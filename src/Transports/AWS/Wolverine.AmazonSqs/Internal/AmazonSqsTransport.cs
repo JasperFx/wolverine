@@ -15,6 +15,12 @@ namespace Wolverine.AmazonSqs.Internal;
 
 public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposable
 {
+    /// <summary>
+    /// GH-5201. <see cref="WolverineOptions.V6DefaultsRestored" /> as this transport read it when it started, for
+    /// the queue defaults 7.0 flipped
+    /// </summary>
+    internal bool V6DefaultsRestoredAtStartup => V6DefaultsRestored;
+
     public const string DeadLetterQueueName = DeadLetterQueueConstants.DefaultQueueName;
     public const string ResponseEndpointName = "AmazonSqsResponses";
     public const char Separator = '-';

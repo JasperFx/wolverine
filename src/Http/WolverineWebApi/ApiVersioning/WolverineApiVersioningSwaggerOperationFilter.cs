@@ -1,8 +1,8 @@
 using Asp.Versioning;
-using Microsoft.OpenApi.Any;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Globalization;
+using System.Text.Json.Nodes;
 using Wolverine.Http.ApiVersioning;
 
 namespace WolverineWebApi.ApiVersioning;
@@ -38,28 +38,31 @@ public sealed class WolverineApiVersioningSwaggerOperationFilter : IOperationFil
 
         if (state.Sunset is null && state.Deprecation is null) return;
 
-        var ext = new OpenApiObject();
+        var ext = new JsonObject();
 
         if (state.Sunset?.Date is { } sunsetDate)
-            ext["sunset"] = new OpenApiString(sunsetDate.UtcDateTime.ToString("R", CultureInfo.InvariantCulture));
+            ext["sunset"] = sunsetDate.UtcDateTime.ToString("R", CultureInfo.InvariantCulture);
 
-        var links = new OpenApiArray();
+        var links = new JsonArray();
         foreach (var link in (state.Sunset?.Links ?? []).Concat(state.Deprecation?.Links ?? []))
         {
-            var linkObj = new OpenApiObject
+            var linkObj = new JsonObject
             {
-                ["href"] = new OpenApiString(link.LinkTarget?.ToString() ?? string.Empty)
+                ["href"] = link.LinkTarget?.ToString() ?? string.Empty
             };
             if (link.Title.HasValue && link.Title.Length > 0)
-                linkObj["title"] = new OpenApiString(link.Title.Value);
+                linkObj["title"] = link.Title.Value;
             if (link.Type.HasValue && link.Type.Length > 0)
-                linkObj["type"] = new OpenApiString(link.Type.Value);
+                linkObj["type"] = link.Type.Value;
             links.Add(linkObj);
         }
         if (links.Count > 0)
             ext["links"] = links;
 
         if (ext.Count > 0)
-            operation.Extensions["x-api-versioning"] = ext;
+        {
+            operation.Extensions ??= new Dictionary<string, IOpenApiExtension>();
+            operation.Extensions["x-api-versioning"] = new JsonNodeExtension(ext);
+        }
     }
 }

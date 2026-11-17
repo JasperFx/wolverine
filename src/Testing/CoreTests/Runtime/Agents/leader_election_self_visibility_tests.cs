@@ -75,7 +75,7 @@ public class leader_election_self_visibility_tests
     {
         // The fix focuses on the staleness filter. Drive the controller down
         // the tryStartLeadershipAsync branch by handing it the leadership lock.
-        _persistence.HasLeadershipLock().Returns(false);
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(false);
         _persistence.TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>())
             .Returns(true);
     }
@@ -181,7 +181,7 @@ public class leader_election_self_visibility_tests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        _persistence.HasLeadershipLock().Returns(false);
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(false);
         _persistence.TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
@@ -217,7 +217,7 @@ public class leader_election_self_visibility_tests
 
         // The guard must be released once the winner completes — a
         // subsequent health check goes all the way through again.
-        _persistence.HasLeadershipLock().Returns(true);
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(true);
         await _controller.DoHealthChecksAsync();
         await _persistence.Received(2)
             .TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>());

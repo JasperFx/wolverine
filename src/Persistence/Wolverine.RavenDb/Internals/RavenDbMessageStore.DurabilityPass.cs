@@ -14,8 +14,8 @@ namespace Wolverine.RavenDb.Internals;
 /// <see cref="DurabilityMode.ServerlessWithOutbox" />
 /// </summary>
 /// <remarks>
-/// There is no RavenDb equivalent of <see cref="DurabilitySettings.EnableOutgoingTimestampIndex" />: RavenDb
-/// builds and maintains an auto index for the stale owner-0 query on its own, so the flag changes nothing here
+/// There is no RavenDb equivalent of the outgoing timestamp index the relational stores create (<see cref="DurabilitySettings.AlwaysProvisionOptionalSchemaObjects" />): RavenDb
+/// builds and maintains an auto index for the stale owner-0 query on its own, so that setting changes nothing here
 /// </remarks>
 public partial class RavenDbMessageStore : IMessageStoreWithDurabilityPass, IStaleOutgoingSource,
     IDurabilityPassInboxSource, IExpiredDocumentSource

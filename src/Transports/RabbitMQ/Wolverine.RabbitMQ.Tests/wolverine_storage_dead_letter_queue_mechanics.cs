@@ -39,7 +39,6 @@ public class wolverine_storage_dead_letter_queue_mechanics : IAsyncLifetime
             {
                 opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
                 opts.Policies.AutoApplyTransactions();
-                opts.EnableAutomaticFailureAcks = false;
                 opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup().DisableDeadLetterQueueing();
 
                 if (useDurableInbox)

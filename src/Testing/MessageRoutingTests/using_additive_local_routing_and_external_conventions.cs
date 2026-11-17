@@ -52,15 +52,26 @@ public class using_additive_local_routing_and_external_conventions : MessageRout
     }
 
     [Fact]
-    public void should_have_a_listener_for_each_message_type()
+    public void should_have_a_listener_for_each_message_type_or_handler_type()
     {
+        // GH-5136. A message type with one handler type keeps its message-type queue; one with several gets a
+        // queue per handler type, as do sticky handlers -- the same listeners MultipleHandlerBehavior.Separated
+        // created in 6.x
         assertExternalListenersAre(@"
-rabbitmq://queue/MessageRoutingTests.ColorMessage
+rabbitmq://queue/MessageRoutingTests.AnotherM2Handler
+rabbitmq://queue/MessageRoutingTests.BlueColorMessageHandler
+rabbitmq://queue/MessageRoutingTests.BlueM5Handler
+rabbitmq://queue/MessageRoutingTests.GreenColorMessageHandler
+rabbitmq://queue/MessageRoutingTests.GreenM5Handler
 rabbitmq://queue/MessageRoutingTests.M1
-rabbitmq://queue/MessageRoutingTests.M2
 rabbitmq://queue/MessageRoutingTests.M3
 rabbitmq://queue/MessageRoutingTests.M4
-rabbitmq://queue/MessageRoutingTests.M5
+rabbitmq://queue/MessageRoutingTests.MainM2Handler
+rabbitmq://queue/MessageRoutingTests.MHandler
+rabbitmq://queue/MessageRoutingTests.OtherM2Handler
+rabbitmq://queue/MessageRoutingTests.PurpleOnlyStickMessageHandler
+rabbitmq://queue/MessageRoutingTests.RedColorMessageHandler
+rabbitmq://queue/MessageRoutingTests.RedOnlyStickMessageHandler
 ");
     }
 }

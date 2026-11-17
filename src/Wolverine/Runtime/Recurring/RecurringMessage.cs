@@ -195,7 +195,7 @@ public sealed class RecurringMessage
     /// GH-5320. Skip any occurrence that comes due while the previous one is still being handled, and
     /// pick the schedule back up with the first occurrence after it finishes. Skipped occurrences are
     /// never back-filled. They are logged at debug level, summarized at information level when the
-    /// schedule resumes, and counted on the <c>wolverine-recurring-occurrences-skipped</c> counter
+    /// schedule resumes, and counted on the <c>wolverine.recurring.occurrences_skipped</c> counter
     /// tagged with <c>schedule.name</c>.
     /// <para>
     /// This runs the schedule on its timer agent (implying <see cref="UseTimer" />), and changes how

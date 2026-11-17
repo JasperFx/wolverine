@@ -24,7 +24,6 @@ public class Bug_1684_separated_handlers_and_conventional_routing(ITestOutputHel
                 
                 opts.Policies.DisableConventionalLocalRouting();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
             })
             .ConfigureServices(services =>
             {
@@ -34,7 +33,11 @@ public class Bug_1684_separated_handlers_and_conventional_routing(ITestOutputHel
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var message = new Msg(Guid.NewGuid());
-        var tracked = await host.TrackActivity().IncludeExternalTransports().SendMessageAndWaitAsync(message);
+        // GH-5536. The exchange hands one copy to each handler's queue under the same envelope id, so the tracked
+        // session has to be told to wait for both, or it completes on the first and the assertion races the second
+        var tracked = await host.TrackActivity().IncludeExternalTransports()
+            .WaitForCondition(new MessageSucceededAtEveryQueue<Msg>(2))
+            .SendMessageAndWaitAsync(message);
 
         var all = tracked.AllRecordsInOrder().ToArray();
         foreach (var record in all)

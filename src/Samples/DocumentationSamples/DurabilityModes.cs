@@ -97,10 +97,6 @@ public class DurabilityModes
 
                 // Optional. This is already 60 seconds under ServerlessWithOutbox
                 opts.Durability.OutboxStaleTime = 1.Minutes();
-
-                // Optional. Adds an index on the outgoing envelope table's
-                // timestamp column for the durability pass to use
-                opts.Durability.EnableOutgoingTimestampIndex = true;
             }).StartAsync();
 
         #endregion

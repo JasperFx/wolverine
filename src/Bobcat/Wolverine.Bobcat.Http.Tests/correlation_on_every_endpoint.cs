@@ -10,10 +10,10 @@ using Wolverine.Marten;
 
 namespace Wolverine.Bobcat.Http.Tests;
 
-// GH-4939: WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints. By default RequestIdMiddleware applies
+// GH-4939: WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints. Turned off, RequestIdMiddleware applies
 // X-Correlation-ID only to an endpoint that uses IMessageBus or IMessageContext, so an endpoint that only uses an
-// event store session records some other correlation id on its events. Opted in, every endpoint takes the
-// request's -- which is what lets ThenEventuallyCaused find what a posted command appended.
+// event store session records some other correlation id on its events. Turned on (the default from 7.0, GH-5195),
+// every endpoint takes the request's -- which is what lets ThenEventuallyCaused find what a posted command appended.
 
 public abstract class CorrelationHost(string schema) : IAsyncLifetime
 {
@@ -83,7 +83,14 @@ public sealed class CorrelationOnEveryEndpointHost() : CorrelationHost("bobcat_h
     }
 }
 
-public sealed class CorrelationOnlyWhereMessagingIsUsedHost() : CorrelationHost("bobcat_http_correlation_off");
+public sealed class CorrelationOnlyWhereMessagingIsUsedHost() : CorrelationHost("bobcat_http_correlation_off")
+{
+    // GH-5195: on by default from 7.0, so the 6.x behaviour is an explicit opt-out
+    protected override void ConfigureEndpoints(WolverineHttpOptions opts)
+    {
+        opts.ApplyCorrelationIdHeaderToAllEndpoints = false;
+    }
+}
 
 // GH-4962: a conjoined store, with the tenant detected from a request header
 public sealed class TenantedCorrelationHost() : CorrelationHost("bobcat_http_tenanted")

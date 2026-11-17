@@ -105,7 +105,20 @@ internal partial class OracleMessageStore
         var migration = await SchemaMigration.DetermineAsync(conn, builder, CancellationToken.None, table);
         if (migration.Difference != SchemaPatchDifference.None)
         {
-            await new OracleMigrator().ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
+            try
+            {
+                await new OracleMigrator().ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
+            }
+            catch (OracleException e) when (e.Number is 955 or 2275 or 1408)
+            {
+                // The external table's listener migrates the table on its first poll while a sender can be
+                // migrating it too (SendMessageThroughExternalTable does), and Oracle has no CREATE TABLE IF
+                // NOT EXISTS: whoever loses the race gets one of these for an object that now exists. The same
+                // tolerance the message store's own schema setup has (OracleMessageStore.Admin).
+                // ORA-00955: name already used by existing object
+                // ORA-02275: referential constraint already exists
+                // ORA-01408: such column list already indexed
+            }
         }
 
         await conn.CloseAsync();

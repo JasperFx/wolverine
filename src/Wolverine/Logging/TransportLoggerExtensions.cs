@@ -18,8 +18,8 @@ public static class TransportLoggerExtensions
     public const int ListeningStatusChangedEventId = 210;
     private static readonly Action<ILogger, Uri, Exception?> _circuitBroken;
     private static readonly Action<ILogger, Uri, Exception?> _circuitResumed;
-    private static readonly Action<ILogger, Envelope, Exception?> _discardedExpired;
-    private static readonly Action<ILogger, Envelope, Exception?> _discardedUnknownTransport;
+    private static readonly Action<ILogger, string, Guid, Exception?> _discardedExpired;
+    private static readonly Action<ILogger, string, Guid, Exception?> _discardedUnknownTransport;
     private static readonly Action<ILogger, int, Uri, Exception?> _incomingBatchReceived;
     private static readonly Action<ILogger, ListeningStatus, Exception?> _listeningStatusChanged;
 
@@ -27,7 +27,7 @@ public static class TransportLoggerExtensions
     private static readonly Action<ILogger, int, Uri, Exception?> _outgoingBatchSucceeded;
     private static readonly Action<ILogger, int, Exception?> _recoveredIncoming;
     private static readonly Action<ILogger, int, Exception?> _recoveredOutgoing;
-    private static readonly Action<ILogger, Envelope, DateTimeOffset, Exception?> _scheduledJobsQueued;
+    private static readonly Action<ILogger, string, Guid, DateTimeOffset, Exception?> _scheduledJobsQueued;
     private static readonly Action<ILogger, Uri, Exception?> _incomingReceived;
 
     static TransportLoggerExtensions()
@@ -51,9 +51,9 @@ public static class TransportLoggerExtensions
             "Sending agent for {destination} has resumed");
 
         _scheduledJobsQueued =
-            LoggerMessage.Define<Envelope, DateTimeOffset>(LogLevel.Information,
+            LoggerMessage.Define<string, Guid, DateTimeOffset>(LogLevel.Information,
                 ScheduledJobsQueuedForExecutionEventId,
-                "Envelope {envelope} was scheduled locally for {date}");
+                "Envelope {Name}#{Id} was scheduled locally for {date}");
 
         _recoveredIncoming = LoggerMessage.Define<int>(LogLevel.Information, RecoveredIncomingEventId,
             "Recovered {Count} incoming envelopes from storage");
@@ -61,12 +61,12 @@ public static class TransportLoggerExtensions
         _recoveredOutgoing = LoggerMessage.Define<int>(LogLevel.Information, RecoveredOutgoingEventId,
             "Recovered {Count} outgoing envelopes from storage");
 
-        _discardedExpired = LoggerMessage.Define<Envelope>(LogLevel.Debug, DiscardedExpiredEventId,
-            "Discarded expired envelope {envelope}");
+        _discardedExpired = LoggerMessage.Define<string, Guid>(LogLevel.Debug, DiscardedExpiredEventId,
+            "Discarded expired envelope {Name}#{Id}");
 
         _discardedUnknownTransport =
-            LoggerMessage.Define<Envelope>(LogLevel.Information, DiscardedUnknownTransportEventId,
-                "Discarded {envelope} with unknown transport");
+            LoggerMessage.Define<string, Guid>(LogLevel.Information, DiscardedUnknownTransportEventId,
+                "Discarded {Name}#{Id} with unknown transport");
 
         _listeningStatusChanged = LoggerMessage.Define<ListeningStatus>(LogLevel.Information,
             ListeningStatusChangedEventId, "ListeningStatus changed to {status}");
@@ -105,7 +105,7 @@ public static class TransportLoggerExtensions
     public static void ScheduledJobsQueuedForExecution(this ILogger logger, IEnumerable<Envelope> envelopes)
     {
         foreach (var envelope in envelopes)
-            _scheduledJobsQueued(logger, envelope, envelope.ScheduledTime ?? DateTimeOffset.UtcNow, null);
+            _scheduledJobsQueued(logger, envelope.GetMessageTypeName(), envelope.Id, envelope.ScheduledTime ?? DateTimeOffset.UtcNow, null);
     }
 
     public static void RecoveredIncoming(this ILogger logger, IEnumerable<Envelope> envelopes)
@@ -124,12 +124,12 @@ public static class TransportLoggerExtensions
 
     public static void DiscardedExpired(this ILogger logger, IEnumerable<Envelope> envelopes)
     {
-        foreach (var envelope in envelopes) _discardedExpired(logger, envelope, null);
+        foreach (var envelope in envelopes) _discardedExpired(logger, envelope.GetMessageTypeName(), envelope.Id, null);
     }
 
     public static void DiscardedUnknownTransport(this ILogger logger, IEnumerable<Envelope> envelopes)
     {
-        foreach (var envelope in envelopes) _discardedUnknownTransport(logger, envelope, null);
+        foreach (var envelope in envelopes) _discardedUnknownTransport(logger, envelope.GetMessageTypeName(), envelope.Id, null);
     }
 
     public static void ListeningStatusChange(this ILogger logger, ListeningStatus status)

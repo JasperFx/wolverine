@@ -3,6 +3,7 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Wolverine.Runtime;
@@ -32,6 +33,7 @@ public class FromFileStrategy : IParameterStrategy
             chain.IsFormData = true;
 
             var frame = new FromFileValue(parameter);
+            chain.Middleware.Fill(chain.ReadFormCollection);
             chain.Middleware.Add(frame);
             variable = frame.Variable;
             chain.ChainVariables.Add(variable);
@@ -52,6 +54,7 @@ public class FromFileStrategy : IParameterStrategy
             chain.IsFormData = true;
 
             var frame = new FromFileValues(parameter);
+            chain.Middleware.Fill(chain.ReadFormCollection);
             chain.Middleware.Add(frame);
             variable = frame.Variable;
             chain.ChainVariables.Add(variable);
@@ -62,7 +65,7 @@ public class FromFileStrategy : IParameterStrategy
         if (parameter.ParameterType == typeof(IFormCollection))
         {
             chain.IsFormData = true;
-            variable = new Variable(typeof(IFormCollection), "httpContext.Request.Form");
+            variable = chain.ReadFormCollection.Variable;
             return true;
         }
 
@@ -73,7 +76,7 @@ public class FromFileStrategy : IParameterStrategy
 
 internal class FromFileValue : SyncFrame
 {
-    private Variable? _httpContext;
+    private Variable? _form;
     private readonly string _parameterName;
 
     public FromFileValue(ParameterInfo parameter)
@@ -86,22 +89,22 @@ internal class FromFileValue : SyncFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _httpContext = chain.FindVariable(typeof(HttpContext));
-        yield return _httpContext;
+        _form = chain.FindVariable(typeof(IFormCollection));
+        yield return _form;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("Retrieve the named file from the request");
         writer.Write(
-            $"var {Variable.Usage} = {nameof(HttpHandler.ReadFormFileByName)}({_httpContext!.Usage}, \"{_parameterName}\");");
+            $"var {Variable.Usage} = {_form!.Usage}.Files.GetFile(\"{_parameterName}\");");
         Next?.GenerateCode(method, writer);
     }
 }
 
 internal class FromFileValues : SyncFrame
 {
-    private Variable? _httpContext;
+    private Variable? _form;
     public FromFileValues(ParameterInfo parameter)
     {
         Variable = new Variable(parameter.ParameterType, parameter.Name!, this);
@@ -111,15 +114,15 @@ internal class FromFileValues : SyncFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _httpContext = chain.FindVariable(typeof(HttpContext));
-        yield return _httpContext;
+        _form = chain.FindVariable(typeof(IFormCollection));
+        yield return _form;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("Retrieve files from the request");
         writer.Write(
-            $"var {Variable.Usage} = {nameof(HttpHandler.ReadManyFormFileValues)}({_httpContext!.Usage});");
+            $"var {Variable.Usage} = {_form!.Usage}.Files;");
         Next?.GenerateCode(method, writer);
     }
 }
@@ -127,6 +130,7 @@ internal class FromFileValues : SyncFrame
 internal class FormFilePropertyFrame : SyncFrame, IReadHttpFrame
 {
     private string? _property;
+    private Variable? _form;
     private readonly string _formName;
 
     public FormFilePropertyFrame(string formName)
@@ -137,17 +141,23 @@ internal class FormFilePropertyFrame : SyncFrame, IReadHttpFrame
 
     public HttpElementVariable Variable { get; }
 
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _form = chain.FindVariable(typeof(IFormCollection));
+        yield return _form;
+    }
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         if (Mode == AssignMode.WriteToProperty && _property != null)
         {
             writer.Write(
-                $"{_property} = {nameof(HttpHandler.ReadFormFileByName)}(httpContext, \"{_formName}\");");
+                $"{_property} = {_form!.Usage}.Files.GetFile(\"{_formName}\");");
         }
         else
         {
             writer.Write(
-                $"var {Variable.Usage} = {nameof(HttpHandler.ReadFormFileByName)}(httpContext, \"{_formName}\");");
+                $"var {Variable.Usage} = {_form!.Usage}.Files.GetFile(\"{_formName}\");");
         }
 
         Next?.GenerateCode(method, writer);
@@ -165,6 +175,7 @@ internal class FormFilePropertyFrame : SyncFrame, IReadHttpFrame
 internal class FormFileCollectionPropertyFrame : SyncFrame, IReadHttpFrame
 {
     private string? _property;
+    private Variable? _form;
 
     public FormFileCollectionPropertyFrame()
     {
@@ -173,17 +184,23 @@ internal class FormFileCollectionPropertyFrame : SyncFrame, IReadHttpFrame
 
     public HttpElementVariable Variable { get; }
 
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _form = chain.FindVariable(typeof(IFormCollection));
+        yield return _form;
+    }
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         if (Mode == AssignMode.WriteToProperty && _property != null)
         {
             writer.Write(
-                $"{_property} = {nameof(HttpHandler.ReadManyFormFileValues)}(httpContext);");
+                $"{_property} = {_form!.Usage}.Files;");
         }
         else
         {
             writer.Write(
-                $"var {Variable.Usage} = {nameof(HttpHandler.ReadManyFormFileValues)}(httpContext);");
+                $"var {Variable.Usage} = {_form!.Usage}.Files;");
         }
 
         Next?.GenerateCode(method, writer);

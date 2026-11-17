@@ -50,6 +50,10 @@ public abstract class CoreTypeNameCollisionCompliance
 
         var collisions = StoreAssembly
             .GetExportedTypes()
+            // An [Obsolete] store type is the old half of a deliberate move into core (GH-5514): its
+            // replacement keeps the same simple name on purpose, the obsolete message names it, and the
+            // store copy goes away in 8.0. It is not public vocabulary the store keeps.
+            .Where(x => x.GetCustomAttribute<ObsoleteAttribute>() == null)
             .Select(x => x.Name)
             .Where(coreTypeNames.Contains)
             .Where(x => !KnownAndTolerated.Contains(x))

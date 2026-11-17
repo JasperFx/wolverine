@@ -78,11 +78,12 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
     /// capture in the first place.
     /// </summary>
     public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime,
-        Func<Envelope, IChannelCallback> channelSource)
+        Func<Envelope, IChannelCallback> channelSource, Action<Envelope>? onStoppedUpstream = null)
     {
         // Deserialize parallelism beyond the slot count buys nothing (the slots become the
         // bottleneck again), and going wider than the machine can't help CPU-bound decompression
-        return DeserializeFirst(pipeline, runtime, channelSource, Math.Min(_numberOfSlots, Environment.ProcessorCount));
+        return DeserializeFirst(pipeline, runtime, channelSource, Math.Min(_numberOfSlots, Environment.ProcessorCount),
+            onStoppedUpstream);
     }
 
     public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime, IChannelCallback channel, int parallelism)
@@ -114,10 +115,33 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
     /// once, and the exempt-lane routing happens inside <see cref="PostAsync"/>, downstream of the
     /// ordered emission; posting to the multi-worker exempt lane never blocks emission any harder
     /// than posting to a slot does (same bounded-channel back pressure).
+    ///
+    /// <para>
+    /// GH-5443. <paramref name="onStoppedUpstream"/> is called once for every envelope that this stage
+    /// takes in but never hands to a lane: a deserialization failure whose continuation settled it (or
+    /// threw while trying), or an ingress item dropped at shutdown. A receiver that registers per-delivery
+    /// state on receipt and releases it when its lane function finishes -- NativeAckReceiver's lease
+    /// tracking and idempotency claim -- would otherwise never release it for these envelopes, because its
+    /// lane function never runs for them. <see cref="Envelope.HasBeenAcked"/> tells the callback whether the
+    /// delivery was settled.
+    /// </para>
     /// </summary>
     public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime,
-        Func<Envelope, IChannelCallback> channelSource, int parallelism)
+        Func<Envelope, IChannelCallback> channelSource, int parallelism, Action<Envelope>? onStoppedUpstream = null)
     {
+        void stoppedUpstream(Envelope e)
+        {
+            try
+            {
+                onStoppedUpstream?.Invoke(e);
+            }
+            catch (Exception ex)
+            {
+                // An escape here would fault the block terminally; route it to the receiver's logging instead
+                OnError(e, ex);
+            }
+        }
+
         async Task<Envelope?> deserializeAsync(Envelope e)
         {
             var continuation = await pipeline.TryDeserializeEnvelope(e);
@@ -126,9 +150,17 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
                 return e;
             }
 
-            var envelopeLifecycle = new MessageContext(runtime);
-            envelopeLifecycle.ReadEnvelope(e, channelSource(e));
-            await continuation.ExecuteAsync(envelopeLifecycle, runtime, DateTimeOffset.UtcNow, Activity.Current);
+            try
+            {
+                var envelopeLifecycle = new MessageContext(runtime);
+                envelopeLifecycle.ReadEnvelope(e, channelSource(e));
+                await continuation.ExecuteAsync(envelopeLifecycle, runtime, DateTimeOffset.UtcNow, Activity.Current);
+            }
+            finally
+            {
+                // Whether the continuation settled the delivery or threw, this envelope is not going to a lane
+                stoppedUpstream(e);
+            }
 
             return null;
         }
@@ -165,7 +197,9 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
             }
             catch (OperationCanceledException)
             {
-                // Block shutdown; returning null skips the downstream post
+                // Block shutdown; returning null skips the downstream post. The delivery was never
+                // settled, so the receiver releases whatever it holds for it and the broker redelivers.
+                stoppedUpstream(envelope);
                 return null!;
             }
 

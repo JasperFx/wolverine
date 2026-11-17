@@ -5,7 +5,7 @@ using Nuke.Common.IO;
 partial class Build
 {
     Target TestAllPersistence => _ => _
-        .DependsOn(Compile, DockerUp)
+        .DependsOn(Compile, FreshContainers, DockerUp)
         .ProceedAfterFailure()
         .Executes(() =>
         {

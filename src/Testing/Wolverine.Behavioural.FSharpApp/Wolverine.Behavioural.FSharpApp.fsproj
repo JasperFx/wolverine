@@ -10,7 +10,7 @@
     -->
 
     <PropertyGroup>
-        <TargetFrameworks>net9.0</TargetFrameworks>
+        <TargetFrameworks>net10.0</TargetFrameworks>
         <IsPackable>false</IsPackable>
 
         <!-- An exe so the JasperFx codegen CLI verb works against it (dotnet run, codegen write,

@@ -1,6 +1,7 @@
 using JasperFx.Descriptors;
-using MQTTnet.Client;
+using MQTTnet;
 using Shouldly;
+using System.Net;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.MQTT.Internals;
 using Xunit;
@@ -16,7 +17,10 @@ public class broker_connection_summary_3269
     public void describe_endpoint_reports_tcp_host_and_port()
     {
         var transport = new MqttTransport();
-        transport.Options.ClientOptions.ChannelOptions = new MqttClientTcpOptions { Server = "mqtt.host", Port = 8883 };
+        transport.Options.ClientOptions.ChannelOptions = new MqttClientTcpOptions
+        {
+            RemoteEndpoint = new DnsEndPoint("mqtt.host", 8883)
+        };
 
         transport.DescribeEndpoint().ShouldBe("mqtt.host:8883");
     }
@@ -25,7 +29,10 @@ public class broker_connection_summary_3269
     public void credentials_never_leak_into_the_description()
     {
         var transport = new MqttTransport();
-        transport.Options.ClientOptions.ChannelOptions = new MqttClientTcpOptions { Server = "mqtt.host", Port = 1883 };
+        transport.Options.ClientOptions.ChannelOptions = new MqttClientTcpOptions
+        {
+            RemoteEndpoint = new DnsEndPoint("mqtt.host", 1883)
+        };
         transport.Options.ClientOptions.Credentials =
             new MqttClientCredentials("user", System.Text.Encoding.UTF8.GetBytes(Secret));
 

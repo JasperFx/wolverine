@@ -20,6 +20,8 @@ using Wolverine.Marten.Publishing;
 using Wolverine.Marten.Requirements;
 using Wolverine.Middleware;
 using Wolverine.Persistence;
+using Wolverine.Persistence.EventSourcing;
+using Wolverine.Persistence.DocumentStores.Codegen;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql.Transport;
 using Wolverine.RDBMS;
@@ -29,7 +31,10 @@ using Wolverine.Util;
 
 namespace Wolverine.Marten;
 
-public class MartenIntegration : IWolverineExtension, IEventForwarding
+// GH-5514: the per-store IEventForwarding stays implemented until 8.0, for compatibility
+#pragma warning disable CS0618
+public class MartenIntegration : IWolverineExtension, IEventForwarding, Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding
+#pragma warning restore CS0618
 {
     private readonly List<Action<WolverineOptions>> _actions = [];
 
@@ -55,16 +60,11 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         // forwarding, the "subscription" is silently dead: no forwarding occurs, the handler
         // never fires, and nothing anywhere says so. Fail at bootstrap with the two real
         // options instead.
-        if (EventRouter.BareSubscriptions.Any() && !UseFastEventForwarding)
-        {
-            var names = EventRouter.BareSubscriptions.Select(x => x.Name).Join(", ");
-            throw new InvalidOperationException(
-                $"SubscribeToEvent<T>() was called for [{names}] but nothing completes the subscription, so these events would never reach a handler. " +
-                $"SubscribeToEvent<T>() only defines a transformation of a forwarded event — either finish it with .TransformedTo(...), " +
-                $"or, to simply have Wolverine handlers receive the event after commit, set {nameof(UseFastEventForwarding)} = true on this integration instead.");
-        }
+        EventRouter.AssertNoBareSubscriptions(UseFastEventForwarding, nameof(UseFastEventForwarding));
 
-        // Duplicate incoming messages
+        // Duplicate incoming messages. GH-5459 reviewed this and it stays Marten-only: it matches a Postgres
+        // primary key violation on Wolverine's incoming envelope table, which is specific to this store, and
+        // JasperFx deliberately has no store-neutral command-failure base type to hang it on.
         options.OnException<MartenCommandException>(e =>
             {
                 if (e.InnerException is PostgresException pg)
@@ -86,20 +86,15 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
             new PrimeScopedSessionFrame<IDocumentSession, ScopedDocumentSessionHolder>());
 
         options.CodeGeneration.InsertFirstPersistenceStrategy<MartenPersistenceFrameProvider>();
-        options.CodeGeneration.Sources.Add(new SessionVariableSource());
-        options.CodeGeneration.Sources.Add(new DocumentOperationsSource());
-        options.CodeGeneration.Sources.Add(new EventStoreOperationsSource());
-        options.CodeGeneration.Sources.Add(new SharedEventOperationsSource());
-        options.CodeGeneration.Sources.Add(new SharedEventStoreOperationsSource());
-        options.CodeGeneration.Sources.Add(new SharedDocumentOperationsSource());
+        // GH-5141: Wolverine core's session and session-contract sources, given this store's types
+        options.CodeGeneration.Sources.Add(new DocumentSessionVariableSource(SessionTypes));
+        options.CodeGeneration.Sources.Add(new DocumentSessionContractSource(SessionTypes));
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
 
-        // GH-2944: pre-populate chain.AncillaryStoreType so the message-type-to-ancillary-store
-        // map built later in WolverineRuntime.HostService sees it. See MartenStoreEagerPolicy for
-        // the Phase A vs Phase B ordering trap this addresses.
-        options.Policies.Add<MartenStoreEagerPolicy>();
-        
+        // GH-2944: [MartenStore] chains get chain.AncillaryStoreType pre-populated by core's
+        // StorageAttributeEagerPolicy (GH-5141), which Wolverine always registers.
+
         // QuerySpecificationPolicy detects ICompiledQuery/IQueryPlan-typed variables
         // produced by Load/LoadAsync methods and injects FetchSpecificationFrames to
         // execute them. Must run BEFORE MartenBatchingPolicy so those injected frames
@@ -157,7 +152,21 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     /// </summary>
     public NpgsqlDataSource? MasterDataSource { get; set; }
 
-    internal MartenEventRouter EventRouter { get; } = new();
+    /// <summary>
+    ///     GH-5141: Marten's session types, as Wolverine core's codegen sources need them
+    /// </summary>
+    internal static readonly DocumentSessionTypes SessionTypes = new()
+    {
+        StoreName = "Marten",
+        DocumentSession = typeof(global::Marten.IDocumentSession),
+        QuerySession = typeof(global::Marten.IQuerySession),
+        OutboxedSessionFactory = typeof(Wolverine.Marten.Publishing.OutboxedSessionFactory),
+        NativeSessionFactory = typeof(global::Marten.ISessionFactory),
+        DocumentOperations = typeof(global::Marten.IDocumentOperations),
+        EventOperations = typeof(global::Marten.Events.IEventStoreOperations)
+    };
+
+    internal EventForwardingRouter EventRouter { get; } = new();
 
     private string _transportSchemaName = "wolverine_queues";
     private bool _transportSchemaNameIsExplicit;
@@ -205,16 +214,26 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
 
     /// <summary>
     /// Define a <em>transformation</em> of a forwarded event: complete the returned builder with
-    /// <see cref="EventForwardingTransform{TSource}.TransformedTo{TDestination}"/> to publish the
+    /// <see cref="Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform{TSource}.TransformedTo{TDestination}"/> to publish the
     /// transformed message under Wolverine's normal routing rules. ⚠️ This is not an on-switch for
     /// event forwarding, and a bare call registers nothing (GH-4310 — the bootstrap rejects it):
     /// to simply have Wolverine handlers receive an event after commit, set
     /// <see cref="UseFastEventForwarding"/> = true instead.
     /// </summary>
+    // GH-5514: the signature keeps the per-store type until 8.0; the value is already the core type
+#pragma warning disable CS0618
     public EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull
     {
-        EventRouter.BareSubscriptions.Add(typeof(T));
+        EventRouter.StartTransformation<T>();
         return new EventForwardingTransform<T>(EventRouter);
+    }
+#pragma warning restore CS0618
+
+    // GH-5514: the core forwarding API. The public SubscribeToEvent<T>() above keeps its signature until 8.0, and
+    // what it returns is already the core type
+    Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<T> Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding.SubscribeToEvent<T>()
+    {
+        return SubscribeToEvent<T>();
     }
 }
 
@@ -298,6 +317,12 @@ internal class MartenOverrides : IConfigureMarten
                 // ignores any derived shadow of a different type.
                 mapping.Metadata.Revision.Member = mapping.DocumentType.GetProperty(
                     nameof(Saga.Version), typeof(int))!;
+
+                // GH-5345: Wolverine's saga frames stamp Saga.LastModified on every insert and update.
+                // Mapping it onto Marten's own mt_last_modified column as well means a saga loaded from
+                // Marten carries the store's modification time -- which also backfills sagas written
+                // before 7.0, whose JSON has no LastModified at all.
+                mapping.Metadata.LastModified.Member = typeof(Saga).GetProperty(nameof(Saga.LastModified))!;
             }
         });
     }
@@ -308,82 +333,7 @@ internal class MartenOverrides<T> : MartenOverrides, IConfigureMarten<T> where T
     protected override Type? StoreType => typeof(T);
 }
 
-internal class EventWrapperForwarder : IHandledTypeRule
-{
-    public bool TryFindHandledType(Type concreteType, [NotNullWhen(true)] out Type? handlerType)
-    {
-        handlerType = concreteType.FindInterfaceThatCloses(typeof(IEvent<>))!;
-        return handlerType != null;
-    }
-}
-
-internal class MartenEventRouter : IMessageRouteSource
-{
-    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
-    {
-        if (messageType.Closes(typeof(IEvent<>)))
-        {
-            var eventType = messageType.GetGenericArguments().Single();
-            var wrappedType = typeof(IEvent<>).MakeGenericType(eventType);
-
-            if (messageType.IsConcrete())
-            {
-                return runtime.RoutingFor(wrappedType).Routes;
-            }
-
-            MessageRoute[] innerRoutes = [];
-            if (messageType.IsConcrete())
-            {
-                var inner = runtime.RoutingFor(wrappedType);
-                innerRoutes = inner.Routes.Concat(new LocalRouting().FindRoutes(wrappedType, runtime)).OfType<MessageRoute>().ToArray();
-            }
-            else
-            {
-                innerRoutes = new ExplicitRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
-                if (!innerRoutes.Any())
-                {
-                    innerRoutes = new LocalRouting().FindRoutes(wrappedType, runtime).OfType<MessageRoute>().ToArray();
-                }
-            }
-
-            // First look for explicit transformations
-            var transformers = Transformers.Where(x => x.SourceType == wrappedType);
-            var transformed = transformers.SelectMany(x =>
-                runtime.RoutingFor(x.DestinationType).Routes.Select(x.CreateRoute));
-
-            var forEventType =  runtime.RoutingFor(eventType).Routes.Select(route =>
-                typeof(EventUnwrappingMessageRoute<>).CloseAndBuildAs<IMessageRoute>(route, eventType));
-
-            var candidates = forEventType.Concat(transformed).Concat(innerRoutes).ToArray();
-            return candidates;
-        }
-
-        return [];
-    }
-
-    public bool IsAdditive => false;
-    public List<IMessageTransformation> Transformers { get; } = [];
-
-    /// <summary>
-    /// GH-4310: SubscribeToEvent&lt;T&gt;() calls whose transformation was never completed with
-    /// TransformedTo(). Checked at bootstrap — bare entries with no event forwarding enabled are
-    /// a configuration error, because nothing would ever deliver those events.
-    /// </summary>
-    internal List<Type> BareSubscriptions { get; } = [];
-}
-
-internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T>, T> where T : notnull
-{
-    public EventUnwrappingMessageRoute(IMessageRoute inner) : base(e => e.Data, inner)
-    {
-    }
-
-    public override string ToString()
-    {
-        return $"Unwrap event wrapper to " + typeof(T).FullNameInCode();
-    }
-}
-
+[Obsolete("Use Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding; this type will be removed in Wolverine 8.0")]
 public interface IEventForwarding
 {
     /// <summary>
@@ -394,21 +344,14 @@ public interface IEventForwarding
     EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull;
 }
 
-public class EventForwardingTransform<TSource> where TSource : notnull
+/// <summary>
+/// GH-5514: kept for compatibility. It is a <see cref="Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform{TSource}" />, so
+/// the value <see cref="MartenIntegration.SubscribeToEvent{T}" /> returns can be used as the core type already.
+/// </summary>
+[Obsolete("Use Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<TSource>; this type will be removed in Wolverine 8.0")]
+public class EventForwardingTransform<TSource> : Wolverine.Persistence.EventSourcing.Forwarding.EventForwardingTransform<TSource> where TSource : notnull
 {
-    private readonly MartenEventRouter _martenEventWrapper;
-
-    internal EventForwardingTransform(MartenEventRouter martenEventWrapper)
+    internal EventForwardingTransform(EventForwardingRouter eventRouter) : base(eventRouter)
     {
-        _martenEventWrapper = martenEventWrapper;
-    }
-
-    public void TransformedTo<TDestination>(Func<IEvent<TSource>, TDestination> transformer)
-    {
-        // The subscription is now completed — see MartenEventRouter.BareSubscriptions (GH-4310).
-        _martenEventWrapper.BareSubscriptions.Remove(typeof(TSource));
-
-        var transformation = new MessageTransformation<IEvent<TSource>, TDestination>(transformer);
-        _martenEventWrapper.Transformers.Add(transformation);
     }
 }

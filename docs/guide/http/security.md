@@ -38,18 +38,44 @@ Wolverine can automatically propagate the authenticated user's identity from the
 3. Automatically set on the outboxed session when using the Wolverine + Marten, Polecat or Fisher integration (`LastModifiedBy` on Marten and Polecat, `CurrentUserName` on Fisher)
 4. Added as an OpenTelemetry tag (`enduser.id`) on the current activity
 
-To enable this feature, set `EnableRelayOfUserName` in your Wolverine configuration:
+This is `WolverineOptions.EnableRelayOfUserName`, and it is **on by default from Wolverine 7.0**. It was off
+throughout 6.x.
+
+::: warning
+Because the relay is on by default, the authenticated user name now travels with every message an HTTP request
+sends, in the `user-name` header (`EnvelopeConstants.UserNameKey`), to **every transport**: RabbitMQ, Azure Service
+Bus, SQS, Kafka and the rest, the database queues and the durable outbox included. Anything that can read those
+messages can read the user name. If the user name is personal data you do not want to leave the service, turn the
+relay off:
 
 ```csharp
 builder.Host.UseWolverine(opts =>
 {
-    // Automatically relay the authenticated user name from HTTP
+    // Do not relay the authenticated user name from HTTP
     // through the messaging infrastructure
-    opts.EnableRelayOfUserName = true;
+    opts.EnableRelayOfUserName = false;
 });
 ```
 
-When this option is enabled, every HTTP endpoint with a Wolverine message context relays the user onto it, before your endpoint code executes. That includes endpoints that take `IMessageContext` or `IMessageBus`, and endpoints that only open an outboxed session -- for example one that returns an `IMartenOp` or `IStartStream`, uses `[WriteAggregate]`, or commits through EF Core. Wolverine reads `HttpContext.User?.Identity?.Name`; which claim supplies it is up to your authentication setup (`NameClaimType`).
+`opts.RestoreV6Defaults()` turns it off too, and an explicit setting wins over both.
+:::
+
+When the relay is on, every HTTP endpoint with a Wolverine message context relays the user onto it, before your endpoint code executes. That includes endpoints that take `IMessageContext` or `IMessageBus`, and endpoints that only open an outboxed session -- for example one that returns an `IMartenOp` or `IStartStream`, uses `[WriteAggregate]`, or commits through EF Core. By default Wolverine reads `HttpContext.User?.Identity?.Name`; which claim supplies it is up to your authentication setup (`NameClaimType`).
+
+### Which claim is the user
+
+`Identity.Name` is null for some tokens. An Auth0 access token, for one, carries the user in its `sub` claim and has no
+name claim at all, so nothing is relayed. Name the claim to relay with `WolverineHttpOptions.UserNameClaimType`:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    // Relay the value of the "sub" claim as the user name instead of Identity.Name
+    opts.UserNameClaimType = "sub";
+});
+```
+
+When the principal has no claim of that type, no user name is relayed.
 
 The user name is carried on outgoing envelopes, so downstream message handlers will also have access to the original user name via `IMessageContext.UserName` or `Envelope.UserName`. This is particularly useful for auditing and tracking who initiated a chain of messages.
 

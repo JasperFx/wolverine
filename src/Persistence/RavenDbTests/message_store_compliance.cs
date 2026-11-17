@@ -20,6 +20,7 @@ namespace RavenDbTests;
 
 public class DatabaseFixture : RavenTestDriver
 {
+    private static readonly object _configurationLock = new();
     private static bool _configured;
 
     public IDocumentStore StartRavenStore()
@@ -30,9 +31,22 @@ public class DatabaseFixture : RavenTestDriver
 
     internal static void EnsureServerConfigured()
     {
-        if (_configured) return;
-        _configured = true;
+        // Test classes run in parallel, and every RavenDB test class shares one embedded server. Setting
+        // _configured before ConfigureServer ran let a second class skip ahead and start that server with the
+        // default options, which require a license, so every RavenDB test in the process failed with
+        // "Unable to start the RavenDB Server ... missing license". Configure once, under a lock, and only
+        // mark it done afterwards.
+        lock (_configurationLock)
+        {
+            if (_configured) return;
 
+            configureServer();
+            _configured = true;
+        }
+    }
+
+    private static void configureServer()
+    {
         // Configure the embedded RavenDB server.
         // RavenDB.TestDriver 7.0.x requires .NET 8.0.15+ runtime.
         // We try to use a brew-installed .NET 8 if available, otherwise fall back to system dotnet.

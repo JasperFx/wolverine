@@ -533,6 +533,60 @@ public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logge
 <!-- endSnippet -->
 
 
+### Finding, Rescheduling and Cancelling Scheduled Messages by GroupId <Badge type="tip" text="7.0" />
+
+A business entity often owns several scheduled messages: a booking might have a payment reminder and a check-in
+notice waiting. When the booking changes or is cancelled, you need to find that pending work without tracking each
+envelope id yourself. Schedule the messages with the entity's identifier as the envelope's `GroupId`, then manage
+them through `IScheduledMessages` by that identifier:
+
+```cs
+// Scheduling: tag each message with the booking it belongs to
+await bus.ScheduleAsync(new PaymentReminder(bookingId), 3.Days(),
+    new DeliveryOptions { GroupId = $"booking/{bookingId}" });
+
+await bus.ScheduleAsync(new CheckInNotice(bookingId), checkInTime,
+    new DeliveryOptions { GroupId = $"booking/{bookingId}" });
+
+// Later, when the booking changes. IMessageStore is Wolverine's message store
+public static async Task Handle(BookingCancelled cancelled, IMessageStore store, CancellationToken cancellation)
+{
+    var query = new ScheduledMessageQuery { GroupId = $"booking/{cancelled.BookingId}" };
+
+    // Find them. Each ScheduledMessageSummary carries its GroupId
+    var results = await store.ScheduledMessages.QueryAsync(query, cancellation);
+
+    // Cancel them all
+    await store.ScheduledMessages.CancelAsync(query, cancellation);
+}
+
+public static async Task Handle(BookingMoved moved, IMessageStore store, CancellationToken cancellation)
+{
+    // Move them all to a new time
+    var query = new ScheduledMessageQuery { GroupId = $"booking/{moved.BookingId}" };
+    await store.ScheduledMessages.RescheduleAsync(query, moved.NewCheckInTime, cancellation);
+}
+```
+
+Some things to know:
+
+* `GroupId` combines with the other `ScheduledMessageQuery` filters (`MessageType`, the execution time window,
+  `MessageIds`, `SagaId`).
+* Rescheduling by query requires at least one filter, so an empty query cannot move every scheduled message at once.
+* Cancelling and rescheduling apply only to messages that are still waiting. A message Wolverine has already
+  picked up for execution may still run.
+* Query, cancel and reschedule run on their own database connection. They are not part of the calling handler's
+  transaction.
+* Set `ScheduledMessageQuery.TenantId` to scope the operation to one tenant. With a database per tenant, the
+  operation goes to that tenant's database. Without a `TenantId`, it runs against the main database, as before.
+  In a single shared database, `TenantId` keeps only the messages scheduled for that tenant.
+* The relational message stores (PostgreSQL, SQL Server, MySQL, Oracle, SQLite) keep the group id in a nullable
+  `group_id` column on `wolverine_incoming_envelopes`, indexed for scheduled rows. A group id longer than 500
+  characters is not stored, so it cannot be queried by. Wolverine 7.0 adds the column and
+  index through its normal schema migration. The RavenDb and CosmosDb stores keep it on the stored incoming document.
+* A message scheduled for an endpoint without native scheduling support is held in Wolverine's own inbox until it
+  is due. It carries its `GroupId` there too, so it is found the same way.
+
 ## Customizing Message Delivery
 
 When you publish or send a message you can optionally pass a `DeliveryOptions` object to override how — and

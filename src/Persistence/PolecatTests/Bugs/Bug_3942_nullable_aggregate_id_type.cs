@@ -1,6 +1,5 @@
 using Shouldly;
 using Wolverine.Polecat.Persistence.Sagas;
-using Wolverine.Polecat.Requirements;
 
 namespace PolecatTests.Bugs;
 
@@ -67,24 +66,6 @@ public class Bug_3942_nullable_aggregate_id_type
     public void a_type_with_no_id_property_still_falls_back_to_guid()
     {
         sagaIdType<NoIdAggregate>().ShouldBe(typeof(Guid));
-    }
-
-    // ===== DocumentExistsAttribute.ResolveIdType is kept in lockstep =====
-
-    [Fact]
-    public void document_id_resolution_agrees_with_the_saga_provider()
-    {
-        DocumentExistsAttribute<NullableStrongTypedIdAggregate>
-            .ResolveIdType(typeof(NullableStrongTypedIdAggregate)).ShouldBe(typeof(AlertId));
-
-        DocumentExistsAttribute<NullableGuidAggregate>
-            .ResolveIdType(typeof(NullableGuidAggregate)).ShouldBe(typeof(Guid));
-
-        DocumentExistsAttribute<GuidAggregate>
-            .ResolveIdType(typeof(GuidAggregate)).ShouldBe(typeof(Guid));
-
-        DocumentExistsAttribute<NoIdAggregate>
-            .ResolveIdType(typeof(NoIdAggregate)).ShouldBe(typeof(Guid));
     }
 }
 

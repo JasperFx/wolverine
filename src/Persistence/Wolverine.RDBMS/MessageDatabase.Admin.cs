@@ -24,9 +24,10 @@ public abstract partial class MessageDatabase<T>
     /// leaving the value null when the column is not there.
     /// </summary>
     /// <remarks>
-    /// <para>The <c>timestamp</c> column on the outgoing table only exists when
-    /// <see cref="DurabilitySettings.OutboxStaleTime" /> is set — see each provider's
-    /// <c>OutgoingEnvelopeTable</c> — so this is gated on the same setting rather than probing the schema.
+    /// <para>Gated on <see cref="DurabilitySettings.OutboxStaleTime" /> rather than probing the schema. Since 7.0
+    /// the <c>timestamp</c> column on the outgoing table always exists (GH-5193), but with
+    /// <see cref="DurabilitySettings.AlwaysProvisionOptionalSchemaObjects" /> off it only exists when
+    /// OutboxStaleTime is set — see each provider's <c>OutgoingEnvelopeTable</c>.
     /// Leaving it null is the documented "NOT MEASURED" signal and stands the health check down, which is
     /// the same rule <see cref="PersistedCounts.ScheduledDue" /> established.</para>
     ///

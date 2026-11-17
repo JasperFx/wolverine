@@ -105,8 +105,11 @@ public class switching_queue_table_layouts
 
                 var expression = opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString,
                     schema, transportSchema: schema).AutoProvision();
+                // GH-5192: both are 7.0 defaults, so the classic cases have to say so
                 if (optimizeThroughput) expression.OptimizeQueueThroughput();
+                else expression.UseClassicQueueLayout();
                 if (deterministicOrdering) expression.EnableDeterministicQueueOrdering();
+                else expression.DisableDeterministicQueueOrdering();
 
                 opts.ListenToSqlServerQueue(QueueName).PollingInterval(1.Hours());
             }).StartAsync(ct);

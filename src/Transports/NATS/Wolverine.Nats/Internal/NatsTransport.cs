@@ -35,6 +35,12 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     public bool ServerSupportsScheduledSend { get; private set; }
 
     internal JasperFx.Core.LightweightCache<string, NatsTenant> Tenants { get; } = new();
+
+    /// <summary>
+    /// GH-5196. <see cref="NatsTransportConfiguration.TrustTenantIdHeader" /> resolved: an explicit setting wins,
+    /// otherwise false in 7.0 and true after <c>RestoreV6Defaults()</c>
+    /// </summary>
+    internal bool TrustsTenantIdHeader => Configuration.TrustTenantIdHeader ?? V6DefaultsRestored;
     internal ITenantSubjectMapper TenantSubjectMapper { get; set; } = new DefaultTenantSubjectMapper();
 
     public NatsTransport() : this(ProtocolName)

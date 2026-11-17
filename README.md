@@ -26,7 +26,7 @@ To work with the code, just open the `wolverine.slnx` file in the root of the re
 the full `wolverine.slnx`, so build that one before pushing:
 
 ```bash
-dotnet build wolverine.slnx -c Release -f net9.0
+dotnet build wolverine.slnx -c Release -f net10.0
 ```
 
 If you want to run integration tests, you'll want Docker installed locally

@@ -13,8 +13,8 @@ namespace Wolverine.CosmosDb.Internals;
 /// <see cref="DurabilityMode.ServerlessWithOutbox" />
 /// </summary>
 /// <remarks>
-/// There is no Cosmos DB equivalent of <see cref="DurabilitySettings.EnableOutgoingTimestampIndex" />: a
-/// Cosmos DB container indexes every property by default, so the flag changes nothing here
+/// There is no Cosmos DB equivalent of the outgoing timestamp index the relational stores create (<see cref="DurabilitySettings.AlwaysProvisionOptionalSchemaObjects" />): a
+/// Cosmos DB container indexes every property by default, so that setting changes nothing here
 /// </remarks>
 public partial class CosmosDbMessageStore : IMessageStoreWithDurabilityPass, IStaleOutgoingSource,
     IDurabilityPassInboxSource, IExpiredDocumentSource

@@ -2,6 +2,7 @@ using ImTools;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using MySqlConnector;
+using Weasel.Core;
 using Weasel.MySql;
 using Weasel.MySql.Tables;
 using Wolverine.Configuration;
@@ -23,6 +24,7 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
     private bool _hasInitialized;
     private IMySqlQueueSender? _sender;
     private ImHashMap<string, bool> _checkedDatabases = ImHashMap<string, bool>.Empty;
+    private ImHashMap<string, bool> _queueOrdering = ImHashMap<string, bool>.Empty;
     private ImHashMap<string, QueueTable> _queueTables = ImHashMap<string, QueueTable>.Empty;
     private ImHashMap<string, ScheduledMessageTable> _scheduledTables = ImHashMap<string, ScheduledMessageTable>.Empty;
     private readonly string _queueTableName;
@@ -80,7 +82,8 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
         if (_queueTables.TryFind(schema, out var table)) return table;
 
         // Built lazily on first use, after configuration is complete, so the final transport option applies.
-        table = new QueueTable(schema, _queueTableName, Parent.EnableDeterministicQueueOrdering);
+        table = new QueueTable(schema, _queueTableName, Parent.EnableDeterministicQueueOrdering,
+            !Parent.DeterministicQueueOrderingIsExplicit);
         _queueTables = _queueTables.AddOrUpdate(schema, table);
 
         return table;
@@ -91,10 +94,48 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
         var schema = SchemaFor(source);
         if (_scheduledTables.TryFind(schema, out var table)) return table;
 
-        table = new ScheduledMessageTable(schema, _scheduledTableName, Parent.EnableDeterministicQueueOrdering);
+        table = new ScheduledMessageTable(schema, _scheduledTableName, Parent.EnableDeterministicQueueOrdering,
+            !Parent.DeterministicQueueOrderingIsExplicit);
         _scheduledTables = _scheduledTables.AddOrUpdate(schema, table);
 
         return table;
+    }
+
+    /// <summary>
+    ///     GH-5192. Does this database dequeue with the <c>queue_order</c> tie-breaker? Only when it is enabled and
+    ///     neither queue table exists without the column: 7.0 adopts an existing classic table as it stands, and
+    ///     each tenant database may differ.
+    /// </summary>
+    internal async Task<bool> UsesQueueOrderingAsync(string identifier, MySqlDataSource source)
+    {
+        if (!Parent.EnableDeterministicQueueOrdering) return false;
+        if (_queueOrdering.TryFind(identifier, out var known)) return known;
+
+        await using var conn = await source.OpenConnectionAsync();
+        try
+        {
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText =
+                $"SELECT table_name, MAX(column_name = '{QueueOrdering.QueueOrderColumn}') FROM information_schema.columns " +
+                "WHERE table_schema = @schema AND table_name IN (@ready, @scheduled) GROUP BY table_name";
+            cmd.Parameters.AddWithValue("@schema", SchemaFor(source));
+            cmd.Parameters.AddWithValue("@ready", _queueTableName);
+            cmd.Parameters.AddWithValue("@scheduled", _scheduledTableName);
+
+            var ordered = true;
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                ordered = ordered && Convert.ToInt64(reader.GetValue(1)) == 1;
+            }
+
+            _queueOrdering = _queueOrdering.AddOrUpdate(identifier, ordered);
+            return ordered;
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 
     protected override bool supportsMode(EndpointMode mode)
@@ -250,16 +291,11 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, IStor
             await using var conn = await source.OpenConnectionAsync();
             try
             {
-                var queueDelta = await QueueTableFor(source).FindDeltaAsync(conn);
-                if (queueDelta.HasChanges())
-                {
-                    returnValue = false;
-                    return;
-                }
-
-                var scheduledDelta = await ScheduledTableFor(source).FindDeltaAsync(conn);
-
-                returnValue = returnValue && !scheduledDelta.HasChanges();
+                // GH-5192: through CreateDeltaAsync, not Table.FindDeltaAsync, so an adopted classic table is
+                // not reported as a pending change
+                var migration = await SchemaMigration.DetermineAsync(conn, CancellationToken.None,
+                    QueueTableFor(source), ScheduledTableFor(source));
+                returnValue = returnValue && migration.Difference == SchemaPatchDifference.None;
             }
             finally
             {

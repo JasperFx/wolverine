@@ -95,8 +95,8 @@ public class global_partitioned_sharded_processing : IAsyncLifetime
             queue.ScheduledTable.Columns.Any(x => x.Name == "seq").ShouldBeTrue();
         }
 
-        // ...and the opt-in is per queue, so the transport-wide default is untouched
-        transport.OptimizeQueueThroughput.ShouldBeFalse();
+        // ...and the opt-in is per queue, so the transport-wide setting is untouched
+        transport.OptimizeQueueThroughputIsExplicit.ShouldBeFalse();
     }
 
     [Fact]

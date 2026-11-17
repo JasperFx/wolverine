@@ -120,6 +120,26 @@ public class serverless_with_outbox_5016 : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_session_enrolled_in_the_fisher_outbox_sends_inline_when_it_commits()
+    {
+        var id = Guid.NewGuid();
+
+        // GH-5144: an enrolled session commits through Fisher's participant adapter rather than the listener
+        await using (var session = theHost.Services.GetRequiredService<IDocumentStore>().LightweightSession())
+        {
+            var outbox = new FisherOutbox(theHost.GetRuntime(), session);
+
+            session.Store(new ServerlessFisherItem { Id = id });
+            await outbox.PublishAsync(new ServerlessFisherOutboxCascaded(id));
+
+            await session.SaveChangesAsync(Token);
+        }
+
+        sent().Single().Message.ShouldBe(new ServerlessFisherOutboxCascaded(id));
+        (await outboxRowsAsync()).ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task an_unsent_row_from_a_fisher_session_is_owned_by_any_node_and_recovered_by_a_durability_pass()
     {
         var envelope = new Envelope(new ServerlessFisherOutboxCascaded(Guid.NewGuid()))

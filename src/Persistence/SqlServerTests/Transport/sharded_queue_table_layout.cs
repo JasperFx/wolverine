@@ -19,7 +19,12 @@ public class sharded_queue_table_layout
         int slots)
     {
         var options = new WolverineOptions();
-        var transport = new SqlServerTransport(new DatabaseSettings { SchemaName = "gletters_layout" });
+        // GH-5192: the high-throughput layout is the 7.0 default, so make the transport-wide one classic to show
+        // that the shard queues opt in on their own
+        var transport = new SqlServerTransport(new DatabaseSettings { SchemaName = "gletters_layout" })
+        {
+            OptimizeQueueThroughput = false
+        };
         options.As<WolverineOptions>().Transports.Add(transport);
 
         var topology = new PartitionedMessageTopologyWithDatabaseQueues(options, PartitionSlots.Five, baseName, slots);

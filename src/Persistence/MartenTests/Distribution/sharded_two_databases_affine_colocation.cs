@@ -1,3 +1,4 @@
+using Wolverine.Runtime;
 using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
@@ -177,6 +178,14 @@ public class sharded_two_databases_affine_colocation(ITestOutputHelper output) :
 
             owned.Count.ShouldBe(1, "each node owns exactly one of the two shard databases");
             owned.ShouldBe(expected);
+
+            // Asked with the database itself, so nobody picks which name to compare: the Marten shard
+            // Identifier ("shard-1") is not what the agent URIs carry, the database Id is.
+            var locallyOwned = host.GetRuntime().LocallyOwnedDatabases();
+            var databases = await host.Services.GetRequiredService<IDocumentStore>().Storage.AllDatabases();
+            databases.Count.ShouldBe(2);
+            databases.Count(d => locallyOwned.Contains(d)).ShouldBe(1);
+            locallyOwned.Contains(databases.Single(d => owned.Contains(d.Id))).ShouldBeTrue();
         }
 
         // The two nodes own disjoint database sets that together cover both shard databases.

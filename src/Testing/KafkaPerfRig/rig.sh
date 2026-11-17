@@ -31,7 +31,7 @@ WARMUP="${RIG_WARMUP_S:-30}"
 DURATION="${RIG_DURATION_S:-120}"
 DRAIN="${RIG_DRAIN_S:-15}"
 
-BIN="bin/Release/net9.0/KafkaPerfRig"
+BIN="bin/Release/net10.0/KafkaPerfRig"
 if [[ ! -x "$BIN" ]]; then
   dotnet build -c Release --nologo -v q
 fi

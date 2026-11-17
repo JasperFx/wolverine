@@ -41,6 +41,16 @@ public abstract class Saga
     /// sagas use the <see cref="int"/> revision.)
     /// </summary>
     public int Version { get; set; }
+
+    /// <summary>
+    /// When this saga instance was last inserted or updated, in UTC. Wolverine's saga persistence sets this
+    /// to <see cref="DateTimeOffset.UtcNow"/> every time it inserts or updates the saga, whatever the storage
+    /// provider, so any value user code assigns is overwritten on the next save. A saga row written before
+    /// Wolverine 7.0 reads back as <c>default(DateTimeOffset)</c> until its next update, unless its store can
+    /// supply its own modification timestamp (Marten maps it from <c>mt_last_modified</c>).
+    /// Useful for finding saga instances that have sat untouched for a long time.
+    /// </summary>
+    public DateTimeOffset LastModified { get; set; }
 }
 
 #endregion

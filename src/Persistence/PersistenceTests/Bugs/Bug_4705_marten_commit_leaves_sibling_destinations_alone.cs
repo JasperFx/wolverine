@@ -94,7 +94,6 @@ public class Bug_4705_marten_commit_leaves_sibling_destinations_alone : IAsyncLi
                     .IncludeType<MartenMessageForTwoDestinationsMartenHandler>()
                     .IncludeType<MartenMessageForTwoDestinationsGatedHandler>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 // One logical message, two physical deliveries: the destination has to be part of the inbox identity
                 opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination;

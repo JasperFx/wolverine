@@ -2,6 +2,7 @@ using ImTools;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Oracle.ManagedDataAccess.Client;
+using Weasel.Core;
 using Weasel.Oracle;
 using Weasel.Oracle.Tables;
 using Wolverine.Configuration;
@@ -23,6 +24,7 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, ISto
     private bool _hasInitialized;
     private IOracleQueueSender? _sender;
     private ImHashMap<string, bool> _checkedDatabases = ImHashMap<string, bool>.Empty;
+    private ImHashMap<string, bool> _queueOrdering = ImHashMap<string, bool>.Empty;
     private readonly Lazy<QueueTable> _queueTable;
     private readonly Lazy<ScheduledMessageTable> _scheduledMessageTable;
 
@@ -197,16 +199,12 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, ISto
             await using var conn = await source.OpenConnectionAsync();
             try
             {
-                var queueDelta = await QueueTable.FindDeltaAsync(conn);
-                if (queueDelta.HasChanges())
-                {
-                    returnValue = false;
-                    return;
-                }
-
-                var scheduledDelta = await ScheduledTable.FindDeltaAsync(conn);
-
-                returnValue = returnValue && !scheduledDelta.HasChanges();
+                // GH-5192: through CreateDeltaAsync, not Table.FindDeltaAsync, so an adopted classic table is
+                // not reported as a pending change. Oracle runs one statement per command, so through its own
+                // command builder, as Weasel's Oracle ApplyChangesAsync does
+                var migration = await SchemaMigration.DetermineAsync(conn, new OracleDbCommandBuilder(), CancellationToken.None,
+                    QueueTable, ScheduledTable);
+                returnValue = returnValue && migration.Difference == SchemaPatchDifference.None;
             }
             finally
             {
@@ -269,6 +267,42 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, ISto
         }
 
         _checkedDatabases = _checkedDatabases.AddOrUpdate(identifier, true);
+    }
+
+    /// <summary>
+    ///     GH-5192. Does this database dequeue with the <c>queue_order</c> tie-breaker? Only when it is enabled and
+    ///     neither queue table exists without the column: 7.0 adopts an existing classic table as it stands, and
+    ///     each tenant database may differ.
+    /// </summary>
+    internal async Task<bool> UsesQueueOrderingAsync(string identifier, OracleDataSource source)
+    {
+        if (!Parent.EnableDeterministicQueueOrdering) return false;
+        if (_queueOrdering.TryFind(identifier, out var known)) return known;
+
+        await using var conn = await source.OpenConnectionAsync();
+        try
+        {
+            await using var cmd = conn.CreateCommand(
+                "SELECT TABLE_NAME, MAX(CASE WHEN COLUMN_NAME = 'QUEUE_ORDER' THEN 1 ELSE 0 END) FROM ALL_TAB_COLUMNS " +
+                "WHERE OWNER = :owner AND TABLE_NAME IN (:ready, :scheduled) GROUP BY TABLE_NAME");
+            cmd.Parameters.Add(new OracleParameter("owner", QueueTable.Identifier.Schema));
+            cmd.Parameters.Add(new OracleParameter("ready", QueueTable.Identifier.Name));
+            cmd.Parameters.Add(new OracleParameter("scheduled", ScheduledTable.Identifier.Name));
+
+            var ordered = true;
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                ordered = ordered && Convert.ToInt32(reader.GetValue(1)) == 1;
+            }
+
+            _queueOrdering = _queueOrdering.AddOrUpdate(identifier, ordered);
+            return ordered;
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 
     public async Task<long> CountAsync()

@@ -1,7 +1,10 @@
-using Confluent.Kafka;
+using Dekaf;
+using Dekaf.Admin;
+using Dekaf.Consumer;
 using Wolverine.Kafka.Internals;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
+using IsolationLevel = Dekaf.Protocol.Messages.IsolationLevel;
 
 namespace Wolverine.Kafka;
 
@@ -15,11 +18,12 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
-    /// Configure both the producer and consumer config of the underlying Kafka client
+    /// Configure the connection settings shared by producers, consumers, and admin clients of the
+    /// underlying Kafka client
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public KafkaTransportExpression ConfigureClient(Action<ClientConfig> configure)
+    public KafkaTransportExpression ConfigureClient(Action<KafkaClientOptions> configure)
     {
         configure(_transport.ConsumerConfig);
         configure(_transport.ProducerConfig);
@@ -34,14 +38,15 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public KafkaTransportExpression ConfigureProducers(Action<ProducerConfig> configure)
+    public KafkaTransportExpression ConfigureProducers(Action<KafkaProducerOptions> configure)
     {
         configure(_transport.ProducerConfig);
         return this;
     }
 
     /// <summary>
-    /// Configure the Kafka message producer builders within the Wolverine transport
+    /// Configure the Kafka message producer builders within the Wolverine transport. Use this as the
+    /// escape hatch to any Dekaf producer setting Wolverine's options don't cover.
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -57,52 +62,21 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public KafkaTransportExpression ConfigureConsumers(Action<ConsumerConfig> configure)
+    public KafkaTransportExpression ConfigureConsumers(Action<KafkaConsumerOptions> configure)
     {
         configure(_transport.ConsumerConfig);
         return this;
     }
 
     /// <summary>
-    /// Configure the Kafka consumer builders within the Wolverine transport
+    /// Configure the Kafka consumer builders within the Wolverine transport. Use this as the
+    /// escape hatch to any Dekaf consumer setting Wolverine's options don't cover.
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
     public KafkaTransportExpression ConfigureConsumerBuilders(Action<ConsumerBuilder<string, byte[]>> configure)
     {
         _transport.ConfigureConsumerBuilders = configure;
-        return this;
-    }
-
-    /// <summary>
-    /// Opt every Kafka consumer on this node into cooperative-sticky rebalancing
-    /// (<c>partition.assignment.strategy = CooperativeSticky</c>) so a rebalance keeps each consumer's
-    /// unaffected partitions instead of a stop-the-world revoke-everything rebalance. Opt-in: do not
-    /// switch an existing group between eager and cooperative assignors during a live rolling upgrade.
-    /// See GH-3139 and the Kafka "Scaling out" docs.
-    /// </summary>
-    public KafkaTransportExpression UseCooperativeStickyAssignment()
-    {
-        _transport.ConsumerConfig.PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky;
-        return this;
-    }
-
-    /// <summary>
-    /// Opt every Kafka consumer on this node into the KIP-848 next-generation consumer rebalance protocol
-    /// (<c>group.protocol = consumer</c>): broker-driven, incremental rebalances with no stop-the-world
-    /// JoinGroup/SyncGroup barrier. Requires a Kafka 4.0+ broker (where the protocol is GA and enabled by
-    /// default). Under KIP-848 the client-side assignors and group timings no longer apply — partition
-    /// assignment is broker-driven (<c>group.remote.assignor</c>) and session/heartbeat are defined broker
-    /// side — so Wolverine clears any conflicting <c>partition.assignment.strategy</c>,
-    /// <c>session.timeout.ms</c>, <c>heartbeat.interval.ms</c>, or <c>group.protocol.type</c> settings at
-    /// bootstrap with a logged warning (librdkafka would otherwise reject the consumer outright). Static
-    /// membership (<see cref="UseStaticMembership(string)"/>) is still fully supported and unaffected.
-    /// Opt-in: don't flip an existing, running consumer group during a live rolling upgrade — the classic
-    /// and consumer protocols can only coexist in one group during a broker-managed migration. See GH-3473.
-    /// </summary>
-    public KafkaTransportExpression UseNextGenerationRebalanceProtocol()
-    {
-        _transport.ConsumerConfig.GroupProtocol = GroupProtocol.Consumer;
         return this;
     }
 
@@ -153,14 +127,28 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
-    /// Opt every Kafka producer on this node into the idempotent producer
+    /// Pin every Kafka producer on this node to the idempotent producer
     /// (<c>enable.idempotence = true</c>, which implies <c>acks=all</c> and bounded in-flight requests),
-    /// so producer-side retries can't write duplicates to the broker. Opt-in; slight throughput cost.
-    /// This is producer→broker de-duplication only — it is not transactional exactly-once. See GH-3149.
+    /// so producer-side retries can't write duplicates to the broker. Producers are idempotent by default
+    /// since Wolverine 7.0, so this only matters when other configuration, or
+    /// <see cref="WolverineOptions.RestoreV6Defaults" />, turns idempotence off.
+    /// This is producer→broker de-duplication only, not transactional exactly-once. See GH-3149.
     /// </summary>
     public KafkaTransportExpression UseIdempotentProducer()
     {
         _transport.ProducerConfig.EnableIdempotence = true;
+        return this;
+    }
+
+    /// <summary>
+    /// GH-5201. Opt every Kafka producer on this node out of the idempotent producer that is the default since
+    /// Wolverine 7.0 (<c>enable.idempotence = false</c>), as Confluent.Kafka producers were in 6.x. Needed to use
+    /// <see cref="KafkaProducerOptions.Acks" /> below <c>Acks.All</c>. A topic's own producer options are not
+    /// changed; use <see cref="KafkaSubscriberConfiguration.DisableIdempotentProducer" /> for those.
+    /// </summary>
+    public KafkaTransportExpression DisableIdempotentProducer()
+    {
+        _transport.ProducerConfig.EnableIdempotence = false;
         return this;
     }
 
@@ -180,7 +168,7 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
-    public KafkaTransportExpression AutoProvision(Action<AdminClientConfig>? configure = null)
+    public KafkaTransportExpression AutoProvision(Action<KafkaAdminClientOptions>? configure = null)
     {
         _transport.AutoProvision = true;
         configure?.Invoke(_transport.AdminClientConfig);
@@ -188,7 +176,8 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
-    /// Configure the Kafka admin client builders within the Wolverine transport
+    /// Configure the Kafka admin client builders within the Wolverine transport. Use this as the
+    /// escape hatch to any Dekaf admin client setting Wolverine's options don't cover.
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
@@ -223,7 +212,9 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     /// <summary>
     /// Override the sending behavior for unknown or missing tenant ids when using broker-per-tenant Kafka
     /// multi-tenancy (GH-3303). See <see cref="TenantedIdBehavior"/>. Default is
-    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/> unless changed.
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.DeadLetterUnknownTenants"/> since Wolverine 7.0 (GH-5196):
+    /// an unknown tenant id is dead lettered rather than sent to the default broker. <c>RestoreV6Defaults()</c> restores
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/>.
     /// </summary>
     public KafkaTransportExpression TenantIdBehavior(TenantedIdBehavior behavior)
     {
@@ -234,7 +225,7 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     /// <summary>
     /// Register a tenant that is served by its own dedicated Kafka cluster identified by
     /// <paramref name="bootstrapServers"/>, while sharing the topic topology declared on this transport. The
-    /// tenant inherits the parent's producer/consumer/admin configuration (auth, SASL/SSL, idempotence, static
+    /// tenant inherits the parent's producer/consumer/admin configuration (auth, SASL/TLS, idempotence, static
     /// membership, DLQ topic name, …) with only the bootstrap servers re-pointed. Outbound messages carrying a
     /// matching <see cref="Envelope.TenantId"/> are routed to this cluster; inbound messages consumed from it
     /// are stamped with the tenant id.
@@ -250,7 +241,7 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
 
     /// <summary>
     /// Register a tenant served by its own dedicated Kafka cluster, configured through the full Kafka transport
-    /// surface (auth, SASL/SSL, advanced client options). The <paramref name="configure"/> action runs against a
+    /// surface (auth, SASL/TLS, advanced client options). The <paramref name="configure"/> action runs against a
     /// configuration seeded from this transport's own settings, so you only override what differs for the tenant
     /// (typically <c>ConfigureClient(c =&gt; c.BootstrapServers = ...)</c> plus any tenant-specific credentials).
     /// </summary>

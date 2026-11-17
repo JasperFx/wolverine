@@ -1,4 +1,6 @@
-using Confluent.Kafka;
+using Dekaf;
+using Dekaf.Consumer;
+using Dekaf.Protocol;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -8,9 +10,9 @@ namespace Wolverine.Kafka.Internals;
 
 /// <summary>
 /// Executes a bounded, one-shot Kafka replay (GH-3147): a separate <c>Assign()</c>-based consumer (with
-/// either the requested group id or a unique throwaway group id, and no commits) seeks to the requested
-/// start on each partition, reads forward to the end boundary, and feeds every record through the normal
-/// Wolverine handler pipeline. The live consumer group's committed offsets are never touched.
+/// either the requested group id or a unique throwaway group id, and no commits or offset stores) seeks to the
+/// requested start on each partition, reads forward to the end boundary, and feeds every record through the
+/// normal Wolverine handler pipeline. The live consumer group's committed offsets are never touched.
 /// </summary>
 internal sealed class KafkaReplay
 {
@@ -41,33 +43,34 @@ internal sealed class KafkaReplay
         var pipeline = _runtime.Pipeline;
         var callback = new ReplayChannelCallback();
 
-        // Both the replay group id and the Destination stamp below have to imitate whichever endpoint
-        // actually listens to this topic, which is not always the topic itself.
+        // The Destination stamp below has to imitate whichever endpoint actually listens to this topic,
+        // which is not always the topic itself.
         var liveEndpoint = LiveListeningEndpointFor(topic, _transport);
 
         // Assign-only consumer: use the requested group id when configured, otherwise a unique group sharing the
         // live group's prefix. It never commits or stores offsets.
-        var config = new ConsumerConfig(_transport.ConsumerConfig)
-        {
-            GroupId = ReplayGroupIdFor(topic, _transport, _runtime.Options.ServiceName, request.GroupId),
-            EnableAutoCommit = false,
-            EnableAutoOffsetStore = false
-        };
+        var config = _transport.ConsumerConfig.Clone();
+        config.GroupId = ReplayGroupIdFor(topic, _transport, _runtime.Options.ServiceName, request.GroupId);
+        config.GroupInstanceId = null;
+        config.OffsetCommitMode = OffsetCommitMode.Manual;
+        config.EnableAutoOffsetStore = false;
 
-        using var consumer = _transport.CreateConsumer(config);
+        await using var consumer = _transport.CreateConsumer(config);
+        await consumer.InitializeAsync(token);
 
-        var partitions = ResolvePartitions(request);
-        var plan = BuildPlan(consumer, request, partitions);
+        var partitions = await ResolvePartitions(request);
+        var plan = await BuildPlan(consumer, request, partitions, token);
 
         var toAssign = plan.Where(x => x.Start < x.End)
-            .Select(x => new TopicPartitionOffset(x.Partition, new Offset(x.Start))).ToList();
+            .Select(x => new TopicPartitionOffset(x.Partition.Topic, x.Partition.Partition, x.Start)).ToList();
 
         if (toAssign.Count == 0)
         {
             return new KafkaReplayResult { RecordsReplayed = 0, PartitionsReplayed = 0 };
         }
 
-        consumer.Assign(toAssign);
+        // Assign at the requested start offsets in one call
+        consumer.Partitions.IncrementalAssign(toAssign);
 
         var ends = plan.Where(x => x.Start < x.End).ToDictionary(x => x.Partition, x => x.End);
         var remaining = new HashSet<TopicPartition>(ends.Keys);
@@ -76,62 +79,65 @@ internal sealed class KafkaReplay
         _logger.LogInformation("Starting Kafka replay of topic {Topic} across {Count} partition(s)",
             request.Topic, remaining.Count);
 
-        try
+        // Disposing the consumer closes it. With no group there is nothing to commit, so the live group's offsets
+        // are untouched.
+        while (remaining.Count > 0 && !token.IsCancellationRequested)
         {
-            while (remaining.Count > 0 && !token.IsCancellationRequested)
+            ConsumeResult<string, byte[]>? maybe;
+            try
             {
-                var result = consumer.Consume(_pollTimeout);
-                if (result?.Message == null)
-                {
-                    continue;
-                }
-
-                var tp = result.TopicPartition;
-                if (!remaining.Contains(tp))
-                {
-                    continue;
-                }
-
-                if (result.Offset.Value >= ends[tp])
-                {
-                    // Reached this partition's end boundary; stop pulling from it.
-                    remaining.Remove(tp);
-                    consumer.Pause([tp]);
-                    continue;
-                }
-
-                var envelope = mapper.CreateEnvelope(result.Topic, result.Message);
-                envelope.TopicName = result.Topic;
-                envelope.Offset = result.Offset.Value;
-                envelope.PartitionId = result.Partition.Value;
-                envelope.MessageType ??= messageTypeName;
-
-                // The live receivers stamp Destination when they accept an envelope, and the pipeline relies
-                // on it: the executor logs it after every handler run and dead-lettering keys the inbox row
-                // on it. Without it each replayed record threw a NullReferenceException after its handler
-                // succeeded, and one whose handler failed could not be dead-lettered.
-                //
-                // Envelope.MarkReceived stamps the *listener's* Address, which for a topic consumed through
-                // ListenToKafkaTopics(...) is the group endpoint's Uri rather than the topic's -- so this has
-                // to follow the same endpoint the group id does, or the dead letter row, the metrics tag and
-                // the endpoint the pipeline resolves from Destination all name something the live path never
-                // names.
-                envelope.Destination ??= liveEndpoint.Uri;
-
-                await pipeline.InvokeAsync(envelope, callback);
-                replayed++;
-
-                if (result.Offset.Value + 1 >= ends[tp])
-                {
-                    remaining.Remove(tp);
-                    consumer.Pause([tp]);
-                }
+                maybe = await consumer.ConsumeOneAsync(_pollTimeout, token);
             }
-        }
-        finally
-        {
-            // Close without committing — the live group's offsets are untouched.
-            consumer.Close();
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+
+            if (maybe == null)
+            {
+                continue;
+            }
+
+            var result = maybe.Value;
+            var tp = new TopicPartition(result.Topic, result.Partition);
+            if (!remaining.Contains(tp))
+            {
+                continue;
+            }
+
+            if (result.Offset >= ends[tp])
+            {
+                // Reached this partition's end boundary; stop pulling from it.
+                remaining.Remove(tp);
+                consumer.Partitions.Pause([tp]);
+                continue;
+            }
+
+            var envelope = mapper.CreateEnvelope(result);
+            envelope.TopicName = result.Topic;
+            envelope.Offset = result.Offset;
+            envelope.PartitionId = result.Partition;
+            envelope.MessageType ??= messageTypeName;
+
+            // The live receivers stamp Destination when they accept an envelope, and the pipeline relies
+            // on it: the executor logs it after every handler run and dead-lettering keys the inbox row
+            // on it. Without it each replayed record threw a NullReferenceException after its handler
+            // succeeded, and one whose handler failed could not be dead-lettered.
+            //
+            // Envelope.MarkReceived stamps the *listener's* Address, which for a topic consumed through
+            // ListenToKafkaTopics(...) is the group endpoint's Uri rather than the topic's -- so this has
+            // to follow that endpoint, or the dead letter row, the metrics tag and the endpoint the
+            // pipeline resolves from Destination all name something the live path never names.
+            envelope.Destination ??= liveEndpoint.Uri;
+
+            await pipeline.InvokeAsync(envelope, callback);
+            replayed++;
+
+            if (result.Offset + 1 >= ends[tp])
+            {
+                remaining.Remove(tp);
+                consumer.Partitions.Pause([tp]);
+            }
         }
 
         _logger.LogInformation("Finished Kafka replay of topic {Topic}: {Count} record(s) replayed",
@@ -195,6 +201,102 @@ internal sealed class KafkaReplay
         return transport.TopicGroups.FirstOrDefault(x => x.TopicNames.Contains(topic.TopicName)) ?? topic;
     }
 
+    private async Task<List<TopicPartition>> ResolvePartitions(KafkaReplayRequest request)
+    {
+        await using var admin = _transport.CreateAdminClient();
+        using var timeout = new CancellationTokenSource(_metadataTimeout);
+
+        var described = await admin.DescribeTopicsAsync([request.Topic], timeout.Token);
+        var found = described.TryGetValue(request.Topic, out var topicDescription);
+        if (!found || topicDescription!.ErrorCode != ErrorCode.None)
+        {
+            throw new InvalidOperationException(
+                $"Unable to read metadata for Kafka topic '{request.Topic}': {(found ? topicDescription!.ErrorCode.ToString() : "not found")}");
+        }
+
+        var ids = topicDescription.Partitions.Select(x => x.PartitionIndex);
+        if (request.Partitions is { Length: > 0 })
+        {
+            var wanted = request.Partitions.ToHashSet();
+            ids = ids.Where(wanted.Contains);
+        }
+
+        return ids.Select(id => new TopicPartition(request.Topic, id)).ToList();
+    }
+
+    private static async Task<List<PartitionPlan>> BuildPlan(IKafkaConsumer<string, byte[]> consumer,
+        KafkaReplayRequest request, List<TopicPartition> partitions, CancellationToken token)
+    {
+        var startTimes = request.FromTimestamp.HasValue
+            ? await OffsetsForTimes(consumer, partitions, request.FromTimestamp.Value, token)
+            : null;
+        var endTimes = request.ToTimestamp.HasValue
+            ? await OffsetsForTimes(consumer, partitions, request.ToTimestamp.Value, token)
+            : null;
+
+        var plan = new List<PartitionPlan>();
+        foreach (var tp in partitions)
+        {
+            var watermarks = await consumer.Offsets.QueryWatermarkOffsetsAsync(tp, token);
+            var low = watermarks.Low;
+            var high = watermarks.High;
+
+            long start;
+            if (request.FromOffset.HasValue)
+            {
+                start = Math.Clamp(request.FromOffset.Value, low, high);
+            }
+            else if (startTimes != null)
+            {
+                var resolved = startTimes.TryGetValue(tp, out var s) ? s : -1;
+                start = resolved < 0 ? high : Math.Clamp(resolved, low, high);
+            }
+            else
+            {
+                start = low;
+            }
+
+            long end;
+            if (request.ToOffset.HasValue)
+            {
+                end = Math.Clamp(request.ToOffset.Value, low, high);
+            }
+            else if (endTimes != null)
+            {
+                var resolved = endTimes.TryGetValue(tp, out var e) ? e : -1;
+                end = resolved < 0 ? high : Math.Clamp(resolved, low, high);
+            }
+            else
+            {
+                end = high;
+            }
+
+            plan.Add(new PartitionPlan(tp, start, end));
+        }
+
+        return plan;
+    }
+
+    private static async Task<IReadOnlyDictionary<TopicPartition, long>> OffsetsForTimes(
+        IKafkaConsumer<string, byte[]> consumer, List<TopicPartition> partitions, DateTimeOffset timestamp,
+        CancellationToken token)
+    {
+        var request = partitions
+            .Select(tp => new TopicPartitionTimestamp(tp, timestamp))
+            .ToList();
+
+        return await consumer.Offsets.GetOffsetsForTimesAsync(request, token);
+    }
+
+    private sealed record PartitionPlan(TopicPartition Partition, long Start, long End);
+
+    private sealed class ReplayChannelCallback : IChannelCallback
+    {
+        public IHandlerPipeline? Pipeline => null;
+        public ValueTask CompleteAsync(Envelope envelope) => ValueTask.CompletedTask;
+        public ValueTask DeferAsync(Envelope envelope) => ValueTask.CompletedTask;
+    }
+
     /// <summary>
     /// The group id a replay may borrow a prefix from, or null when the endpoint has none worth borrowing.
     /// </summary>
@@ -210,99 +312,5 @@ internal sealed class KafkaReplay
         }
 
         return endpoint.ConsumerConfig?.GroupId;
-    }
-
-    private List<TopicPartition> ResolvePartitions(KafkaReplayRequest request)
-    {
-        using var admin = _transport.CreateAdminClient();
-        var metadata = admin.GetMetadata(request.Topic, _metadataTimeout);
-        var topicMetadata = metadata.Topics.SingleOrDefault(x => x.Topic == request.Topic);
-        if (topicMetadata == null || topicMetadata.Error.IsError)
-        {
-            throw new InvalidOperationException(
-                $"Unable to read metadata for Kafka topic '{request.Topic}': {topicMetadata?.Error.Reason ?? "not found"}");
-        }
-
-        var ids = topicMetadata.Partitions.Select(x => x.PartitionId);
-        if (request.Partitions is { Length: > 0 })
-        {
-            var wanted = request.Partitions.ToHashSet();
-            ids = ids.Where(wanted.Contains);
-        }
-
-        return ids.Select(id => new TopicPartition(request.Topic, new Partition(id))).ToList();
-    }
-
-    private List<PartitionPlan> BuildPlan(IConsumer<string, byte[]> consumer, KafkaReplayRequest request,
-        List<TopicPartition> partitions)
-    {
-        var startTimes = request.FromTimestamp.HasValue
-            ? OffsetsForTimes(consumer, partitions, request.FromTimestamp.Value)
-            : null;
-        var endTimes = request.ToTimestamp.HasValue
-            ? OffsetsForTimes(consumer, partitions, request.ToTimestamp.Value)
-            : null;
-
-        var plan = new List<PartitionPlan>();
-        foreach (var tp in partitions)
-        {
-            var watermarks = consumer.QueryWatermarkOffsets(tp, _metadataTimeout);
-            var low = watermarks.Low.Value;
-            var high = watermarks.High.Value;
-
-            long start;
-            if (request.FromOffset.HasValue)
-            {
-                start = Math.Clamp(request.FromOffset.Value, low, high);
-            }
-            else if (startTimes != null)
-            {
-                var resolved = startTimes[tp];
-                start = resolved < 0 ? high : Math.Clamp(resolved, low, high);
-            }
-            else
-            {
-                start = low;
-            }
-
-            long end;
-            if (request.ToOffset.HasValue)
-            {
-                end = Math.Clamp(request.ToOffset.Value, low, high);
-            }
-            else if (endTimes != null)
-            {
-                var resolved = endTimes[tp];
-                end = resolved < 0 ? high : Math.Clamp(resolved, low, high);
-            }
-            else
-            {
-                end = high;
-            }
-
-            plan.Add(new PartitionPlan(tp, start, end));
-        }
-
-        return plan;
-    }
-
-    private static Dictionary<TopicPartition, long> OffsetsForTimes(IConsumer<string, byte[]> consumer,
-        List<TopicPartition> partitions, DateTimeOffset timestamp)
-    {
-        var request = partitions
-            .Select(tp => new TopicPartitionTimestamp(tp, new Timestamp(timestamp.UtcDateTime, TimestampType.CreateTime)))
-            .ToList();
-
-        var resolved = consumer.OffsetsForTimes(request, _metadataTimeout);
-        return resolved.ToDictionary(x => x.TopicPartition, x => x.Offset.Value);
-    }
-
-    private sealed record PartitionPlan(TopicPartition Partition, long Start, long End);
-
-    private sealed class ReplayChannelCallback : IChannelCallback
-    {
-        public IHandlerPipeline? Pipeline => null;
-        public ValueTask CompleteAsync(Envelope envelope) => ValueTask.CompletedTask;
-        public ValueTask DeferAsync(Envelope envelope) => ValueTask.CompletedTask;
     }
 }

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
-        <TargetFramework>net9.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
@@ -35,7 +35,7 @@
         Refresh the committed pre-gen FROM THIS PROJECT'S DIRECTORY, because a
         host writes relative to the working directory, not the project folder:
 
-          dotnet run -f net9.0 codegen write
+          dotnet run -f net10.0 codegen write
 
         then commit the result. This project carries NO hand-written roots, so a
         regression in the emitted rooting block fails the lane outright instead

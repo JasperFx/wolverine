@@ -1,5 +1,6 @@
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Services;
+using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Runtime.Handlers;
 using Xunit;
@@ -16,8 +17,23 @@ public class HandlerChain_TryFindVariable
         chain.TryFindVariable(nameof(CreateThing.Id), ValueSource.InputMember, typeof(Guid), out var variable)
             .ShouldBeTrue();
 
-        variable.ShouldBeOfType<MessageMemberVariable>()
+        variable.ShouldBeOfType<FSharpMessageMemberVariable>()
             .Member.Name.ShouldBe("Id");
+    }
+
+    [Fact]
+    public void a_message_member_renders_the_csharp_cast_and_the_fsharp_downcast()
+    {
+        var chain = HandlerChain.For<CreateThingHandler>(x => x.Handle(null!), new HandlerGraph());
+
+        chain.TryFindVariable(nameof(CreateThing.Id), ValueSource.InputMember, typeof(Guid), out var variable)
+            .ShouldBeTrue();
+
+        // Still the JasperFx variable middleware may look for
+        variable.ShouldBeAssignableTo<MessageMemberVariable>();
+
+        variable.Usage.ShouldBe($"(({typeof(CreateThing).FullNameInCode()})context.Envelope.Message).Id");
+        variable.FSharpUsage.ShouldBe($"(context.Envelope.Message :?> {typeof(CreateThing).FSharpName()}).Id");
     }
 
     [Fact]
@@ -46,7 +62,7 @@ public class HandlerChain_TryFindVariable
         chain.TryFindVariable(nameof(CreateThing.Id), ValueSource.Anything, typeof(Guid), out var variable)
             .ShouldBeTrue();
 
-        variable.ShouldBeOfType<MessageMemberVariable>()
+        variable.ShouldBeOfType<FSharpMessageMemberVariable>()
             .Member.Name.ShouldBe("Id");
     }
 
@@ -116,7 +132,7 @@ public class HandlerChain_TryFindVariable
         chain.TryFindVariable("Name", ValueSource.Anything, typeof(string), out var variable)
             .ShouldBeTrue();
 
-        variable.ShouldBeOfType<MessageMemberVariable>();
+        variable.ShouldBeOfType<FSharpMessageMemberVariable>();
     }
 
     [Fact]

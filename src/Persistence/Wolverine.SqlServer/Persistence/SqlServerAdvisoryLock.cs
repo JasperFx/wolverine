@@ -4,6 +4,7 @@ using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
+using Wolverine.RDBMS;
 using Weasel.SqlServer;
 
 namespace Wolverine.SqlServer.Persistence;
@@ -18,7 +19,7 @@ namespace Wolverine.SqlServer.Persistence;
 ///
 /// See https://github.com/JasperFx/wolverine/issues/2602.
 /// </summary>
-internal class SqlServerAdvisoryLock : IAdvisoryLock
+internal class SqlServerAdvisoryLock : IWolverineAdvisoryLock
 {
     // GH-4261. One long-lived SqlConnection shared by a SYNCHRONOUS HasLock and three ASYNC methods,
     // with nothing serialising them. Reported against Postgres, where the interleaving desynced the
@@ -54,6 +55,10 @@ internal class SqlServerAdvisoryLock : IAdvisoryLock
         _databaseName = databaseName;
     }
 
+    /// <summary>
+    /// The synchronous probe the JasperFx <see cref="IAdvisoryLock" /> contract requires. Wolverine's own
+    /// callers use <see cref="HasLockAsync" />, which does the same ping without blocking a thread (GH-5135).
+    /// </summary>
     public bool HasLock(int lockId)
     {
         // Cheap negative outside the gate: an id we never took cannot be held.
@@ -82,6 +87,36 @@ internal class SqlServerAdvisoryLock : IAdvisoryLock
         }
     }
 
+    public async Task<bool> HasLockAsync(int lockId, CancellationToken token)
+    {
+        // Cheap negative outside the gate: an id we never took cannot be held.
+        if (!holdsId(lockId)) return false;
+
+        // GH-5135: the token bounds only this wait. A cancelled wait throws back to the caller and touches
+        // no held id -- shutting down says nothing about the session that holds the lock.
+        if (!await _gate.WaitAsync(GateTimeout, token).ConfigureAwait(false))
+        {
+            // GH-4261: a busy gate means another advisory-lock operation on THIS node is in flight, not
+            // that the server dropped our session. A wrong `false` here is read by
+            // NodeAgentController.DoHealthChecksInternalAsync as lost leadership and fires
+            // stepDownAsync -- exactly the churn GH-2602 and GH-3604 were fighting. Report the last
+            // state we established and skip the keepalive for this tick.
+            _logger.LogDebug(
+                "Advisory lock connection for database {Database} was busy; reporting the last known state of lock {LockId} without pinging",
+                _databaseName, lockId);
+            return true;
+        }
+
+        try
+        {
+            return await hasLockUnsafeAsync(lockId).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary>
     /// The GH-2602 liveness ping. Callers MUST hold <c>_gate</c> -- it does synchronous I/O on the
     /// shared connection and may replace it.
@@ -103,6 +138,51 @@ internal class SqlServerAdvisoryLock : IAdvisoryLock
             cmd.CommandText = "select 1";
             cmd.CommandTimeout = 2;
             cmd.ExecuteScalar();
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e,
+                "Lost advisory-lock connection for database {Database}; clearing held lock ids {Locks}",
+                _databaseName, heldIds());
+
+            clearIds();
+            try
+            {
+                _conn.Dispose();
+            }
+            catch
+            {
+                // Already broken; nothing to do.
+            }
+            _conn = null;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The GH-2602 liveness ping, asynchronously (GH-5135). Callers MUST hold <c>_gate</c> -- it does I/O on the
+    /// shared connection and may replace it.
+    /// </summary>
+    private async Task<bool> hasLockUnsafeAsync(int lockId)
+    {
+        if (_conn is null) return false;
+        if (!holdsId(lockId)) return false;
+
+        // SQL Server session-scoped application locks (sp_getapplock /
+        // sp_releaseapplock) are released the instant the SQL session ends —
+        // KILL SPID, network drop, AlwaysOn failover, AAD token expiry on
+        // managed identity. SqlConnection.State stays Open until we use it,
+        // so without this ping HasLock keeps reporting the lock held long
+        // after another session has acquired it. See GH-2602.
+        try
+        {
+            // No cancellation token on purpose: CommandTimeout bounds the ping, and a cancelled ping would land
+            // in the catch below and read as a lost session.
+            await using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "select 1";
+            cmd.CommandTimeout = 2;
+            await cmd.ExecuteScalarAsync(CancellationToken.None).ConfigureAwait(false);
             return true;
         }
         catch (Exception e)
@@ -175,9 +255,9 @@ internal class SqlServerAdvisoryLock : IAdvisoryLock
             // once, leaving the lock still held server-side and silently
             // blocking failover (no error logged, just a stalled election).
             //
-            // GH-4261: hasLockUnsafe, not HasLock — we already hold the gate, and SemaphoreSlim is not
+            // GH-4261: hasLockUnsafeAsync, not HasLockAsync — we already hold the gate, and SemaphoreSlim is not
             // reentrant.
-            if (hasLockUnsafe(lockId))
+            if (await hasLockUnsafeAsync(lockId).ConfigureAwait(false))
             {
                 return true;
             }

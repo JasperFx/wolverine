@@ -172,6 +172,10 @@ public record RejectPcInvoice([property: Identity] Guid Something);
 // file-level alias pinning [Identity] to Wolverine.Polecat.IdentityAttribute).
 public record RejectPcInvoiceShared([property: JasperFx.Identity] Guid Something);
 
+// GH-5136. Two Handle(ApproveInvoice...) overloads on one class are a startup error now that every handler
+// type gets one handler chain per message type. The tests build this class's chains directly with
+// HandlerChain.For(), so it stays out of conventional discovery and out of every other host in the assembly.
+[Wolverine.Attributes.WolverineIgnore]
 public class PcInvoiceHandler
 {
     public PcInvoiceCreated Handle(CreatePcInvoice command)

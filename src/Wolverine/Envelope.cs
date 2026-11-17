@@ -164,13 +164,19 @@ public partial class Envelope : IHasTenantId
         {
             return _data;
         }
+
+        // A pooled payload is already serialized, so materialize it exactly as reading Data would
+        if (_pooledBody != null)
+        {
+            return Data;
+        }
+
         assertMessage();
 
         if(Serializer is IAsyncMessageSerializer asyncMessaeSerializer)
         {
             try
             {
-                releasePooledBody();
                 _data = await asyncMessaeSerializer.WriteAsync(this);
             }
             catch (Exception e)
@@ -451,6 +457,22 @@ public partial class Envelope : IHasTenantId
     ///     activity across services
     /// </summary>
     public string? ParentId { get; set; }
+
+    public bool StartsNewLinkedTrace
+    {
+        get => _headers != null && _headers.ContainsKey(EnvelopeConstants.StartsNewLinkedTraceKey);
+        set
+        {
+            if (value)
+            {
+                Headers[EnvelopeConstants.StartsNewLinkedTraceKey] = "true";
+            }
+            else
+            {
+                _headers?.Remove(EnvelopeConstants.StartsNewLinkedTraceKey);
+            }
+        }
+    }
 
     /// <summary>
     ///     User defined tenant identifier for multi-tenancy strategies. This is

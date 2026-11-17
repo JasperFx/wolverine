@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 using Wolverine;
 using Wolverine.AdminApi;
@@ -376,13 +376,19 @@ public class Program
 
             // GH-3764, then GH-4512: this used to register the hand written
             // MartenConcurrencyExceptionMiddleware recipe. It is now the one line opt in, which covers
-            // both ConcurrencyException and Marten's StreamLockedException and stamps ProducesProblem(409).
+            // ConcurrencyException (StreamLockedException included) and ExistingStreamIdCollisionException
+            // and stamps ProducesProblem(409).
             // Still scoped to the concurrency endpoints so the 409 mapping cannot change the status codes
             // the rest of this application's tests assert on.
             opts.MapMartenConcurrencyFailuresToConflict(
                 chain => chain.Method.HandlerType == typeof(ConcurrencyEndpoints));
 
             opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();
+
+            // GH-5195: strict query string binding is the default from 7.0. This application keeps the 6.x
+            // lenient binding explicitly, because its tests pin what an unparseable value binds to in that
+            // mode; strict_query_string_binding covers the strict mode with its own host.
+            opts.RejectUnparseableQueryValues = false;
 
             #region sample_adding_custom_parameter_handling
             // Customizing parameter handling

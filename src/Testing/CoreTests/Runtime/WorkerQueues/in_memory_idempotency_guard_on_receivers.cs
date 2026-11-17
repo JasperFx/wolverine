@@ -47,6 +47,11 @@ public class in_memory_idempotency_guard_on_receivers : IAsyncLifetime
         {
             endpoint.InMemoryIdempotency = new InMemoryIdempotencySettings();
         }
+        else
+        {
+            // GH-5200: a NativeAck endpoint gets the guard by default in 7.0, so "no guard" is an opt-out
+            endpoint.InMemoryIdempotencyOptedOut = true;
+        }
 
         endpoint.Mode = EndpointMode.NativeAck;
         endpoint.Compile(theRuntime);
@@ -86,7 +91,7 @@ public class in_memory_idempotency_guard_on_receivers : IAsyncLifetime
     }
 
     [Fact]
-    public void the_guard_is_off_unless_you_ask_for_it()
+    public void the_guard_is_off_when_the_endpoint_opts_out()
     {
         nativeAckEndpoint(false).IdempotencyGuard.ShouldBeNull();
         nativeAckEndpoint(true).IdempotencyGuard.ShouldNotBeNull();
@@ -143,16 +148,22 @@ public class in_memory_idempotency_guard_on_receivers : IAsyncLifetime
         await receiver.ReceivedAsync(listener, first);
 
         // The original is parked inside the handler. The duplicate has to be turned away on the in-flight
-        // set, not merely on the processed set.
+        // set, not merely on the processed set -- and (GH-5533) it must NOT be acknowledged while the original is
+        // still running: acking the redelivery settles the message at the broker underneath the original, and a
+        // node that then drains or dies loses it. It is held, unsettled.
         await receiver.ReceivedAsync(listener, pingEnvelope("one", first.Id));
-        await listener.WaitUntilAtLeast(1);
+        await Task.Delay(250, TestContext.Current.CancellationToken);
 
-        listener.Completed.Count.ShouldBe(1);
+        listener.Completed.Count.ShouldBe(0);
+        listener.Deferred.Count.ShouldBe(0);
         NativeAckPingHandler.Handled.ShouldBeEmpty();
 
         gate.SetResult();
+
+        // Only once the original is processed is the held duplicate acknowledged
         await listener.WaitUntilAtLeast(2);
 
+        listener.Completed.Count.ShouldBe(2);
         NativeAckPingHandler.Handled.Count.ShouldBe(1);
     }
 

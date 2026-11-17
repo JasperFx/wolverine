@@ -33,8 +33,9 @@ builder.UseWolverine(opts =>
         // virtual hosts and separate broker connections
         .AutoProvision()
 
-        // This is the default, if there is no tenant id on an outgoing message,
-        // use the default broker
+        // This was the 6.x default: an outgoing message with no tenant id, or an
+        // unrecognized one, uses the default broker. Since 7.0 the default is
+        // DeadLetterUnknownTenants, which dead letters an unrecognized tenant id
         .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
         // Or tell Wolverine instead to just quietly ignore messages sent
@@ -72,7 +73,7 @@ builder.UseWolverine(opts =>
         .ToRabbitQueue("outgoing").GlobalSender();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L269-L321' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_rabbit_mq_for_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L338-L391' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_rabbit_mq_for_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -105,7 +106,7 @@ public static async Task send_message_to_specific_tenant(IMessageBus bus)
     await bus.PublishAsync(new Message1(), new DeliveryOptions { TenantId = "two" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L326-L333' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L396-L403' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, in the Wolverine internals, it:

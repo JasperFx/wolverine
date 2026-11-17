@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
@@ -19,7 +19,7 @@ public class StampingKafkaMapper : KafkaEnvelopeMapper
     {
     }
 
-    protected override void writeIncomingHeaders(Message<string, byte[]> incoming, Envelope envelope)
+    protected override void writeIncomingHeaders(ConsumeResult<string, byte[]> incoming, Envelope envelope)
     {
         base.writeIncomingHeaders(incoming, envelope);
         envelope.Headers[ConsumeTimestampHeader] = Stopwatch.GetTimestamp().ToString();

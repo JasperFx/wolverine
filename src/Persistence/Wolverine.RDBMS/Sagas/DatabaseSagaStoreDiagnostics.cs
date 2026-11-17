@@ -7,6 +7,7 @@ using JasperFx.Descriptors;
 using JasperFx.Documents;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration.Capabilities;
+using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 
@@ -32,7 +33,7 @@ namespace Wolverine.RDBMS.Sagas;
 /// RavenDB diagnostics so callers see one unified saga catalog
 /// regardless of how many storages are wired up.
 /// </remarks>
-public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
+public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics
 {
     private readonly IWolverineRuntime _runtime;
     private readonly IMessageDatabase _database;
@@ -43,6 +44,19 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
     {
         _runtime = runtime;
         _database = database;
+    }
+
+    /// <summary>
+    /// The diagnostics for a lightweight message store. Under database-per-tenant storage the registered
+    /// <see cref="IMessageStore" /> is a <see cref="MultiTenantedMessageStore" />, so the diagnostics read its main
+    /// database, and a tenant's own database when a call names the tenant (GH-5558). Casting the registered store
+    /// straight to <see cref="IMessageDatabase" /> threw for such a store, which took down
+    /// <c>IWolverineRuntime.SagaStorage</c> for the whole application.
+    /// </summary>
+    public static DatabaseSagaStoreDiagnostics For(IWolverineRuntime runtime, IMessageStore store)
+    {
+        var database = store is MultiTenantedMessageStore multiTenanted ? multiTenanted.Main : store;
+        return new DatabaseSagaStoreDiagnostics(runtime, (IMessageDatabase)database);
     }
 
     public Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)
@@ -65,12 +79,18 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
         try
         {
             var qualified = qualifyTableName(definition.TableName);
-            var sql = $"select {DatabaseConstants.Body}, {DatabaseConstants.Version} from {qualified} where {DatabaseConstants.Id} = @id";
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = sql;
+            var prefix = isOracle(conn) ? ":" : "@";
+            cmd.CommandText =
+                $"select {DatabaseConstants.Body}, {DatabaseConstants.Version} from {qualified} where {DatabaseConstants.Id} = {prefix}id";
             var p = cmd.CreateParameter();
             p.ParameterName = "id";
-            p.Value = identity?.ToString() ?? (object)DBNull.Value;
+
+            // GH-5558: Oracle keeps a Guid id as RAW(16), the bytes of Guid.ToByteArray()
+            p.Value = isOracle(conn) && idTypeOf(definition) == typeof(Guid) &&
+                      Guid.TryParse(identity?.ToString(), out var guid)
+                ? guid.ToByteArray()
+                : identity?.ToString() ?? (object)DBNull.Value;
             cmd.Parameters.Add(p);
 
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
@@ -141,7 +161,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
             {
-                var id = await reader.IsDBNullAsync(0, ct).ConfigureAwait(false) ? string.Empty : reader.GetValue(0)!;
+                var id = await reader.IsDBNullAsync(0, ct).ConfigureAwait(false) ? string.Empty : readIdentity(reader, 0);
                 var body = readBody(reader, 1);
                 list.Add(buildInstance(definition, id, body));
             }
@@ -158,6 +178,157 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
         {
             await conn.CloseAsync().ConfigureAwait(false);
         }
+    }
+
+    // GH-5558: idle saga diagnostics over the indexed last_modified column
+
+    public bool SupportsIdleQueries(string sagaTypeName) => sagaIndex().ContainsKey(sagaTypeName);
+
+    public async Task<long> CountIdleSagasAsync(string sagaTypeName, DateTimeOffset modifiedBefore, string? tenantId,
+        CancellationToken ct)
+    {
+        if (!sagaIndex().TryGetValue(sagaTypeName, out var definition)) return 0;
+
+        var database = await databaseForAsync(tenantId).ConfigureAwait(false);
+        var conn = database.DataSource.CreateConnection();
+        await conn.OpenAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await using var cmd = conn.CreateCommand();
+            var where = renderLastModifiedFilter(cmd, SagaLastModifiedRange.Before(modifiedBefore));
+            cmd.CommandText = $"select count(*) from {qualifyTableName(database, definition.TableName)}{where}";
+            return Convert.ToInt64(await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false));
+        }
+        catch (DbException e) when (isMissingTableException(e))
+        {
+            // No table yet means no instances (GH-3887)
+            return 0;
+        }
+        finally
+        {
+            await conn.CloseAsync().ConfigureAwait(false);
+        }
+    }
+
+    public async Task<SagaQueryResult> QuerySagasByLastModifiedAsync(string sagaTypeName, SagaLastModifiedRange range,
+        DocumentQueryOptions options, CancellationToken ct)
+    {
+        var (tenantId, rest) = SagaQueryCriteria.TakeTenant(options);
+        var (pageNumber, pageSize) = SagaQueryCriteria.Page(rest);
+        SagaQueryCriteria.RefuseCriteria(rest, GetQueryCapabilities(sagaTypeName));
+        if (!sagaIndex().TryGetValue(sagaTypeName, out var definition))
+            return SagaQueryResult.Empty(pageNumber, pageSize);
+
+        var database = await databaseForAsync(tenantId).ConfigureAwait(false);
+        var conn = database.DataSource.CreateConnection();
+        await conn.OpenAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var table = qualifyTableName(database, definition.TableName);
+
+            long total;
+            await using (var countCmd = conn.CreateCommand())
+            {
+                var countWhere = renderLastModifiedFilter(countCmd, range);
+                countCmd.CommandText = $"select count(*) from {table}{countWhere}";
+                total = Convert.ToInt64(await countCmd.ExecuteScalarAsync(ct).ConfigureAwait(false));
+            }
+
+            var list = new List<SagaInstanceState>();
+            await using var cmd = conn.CreateCommand();
+            var where = renderLastModifiedFilter(cmd, range);
+            var select =
+                $"select {DatabaseConstants.Id}, {DatabaseConstants.Body} from {table}{where} order by {SagaTableIndexes.LastModifiedColumn}, {DatabaseConstants.Id}";
+            cmd.CommandText = renderPage(conn, select, (pageNumber - 1) * pageSize, pageSize);
+
+            await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+            while (await reader.ReadAsync(ct).ConfigureAwait(false))
+            {
+                var id = await reader.IsDBNullAsync(0, ct).ConfigureAwait(false) ? string.Empty : readIdentity(reader, 0);
+                var body = readBody(reader, 1);
+                list.Add(buildInstance(definition, id, body));
+            }
+
+            return new SagaQueryResult(list, total, pageNumber, pageSize);
+        }
+        catch (DbException e) when (isMissingTableException(e))
+        {
+            return SagaQueryResult.Empty(pageNumber, pageSize);
+        }
+        finally
+        {
+            await conn.CloseAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// The database holding the tenant's lightweight saga tables: the main database for no tenant (or the
+    /// default tenant), the tenant's own database under database-per-tenant message storage
+    /// </summary>
+    private async ValueTask<IMessageDatabase> databaseForAsync(string? tenantId)
+    {
+        if (DocumentQueryOptions.NormalizeTenantId(tenantId) is not { } tenant) return _database;
+
+        if (_runtime.Storage is MultiTenantedMessageStore multiTenanted)
+        {
+            var store = await multiTenanted.GetDatabaseAsync(tenant).ConfigureAwait(false);
+            return store as IMessageDatabase ?? throw new DocumentCriteriaNotSupportedException(
+                nameof(DocumentQueryOptions.TenantId),
+                $"the message store for tenant '{tenant}' is not a database with lightweight saga tables");
+        }
+
+        SagaQueryCriteria.RefuseTenant(tenant,
+            "this message store is not multi-tenanted, so there are no per-tenant saga tables to read");
+        return _database;
+    }
+
+    private static Type idTypeOf(SagaTableDefinition definition) => definition.IdMember switch
+    {
+        System.Reflection.PropertyInfo p => p.PropertyType,
+        System.Reflection.FieldInfo f => f.FieldType,
+        _ => typeof(object)
+    };
+
+    private static bool isOracle(DbConnection conn)
+        => (conn.GetType().FullName ?? string.Empty).StartsWith("Oracle.", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The saga id as the application knows it. Oracle keeps a Guid id as RAW(16) (Guid.ToByteArray()), which reads
+    /// back as a byte array (GH-5558)
+    /// </summary>
+    private static object readIdentity(DbDataReader reader, int ordinal)
+    {
+        var value = reader.GetValue(ordinal);
+        return value is byte[] { Length: 16 } bytes ? new Guid(bytes) : value;
+    }
+
+    /// <summary>
+    /// Adds the range's parameters to <paramref name="cmd" /> and returns the where clause (with a leading space),
+    /// or an empty string for an open range. SQLite keeps last_modified as UTC text in a sortable format, so it
+    /// compares against the same text; the other databases compare timestamps, passed in UTC.
+    /// </summary>
+    private static string renderLastModifiedFilter(DbCommand cmd, SagaLastModifiedRange range)
+    {
+        var dialect = cmd.Connection!.GetType().FullName ?? string.Empty;
+        var prefix = isOracle(cmd.Connection!) ? ":" : "@";
+        var isSqlite = dialect.Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
+
+        var clauses = new List<string>();
+        void add(string name, string op, DateTimeOffset value)
+        {
+            var p = cmd.CreateParameter();
+            p.ParameterName = name;
+            p.Value = isSqlite
+                ? value.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture)
+                : value.ToUniversalTime();
+            cmd.Parameters.Add(p);
+            clauses.Add($"{SagaTableIndexes.LastModifiedColumn} {op} {prefix}{name}");
+        }
+
+        if (range.ModifiedAfter is { } after) add("modified_after", ">=", after);
+        if (range.ModifiedBefore is { } before) add("modified_before", "<", before);
+
+        return clauses.Count == 0 ? string.Empty : " where " + string.Join(" and ", clauses);
     }
 
     /// <summary>
@@ -214,9 +385,11 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
         return reader.GetString(ordinal);
     }
 
-    private string qualifyTableName(string tableName)
+    private string qualifyTableName(string tableName) => qualifyTableName(_database, tableName);
+
+    private static string qualifyTableName(IMessageDatabase database, string tableName)
     {
-        return string.IsNullOrEmpty(_database.SchemaName) ? tableName : _database.TableNameFor(tableName);
+        return string.IsNullOrEmpty(database.SchemaName) ? tableName : database.TableNameFor(tableName);
     }
 
     /// <summary>
@@ -227,8 +400,14 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
     /// </summary>
     private static string renderPageQuery(DbConnection conn, string table, int offset, int count)
     {
+        return renderPage(conn,
+            $"select {DatabaseConstants.Id}, {DatabaseConstants.Body} from {table} order by {DatabaseConstants.Id}",
+            offset, count);
+    }
+
+    private static string renderPage(DbConnection conn, string select, int offset, int count)
+    {
         var connTypeName = conn.GetType().FullName ?? string.Empty;
-        var select = $"select {DatabaseConstants.Id}, {DatabaseConstants.Body} from {table} order by {DatabaseConstants.Id}";
 
         if (connTypeName.Contains("SqlClient", StringComparison.OrdinalIgnoreCase) ||
             connTypeName.StartsWith("Oracle.", StringComparison.OrdinalIgnoreCase))

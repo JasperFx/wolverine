@@ -36,7 +36,6 @@ public class Bug_2075_separated_behavior_and_scheduled_messages(ITestOutputHelpe
                 );
 
                 opts.Policies.UseDurableLocalQueues();
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 GlobalErrorHandlingPolicy.Invoke(opts);
             })
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);

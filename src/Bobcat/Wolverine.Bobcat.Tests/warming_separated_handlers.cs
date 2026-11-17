@@ -15,7 +15,6 @@ public class warming_separated_handlers
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(WarmUpFirstModuleHandler))

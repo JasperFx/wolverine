@@ -3,7 +3,7 @@ using JasperFx.MultiTenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Polecat;
-using Polecat.Exceptions;
+using JasperFx.Events;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Polecat;

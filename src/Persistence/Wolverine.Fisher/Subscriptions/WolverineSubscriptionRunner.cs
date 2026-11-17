@@ -1,8 +1,8 @@
-using JasperFx.Core;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
 using Fisher;
 using Fisher.Subscriptions;
+using Wolverine.Persistence.EventSourcing.Subscriptions;
 using Wolverine.Runtime;
 
 namespace Wolverine.Fisher.Subscriptions;
@@ -25,16 +25,9 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
     public override async Task<IDaemonChangeListener> ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentSession operations,
         CancellationToken cancellationToken)
     {
-        var context = new MessageContext(_runtime);
-
-        // Use the session's tenant id for multi-tenant support
-        var tenantId = operations.TenantId;
-        if (tenantId.IsNotEmpty() && tenantId != JasperFx.StorageConstants.DefaultTenantId)
-        {
-            context.TenantId = tenantId;
-        }
-
-        await context.EnlistInOutboxAsync(new FisherEnvelopeTransaction(operations, context));
+        // The session's tenant id, for multi-tenant support
+        var context = await SubscriptionMessageContext.StartAsync(_runtime, operations.TenantId,
+            c => new FisherEnvelopeTransaction(operations, c));
 
         await _subscription.ProcessEventsAsync(page, controller, operations, context, cancellationToken);
 

@@ -1,4 +1,4 @@
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Shouldly;
 
 namespace WolverineWebApi.TestSupport;
@@ -18,7 +18,7 @@ public class ExpectParameterCountAttribute : OpenApiExpectationAttribute
         Count = count;
     }
 
-    public override void Validate(OpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
+    public override void Validate(IOpenApiPathItem item, OpenApiOperation op, IOpenApiSource openApi)
     {
         var actual = op.Parameters?.Count ?? 0;
 

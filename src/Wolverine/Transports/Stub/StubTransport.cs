@@ -131,7 +131,10 @@ internal class StubTransport : TransportBase<StubEndpoint>, IStubHandlers, IMess
 
     private (FailureRuleCollection rules, TimeSpan timeout) failureRulesFor(Type messageType)
     {
-        var chain = _runtime.Handlers.ChainFor(messageType);
+        // GH-5136. A message type handled by several handler types has no single chain to take rules from,
+        // so a stub for one falls back to the global rules
+        var chains = _runtime.Handlers.GroupFor(messageType)?.Chains;
+        var chain = chains is { Count: 1 } ? chains[0] : null;
         var rules = chain?.Failures.CombineRules(_runtime.Handlers.Failures)
                     ?? _runtime.Handlers.Failures;
         var timeout = chain?.DetermineMessageTimeout(_runtime.Options) ?? 10.Seconds();

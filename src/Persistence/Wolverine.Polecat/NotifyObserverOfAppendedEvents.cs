@@ -12,9 +12,10 @@ namespace Wolverine.Polecat;
 /// <c>ITrackedSession.AppendedEvents</c>. The Polecat half of the store-agnostic event-append observation: it
 /// keeps the Polecat dependency inside the Wolverine.Polecat integration so observers (e.g. CritterWatch) attribute
 /// appended events to the executing handler/endpoint through the Wolverine abstraction only. The observer
-/// reads <c>session.PendingChanges.Streams</c> in <see cref="BeforeSaveChangesAsync"/>, as
-/// <see cref="PublishIncomingEventsBeforeCommit"/> does; a tracked session hears about the same streams only
-/// in <see cref="AfterCommitAsync"/>, so a commit that fails records nothing.
+/// captures <c>session.PendingChanges.Streams</c> in <see cref="BeforeSaveChangesAsync"/>, as
+/// <see cref="PublishIncomingEventsBeforeCommit"/> does, and reports them through the shared
+/// <see cref="CommittedEventsReport"/> only in <see cref="AfterCommitAsync"/>, so a commit that fails reports
+/// nothing to the observer or the tracked session (GH-5143).
 /// </summary>
 internal class NotifyObserverOfAppendedEvents : IDocumentSessionListener
 {
@@ -38,16 +39,9 @@ internal class NotifyObserverOfAppendedEvents : IDocumentSessionListener
     public Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token)
     {
         _reporting.AddOrUpdate(session, this);
+        // Capture only. The observer and the tracked session hear about these streams after the commit
+        // succeeds, never before it (GH-5143).
         _pending = session.PendingChanges.Streams.ToList();
-
-        if (_context.Runtime.Options.Tracking.EnableEventAppendTracking)
-        {
-            var events = _pending.SelectMany(s => s.Events).ToList();
-            if (events.Count != 0)
-            {
-                _context.Runtime.Observer.EventsAppended(events);
-            }
-        }
 
         return Task.CompletedTask;
     }
@@ -57,11 +51,8 @@ internal class NotifyObserverOfAppendedEvents : IDocumentSessionListener
         var committed = _pending;
         _pending = Array.Empty<StreamAction>();
 
-        if (_context.Runtime is WolverineRuntime runtime)
-        {
-            // GH-4977: which store, so an act on a host with ancillary stores knows which ones it heard from
-            runtime.RecordAppendedEvents(_context, committed, _store);
-        }
+        // GH-4977: the store, so an act on a host with ancillary stores knows which ones it heard from
+        CommittedEventsReport.Report(_context, committed, _store);
 
         return Task.CompletedTask;
     }

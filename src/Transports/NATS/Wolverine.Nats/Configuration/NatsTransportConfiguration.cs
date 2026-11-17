@@ -68,16 +68,18 @@ public class NatsTransportConfiguration
     public JetStreamDefaults JetStreamDefaults { get; set; } = new();
 
     /// <summary>
-    /// Whether a tenant-aware listener takes the tenant id of an incoming message from its <c>tenant-id</c> header
-    /// (the default). Set it to false when producers you do not control can publish to the listener's subjects:
-    /// a message on a tenant's own connection then belongs to that tenant, a message on the shared connection to
-    /// the configured tenant its subject prefix names, and any other message to no tenant, whatever its header
-    /// says. Only tenant-aware listeners of a transport with tenants (<c>AddTenant()</c>) have anything to take the
-    /// tenant from instead; everywhere else the header is used as before.
+    /// Whether a tenant-aware listener takes the tenant id of an incoming message from its <c>tenant-id</c> header.
+    /// Null (the default) means <c>false</c> since Wolverine 7.0 (GH-5196): a broker is a trust boundary, so a
+    /// producer with publish rights on tenant A's subjects cannot stamp a message as tenant B. A message on a
+    /// tenant's own connection then belongs to that tenant, a message on the shared connection to the configured
+    /// tenant its subject prefix names, and any other message to no tenant, whatever its header says.
+    /// <c>RestoreV6Defaults()</c> makes null mean <c>true</c>, the 6.x default; set it to true yourself only when
+    /// every producer that can publish to the listener's subjects is trusted. Only tenant-aware listeners of a
+    /// transport with tenants (<c>AddTenant()</c>) have anything to take the tenant from instead; everywhere else
+    /// the header is used as before.
     /// </summary>
-    public bool TrustTenantIdHeader { get; set; } = true;
+    public bool? TrustTenantIdHeader { get; set; }
 
-    public ITenantIdResolver? TenantIdResolver { get; set; }
     public ISubjectResolver? SubjectResolver { get; set; }
     public string? TenantSubjectPrefix { get; set; }
 
@@ -161,7 +163,6 @@ public class NatsTransportConfiguration
         check(nameof(DefaultQueueGroup), DefaultQueueGroup, tenant.DefaultQueueGroup);
         check(nameof(NormalizeSubjects), NormalizeSubjects, tenant.NormalizeSubjects);
         check(nameof(MsgIdSource), MsgIdSource, tenant.MsgIdSource);
-        check(nameof(TenantIdResolver), TenantIdResolver, tenant.TenantIdResolver);
         check(nameof(SubjectResolver), SubjectResolver, tenant.SubjectResolver);
         check(nameof(TenantSubjectPrefix), TenantSubjectPrefix, tenant.TenantSubjectPrefix);
         check(nameof(TrustTenantIdHeader), TrustTenantIdHeader, tenant.TrustTenantIdHeader);
@@ -357,11 +358,6 @@ public class JetStreamDefaults
     /// the application declares needs <c>DeliverFrom(All)</c> when it is set.
     /// </summary>
     public ConsumerConfigDeliverPolicy? DeliverPolicy { get; set; }
-}
-
-public interface ITenantIdResolver
-{
-    string? ResolveTenantId(Envelope envelope);
 }
 
 public interface ISubjectResolver

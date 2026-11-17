@@ -28,7 +28,6 @@ public class Bug_1684_separated_handlers_and_conventional_routing(ITestOutputHel
                 
                 opts.Policies.DisableConventionalLocalRouting();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
             })
             .ConfigureServices(services =>
             {
@@ -74,7 +73,7 @@ public class ConsumerOne : IWolverineHandler
     }
 }
 
-[StickyHandler(nameof(ConsumerOne))]
+[StickyHandler(nameof(ConsumerTwo))]
 public class ConsumerTwo : IWolverineHandler
 {
     public void Consume(Msg message)

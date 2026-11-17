@@ -28,7 +28,7 @@ public class queue_ordering_is_opt_in : SqliteContext
     private static CancellationToken ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task default_configuration_keeps_the_legacy_queue_schema()
+    public async Task disabling_ordering_keeps_the_legacy_queue_schema()
     {
         using var database = Servers.CreateDatabase(nameof(queue_ordering_is_opt_in));
         var started = await startAsync(database, deterministicOrdering: false);
@@ -41,6 +41,35 @@ public class queue_ordering_is_opt_in : SqliteContext
         finally
         {
             await stopAsync(started.Host);
+        }
+    }
+
+    [Fact]
+    public async Task ordering_is_the_default_from_7_0()
+    {
+        // GH-5192. Neither EnableDeterministicQueueOrdering() nor DisableDeterministicQueueOrdering()
+        using var database = Servers.CreateDatabase(nameof(queue_ordering_is_opt_in));
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+                opts.Discovery.DisableConventionalDiscovery();
+                opts.Durability.ScheduledJobFirstExecution = 1.Hours();
+                opts.Durability.ScheduledJobPollingTime = 1.Hours();
+                opts.UseSqlitePersistenceAndTransport(database.ConnectionString);
+                opts.PublishAllMessages().ToSqliteQueue(QueueName);
+            }).StartAsync(ct);
+
+        try
+        {
+            var queue = host.GetRuntime().Options.Transports.GetOrCreate<SqliteTransport>().Queues[QueueName];
+            queue.Parent.EnableDeterministicQueueOrdering.ShouldBeTrue();
+            await assertOrderedSchemaAsync(database, queue);
+            (await queue.CheckAsync()).ShouldBeTrue();
+        }
+        finally
+        {
+            await stopAsync(host);
         }
     }
 
@@ -363,6 +392,11 @@ public class queue_ordering_is_opt_in : SqliteContext
                         {
                             expression.EnableDeterministicQueueOrdering();
                         }
+                        else
+                        {
+                            // GH-5192: ordering is the 7.0 default, so the classic schema has to opt out
+                            expression.DisableDeterministicQueueOrdering();
+                        }
                     });
                 }
                 else
@@ -372,6 +406,11 @@ public class queue_ordering_is_opt_in : SqliteContext
                     if (deterministicOrdering)
                     {
                         expression.EnableDeterministicQueueOrdering();
+                    }
+                    else
+                    {
+                        // GH-5192: ordering is the 7.0 default, so the classic schema has to opt out
+                        expression.DisableDeterministicQueueOrdering();
                     }
                 }
             }).StartAsync(ct);

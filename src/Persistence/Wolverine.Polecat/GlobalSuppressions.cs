@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 //
 // Wolverine.Polecat is the SQL Server counterpart to Wolverine.Marten and has
 // the same shape: WriteAggregateAttribute, the AggregateHandling codegen
-// frames, EventWrapperForwarder, and the Subscriptions / PublishingRelay /
+// frames, and the Subscriptions / PublishingRelay /
 // InlineInvoker entry points reflect over user aggregate / event types at
 // codegen time to bind Polecat session operations into the generated handler
 // pipeline. UpdatedAggregate inspects user strong-typed-id types via

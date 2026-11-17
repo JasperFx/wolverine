@@ -257,6 +257,25 @@ public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRa
         sender.ShouldBeOfType<RabbitMqSender>();
     }
 
+    // GH-5196. A broker is a trust boundary: under the 7.0 default a send to a tenant id no registered tenant
+    // matches never reaches a broker. This host has no message store, so there is nowhere to dead letter it and
+    // the send itself throws, rather than falling back to the default broker as 6.x did
+    [Fact]
+    public async Task send_to_an_unknown_tenant_throws_without_a_message_store_and_reaches_no_broker()
+    {
+        var runtime = _fixture.Main.GetRuntime();
+        var transport = runtime.Options.Transports.GetOrCreate<RabbitMqTransport>();
+        transport.TenantedIdBehavior.ShouldBe(TenantedIdBehavior.DeadLetterUnknownTenants);
+
+        var message = new MultiTenantMessage(Guid.NewGuid());
+
+        var exception = await Should.ThrowAsync<UnknownBrokerTenantException>(async () =>
+            await _fixture.Main.MessageBus().SendAsync(message, new DeliveryOptions { TenantId = "four" }));
+
+        exception.TenantId.ShouldBe("four");
+        exception.Endpoint.ShouldBe("rabbitmq://queue/multi_incoming".ToUri());
+    }
+
     [Fact]
     public void build_compound_sender_for_tenant_aware_queue()
     {
@@ -329,8 +348,9 @@ public static class MultiTenantedRabbitMqSamples
                 // virtual hosts and separate broker connections
                 .AutoProvision()
 
-                // This is the default, if there is no tenant id on an outgoing message,
-                // use the default broker
+                // This was the 6.x default: an outgoing message with no tenant id, or an
+                // unrecognized one, uses the default broker. Since 7.0 the default is
+                // DeadLetterUnknownTenants, which dead letters an unrecognized tenant id
                 .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
                 // Or tell Wolverine instead to just quietly ignore messages sent

@@ -42,8 +42,8 @@ public class AzureServiceBusSenderProtocol : ISenderProtocolWithNativeScheduling
             catch (Exception e)
             {
                 _logger.LogError(e,
-                    "Error trying to translate envelope {Envelope} to a ServiceBusMessage object. It can never be sent, so it is reported as a serialization failure",
-                    envelope);
+                    "Error trying to translate envelope {Name}#{Id} to a ServiceBusMessage object. It can never be sent, so it is reported as a serialization failure",
+                    envelope.MessageType, envelope.Id);
                 (unmappable ??= new()).Add(envelope);
             }
         }

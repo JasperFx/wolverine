@@ -21,7 +21,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
 
     /// <summary>
     /// GH-4526. Listener endpoints on their own subscription to a topic in <see cref="Topics"/>, one per
-    /// separated handler under MultipleHandlerBehavior.Separated. Keyed by Uri, since several share a topic
+    /// handler type of a message type with several handler types. Keyed by Uri, since several share a topic
     /// </summary>
     public readonly List<PubsubEndpoint> Subscriptions = new();
 

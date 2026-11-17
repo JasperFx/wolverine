@@ -11,7 +11,7 @@ namespace Wolverine.Runtime.Handlers;
 /// registered Result type, replaces the chain's default
 /// <see cref="IReturnVariableActionSource" /> with <see cref="ResultUnwrappingActionSource" />.
 ///
-/// Same Phase A vs Phase B pattern as <c>MartenStoreEagerPolicy</c> (GH-2944): the substitution
+/// Same Phase A vs Phase B pattern as <c>StorageAttributeEagerPolicy</c> (GH-2944): the substitution
 /// must happen before any chain's codegen runs so the unwrap frame ends up in the right place in
 /// the generated source.
 /// </summary>
@@ -29,11 +29,6 @@ internal sealed class ResultTypeReturnActionPolicy : IHandlerPolicy
         foreach (var chain in chains)
         {
             ApplyTo(chain, registry);
-
-            foreach (var byEndpoint in chain.ByEndpoint)
-            {
-                ApplyTo(byEndpoint, registry);
-            }
         }
     }
 

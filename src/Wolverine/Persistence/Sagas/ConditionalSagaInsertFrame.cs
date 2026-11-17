@@ -21,6 +21,8 @@ internal class ConditionalSagaInsertFrame : Frame
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.Write($"BLOCK:if (!{_saga.Usage}.{nameof(Saga.IsCompleted)}())");
+        // GH-5345: the persistence frame, not user code, owns Saga.LastModified
+        StampSagaLastModifiedFrame.WriteStamp(writer, _saga);
         _insert.GenerateCode(method, writer);
 
         writer.FinishBlock();
@@ -33,6 +35,7 @@ internal class ConditionalSagaInsertFrame : Frame
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.Write($"BLOCK:if not ({_saga.Usage}.{nameof(Saga.IsCompleted)}()) then");
+        StampSagaLastModifiedFrame.WriteFSharpStamp(writer, _saga);
         _insert.GenerateFSharpCode(method, writer);
         writer.FinishBlock();
 

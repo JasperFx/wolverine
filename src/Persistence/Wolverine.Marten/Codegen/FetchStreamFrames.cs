@@ -1,7 +1,6 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using JasperFx.Core.Reflection;
 using JasperFx.Events;
 using Marten;
 using Marten.Services.BatchQuerying;
@@ -11,35 +10,20 @@ namespace Wolverine.Marten.Codegen;
 // GH-3627. The Marten spellings of [StreamState] and [StreamEvents], reached through
 // IEventSourcingFrameProvider so that core never writes "session.Events.FetchStreamStateAsync(...)"
 // itself -- which is what keeps the batch-query enlistment below on Marten's side of the seam, exactly
-// as FetchLatestAggregateFrame does for [ReadModel].
-internal abstract class FetchStreamFrameBase : AsyncFrame, IBatchableFrame
+// as FetchLatestAggregateFrame does for [ReadModel]. GH-5141: the standalone read, in C# and F#, is
+// Wolverine core's; Polecat and Fisher use core's frames directly.
+internal abstract class FetchStreamFrameBase : Wolverine.Persistence.EventSourcing.Codegen.FetchStreamFrameBase,
+    IBatchableFrame
 {
-    protected readonly Variable _identity;
-    protected Variable _session = null!;
-    protected Variable _token = null!;
-    protected Variable _batchQuery = null!;
-    protected Variable _batchQueryItem = null!;
+    protected Variable? _batchQuery;
+    protected Variable? _batchQueryItem;
 
     protected FetchStreamFrameBase(Variable identity, Type readType)
+        : base(identity, readType, typeof(IDocumentSession))
     {
-        if (identity.VariableType == typeof(Guid) || identity.VariableType == typeof(string))
-        {
-            _identity = identity;
-        }
-        else
-        {
-            var valueType = ValueTypeInfo.ForType(identity.VariableType);
-            _identity = new MemberAccessVariable(identity, valueType.ValueProperty);
-        }
-
-        Read = new Variable(readType, this);
     }
 
-    public Variable Read { get; }
-
     protected abstract string BatchCall { get; }
-
-    protected abstract string StandaloneCall { get; }
 
     public void WriteCodeToEnlistInBatchQuery(GeneratedMethod method, ISourceWriter writer)
     {
@@ -58,32 +42,39 @@ internal abstract class FetchStreamFrameBase : AsyncFrame, IBatchableFrame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _session = chain.FindVariable(typeof(IDocumentSession));
-        yield return _session;
-
-        _token = chain.FindVariable(typeof(CancellationToken));
-        yield return _token;
+        foreach (var variable in base.FindVariables(chain))
+        {
+            yield return variable;
+        }
 
         if (_batchQuery != null)
         {
             yield return _batchQuery;
         }
-
-        yield return _identity;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         if (_batchQueryItem == null)
         {
-            writer.Write($"var {Read.Usage} = await {_session.Usage}.Events.{StandaloneCall}({_identity.Usage}, {_token.Usage});");
-        }
-        else
-        {
-            writer.Write($"var {Read.Usage} = await {_batchQueryItem.Usage}.ConfigureAwait(false);");
+            base.GenerateCode(method, writer);
+            return;
         }
 
+        writer.Write($"var {Read.Usage} = await {_batchQueryItem.Usage}.ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (_batchQueryItem == null)
+        {
+            base.GenerateFSharpCode(method, writer);
+            return;
+        }
+
+        writer.WriteLine($"let! {Read.Usage} = {_batchQueryItem.FSharpUsage}");
+        Next?.GenerateFSharpCode(method, writer);
     }
 }
 

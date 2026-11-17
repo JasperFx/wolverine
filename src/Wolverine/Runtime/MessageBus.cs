@@ -22,7 +22,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
     // concurrent List<Envelope>.Add silently corrupts the list and drops messages.
     // GH-2529.
     // ReSharper disable once InconsistentNaming
-    protected readonly object _outstandingLock = new();
+    protected readonly Lock _outstandingLock = new();
     private string? _tenantId;
 
     public MessageBus(IWolverineRuntime runtime) : this(runtime, Activity.Current?.RootId ?? Guid.NewGuid().ToString())
@@ -74,7 +74,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
     {
         get
         {
-            lock (_outstandingLock) return _outstanding.ToArray();
+            using (_outstandingLock.EnterScope()) return _outstanding.ToArray();
         }
     }
 
@@ -362,10 +362,16 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
         if (Transaction is not null)
         {
-            lock (_outstandingLock)
+            // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+            _outstandingLock.Enter();
+            try
             {
                 // Fill, NOT Add. The dedup is load-bearing -- see PersistOrSendAsync(Envelope[]).
                 _outstanding.Fill(envelope);
+            }
+            finally
+            {
+                _outstandingLock.Exit();
             }
 
             await envelope.PersistAsync(Transaction).ConfigureAwait(false);
@@ -479,7 +485,9 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
             await Transaction.PersistAsync(envelopes).ConfigureAwait(false);
 
-            lock (_outstandingLock)
+            // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+            _outstandingLock.Enter();
+            try
             {
                 // Fill, NOT AddRange. GH-4325 replaced this with AddRange on the reasoning that
                 // every envelope here is freshly minted by the router and so the Contains check
@@ -494,6 +502,10 @@ public partial class MessageBus : IMessageBus, IMessageContext
                 // of Fill is ever worth removing, it needs a dedup that is still a dedup (a HashSet
                 // of ids alongside the list), not the removal of one.
                 _outstanding.Fill(outgoing);
+            }
+            finally
+            {
+                _outstandingLock.Exit();
             }
         }
         else

@@ -123,8 +123,8 @@ public abstract class StreamReadAttribute : WolverineParameterAttribute
     {
         var provider = ResolveProvider(chain, rules, container);
 
-        // Stream identity is the store's, not an aggregate's: Guid or string, per the integration
-        var idType = provider.DetermineStreamIdentity(container) == JasperFx.Events.StreamIdentity.AsGuid
+        // Stream identity is the store's, not an aggregate's: Guid or string, per the store this chain writes to (GH-5142)
+        var idType = provider.DetermineStreamIdentity(chain, container) == JasperFx.Events.StreamIdentity.AsGuid
             ? typeof(Guid)
             : typeof(string);
 

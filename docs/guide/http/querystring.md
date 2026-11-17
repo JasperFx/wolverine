@@ -1,12 +1,14 @@
 # Working with QueryString
 
 ::: warning
-`WolverineHttpOptions.RejectUnparseableQueryValues` defaults to **false**, and this is the most
-surprising default in Wolverine.HTTP if you are arriving from MVC or minimal APIs, both of which
-reject an unparseable value.
+`WolverineHttpOptions.RejectUnparseableQueryValues` defaults to **true** from Wolverine 7.0 (it was
+`false` throughout 6.x). A query string value that is *present but unparseable* answers
+`400 Bad Request` with a `ProblemDetails` body naming the offending parameter, as MVC and minimal
+APIs do.
 
-Under the default, a query string value that is *present but unparseable* binds the parameter's
-default and **the request proceeds**:
+Setting it to `false` (or calling `opts.RestoreV6Defaults()` in `UseWolverine`) puts back the 6.x
+lenient binding, where the unparseable value binds the parameter's default and **the request
+proceeds**:
 
 | Request | Parameter | Result |
 | --- | --- | --- |
@@ -18,21 +20,17 @@ Nothing is logged for the individual request, so the server sees what looks like
 call — which is what makes "the API returned the wrong page" so hard to chase. Wolverine logs one
 warning at startup when an application binds parsed query parameters and the flag is off.
 
-Set it to `true` to get a `400 Bad Request` with a `ProblemDetails` body naming the offending
-parameter instead:
-
 ```csharp
 app.MapWolverineEndpoints(opts =>
 {
-    opts.RejectUnparseableQueryValues = true;
+    // Only if you depend on the 6.x lenient binding
+    opts.RejectUnparseableQueryValues = false;
 });
 ```
 
 A **missing** query string value still binds the parameter's default in either mode; this governs
 only values that are present and cannot be parsed. See
 [Strict Query String Binding](./as-parameters#strict-query-string-binding).
-
-The strict behavior becomes the default in Wolverine 7.0.
 :::
 
 ::: tip

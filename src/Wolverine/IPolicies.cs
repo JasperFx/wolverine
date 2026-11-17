@@ -235,7 +235,7 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
 
     /// <summary>
     /// Override the log level for Wolverine's built in logging for messages
-    /// being completed successfully. This is Information by default
+    /// being completed successfully. This is Debug by default (it was Information before 6.21, GH-3490)
     /// </summary>
     /// <param name="logLevel"></param>
     void MessageSuccessLogLevel(LogLevel logLevel);
@@ -282,12 +282,6 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// routing conventions that are applied to the system
     /// </summary>
     void ConventionalLocalRoutingIsAdditive();
-
-    /// <summary>
-    /// Should Wolverine try to publish internal events about agent assignment, node
-    /// history, and endpoint events to the message bus? The default is false;
-    /// </summary>
-    bool PublishAgentEvents { get; set; }
 
     /// <summary>
     /// Automatically propagate the originating message's GroupId to the PartitionKey of outgoing

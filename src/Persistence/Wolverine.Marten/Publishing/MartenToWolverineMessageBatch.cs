@@ -18,10 +18,12 @@ internal class MartenToWolverineMessageBatch : IMessageBatch
 {
     private readonly ProjectionSideEffectSink _sink;
 
-    public MartenToWolverineMessageBatch(MessageContext context, DocumentSessionBase session)
+    public MartenToWolverineMessageBatch(ProjectionSideEffectSink sink)
     {
-        _sink = new ProjectionSideEffectSink(context, c => new MartenEnvelopeTransaction(session, c));
+        _sink = sink;
     }
+
+    internal ProjectionSideEffectSink Sink => _sink;
 
     public ValueTask PublishAsync<T>(T message, string tenantId)
     {

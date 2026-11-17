@@ -100,17 +100,6 @@ public partial class HttpChain
             throw new NotSupportedException(
                 $"{Description} has [DeduplicatedWithResponse], which replays the response as its status, System.Text.Json body and Location, but this endpoint returns {ResourceType!.FullNameInCode()}, which writes its response another way. Return Ok, Created, Accepted, NoContent, StatusCode or Empty results, or a resource written as JSON. See GH-4742");
         }
-
-        if (BindsFormValues)
-        {
-            // The fingerprint reads the body after binding, which needs a rewindable stream --
-            // EnableRequestBufferingFrame, at Middleware[0]. A form value's creator frame is never IN
-            // Middleware (HttpChain.BindsFormValues says why), so the arranger hoists the form read ahead of
-            // the buffering and ComputeDeduplicationFingerprintAsync then fails its !Body.CanSeek guard on
-            // EVERY request. Refuse while the chain is being built rather than 500 at runtime.
-            throw new NotSupportedException(
-                $"[DeduplicatedWithResponse] on {Description} binds a form value, and form-encoded requests are not supported by this attribute: the request fingerprint needs to re-read the body after binding, and the form read consumes it first. Take a JSON body instead, or use [Deduplicated], which does not fingerprint the request. See GH-4742");
-        }
     }
 
     /// <summary>
@@ -185,7 +174,7 @@ public partial class HttpChain
         var flush = Postprocessors.FindIndex(x => x is FlushOutgoingMessages or IFlushesMessages);
         Postprocessors.Insert(flush < 0 ? Postprocessors.Count : flush,
             new RecordDeduplicatedResponseFrame(scoped.Variable, claim.ClaimToken, ResourceVariable ?? Method.Creates.First(),
-                MissingResponseBodyStatusCode, AncillaryStoreType));
+                MissingResponseBodyStatusCode, requirement.StoreBody, AncillaryStoreType));
     }
 
     /// <summary>
@@ -211,7 +200,7 @@ public partial class HttpChain
 
         var resource = ResourceVariable ?? Method.Creates.First();
         var prepare = new PrepareDeduplicatedResponseClaimFrame(scoped, fingerprint, resource,
-            MissingResponseBodyStatusCode, requirement.Window);
+            MissingResponseBodyStatusCode, requirement.StoreBody, requirement.Window);
         var storageId = new DeduplicationStorageIdFrame(scoped);
 
         // As [Deduplicated] on Marten: the lookup may join a batch only when the key is required
@@ -312,9 +301,17 @@ public partial class HttpChain
     /// </summary>
     private void bufferRequestForDeduplicatedWithResponse()
     {
-        if (DeduplicatedWithResponse != null && !Middleware.OfType<EnableRequestBufferingFrame>().Any())
+        if (DeduplicatedWithResponse == null) return;
+
+        var buffering = Middleware.OfType<EnableRequestBufferingFrame>().FirstOrDefault();
+        if (buffering == null)
         {
-            Middleware.Insert(0, new EnableRequestBufferingFrame());
+            buffering = new EnableRequestBufferingFrame();
+            Middleware.Insert(0, buffering);
         }
+
+        // A form value's read is hoisted ahead of the middleware, and would consume the body before it is
+        // buffered. Ordered whether this call inserted the buffering or found it already in place
+        ReadFormCollection.MustFollow(buffering);
     }
 }

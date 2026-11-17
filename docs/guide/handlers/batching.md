@@ -130,30 +130,17 @@ public async Task send_end_to_end_with_batch()
 
 Alright, with all that being said, here's a few more facts about the batch messaging support:
 
-1. There is absolutely no need to create a specific message handler for the `Item` message, and in fact, you should
-   not do so -- *unless* you are running in `MultipleHandlerBehavior.Separated` mode and deliberately want both a
-   per-message handler and a batched handler (see [Combining a direct handler with batching](#combining-a-direct-handler-with-batching) below)
+1. There is absolutely no need to create a specific message handler for the `Item` message. If you do declare one
+   alongside the batch, both run (see [Combining a direct handler with batching](#combining-a-direct-handler-with-batching) below)
 2. The message batching is able to group the message batches by tenant id *if* your Wolverine system uses multi-tenancy
 
 ## Combining a direct handler with batching
 
-By default Wolverine assumes the batch handler is the *only* consumer of the element type, so an incoming `Item`
-is always routed straight to the batch. If you *also* declare a direct `Handle(Item)` handler alongside
-`BatchMessagesOf<Item>()`, the direct handler wins and the batch is silently shadowed -- the batched handler never runs.
-
-::: warning
-Because that shadowing is easy to miss, Wolverine logs a loud **warning at startup** whenever a message type has
-both a direct `Handle(T)` handler and a `BatchMessagesOf<T>()` batch handler under the default
-`ClassicCombineIntoOneLogicalHandler` mode, naming both handlers and pointing you at `MultipleHandlerBehavior.Separated`.
-If you would rather this configuration be a hard error, call `opts.AssertNoBatchHandlerConflicts()` and Wolverine will
-throw at startup instead of warning.
-:::
-
-The one exception is `MultipleHandlerBehavior.Separated`. Under that mode Wolverine treats the per-message handler and
-the batched handler as two independent consumers of `Item`, so **both** run for every `Item`:
+A `BatchMessagesOf<Item>()` batch is one more subscriber of `Item`, next to any handler chains for `Item`. If you *also*
+declare a direct `Handle(Item)` handler, Wolverine treats the per-message handler and the batched handler as two
+independent consumers of `Item`, so **both** run for every `Item`:
 
 ```csharp
-opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 opts.BatchMessagesOf<Item>();
 
 // Direct, per-message handler
@@ -173,13 +160,18 @@ To make this work, Wolverine moves the batch onto its own dedicated local queue 
 `-batch` suffix) so it no longer collides with the direct handler's queue, and fans every `Item` out to both queues.
 This applies to messages published in-process *and* to `Item` messages arriving from an external transport listener.
 
+::: info
+In Wolverine 6.x's default `ClassicCombineIntoOneLogicalHandler` mode the direct handler won and the batch was silently
+shadowed, so Wolverine logged a warning and `AssertNoBatchHandlerConflicts()` could make that an error. 7.0 removed
+both, because there is no conflict any more.
+:::
+
 ### Multiple batched handlers
 
-`MultipleHandlerBehavior.Separated` also lets you register **more than one** batched handler for the same element type --
-for example one handler that publishes an integration event for the batch and another that archives it:
+You can register **more than one** batched handler for the same element type -- for example one handler that
+publishes an integration event for the batch and another that archives it:
 
 ```csharp
-opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 opts.BatchMessagesOf<Item>();
 
 public static class ItemPublisher
@@ -193,9 +185,8 @@ public static class ItemArchiver
 }
 ```
 
-Under `Separated` mode each `Handle(Item[])` handler is given its own sticky queue, so Wolverine fans the assembled
-batch out to every one of them and each runs independently. (Under the default `Classic` behavior the multiple
-`Handle(Item[])` handlers are instead combined into a single logical handler that invokes each one in turn.)
+Each `Handle(Item[])` handler type is its own handler chain with its own queue, so Wolverine fans the assembled batch
+out to every one of them and each runs independently.
 
 ## Durability and message settlement
 
@@ -403,6 +394,14 @@ opts.BatchMessagesOf<ScoreEvent>(batching =>
     // stamped group id can be used to shard its execution
     .PartitionProcessingByGroupId(PartitionSlots.Five);
 ```
+
+::: tip Automatic for partitioned message types in 7.0
+As of Wolverine 7.0, when the batched message type belongs to a partitioned topology (`GlobalPartitioned`,
+`PublishToPartitionedLocalMessaging` or a sharded listener topology), Wolverine calls `GroupByGroupId()` for you unless
+you supplied your own `IMessageBatcher`. Call `batching.DoNotGroupByGroupId()` to keep the tenant-only batcher, or
+`opts.RestoreV6Defaults()` to go back to the 6.x behavior everywhere. A batch that executes on the topology's own slots
+(see below) is grouped either way.
+:::
 
 The group id is resolved from the envelope first (a listener already using `PartitionProcessingByGroupId` has
 stamped it upstream), falling back to your `MessagePartitioning` rules. A few deliberate behaviors:

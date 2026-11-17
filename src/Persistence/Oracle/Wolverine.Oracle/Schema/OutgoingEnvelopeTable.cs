@@ -18,14 +18,16 @@ internal class OutgoingEnvelopeTable : Table
         AddColumn<int>(DatabaseConstants.Attempts).DefaultValue(0);
         AddColumn(DatabaseConstants.MessageType, "VARCHAR2(500)").NotNull();
 
-        if (durability.OutboxStaleTime.HasValue)
+        // GH-5193: always created (unless AlwaysProvisionOptionalSchemaObjects is off), whether or not
+        // OutboxStaleTime is set; only the statements that read and write it follow OutboxStaleTime
+        if (durability.ProvisionsOutgoingTimestamp)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp)
                 .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'");
 
-            // GH-5016: opt-in, for the stale owner-0 predicate of a ServerlessWithOutbox durability pass
+            // GH-5016 / GH-5193: always created since 7.0, for the stale owner-0 predicate of a ServerlessWithOutbox durability pass
             // (`owner_id = 0 and timestamp <= :stale`). No partial indexes in this provider, so owner_id leads
-            if (durability.EnableOutgoingTimestampIndex)
+            if (durability.ProvisionsOutgoingTimestampIndex)
             {
                 Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.OutgoingTable}_stale")
                 {

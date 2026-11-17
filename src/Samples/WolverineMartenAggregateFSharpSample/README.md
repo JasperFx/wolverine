@@ -38,7 +38,7 @@ compile-gate is). Start the repo's docker-compose infrastructure first:
 
 ```bash
 docker compose up -d          # Postgres on :5433
-dotnet run --project src/Samples/WolverineMartenAggregateFSharpSample --framework net9.0
+dotnet run --project src/Samples/WolverineMartenAggregateFSharpSample --framework net10.0
 ```
 
 Expected output: `Incremented the Counter through the F# Wolverine + Marten aggregate handler.`

@@ -17,6 +17,12 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 {
     public const string ProtocolName = "rabbitmq";
     public const string ResponseEndpointName = "RabbitMqResponses";
+
+    /// <summary>
+    /// GH-5201. <see cref="WolverineOptions.V6DefaultsRestored" /> as this transport read it when it started, for
+    /// the queue defaults 7.0 flipped
+    /// </summary>
+    internal bool V6DefaultsRestoredAtStartup => V6DefaultsRestored;
     public const string DeadLetterQueueName = DeadLetterQueueConstants.DefaultQueueName;
     public const string DeadLetterQueueHeader = "x-dead-letter-exchange";
     public const string QueueTypeHeader = "x-queue-type";
@@ -29,6 +35,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     private ConnectionMonitor? _listenerConnection;
     private ConnectionMonitor? _sendingConnection;
+    private RabbitMqQueue? _replyQueue;
 
     public RabbitMqTransport(string protocol) : base(protocol, "Rabbit MQ", ["rabbitmq"])
     {
@@ -346,7 +353,10 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         var isServerless = runtime.Options.Durability.Mode is DurabilityMode.Serverless
             or DurabilityMode.ServerlessWithOutbox;
 
-        if (DeclareRequestReplySystemQueue && !isServerless)
+        // GH-5452. Resource discovery (IHost.ResetResourceState(), the resources commands) runs this again, so the
+        // reply queue is built once and kept, as AzureServiceBusTransport keeps its _responseNode. A new one on every
+        // call was never listened to, yet every later reset declared and purged it, and ReplyEndpoint() could pick it
+        if (DeclareRequestReplySystemQueue && !isServerless && _replyQueue == null)
         {
             // We switched back to using a Guid to disambiguate Wolverine nodes
             // that might be connecting to the same broker but within different apps
@@ -366,6 +376,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
             queue.Arguments["x-expires"] = 1800000; // 30 minute expiry
 
             Queues[queueName] = queue;
+            _replyQueue = queue;
         }
 
         // Have to do this early to get everything together for the dead letter queues
@@ -513,6 +524,9 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
         if (Tenants.Any() && queue.TenancyBehavior == TenancyBehavior.TenantAware)
         {
+            // GH-5196: dead letter a received message for a tenant id no registered tenant matches
+            UnknownBrokerTenantGuard.Install(queue, TenantedIdBehavior, Tenants.Select(x => x.TenantId));
+
             var compound = new CompoundListener(queue.Uri);
             compound.Inner.Add(listener);
 

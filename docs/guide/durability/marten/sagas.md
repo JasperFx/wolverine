@@ -177,6 +177,31 @@ var allSagas = await session
     .ToListAsync();
 ```
 
+## Indexing LastModified for Idle Sagas <Badge type="tip" text="7.0" />
+
+Wolverine maps `Saga.LastModified` onto Marten's own `mt_last_modified` metadata column, so a query for
+[idle sagas](/guide/durability/sagas#finding-idle-sagas), whether yours or CritterWatch's, filters on that column.
+Marten does not index it by default. If you look for idle sagas on a saga type with many instances, add Marten's
+last-modified index to that saga's document mapping:
+
+<!-- snippet: sample_marten_saga_last_modified_index -->
+<a id='snippet-sample_marten_saga_last_modified_index'></a>
+```cs
+opts.Services.AddMarten(m =>
+{
+    m.Connection(Servers.PostgresConnectionString);
+    m.DatabaseSchemaName = "saga_idle_index";
+
+    // Saga.LastModified is stored in Marten's mt_last_modified column, so index that
+    // column to find idle sagas without scanning the saga table
+    m.Schema.For<IdleDiagnosticsSaga>().IndexLastModified();
+}).IntegrateWithWolverine();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Saga/saga_last_modified_index_5558.cs#L31-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_marten_saga_last_modified_index' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The index is an ordinary Marten schema change, applied the same way as the rest of your Marten schema.
+
 ## Optimistic Concurrency <Badge type="tip" text="3.0" />
 
 Marten will automatically apply numeric revisioning to Wolverine `Saga` storage, and will increment

@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using Fisher;
 using Fisher.Events.Messaging;
 using Wolverine.Runtime;
@@ -23,22 +22,18 @@ namespace Wolverine.Fisher.Publishing;
 /// </remarks>
 internal class FisherToWolverineOutbox : IMessageOutbox
 {
-    private readonly Lazy<IWolverineRuntime> _runtime;
+    private readonly ProjectionOutboxSource _source;
 
-    public FisherToWolverineOutbox(IServiceProvider services)
+    /// <param name="services">The application container</param>
+    /// <param name="storeType">The ancillary store's marker type, or null for the main store (GH-5143)</param>
+    public FisherToWolverineOutbox(IServiceProvider services, Type? storeType = null)
     {
-        _runtime = new Lazy<IWolverineRuntime>(() => services.GetRequiredService<IWolverineRuntime>());
+        _source = new ProjectionOutboxSource(services, storeType);
     }
 
     public async ValueTask<IMessageBatch> CreateBatch(IDocumentSession session)
     {
-        var context = new MessageContext(_runtime.Value, session.TenantId)
-        {
-            MultiFlushMode = MultiFlushMode.AllowMultiples
-        };
-
-        await context.EnlistInOutboxAsync(new FisherEnvelopeTransaction(session, context));
-
-        return new FisherToWolverineMessageBatch(context, session);
+        var sink = await _source.StartBatchAsync(session.TenantId, c => new FisherEnvelopeTransaction(session, c));
+        return new FisherToWolverineMessageBatch(sink);
     }
 }

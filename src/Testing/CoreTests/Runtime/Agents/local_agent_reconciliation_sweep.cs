@@ -44,7 +44,7 @@ public class local_agent_reconciliation_sweep
         runtime.Observer.Returns(Substitute.For<IWolverineObserver>());
 
         // The sweep must not depend on leadership, so this node stays a follower throughout.
-        _persistence.HasLeadershipLock().Returns(false);
+        _persistence.HasLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(false);
         _persistence.TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>()).Returns(false);
 
         _controller = new NodeAgentController(

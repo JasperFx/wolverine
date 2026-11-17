@@ -183,6 +183,13 @@ public class DeliveryOptions
         {
             envelope.RoutingInformation = RoutingInformation;
         }
+
+        // GH-5537: null leaves whatever a [StartsNewLinkedTrace] / opts.Tracing rule decided; an
+        // explicit true or false wins over the rule
+        if (StartsNewLinkedTrace.HasValue)
+        {
+            envelope.StartsNewLinkedTrace = StartsNewLinkedTrace.Value;
+        }
     }
 
     /// <summary>
@@ -203,6 +210,13 @@ public class DeliveryOptions
     /// Partition Key when sending via Kafka
     /// </summary>
     public string? PartitionKey { get; set; }
+
+    /// <summary>
+    /// Start a new trace on the receiving side, linked back to the sending activity. Null (the default)
+    /// leaves the decision to <c>[StartsNewLinkedTrace]</c>, <see cref="IStartsNewLinkedTrace" /> or
+    /// <c>opts.Tracing.StartNewLinkedTraceFor()</c>; true or false wins over those rules.
+    /// </summary>
+    public bool? StartsNewLinkedTrace { get; set; }
 
     /// <summary>
     ///     Add a header key/value pair to the outgoing message

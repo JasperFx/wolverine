@@ -29,7 +29,7 @@ public class queue_ordering_is_opt_in
     private static CancellationToken ct => TestContext.Current.CancellationToken;
 
     [Fact]
-    public async Task default_configuration_keeps_the_legacy_queue_schema()
+    public async Task disabling_ordering_keeps_the_legacy_queue_schema()
     {
         var schema = await newSchemaAsync();
         IHost? host = null;
@@ -361,6 +361,11 @@ public class queue_ordering_is_opt_in
                         {
                             expression.EnableDeterministicQueueOrdering();
                         }
+                        else
+                        {
+                            // GH-5192: ordering is the 7.0 default, so the classic schema has to opt out
+                            expression.DisableDeterministicQueueOrdering();
+                        }
                     });
                 }
                 else
@@ -376,6 +381,11 @@ public class queue_ordering_is_opt_in
                     if (deterministicOrdering)
                     {
                         expression.EnableDeterministicQueueOrdering();
+                    }
+                    else
+                    {
+                        // GH-5192: ordering is the 7.0 default, so the classic schema has to opt out
+                        expression.DisableDeterministicQueueOrdering();
                     }
                 }
             }).StartAsync(ct);

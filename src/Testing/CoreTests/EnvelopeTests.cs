@@ -434,6 +434,18 @@ public class EnvelopeTests
     }
 
     [Fact]
+    public void metrics_message_type_tag_is_namespaced()
+    {
+        // GH-5450. The bare "message.type" is an old OpenTelemetry RPC semantic-convention attribute, and
+        // backends that migrate old semconv names on ingest (Dash0) renamed it to rpc_message_type.
+        var envelope = new Envelope { Destination = new Uri("local://one"), Message = new Message1()};
+        var dict = new Dictionary<string, object>(envelope.ToMetricsHeaders());
+
+        dict["wolverine.message.type"].ShouldBe(typeof(Message1).ToMessageTypeName());
+        dict.ContainsKey("message.type").ShouldBeFalse();
+    }
+
+    [Fact]
     public void tenant_id_is_part_of_metrics()
     {
         var envelope = new Envelope

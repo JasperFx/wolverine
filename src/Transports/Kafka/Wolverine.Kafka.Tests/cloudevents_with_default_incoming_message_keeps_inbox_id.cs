@@ -32,7 +32,7 @@ public class cloudevents_with_default_incoming_message_keeps_inbox_id
             {
                 opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
-                    .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
+                    .ConfigureConsumers(c => c.AutoOffsetReset = Dekaf.Consumer.AutoOffsetReset.Earliest);
 
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, Schema);
 

@@ -39,6 +39,8 @@ public static class EnvelopeConstants
     /// </summary>
     public const string PreviousAttemptActivityIdKey = "previous-attempt-activity-id";
 
+    public const string StartsNewLinkedTraceKey = "starts-new-linked-trace";
+
     /// <summary>
     ///     Legacy timestamp format retained for reading older transport headers and persisted envelopes.
     ///     New transport headers use the invariant round-trip format ("o").

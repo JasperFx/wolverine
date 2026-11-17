@@ -68,14 +68,14 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
 
         foreach (var messageType in handledMessageTypes.Where(t => _typeFilters.Matches(t)))
         {
-            var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
+            var group = runtime.Options.HandlerGraph.GroupFor(messageType);
 
             // Batch element types won't have their own handler chain (only the array type does),
             // but they still need external listeners created so messages can be received and
             // routed to the local batching queue. See GH-2307.
             var isBatchElementType = runtime.Options.BatchDefinitions.Any(b => b.ElementType == messageType);
 
-            if (chain == null)
+            if (group == null || group.Chains.Count == 0)
             {
                 if (isBatchElementType)
                 {
@@ -85,58 +85,43 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
                 continue;
             }
 
-            if (_namingSource == NamingSource.FromHandlerType && (chain.Handlers.Any() || chain.ByEndpoint.Any()))
+            if (_namingSource == NamingSource.FromHandlerType)
             {
-                foreach (var handler in chain.Handlers)
+                // A chain bound to an endpoint of its own -- one of several handler types, or a sticky handler
+                // -- has to know about its handler-named listener too, or the message never reaches it. GH-3041.
+                foreach (var chain in group.Chains)
                 {
-                    var handlerType = handler.HandlerType;
+                    var bound = chain.Endpoints.Count > 0;
+                    var handlerType = Wolverine.Runtime.Handlers.MessageHandlerGroup.HandlerTypeOf(chain);
                     var endpoint = maybeCreateListenerForMessageOrHandlerType(transport, handlerType, runtime, messageType);
                     if (endpoint != null)
                     {
-                        endpoint.StickyHandlers.Add(handlerType);
-                    }
-                }
-
-                // Separated handler chains live in ByEndpoint, NOT chain.Handlers. When a message is
-                // handled by more than one handler under MultipleHandlerBehavior.Separated (e.g. a saga
-                // plus a regular handler), only the saga stays in chain.Handlers - the sibling handlers
-                // are moved to ByEndpoint. They each still need their own handler-named listener, or the
-                // message never reaches them and only chain.Handlers (the saga) is invoked. GH-3041.
-                foreach (var handlerChain in chain.ByEndpoint)
-                {
-                    var handlerType = handlerChain.Handlers.First().HandlerType;
-                    var endpoint = maybeCreateListenerForMessageOrHandlerType(transport, handlerType, runtime, messageType);
-                    if (endpoint != null)
-                    {
-                        handlerChain.RegisterEndpoint(endpoint);
+                        if (bound) chain.RegisterEndpoint(endpoint);
                         endpoint.StickyHandlers.Add(handlerType);
                     }
                 }
             }
-            else if (runtime.Options.MultipleHandlerBehavior == MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler && chain.Handlers.Any())
+            else
             {
-                maybeCreateListenerForMessageOrHandlerType(transport, messageType, runtime);
-            }
-            else if (runtime.Options.MultipleHandlerBehavior == MultipleHandlerBehavior.Separated)
-            {
-                if (chain.Handlers.Any())
+                // GH-5136. The message type's own listener is for the chain that is not bound to an endpoint of
+                // its own; every bound chain -- one per handler type when there are several -- gets a listener
+                // named for the message type and its handler type
+                if (group.UnboundChains().Any())
                 {
                     maybeCreateListenerForMessageOrHandlerType(transport, messageType, runtime);
                 }
 
-                foreach (var handlerChain in chain.ByEndpoint)
+                foreach (var chain in group.BoundChains().ToArray())
                 {
-                    var handlerType = handlerChain.Handlers.First().HandlerType;
+                    var handlerType = Wolverine.Runtime.Handlers.MessageHandlerGroup.HandlerTypeOf(chain);
                     var endpoint = maybeCreateListenerForMessageAndSeparatedHandlerType(transport, messageType, handlerType, runtime);
                     if (endpoint != null)
                     {
-                        handlerChain.RegisterEndpoint(endpoint);
+                        chain.RegisterEndpoint(endpoint);
                         endpoint.StickyHandlers.Add(handlerType);
                     }
                 }
             }
-
-
         }
     }
 
@@ -262,9 +247,8 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
     /// ADDITION to the one <see cref="FindOrCreateSubscriber"/> names. A transport whose destination fans
     /// out by itself -- a RabbitMQ exchange, an Azure Service Bus topic, an SNS topic -- never needs this:
     /// one destination, and the broker delivers to every queue or subscription behind it. A transport whose
-    /// destination is a plain queue has nothing to fan out with, so under
-    /// <see cref="MultipleHandlerBehavior.Separated"/> the sender itself has to publish to one queue per
-    /// separated handler; <see cref="SeparatedHandlerTypesFor"/> names those handlers. Each endpoint returned
+    /// destination is a plain queue has nothing to fan out with, so when a message type has several handler
+    /// types the sender itself has to publish to one queue per handler type; <see cref="SeparatedHandlerTypesFor"/> names those handlers. Each endpoint returned
     /// here is registered, configured and routed exactly like the primary one. Empty by default.
     /// </summary>
     protected virtual IEnumerable<(TSubscriber, Endpoint)> FindOrCreateAdditionalSubscribers(string identifier,
@@ -275,9 +259,8 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
 
     /// <summary>
     /// GH-4524 / GH-4525. Whether the sender should publish <paramref name="messageType"/> to the message
-    /// type's own destination at all. True by default. A queue-only transport under
-    /// <see cref="MultipleHandlerBehavior.Separated"/> returns false when every local handler was moved to a
-    /// per-handler queue and nothing listens on the message type's queue any more -- publishing there would
+    /// type's own destination at all. True by default. A queue-only transport returns false when every local
+    /// handler chain is bound to a per-handler queue and nothing listens on the message type's queue any more -- publishing there would
     /// pile up copies nobody consumes. The destinations from <see cref="FindOrCreateAdditionalSubscribers"/>
     /// are unaffected.
     /// </summary>
@@ -288,42 +271,31 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
     }
 
     /// <summary>
-    /// True when <see cref="MultipleHandlerBehavior.Separated"/> moved EVERY local handler of
-    /// <paramref name="messageType"/> to its own listener, leaving the message type's own destination with no
-    /// listener in this process. Mirrors the test <c>DiscoverListeners</c> makes before creating that listener.
+    /// True when EVERY local handler chain of <paramref name="messageType"/> is bound to its own listener,
+    /// leaving the message type's own destination with no listener in this process. Mirrors the test
+    /// <c>DiscoverListeners</c> makes before creating that listener.
     /// </summary>
     protected static bool EveryHandlerIsSeparated(Type messageType, IWolverineRuntime runtime)
     {
-        if (runtime.Options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
-        {
-            return false;
-        }
-
-        var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
-        return chain != null && !chain.Handlers.Any() && chain.ByEndpoint.Any();
+        var group = runtime.Options.HandlerGraph.GroupFor(messageType);
+        return group != null && !group.UnboundChains().Any() && group.BoundChains().Any();
     }
 
     /// <summary>
-    /// The handler types that <see cref="MultipleHandlerBehavior.Separated"/> moved out of the main handler
-    /// chain for <paramref name="messageType"/> and gave their own listener -- the same ones
-    /// <c>DiscoverListeners</c> hands to <see cref="FindOrCreateListenerForIdentifierUsingSeparatedHandler"/>.
-    /// Empty when the behaviour is not Separated, the message has no local handler, or only one handler
-    /// handles it (that one keeps the message type's own destination).
+    /// The handler types of <paramref name="messageType"/> whose chains are bound to a listener of their own --
+    /// the same ones <c>DiscoverListeners</c> hands to <see cref="FindOrCreateListenerForIdentifierUsingSeparatedHandler"/>.
+    /// Empty when the message has no local handler, or only one handler type handles it and it is not sticky
+    /// (that one keeps the message type's own destination).
     /// </summary>
     protected static IEnumerable<Type> SeparatedHandlerTypesFor(Type messageType, IWolverineRuntime runtime)
     {
-        if (runtime.Options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
+        var group = runtime.Options.HandlerGraph.GroupFor(messageType);
+        if (group == null)
         {
             return [];
         }
 
-        var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
-        if (chain == null)
-        {
-            return [];
-        }
-
-        return chain.ByEndpoint.Select(x => x.Handlers.First().HandlerType).Distinct().ToArray();
+        return group.BoundChains().Select(Wolverine.Runtime.Handlers.MessageHandlerGroup.HandlerTypeOf).Distinct().ToArray();
     }
 
     /// <summary>

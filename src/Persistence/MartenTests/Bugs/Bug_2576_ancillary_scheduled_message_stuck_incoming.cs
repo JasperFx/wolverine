@@ -111,7 +111,6 @@ public class Bug_2576_ancillary_scheduled_message_stuck_incoming : IAsyncLifetim
                     m.DisableNpgsqlLogging = true;
                 }).IntegrateWithWolverine(x => x.SchemaName = "bug2576_ancillary");
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.Policies.UseDurableInboxOnAllListeners();
                 opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
                 opts.Policies.AutoApplyTransactions();

@@ -1,0 +1,26 @@
+{
+  "variant": "net11-ra",
+  "framework": ".NET 11.0.0",
+  "runtimeAsyncCodegen": true,
+  "proof": {
+    "HandlerType": "Internal.Generated.WolverineHandlers.InProcCommandHandler1071968105",
+    "WolverineAsyncMethods": 714,
+    "WolverineStateMachines": 3,
+    "HandlerAsyncMethods": 1,
+    "HandlerStateMachines": 0
+  },
+  "concurrency": 18,
+  "yieldEvery": 1,
+  "messages": 43797545,
+  "seconds": 30,
+  "msgPerSec": 1459882,
+  "cpuUsPerMsg": 8.811,
+  "allocBytesPerMsg": 576,
+  "gen0": 3048,
+  "gen1": 3,
+  "gen2": 0,
+  "latencySamples": 684333,
+  "p50us": 4,
+  "p95us": 34.67,
+  "p99us": 117.83
+}

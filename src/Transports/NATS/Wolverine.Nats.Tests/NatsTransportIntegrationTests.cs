@@ -6,7 +6,7 @@ using Wolverine.Nats.Internal;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
-using FluentAssertions;
+using Shouldly;
 using NATS.Client.Core;
 
 namespace Wolverine.Nats.Tests;
@@ -93,9 +93,9 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
             .Timeout(30.Seconds())
             .SendMessageAndWaitAsync(message);
 
-        tracked.Sent.SingleMessage<TestMessage>().Should().BeEquivalentTo(message);
+        tracked.Sent.SingleMessage<TestMessage>().ShouldBe(message);
 
-        tracked.Received.SingleMessage<TestMessage>().Should().BeEquivalentTo(message);
+        tracked.Received.SingleMessage<TestMessage>().ShouldBe(message);
     }
 
     [Fact]
@@ -119,9 +119,9 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
                 .Timeout(30.Seconds())
                 .SendMessageAndWaitAsync(message);
 
-            tracked.Sent.SingleMessage<TestMessage>().Should().BeEquivalentTo(message);
+            tracked.Sent.SingleMessage<TestMessage>().ShouldBe(message);
 
-            tracked.Received.SingleMessage<TestMessage>().Should().BeEquivalentTo(message);
+            tracked.Received.SingleMessage<TestMessage>().ShouldBe(message);
         }
     }
 
@@ -134,8 +134,8 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
         var runtime = _sender.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<NatsTransport>();
 
-        transport.Should().NotBeNull();
-        transport.Protocol.Should().Be("nats");
+        transport.ShouldNotBeNull();
+        transport.Protocol.ShouldBe("nats");
     }
 
     [Fact]
@@ -150,12 +150,12 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
         var endpointUri = new Uri($"nats://subject/{_receiverSubject}");
         var endpoint = transport.TryGetEndpoint(endpointUri);
 
-        endpoint.Should().NotBeNull();
-        endpoint.Should().BeOfType<NatsEndpoint>();
+        endpoint.ShouldNotBeNull();
+        endpoint.ShouldBeOfType<NatsEndpoint>();
 
         var natsEndpoint = (NatsEndpoint)endpoint!;
-        natsEndpoint.Subject.Should().Be(_receiverSubject);
-        natsEndpoint.EndpointName.Should().Be("receiver");
+        natsEndpoint.Subject.ShouldBe(_receiverSubject);
+        natsEndpoint.EndpointName.ShouldBe("receiver");
     }
 
     [Fact]
@@ -167,8 +167,8 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
         var runtime = _sender.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<NatsTransport>();
 
-        transport.Connection.ServerInfo.Should().NotBeNull();
-        transport.Connection.ServerInfo!.Version.Should().NotBeNullOrEmpty();
+        transport.Connection.ServerInfo.ShouldNotBeNull();
+        transport.Connection.ServerInfo!.Version.ShouldNotBeNullOrEmpty();
         
         _output.WriteLine($"NATS Server Version: {transport.Connection.ServerInfo.Version}");
         _output.WriteLine($"ServerSupportsScheduledSend: {transport.ServerSupportsScheduledSend}");
@@ -179,7 +179,7 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
             var minVersion = new Version(2, 12, 0);
             var expectedSupport = serverVersion >= minVersion;
             
-            transport.ServerSupportsScheduledSend.Should().Be(expectedSupport,
+            transport.ServerSupportsScheduledSend.ShouldBe(expectedSupport,
                 $"Server version {serverVersion} should {(expectedSupport ? "" : "not ")}support scheduled send (min: {minVersion})");
         }
     }
@@ -217,7 +217,7 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
                 return nats.PublishAsync(subject, messageData).AsTask();
             });
 
-        tracked.Received.SingleMessage<DefaultTestMessage>().Text.Should().Be("Hello without header");
+        tracked.Received.SingleMessage<DefaultTestMessage>().Text.ShouldBe("Hello without header");
     }
 
     private async Task<bool> IsNatsAvailable(string natsUrl)

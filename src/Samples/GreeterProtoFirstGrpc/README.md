@@ -19,13 +19,13 @@ AIP-193 exception-to-StatusCode mapping.
 In one terminal:
 
 ```sh
-dotnet run --project src/Samples/GreeterProtoFirstGrpc/Server --framework net9.0
+dotnet run --project src/Samples/GreeterProtoFirstGrpc/Server --framework net10.0
 ```
 
 In another:
 
 ```sh
-dotnet run --project src/Samples/GreeterProtoFirstGrpc/Client --framework net9.0
+dotnet run --project src/Samples/GreeterProtoFirstGrpc/Client --framework net10.0
 ```
 
 Expected output on the client:

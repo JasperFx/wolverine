@@ -127,7 +127,6 @@ public class Bug_3886_separate_databases : IAsyncLifetime
                     .IncludeType<MessageForTwoDatabases3886AHandler>()
                     .IncludeType<MessageForTwoDatabases3886BHandler>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination;
 
                 opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();

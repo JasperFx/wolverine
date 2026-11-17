@@ -122,7 +122,6 @@ public class Bug_3886_sticky_handlers_ancillary_store : IAsyncLifetime
                     .IncludeType<MessageForTwoModules3886AHandler>()
                     .IncludeType<MessageForTwoModules3886BHandler>();
 
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 // One logical message, two physical deliveries: the destination has to be part of the
                 // inbox identity or the second delivery is rejected as a duplicate

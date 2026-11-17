@@ -30,8 +30,8 @@ namespace Wolverine.RabbitMQ.Tests.Bugs;
 // envelope arrives, DurableLocalQueue / DurableReceiver looks up the ancillary store by message
 // type and finds nothing, so it falls back to the main store.
 //
-// Fix: MartenStoreEagerPolicy (registered by MartenIntegration alongside the AggregateHandler
-// strategy) pre-populates chain.AncillaryStoreType in Phase A by walking the handler-type and
+// Fix: StorageAttributeEagerPolicy (core, always registered; it was MartenStoreEagerPolicy before GH-5141)
+// pre-populates chain.AncillaryStoreType in Phase A by walking the handler-type and
 // handler-method for [MartenStore] - matching the discovery rules in
 // Chain.applyAttributesAndConfigureMethods. The Phase B Modify() still runs later and is
 // idempotent for the AncillaryStoreType assignment plus inserts AncillaryOutboxFactoryFrame.

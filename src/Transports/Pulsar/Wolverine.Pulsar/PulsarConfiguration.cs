@@ -108,8 +108,9 @@ public class PulsarConfiguration
     /// <summary>
     /// Control how outbound messages whose <see cref="Envelope.TenantId"/> is null or does not match a
     /// registered tenant are handled when broker-per-tenant multi-tenancy is in effect (GH-3308). Default is
-    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/> (route to the default
-    /// broker configured via <c>UsePulsar</c>).
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.DeadLetterUnknownTenants"/> since Wolverine 7.0 (GH-5196):
+    /// an unknown tenant id is dead lettered rather than sent to the default broker. <c>RestoreV6Defaults()</c> restores
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/>.
     /// </summary>
     public PulsarConfiguration TenantIdBehavior(TenantedIdBehavior behavior)
     {

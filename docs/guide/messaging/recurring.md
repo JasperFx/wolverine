@@ -212,7 +212,7 @@ opts.Schedules.ScheduleRecurring("poll-inventory", "* * * * * *",
 An occurrence that comes due while the previous one is still running is skipped, not queued, and
 never back-filled. The schedule picks up again with the first occurrence after the running one
 finishes. Each skip is logged at debug level, the resume is logged at information level with the
-number skipped, and skips are counted on the `wolverine-recurring-occurrences-skipped` counter,
+number skipped, and skips are counted on the `wolverine.recurring.occurrences_skipped` counter,
 tagged with `schedule.name`.
 
 To know when an occurrence is finished, the timer agent **invokes** it and waits for it, with the
@@ -406,3 +406,8 @@ agents at all, so a registered schedule would be accepted and then silently neve
 **refuses to start** in those modes with schedules registered, naming the schedules in the
 exception — a schedule that quietly never happens is exactly the failure this feature exists to
 avoid.
+
+The refusal does not apply to the metadata-only command line runs (`codegen`, `describe`,
+`wolverine-diagnostics codegen-preview` and `describe-routing`, and OpenAPI generation). Wolverine
+forces those runs into `MediatorOnly` itself, so they start with schedules registered and run no
+recurring agent.

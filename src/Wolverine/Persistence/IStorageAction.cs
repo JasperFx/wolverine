@@ -31,7 +31,8 @@ public interface IStorageAction<T> : ISideEffectAware
             // declares its own BuildFrame) and for a variable typed exactly IStorageAction<T> (Storage
             // .TryApply handles that one), but a user-defined type implementing IStorageAction<T> lands
             // here.
-            return provider.DetermineStorageActionFrame(typeof(T), variable, container).WrapIfNotNull(variable);
+            return StampSagaLastModifiedFrame.ForStorageAction(typeof(T), variable,
+                provider.DetermineStorageActionFrame(typeof(T), variable, container), throughHelper: true).WrapIfNotNull(variable);
         }
 
         throw new NoMatchingPersistenceProviderException(typeof(T));
@@ -105,13 +106,15 @@ public class UnitOfWork<T> : List<IStorageAction<T>>, ISideEffectAware
             // rather than one FindAsync per entity.
             if (provider.TryBuildUnitOfWorkFrame(typeof(T), variable, container, out var bulk))
             {
-                return bulk.WrapIfNotNull(variable);
+                return StampSagaLastModifiedFrame.ForStorageAction(typeof(T), variable, bulk, throughHelper: true)
+                    .WrapIfNotNull(variable);
             }
 
             var element = new Variable(typeof(T), "item_of_" + variable.Usage);
             var inner = provider.DetermineStorageActionFrame(typeof(T), element, container);
 
-            return new ForEachStorageActionFrame(variable, element, inner).WrapIfNotNull(variable);
+            return StampSagaLastModifiedFrame.ForStorageAction(typeof(T), variable,
+                new ForEachStorageActionFrame(variable, element, inner), throughHelper: true).WrapIfNotNull(variable);
         }
 
         throw new NoMatchingPersistenceProviderException(typeof(T));

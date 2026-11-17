@@ -2,7 +2,6 @@ using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using MQTTnet;
-using MQTTnet.Client;
 using Shouldly;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
@@ -51,7 +50,7 @@ public class Bug_mapper_exception_routes_to_dlq : IAsyncLifetime
     [Fact]
     public async Task unmappable_message_is_persisted_to_wolverine_dead_letters()
     {
-        var factory = new MqttFactory();
+        var factory = new MqttClientFactory();
         using var client = factory.CreateMqttClient();
 
         var options = new MqttClientOptionsBuilder()

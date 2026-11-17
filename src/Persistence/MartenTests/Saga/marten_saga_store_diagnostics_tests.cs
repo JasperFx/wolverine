@@ -34,7 +34,7 @@ public class marten_saga_store_diagnostics_tests : PostgresqlContext, IAsyncLife
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.Discovery.DisableConventionalDiscovery().IncludeType<DiagSaga>();
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<DiagSaga>().IncludeType<IntDiagSaga>();
 
                 opts.Services.AddMarten(x =>
                 {
@@ -190,6 +190,23 @@ public class marten_saga_store_diagnostics_tests : PostgresqlContext, IAsyncLife
     }
 
     [Fact]
+    public async Task read_saga_with_an_int_identity()
+    {
+        // GH-5142. The shared document-store diagnostics load through IDocumentReadOperations.LoadAsync<T>(object),
+        // whose JasperFx default only knows Guid and string. Marten overrides it, which is what this pins: an
+        // int-keyed saga, asked for with a string id the way a monitoring tool would
+        var sagaId = Random.Shared.Next(1, int.MaxValue);
+        await _host.InvokeMessageAndWaitAsync(new StartIntDiagSaga(sagaId, "int keyed"));
+
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        var state = await diagnostics.ReadSagaAsync(typeof(IntDiagSaga).FullName!, sagaId.ToString(),
+            CancellationToken.None);
+
+        state.ShouldNotBeNull();
+        state.State.GetProperty("Note").GetString().ShouldBe("int keyed");
+    }
+
+    [Fact]
     public async Task unknown_saga_type_returns_null_and_empty()
     {
         var diagnostics = _host.GetRuntime().SagaStorage;
@@ -209,6 +226,20 @@ public class DiagSaga : Wolverine.Saga
     public string Note { get; set; } = "";
 
     public void Start(StartDiagSaga cmd)
+    {
+        Id = cmd.Id;
+        Note = cmd.Note;
+    }
+}
+
+public record StartIntDiagSaga(int Id, string Note);
+
+public class IntDiagSaga : Wolverine.Saga
+{
+    public int Id { get; set; }
+    public string Note { get; set; } = "";
+
+    public void Start(StartIntDiagSaga cmd)
     {
         Id = cmd.Id;
         Note = cmd.Note;

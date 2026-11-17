@@ -14,7 +14,9 @@ public class Bug_147_disambiguate_variables_from_multiple_handlers
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        var tracked = await host.InvokeMessageAndWaitAsync(new StartingMessage("Creed Humphrey"));
+        // GH-5136. Each handler type has its own chain and local queue, so send the message and let every
+        // handler receive it, instead of invoking it inline
+        var tracked = await host.SendMessageAndWaitAsync(new StartingMessage("Creed Humphrey"));
 
         var messages = tracked.Executed.MessagesOf<EndingMessage>();
         messages.OrderBy(x => x.Name).Select(x => x.Name)

@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using IntegrationTests;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -15,7 +15,7 @@ public static class WolverineConsumer
         RigHandlerSettings.HandlerMs = cfg.HandlerMs;
         RigHandlerSettings.SequenceByGame = cfg.Sequencing == "semaphore";
 
-        var builder = Host.CreateDefaultBuilder()
+        var builder = RigHost.CreateDefaultBuilder()
             // Keep synchronous console logging out of the measured path; logging cost is its own
             // experiment cell (E11), not ambient noise in every run.
             .ConfigureLogging(logging => logging.SetMinimumLevel(LogLevel.Warning))

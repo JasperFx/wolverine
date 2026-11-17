@@ -131,7 +131,9 @@ public class queue_order_schema_migrations : SqliteContext
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Discovery.DisableConventionalDiscovery();
                 var expression = opts.UseSqlitePersistenceAndTransport(database.ConnectionString);
+                // GH-5192: ordering is the 7.0 default, so the classic case has to opt out
                 if (deterministicOrdering) expression.EnableDeterministicQueueOrdering();
+                else expression.DisableDeterministicQueueOrdering();
 
                 // Publish-only, so no listener touches the rows these tests plant
                 opts.PublishAllMessages().ToSqliteQueue(queueName);

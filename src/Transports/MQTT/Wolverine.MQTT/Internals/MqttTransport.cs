@@ -5,9 +5,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
-using MQTTnet.Client;
 using MQTTnet.Extensions.ManagedClient;
 using MQTTnet.Formatter;
+using System.Net;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -67,11 +67,24 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     [IgnoreDescription]
     internal LightweightCache<string, MqttTenant> Tenants { get; } = new(name => new MqttTenant(name));
 
+    private TenantedIdBehavior? _tenantedIdBehavior;
+    private bool _v6DefaultsRestored;
+
     /// <summary>
     /// Controls how an outbound message whose tenant id is null or unregistered is routed when broker-per-tenant
-    /// multi-tenancy is in effect. Defaults to <see cref="TenantedIdBehavior.FallbackToDefault"/>.
+    /// multi-tenancy is in effect. A message with no tenant id always goes to the default broker. Defaults to
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.DeadLetterUnknownTenants"/> since Wolverine 7.0
+    /// (GH-5196): a message for an unregistered tenant id is dead lettered, never sent to the default broker.
+    /// <see cref="WolverineOptions.RestoreV6Defaults"/> restores the 6.x default,
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/>. A value set here wins over both.
     /// </summary>
-    public TenantedIdBehavior TenantedIdBehavior { get; set; } = TenantedIdBehavior.FallbackToDefault;
+    public TenantedIdBehavior TenantedIdBehavior
+    {
+        get => _tenantedIdBehavior ?? (_v6DefaultsRestored
+            ? TenantedIdBehavior.FallbackToDefault
+            : TenantedIdBehavior.DeadLetterUnknownTenants);
+        set => _tenantedIdBehavior = value;
+    }
 
     /// <summary>
     /// The managed client that a tenant's traffic should flow over, falling back to the default/shared client for
@@ -112,6 +125,9 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
     public override async ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
+        // GH-5196. Read when the transport starts, never at registration
+        _v6DefaultsRestored = runtime.Options.V6DefaultsRestored;
+
         // The per-node reply topic must be unique to this running node. In Solo mode the assigned
         // node number is always 1 (#3188), so several Solo services on one broker would collide on
         // the same topic and cross-deliver each other's replies — use the always unique
@@ -131,7 +147,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
         _logger = runtime.LoggerFactory.CreateLogger<MqttTransport>();
 
-        var mqttFactory = new MqttFactory();
+        var mqttFactory = new MqttClientFactory();
 
         var logger = new MqttNetLogger(runtime.LoggerFactory.CreateLogger<MqttClient>());
         Client = mqttFactory.CreateManagedMqttClient(logger);
@@ -170,7 +186,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         }
     }
 
-    private async Task<IManagedMqttClient> buildTenantClientAsync(IWolverineRuntime runtime, MqttFactory mqttFactory,
+    private async Task<IManagedMqttClient> buildTenantClientAsync(IWolverineRuntime runtime, MqttClientFactory mqttFactory,
         MqttTenant tenant)
     {
         var logger = new MqttNetLogger(runtime.LoggerFactory.CreateLogger<MqttClient>());
@@ -247,8 +263,8 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
                         if (!client.IsConnected) continue;
 
                         await client.InternalClient
-                            .SendExtendedAuthenticationExchangeDataAsync(
-                                new MqttExtendedAuthenticationExchangeData
+                            .SendEnhancedAuthenticationExchangeDataAsync(
+                                new MqttEnhancedAuthenticationExchangeData
                                 {
                                     AuthenticationData = await jwt.GetTokenCallBack(),
                                     ReasonCode = MQTTnet.Protocol.MqttAuthenticateReasonCode.ReAuthenticate
@@ -358,8 +374,8 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
                     if (!Client.IsConnected) continue;
 
                     await Client.InternalClient
-                        .SendExtendedAuthenticationExchangeDataAsync(
-                            new MqttExtendedAuthenticationExchangeData
+                        .SendEnhancedAuthenticationExchangeDataAsync(
+                            new MqttEnhancedAuthenticationExchangeData
                             {
                                 AuthenticationData = await JwtAuthenticationOptions.GetTokenCallBack(),
                                 ReasonCode = MQTTnet.Protocol.MqttAuthenticateReasonCode.ReAuthenticate
@@ -420,9 +436,10 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     {
         switch (Options.ClientOptions?.ChannelOptions)
         {
-            case MqttClientTcpOptions tcp:
-                var port = tcp.Port ?? 1883;
-                return $"{tcp.Server}:{port}";
+            case MqttClientTcpOptions { RemoteEndpoint: DnsEndPoint dns }:
+                return $"{dns.Host}:{dns.Port}";
+            case MqttClientTcpOptions { RemoteEndpoint: IPEndPoint ip }:
+                return $"{ip.Address}:{ip.Port}";
             case MqttClientWebSocketOptions ws:
                 // The websocket URI is the endpoint; credentials ride on Credentials, not the URI.
                 return ws.Uri;

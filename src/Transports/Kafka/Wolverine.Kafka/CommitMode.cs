@@ -6,9 +6,10 @@ namespace Wolverine.Kafka;
 public enum CommitMode
 {
     /// <summary>
-    /// Synchronously commit each message's own offset as it finishes processing. Strict
-    /// at-least-once with minimal reprocessing on restart, but the slowest option — every message
-    /// pays for a synchronous broker round trip.
+    /// Commit each finished message's offset on the listener's next consume pass, at most a second after it
+    /// finishes, with every partition that advanced in one commit. Strict at-least-once with minimal
+    /// reprocessing on restart, but the slowest option: the consume loop waits on a broker round trip whenever
+    /// something finished.
     /// </summary>
     PerMessage,
 

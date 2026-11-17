@@ -1,0 +1,26 @@
+{
+  "variant": "net10",
+  "framework": ".NET 10.0.14",
+  "runtimeAsyncCodegen": false,
+  "proof": {
+    "HandlerType": "Internal.Generated.WolverineHandlers.InProcCommandHandler1071968105",
+    "WolverineAsyncMethods": 0,
+    "WolverineStateMachines": 678,
+    "HandlerAsyncMethods": 0,
+    "HandlerStateMachines": 1
+  },
+  "concurrency": 18,
+  "yieldEvery": 1,
+  "messages": 37695443,
+  "seconds": 30,
+  "msgPerSec": 1256416,
+  "cpuUsPerMsg": 10.566,
+  "allocBytesPerMsg": 927.7,
+  "gen0": 4236,
+  "gen1": 140,
+  "gen2": 0,
+  "latencySamples": 588993,
+  "p50us": 6.21,
+  "p95us": 37.42,
+  "p99us": 109.88
+}

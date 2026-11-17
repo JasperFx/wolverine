@@ -313,6 +313,22 @@ public class ErrorHandlingPolicy : IHandlerPolicy
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L191-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_errorhandlingpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Transient PostgreSQL Failures <Badge type="tip" text="7.0" />
+
+With `WolverineFx.Marten`, `OnTransientPostgresFailure()` matches the failures that are about the moment and not
+about the message: a `NpgsqlException` where `IsTransient` is true (unreachable server, failover, dropped connection),
+a `MartenCommandException` wrapping one, and the `ObjectDisposedException` on `NpgsqlTransaction` a handler sees
+after its connection broke mid-transaction (nothing was committed). It is opt-in and does nothing until you give it an action:
+
+```csharp
+opts.Policies.OnTransientPostgresFailure()
+    .ScheduleRetry(1.Seconds(), 5.Seconds(), 30.Seconds())
+    .WithExponentialJitter();
+```
+
+Rules are first match wins, so declare it before a broader rule that also matches `MartenCommandException`.
+The same classification is available as `TransientPostgresFailure.Is(Exception)` for use in your own predicates.
+
 ## Exception Filtering
 
 ::: tip
@@ -735,7 +751,7 @@ public record Fault<T>(
 ```
 
 - `Message` — the original failing message, exactly as it was deserialized.
-- `Exception` — `ExceptionInfo` record with `Type`, `Message`, `StackTrace`, `InnerException`. Inner-exception recursion is depth-capped at 10 to bound payload size.
+- `Exception` — `ExceptionInfo` record with `Type`, `Message`, `StackTrace`, `InnerExceptions` and `TypeHierarchy` (see below). Inner-exception recursion is depth-capped at 32 to bound payload size.
 - `Attempts` — how many delivery attempts the failing envelope went through before the terminal decision.
 - `FailedAt` — the timestamp of the terminal decision (UTC).
 - `CorrelationId`, `ConversationId`, `TenantId`, `Source` — propagated from the failing envelope. **`Source` is the original sender's identity, not the fault publisher's.**
@@ -759,6 +775,21 @@ carry this header — useful for distinguishing the two in subscribers
 and tests. `OriginalId` and `OriginalType` carry the failing envelope's
 ID and Wolverine message-type name so trace consumers can correlate
 without inspecting the fault body.
+
+### Matching a fault by exception type <Badge type="tip" text="7.0" />
+
+A fault that arrives from another service carries its exception as an `ExceptionInfo`, not as a live
+`Exception`, so you cannot write `fault.Exception is InventoryException`. Starting with Wolverine 7.0,
+`ExceptionInfo.TypeHierarchy` records the full names of the thrown type and its base types (most derived
+first, stopping before `System.Exception`), and `ExceptionInfo.Is<T>()` / `Is(fullTypeName)` matches the
+thrown type or any of its base types:
+
+<!-- snippet: sample_matching_a_remote_exception_by_base_type -->
+<!-- endSnippet -->
+
+A fault published by a Wolverine 6.x sender has an empty `TypeHierarchy`, and `Is()` then matches the
+thrown type alone. The redaction flags below never remove the type hierarchy, because type names carry
+no message payload.
 
 ### Delivery semantics and scope
 

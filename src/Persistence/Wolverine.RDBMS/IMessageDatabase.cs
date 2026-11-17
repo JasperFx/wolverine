@@ -191,5 +191,5 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
         DurabilitySettings durabilitySettings,
         CancellationToken cancellationToken);
 
-    IAdvisoryLock AdvisoryLock { get; }
+    IWolverineAdvisoryLock AdvisoryLock { get; }
 }

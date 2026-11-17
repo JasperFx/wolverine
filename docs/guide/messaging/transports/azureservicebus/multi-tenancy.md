@@ -33,8 +33,9 @@ builder.UseWolverine(opts =>
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString)
 
-        // This is the default, if there is no tenant id on an outgoing message,
-        // use the default broker
+        // This was the 6.x default: an outgoing message with no tenant id, or an
+        // unrecognized one, uses the default broker. Since 7.0 the default is
+        // DeadLetterUnknownTenants, which dead letters an unrecognized tenant id
         .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
         // Or tell Wolverine instead to just quietly ignore messages sent
@@ -77,7 +78,7 @@ builder.UseWolverine(opts =>
         .GlobalSender();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L130-L188' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_for_multi_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L130-L189' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_for_multi_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -103,7 +104,7 @@ public static async Task send_message_to_specific_tenant(IMessageBus bus)
     await bus.PublishAsync(new Message1(), new DeliveryOptions { TenantId = "two" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L326-L333' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L396-L403' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, in the Wolverine internals, it:
@@ -221,7 +222,7 @@ internal sealed class TopicPerTenantRoute(IReadOnlyDictionary<string, AzureServi
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L226-L304' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_topic_per_tenant_route' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L227-L305' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_topic_per_tenant_route' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### The extension method
@@ -273,7 +274,7 @@ public static class TopicPerTenantWolverineOptionsExtensions
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L306-L347' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_topic_per_tenant_route_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L307-L348' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_topic_per_tenant_route_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Wiring it up
@@ -306,7 +307,7 @@ await bus.PublishAsync(
     new TenantBoundMessage("hello"),
     new DeliveryOptions { TenantId = "tenant-b" });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L353-L378' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_per_tenant_route' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L354-L379' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_per_tenant_route' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Behavior notes

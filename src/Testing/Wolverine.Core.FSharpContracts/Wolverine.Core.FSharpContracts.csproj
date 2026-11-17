@@ -8,8 +8,8 @@
     -->
 
     <PropertyGroup>
-        <!-- Single target keeps the compile gate fast and matches the F# fixture's net9.0 / FSharp.Core 9 pin. -->
-        <TargetFrameworks>net9.0</TargetFrameworks>
+        <!-- Single target keeps the compile gate fast and matches the F# fixture's net10.0 target. -->
+        <TargetFrameworks>net10.0</TargetFrameworks>
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 

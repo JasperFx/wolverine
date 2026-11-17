@@ -31,9 +31,9 @@ public class LoggingUsage
                 opts.Policies.MessageExecutionLogLevel(LogLevel.None);
 
 
-                // Turn down Wolverine's built in logging of all successful
-                // message processing
-                opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
+                // Turn off Wolverine's built in logging of all successful
+                // message processing. The default is Debug
+                opts.Policies.MessageSuccessLogLevel(LogLevel.None);
             }).StartAsync();
 
         #endregion

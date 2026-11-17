@@ -1,4 +1,4 @@
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Configuration.Capabilities;
@@ -34,7 +34,7 @@ public class endpoint_descriptor_interop_mode_tests
 
     private sealed class StubKafkaMapper : IKafkaEnvelopeMapper
     {
-        public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing) { }
-        public void MapIncomingToEnvelope(Envelope envelope, Message<string, byte[]> incoming) { }
+        public void MapEnvelopeToOutgoing(Envelope envelope, OutgoingKafkaRecord outgoing) { }
+        public void MapIncomingToEnvelope(Envelope envelope, ConsumeResult<string, byte[]> incoming) { }
     }
 }

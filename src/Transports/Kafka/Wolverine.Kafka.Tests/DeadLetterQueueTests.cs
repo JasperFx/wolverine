@@ -41,7 +41,7 @@ public class DeadLetterQueueTests : IAsyncLifetime
                 opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
                     .DeadLetterQueueTopicName(_dlqTopicName)
-                    .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
+                    .ConfigureConsumers(c => c.AutoOffsetReset = Dekaf.Consumer.AutoOffsetReset.Earliest);
 
                 opts.ListenToKafkaTopic(_topicName)
                     .ProcessInline()
@@ -200,7 +200,7 @@ public class BufferedDeadLetterQueueTests : IAsyncLifetime
                 opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
                     .DeadLetterQueueTopicName(_dlqTopicName)
-                    .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
+                    .ConfigureConsumers(c => c.AutoOffsetReset = Dekaf.Consumer.AutoOffsetReset.Earliest);
 
                 opts.ListenToKafkaTopic(_topicName)
                     .BufferedInMemory()

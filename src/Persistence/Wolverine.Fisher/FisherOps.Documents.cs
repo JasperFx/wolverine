@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Fisher;
 using Fisher.Patching;
+using JasperFx.Events;
 
 namespace Wolverine.Fisher;
 

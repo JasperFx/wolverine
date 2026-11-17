@@ -21,16 +21,6 @@ namespace Wolverine.Persistence.Codegen;
 public static class ChainDeduplicationExtensions
 {
     /// <summary>
-    /// Weave the frames without consulting the chain's persistence provider, so the claim is always
-    /// written on its own connection and compensated on failure. GH-4505 added the provider-aware
-    /// overload; this one remains for a custom chain type that has no codegen container to hand.
-    /// </summary>
-    [Obsolete(
-        "Pass the GenerationRules and IServiceContainer so a store that can write the claim inside its own transaction is able to. GH-4505")]
-    public static void ApplyDeduplication(this IChain chain)
-        => applyDeduplication(chain, null, null);
-
-    /// <summary>
     /// Insert the deduplication frames at the front of <paramref name="chain" />'s middleware, if it
     /// has opted in. Safe to call more than once — a chain that already carries the frames is left
     /// alone, so a policy and an attribute both asking for deduplication do not double-claim the id

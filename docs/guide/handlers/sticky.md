@@ -1,19 +1,17 @@
 # Sticky Handler to Endpoint Assignments <Badge type="tip" text="3.0" />
 
 ::: info
-The original behavior of Wolverine and the way it combines all handlers for a given message type into one logical
-transaction was an explicit design choice in a predecessor tool named _FubuTransportation_ and was carried through
-into _Jasper_ and finally into today's Wolverine. That decision absolutely made sense in the context of the original
-system that _FubuTransportation_ was designed for, but maybe not so much today. Such is software development.
+Before 7.0, Wolverine combined all the handlers for a given message type into one logical transaction by default, a
+design choice carried through from a predecessor tool named _FubuTransportation_. From 7.0, every handler type always
+gets [its own handler chain](/guide/handlers/#multiple-handlers-for-the-same-message-type) and local queue, and a
+sticky handler is always bound only to its endpoint, even when it is the message type's only handler.
 :::
 
-By default, Wolverine will combine all the discovered handlers for a certain message type in one logical transaction. 
-Another Wolverine default behavior is that there is no explicit mapping of handler types to listening endpoints or local
+A Wolverine default behavior is that there is no explicit mapping of handler types to listening endpoints or local
 endpoints, which was a very conscious decision to simplify Wolverine usage compared to older .NET messaging frameworks. 
 
-At other times though, you may want the same message (usually a logical "event" message) to be handled separately by
-two or more distinct message handlers and even be routed to separate local queues. In another instance, you may want
-to have separate message handlers apply based on where the message is received from. In all cases, this is what the "sticky handler"
+At other times though, you may want to choose exactly which local queue or listening endpoint a handler runs on, or
+to have separate message handlers apply based on where the message is received from. That is what the "sticky handler"
 functionality is meant to accomplish.
 
 Let's start with a simple example and say that you have a message type called `StickyMessage` that when published should
@@ -25,7 +23,7 @@ message as an input.
 ```cs
 public class StickyMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L232-L235' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stickymessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L234-L237' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stickymessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And we're going to handle that `StickyMessage` message separately with two different handler types:
@@ -51,7 +49,7 @@ public static class GreenStickyHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L237-L256' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sticky_handler_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L239-L258' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sticky_handler_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -79,7 +77,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.ListenAtPort(4000).Named("blue");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L172-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_named_listener_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L174-L183' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_named_listener_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With all of that being said, the end result of the two `StickyMessage` handlers that are marked with `[StickyHandler]`
@@ -119,7 +117,7 @@ using var host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L186-L203' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sticky_handlers_by_endpoint_with_fluent_interface' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/sticky_message_handlers.cs#L188-L205' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sticky_handlers_by_endpoint_with_fluent_interface' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Sticky Pre-Built Message Handlers <Badge type="tip" text="6.51.2" />

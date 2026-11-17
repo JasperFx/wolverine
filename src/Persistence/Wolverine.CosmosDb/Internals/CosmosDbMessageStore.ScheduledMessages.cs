@@ -11,7 +11,7 @@ public partial class CosmosDbMessageStore : IScheduledMessages
 
     async Task<ScheduledMessageResults> IScheduledMessages.QueryAsync(ScheduledMessageQuery query, CancellationToken token)
     {
-        if (query.SagaId.IsNotEmpty())
+        if (ScheduledMessageSagaFilter.AppliesTo(query))
         {
             return await ScheduledMessageSagaFilter.QueryAsync(this, query, token);
         }
@@ -26,6 +26,11 @@ public partial class CosmosDbMessageStore : IScheduledMessages
         if (query.MessageType.IsNotEmpty())
         {
             conditions.Add("c.messageType = @messageType");
+        }
+
+        if (query.GroupId != null)
+        {
+            conditions.Add("c.groupId = @groupId");
         }
 
         if (query.ExecutionTimeFrom.HasValue)
@@ -87,7 +92,8 @@ public partial class CosmosDbMessageStore : IScheduledMessages
                     MessageType = m.MessageType,
                     ScheduledTime = m.ExecutionTime,
                     Destination = m.ReceivedAt,
-                    Attempts = m.Attempts
+                    Attempts = m.Attempts,
+                    GroupId = m.GroupId
                 };
 
                 summary.ReadEnvelopeIdentity(m.Body);
@@ -98,7 +104,7 @@ public partial class CosmosDbMessageStore : IScheduledMessages
 
     async Task IScheduledMessages.CancelAsync(ScheduledMessageQuery query, CancellationToken token)
     {
-        if (query.SagaId.IsNotEmpty())
+        if (ScheduledMessageSagaFilter.AppliesTo(query))
         {
             var bySagaIds = await ScheduledMessageSagaFilter.ResolveCancellationAsync(this, query, token);
             if (bySagaIds == null) return;
@@ -143,6 +149,11 @@ public partial class CosmosDbMessageStore : IScheduledMessages
         if (query.MessageType.IsNotEmpty())
         {
             conditions.Add("c.messageType = @messageType");
+        }
+
+        if (query.GroupId != null)
+        {
+            conditions.Add("c.groupId = @groupId");
         }
 
         if (query.ExecutionTimeFrom.HasValue)
@@ -236,6 +247,11 @@ public partial class CosmosDbMessageStore : IScheduledMessages
         if (query.MessageType.IsNotEmpty())
         {
             qd = qd.WithParameter("@messageType", query.MessageType);
+        }
+
+        if (query.GroupId != null)
+        {
+            qd = qd.WithParameter("@groupId", query.GroupId);
         }
 
         if (query.ExecutionTimeFrom.HasValue)

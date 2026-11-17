@@ -302,6 +302,37 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         (await ownerOfAsync(agent)).ShouldBe(node);
     }
 
+    [Fact]
+    public async Task persisting_nodes_assigns_each_its_own_number()
+    {
+        // GH-5430: a node arrives with WolverineNode's default number, and the store assigns the real one. SQLite
+        // wrote the default back, so every node in a Balanced cluster was node 1 and owned every other node's rows.
+        // The numbers only move forward: a node ejected as stale keeps its number when it re-registers
+        WolverineNode fresh()
+        {
+            var id = Guid.NewGuid();
+            return new WolverineNode
+            {
+                NodeId = id,
+                ControlUri = $"dbcontrol://{id}".ToUri(),
+                Version = new Version(2, 0, 1)
+            };
+        }
+
+        var first = await _database.Nodes.PersistAsync(fresh(), CancellationToken.None);
+        var second = await _database.Nodes.PersistAsync(fresh(), CancellationToken.None);
+        var third = await _database.Nodes.PersistAsync(fresh(), CancellationToken.None);
+
+        new[] { first, second, third }.Distinct().Count().ShouldBe(3);
+        first.ShouldBeGreaterThan(0);
+        second.ShouldBeGreaterThan(0);
+        third.ShouldBeGreaterThan(0);
+
+        var persisted = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
+        persisted.Select(x => x.AssignedNodeNumber).OrderBy(x => x)
+            .ShouldBe(new[] { first, second, third }.OrderBy(x => x));
+    }
+
     private int _count = 0;
     private WolverineNode createNode()
     {

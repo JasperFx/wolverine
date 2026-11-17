@@ -23,7 +23,6 @@ public class publish_and_receive_raw_json : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                //opts.EnableAutomaticFailureAcks = false;
                 opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
                 opts.ListenToKafkaTopic("json")
 
@@ -88,7 +87,7 @@ public class publish_and_receive_raw_json : IAsyncLifetime
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
             {
-                using var producer = new ProducerBuilder<string, byte[]>(transport.ProducerConfig).Build();
+                using var producer = new ProducerBuilder<string, byte[]>(new ProducerConfig { BootstrapServers = transport.ProducerConfig.BootstrapServers }).Build();
                 await producer.ProduceAsync("json", new Message<string, byte[]>
                 {
                     Value = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new ColorMessage("yellow"))),
@@ -115,7 +114,7 @@ public class publish_and_receive_raw_json : IAsyncLifetime
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
             {
-                using var producer = new ProducerBuilder<string, byte[]>(transport.ProducerConfig).Build();
+                using var producer = new ProducerBuilder<string, byte[]>(new ProducerConfig { BootstrapServers = transport.ProducerConfig.BootstrapServers }).Build();
                 await producer.ProduceAsync("json", new Message<string, byte[]>
                 {
                     Value = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new ColorMessage("green"))),
@@ -143,7 +142,7 @@ public class publish_and_receive_raw_json : IAsyncLifetime
     public async Task do_not_go_into_infinite_loop_with_garbage_data()
     {
         var transport = _sender.GetRuntime().Options.Transports.GetOrCreate<KafkaTransport>();
-        var producerBuilder = new ProducerBuilder<string, string>(transport.ProducerConfig);
+        var producerBuilder = new ProducerBuilder<string, string>(new ProducerConfig { BootstrapServers = transport.ProducerConfig.BootstrapServers });
         using var producer = producerBuilder.Build();
 
         await producer.ProduceAsync("json", new Message<string, string>

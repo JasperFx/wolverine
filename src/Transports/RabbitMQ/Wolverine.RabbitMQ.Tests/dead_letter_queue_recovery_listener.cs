@@ -37,7 +37,6 @@ public class dead_letter_queue_recovery_listener : IAsyncLifetime
             {
                 opts.ServiceName = "DlqRecoveryTest";
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.EnableAutomaticFailureAcks = false;
 
                 // Use SQL Server for message persistence
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "dlq_recovery");

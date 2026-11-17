@@ -9,7 +9,7 @@
         <PackageIcon>logo.png</PackageIcon>
         <PackageProjectUrl>http://github.com/jasperfx/wolverine</PackageProjectUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
         <NoWarn>1570;1571;1572;1573;1574;1587;1591;1701;1702;1711;1735;0618;VSTHRD200</NoWarn>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
@@ -32,7 +32,7 @@
         <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1901;NU1902</WarningsNotAsErrors>
         <ImplicitUsings>true</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>6.62.1</Version>
+        <Version>7.0.0-alpha.2</Version>
         <!-- WolverineFx.Bobcat's package version, declared ONCE (GH-5222). Wolverine.Bobcat.csproj packs as it,
              and WolverineFx.Bobcat.EventModel stamps it as WolverineFxBobcatVersion assembly metadata: the
              WolverineFx.Bobcat a spec project written by write-specs pins by default. EventModel used to default
@@ -59,6 +59,18 @@
          IsTestProject, which is not set yet when this file is imported (GH-5057). -->
     <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
         <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    </PropertyGroup>
+
+    <!--
+      Runtime-async (GH-5150, plan decision D4: on by default for net11.0; mirrors JasperFx's JasperFxRuntimeAsync from
+      jasperfx#1040). The net11.0 assemblies are compiled with the C# compiler's runtime-async feature unless the build
+      passes -p:WolverineRuntimeAsync=false. net11.0 only: on net10.0 the compiler refuses it (SYSLIB5007) and the
+      runtime will not load it. Changing it does not trigger a recompile, so build into a separate artifacts path (or
+      clean bin/ and obj/). The generated handler code has its own switch, WolverineOptions.CodeGeneration.UseRuntimeAsync,
+      also on by default for net11.0. The KafkaPerfRig's runtime-async.sh measures both against plain net10.0 and net11.0.
+    -->
+    <PropertyGroup Condition="'$(WolverineRuntimeAsync)' != 'false' And '$(TargetFramework)' == 'net11.0'">
+        <Features>$(Features);runtime-async=on</Features>
     </PropertyGroup>
 
     <ItemGroup>

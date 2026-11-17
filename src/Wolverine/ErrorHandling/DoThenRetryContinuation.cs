@@ -51,6 +51,7 @@ internal class DoThenRetryContinuation : IContinuation, IInlineContinuation
 
         activity?.AddEvent(new ActivityEvent(WolverineTracing.EnvelopeRetry));
         WolverineTracing.RecordPreviousAttempt(lifecycle.Envelope, activity);
+        WolverineTracing.EndAttemptBeforeInlineRetry(lifecycle.Envelope, activity);
 
         await lifecycle.RetryExecutionNowAsync().ConfigureAwait(false);
     }

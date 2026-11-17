@@ -19,7 +19,7 @@ public class simple_async_message_handlers : CompilationContext
     public async Task can_pass_in_the_envelope()
     {
         var message = new Message3();
-        await Execute(message);
+        await Execute(message, typeof(AsyncHandler));
 
         AsyncHandler.LastEnvelope.ShouldBeSameAs(theEnvelope);
     }
@@ -28,7 +28,7 @@ public class simple_async_message_handlers : CompilationContext
     public async Task can_pass_in_the_invocation_context()
     {
         var message = new Message4();
-        var context = await Execute(message);
+        var context = await Execute(message, typeof(AsyncHandler));
 
         AsyncHandler.LastContext.ShouldBeSameAs(context);
     }
@@ -43,7 +43,7 @@ public class simple_async_message_handlers : CompilationContext
     public async Task execute_the_simplest_possible_instance_chain()
     {
         var message = new Message2();
-        await Execute(message);
+        await Execute(message, typeof(AsyncHandler));
 
         AsyncHandler.LastMessage2.ShouldBeSameAs(message);
     }

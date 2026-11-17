@@ -19,7 +19,6 @@ public class multiple_sagas_for_same_message : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.Discovery.IncludeType<PcShippingSaga>();
                 opts.Discovery.IncludeType<PcBillingSaga>();

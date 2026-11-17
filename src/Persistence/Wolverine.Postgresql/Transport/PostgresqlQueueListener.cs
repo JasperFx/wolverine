@@ -28,13 +28,13 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
     private readonly DurabilitySettings _settings;
     private Task? _scheduledTask;
     private readonly PostgresqlQueueSender _sender;
-    private readonly string _tryPopMessagesDirectlySql;
+    private string _tryPopMessagesDirectlySql = null!;
     private readonly string _queueTableName;
     private readonly string _queueName;
     private readonly string _quotedSchemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
-    private readonly bool _deterministicQueueOrdering;
+    private bool _deterministicQueueOrdering;
     private readonly string _queueNotificationKey;
     private IAsyncDisposable? _notificationRegistration;
 
@@ -61,6 +61,14 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
         _quotedSchemaName = _queue.Parent.MessageStorageSchemaName.QuoteIdentifier();
         _queueNotificationKey = PostgresqlQueueNotification.Key(queue);
 
+        buildTryPopMessagesDirectlySql();
+        _queueName = _queue.Name;
+    }
+
+    // GH-5192: the configured value is only a first guess. StartAsync swaps in the layout this database's
+    // queue tables really have, because 7.0 adopts an existing table without queue_order as it stands.
+    private void buildTryPopMessagesDirectlySql()
+    {
         // DELETE ... RETURNING does not preserve the ordering of the selected rows. Always reapply
         // timestamp order; the sequence tie-breaker is only referenced when its schema is enabled.
         var queueOrderInOrderBy = _deterministicQueueOrdering ? $", {_queueTableName}.{QueueTable.QueueOrderColumn}" : string.Empty;
@@ -79,7 +87,6 @@ WITH message AS (
 )
 SELECT message.{DatabaseConstants.Body} from message ORDER BY message.timestamp{queueOrderInResultOrderBy};
 ";
-        _queueName = _queue.Name;
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
@@ -254,8 +261,11 @@ SELECT count(*) FROM moved");
         await _receiver.ReceivedAsync(this, messages.ToArray());
 
         // Preserve the original post-process pacing, but let a queue notification start the next poll immediately.
+        // GH-5413: a full batch means more is probably waiting, so poll again shortly. This was `>`, which a pop
+        // limited to MaximumMessagesToReceive can never satisfy, so once the notifications stopped (the producer
+        // finished, or a restarted node found a backlog) the queue drained one batch per polling interval.
         await _loop!.WaitForWakeupOrTimeoutAsync(
-            messages.Count > _queue.MaximumMessagesToReceive ? 250.Milliseconds() : _pollingInterval, token);
+            messages.Count >= _queue.MaximumMessagesToReceive ? 250.Milliseconds() : _pollingInterval, token);
 
         return true;
     }
@@ -288,6 +298,11 @@ SELECT count(*) FROM moved");
         var queueOrderInResultOrderBy = _deterministicQueueOrdering
             ? $", popped.{QueueTable.QueueOrderColumn}"
             : string.Empty;
+        // GH-5411: an envelope the inbox already holds is skipped rather than failing the whole batch with a
+        // unique violation, which rolled every other envelope of the batch back onto the queue on every poll
+        // for as long as the earlier row lived. The probe matches the inbox's identity (the received_at joins
+        // it only under IdAndDestination) and also catches a Handled row of a partitioned inbox, whose key
+        // includes the status. ON CONFLICT covers a concurrent insert the probe's snapshot cannot see.
         var parameters = builder.AppendWithParameters($@"
 WITH popped AS (
     DELETE FROM {_queueTableName}
@@ -301,8 +316,13 @@ WITH popped AS (
     INSERT INTO {_quotedSchemaName}.{DatabaseConstants.IncomingTable}
         (id, status, owner_id, body, message_type, received_at, keep_until)
     SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM popped
+    WHERE NOT EXISTS (SELECT 1 FROM {_quotedSchemaName}.{DatabaseConstants.IncomingTable} existing WHERE {alreadyInTheInbox("existing", "popped")})
+    ON CONFLICT DO NOTHING
+    RETURNING {DatabaseConstants.Id}
 )
-SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY popped.timestamp{queueOrderInResultOrderBy}");
+SELECT popped.{DatabaseConstants.Id}, popped.{DatabaseConstants.Body}, inserted.{DatabaseConstants.Id} IS NULL
+FROM popped LEFT JOIN inserted ON inserted.{DatabaseConstants.Id} = popped.{DatabaseConstants.Id}
+ORDER BY popped.timestamp{queueOrderInResultOrderBy}");
 
         parameters[0].Value = count;
         parameters[0].NpgsqlDbType = NpgsqlDbType.Integer;
@@ -332,6 +352,17 @@ SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY pop
                 while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                 {
                     var id = await reader.GetFieldValueAsync<Guid>(0, cancellationToken);
+
+                    // GH-5411: the inbox already holds this envelope, say from an earlier delivery received at
+                    // another address. It has left the queue, and nothing was inserted for it.
+                    if (await reader.GetFieldValueAsync<bool>(2, cancellationToken))
+                    {
+                        logger.LogInformation(
+                            "Discarding a duplicate delivery of envelope {EnvelopeId} at {Uri}, which the inbox already holds",
+                            id, Address);
+                        continue;
+                    }
+
                     batchIds.Add(id);
                     var data = await reader.GetFieldValueAsync<byte[]>(1, cancellationToken);
                     try
@@ -409,6 +440,14 @@ SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM popped ORDER BY pop
     /// stranded once the commit landed. Once the lock returns the move has either committed (the update
     /// releases the inbox rows) or rolled back (the rows are back in the queue and nothing matches).
     /// </summary>
+    private string alreadyInTheInbox(string existing, string popped)
+    {
+        var identity = $"{existing}.{DatabaseConstants.Id} = {popped}.{DatabaseConstants.Id}";
+        return _settings.MessageIdentity == MessageIdentity.IdAndDestination
+            ? $"{identity} AND {existing}.{DatabaseConstants.ReceivedAt} = '{Address}'"
+            : identity;
+    }
+
     internal async Task ReleaseUnconfirmedPopAsync(ILogger logger, CancellationToken cancellationToken)
     {
         if (_unconfirmedPop is not { } pop) return;
@@ -520,6 +559,9 @@ WHERE {DatabaseConstants.Id} = ANY(?)
         {
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _dataSource);
         }
+
+        _deterministicQueueOrdering = await _queue.UsesQueueOrderingAsync(_databaseName ?? string.Empty, _dataSource);
+        buildTryPopMessagesDirectlySql();
 
         if (_queue.Parent.EnableQueueNotifications)
         {

@@ -139,6 +139,18 @@ public static class HostBuilderExtensions
         }
 
         services.AddJasperFx();
+
+        // GH-3576: in a Wolverine host, Wolverine owns the application-assembly reuse warning. JasperFx detects
+        // the same divergence one level down and Marten/Polecat/Fisher log JasperFx's copy at startup, so a
+        // host running both used to warn twice -- and JasperFx's copy is a false positive whenever
+        // IHostBuilder.UseWolverine() is registered in one assembly and built in another (jasperfx#1179).
+        // Registered after AddJasperFx() above, so this runs after the PostConfigure that computes JasperFx's
+        // warning and before any store reads it.
+        services.PostConfigure<JasperFxOptions>(options.ClaimApplicationAssemblyReuseWarning);
+
+        // GH-5523 (7.0): pre-generated code by default in the Production profile, for Wolverine hosts only
+        options.ApplyProductionCodeGenerationDefault(services);
+
         services.AddSingleton<MessageStoreCollection>();
 
         // GH-4180. The single service that generated logical-deduplication code resolves, in message
@@ -237,6 +249,14 @@ public static class HostBuilderExtensions
         });
 
         services.AddSingleton<IWolverineRuntime, WolverineRuntime>();
+
+#if NET11_0_OR_GREATER
+        // GH-5148. Registered unconditionally because budgets may be declared after UseWolverine()
+        // (ConfigureWolverine); the validator returns at once when none are. Registered only as
+        // IAsyncStartupValidator: a custom IStartupValidator would suppress every async validator.
+        services.TryAddEnumerable(ServiceDescriptor
+            .Singleton<Microsoft.Extensions.Options.IAsyncStartupValidator, ConnectionBudgetStartupValidator>());
+#endif
 
         // GH-3988: the Wolverine-derived Event Model source. GH-4152: a plain append, because the source
         // now declares EventModelProvenance.Derived and the merge resolves on that ladder rather than on

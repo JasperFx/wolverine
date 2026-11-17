@@ -17,8 +17,8 @@ namespace FisherTests;
 /// <summary>
 /// GH-3947. FisherIntegration.TransportSchemaName used to be accepted and ignored: SQLite has no schemas,
 /// so there was nothing for it to name. FisherIntegration.PrefixName now prefixes the SQLite queue and
-/// scheduled-message tables so that separate sets of them can share one Fisher file. It is opt in, and
-/// the obsolete TransportSchemaName forwards to it, so only an explicit setting changes any table name.
+/// scheduled-message tables so that separate sets of them can share one Fisher file. It is opt in, so only
+/// an explicit setting changes any table name. The obsolete TransportSchemaName was removed in 7.0 (GH-5198).
 /// </summary>
 public class Bug_3947_prefix_name_for_sqlite_queue_tables
 {
@@ -86,36 +86,6 @@ public class Bug_3947_prefix_name_for_sqlite_queue_tables
             }
         }
     }
-
-#pragma warning disable CS0618 // TransportSchemaName is obsolete, and these tests pin what it still does
-    [Fact]
-    public void the_obsolete_transport_schema_name_forwards_to_prefix_name()
-    {
-        var integration = new FisherIntegration();
-
-        // Unchanged default for anybody still reading it
-        integration.TransportSchemaName.ShouldBe("wolverine_queues");
-        integration.PrefixName.ShouldBeNull();
-
-        integration.TransportSchemaName = "Reporting";
-
-        integration.PrefixName.ShouldBe("reporting");
-        integration.TransportSchemaName.ShouldBe("reporting");
-    }
-
-    [Fact]
-    public async Task an_explicit_transport_schema_name_prefixes_the_queue_tables_through_prefix_name()
-    {
-        using var database = Servers.CreateDatabase("bug_3947_obsolete");
-        using var host = await startHost(database, w => w.TransportSchemaName = "reporting");
-
-        await sendMessages(host, "obsolete");
-
-        await using var connection = await openAsync(database);
-        (await tableCountAsync(connection, $"reporting_wolverine_queue_{QueueName}")).ShouldBe(1);
-        (await tableCountAsync(connection, $"reporting_wolverine_queue_{QueueName}_scheduled")).ShouldBe(1);
-    }
-#pragma warning restore CS0618
 
     [Fact]
     public void a_multi_part_prefix_name_is_rejected()

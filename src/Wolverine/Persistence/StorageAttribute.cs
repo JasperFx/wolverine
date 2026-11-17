@@ -66,8 +66,8 @@ public static class AncillaryStorageChainExtensions
     /// <item>
     /// On a <b>handler</b> chain, parameter attributes run BEFORE chain attributes
     /// (<c>HandlerChain.applyCustomizations</c> — "THIS has to go before the baseline attributes"), so the
-    /// property is only non-null thanks to the Phase-A eager policies (<c>MartenStoreEagerPolicy</c> and
-    /// friends) that pre-assign it at <c>HandlerGraph.Compile</c>.
+    /// property is only non-null thanks to the Phase-A eager policy (<c>StorageAttributeEagerPolicy</c>, which
+    /// pre-assigns it at <c>HandlerGraph.Compile</c>).
     /// </item>
     /// <item>
     /// On an <b>HTTP</b> chain it is still null: <c>HttpChain.MapToRoute</c> triggers parameter matching

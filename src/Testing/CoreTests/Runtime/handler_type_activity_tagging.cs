@@ -169,7 +169,6 @@ public class handler_type_activity_tagging_beyond_one_handler_call : IAsyncLifet
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<FirstTaggedModuleHandler>()
                     .IncludeType<SecondTaggedModuleHandler>();
@@ -184,21 +183,26 @@ public class handler_type_activity_tagging_beyond_one_handler_call : IAsyncLifet
     }
 
     [Fact]
-    public async Task tags_a_combined_chain_with_every_handler_type()
+    public async Task tags_each_handler_type_chain_with_only_its_own_handler_type_by_default()
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                // The default ClassicCombineIntoOneLogicalHandler mode
+                // GH-5136. No MultipleHandlerBehavior setting: every handler type gets its own chain
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<FirstTaggedModuleHandler>()
                     .IncludeType<SecondTaggedModuleHandler>();
             }).StartAsync(TestContext.Current.CancellationToken);
 
-        await host.InvokeMessageAndWaitAsync(new TaggedModuleEvent(Guid.NewGuid()));
+        await host.TrackActivity().IncludeExternalTransports()
+            .PublishMessageAndWaitAsync(new TaggedModuleEvent(Guid.NewGuid()));
 
-        var tag = handlerTypeTags().Single(x => x.Contains(nameof(FirstTaggedModuleHandler)));
-        tag.ShouldContain(typeof(SecondTaggedModuleHandler).FullNameInCode());
+        var tags = handlerTypeTags();
+        tags.ShouldContain(typeof(FirstTaggedModuleHandler).FullNameInCode());
+        tags.ShouldContain(typeof(SecondTaggedModuleHandler).FullNameInCode());
+
+        // No chain combines the two any more
+        tags.ShouldNotContain(x => x.Contains(nameof(FirstTaggedModuleHandler)) && x.Contains(nameof(SecondTaggedModuleHandler)));
     }
 }
 

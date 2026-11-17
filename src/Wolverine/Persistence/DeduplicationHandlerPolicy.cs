@@ -77,7 +77,7 @@ internal class DeduplicationHandlerPolicy : IHandlerPolicy
         var logger = container.GetInstance<ILoggerFactory>().CreateLogger<DeduplicationHandlerPolicy>();
 
         logger.LogWarning(
-            "Logical message deduplication was requested by {Chains}, but {Setting} is None, so there is no storage to enforce it. These handlers will throw on their first message. Set opts.Durability.{Setting} to CompareByHash (this provisions a new table) or remove the [Deduplicated] usage. See GH-4180",
+            "Logical message deduplication was requested by {Chains}, but {Setting} is None, so there is no storage to enforce it. These handlers will throw on their first message. Set opts.Durability.{Setting} to CompareByHash (this provisions a new table; it is the default unless the application set None or called RestoreV6Defaults()) or remove the [Deduplicated] usage. See GH-4180",
             descriptions.Join(", "), nameof(DurabilitySettings.MessageDeduplicationMode),
             nameof(DurabilitySettings.MessageDeduplicationMode));
     }

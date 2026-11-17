@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Confluent.Kafka;
+using Dekaf.Consumer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -97,7 +97,7 @@ public class cold_start_and_hot_tail
                 .Listener.ShouldBeOfType<KafkaListener>();
             listener.Config.GroupId.ShouldNotBeNull();
             listener.Config.GroupId.ShouldContain("hot-tail");
-            listener.Config.EnableAutoCommit.ShouldBe(true);
+            listener.Config.OffsetCommitMode.ShouldBe(OffsetCommitMode.Auto);
             return listener.Config.GroupId;
         }
 

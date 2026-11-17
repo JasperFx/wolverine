@@ -32,6 +32,8 @@ internal class SagaStoreOrDeleteFrame : Frame
         _delete.GenerateCode(method, writer);
         writer.FinishBlock();
         writer.Write("BLOCK:else");
+        // GH-5345: the persistence frame, not user code, owns Saga.LastModified
+        StampSagaLastModifiedFrame.WriteStamp(writer, _saga);
         _update.GenerateCode(method, writer);
         writer.FinishBlock();
 
@@ -45,6 +47,7 @@ internal class SagaStoreOrDeleteFrame : Frame
         _delete.GenerateFSharpCode(method, writer);
         writer.FinishBlock();
         writer.Write("BLOCK:else");
+        StampSagaLastModifiedFrame.WriteFSharpStamp(writer, _saga);
         _update.GenerateFSharpCode(method, writer);
         writer.FinishBlock();
 

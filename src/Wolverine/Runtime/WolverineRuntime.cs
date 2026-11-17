@@ -97,7 +97,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         
         Observer = new PersistenceWolverineObserver(this);
 
-        Meter = new Meter("Wolverine:" + options.ServiceName, GetType().Assembly.GetName().Version?.ToString());
+        Meter = new Meter(MetricsConstants.MeterName, GetType().Assembly.GetName().Version?.ToString());
         Logger.LogInformation("Exporting Open Telemetry metrics from Wolverine with name {Name}, version {Version}",
             Meter.Name, Meter.Version);
 

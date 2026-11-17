@@ -18,12 +18,16 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Fisher.Persistence.Sagas;
 
-internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvider
+internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvider, Wolverine.Persistence.DocumentStores.IDocumentStoreFrameProvider
 {
     // Fisher can persist any document, so CanPersist claims every type. Yield to selective
     // providers (EF Core) for the entity types they actually map, regardless of the order the
     // integrations were registered in
     public bool IsCatchAll => true;
+
+    // GH-5514: lets the store-agnostic [DocumentExists<T>] in Wolverine.Persistence.Requirements reach this store
+    Wolverine.Persistence.DocumentStores.Codegen.DocumentSessionTypes Wolverine.Persistence.DocumentStores.IDocumentStoreFrameProvider.SessionTypes
+        => FisherIntegration.SessionTypes;
 
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
@@ -34,7 +38,13 @@ internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvide
     public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
         var idProp = sagaType.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
-        return idProp?.PropertyType ?? typeof(Guid);
+        if (idProp == null) return typeof(Guid);
+
+        // GH-3942, which Polecat got and Fisher did not (GH-5142): unwrap Nullable<T> so the stores agree on an
+        // aggregate's id type. For `public AlertId? Id { get; set; }` the property verbatim is Nullable<AlertId>,
+        // which WriteModelAttribute.FindIdentity treats as non-primitive, so it skipped the IdentifiedBy<T>
+        // escape hatch and went looking for a Nullable<AlertId> member on the message that exists nowhere.
+        return Nullable.GetUnderlyingType(idProp.PropertyType) ?? idProp.PropertyType;
     }
 
     /// <inheritdoc />
@@ -196,10 +206,17 @@ internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvide
 
     private static bool IsDocumentExistsAttribute(Attribute attribute)
     {
+        // GH-5514: the store-agnostic core [DocumentExists<T>] / [DocumentDoesNotExist<T>] ...
+        if (attribute is Wolverine.Persistence.DocumentStores.IDocumentExistenceAttribute) return true;
+
+        // ... and this store's own obsolete copies, but never another store's, so a host integrating
+        // several stores claims chains exactly as it did before
         var type = attribute.GetType();
         if (!type.IsGenericType) return false;
         var def = type.GetGenericTypeDefinition();
+#pragma warning disable CS0618
         return def == typeof(DocumentExistsAttribute<>) || def == typeof(DocumentDoesNotExistAttribute<>);
+#pragma warning restore CS0618
     }
 
     public bool TryBuildAllFrame(Type entityType, IServiceContainer container,

@@ -44,7 +44,7 @@ so start one yourself. `Program.fs` connects to the emulator's well-known endpoi
 docker run -d --name cosmos-emulator -p 8081:8081 -p 10250-10255:10250-10255 \
   mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest
 
-dotnet run --project src/Samples/WolverineCosmosFSharpSample --framework net9.0
+dotnet run --project src/Samples/WolverineCosmosFSharpSample --framework net10.0
 ```
 
 The emulator takes a minute or two to become ready, and serves a self-signed certificate — the sample

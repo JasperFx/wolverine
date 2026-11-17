@@ -25,15 +25,15 @@ internal class OracleQueueListener : IListener
     private readonly DurabilitySettings _settings;
     private Task? _scheduledTask;
     private readonly OracleQueueSender _sender;
-    private readonly string _tryPopMessagesDirectlySql;
+    private string _tryPopMessagesDirectlySql = null!;
     private readonly string _queueTableName;
     private readonly string _queueName;
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
-    private readonly bool _deterministicQueueOrdering;
-    private readonly string _queueOrderBy;
-    private readonly string _scheduledOrderBy;
+    private bool _deterministicQueueOrdering;
+    private string _queueOrderBy = null!;
+    private string _scheduledOrderBy = null!;
 
     // GH-5015: ids of a durable pop whose COMMIT failed with an unknown outcome and could not be released yet
     private UnconfirmedPop? _unconfirmedPop;
@@ -55,7 +55,15 @@ internal class OracleQueueListener : IListener
         _queueTableName = _queue.QueueTable.Identifier.QualifiedName;
         _scheduledTableName = _queue.ScheduledTable.Identifier.QualifiedName;
         _schemaName = _queue.Parent.MessageStorageSchemaName;
-        _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
+        _queueName = _queue.Name;
+        useQueueOrdering(queue.Parent.EnableDeterministicQueueOrdering);
+    }
+
+    // GH-5192: the configured value is only a first guess. StartAsync swaps in what this database's queue tables
+    // really have, because 7.0 adopts an existing table without queue_order as it stands.
+    private void useQueueOrdering(bool deterministicQueueOrdering)
+    {
+        _deterministicQueueOrdering = deterministicQueueOrdering;
 
         // The identity tie-breaker is only referenced when its schema is enabled
         _queueOrderBy = _deterministicQueueOrdering
@@ -72,8 +80,6 @@ internal class OracleQueueListener : IListener
         _tryPopMessagesDirectlySql =
             $"SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body} FROM {_queueTableName} " +
             $"ORDER BY {_queueOrderBy} FOR UPDATE SKIP LOCKED";
-
-        _queueName = _queue.Name;
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
@@ -320,7 +326,10 @@ internal class OracleQueueListener : IListener
                     // is not latched until it returns, so a shutdown drain defers whatever it is still holding.
                     await _receiver.ReceivedAsync(this, messages.ToArray());
 
-                    pause = messages.Count > _queue.MaximumMessagesToReceive
+                    // GH-5413: a full batch means more is probably waiting, so poll again shortly. This was
+                    // `>`, which a pop limited to MaximumMessagesToReceive can never satisfy, so every batch
+                    // waited the whole polling interval and a backlog drained one batch per interval
+                    pause = messages.Count >= _queue.MaximumMessagesToReceive
                         ? 250.Milliseconds()
                         : _pollingInterval;
                 }
@@ -409,12 +418,41 @@ internal class OracleQueueListener : IListener
 
             var list = new List<Envelope>();
 
+            // GH-5411: matches the inbox's identity, where received_at counts only under IdAndDestination
+            var heldSql = $"SELECT COUNT(*) FROM {_schemaName}.{DatabaseConstants.IncomingTable} WHERE id = :id" +
+                          (_settings.MessageIdentity == MessageIdentity.IdAndDestination
+                              ? $" AND {DatabaseConstants.ReceivedAt} = :receivedAt"
+                              : "");
+            var inserted = new List<Guid>();
+
             for (int i = 0; i < ids.Count; i++)
             {
                 // Delete from queue
                 await using var deleteCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id = :id");
                 deleteCmd.With("id", ids[i]);
                 await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+
+                // GH-5411: an envelope the inbox already holds (say, handled after being received at another
+                // address) would fail the INSERT below with ORA-00001 and roll the whole batch back onto the
+                // queue on every poll. It has left the queue; skip it.
+                await using (var heldCmd = CreateCmd(heldSql))
+                {
+                    heldCmd.With("id", ids[i]);
+                    if (_settings.MessageIdentity == MessageIdentity.IdAndDestination)
+                    {
+                        heldCmd.With("receivedAt", Address.ToString());
+                    }
+
+                    if (Convert.ToInt64(await heldCmd.ExecuteScalarAsync(cancellationToken)) > 0)
+                    {
+                        logger.LogInformation(
+                            "Discarding a duplicate delivery of envelope {EnvelopeId} at {Uri}, which the inbox already holds",
+                            ids[i], Address);
+                        continue;
+                    }
+                }
+
+                inserted.Add(ids[i]);
 
                 // Insert into incoming
                 await using var insertCmd = CreateCmd(
@@ -451,7 +489,7 @@ internal class OracleQueueListener : IListener
                 // inbox owned by this live node and in no listener's memory -- recovery only reclaims
                 // owner_id = 0. Nothing is handed to the receiver (if the move rolled back, the rows are back in
                 // the queue and would run twice), so release whatever did commit to recovery instead.
-                await releaseAfterFailedCommitAsync(ids, settings.AssignedNodeNumber, e, logger);
+                await releaseAfterFailedCommitAsync(inserted, settings.AssignedNodeNumber, e, logger);
                 throw;
             }
 
@@ -640,6 +678,8 @@ internal class OracleQueueListener : IListener
         {
             await _queue.EnsureSchemaExists(_databaseName ?? string.Empty, _dataSource);
         }
+
+        useQueueOrdering(await _queue.UsesQueueOrderingAsync(_databaseName ?? string.Empty, _dataSource));
 
         _task = Task.Run(listenForMessagesAsync, _cancellation.Token);
         _scheduledTask = Task.Run(lookForScheduledMessagesAsync, _cancellation.Token);

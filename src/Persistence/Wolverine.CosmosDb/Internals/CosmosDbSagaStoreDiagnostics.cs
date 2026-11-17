@@ -27,7 +27,7 @@ namespace Wolverine.CosmosDb.Internals;
 ///     documents, will deserialize those as the saga type being queried. A query's own <c>Where</c> is the way to
 ///     narrow it.
 /// </remarks>
-internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics
+internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics
 {
     private readonly Container _container;
     private readonly IWolverineRuntime _runtime;
@@ -148,6 +148,103 @@ internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics
             throw options.Untranslatable(e);
         }
     }
+
+    // GH-5558: idle saga diagnostics over the LastModified member of the saga document. Saga documents share the
+    // Wolverine container with each other and carry no type marker, so a query over one saga type cannot tell its
+    // documents from another saga type's. Idle queries are therefore answered only when this is the application's
+    // one Cosmos-stored saga type; every query also requires LastModified, which only saga documents have.
+
+    private const string TenantRefusal =
+        "Idle saga queries on CosmosDB read the registered container, not a tenant's.";
+
+    public bool SupportsIdleQueries(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var sagaType) && sagaType.CanBeCastTo<Saga>()
+                                                                   && sagaIndex().Values.Distinct().Count() == 1;
+
+    private void assertIdleQueriesSupported(string sagaTypeName)
+    {
+        if (sagaIndex().Values.Distinct().Count() > 1)
+        {
+            throw new NotSupportedException(
+                $"Idle saga queries on CosmosDB need {sagaTypeName} to be the only saga type stored in the Wolverine container: saga documents carry no type marker, so the count would include other saga types' documents.");
+        }
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<long> CountIdleSagasAsync(string sagaTypeName, DateTimeOffset modifiedBefore, string? tenantId,
+        CancellationToken ct)
+    {
+        SagaQueryCriteria.RefuseTenant(tenantId, TenantRefusal);
+        if (!sagaIndex().TryGetValue(sagaTypeName, out var sagaType)) return 0;
+        assertIdleQueriesSupported(sagaTypeName);
+
+        var task = (Task<long>)typeof(CosmosDbSagaStoreDiagnostics)
+            .GetMethod(nameof(countIdleAsync), BindingFlags.Instance | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sagaType)
+            .Invoke(this, [modifiedBefore.ToUniversalTime(), ct])!;
+        return await task.ConfigureAwait(false);
+    }
+
+    private async Task<long> countIdleAsync<TSaga>(DateTimeOffset modifiedBefore, CancellationToken ct)
+        where TSaga : Saga
+    {
+        var queryable = sagaDocuments<TSaga>().Where(x => x.LastModified < modifiedBefore);
+        return (await queryable.CountAsync(ct).ConfigureAwait(false)).Resource;
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<SagaQueryResult> QuerySagasByLastModifiedAsync(string sagaTypeName, SagaLastModifiedRange range,
+        DocumentQueryOptions options, CancellationToken ct)
+    {
+        var (tenantId, rest) = SagaQueryCriteria.TakeTenant(options);
+        SagaQueryCriteria.RefuseTenant(tenantId, TenantRefusal);
+
+        var (pageNumber, pageSize) = SagaQueryCriteria.Page(rest);
+        SagaQueryCriteria.RefuseCriteria(rest, GetQueryCapabilities(sagaTypeName));
+        if (!sagaIndex().TryGetValue(sagaTypeName, out var sagaType)) return SagaQueryResult.Empty(pageNumber, pageSize);
+        assertIdleQueriesSupported(sagaTypeName);
+
+        var utc = new SagaLastModifiedRange(range.ModifiedAfter?.ToUniversalTime(), range.ModifiedBefore?.ToUniversalTime());
+        var task = (Task<SagaQueryResult>)typeof(CosmosDbSagaStoreDiagnostics)
+            .GetMethod(nameof(queryByLastModifiedAsync), BindingFlags.Instance | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sagaType)
+            .Invoke(this, [sagaType, utc, rest, pageNumber, pageSize, ct])!;
+        return await task.ConfigureAwait(false);
+    }
+
+    private async Task<SagaQueryResult> queryByLastModifiedAsync<TSaga>(Type sagaType, SagaLastModifiedRange range,
+        DocumentQueryOptions options, int pageNumber, int pageSize, CancellationToken ct) where TSaga : Saga
+    {
+        try
+        {
+            var queryable = SagaLastModifiedQueries.Order(
+                SagaLastModifiedQueries.Filter(sagaDocuments<TSaga>(), range), options, idMemberName(sagaType));
+
+            var total = (await queryable.CountAsync(ct).ConfigureAwait(false)).Resource;
+
+            var list = new List<SagaInstanceState>();
+            using var iterator = queryable.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToFeedIterator();
+            while (iterator.HasMoreResults)
+            {
+                foreach (var saga in await iterator.ReadNextAsync(ct).ConfigureAwait(false))
+                {
+                    list.Add(buildInstance(sagaType, extractIdentity(saga, sagaType) ?? string.Empty, saga));
+                }
+            }
+
+            return new SagaQueryResult(list, total, pageNumber, pageSize);
+        }
+        catch (Exception e) when (DocumentQueryCriteria.IsTranslationFailure(e) || isCosmosTranslationFailure(e))
+        {
+            throw options.Untranslatable(e);
+        }
+    }
+
+    // Only saga documents have LastModified: Wolverine's own envelope, node and lock documents do not
+    private IQueryable<TSaga> sagaDocuments<TSaga>() where TSaga : Saga
+        => _container.GetItemLinqQueryable<TSaga>().Where(x => x.LastModified.IsDefined());
 
     // The Cosmos LINQ provider reports an expression it cannot translate as a NotSupportedException or
     // DocumentQueryException, and a server-side rejection of the generated SQL as a 400

@@ -147,3 +147,68 @@ public class database_server_id_tests
         new DatabaseServerId("SqlServer", @"sql-1\SQLEXPRESS", null).ToString().ShouldBe(@"sql-1\SQLEXPRESS");
     }
 }
+
+// GH-5148. The matching the .NET 11 startup validator uses to refuse a budget that names no known server.
+public class connection_budgets_unmatched_servers_tests
+{
+    private readonly ConnectionBudgets theBudgets = new();
+
+    [Fact]
+    public void nothing_declared_means_nothing_unmatched()
+    {
+        theBudgets.UnmatchedServers([new DatabaseServerId("PostgreSQL", "shard-a", 5432)]).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void exact_host_and_port_match()
+    {
+        theBudgets.ForServer("shard-a", 5432, 400);
+
+        theBudgets.UnmatchedServers([new DatabaseServerId("PostgreSQL", "shard-a", 5432)]).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void the_port_must_match_when_one_was_declared()
+    {
+        theBudgets.ForServer("shard-a", 5433, 400);
+
+        theBudgets.UnmatchedServers([new DatabaseServerId("PostgreSQL", "shard-a", 5432)])
+            .ShouldBe(["shard-a:5433"]);
+    }
+
+    [Fact]
+    public void host_wide_budget_matches_any_port()
+    {
+        theBudgets.ForServer("shard-a", 400);
+
+        theBudgets.UnmatchedServers([new DatabaseServerId("PostgreSQL", "shard-a", 5432)]).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void server_names_compare_case_insensitively_and_ignore_the_engine()
+    {
+        theBudgets.ForServer("SQL01,1433", 200);
+
+        theBudgets.UnmatchedServers([new DatabaseServerId("SqlServer", "sql01,1433", null)]).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void reports_every_unmatched_budget()
+    {
+        theBudgets
+            .ForServer("shard-a", 5432, 400)
+            .ForServer("typo-host", 5432, 100)
+            .ForServer("old-host", 50);
+
+        theBudgets.UnmatchedServers([new DatabaseServerId("PostgreSQL", "shard-a", 5432)])
+            .ShouldBe(["typo-host:5432", "old-host"]);
+    }
+
+    [Fact]
+    public void no_known_servers_leaves_every_budget_unmatched()
+    {
+        theBudgets.ForServer("shard-a", 5432, 400);
+
+        theBudgets.UnmatchedServers([]).ShouldBe(["shard-a:5432"]);
+    }
+}

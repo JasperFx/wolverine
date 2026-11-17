@@ -18,8 +18,9 @@ public class can_compile_a_handler_chain_for_an_inner_type : IntegrationContext
     {
         _output.WriteLine(Host.Services.GetRequiredService<IWolverineRuntime>().Options.DescribeHandlerMatch(typeof(ThingWithInner.InnerHandler)));
 
-        var chain = Handlers.ChainFor<Message1>()!;
-        var call = chain.Handlers.First(x => x.HandlerType == typeof(ThingWithInner.InnerHandler));
+        // GH-5136. The inner handler type has a chain of its own for Message1
+        var chain = Handlers.ChainFor(typeof(Message1), typeof(ThingWithInner.InnerHandler))!;
+        var call = chain.Handlers.Single(x => x.HandlerType == typeof(ThingWithInner.InnerHandler));
         call.ShouldNotBeNull();
     }
 }

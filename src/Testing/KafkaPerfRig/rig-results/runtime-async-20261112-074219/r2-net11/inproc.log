@@ -1,0 +1,29 @@
+[rig] inproc proof: {"HandlerType":"Internal.Generated.WolverineHandlers.InProcCommandHandler1071968105","WolverineAsyncMethods":0,"WolverineStateMachines":679,"HandlerAsyncMethods":0,"HandlerStateMachines":1}
+[rig] inproc up: framework=.NET 11.0.0 concurrency=18 yieldEvery=16 warmup=10s duration=30s
+[rig] inproc summary:
+{
+  "variant": "net11",
+  "framework": ".NET 11.0.0",
+  "runtimeAsyncCodegen": false,
+  "proof": {
+    "HandlerType": "Internal.Generated.WolverineHandlers.InProcCommandHandler1071968105",
+    "WolverineAsyncMethods": 0,
+    "WolverineStateMachines": 679,
+    "HandlerAsyncMethods": 0,
+    "HandlerStateMachines": 1
+  },
+  "concurrency": 18,
+  "yieldEvery": 16,
+  "messages": 46951560,
+  "seconds": 30,
+  "msgPerSec": 1565009,
+  "cpuUsPerMsg": 9.204,
+  "allocBytesPerMsg": 342.9,
+  "gen0": 1951,
+  "gen1": 3,
+  "gen2": 0,
+  "latencySamples": 733615,
+  "p50us": 4,
+  "p95us": 42.21,
+  "p99us": 114.04
+}

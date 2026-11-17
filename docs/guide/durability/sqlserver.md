@@ -329,17 +329,19 @@ When not set, the queue falls back to the global `DurabilitySettings.ScheduledJo
 
 ### Optimizing Queue Throughput <Badge type="tip" text="6.16" />
 
-By default the Sql Server queue and scheduled-message tables use a clustered primary key on the
-message `id` (a random `Guid`). That layout is simple and safe, but on busy queues with non-trivial
-depth it has two costs: inserts land on random pages (causing page splits and fragmentation), and
+The classic layout of the Sql Server queue and scheduled-message tables, and the default up to Wolverine 6.x,
+is a clustered primary key on the message `id` (a random `Guid`). That layout is simple and safe, but on busy
+queues with non-trivial depth it has two costs: inserts land on random pages (causing page splits and fragmentation), and
 the dequeue query (`SELECT TOP(n) ... ORDER BY timestamp`) has no supporting index, so each poll
 scans and sorts the whole table.
 
-You can opt into a higher-throughput storage layout that mirrors the design used by mature SQL-based
+The higher-throughput storage layout mirrors the design used by mature SQL-based
 queues (including Wolverine's own NServiceBus interop transport): the tables are **clustered on a
 monotonic `seq` identity column** so dequeues are an ordered clustered-index seek and the matching
 deletes remove physically contiguous rows, while the message `id` keeps a unique non-clustered index
 so duplicate sends still fail fast for idempotency. A filtered index also speeds up the expiry sweep.
+It is the default for the queue tables Wolverine creates from 7.0 (see [below](#new-queue-tables-only)); on
+6.x, or to rebuild existing tables, opt in:
 
 ```cs
 opts.UseSqlServerPersistenceAndTransport(connectionString)
@@ -353,19 +355,54 @@ and turned worst-case deep-queue dequeue latency from hundreds of milliseconds i
 milliseconds.
 
 ::: warning
-This setting changes the physical schema of the queue tables. Turning it on or off for an **existing**
-database rebuilds the ready and scheduled queue tables the next time the schema is applied: in one
+This setting changes the physical schema of the queue tables. Setting it explicitly, with
+`OptimizeQueueThroughput()` or `UseClassicQueueLayout()`, for an **existing** database rebuilds the ready and scheduled queue tables the next time the schema is applied: in one
 transaction, Wolverine copies the rows out, recreates the table in the new layout and inserts the rows
 back in queue order, so messages already waiting keep their order and the new `seq` (or `queue_order`)
 identity follows it. The table is locked for the duration. Queue tables are normally transient, so this
 is usually cheap, but you should switch during a maintenance window — ideally with the queues drained —
-and on every application that shares the queue tables. New applications can simply turn it on from the
-start.
+and on every application that shares the queue tables. Two applications that disagree would rebuild the
+tables back and forth, which is why the 7.0 *default* never rebuilds anything.
 
 This applies to Wolverine's native Sql Server queue tables only. The NServiceBus interoperability
 transport already uses the equivalent clustered layout (it must match the NServiceBus on-disk schema),
 so no opt-in is needed there.
 :::
+
+#### New queue tables only <Badge type="tip" text="7.0" />
+
+From Wolverine 7.0, the high-throughput layout is the default for the queue tables Wolverine **creates**,
+and the classic layout gets the [`queue_order` tie-breaker](#deterministic-queue-ordering) by default. A
+queue table that already exists keeps the layout it has: moving it to the other layout rebuilds it, and
+adding an identity numbers every row, both under an exclusive lock. Wolverine adopts the existing table as it
+is, no migration touches it, and the listeners use the dequeue SQL for the layout they find. This is decided
+per table and per database, so a tenant database created after the upgrade gets the new layout while the
+older ones keep theirs. The same goes the other way: with the classic defaults back, a table on the
+high-throughput layout is kept as it is.
+
+To get the Wolverine 6.x layout for new tables, use `UseClassicQueueLayout()` and
+`DisableDeterministicQueueOrdering()`, or `opts.RestoreV6Defaults()` for both:
+
+```cs
+opts.UseSqlServerPersistenceAndTransport(connectionString)
+    .UseClassicQueueLayout()
+    .DisableDeterministicQueueOrdering();
+```
+
+Note that `UseClassicQueueLayout()` is an explicit setting, so like `OptimizeQueueThroughput()` it rebuilds
+existing tables that are on the other layout. `RestoreV6Defaults()` only changes the default, and so never
+does.
+
+#### Converting an existing queue table
+
+To move an existing table to the high-throughput layout, do it deliberately:
+
+1. Stop sending to the queue and let the listeners drain it, until both the ready and the scheduled queue
+   tables are empty.
+2. Either drop the two tables and let Wolverine create them again on the next start, or call
+   `OptimizeQueueThroughput()` explicitly for one deployment, which rebuilds them as described above. On an
+   empty table the rebuild is cheap.
+3. Configure every application that shares the queue tables the same way.
 
 ### Deterministic Queue Ordering
 
@@ -374,8 +411,9 @@ With the default table layout, the Sql Server queue listeners dequeue by the `ti
 timestamp, but `SYSDATETIMEOFFSET()` is evaluated once per statement, so every row written by one
 statement gets the same value. That is exactly what happens when scheduled messages come due: each
 promotion moves a batch of them into the ready queue in a single statement. Rows with the same
-timestamp have no defined order relative to each other. To persist a tie-breaker for those rows, opt
-into deterministic queue ordering:
+timestamp have no defined order relative to each other. Deterministic queue ordering persists a
+tie-breaker for those rows. It is the default for new classic queue tables from Wolverine 7.0 (see
+[New queue tables only](#new-queue-tables-only)); on 6.x, or to add it to existing classic tables, opt in:
 
 ```cs
 opts.UseSqlServerPersistenceAndTransport(connectionString)
@@ -400,8 +438,7 @@ Without the option, Wolverine still hands each dequeued batch to the listener in
 Neither of those needs a schema change.
 
 The option is disabled by default so existing applications do not receive an automatic queue schema
-change. With `AutoCreate.None`, apply the Wolverine resource migration before starting with the option
-enabled. Configure the option consistently on every application using the same queue schema; once the
+change. With `AutoCreate.None`, apply the Wolverine resource migration before starting with the option enabled, with `dotnet run -- resources setup` or `dotnet run -- db-apply` (see [Managing Message Storage](/guide/durability/managing#choosing-an-approach)). Configure the option consistently on every application using the same queue schema; once the
 schema has been upgraded, turning the option off again leaves the added column and indexes in place.
 The composite indexes take additional storage and write maintenance.
 

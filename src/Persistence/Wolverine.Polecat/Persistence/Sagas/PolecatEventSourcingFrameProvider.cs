@@ -32,20 +32,31 @@ internal partial class PolecatPersistenceFrameProvider : IEventSourcingFrameProv
     // Core never writes "session.Events.FetchForWriting<T>(...)" itself. Handing back a finished frame
     // is what keeps that spelling on this side of the seam - and lets Polecat's frame stay a plain
     // AsyncFrame where Marten's also implements IBatchableFrame.
-    public Frame BuildLoadAggregateFrame(AggregateLoadRequest request) => new LoadAggregateFrame(request);
+    public Frame BuildLoadAggregateFrame(AggregateLoadRequest request)
+        => new Wolverine.Persistence.EventSourcing.Codegen.LoadAggregateFrame(request, typeof(IDocumentSession), StoreName);
 
     // GH-3627. Polecat's spelling of the raw stream reads.
-    public Frame BuildFetchStreamStateFrame(Variable identity) => new Codegen.FetchStreamStateFrame(identity);
+    public Frame BuildFetchStreamStateFrame(Variable identity)
+        => new Wolverine.Persistence.EventSourcing.Codegen.FetchStreamStateFrame(identity, typeof(IDocumentSession));
 
-    public Frame BuildFetchStreamFrame(Variable identity) => new Codegen.FetchStreamFrame(identity);
+    public Frame BuildFetchStreamFrame(Variable identity)
+        => new Wolverine.Persistence.EventSourcing.Codegen.FetchStreamFrame(identity, typeof(IDocumentSession));
 
     public Frame BuildFetchLatestFrame(Type aggregateType, Variable identity)
-        => new FetchLatestAggregateFrame(aggregateType, identity);
+        => new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestAggregateFrame(aggregateType, identity, typeof(IDocumentSession));
 
     public Frame BuildLoadBoundaryFrame(Type modelType) => new LoadBoundaryFrame(modelType);
 
     public StreamIdentity DetermineStreamIdentity(IServiceContainer container)
         => container.Services.GetRequiredService<StoreOptions>().Events.StreamIdentity;
+
+    /// <summary>
+    /// The stream identity of the store this chain writes to. GH-5142: an ancillary store can be keyed
+    /// differently from the default one.
+    /// </summary>
+    public StreamIdentity DetermineStreamIdentity(IChain chain, IServiceContainer container)
+        => (resolveStoreOptions(chain, container) ?? container.Services.GetRequiredService<StoreOptions>())
+            .Events.StreamIdentity;
 
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "The aggregate type comes from handler discovery, which already roots it. Codegen-time only. See docs/guide/aot.md.")]

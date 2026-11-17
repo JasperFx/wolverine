@@ -295,12 +295,12 @@ public static class WolverineTracing
 
     public static Activity? StartReceiving(Envelope envelope)
     {
-        return StartEnvelopeActivity("receive", envelope, ActivityKind.Consumer);
+        return StartReceivingSideActivity("receive", envelope, ActivityKind.Consumer);
     }
 
     public static Activity? StartExecuting(Envelope envelope)
     {
-        var activity = StartEnvelopeActivity(envelope.MessageType ?? "process", envelope);
+        var activity = StartReceivingSideActivity(envelope.MessageType ?? "process", envelope, ActivityKind.Internal);
 
         // GH-5310: remembered so the generated handler can tag this span even after a persistence
         // integration has made its own activity current (see MessageActivity below)
@@ -334,6 +334,36 @@ public static class WolverineTracing
             return null;
         }
 
+        envelope.WriteTags(activity);
+
+        return activity;
+    }
+
+    private static Activity? StartReceivingSideActivity(string spanName, Envelope envelope, ActivityKind kind)
+    {
+        return envelope.StartsNewLinkedTrace
+            ? StartNewLinkedTrace(spanName, envelope, kind)
+            : StartEnvelopeActivity(spanName, envelope, kind);
+    }
+
+    private static Activity? StartNewLinkedTrace(string spanName, Envelope envelope, ActivityKind kind)
+    {
+        ActivityLink[]? links = ActivityContext.TryParse(envelope.ParentId, null, out var sender)
+            ? [new ActivityLink(sender)]
+            : null;
+
+        var previous = Activity.Current;
+        Activity.Current = null;
+
+        var activity = ActivitySource.StartActivity(spanName, kind, default(ActivityContext), links: links);
+        if (activity == null)
+        {
+            Activity.Current = previous;
+            return null;
+        }
+
+        envelope.StartsNewLinkedTrace = false;
+        envelope.ParentId = activity.Id;
         envelope.WriteTags(activity);
 
         return activity;
@@ -374,6 +404,32 @@ public static class WolverineTracing
         {
             activity.AddLink(new ActivityLink(context));
         }
+    }
+
+    /// <summary>
+    /// GH-5547. Called by the continuations that retry a failed envelope inline (retry now, retry with cooldown,
+    /// do then retry) immediately before the next attempt runs. That attempt runs from inside the failed one's
+    /// error handling, so without this the failed attempt's span would stay open across every retry after it and
+    /// the dead letter move at the end -- temporally containing the attempts it is only linked to (see
+    /// <see cref="LinkToPreviousAttempt"/>), and no longer measuring how long the handler ran.
+    ///
+    /// Only the execution span started for this attempt is ended: <paramref name="activity"/> is whatever span the
+    /// caller handed the continuation, and an inline listener hands over its receive span, which it stops itself
+    /// and which is meant to contain everything done for the delivery. Whoever started the execution span still
+    /// stops it in a finally block, which is a no-op on a stopped activity. The error status and the
+    /// <c>exception</c> event are already on the span by now, since the executor records both before it chooses
+    /// the continuation.
+    /// </summary>
+    internal static void EndAttemptBeforeInlineRetry(Envelope? envelope, Activity? activity)
+    {
+        if (activity == null || envelope == null || !ReferenceEquals(envelope.ExecutingActivity, activity))
+        {
+            return;
+        }
+
+        // Stop() also hands Activity.Current back to this span's parent in the flow that runs the retry, so a next
+        // attempt with no parent id is started as a sibling of this one rather than as its child
+        activity.Stop();
     }
 
     // GH-5311. Holds the exception last recorded on an activity, so the several catch blocks one

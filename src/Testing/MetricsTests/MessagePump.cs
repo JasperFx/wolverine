@@ -198,7 +198,11 @@ public static class MessagesHandler
         
         await Task.Delay(Random.Shared.Next(25, 100));
     }
-    
+}
+
+// GH-5136: one handler method per message type per handler class, so the second M4 handler has a class of its own
+public static class SecondM4Handler
+{
     public static async Task HandleAsync(M4 m)
     {
         await Task.Delay(Random.Shared.Next(25, 100));

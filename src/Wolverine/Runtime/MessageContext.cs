@@ -54,6 +54,13 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     // envelope as if it were already persisted. Both stand only if that transaction commits, so a failed attempt
     // puts the envelope back the way the check found it. See ClearAllAsync
     private bool _eagerIdempotencyStamped;
+
+    /// <summary>
+    ///     GH-5423. Whether eager idempotency wrote this execution's own Handled inbox row into the handler's
+    ///     transaction. A transaction that commits the work then has nothing left to mark, and a Handled row for the
+    ///     envelope is its own rather than another execution's
+    /// </summary>
+    public bool EagerIdempotencyRowWritten => _eagerIdempotencyStamped;
     private EnvelopeStatus _statusBeforeEagerIdempotency;
 
     /// <summary>
@@ -323,8 +330,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                     if (!agent.IsDurable)
                     {
                         Runtime.Logger.LogError(results[i].Exception,
-                            "Unable to send outgoing message {Envelope} inline to non-durable destination {Destination}, so it has been discarded",
-                            envelope, envelope.Destination);
+                            "Unable to send outgoing message {Name}#{Id} inline to non-durable destination {Destination}, so it has been discarded",
+                            envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
                         Runtime.MessageTracking.DiscardedEnvelope(envelope);
                         continue;
                     }
@@ -336,16 +343,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                     if (Runtime.Options.Durability.Mode != DurabilityMode.ServerlessWithOutbox)
                     {
                         Runtime.Logger.LogError(results[i].Exception,
-                            "Unable to send outgoing message {Envelope} inline to {Destination}. Handing it to the destination's sending agent to retry",
-                            envelope, envelope.Destination);
+                            "Unable to send outgoing message {Name}#{Id} inline to {Destination}. Handing it to the destination's sending agent to retry",
+                            envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
 
                         await flushEnvelopeAsync(envelope).ConfigureAwait(false);
                         continue;
                     }
 
                     Runtime.Logger.LogError(results[i].Exception,
-                        "Unable to send outgoing message {Envelope} inline to {Destination}. It is left in the outbox to be recovered by a later durability pass",
-                        envelope, envelope.Destination);
+                        "Unable to send outgoing message {Name}#{Id} inline to {Destination}. It is left in the outbox to be recovered by a later durability pass",
+                        envelope.GetMessageTypeName(), envelope.Id, envelope.Destination);
 
                     if (!alreadyPersisted)
                     {
@@ -367,14 +374,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     {
         try
         {
+            await envelope.SerializeAheadAsync().ConfigureAwait(false);
             await (envelope.Store ?? Runtime.Storage).Outbox
                 .StoreOutgoingAsync(envelope, Runtime.Options.Durability.OutgoingOwnerId).ConfigureAwait(false);
         }
         catch (Exception e)
         {
             Runtime.Logger.LogError(e,
-                "Unable to store unsent outgoing message {Envelope} in the outbox, so it has been discarded",
-                envelope);
+                "Unable to store unsent outgoing message {Name}#{Id} in the outbox, so it has been discarded",
+                envelope.GetMessageTypeName(), envelope.Id);
             Runtime.MessageTracking.DiscardedEnvelope(envelope);
         }
     }
@@ -406,7 +414,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             switch (MultiFlushMode)
             {
                 case MultiFlushMode.OnlyOnce:
-                    lock (_outstandingLock)
+                    // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+                    _outstandingLock.Enter();
+                    try
                     {
                         if (_outstanding.Count > 0)
                         {
@@ -416,6 +426,10 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                                 "MessageContext for {MessageType} has already flushed its outgoing messages, so {Count} envelope(s) enqueued after that flush will not be sent. This can happen when messages are enqueued after an explicit transaction commit (e.g. SaveChangesAsync()) has already drained the context. Consider MultiFlushMode.AllowMultiples if multiple flushes are expected",
                                 Envelope?.MessageType, _outstanding.Count);
                         }
+                    }
+                    finally
+                    {
+                        _outstandingLock.Exit();
                     }
 
                     return null;
@@ -441,10 +455,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         // Snapshot under lock so concurrent publishes from a Marten projection
         // (Block parallelism = 10 in AggregationRunner) cannot corrupt the list
         // while we're iterating it. GH-2529.
-        lock (_outstandingLock)
+        // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+        _outstandingLock.Enter();
+        try
         {
             if (_outstanding.Count == 0) return null;
             return _outstanding.ToArray();
+        }
+        finally
+        {
+            _outstandingLock.Exit();
         }
     }
 
@@ -497,8 +517,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             // reach this catch. It can now, and an unreachable message store is the more common cause
             // of the two, so name both -- and name the envelope, which this never did.
             Runtime.Logger.LogError(e,
-                "Unable to send outgoing message {Envelope}, so it has been discarded. This is usually either a serialization failure or an unreachable message store",
-                envelope);
+                "Unable to send outgoing message {Name}#{Id}, so it has been discarded. This is usually either a serialization failure or an unreachable message store",
+                envelope.GetMessageTypeName(), envelope.Id);
             Runtime.MessageTracking.DiscardedEnvelope(envelope);
         }
 
@@ -523,10 +543,16 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         _sent ??= new();
-        lock (_outstandingLock)
+        // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+        _outstandingLock.Enter();
+        try
         {
             _sent.AddRange(_outstanding);
             _outstanding.Clear();
+        }
+        finally
+        {
+            _outstandingLock.Exit();
         }
 
         _hasFlushed = true;
@@ -543,9 +569,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                 var failureDescription = $"No response was created for expected response '{Envelope!.ReplyRequested}' back to reply-uri {Envelope.ReplyUri}. ";
 
                 Envelope[] outstandingSnapshot;
-                lock (_outstandingLock)
+                // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+                _outstandingLock.Enter();
+                try
                 {
                     outstandingSnapshot = _outstanding.ToArray();
+                }
+                finally
+                {
+                    _outstandingLock.Exit();
                 }
 
                 if (outstandingSnapshot.Length > 0)
@@ -684,6 +716,14 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             await moveBatchToDeadLetterQueueAsync(Envelope, exception).ConfigureAwait(false);
             return;
+        }
+
+        // GH-5557. A saga handler resolves its saga id from the message, so the incoming envelope usually carries
+        // none. Record the id the handler resolved, so the dead letter can be found by its saga. The same string
+        // form outgoing envelopes get from this context
+        if (Envelope.SagaId.IsEmpty() && _sagaId != null)
+        {
+            Envelope.SagaId = _sagaId.ToString();
         }
 
         var deadLetterQueue = tryGetDeadLetterQueue(_channel, Envelope);
@@ -925,7 +965,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     Task IEnvelopeTransaction.PersistOutgoingAsync(Envelope envelope)
     {
-        lock (_outstandingLock)
+        using (_outstandingLock.EnterScope())
         {
             _outstanding.Fill(envelope);
         }
@@ -934,7 +974,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     Task IEnvelopeTransaction.PersistOutgoingAsync(Envelope[] envelopes)
     {
-        lock (_outstandingLock)
+        using (_outstandingLock.EnterScope())
         {
             _outstanding.Fill(envelopes);
         }
@@ -993,9 +1033,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     internal async Task CopyToAsync(IEnvelopeTransaction other)
     {
         Envelope[] snapshot;
-        lock (_outstandingLock)
+        // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+        _outstandingLock.Enter();
+        try
         {
             snapshot = _outstanding.ToArray();
+        }
+        finally
+        {
+            _outstandingLock.Exit();
         }
         await other.PersistOutgoingAsync(snapshot).ConfigureAwait(false);
 
@@ -1008,9 +1054,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     public async ValueTask ClearAllAsync()
     {
         Scheduled.Clear();
-        lock (_outstandingLock)
+        // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+        _outstandingLock.Enter();
+        try
         {
             _outstanding.Clear();
+        }
+        finally
+        {
+            _outstandingLock.Exit();
         }
 
         if (Transaction != null)
@@ -1279,7 +1331,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         _hasFlushed = false;
 
         _sent?.Clear();
-        lock (_outstandingLock)
+        using (_outstandingLock.EnterScope())
         {
             _outstanding.Clear();
         }
@@ -1355,7 +1407,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             var ackEnvelope = Runtime.RoutingFor(typeof(Acknowledgement))
                 .RouteToDestination(ack, Envelope.ReplyUri, null);
             TrackEnvelopeCorrelation(ackEnvelope, Activity.Current);
-            lock (_outstandingLock)
+            using (_outstandingLock.EnterScope())
             {
                 _outstanding.Add(ackEnvelope);
             }

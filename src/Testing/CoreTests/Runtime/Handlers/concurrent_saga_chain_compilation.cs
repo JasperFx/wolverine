@@ -22,7 +22,6 @@ public class concurrent_saga_chain_compilation
                 .UseWolverine(opts =>
                 {
                     opts.Discovery.DisableConventionalDiscovery().IncludeType<RaceSaga>();
-                    opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                     opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
                 }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 

@@ -576,13 +576,13 @@ functionality.
 |                     | Native `UseApiVersioning()`                     | Bridge `UseAspVersioning()`                          |
 |---------------------|-------------------------------------------------|------------------------------------------------------|
 | Dependency          | `Asp.Versioning.Abstractions` only              | full `Asp.Versioning.Http`                           |
-| Target frameworks   | net9.0 / net10.0                                | **net10.0 only**                                     |
+| Target frameworks   | net10.0 / net11.0                               | **net10.0 only**                                     |
 | Version readers     | URL-segment only                                | query, header, media-type, URL-segment, combined     |
 | URL-segment routes  | auto-rewrites `/orders` → `/v1/orders`          | you author `{version:apiVersion}` (no auto prefix)   |
 | Runtime cost        | no request-time matcher or response decorators  | Asp.Versioning matcher policy + response decorators  |
 | Configured via      | `opts.UseApiVersioning(v => …)`                 | your own `AddApiVersioning(…)`                       |
 
-In short: prefer native for URL-segment versioning at the lowest overhead (or on .NET 9); reach for
+In short: prefer native for URL-segment versioning at the lowest overhead; reach for
 the bridge when you need header/query/media-type readers, the rest of the Asp.Versioning feature set,
 or a behavior-identical migration of an existing Asp.Versioning app.
 

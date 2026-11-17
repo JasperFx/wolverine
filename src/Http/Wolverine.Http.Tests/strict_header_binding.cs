@@ -13,8 +13,8 @@ using Wolverine.Marten;
 namespace Wolverine.Http.Tests;
 
 // The header counterpart of strict_query_string_binding. A [FromHeader] value that cannot be parsed
-// silently bound the parameter's default; WolverineHttpOptions.RejectUnparseableHeaderValues opts into
-// a 400 ProblemDetails instead, as minimal APIs do. Since #5250 a repeated header binds as its
+// silently bound the parameter's default; WolverineHttpOptions.RejectUnparseableHeaderValues answers
+// a 400 ProblemDetails instead, as minimal APIs do, and is on by default from 7.0 (GH-5520). Since #5250 a repeated header binds as its
 // comma-joined values, so "x-number: 1" sent twice arrives as "1,2" and is rejected the same way.
 public class StrictHeaderBindingFixture : IAsyncLifetime
 {
@@ -57,7 +57,8 @@ public class StrictHeaderBindingFixture : IAsyncLifetime
             #region sample_reject_unparseable_header_values
             app.MapWolverineEndpoints(opts =>
             {
-                // Answer 400 with ProblemDetails when a [FromHeader] value can't be parsed
+                // Answer 400 with ProblemDetails when a [FromHeader] value can't be parsed. True by
+                // default from Wolverine 7.0; false puts back the 6.x lenient binding
                 opts.RejectUnparseableHeaderValues = rejectUnparseable;
             });
             #endregion

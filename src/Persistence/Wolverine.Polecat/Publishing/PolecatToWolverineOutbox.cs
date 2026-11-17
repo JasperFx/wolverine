@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using Polecat;
 using Polecat.Events.Aggregation;
 using Wolverine.Runtime;
@@ -23,22 +22,18 @@ namespace Wolverine.Polecat.Publishing;
 /// </remarks>
 internal class PolecatToWolverineOutbox : IMessageOutbox
 {
-    private readonly Lazy<IWolverineRuntime> _runtime;
+    private readonly ProjectionOutboxSource _source;
 
-    public PolecatToWolverineOutbox(IServiceProvider services)
+    /// <param name="services">The application container</param>
+    /// <param name="storeType">The ancillary store's marker type, or null for the main store (GH-5143)</param>
+    public PolecatToWolverineOutbox(IServiceProvider services, Type? storeType = null)
     {
-        _runtime = new Lazy<IWolverineRuntime>(() => services.GetRequiredService<IWolverineRuntime>());
+        _source = new ProjectionOutboxSource(services, storeType);
     }
 
     public async ValueTask<IMessageBatch> CreateBatch(IDocumentSession session)
     {
-        var context = new MessageContext(_runtime.Value, session.TenantId)
-        {
-            MultiFlushMode = MultiFlushMode.AllowMultiples
-        };
-
-        await context.EnlistInOutboxAsync(new PolecatEnvelopeTransaction(session, context));
-
-        return new PolecatToWolverineMessageBatch(context, session);
+        var sink = await _source.StartBatchAsync(session.TenantId, c => new PolecatEnvelopeTransaction(session, c));
+        return new PolecatToWolverineMessageBatch(sink);
     }
 }

@@ -126,6 +126,10 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         // waits for, and it sat out the whole DrainTimeout waiting on itself. The drain still latches first and
         // still waits for running handlers before it releases their rows (GH-4797) -- it just does so in the
         // background, where the frame that asked for it can finish.
+
+        // GH-5446. Not the breaker's pause, so the start that ends it is not a breaker recovery
+        CircuitBreaker?.PauseSuperseded();
+
         return pauseCoreAsync(pauseTime, waitForDrain: false);
     }
 
@@ -178,7 +182,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             // leaving two restarters behind. Installed before Paused is published: a subscriber that resumes the
             // queue on that event has to find this Restarter to dispose, or it fires later on an accepting queue.
             _restarter?.Dispose();
-            _restarter = new Restarter(this, pauseTime);
+            _restarter = new Restarter(() => startAsync(CircuitBreakerResetReason.PauseTimeElapsed), pauseTime);
 
             _runtime.Tracker.Publish(
                 new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Paused));
@@ -225,7 +229,12 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         }
     }
 
-    public async ValueTask StartAsync()
+    public ValueTask StartAsync()
+    {
+        return startAsync(CircuitBreakerResetReason.ExplicitStart);
+    }
+
+    private async ValueTask startAsync(CircuitBreakerResetReason reason)
     {
         if (((IListenerCircuit)this).Status == ListeningStatus.Accepting)
         {
@@ -244,15 +253,21 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
                 return;
             }
 
-            await startAsync();
+            await startQueueAsync();
         }
         finally
         {
             _startLock.Release();
         }
+
+        // GH-5446. Outside the start lock, so an observer that reaches back into this queue cannot deadlock it
+        if (((IListenerCircuit)this).Status == ListeningStatus.Accepting && CircuitBreaker != null)
+        {
+            await CircuitBreaker.ListenerResumedAsync(reason, _logger);
+        }
     }
 
-    private async ValueTask startAsync()
+    private async ValueTask startQueueAsync()
     {
         // L1. A pause that did not wait for its drain leaves it here. The drain ends in a release of every row this
         // node owns at this address, so it has to be over before a new receiver starts taking rows at the same one.
@@ -366,7 +381,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             try
             {
                 // A pause since then owns the restart, through its Restarter
-                if (_receiver == null && !_paused) await startAsync();
+                if (_receiver == null && !_paused) await startQueueAsync();
             }
             catch (Exception e)
             {

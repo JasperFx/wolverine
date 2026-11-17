@@ -13,12 +13,14 @@ internal class MessageBusSource : IVariableSource
 {
     private readonly bool _relayUserName;
     private readonly bool _applyCorrelationId;
+    private readonly string? _userNameClaimType;
     private CreateMessageContextWithMaybeTenantFrame? _frame;
 
-    public MessageBusSource(bool relayUserName, bool applyCorrelationId = false)
+    public MessageBusSource(bool relayUserName, bool applyCorrelationId = false, string? userNameClaimType = null)
     {
         _relayUserName = relayUserName;
         _applyCorrelationId = applyCorrelationId;
+        _userNameClaimType = userNameClaimType;
     }
 
     public bool Matches(Type type)
@@ -44,7 +46,7 @@ internal class MessageBusSource : IVariableSource
         // through the interface. Pre-fix behavior was equivalent because each Create
         // call produced a fresh CreateMessageContextWithMaybeTenantFrame whose .Variable
         // was the only thing ever handed out from this source.
-        _frame ??= new CreateMessageContextWithMaybeTenantFrame(_relayUserName, _applyCorrelationId);
+        _frame ??= new CreateMessageContextWithMaybeTenantFrame(_relayUserName, _applyCorrelationId, _userNameClaimType);
         return _frame.Variable;
     }
 }
@@ -53,6 +55,7 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
 {
     private readonly bool _relayUserName;
     private readonly bool _applyCorrelationId;
+    private readonly string? _userNameClaimType;
     private Variable? _tenantId;
     private Variable? _runtime;
     private Variable? _httpContext;
@@ -68,10 +71,17 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
     /// session opened from this context records it whatever the frame order. Set by
     /// <see cref="WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints" />.
     /// </param>
-    public CreateMessageContextWithMaybeTenantFrame(bool relayUserName, bool applyCorrelationId = false)
+    /// <param name="userNameClaimType">
+    /// GH-5520. <see cref="WolverineHttpOptions.UserNameClaimType" />: the claim relayed as the user name instead of
+    /// <c>Identity.Name</c>. Null keeps the two argument <see cref="UserNameMiddleware.Apply(HttpContext, IMessageContext)" />
+    /// call that pre-generated code already makes.
+    /// </param>
+    public CreateMessageContextWithMaybeTenantFrame(bool relayUserName, bool applyCorrelationId = false,
+        string? userNameClaimType = null)
     {
         _relayUserName = relayUserName;
         _applyCorrelationId = applyCorrelationId;
+        _userNameClaimType = userNameClaimType;
 
         Variable = new Variable(typeof(MessageContext), this);
         IMessageContextVariable = new CastVariable(Variable, typeof(IMessageContext));
@@ -93,7 +103,7 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
         if (_relayUserName)
         {
             writer.Write(
-                $"{typeof(UserNameMiddleware).FullNameInCode()}.{nameof(UserNameMiddleware.Apply)}({_httpContext!.Usage}, {Variable.Usage});");
+                $"{typeof(UserNameMiddleware).FullNameInCode()}.{nameof(UserNameMiddleware.Apply)}({_httpContext!.Usage}, {Variable.Usage}{claimTypeArgument()});");
         }
 
         if (_applyCorrelationId)
@@ -116,7 +126,7 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
         if (_relayUserName)
         {
             writer.Write(
-                $"{typeof(UserNameMiddleware).FSharpName()}.{nameof(UserNameMiddleware.Apply)}({_httpContext!.FSharpUsage}, {Variable.FSharpUsage})");
+                $"{typeof(UserNameMiddleware).FSharpName()}.{nameof(UserNameMiddleware.Apply)}({_httpContext!.FSharpUsage}, {Variable.FSharpUsage}{claimTypeArgument()})");
         }
 
         if (_applyCorrelationId)
@@ -126,6 +136,15 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
         }
 
         Next?.GenerateFSharpCode(method, writer);
+    }
+
+    // A string literal reads the same in C# and F#, as long as it is escaped
+    private string claimTypeArgument()
+    {
+        if (_userNameClaimType == null) return string.Empty;
+
+        var escaped = _userNameClaimType.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        return $", \"{escaped}\"";
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)

@@ -425,7 +425,7 @@ public class Reservation : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L73-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L91-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and the handler that would start the new saga:
@@ -453,7 +453,7 @@ public class StartReservationHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L51-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_return_saga_from_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L69-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_return_saga_from_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Method Conventions
@@ -553,6 +553,64 @@ public void Handle(CompleteOrder complete, ILogger<Order> logger)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L35-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_saga_mark_completed' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Last Modified Time <Badge type="tip" text="7.0" />
+
+Every `Saga` has a `LastModified` property, a `DateTimeOffset` in UTC. Wolverine sets it whenever it inserts or
+updates the saga, whichever storage you use, so you can order saga instances by it or look for the ones that have not
+changed in a long time. It's set by Wolverine's saga persistence, not by your code: a value your handler assigns is
+overwritten on the next save.
+
+Sagas saved before Wolverine 7.0 get a value from the store's own modification timestamp where there is one (Marten's
+`mt_last_modified`, or the lightweight saga table's `last_modified` column on PostgreSQL, SQL Server, MySQL and SQLite),
+and otherwise read back as `default(DateTimeOffset)` until their next update. With EF Core the property is a mapped
+column on your saga entity, so it needs a migration; see the [7.0 migration guide](/guide/migration#saga-lastmodified-is-set-by-every-saga-store).
+
+The lightweight saga tables (PostgreSQL, SQL Server, MySQL, SQLite and Oracle) index `last_modified`, so finding the
+sagas that have been idle for a while does not scan the table. With EF Core, add the index to your own model; see
+[the EF Core saga docs](/guide/durability/efcore/sagas#the-lastmodified-column). With Marten, add Marten's last-modified
+index to the saga's document mapping; see [the Marten saga docs](/guide/durability/marten/sagas#indexing-lastmodified-for-idle-sagas).
+
+### Finding Idle Sagas <Badge type="tip" text="7.0" />
+
+A saga that has not been written for days is usually stuck waiting for a message that is never coming. The saga
+diagnostics on `IWolverineRuntime.SagaStorage` also implement `ISagaIdleDiagnostics`, which counts and lists the
+instances of a saga type by `LastModified`. Monitoring tools like CritterWatch use it for idle saga counts and alerts,
+and you can call it yourself:
+
+```cs
+var idle = (ISagaIdleDiagnostics)host.GetRuntime().SagaStorage;
+var sagaType = typeof(OrderSaga).FullName!;
+
+if (idle.SupportsIdleQueries(sagaType))
+{
+    var twoDaysAgo = DateTimeOffset.UtcNow.AddDays(-2);
+
+    // How many OrderSaga instances have not been written for two days?
+    var count = await idle.CountIdleSagasAsync(sagaType, twoDaysAgo, tenantId: null, cancellationToken);
+
+    // And which are they, least recently modified first, 50 at a time?
+    var page = await idle.QuerySagasByLastModifiedAsync(sagaType,
+        SagaLastModifiedRange.Before(twoDaysAgo), new DocumentQueryOptions(1, 50), cancellationToken);
+}
+```
+
+`SagaLastModifiedRange` takes a modified-after bound (inclusive) and a modified-before bound (exclusive), and either can
+be left open. Completed sagas are deleted, so every instance these calls find is still open.
+
+Which saga storage answers depends on where the saga lives:
+
+| Saga storage | Idle saga queries |
+|---|---|
+| Lightweight tables (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) | Yes, over the indexed `last_modified` column. Under database-per-tenant message storage, pass the tenant id to read that tenant's database |
+| Marten, Polecat, Fisher | Yes, over the saga document's `LastModified`, for the default tenant. On Marten that is the `mt_last_modified` column, which `IndexLastModified()` indexes |
+| EF Core | Yes, when `LastModified` is mapped (not `Ignore()`d) in your `DbContext`, for the `DbContext` the container resolves |
+| RavenDB | Yes, over the saga document's `LastModified`, for the registered document store's database. The calls wait up to 15 seconds for RavenDB's index to catch up with the latest writes, so the count includes them |
+| CosmosDB | Yes, over the saga document's `LastModified`, but only when that saga type is the only one your application stores in CosmosDB. Saga documents share the Wolverine container and carry no type marker, so with several saga types a count would mix them: `SupportsIdleQueries` returns false and the calls throw `NotSupportedException` instead |
+
+A tenant id a storage cannot scope the query to is refused with a `DocumentCriteriaNotSupportedException`, rather than
+answered from another tenant's sagas. Saga types are named as they are for the other saga diagnostics: the full type
+name, or the short name.
+
 ## Timeout Messages
 
 You may frequently want to create "timeout" messages as part of a `Saga` to enforce time limitations. This can be done
@@ -646,7 +704,7 @@ using var host = await Host.CreateDefaultBuilder()
         
         opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "color_sagas");
         opts.Services.AddResourceSetupOnStartup();
-    }).StartAsync();
+    }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Sagas/configuring_saga_table_storage.cs#L22-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_manually_adding_saga_types' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -738,21 +796,14 @@ using var host = await Host.CreateDefaultBuilder()
 
 ## Multiple Sagas Handling the Same Message Type
 
-By default, Wolverine does not allow multiple saga types to handle the same message type and will throw an `InvalidSagaException` at startup if this is detected. However, there are valid architectural reasons to have multiple, independent saga workflows react to the same event — for example, an `OrderPlaced` event might start both a `ShippingSaga` and a `BillingSaga`.
+There are valid architectural reasons to have multiple, independent saga workflows react to the same event — for example, an `OrderPlaced` event might start both a `ShippingSaga` and a `BillingSaga`. Wolverine supports this with no configuration.
 
-To enable this, set `MultipleHandlerBehavior` to `Separated`:
+Wolverine creates an independent handler chain for each saga type, routed to its own local queue. Each saga independently manages its own lifecycle — loading, creating, updating, and deleting state — without interfering with the other. A saga and a plain handler class for the same message are separate chains as well.
 
-```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-
-        // Your persistence configuration here (Marten, EF Core, etc.)
-    }).StartAsync();
-```
-
-When `Separated` mode is active, Wolverine creates an independent handler chain for each saga type, routed to its own local queue. Each saga independently manages its own lifecycle — loading, creating, updating, and deleting state — without interfering with the other.
+::: info
+Before Wolverine 7.0, several saga types for one message type threw an `InvalidSagaException` at startup unless you set
+`MultipleHandlerBehavior.Separated`. 7.0 removed that setting and always behaves this way.
+:::
 
 Here is an example with two sagas that both start from an `OrderPlaced` message but complete independently:
 
@@ -808,7 +859,7 @@ public class BillingSaga : Saga
 When an `OrderPlaced` message is published, both sagas will be started independently. Completing one saga (e.g., by sending `OrderShipped`) does not affect the other.
 
 ::: warning
-In `Separated` mode, messages routed to multiple sagas must be **published** (via `SendAsync` or `PublishAsync`), not **invoked** (via `InvokeAsync`). `InvokeAsync` bypasses message routing and will not reach the separated saga endpoints.
+Publish (via `SendAsync` or `PublishAsync`) a message that several sagas react to, so each saga handles it on its own queue. `InvokeAsync(message)` runs every saga's chain inline, one after another, each in its own transaction; the first failure stops the run and throws `HandlerInvocationException`, and the sagas that already ran are not rolled back.
 :::
 
 ## Resequencer Saga

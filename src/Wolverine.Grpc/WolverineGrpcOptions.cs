@@ -81,6 +81,34 @@ public sealed class WolverineGrpcOptions
     /// </summary>
     public bool PropagateEnvelopeHeaders { get; set; } = true;
 
+    /// <summary>
+    ///     GH-5196. Whether the server trusts the <c>tenant-id</c> metadata header a client sends when no
+    ///     tenant detection is configured through <see cref="TenantId"/>. When trusted,
+    ///     <see cref="WolverineGrpcServicePropagationInterceptor"/> applies the header to the ambient
+    ///     <see cref="IMessageContext"/> and Wolverine-managed services detect it with no other configuration
+    ///     (the 6.x behavior). When not trusted, any client could otherwise claim to be any tenant, so the header
+    ///     is ignored unless you configure detection explicitly, for example
+    ///     <c>TenantId.IsRequestHeaderValue("tenant-id")</c> together with <c>TenantId.AssertExists()</c>, or
+    ///     <c>TenantId.IsClaimTypeNamed(...)</c> from an authenticated principal.
+    ///     <para>
+    ///         Null (the default) means not trusted in 7.0, and trusted after
+    ///         <c>WolverineOptions.RestoreV6Defaults()</c>. An explicit true or false wins over both.
+    ///     </para>
+    /// </summary>
+    public bool? TrustTenantIdHeader { get; set; }
+
+    private bool _v6DefaultsRestored;
+
+    internal void ResolveDefaults(WolverineOptions options)
+    {
+        _v6DefaultsRestored = options.V6DefaultsRestored;
+    }
+
+    /// <summary>
+    ///     <see cref="TrustTenantIdHeader"/> resolved against <c>RestoreV6Defaults()</c>.
+    /// </summary>
+    internal bool TrustsTenantIdHeader => TrustTenantIdHeader ?? _v6DefaultsRestored;
+
     private readonly List<Type> _codeFirstContracts = [];
 
     internal IReadOnlyList<Type> CodeFirstContracts => _codeFirstContracts;

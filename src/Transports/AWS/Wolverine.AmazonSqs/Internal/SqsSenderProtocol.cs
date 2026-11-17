@@ -159,8 +159,8 @@ internal class SqsSenderProtocol : ISenderProtocolWithNativeScheduling, IConditi
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Error while mapping envelope {Envelope} to an SQS message body for {Uri}",
-                envelope, _queue.Uri);
+            _logger.LogError(e, "Error while mapping envelope {Name}#{Id} to an SQS message body for {Uri}",
+                envelope.MessageType, envelope.Id, _queue.Uri);
             return false;
         }
 
@@ -421,8 +421,8 @@ internal class OutgoingSqsBatch
             }
             catch (Exception e)
             {
-                logger.LogError(e, "Error while mapping envelope {Envelope} to an SQS SendMessageBatchRequestEntry",
-                    envelope);
+                logger.LogError(e, "Error while mapping envelope {Name}#{Id} to an SQS SendMessageBatchRequestEntry",
+                    envelope.MessageType, envelope.Id);
 
                 Dropped.Add(envelope);
             }

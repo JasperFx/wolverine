@@ -1,5 +1,6 @@
 using System.Data.Common;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Oracle.ManagedDataAccess.Client;
 using Weasel.Oracle;
 using Wolverine.Oracle.Util;
@@ -22,7 +23,7 @@ internal partial class OracleMessageStore
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         await using var cmd = conn.CreateCommand(
             $"INSERT INTO {SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) " +
-            "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil)");
+            "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil, :groupId)");
 
         cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = data });
         cmd.With("id", envelope.Id);
@@ -33,6 +34,7 @@ internal partial class OracleMessageStore
         cmd.With("messageType", envelope.MessageType!);
         cmd.With("receivedAt", envelope.Destination?.ToString() ?? string.Empty);
         cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = (object?)envelope.KeepUntil ?? DBNull.Value });
+        cmd.Parameters.Add(new OracleParameter("groupId", OracleDbType.Varchar2) { Value = (object?)DatabaseConstants.StorableGroupId(envelope) ?? DBNull.Value });
 
         try
         {
@@ -65,7 +67,7 @@ internal partial class OracleMessageStore
 
             await using var cmd = conn.CreateCommand(
                 $"INSERT INTO {SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) " +
-                "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil)");
+                "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil, :groupId)");
             cmd.Transaction = tx;
 
             cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = data });
@@ -77,6 +79,7 @@ internal partial class OracleMessageStore
             cmd.With("messageType", envelope.MessageType!);
             cmd.With("receivedAt", envelope.Destination?.ToString() ?? string.Empty);
             cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = (object?)envelope.KeepUntil ?? DBNull.Value });
+            cmd.Parameters.Add(new OracleParameter("groupId", OracleDbType.Varchar2) { Value = (object?)DatabaseConstants.StorableGroupId(envelope) ?? DBNull.Value });
 
             try
             {
@@ -227,6 +230,17 @@ internal partial class OracleMessageStore
 
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
+        // GH-5410: never dead-letter work the inbox says is done. A handler transaction can commit on the server
+        // and still fail on the client; the delete below then removed the Handled row that commit had written,
+        // and a replay of the dead letter ran the committed work a second time
+        if (envelope.Destination != null && await IsHandledAsync(envelope, _cancellation))
+        {
+            _logger.LogWarning(exception,
+                "Envelope {EnvelopeId} at {Uri} was not moved to dead letter storage because the inbox already shows it handled",
+                envelope.Id, envelope.Destination);
+            return;
+        }
+
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         var tx = (OracleTransaction)await conn.BeginTransactionAsync(_cancellation);
 
@@ -257,10 +271,10 @@ internal partial class OracleMessageStore
         string historyOf(string column) => $"(SELECT h.{column} FROM {history} h WHERE h.id = :id)";
 
         var deadLetterFields =
-            $"{DatabaseConstants.DeadLetterFields}, {DatabaseConstants.FailureGroup}, {DatabaseConstants.FailureTitle}, {DatabaseConstants.FailedAt}, {DatabaseConstants.FirstFailedAt}, {DatabaseConstants.ReplayCount}, {DatabaseConstants.LastReplayedAt}";
+            $"{DatabaseConstants.DeadLetterFields}, {DatabaseConstants.FailureGroup}, {DatabaseConstants.FailureTitle}, {DatabaseConstants.FailedAt}, {DatabaseConstants.SagaId}, {DatabaseConstants.FirstFailedAt}, {DatabaseConstants.ReplayCount}, {DatabaseConstants.LastReplayedAt}";
         var deadLetterValues =
             ":id, :executionTime, :body, :messageType, :receivedAt, :source, :exceptionType, :exceptionMessage, :sentAt, :replayable, " +
-            $":failureGroup, :failureTitle, :failedAt, COALESCE({historyOf(DatabaseConstants.FirstFailedAt)}, :failedAt), " +
+            $":failureGroup, :failureTitle, :failedAt, :sagaId, COALESCE({historyOf(DatabaseConstants.FirstFailedAt)}, :failedAt), " +
             $"COALESCE({historyOf(DatabaseConstants.ReplayCount)}, 0), {historyOf(DatabaseConstants.LastReplayedAt)}";
 
         if (_durability.DeadLetterQueueExpirationEnabled)
@@ -279,7 +293,7 @@ internal partial class OracleMessageStore
         insertCmd.Parameters.Add(new OracleParameter("executionTime", OracleDbType.TimeStampTZ) { Value = (object?)envelope.ScheduledTime ?? DBNull.Value });
         insertCmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = data });
         insertCmd.With("messageType", envelope.MessageType ?? string.Empty);
-        insertCmd.With("receivedAt", envelope.Destination?.ToString() ?? string.Empty);
+        insertCmd.With("receivedAt", DatabasePersistence.DeadLetterReceivedAt(envelope));
         insertCmd.With("source", envelope.Source ?? string.Empty);
         insertCmd.With("exceptionType", exception.DeadLetterExceptionType() ?? string.Empty);
         insertCmd.With("exceptionMessage", exception.DeadLetterExceptionMessage() ?? string.Empty);
@@ -287,6 +301,8 @@ internal partial class OracleMessageStore
         insertCmd.With("replayable", 0); // Oracle stores bool as NUMBER(1)
         insertCmd.With("failureGroup", fingerprint.Group);
         insertCmd.With("failureTitle", fingerprint.Title);
+        insertCmd.Parameters.Add(new OracleParameter("sagaId", OracleDbType.Varchar2)
+            { Value = (object?)DatabasePersistence.DeadLetterSagaId(envelope) ?? DBNull.Value });
         insertCmd.Parameters.Add(new OracleParameter("failedAt", OracleDbType.TimeStampTZ) { Value = DateTimeOffset.UtcNow });
 
         if (_durability.DeadLetterQueueExpirationEnabled)
@@ -339,22 +355,54 @@ internal partial class OracleMessageStore
     /// Matches the whole inbox identity (id and received_at), like the other mark-as-handled statements in
     /// this store.
     /// </summary>
+    /// <remarks>
+    /// GH-5429: carries the GH-5423 fence that <c>MessageDatabase&lt;T&gt;</c> has. The UPDATE leaves a Handled row
+    /// alone, and when it changed nothing and a Handled row is there, another execution already finished this
+    /// message: a node ejected as stale that resumed after its rows were recovered and handled elsewhere. That
+    /// throws <see cref="DuplicateIncomingEnvelopeException"/> so the caller's transaction rolls back instead of
+    /// committing the work twice. A missing row passes, as before, and so does eager idempotency, whose own
+    /// Handled row this execution wrote earlier.
+    /// </remarks>
     public async Task MarkIncomingEnvelopeAsHandledInTransactionAsync(DbConnection conn, DbTransaction? tx,
         Envelope envelope, DateTimeOffset keepUntil, CancellationToken cancellation)
     {
-        await using var cmd = ((OracleConnection)conn).CreateCommand(
-            $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
-            $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
-            $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
-        if (tx != null)
+        var oracle = (OracleConnection)conn;
+        var uri = envelope.Destination?.ToString() ?? string.Empty;
+
+        int updated;
+        await using (var cmd = oracle.CreateCommand(
+                         $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
+                         $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+                         $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri AND {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'"))
         {
-            cmd.Transaction = (OracleTransaction)tx;
+            if (tx != null)
+            {
+                cmd.Transaction = (OracleTransaction)tx;
+            }
+
+            cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = keepUntil });
+            cmd.With("id", envelope.Id);
+            cmd.With("uri", uri);
+            updated = await cmd.ExecuteNonQueryAsync(cancellation);
         }
 
-        cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = keepUntil });
-        cmd.With("id", envelope.Id);
-        cmd.With("uri", envelope.Destination?.ToString() ?? string.Empty);
-        await cmd.ExecuteNonQueryAsync(cancellation);
+        if (updated > 0 || envelope.Status == EnvelopeStatus.Handled) return;
+
+        await using var check = oracle.CreateCommand(
+            $"SELECT COUNT(*) FROM {SchemaName}.{DatabaseConstants.IncomingTable} " +
+            $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri AND {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'");
+        if (tx != null)
+        {
+            check.Transaction = (OracleTransaction)tx;
+        }
+
+        check.With("id", envelope.Id);
+        check.With("uri", uri);
+
+        if (Convert.ToInt64(await check.ExecuteScalarAsync(cancellation)) > 0)
+        {
+            throw new DuplicateIncomingEnvelopeException(envelope);
+        }
     }
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
@@ -483,7 +531,7 @@ internal partial class OracleMessageStore
 
             await using var cmd = ((OracleConnection)tx.Connection!).CreateCommand(
                 $"INSERT INTO {SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) " +
-                "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil)");
+                "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil, :groupId)");
             cmd.Transaction = (OracleTransaction)tx;
 
             cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = data });
@@ -495,6 +543,7 @@ internal partial class OracleMessageStore
             cmd.With("messageType", envelope.MessageType!);
             cmd.With("receivedAt", envelope.Destination?.ToString() ?? string.Empty);
             cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = (object?)envelope.KeepUntil ?? DBNull.Value });
+            cmd.Parameters.Add(new OracleParameter("groupId", OracleDbType.Varchar2) { Value = (object?)DatabaseConstants.StorableGroupId(envelope) ?? DBNull.Value });
 
             try
             {

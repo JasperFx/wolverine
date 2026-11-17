@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
-        <TargetFrameworks>net9.0</TargetFrameworks>
+        <TargetFrameworks>net10.0</TargetFrameworks>
         <OpenApiGenerateDocumentsOnBuild>false</OpenApiGenerateDocumentsOnBuild>
     </PropertyGroup>
 
@@ -28,11 +28,6 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.EntityFrameworkCore" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-        <!-- Lifts the vulnerable System.Formats.Asn1 7.0.0 that Wolverine.EntityFrameworkCore's
-             net9.0 Roslyn reference drags in transitively. Needed because this project is single-TFM
-             net9.0, so SDK 10 does not enable package pruning for it. See Directory.Packages.props
-             and GH-4773. -->
-        <PackageReference Include="System.Formats.Asn1" />
     </ItemGroup>
 
     <ItemGroup>

@@ -10,6 +10,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Wolverine.Http.Antiforgery;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Policies;
 using Wolverine.Http.Resources;
@@ -71,8 +72,9 @@ public partial class HttpChain
             var loggedType = determineLogMarkerType();
 
             handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
+            handleMethod.Sources.Add(new FormCollectionSource(this));
             handleMethod.Sources.Add(new MessageBusSource(_parent.Options.EnableRelayOfUserName,
-                _parent.ApplyCorrelationIdHeaderToAllEndpoints));
+                _parent.ApplyCorrelationIdHeaderToAllEndpoints, _parent.UserNameClaimType));
 
             // Per-method scoping for SourceServiceFromHttpContext<T>(). Registering on the
             // method (rather than WolverineOptions.CodeGeneration.Sources) keeps the
@@ -139,6 +141,33 @@ public partial class HttpChain
 
     string ICodeFile.FileName => _fileName!;
 
+    private void moveSpanTagsToTheFront()
+    {
+        var tags = Middleware.OfType<TagHttpHandlerFrame>().FirstOrDefault();
+        if (tags == null || Middleware.IndexOf(tags) == 0) return;
+
+        Middleware.Remove(tags);
+        Middleware.Insert(0, tags);
+    }
+
+    private void readTheFormAfterTheAntiforgeryCheck()
+    {
+        var tags = Middleware.OfType<TagHttpHandlerFrame>().FirstOrDefault();
+        if (tags != null) ReadFormCollection.MustFollow(tags);
+
+        var check = Middleware.OfType<MethodCall>().FirstOrDefault(x => x.HandlerType == typeof(AntiforgeryValidation));
+        if (check == null) return;
+
+        ReadFormCollection.MustFollow(check);
+
+        // The frame that returns early with the 400
+        var index = Middleware.IndexOf(check);
+        if (index + 1 < Middleware.Count && Middleware[index + 1] is MaybeEndWithResultFrame stop)
+        {
+            ReadFormCollection.MustFollow(stop);
+        }
+    }
+
     internal IEnumerable<Frame> DetermineFrames(GenerationRules rules)
     {
         // Add frames for any writers
@@ -184,6 +213,30 @@ public partial class HttpChain
         }
 
         bufferRequestForDeduplicatedWithResponse();
+
+        // GH-5147: refuse a request the antiforgery/CSRF middleware marked invalid before anything binds from it.
+        // Inserted last so it lands ahead of the body read, validation and tenant detection.
+        if (AntiforgeryRequirement() == true &&
+            !Middleware.OfType<MethodCall>().Any(x => x.HandlerType == typeof(AntiforgeryValidation)))
+        {
+            var antiforgery = new MethodCall(typeof(AntiforgeryValidation), nameof(AntiforgeryValidation.Validate))
+            {
+                CommentText = "Refuse the request if antiforgery (CSRF) validation failed"
+            };
+            Middleware.Insert(0, antiforgery);
+            Middleware.Insert(1, new MaybeEndWithResultFrame(antiforgery.ReturnVariable!));
+        }
+
+        // GH-5406: the span tags go first, whatever inserted itself at index 0 after TagHttpHandlerPolicy ran
+        // (tenant detection, validation, request id, the body read). Any of those may short-circuit, and a
+        // rejected request is the one an operator most wants grouped by route. The tags are constants or read
+        // from the HttpContext, so they depend on nothing an earlier frame produces.
+        moveSpanTagsToTheFront();
+
+        // GH-5463: the asynchronous form read is usually reached only as a variable, never in Middleware, and the
+        // arranger puts such a frame at the very front of the method. Keep it behind the span tags and the
+        // antiforgery check, where Request.Form used to be read.
+        readTheFormAfterTheAntiforgeryCheck();
 
         // Allow for immutable request types that get overwritten by middleware
         if (RequestBodyVariable != null)

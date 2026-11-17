@@ -9,7 +9,7 @@ name: bobcat-samples
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, '7.0' ]
     paths:
       - 'src/**'
       - 'build/**'
@@ -18,7 +18,7 @@ on:
       - 'docker-compose.yml'
       - '.github/workflows/bobcat-samples.yml'
   pull_request:
-    branches: [ main ]
+    branches: [ main, '7.0' ]
     paths:
       - 'src/**'
       - 'build/**'
@@ -46,8 +46,9 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 10.0.x
-
+          dotnet-version: |
+            10.0.x
+            11.0.x
       - name: Build and run every Bobcat sample
         run: ./build.sh BobcatSamples
 

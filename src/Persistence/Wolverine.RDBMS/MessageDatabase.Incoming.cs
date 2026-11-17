@@ -1,4 +1,5 @@
 ﻿using System.Data.Common;
+using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Interop;
@@ -146,6 +147,17 @@ public abstract partial class MessageDatabase<T>
                 $"The message store is disposed, so envelope {envelope.Id} could not be moved to dead letter storage");
         }
 
+        // GH-5410: never dead-letter work the inbox says is done. A handler transaction can commit on the server
+        // and still fail on the client; the delete below then removed the Handled row that commit had written,
+        // and a replay of the dead letter ran the committed work a second time
+        if (envelope.Destination != null && await handledRowExistsAsync(envelope, _cancellation).ConfigureAwait(false))
+        {
+            Logger.LogWarning(exception,
+                "Envelope {EnvelopeId} at {Uri} was not moved to dead letter storage because the inbox already shows it handled",
+                envelope.Id, envelope.Destination);
+            return;
+        }
+
         if (Durability.DeadLetterQueueExpirationEnabled && envelope.DeliverBy == null)
         {
             envelope.DeliverBy = DateTimeOffset.UtcNow.Add(Durability.DeadLetterQueueExpiration);
@@ -156,8 +168,18 @@ public abstract partial class MessageDatabase<T>
             var builder = ToCommandBuilder();
             builder.Append($"delete from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} WHERE id = ");
             builder.AppendParameter(envelope.Id);
-            builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
-            builder.AppendParameter(envelope.Destination!.ToString(), AddressParameterType);
+            if (envelope.Destination == null)
+            {
+                // GH-5139. An envelope dead-lettered without a destination (GH-3166) used to throw here. Only a row
+                // stored with no destination can be its inbox row
+                builder.Append($" and {DatabaseConstants.ReceivedAt} is null");
+            }
+            else
+            {
+                builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
+                builder.AppendParameter(envelope.Destination.ToString(), AddressParameterType);
+            }
+
             builder.Append(';');
 
             DatabasePersistence.ConfigureDeadLetterCommands(Durability, envelope, exception, builder, this);
@@ -225,7 +247,8 @@ public abstract partial class MessageDatabase<T>
     public MarkAsHandledCommand BuildMarkIncomingAsHandled(Envelope envelope, DateTimeOffset keepUntil,
         string idExpression, string uriExpression, string keepUntilExpression)
     {
-        return buildMarkAsHandled(idExpression, uriExpression, keepUntilExpression, envelope, keepUntil);
+        return buildMarkAsHandled(idExpression, uriExpression, keepUntilExpression, envelope,
+            MarkAsHandledCommand.KeepUntilForMark(keepUntil));
     }
 
     private MarkAsHandledCommand buildMarkAsHandled(string idExpression, string uriExpression,
@@ -245,9 +268,11 @@ public abstract partial class MessageDatabase<T>
         var update =
             $"update {table} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = {keepUntilExpression}, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} where id = {idExpression} and {DatabaseConstants.ReceivedAt} = {uriExpression}";
 
-        if (!Durability.EnableInboxPartitioning)
+        if (!inboxPartitioned)
         {
-            return new MarkAsHandledCommand(update,
+            // GH-5423: a row another execution already marked Handled is left as it is. Rewriting it erased the
+            // keep_until that tells this execution's mark from the other's, which the handled-elsewhere check reads
+            return new MarkAsHandledCommand($"{update} and {DatabaseConstants.Status} <> '{EnvelopeStatus.Handled}'",
                 collecting ? [keepUntil, id(), uri()] : []);
         }
 
@@ -313,15 +338,76 @@ public abstract partial class MessageDatabase<T>
     public async Task MarkIncomingEnvelopeAsHandledInTransactionAsync(DbConnection conn, DbTransaction? tx,
         Envelope envelope, DateTimeOffset keepUntil, CancellationToken cancellation)
     {
-        _markEnvelopeAsHandledById ??= MarkAsHandledSql("@id", "@uri");
+        // One statement at a time, so the UPDATE's own row count is known (under inbox partitioning a DELETE comes
+        // first). Named placeholders: the arguments the command carries are for the positional callers
+        var mark = BuildMarkIncomingAsHandled(envelope, keepUntil, "@id", "@uri", "@keepUntil");
+        var updated = 0;
+        foreach (var statement in mark.Statements)
+        {
+            await using var cmd = conn.CreateCommand(statement.Sql)
+                .With("id", envelope.Id)
+                .With("keepUntil", MarkAsHandledCommand.KeepUntilForMark(keepUntil))
+                .With("uri", envelope.Destination!.ToString(), AddressParameterType);
+            cmd.Transaction = tx;
+            updated = await cmd.ExecuteNonQueryAsync(cancellation);
+        }
 
-        await using var cmd = conn.CreateCommand(_markEnvelopeAsHandledById)
-            .With("id", envelope.Id)
-            .With("keepUntil", keepUntil)
-            .With("uri", envelope.Destination!.ToString(), AddressParameterType);
+        // GH-5423: the UPDATE leaves a Handled row alone, so when it changed nothing and a Handled row is there,
+        // another execution finished this message first: a node ejected as stale that resumed after its rows were
+        // recovered and handled elsewhere. Fail the transaction rather than commit the work twice. A missing row
+        // passes, as before, and so does eager idempotency, whose own Handled row this execution wrote earlier
+        if (updated > 0 || envelope.Status == EnvelopeStatus.Handled) return;
+
+        if (await handledRowExistsAsync(conn, tx, envelope, cancellation))
+        {
+            throw new DuplicateIncomingEnvelopeException(envelope);
+        }
+    }
+
+    private async Task<bool> handledRowExistsAsync(DbConnection conn, DbTransaction? tx, Envelope envelope,
+        CancellationToken cancellation)
+    {
+        var sql = Durability.MessageIdentity == MessageIdentity.IdOnly
+            ? $"select count(*) from {MarkAsHandledTableName} where id = @id and {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'"
+            : $"select count(*) from {MarkAsHandledTableName} where id = @id and {DatabaseConstants.ReceivedAt} = @uri and {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'";
+
+        await using var cmd = conn.CreateCommand(sql).With("id", envelope.Id);
+        if (Durability.MessageIdentity != MessageIdentity.IdOnly)
+        {
+            cmd.With("uri", envelope.Destination!.ToString(), AddressParameterType);
+        }
+
         cmd.Transaction = tx;
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync(cancellation)) > 0;
+    }
 
-        await cmd.ExecuteNonQueryAsync(cancellation);
+    /// <summary>
+    /// GH-5423. For a caller that queues the mark into somebody else's batch and cannot read its row count (Marten).
+    /// Run in the handler's transaction right after this execution's mark-as-handled. It counts Handled rows
+    /// for the envelope's identity that this execution did NOT write, told apart by the keep_until the mark just
+    /// set. More than zero means another execution already finished the message: a node that was ejected as stale
+    /// while it still held the envelope in memory, and resumed after its rows were recovered and handled elsewhere.
+    /// The caller then fails the transaction, so the work is not committed twice. The check runs as its own
+    /// statement so it sees a row the other execution committed while this one waited on its lock. A missing row
+    /// passes, as before.
+    /// </summary>
+    public MarkAsHandledStatement BuildHandledElsewhereCheck(Envelope envelope, DateTimeOffset keepUntil,
+        string idExpression, string uriExpression, string keepUntilExpression)
+    {
+        var table = MarkAsHandledTableName;
+        var identityIsIdOnly = Durability.MessageIdentity == MessageIdentity.IdOnly;
+
+        var sql =
+            $"select count(*) from {table} h where h.id = {idExpression}" +
+            (identityIsIdOnly ? "" : $" and h.{DatabaseConstants.ReceivedAt} = {uriExpression}") +
+            $" and h.{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}'" +
+            $" and (h.{DatabaseConstants.KeepUntil} is null or h.{DatabaseConstants.KeepUntil} <> {keepUntilExpression})";
+
+        object[] arguments = identityIsIdOnly
+            ? [envelope.Id, keepUntil]
+            : [envelope.Id, envelope.Destination!.ToString(), keepUntil];
+
+        return new MarkAsHandledStatement(sql, arguments);
     }
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
@@ -335,7 +421,7 @@ public abstract partial class MessageDatabase<T>
         // GH-4216: the batch has to carry the same partition-aware shape as the single-envelope path, or a
         // coalesced mark-as-handled strands exactly the rows the single one now retires. Each identity's
         // parameters are appended per occurrence, which is why the same value goes in more than once.
-        var partitioned = Durability.EnableInboxPartitioning;
+        var partitioned = inboxPartitioned;
         var table = MarkAsHandledTableName;
 
         foreach (var envelope in envelopes)
@@ -470,6 +556,14 @@ public abstract partial class MessageDatabase<T>
     /// </para>
     /// </summary>
     protected virtual bool incomingInsertRefusesHandled => false;
+
+    /// <summary>
+    /// GH-5519. Whether this store's inbox statements take the partition-aware shape. PostgreSQL, the one store
+    /// whose inbox table is partitioned, follows <see cref="DurabilitySettings.EnableInboxPartitioning" /> and so its
+    /// 7.0 default. Every other store only does when that setting was turned on explicitly, as in 6.x, so the
+    /// PostgreSQL default never changes their statements. Read lazily, never in a constructor (GH-4216).
+    /// </summary>
+    protected virtual bool inboxPartitioned => Durability.EnableInboxPartitioningExplicitly;
 
     /// <summary>
     /// GH-4320. The batched inbox INSERT, as one command. Virtual because the default shape -- one

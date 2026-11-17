@@ -4,6 +4,10 @@
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
         <TargetFrameworks>net10.0</TargetFrameworks>
+        <!-- WolverineWebApi now takes Microsoft.AspNetCore.OpenApi 10 rather than holding 9.0.5 (GH-5149), and its
+             XML comment source generator flows here through the project reference. It intercepts the
+             AddOpenApi() calls in this project, so the generated namespace has to be opted in. -->
+        <InterceptorsNamespaces>$(InterceptorsNamespaces);Microsoft.AspNetCore.OpenApi.Generated</InterceptorsNamespaces>
     </PropertyGroup>
 
     <ItemGroup>

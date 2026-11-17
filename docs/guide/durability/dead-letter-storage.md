@@ -79,8 +79,10 @@ You could see poor performance over time if the dead letter queue storage in the
 so Wolverine does have an "opt in" feature to let old messages expire and be expunged from the storage.
 :::
 
-It's off by default (for backwards compatibility), but you can enable Wolverine to assign expiration times to dead letter
-queue messages persisted to durable storage like this:
+Since 7.0 it's on by default: Wolverine assigns an expiration time to every dead letter it persists to durable storage,
+10 days out unless the message had its own `DeliverBy`, and deletes it after that. Before 7.0 it was off, and
+`opts.RestoreV6Defaults()` or `opts.Durability.DeadLetterQueueExpirationEnabled = false` keeps dead letters until they
+are replayed or deleted. The retention period is configured like this:
 
 <!-- snippet: sample_enabling_dead_letter_queue_expiration -->
 <a id='snippet-sample_enabling_dead_letter_queue_expiration'></a>
@@ -293,14 +295,30 @@ Set `opts.Durability.ArchivedDeadLetterRetention` to delete archived dead letter
 were archived instead. That works whether or not `DeadLetterQueueExpirationEnabled` is set, and dead letters that aren't
 archived keep the normal expiration behavior.
 
+### Finding a saga's dead letters <Badge type="tip" text="7.0" />
+
+Every dead letter records the saga id its envelope carried (`Envelope.SagaId`) as `DeadLetterEnvelope.SagaId`. That
+is set for a message handled by a saga, and for a message a saga sent. Filter on it with
+`DeadLetterEnvelopeQuery.SagaId` to see, replay or discard the messages that failed for one saga instance:
+
+```csharp
+var query = new DeadLetterEnvelopeQuery { SagaId = orderId.ToString() };
+
+var failed = await deadLetters.QueryAsync(query, cancellation);
+await deadLetters.ReplayMatchingAsync(query, cancellation);
+```
+
+A dead letter recorded before Wolverine 7.0, or for a message with no saga, has no saga id. A saga id longer than 500
+characters is not recorded rather than truncated. Stores that support this report `DeadLetterCapabilities.SagaIds`.
+
 ### Store Support
 
 `IDeadLetters.Capabilities` says which of these features a store supports, so a tool can check before offering them:
 
-| Store | Failure groups | Counts | Archive and restore | Replay history | Exception message matching |
-|-------|----------------|--------|---------------------|----------------|----------------------------|
-| PostgreSQL, SQL Server, SQLite, MySQL, Oracle | Yes | Yes | Yes | Yes | Yes |
-| RavenDb, CosmosDb | Yes | Yes | Yes | No | Yes |
+| Store | Failure groups | Counts | Archive and restore | Replay history | Exception message matching | Saga ids |
+|-------|----------------|--------|---------------------|----------------|----------------------------|----------|
+| PostgreSQL, SQL Server, SQLite, MySQL, Oracle | Yes | Yes | Yes | Yes | Yes | Yes |
+| RavenDb, CosmosDb | Yes | Yes | Yes | No | Yes | Yes |
 
 `ArchivedDeadLetterRetention` is enforced by the relational stores. For a custom `IDeadLetters` implementation,
 `Capabilities` defaults to `None`, the counting operations report `null`, and archiving throws `NotSupportedException`.
@@ -308,7 +326,7 @@ archived keep the normal expiration behavior.
 ::: warning
 The relational stores add new nullable columns to `wolverine_dead_letters` (`failure_group`, `failure_title`,
 `failed_at`, `first_failed_at`, `replay_count`, `last_replayed_at` and `archived_at`), an index on `failure_group`, and
-the new `wolverine_dead_letter_history` table. Like any other Wolverine schema change, these are applied by the normal
+the new `wolverine_dead_letter_history` table. Wolverine 7.0 adds a nullable `saga_id` column with its own index. Like any other Wolverine schema change, these are applied by the normal
 schema migration. See the indexing warning above if your dead letter table is very large.
 :::
 

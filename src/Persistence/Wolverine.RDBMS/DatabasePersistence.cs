@@ -163,6 +163,8 @@ public static class DatabasePersistence
         appendValue(builder, envelope.Destination?.ToString());
         builder.Append(", ");
         appendValue(builder, envelope.KeepUntil);
+        builder.Append(", ");
+        appendValue(builder, DatabaseConstants.StorableGroupId(envelope));
         builder.Append(");");
     }
 
@@ -235,6 +237,21 @@ public static class DatabasePersistence
     }
 
     /// <summary>
+    /// GH-5557. The widest saga id the dead letter tables' <see cref="DatabaseConstants.SagaId"/> column holds
+    /// </summary>
+    public const int MaxDeadLetterSagaIdLength = 500;
+
+    /// <summary>
+    /// GH-5557. The saga id to record for a dead letter. A saga id wider than the column is left out rather than
+    /// truncated (a truncated id could match another saga), so the dead letter itself is never refused for it
+    /// </summary>
+    public static string? DeadLetterSagaId(Envelope envelope)
+    {
+        var sagaId = envelope.SagaId;
+        return sagaId is { Length: > 0 and <= MaxDeadLetterSagaIdLength } ? sagaId : null;
+    }
+
+    /// <summary>
     /// GH-5209. Reads <see cref="DatabaseConstants.DeadLetterExtendedFields"/> when the query selected them
     /// right after <see cref="DatabaseConstants.DeadLetterFields"/>, as <see cref="DatabaseConstants.DeadLetterQueryFields"/>
     /// does. A reader over only the original fields is left alone.
@@ -243,7 +260,7 @@ public static class DatabasePersistence
         CancellationToken cancellation)
     {
         const int start = 10;
-        if (reader.FieldCount < start + 7 ||
+        if (reader.FieldCount < start + 8 ||
             !reader.GetName(start).Equals(DatabaseConstants.FailureGroup, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -258,6 +275,7 @@ public static class DatabasePersistence
             : Convert.ToInt32(reader.GetValue(start + 4));
         deadLetter.LastReplayedAt = await ReadNullableTimestampAsync(reader, start + 5, cancellation);
         deadLetter.ArchivedAt = await ReadNullableTimestampAsync(reader, start + 6, cancellation);
+        deadLetter.SagaId = await readNullableStringAsync(reader, start + 7, cancellation);
     }
 
     private static async Task<string?> readNullableStringAsync(DbDataReader reader, int ordinal,
@@ -338,6 +356,17 @@ public static class DatabasePersistence
         return envelope;
     }
 
+    /// <summary>
+    /// GH-5139. The received_at of a dead letter: its destination, or <see cref="DatabaseConstants.UnknownReceivedAt"/>
+    /// when it has none (a locally published message that failed before routing, GH-3166). received_at is part of the
+    /// primary key under MessageIdentity.IdAndDestination, and NOT NULL on SQL Server either way, so a
+    /// NULL here refused the dead letter
+    /// </summary>
+    public static string DeadLetterReceivedAt(Envelope envelope)
+    {
+        return envelope.Destination?.ToString() ?? DatabaseConstants.UnknownReceivedAt;
+    }
+
     public static void ConfigureDeadLetterCommands(DurabilitySettings durability, Envelope envelope,
         Exception? exception, DbCommandBuilder builder,
         IMessageDatabase wolverineDatabase)
@@ -364,7 +393,7 @@ public static class DatabasePersistence
             "@" + builder.AddParameter(envelope.ScheduledTime).ParameterName,
             "@" + builder.AddParameter(data).ParameterName,
             "@" + builder.AddParameter(envelope.MessageType ?? "unknown").ParameterName,
-            "@" + builder.AddParameter(envelope.Destination?.ToString()).ParameterName,
+            "@" + builder.AddParameter(DeadLetterReceivedAt(envelope)).ParameterName,
             "@" + builder.AddParameter(envelope.Source ?? "unknown").ParameterName,
             "@" + builder.AddParameter(exception.DeadLetterExceptionType()).ParameterName,
             "@" + builder.AddParameter(exception.DeadLetterExceptionMessage()).ParameterName,
@@ -372,7 +401,8 @@ public static class DatabasePersistence
             "@" + builder.AddParameter(false).ParameterName,
             "@" + builder.AddParameter(fingerprint.Group).ParameterName,
             "@" + builder.AddParameter(fingerprint.Title).ParameterName,
-            "@" + now.ParameterName
+            "@" + now.ParameterName,
+            "@" + builder.AddParameter(DeadLetterSagaId(envelope)).ParameterName
         };
 
         // GH-5209. A message that was replayed out of dead letter storage and failed again picks its replay
@@ -386,7 +416,7 @@ public static class DatabasePersistence
         values.Add(historyOf(DatabaseConstants.LastReplayedAt));
 
         var deadLetterFields =
-            $"{DatabaseConstants.DeadLetterFields}, {DatabaseConstants.FailureGroup}, {DatabaseConstants.FailureTitle}, {DatabaseConstants.FailedAt}, {DatabaseConstants.FirstFailedAt}, {DatabaseConstants.ReplayCount}, {DatabaseConstants.LastReplayedAt}";
+            $"{DatabaseConstants.DeadLetterFields}, {DatabaseConstants.FailureGroup}, {DatabaseConstants.FailureTitle}, {DatabaseConstants.FailedAt}, {DatabaseConstants.SagaId}, {DatabaseConstants.FirstFailedAt}, {DatabaseConstants.ReplayCount}, {DatabaseConstants.LastReplayedAt}";
         if (durability.DeadLetterQueueExpirationEnabled)
         {
             // If there is a deliver by, use that

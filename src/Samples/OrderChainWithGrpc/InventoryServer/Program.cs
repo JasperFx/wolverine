@@ -21,7 +21,9 @@ builder.Host.UseWolverine(opts =>
 });
 
 builder.Services.AddCodeFirstGrpc();
-builder.Services.AddWolverineGrpc();
+// GH-5196: 7.0 ignores a client's tenant-id header unless the server trusts it. The OrderServer is
+// our own service on a private network, so this sample trusts the header it stamps
+builder.Services.AddWolverineGrpc(grpc => grpc.TrustTenantIdHeader = true);
 
 var app = builder.Build();
 app.UseRouting();

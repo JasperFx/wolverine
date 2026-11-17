@@ -138,7 +138,10 @@ public class queue_order_schema_migrations
             {
                 var expression = opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, schema,
                     transportSchema: schema).AutoProvision();
+                // GH-5192: these are about queue_order on the classic layout, and neither is the 7.0 default
+                expression.UseClassicQueueLayout();
                 if (deterministicOrdering) expression.EnableDeterministicQueueOrdering();
+                else expression.DisableDeterministicQueueOrdering();
 
                 opts.ListenToSqlServerQueue(queueName).PollingInterval(1.Hours());
                 opts.Durability.ScheduledJobFirstExecution = 1.Hours();

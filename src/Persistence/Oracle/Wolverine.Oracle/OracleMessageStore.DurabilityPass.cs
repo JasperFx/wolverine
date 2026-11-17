@@ -134,7 +134,8 @@ internal partial class OracleMessageStore : IMessageStoreWithDurabilityPass, ISt
 
     public async Task RestartStaleOutgoingAsync(IReadOnlyList<Envelope> envelopes, CancellationToken token)
     {
-        // The timestamp column only exists when OutboxStaleTime is set
+        // Only when OutboxStaleTime is set: the timestamp column is always there since 7.0 (GH-5193), unless
+        // AlwaysProvisionOptionalSchemaObjects is off, in which case only with OutboxStaleTime
         if (HasDisposed || envelopes.Count == 0 || !_durability.OutboxStaleTime.HasValue) return;
 
         await using var conn = await _dataSource.OpenConnectionAsync(token);
@@ -155,7 +156,8 @@ internal partial class OracleMessageStore : IMessageStoreWithDurabilityPass, ISt
     {
         sql.Append($" WHERE {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode}");
 
-        // The timestamp column only exists when OutboxStaleTime is set
+        // Only when OutboxStaleTime is set: the timestamp column is always there since 7.0 (GH-5193), unless
+        // AlwaysProvisionOptionalSchemaObjects is off, in which case only with OutboxStaleTime
         if (staleBefore.HasValue && _durability.OutboxStaleTime.HasValue)
         {
             sql.Append($" AND {DatabaseConstants.Timestamp} <= :staleBefore");
@@ -244,7 +246,8 @@ internal partial class OracleMessageStore : IMessageStoreWithDurabilityPass, ISt
     {
         sql.Append($" WHERE {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'");
 
-        // The timestamp column only exists when InboxStaleTime is set. A row owned by any node was never claimed
+        // Only when InboxStaleTime is set: the timestamp column is always there since 7.0 (GH-5193), unless
+        // AlwaysProvisionOptionalSchemaObjects is off, in which case only with InboxStaleTime. A row owned by any node was never claimed
         // by a live request, so it is recoverable at once, and a row a node claimed is once its stale clock runs out
         if (staleBefore.HasValue && _durability.InboxStaleTime.HasValue)
         {

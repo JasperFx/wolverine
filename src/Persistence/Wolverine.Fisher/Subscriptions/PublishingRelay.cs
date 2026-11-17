@@ -1,9 +1,9 @@
-using ImTools;
-using JasperFx.Core.Reflection;
 using JasperFx.Events;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
 using Fisher;
+
+using Wolverine.Persistence.EventSourcing.Subscriptions;
 
 namespace Wolverine.Fisher.Subscriptions;
 
@@ -46,19 +46,23 @@ public interface IPublishingRelay
     void FilterIncomingEventsOnStreamType(Type streamType);
 }
 
+/// <summary>
+/// The Fisher subscription behind PublishEventsToWolverine(). The behavior is the shared
+/// <see cref="EventRelay"/> (GH-5143).
+/// </summary>
 internal class PublishingRelay : BatchSubscription, IPublishingRelay
 {
-    private ImHashMap<Type, IPublisher> _publishers = ImHashMap<Type, IPublisher>.Empty;
+    private readonly EventRelay _relay;
 
     public PublishingRelay(string subscriptionName) : base(subscriptionName)
     {
+        _relay = new EventRelay(false);
     }
 
     public void PublishEvent<T>(Func<IEvent<T>, IMessageBus, ValueTask> publish) where T : notnull
     {
         IncludeType<T>();
-        var publisher = typeof(LambdaPublisher<>).CloseAndBuildAs<IPublisher>(publish, typeof(T));
-        _publishers = _publishers.AddOrUpdate(typeof(T), publisher);
+        _relay.PublishEvent(publish);
     }
 
     public void PublishEvent<T>()
@@ -71,49 +75,10 @@ internal class PublishingRelay : BatchSubscription, IPublishingRelay
         IncludeType(eventType);
     }
 
-    public override async Task ProcessEventsAsync(EventRange page, ISubscriptionController controller,
+    public override Task ProcessEventsAsync(EventRange page, ISubscriptionController controller,
         IDocumentSession operations, IMessageBus bus,
         CancellationToken cancellationToken)
     {
-        foreach (var e in page.Events)
-        {
-            if (_publishers.TryFind(e.EventType, out var publisher))
-            {
-                await publisher.PublishAsync(e, bus);
-            }
-            else
-            {
-                if (e.TenantId != JasperFx.StorageConstants.DefaultTenantId)
-                {
-                    await bus.PublishAsync(e, new DeliveryOptions{TenantId = e.TenantId});
-                }
-                else
-                {
-                    await bus.PublishAsync(e);
-                }
-            }
-        }
-    }
-
-    internal interface IPublisher
-    {
-        ValueTask PublishAsync(object e, IMessageBus bus);
-    }
-
-    internal class LambdaPublisher<T> : IPublisher where T : notnull
-    {
-        private readonly Func<IEvent<T>, IMessageBus, ValueTask> _publish;
-
-        public LambdaPublisher(Func<IEvent<T>, IMessageBus, ValueTask> publish)
-        {
-            _publish = publish;
-        }
-
-        public ValueTask PublishAsync(object e, IMessageBus bus)
-        {
-            if (e is IEvent<T> typed) return _publish(typed, bus);
-
-            return new ValueTask();
-        }
+        return _relay.RelayAsync(page.Events, bus);
     }
 }

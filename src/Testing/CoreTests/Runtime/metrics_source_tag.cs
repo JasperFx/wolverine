@@ -1,3 +1,5 @@
+using Wolverine.Runtime;
+using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Hosting;
@@ -5,12 +7,13 @@ using Shouldly;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Tracking;
+using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Runtime;
 
 // GH-3221: the `source` (service name) tag must be present on EVERY Wolverine metric instrument, not just
-// wolverine-messages-sent / -received, so a shared metrics backend can slice each series per service.
+// wolverine.messages.sent / .received, so a shared metrics backend can slice each series per service.
 public class metrics_source_tag : IAsyncLifetime
 {
     private const string TheServiceName = "metrics-source-test";
@@ -37,11 +40,15 @@ public class metrics_source_tag : IAsyncLifetime
                     .IncludeType<MetricFailHandler>();
             }).StartAsync();
 
+        var theMeter = _host.Services.GetRequiredService<IWolverineRuntime>().Meter;
+
         _listener = new MeterListener
         {
             InstrumentPublished = (instrument, l) =>
             {
-                if (instrument.Meter.Name == "Wolverine:" + TheServiceName)
+                // Every runtime publishes on a meter named "Wolverine" (GH-5128), so isolate THIS host's
+                // instruments from parallel tests by the Meter instance rather than its name.
+                if (ReferenceEquals(instrument.Meter, theMeter))
                 {
                     l.EnableMeasurementEvents(instrument);
                 }
@@ -106,6 +113,32 @@ public class metrics_source_tag : IAsyncLifetime
             }
         }
     }
+
+    [Fact]
+    public async Task a_failed_execution_tags_only_the_failure_counter_with_the_exception_type()
+    {
+        // GH-5146: the failure path builds one tag set for both the execution-time histogram and the
+        // execution-failure counter. The exception type belongs on the failure counter alone.
+        await _host.TrackActivity()
+            .DoNotAssertOnExceptionsDetected()
+            .SendMessageAndWaitAsync(new MetricFail());
+
+        var failures = _measurements[MetricsConstants.MessagesFailed].ToArray();
+        failures.ShouldNotBeEmpty();
+        foreach (var tags in failures)
+        {
+            tags[MetricsConstants.ExceptionType].ShouldBe(nameof(InvalidOperationException));
+            tags[MetricsConstants.MessageTypeKey].ShouldBe(typeof(MetricFail).ToMessageTypeName());
+        }
+
+        if (_measurements.TryGetValue(MetricsConstants.ExecutionTime, out var executions))
+        {
+            foreach (var tags in executions)
+            {
+                tags.ContainsKey(MetricsConstants.ExceptionType).ShouldBeFalse();
+            }
+        }
+    }
 }
 
 public record MetricSuccess;
@@ -116,7 +149,7 @@ public class MetricSuccessHandler
 {
     public async Task Handle(MetricSuccess _)
     {
-        // Ensure a measurable, non-zero execution time so the wolverine-execution-time histogram actually
+        // Ensure a measurable, non-zero execution time so the wolverine.execution.time histogram actually
         // records — ExecutionFinished only records when StopTiming() (truncated to whole milliseconds) is
         // > 0. Without this the histogram has no data points on a fast machine, which made the source-tag
         // and bucket-boundary tests flaky in CI.

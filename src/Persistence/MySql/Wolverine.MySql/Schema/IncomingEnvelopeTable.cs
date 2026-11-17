@@ -29,7 +29,14 @@ internal class IncomingEnvelopeTable : Table
 
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
 
-        if (durability.InboxStaleTime.HasValue)
+        // GH-5167: the envelope's GroupId, so scheduled message management can find, cancel and reschedule the
+        // scheduled messages of one business identifier (booking/{id}). Nullable, so an existing table migrates
+        // by gaining a column that is null for every row already there.
+        AddColumn(DatabaseConstants.GroupId, "varchar(500)");
+
+        // GH-5193: always created (unless AlwaysProvisionOptionalSchemaObjects is off), whether or not
+        // InboxStaleTime is set; only the statements that read and write it follow InboxStaleTime
+        if (durability.ProvisionsIncomingTimestamp)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("(UTC_TIMESTAMP(6))");
         }
@@ -43,5 +50,20 @@ internal class IncomingEnvelopeTable : Table
             Columns = [DatabaseConstants.OwnerId]
         });
 
+        // GH-5428: the expired-handled cleanup (status = 'Handled' and keep_until <= now) had nothing to
+        // use here, so under REPEATABLE READ it walked the clustered index and X-locked every row it looked at,
+        // the Incoming rows live handlers were about to mark Handled among them, and InnoDB picked those
+        // handler commits as deadlock victims. With the status leading, the delete only touches the expired
+        // Handled range. SQL Server's equivalent is the filtered idx_..._keep_until from GH-4316.
+        Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.IncomingTable}_keep_until")
+        {
+            Columns = [DatabaseConstants.Status, DatabaseConstants.KeepUntil]
+        });
+
+        // GH-5167: serves ScheduledMessageQuery.GroupId (query, cancel, reschedule by group). Not partial here: this provider's IndexDefinition has no predicate support.
+        Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.IncomingTable}_group_id")
+        {
+            Columns = [DatabaseConstants.GroupId]
+        });
     }
 }

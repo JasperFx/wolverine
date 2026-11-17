@@ -4,11 +4,36 @@ Wolverine.HTTP integrates with ASP.NET Core's built-in [antiforgery middleware](
 
 ## How It Works
 
-When a Wolverine HTTP endpoint uses form data binding (via `[FromForm]` or file uploads), Wolverine automatically adds `IAntiforgeryMetadata` to the endpoint's metadata with `RequiresValidation = true`. ASP.NET Core's antiforgery middleware then validates the antiforgery token on incoming requests to those endpoints.
+Wolverine decides per endpoint whether antiforgery validation is required and sets `IAntiforgeryMetadata` on the endpoint
+accordingly. ASP.NET Core's antiforgery middleware records its verdict for the request, and the code Wolverine generates
+for an endpoint that requires validation checks that verdict before it binds anything: a request that failed is answered
+with a **400** and ProblemDetails (`"Antiforgery validation failed"`), and the handler never runs.
 
-## Setup
+## .NET 11: on by default for form endpoints
 
-To enable antiforgery protection, register the antiforgery services and middleware in your ASP.NET Core application:
+On **.NET 11**, form data and file upload endpoints require antiforgery validation **by default**, as Minimal API's
+do. ASP.NET Core 11 injects its own CSRF protection middleware, so this needs no setup and no tokens: same-origin
+browser requests (judged by `Sec-Fetch-Site`, or `Origin` for older browsers) and non-browser clients go through, and
+cross-site browser requests are refused.
+
+To keep the 6.x behaviour, turn the default off:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    // Form endpoints no longer require antiforgery validation unless marked [ValidateAntiforgery]
+    opts.DisableAutoAntiforgeryOnFormEndpoints();
+});
+```
+
+A form endpoint marked with ASP.NET Core 11's `[ShortCircuit]` runs inside the routing middleware, before any
+antiforgery middleware, so Wolverine refuses it at startup unless it is also marked `[DisableAntiforgery]`.
+
+## .NET 10: opt in
+
+On **.NET 10** the default stays off: ASP.NET Core 10 throws on every request to an endpoint that requires antiforgery
+validation unless the application has the antiforgery middleware, and validates tokens rather than the request's origin.
+Opt in with `opts.AutoAntiforgeryOnFormEndpoints()`, and register the services and middleware:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -21,13 +46,15 @@ var app = builder.Build();
 // Add the antiforgery middleware BEFORE routing
 app.UseAntiforgery();
 
-app.MapWolverineEndpoints();
+app.MapWolverineEndpoints(opts => opts.AutoAntiforgeryOnFormEndpoints());
 app.Run();
 ```
 
+Calling `UseAntiforgery()` on .NET 11 as well switches that application to token validation.
+
 ## Automatic Protection for Form Endpoints
 
-Any Wolverine HTTP endpoint that binds form data automatically requires antiforgery token validation. No additional configuration is needed:
+With the default on (.NET 11) or `AutoAntiforgeryOnFormEndpoints()` (.NET 10), any Wolverine HTTP endpoint that binds form data requires antiforgery validation:
 
 <!-- snippet: sample_antiforgery_form_endpoint -->
 <a id='snippet-sample_antiforgery_form_endpoint'></a>
@@ -97,13 +124,15 @@ Individual endpoints can still opt out using `[DisableAntiforgery]`.
 
 | Scenario | Behavior |
 |----------|----------|
-| `[FromForm]` parameter | Antiforgery required automatically |
-| File upload (`IFormFile`) | Antiforgery required automatically |
+| `[FromForm]` parameter | Antiforgery required by default on .NET 11; with `AutoAntiforgeryOnFormEndpoints()` on .NET 10 |
+| File upload (`IFormFile`, `MultipartReader`) | Same as `[FromForm]` |
 | JSON body (no form data) | No antiforgery by default |
 | `[DisableAntiforgery]` on method or class | Antiforgery explicitly disabled |
 | `[ValidateAntiforgery]` on method or class | Antiforgery explicitly required |
-| `RequireAntiforgeryOnAll()` | Antiforgery required on all endpoints |
+| `RequireAntiforgeryOnAll()` | Antiforgery required on all endpoints but those marked `[DisableAntiforgery]` |
+| `DisableAutoAntiforgeryOnFormEndpoints()` | Form endpoints no longer require it by default |
+| A request that fails validation | 400 with ProblemDetails, before the request body is read |
 
 ::: info
-This feature relies entirely on ASP.NET Core's built-in antiforgery infrastructure. Wolverine simply sets the appropriate `IAntiforgeryMetadata` on endpoints so the middleware knows which endpoints to protect. No additional NuGet packages are required.
+This feature relies on ASP.NET Core's built-in antiforgery infrastructure. Wolverine sets the appropriate `IAntiforgeryMetadata` on endpoints so the middleware knows which endpoints to protect, and refuses the requests it marks invalid. No additional NuGet packages are required.
 :::
