@@ -21,12 +21,15 @@
         <PackageReference Include="Shouldly" />
     </ItemGroup>
 
+    <!-- SetTargetFramework on the AppHost references: an AppHost is single-targeted, so without it the reference builds
+         a second instance of the AppHost (no TargetFramework global property) racing the solution's
+         TargetFramework=net10.0 build of it. -->
     <ItemGroup>
-        <ProjectReference Include="..\..\Samples\AspireWithLocalStack\AppHost\AspireWithLocalStack.AppHost.csproj" />
+        <ProjectReference Include="..\..\Samples\AspireWithLocalStack\AppHost\AspireWithLocalStack.AppHost.csproj" SetTargetFramework="TargetFramework=net10.0" />
         <ProjectReference Include="..\..\Transports\AWS\Wolverine.Aspire.Hosting.LocalStack\Wolverine.Aspire.Hosting.LocalStack.csproj" />
-        <ProjectReference Include="..\..\Samples\AspireWithPubsub\AppHost\AspireWithPubsub.AppHost.csproj" />
+        <ProjectReference Include="..\..\Samples\AspireWithPubsub\AppHost\AspireWithPubsub.AppHost.csproj" SetTargetFramework="TargetFramework=net10.0" />
         <ProjectReference Include="..\..\Transports\GCP\Wolverine.Aspire.Hosting.Pubsub\Wolverine.Aspire.Hosting.Pubsub.csproj" />
-        <ProjectReference Include="..\..\Samples\AspireWithPulsar\AppHost\AspireWithPulsar.AppHost.csproj" />
+        <ProjectReference Include="..\..\Samples\AspireWithPulsar\AppHost\AspireWithPulsar.AppHost.csproj" SetTargetFramework="TargetFramework=net10.0" />
         <ProjectReference Include="..\..\Transports\Pulsar\Wolverine.Aspire.Hosting.Pulsar\Wolverine.Aspire.Hosting.Pulsar.csproj" />
     </ItemGroup>
 

@@ -5,10 +5,12 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <!-- Clears the net10.0;net11.0 the root Directory.Build.props sets. Beside it, a TargetFramework alone leaves
-         the project multi-targeted, and `dotnet run` (which is how the AppHost starts a project) refuses it with
-         "Your project targets multiple frameworks" -->
-    <TargetFrameworks></TargetFrameworks>
+    <!-- The root Directory.Build.props sets TargetFrameworks to net10.0;net11.0. Beside this project's
+         TargetFramework, that list makes `dotnet run` (which is how an AppHost starts a project) refuse it with
+         "Your project targets multiple frameworks". Narrowing the list to net10.0, rather than clearing it, keeps
+         ProjectReferences passing TargetFramework=net10.0, so `dotnet build wolverine.slnx -f net10.0` builds one
+         instance of the project instead of two at once. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
@@ -22,7 +24,10 @@
          service, so it is not an Aspire project resource. -->
     <ProjectReference Include="../../../Transports/GCP/Wolverine.Aspire.Hosting.Pubsub/Wolverine.Aspire.Hosting.Pubsub.csproj"
                       IsAspireProjectResource="false" />
-    <ProjectReference Include="../Pinger/AspireWithPubsub.Pinger.csproj" />
+    <!-- The AppHost SDK skips target framework negotiation for a project resource, so without SetTargetFramework
+         this reference builds the Pinger with no TargetFramework global property: a second instance of the project,
+         racing the solution's TargetFramework=net10.0 build of it on the same obj/ and bin/ files. -->
+    <ProjectReference Include="../Pinger/AspireWithPubsub.Pinger.csproj" SetTargetFramework="TargetFramework=net10.0" />
   </ItemGroup>
 
 </Project>
