@@ -1,3 +1,4 @@
+using Wolverine.Attributes;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -40,7 +41,9 @@ public class SagaWithEmptyRetention : Saga
 
 public record StartSagaWithItsOwnCompletedAt(Guid Id);
 
-// Declares its own CompletedAt, which hides Saga.CompletedAt
+// Declares its own CompletedAt, which hides Saga.CompletedAt. Kept out of conventional discovery, which would
+// otherwise hand it to every CoreTests host that retains completed sagas
+[WolverineIgnore]
 public class SagaWithItsOwnCompletedAt : Saga
 {
     public Guid Id { get; set; }
@@ -54,6 +57,8 @@ public class SagaWithItsOwnCompletedAt : Saga
 
 public record StartRetainedSagaWithItsOwnCompletedAt(Guid Id);
 
+// Refused at startup, so kept out of conventional discovery: every CoreTests host scanning this assembly would fail
+[WolverineIgnore]
 [RetainWhenCompleted(Days = 1)]
 public class RetainedSagaWithItsOwnCompletedAt : Saga
 {
