@@ -35,6 +35,7 @@ stoat gate run {plan}/{node}                        # from the worktree; the nod
 ./build.sh LocalGate                                # by hand: the suites, then the extras
 ./build.sh LocalGateSuites                          # the suites alone
 ./build.sh LocalGateSuites --gate-only Marten Http  # only suites whose project name contains one of these
+./build.sh LocalGate --gate-with AzureServiceBus    # the whole gate plus the opt-in Azure Service Bus suite
 ./build.sh LocalGate --framework all                # every framework each suite declares (EF Core 9 and 10)
 ```
 
@@ -55,6 +56,10 @@ stoat gate run {plan}/{node}                        # from the worktree; the nod
   `CICodegenTest`, then `CICodegenDrift`. The codegen pair rewrites the generated tree; drift goes last
   and regenerates it, so a green run leaves the tree as it was. A red one leaves the regenerated files
   for you to read (`git checkout -- .` puts them back). Every extra runs even when an earlier one is red.
+- **Opt-in suites.** `Wolverine.AzureServiceBus.Tests` is left out of a default run (the log says it was
+  skipped as opt-in). Include it only when the change touches `src/Transports/Azure`: add
+  `--gate-with AzureServiceBus` to the whole gate, or run it alone with `--gate-only AzureServiceBus`. It is
+  still in the table, not in `NotGated`, so `VerifyLocalGateCoverage` counts it as gated.
 - **The list** is the table at the top of `build/LocalGate.cs`; `build/gates.json` is generated from it
   (`./build.sh LocalGateManifest`). `VerifyLocalGateCoverage` (part of `./build.sh ci`) fails when a
   test project in `wolverine.slnx` is in neither the table nor its `NotGated` list, or when

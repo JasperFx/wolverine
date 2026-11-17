@@ -22,6 +22,7 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 //   ./build.sh LocalGate                              every suite, then the extras
 //   ./build.sh LocalGateSuites                        the supervised suites alone
 //   ./build.sh LocalGateSuites --gate-only Marten     only the suites whose project name contains "Marten"
+//   ./build.sh LocalGate --gate-with AzureServiceBus  every suite plus the opt-in suites named (see OptIn below)
 //   ./build.sh LocalGate --framework all              every framework a suite declares (every framework, net10.0 AND net11.0)
 //
 // Release, as in CI, unless --configuration says otherwise. The framework is .nuke/parameters.json's
@@ -75,6 +76,9 @@ partial class Build
     [Parameter("LocalGate: run only the suites whose project name contains one of these (case-insensitive)")]
     readonly string[] GateOnly;
 
+    [Parameter("LocalGate: also run the opt-in suites whose project name contains one of these (case-insensitive), e.g. AzureServiceBus")]
+    readonly string[] GateWith;
+
     [Parameter("LocalGate: reuse the test hosts already built under bin/Release instead of building them")]
     readonly bool GateSkipBuild;
 
@@ -117,6 +121,12 @@ partial class Build
 
         /// <summary>Extra environment for every worker.</summary>
         public Dictionary<string, string> Environment { get; init; } = new();
+
+        /// <summary>
+        /// Left out of a default LocalGate run; it runs only when named with --gate-with or --gate-only. Still a
+        /// gated suite as far as VerifyLocalGateCoverage is concerned, so it never goes in NotGated.
+        /// </summary>
+        public bool OptIn { get; init; }
 
         public IEnumerable<string> ComposeServices()
         {
@@ -235,7 +245,10 @@ partial class Build
             "CIAzureServiceBus, CIAzureServiceBusLeader, CIAzureServiceBusRouting")
         {
             // GH-5196: asb-emulator-2 is a tenant's own namespace in strict_tenancy_5196
-            Services = ["asb-emulator", "asb-emulator-2"], Postgres = ServerUse.OwnDatabase
+            Services = ["asb-emulator", "asb-emulator-2"], Postgres = ServerUse.OwnDatabase,
+            // Jeremy 2026-11-17: opt-in. The emulators are slow and contended, so the suite runs only when a change
+            // touches src/Transports/Azure: --gate-with AzureServiceBus, or --gate-only AzureServiceBus alone
+            OptIn = true
         },
         new("src/Transports/Kafka/Wolverine.Kafka.Tests/Wolverine.Kafka.Tests.csproj", "CIKafka")
         {
@@ -389,12 +402,23 @@ partial class Build
             var clock = Stopwatch.StartNew();
             verifyLocalGateCoverage();
 
+            static bool named(GateSuite suite, string[] names) =>
+                names is { Length: > 0 } && names.Any(x => suite.Name.Contains(x, StringComparison.OrdinalIgnoreCase));
+
+            // --gate-only picks by name, opt-in suites included. Otherwise every suite runs except the opt-in
+            // ones, unless --gate-with names them.
             var suites = GateSuites
-                .Where(s => GateOnly is not { Length: > 0 } ||
-                            GateOnly.Any(x => s.Name.Contains(x, StringComparison.OrdinalIgnoreCase)))
+                .Where(s => GateOnly is { Length: > 0 } ? named(s, GateOnly) : !s.OptIn || named(s, GateWith))
                 .ToArray();
             if (suites.Length == 0)
                 throw new InvalidOperationException($"--gate-only {string.Join(" ", GateOnly)} matched no suite.");
+
+            if (GateWith is { Length: > 0 } && !GateSuites.Any(s => s.OptIn && named(s, GateWith)))
+                throw new InvalidOperationException($"--gate-with {string.Join(" ", GateWith)} matched no opt-in suite.");
+
+            foreach (var skipped in GateSuites.Where(s => s.OptIn).Except(suites))
+                Log.Information("Skipped {Suite}: an opt-in suite. Add --gate-with {Suite} to run it with the gate.",
+                    skipped.Name, skipped.Name);
 
             var gate = new GateDeclaration
             {
@@ -684,6 +708,7 @@ partial class Build
                 path = s.Path,
                 ciTargets = s.CITargets,
                 workers = s.Workers,
+                optIn = s.OptIn ? true : (bool?)null,
                 frameworks = s.Frameworks,
                 postgres = s.Postgres == ServerUse.None ? null : s.Postgres.ToString(),
                 sqlServer = s.SqlServer == ServerUse.None ? null : s.SqlServer.ToString(),

@@ -398,6 +398,7 @@
       "path": "src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj",
       "ciTargets": "CIAzureServiceBus, CIAzureServiceBusLeader, CIAzureServiceBusRouting",
       "workers": 1,
+      "optIn": true,
       "postgres": "OwnDatabase",
       "services": [
         "postgresql",
