@@ -84,9 +84,13 @@ partial class Build : NukeBuild
     //
     // VerifyLocalGateCoverage too: a test project that is in neither LocalGate's table nor its
     // NotGated list, or a stale build/gates.json, is reported on every push. GH-5125.
+    //
+    // VerifyProjectReferenceFrameworks as well: a reference to a project that declares a single
+    // <TargetFramework> builds that project twice at once under Compile's -f net10.0, the intermittent
+    // MSB3030 on its apphost. GH-5622.
     Target CI => _ => _
-        .DependsOn(VerifyCITargetCoverage, VerifyTrackedSessionTimeouts, VerifyLocalGateCoverage, CoreTests,
-            CIMessageRouting);
+        .DependsOn(VerifyCITargetCoverage, VerifyTrackedSessionTimeouts, VerifyLocalGateCoverage,
+            VerifyProjectReferenceFrameworks, CoreTests, CIMessageRouting);
 
     Target Test => _ => _
         .DependsOn(CoreTests, TestExtensions, Commands, PolicyTests, HttpTests);
