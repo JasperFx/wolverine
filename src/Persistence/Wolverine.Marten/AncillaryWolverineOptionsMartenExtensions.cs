@@ -138,15 +138,16 @@ public static class AncillaryWolverineOptionsMartenExtensions
         // GH-3438: the main-store integration aliases the family to IAgentFamily /
         // IEventSubscriptionAgentFamily, but an ancillary-only host has no main integration to do that,
         // so managed distribution and any tooling resolving the family through those interfaces get
-        // nothing. Register the aliases from here too when managed distribution is opted in. TryAdd so
-        // that a main store which already aliased them wins and we don't double-register (one family
-        // instance covers all stores either way). Gated on the flag because NodeAgentController
-        // distributes the agents of every registered IAgentFamily — an ancillary host that never asked
-        // for managed distribution must not suddenly start distributing.
+        // nothing. Register the aliases from here too when managed distribution is opted in, through the
+        // same idempotent registration the main integrations use, so a main store that already aliased them
+        // wins and we don't double-register (one family instance covers all stores either way). Not a
+        // TryAdd of IAgentFamily: any other family registered first (the GH-5572 saga retention family
+        // always is) made that a silent no-op. Gated on the flag because NodeAgentController distributes the
+        // agents of every registered IAgentFamily — an ancillary host that never asked for managed
+        // distribution must not suddenly start distributing.
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {
-            expression.Services.TryAddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
-            expression.Services.TryAddSingleton<IEventSubscriptionAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
+            expression.Services.AddEventSubscriptionAgentFamily();
         }
 
         expression.Services.AddSingleton<IProjectionCoordinator<T>>(s =>
