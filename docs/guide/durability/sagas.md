@@ -633,12 +633,14 @@ Retention works with these saga storages:
 | In memory | Not retained: completed sagas are deleted as before |
 | Redis, Azure Blob Storage, Amazon S3 | Not supported. `[RetainWhenCompleted]` on a saga stored there is refused at startup, and the global policy skips it |
 
-If one of your saga types already has a property named `CompletedAt`, it hides the one on `Saga` (compiler warning
-CS0108), and a retained saga would not be recognized as completed when it is loaded again. Rename your property before
-turning retention on.
+If one of your saga types already has its own `CompletedAt`, it hides the one on `Saga` (compiler warning CS0108),
+and a retained saga would not be recognized as completed when it is loaded again. Wolverine refuses to start when
+retention is on for that saga type, by attribute or by the global policy, so remove or rename your property. With
+retention off for that saga type, Wolverine doesn't care.
 
 Turning retention off again leaves the sagas that were already kept in storage. They are no longer swept, and nothing
-stops a later message from reaching them, so delete them first.
+stops a later message from reaching them. To clear them out, either delete them by hand, or turn retention back on
+for a little while so the sweep deletes them.
 
 ## Last Modified Time <Badge type="tip" text="7.0" />
 

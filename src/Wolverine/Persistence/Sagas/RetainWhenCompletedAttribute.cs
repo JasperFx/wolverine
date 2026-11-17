@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Sagas;
@@ -62,6 +64,37 @@ public static class SagaRetention
     public static TimeSpan? For(Type sagaType, WolverineOptions options)
     {
         return ExplicitFor(sagaType) ?? options.Durability.CompletedSagaRetention;
+    }
+
+    /// <summary>
+    ///     Refuses a saga type that keeps its completed instances (<see cref="RetainWhenCompletedAttribute" /> or
+    ///     <c>opts.Policies.RetainCompletedSagas()</c>) but declares its own <c>CompletedAt</c>. That member hides
+    ///     <see cref="Saga.CompletedAt" />, which is what marks a retained saga completed. Says nothing when retention
+    ///     is off for the saga type.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Saga types come from handler discovery, which roots them. A trimmed member could not hide CompletedAt anyway.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Walks the saga type's base classes up to Saga. Saga types come from handler discovery, which roots them.")]
+    public static void AssertCompletedAtIsNotHidden(Type sagaType, WolverineOptions? options)
+    {
+        var retention = ExplicitFor(sagaType) ?? options?.Durability.CompletedSagaRetention;
+        if (retention == null) return;
+
+        for (var type = sagaType; type != null && type != typeof(Saga); type = type.BaseType)
+        {
+            var hides = type.GetMember(nameof(Saga.CompletedAt),
+                    MemberTypes.Property | MemberTypes.Field,
+                    BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic |
+                    BindingFlags.DeclaredOnly)
+                .Length > 0;
+
+            if (hides)
+            {
+                throw new InvalidSagaException(
+                    $"Saga type {sagaType.FullNameInCode()} keeps its completed instances, but {type.FullNameInCode()} declares its own {nameof(Saga.CompletedAt)}, which hides {nameof(Saga)}.{nameof(Saga.CompletedAt)}. Remove or rename it.");
+            }
+        }
     }
 
     /// <summary>

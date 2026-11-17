@@ -75,6 +75,10 @@ public class SagaChain : HandlerChain
                 $"Command types cannot be handled by multiple saga types. Message {MessageType.FullNameInCode()} is handled by sagas {handlerTypes}",
                 e);
         }
+
+        // GH-5572. Refused here, while the handler graph is built at startup, rather than when the chain first
+        // generates its code
+        SagaRetention.AssertCompletedAtIsNotHidden(SagaType, options);
     }
 
     public SagaChain(HandlerCall handlerCall, HandlerGraph handlerGraph, Endpoint[] endpoints) : base(handlerCall, handlerGraph)
@@ -246,6 +250,8 @@ public class SagaChain : HandlerChain
     private TimeSpan? determineRetention(IPersistenceFrameProvider frameProvider, IServiceContainer container)
     {
         var options = container.Services.GetService(typeof(WolverineOptions)) as WolverineOptions;
+        SagaRetention.AssertCompletedAtIsNotHidden(SagaType, options);
+
         var explicitRetention = SagaRetention.ExplicitFor(SagaType);
         var retention = explicitRetention ?? options?.Durability.CompletedSagaRetention;
         if (retention == null) return null;

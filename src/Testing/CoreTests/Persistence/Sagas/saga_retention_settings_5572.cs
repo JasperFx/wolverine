@@ -38,9 +38,77 @@ public class SagaWithEmptyRetention : Saga
     public Guid Id { get; set; }
 }
 
+public record StartSagaWithItsOwnCompletedAt(Guid Id);
+
+// Declares its own CompletedAt, which hides Saga.CompletedAt
+public class SagaWithItsOwnCompletedAt : Saga
+{
+    public Guid Id { get; set; }
+
+#pragma warning disable CS0108
+    public DateTime? CompletedAt { get; set; }
+#pragma warning restore CS0108
+
+    public static SagaWithItsOwnCompletedAt Start(StartSagaWithItsOwnCompletedAt command) => new() { Id = command.Id };
+}
+
+public record StartRetainedSagaWithItsOwnCompletedAt(Guid Id);
+
+[RetainWhenCompleted(Days = 1)]
+public class RetainedSagaWithItsOwnCompletedAt : Saga
+{
+    public Guid Id { get; set; }
+
+#pragma warning disable CS0108
+    public DateTime? CompletedAt { get; set; }
+#pragma warning restore CS0108
+
+    public static RetainedSagaWithItsOwnCompletedAt Start(StartRetainedSagaWithItsOwnCompletedAt command) =>
+        new() { Id = command.Id };
+}
+
 // GH-5572
 public class saga_retention_settings_5572
 {
+    [Fact]
+    public async Task a_retained_saga_that_hides_completed_at_is_refused_at_startup()
+    {
+        var ex = await Should.ThrowAsync<InvalidSagaException>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                    opts.Discovery.DisableConventionalDiscovery().IncludeType<RetainedSagaWithItsOwnCompletedAt>())
+                .StartAsync(TestContext.Current.CancellationToken);
+        });
+
+        ex.Message.ShouldContain("declares its own CompletedAt");
+    }
+
+    [Fact]
+    public async Task the_retention_policy_also_refuses_a_saga_that_hides_completed_at()
+    {
+        await Should.ThrowAsync<InvalidSagaException>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.Policies.RetainCompletedSagas(1.Days());
+                    opts.Discovery.DisableConventionalDiscovery().IncludeType<SagaWithItsOwnCompletedAt>();
+                })
+                .StartAsync(TestContext.Current.CancellationToken);
+        });
+    }
+
+    [Fact]
+    public async Task a_saga_that_hides_completed_at_is_fine_with_retention_off()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts => opts.Discovery.DisableConventionalDiscovery().IncludeType<SagaWithItsOwnCompletedAt>())
+            .StartAsync(TestContext.Current.CancellationToken);
+
+        await host.InvokeMessageAndWaitAsync(new StartSagaWithItsOwnCompletedAt(Guid.NewGuid()));
+    }
+
     [Fact]
     public void retention_is_off_by_default()
     {
