@@ -103,6 +103,8 @@ container:
 <!-- snippet: sample_aspire_pulsar_apphost -->
 <a id='snippet-sample_aspire_pulsar_apphost'></a>
 ```cs
+using Wolverine.Aspire.Hosting;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // A Pulsar broker, run as `bin/pulsar standalone` in a container. The name "pulsar" becomes the
@@ -118,7 +120,7 @@ builder.AddProject<Projects.AspireWithPulsar_Pinger>("pinger")
 
 await builder.Build().RunAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithPulsar/AppHost/Program.cs#L1-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_pulsar_apphost' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithPulsar/AppHost/Program.cs#L1-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_pulsar_apphost' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Any project that references the broker gets its service URL, `pulsar://{host}:{port}`, as the connection string with

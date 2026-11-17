@@ -192,6 +192,8 @@ services in a container:
 <!-- snippet: sample_aspire_localstack_apphost -->
 <a id='snippet-sample_aspire_localstack_apphost'></a>
 ```cs
+using Wolverine.Aspire.Hosting;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // LocalStack running SQS and SNS in a container. The name "aws" becomes the connection string
@@ -209,7 +211,7 @@ builder.AddProject<Projects.AspireWithLocalStack_Pinger>("pinger")
 
 await builder.Build().RunAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithLocalStack/AppHost/Program.cs#L1-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_localstack_apphost' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithLocalStack/AppHost/Program.cs#L1-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_localstack_apphost' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Any project that references it gets LocalStack's endpoint as the connection string with the resource's name, and

@@ -129,6 +129,8 @@ Wolverine has its own Aspire hosting integration for the gcloud Pub/Sub emulator
 <!-- snippet: sample_aspire_pubsub_apphost -->
 <a id='snippet-sample_aspire_pubsub_apphost'></a>
 ```cs
+using Wolverine.Aspire.Hosting;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // The gcloud Pub/Sub emulator in a container, started for the "wolverine" project. The name
@@ -146,7 +148,7 @@ builder.AddProject<Projects.AspireWithPubsub_Pinger>("pinger")
 
 await builder.Build().RunAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithPubsub/AppHost/Program.cs#L1-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_pubsub_apphost' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithPubsub/AppHost/Program.cs#L1-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_pubsub_apphost' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Any project that references the emulator gets its endpoint, `{host}:{port}`, as the connection string with the

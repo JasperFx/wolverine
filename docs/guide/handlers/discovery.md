@@ -107,11 +107,29 @@ application assembly altogether. It then neither reuses the assembly an earlier 
 own for later hosts, and uses the assembly that called `UseWolverine()`:
 
 <!-- snippet: sample_opting_out_of_the_remembered_application_assembly -->
+<a id='snippet-sample_opting_out_of_the_remembered_application_assembly'></a>
+```cs
+using var second = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Don't reuse the application assembly an earlier host in this process
+        // remembered, and don't remember this one for later hosts either
+        opts.RememberApplicationAssembly = false;
+    }).StartAsync(TestContext.Current.CancellationToken);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/remembered_application_assembly_opt_out_3521.cs#L38-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_out_of_the_remembered_application_assembly' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or clear the remembered assembly between hosts, say in a test fixture. This clears JasperFx's copy as well:
 
 <!-- snippet: sample_resetting_the_remembered_application_assembly -->
+<a id='snippet-sample_resetting_the_remembered_application_assembly'></a>
+```cs
+// In a test fixture that starts several hosts in one process: forget the
+// application assembly an earlier host remembered
+WolverineOptions.ResetRememberedApplicationAssembly();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/remembered_application_assembly_opt_out_3521.cs#L91-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_resetting_the_remembered_application_assembly' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `opts.RememberApplicationAssembly = false` also turns off JasperFx's `RememberApplicationAssembly` for the host, so
@@ -346,7 +364,7 @@ public class BlockbusterHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L237-L284' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/find_handlers_with_the_default_handler_discovery.cs#L235-L282' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverineignoreattribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

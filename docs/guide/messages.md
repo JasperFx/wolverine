@@ -549,7 +549,7 @@ also set it directly:
 // setting it explicitly forces it no matter what the message stores prefer
 opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewIdSqlServerOrder;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/envelope_id_generation.cs#L112-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_ids_in_sql_server_order' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/envelope_id_generation.cs#L111-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_ids_in_sql_server_order' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning

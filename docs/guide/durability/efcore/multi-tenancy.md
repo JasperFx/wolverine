@@ -255,7 +255,7 @@ public class TenantedItem : ITenanted
     public string? TenantId { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L372-L387' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenanted_entity' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L395-L410' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenanted_entity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and registering the `DbContext` with conjoined tenancy:
@@ -717,7 +717,7 @@ var rebuilt = await partitions.RebuildUnpartitionedTablesAsync();
 // Or take the DDL that would run, review it, and apply it yourself
 var script = await partitions.WriteRebuildScriptAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_partitioning_rebuild_existing_tables' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L374-L392' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_partitioning_rebuild_existing_tables' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Every tenant id found in the rows is registered first, through the same path as `AddTenantAsync()`, so the
