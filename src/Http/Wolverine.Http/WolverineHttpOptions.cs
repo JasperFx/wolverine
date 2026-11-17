@@ -205,6 +205,33 @@ public class WolverineHttpOptions
     public bool DefaultClaimInTransaction { get; set; }
 
     /// <summary>
+    ///     Mark a response that <c>[DeduplicatedWithResponse]</c> replays with the
+    ///     <see cref="DeduplicatedReplayHeaderName" /> header, set to <c>true</c>. Defaults to true.
+    ///
+    ///     <para>
+    ///     A replay's status, <c>Location</c> and body are otherwise the first response's, so this is how a client
+    ///     tells them apart. The first response, and the 409 and 422 refusals, are never marked.
+    ///     </para>
+    /// </summary>
+    public bool MarkDeduplicatedReplays { get; set; } = true;
+
+    /// <summary>
+    ///     The header <see cref="MarkDeduplicatedReplays" /> sets on a replayed response. Defaults to
+    ///     <see cref="DeduplicatedWithResponseRequirement.DefaultReplayHeaderName" />. Set
+    ///     <see cref="MarkDeduplicatedReplays" /> to false, not this to null, to send no header.
+    /// </summary>
+    public string DeduplicatedReplayHeaderName
+    {
+        get => _deduplicatedReplayHeaderName;
+        set => _deduplicatedReplayHeaderName = string.IsNullOrWhiteSpace(value)
+            ? throw new ArgumentException(
+                $"Name the header, or set {nameof(MarkDeduplicatedReplays)} = false to send none", nameof(value))
+            : value;
+    }
+
+    private string _deduplicatedReplayHeaderName = DeduplicatedWithResponseRequirement.DefaultReplayHeaderName;
+
+    /// <summary>
     ///     Apply DataAnnotations Validation middleware to all Wolverine HTTP endpoints
     /// </summary>
     /// <param name="httpOptions"></param>

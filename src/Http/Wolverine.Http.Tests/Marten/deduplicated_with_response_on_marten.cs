@@ -101,6 +101,8 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
         var repeat = await postAsync("/marten-deduplicated-response/orders", request, key, 201);
 
         (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        first.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
+        repeat.Context.Response.Headers["Idempotent-Replayed"].ToString().ShouldBe("true");
 
         // Answered before the endpoint ran, not by its commit failing on the claim
         MartenDeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
@@ -211,6 +213,7 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
         // Only the winner keeps a header its own endpoint set: the loser's work rolled back, and so did its response
         responses.Count(x => x.Context.Response.Headers.ContainsKey(MartenDeduplicatedResponseEndpoints.AttemptHeader))
             .ShouldBe(1);
+        responses.Count(x => x.Context.Response.Headers.ContainsKey("Idempotent-Replayed")).ShouldBe(1);
 
         await using var session = theHost.Services.GetRequiredService<IDocumentStore>().QuerySession();
         (await session.Query<DeduplicatedOrderDocument>().CountAsync(x => x.Name == request.Name,
@@ -304,6 +307,7 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
         (await responses[1].ReadAsTextAsync()).ShouldBe(await responses[0].ReadAsTextAsync());
         responses[1].Context.Response.Headers.Location.ToString()
             .ShouldBe(responses[0].Context.Response.Headers.Location.ToString());
+        responses.Count(x => x.Context.Response.Headers.ContainsKey("Idempotent-Replayed")).ShouldBe(1);
 
         await using var session = theHost.Services.GetRequiredService<IDocumentStore>().QuerySession();
         (await session.Query<DeduplicatedAccount>().CountAsync(x => x.Name == command.Name,
