@@ -744,8 +744,30 @@ public const string EnvelopeReceiveDwellMs = "wolverine.envelope.receive_dwell_m
 /// <c>WolverineOptions.Tracking.DeserializationSpanEnabled</c>.
 /// </summary>
 public const string Deserialize = "wolverine.deserialize";
+
+/// <summary>
+/// ActivityEvent marking that the first request with an idempotency key did its work, and its claim on the key
+/// is kept for repeats to be answered from
+/// </summary>
+public const string DeduplicationClaimed = "wolverine.deduplication.claimed";
+
+/// <summary>
+/// ActivityEvent marking that a repeat of a request was answered with the first request's stored response
+/// </summary>
+public const string DeduplicationReplayed = "wolverine.deduplication.replayed";
+
+/// <summary>
+/// ActivityEvent marking that an idempotency key was reused for a different request, which was refused
+/// </summary>
+public const string DeduplicationMismatched = "wolverine.deduplication.mismatched";
+
+/// <summary>
+/// ActivityEvent marking that a repeat was refused because the first request with its key is still running,
+/// or its claim has no stored response to answer with
+/// </summary>
+public const string DeduplicationInProgress = "wolverine.deduplication.in_progress";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L280' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L302' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Opt-in Handler Execution Diagnostics <Badge type="tip" text="5.38" />

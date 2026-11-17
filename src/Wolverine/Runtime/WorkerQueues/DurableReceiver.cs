@@ -93,6 +93,19 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     private volatile bool _disposed;
 
     public DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
+        : this(endpoint, runtime, pipeline, endpoint.HostsBatchExecution
+            ? Block<Envelope>.Unbounded
+            : Block<Envelope>.DefaultBoundedCapacity)
+    {
+    }
+
+    /// <summary>
+    /// GH-5586. A durable local queue passes <see cref="Block{T}.Unbounded"/>, so that nothing posting to it ever waits
+    /// for room. It keeps its own limit instead: once it is full, what is published to it waits in the inbox for
+    /// recovery. See <see cref="Transports.Local.DurableLocalQueue" />.
+    /// </summary>
+    internal DurableReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline,
+        int boundedCapacity)
     {
         _endpoint = endpoint;
         _runtime = runtime;
@@ -229,13 +242,9 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
         };
         
-        // GH-3867: an endpoint that executes assembled message batches is its own cascade target,
-        // and a bounded block closes a deadlock cycle through the batching channel. See
-        // Endpoint.HostsBatchExecution.
-        var boundedCapacity = endpoint.HostsBatchExecution
-            ? Block<Envelope>.Unbounded
-            : Block<Envelope>.DefaultBoundedCapacity;
-
+        // GH-3867: an endpoint that executes assembled message batches is its own cascade target, and a bounded
+        // block closes a deadlock cycle through the batching channel, so it gets an unbounded one from the public
+        // constructor above. See Endpoint.HostsBatchExecution.
         if (endpoint.GroupShardingSlotNumber == null)
         {
             _receiver = new Block<Envelope>(endpoint.MaxDegreeOfParallelism, boundedCapacity, execute);

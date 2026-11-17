@@ -93,8 +93,17 @@ public partial class CosmosDbDurabilityAgent
     {
         try
         {
-            var candidates = await _parent.LoadPageOfGloballyOwnedIncomingAsync(listener,
-                _settings.RecoveryBatchSize);
+            // Match relational recovery: allow an exact fit, retaining one slot of headroom
+            // only when the proposed batch exceeds the limit. This snapshot is not a reservation.
+            var queueCount = circuit.QueueCount;
+            var pageSize = _settings.RecoveryBatchSize;
+            if (pageSize + queueCount > circuit.Endpoint.BufferingLimits.Maximum)
+            {
+                pageSize = circuit.Endpoint.BufferingLimits.Maximum - queueCount - 1;
+            }
+            if (pageSize <= 0) return;
+
+            var candidates = await _parent.LoadPageOfGloballyOwnedIncomingAsync(listener, pageSize);
             var envelopes = await _parent.TryClaimIncomingAsync(_settings.AssignedNodeNumber, candidates);
             if (envelopes.Count == 0) return;
 
