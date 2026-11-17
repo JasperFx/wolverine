@@ -269,6 +269,10 @@ partial class Build
         new("src/Transports/Redis/Wolverine.Redis.Tests/Wolverine.Redis.Tests.csproj", "CIRedis") { Postgres = ServerUse.OwnDatabase },
         new("src/Testing/OpenTelemetry/TracingTests/TracingTests.csproj", "CIOtel") { Services = ["rabbitmq"] },
         new("src/Wolverine.Grpc.Tests/Wolverine.Grpc.Tests.csproj", "CIGrpc"),
+        // Starts the AspireWith* sample AppHosts through Aspire.Hosting.Testing: Pulsar, LocalStack and the gcloud
+        // Pub/Sub emulator each run in a container of Aspire's own, on random host ports, so no compose service
+        // and no track. They are heavy, so the suite runs its classes one at a time (NoParallelization.cs).
+        new("src/Testing/Wolverine.Aspire.Hosting.Tests/Wolverine.Aspire.Hosting.Tests.csproj", "CIAspireHosting"),
 
         // ─── http.yml ───
         new("src/Http/Wolverine.Http.Tests/Wolverine.Http.Tests.csproj", "CIHttp") { Postgres = ServerUse.OwnDatabase },

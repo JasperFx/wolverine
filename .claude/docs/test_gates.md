@@ -153,6 +153,7 @@ own projects.
 | `CIHttpAspVersioning` | Wolverine.Http.AspVersioning.Tests | none | net10.0 |
 | `CIHttpCompat` | Wolverine.Http.Compat.Tests | none | runs net10.0 and net11.0 itself (GH-5147) |
 | `CIGrpc` | Wolverine.Grpc.Tests | none | |
+| `CIAspireHosting` | Wolverine.Aspire.Hosting.Tests | none from compose | starts the AspireWith* sample AppHosts through Aspire.Hosting.Testing, which run their own Pulsar / LocalStack / Pub/Sub emulator containers on random ports; net10.0 |
 | `CIOtel` | TracingTests | rabbitmq | |
 | `CIBobcat` | Wolverine.Bobcat.Tests, Wolverine.Bobcat.Http.Tests, IncidentService.Tests, ProcessManagerViaHandlers.Tests | postgresql, sqlserver | Bobcat.Xunit spec projects |
 | `CIExtensions` | Wolverine.AI, DataAnnotationsValidation, FluentValidation, MemoryPack, MessagePack and Protobuf tests | none | |
@@ -230,7 +231,8 @@ For Stoat's resource declarations (JasperFx/stoat#101):
   so two runs that use lanes collide on those names.
 - **Suites with no service** (`CoreTests`, `CISqlite`, `CIFisher`, `CIRavenDb`, `CIGrpc`,
   `CIHttpAspVersioning`, `CIHttpCompat`, `CIExtensions`) only compete for CPU and memory. `CICosmosDb` starts its own
-  emulator on dynamic ports, so it does not collide either, but the emulator is heavy.
+  emulator on dynamic ports, so it does not collide either, but the emulator is heavy. `CIAspireHosting` is the
+  same: Aspire starts each broker and emulator itself, on random host ports.
 - **One target per worktree at a time.** The build writes `bin/` and `obj/` in place, and `CoreTests`
   compiles the whole solution, so two gates in one worktree race on the same outputs.
 - **CPU.** The supervisor clamps a target's workers to half the machine's cores, so a box running

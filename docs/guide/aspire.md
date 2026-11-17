@@ -62,7 +62,7 @@ The `...UsingNamedConnection()` methods aren't Aspire specific at all. Anything 
 | [Amazon SNS](/guide/messaging/transports/sns) | `UseAmazonSnsTransportUsingNamedConnection(name)` | `AddLocalStack(name)` or `AddFlociAws(name)` (emulators only) |
 | [NATS](/guide/messaging/transports/nats) | `UseNatsUsingNamedConnection(name)` | `AddNats(name)` |
 | [Redis](/guide/messaging/transports/redis) | `UseRedisTransportUsingNamedConnection(name)` | `AddRedis(name)` |
-| [Pulsar](/guide/messaging/transports/pulsar) | `UsePulsarUsingNamedConnection(name)` | none yet |
+| [Pulsar](/guide/messaging/transports/pulsar) | `UsePulsarUsingNamedConnection(name)` | `AddPulsar(name)` (WolverineFx.Aspire.Hosting.Pulsar) |
 | [MQTT](/guide/messaging/transports/mqtt) | `UseMqttUsingNamedConnection(name)` | `AddMosquitto(name)` (CommunityToolkit) |
 | [GCP Pub/Sub](/guide/messaging/transports/gcp-pubsub/) | `UsePubsubUsingNamedConnection(projectId, name)` | `AddFlociGcp(name)` (emulator only) |
 

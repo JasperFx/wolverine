@@ -200,6 +200,10 @@
     <Project Path="src/Samples/AspireWithKafka/Consumer/Consumer.csproj" />
     <Project Path="src/Samples/AspireWithKafka/Publisher/Publisher.csproj" />
   </Folder>
+  <Folder Name="/Samples/AspireWithPulsar/">
+    <Project Path="src/Samples/AspireWithPulsar/AppHost/AspireWithPulsar.AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithPulsar/Pinger/AspireWithPulsar.Pinger.csproj" />
+  </Folder>
   <Folder Name="/Samples/AspireWithRabbitMq/">
     <Project Path="src/Samples/AspireWithRabbitMq/AppHost/AppHost.csproj" />
     <Project Path="src/Samples/AspireWithRabbitMq/Pinger/Pinger.csproj" />
@@ -341,6 +345,7 @@
     <Project Path="src/Testing/OrderExtension/OrderExtension.csproj" />
     <Project Path="src/Testing/PolicyTests/PolicyTests.csproj" />
     <Project Path="src/Testing/SlowTests/SlowTests.csproj" />
+    <Project Path="src/Testing/Wolverine.Aspire.Hosting.Tests/Wolverine.Aspire.Hosting.Tests.csproj" />
     <Project Path="src/Testing/Wolverine.Behavioural.FSharpTests/Wolverine.Behavioural.FSharpTests.csproj" />
     <Project Path="src/Testing/Wolverine.ComplianceTests/Wolverine.ComplianceTests.csproj" />
     <Project Path="src/Testing/Wolverine.Core.FSharpTests/Wolverine.Core.FSharpTests.csproj" />
@@ -383,6 +388,7 @@
     <Project Path="src/Transports/NATS/Wolverine.Nats/Wolverine.Nats.csproj" />
   </Folder>
   <Folder Name="/Transports/Pulsar/">
+    <Project Path="src/Transports/Pulsar/Wolverine.Aspire.Hosting.Pulsar/Wolverine.Aspire.Hosting.Pulsar.csproj" />
     <Project Path="src/Transports/Pulsar/Wolverine.Pulsar.Tests/Wolverine.Pulsar.Tests.csproj" />
     <Project Path="src/Transports/Pulsar/Wolverine.Pulsar/Wolverine.Pulsar.csproj" />
   </Folder>

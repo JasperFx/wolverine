@@ -355,6 +355,7 @@ partial class Build : NukeBuild
                 Solution.Transports.MQTT.Wolverine_MQTT,
                 Solution.Transports.Kafka.Wolverine_Kafka,
                 Solution.Transports.Pulsar.Wolverine_Pulsar,
+                Solution.Transports.Pulsar.Wolverine_Aspire_Hosting_Pulsar,
                 Solution.Transports.GCP.Wolverine_Pubsub,
                 Solution.Transports.GCP.Wolverine_Pubsub_Http,
                 Solution.Persistence.Wolverine_RDBMS,
