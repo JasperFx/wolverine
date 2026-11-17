@@ -137,6 +137,28 @@ In the end, you really need just 2-3 things:
 2. Potentially a publishing rule for partitioned sending
 3. Potentially a rule on each listening endpoint to use partitioned handling
 
+## When a Message in a Group Fails
+
+The ordering guarantee is about messages that succeed. Here's what happens today when one message in a group
+fails:
+
+* **Inline retries hold the group.** `RetryTimes()` or `RetryWithCooldown()` retry the message in place, and the
+  next message for the same group id waits until the failing one either succeeds or gives up.
+* **Dead lettering releases the group.** Once the failing message is moved to the dead letter queue (or
+  discarded), the next message for the same group id runs. Wolverine does *not* park the rest of the group behind
+  the dead letter, so a later message can be handled even though an earlier one in its group never was.
+* **Scheduled retries let later messages run first.** `ScheduleRetry()` takes the message out of line, so the next
+  messages in its group are handled before its next attempt.
+
+Messages in other groups are never held up by any of this.
+
+If a handler can't tolerate a gap in a group's history, check for it in the handler or saga -- a version or
+sequence number on the message is the usual way -- and make sure someone looks at the dead letter queue. Replaying
+a dead lettered message later puts it *after* whatever its group did in the meantime.
+
+The same is true for [event subscriptions processed in strict order](/guide/durability/marten/subscriptions#process-events-as-messages-in-strict-order):
+an event that is dead lettered there doesn't stop the later events from the same stream.
+
 ## Inferred Grouping for Event Streams or Sagas
 
 There are some built in message group id rules that you can opt into as shown below:
