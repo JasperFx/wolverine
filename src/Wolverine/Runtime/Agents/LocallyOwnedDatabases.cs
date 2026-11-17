@@ -12,6 +12,8 @@ namespace Wolverine.Runtime.Agents;
 /// <remarks>
 /// Build one with <see cref="LocallyOwnedDatabasesExtensions.LocallyOwnedDatabases" />. Under
 /// <see cref="DurabilityMode.Solo" /> this node owns every database, which <see cref="IsEvery" /> reports.
+/// Under <see cref="DurabilityMode.Serverless" />, <see cref="DurabilityMode.ServerlessWithOutbox" /> and
+/// <see cref="DurabilityMode.MediatorOnly" /> no agents run at all, so <see cref="IsNone" /> is the answer for good there.
 /// A snapshot goes stale as Wolverine rebalances agents, so ask the runtime again instead of caching it.
 /// Agents of every registered store are mixed together: two stores that share a database both count as owning it.
 /// </remarks>
@@ -32,7 +34,10 @@ public sealed class LocallyOwnedDatabases
     public bool IsEvery => _ids is null;
 
     /// <summary>
-    /// Managed distribution is on, but no agent has been assigned to this node (yet).
+    /// No agent runs on this node. In <see cref="DurabilityMode.Balanced" /> that can be "not yet", because the
+    /// leader has not assigned any agents here so far. Under <see cref="DurabilityMode.Serverless" />,
+    /// <see cref="DurabilityMode.ServerlessWithOutbox" /> and <see cref="DurabilityMode.MediatorOnly" /> no agents
+    /// ever run, so it is always true and waiting for it to change never ends.
     /// </summary>
     public bool IsNone => _ids is { Count: 0 };
 
