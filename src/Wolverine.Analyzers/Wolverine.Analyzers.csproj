@@ -1,0 +1,40 @@
+<!-- TreatAsLocalProperty: CI builds the whole solution with -f net10.0 (Compile in build/Build.cs), which would
+     otherwise force this netstandard2.0 analyzer to build as net10.0 and fail with NETSDK1005 -->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="TargetFramework">
+
+    <PropertyGroup>
+        <Description>Roslyn analyzers for Wolverine handler, saga and testing conventions. Referenced by WolverineFx, so they are on by default</Description>
+        <PackageId>WolverineFx.Analyzers</PackageId>
+        <!-- Analyzers load into the compiler and the IDE, so this is netstandard2.0 whatever the rest of the repo targets -->
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFrameworks>netstandard2.0</TargetFrameworks>
+        <ImplicitUsings>false</ImplicitUsings>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <IsRoslynComponent>true</IsRoslynComponent>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <DevelopmentDependency>true</DevelopmentDependency>
+        <!-- NU5128: there is deliberately no lib/ folder, only analyzers/dotnet/cs -->
+        <NoWarn>$(NoWarn);NU5128</NoWarn>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Built against an old Roslyn on purpose: the analyzer has to load in every compiler a WolverineFx
+             consumer builds with (the .NET 10 SDK and Visual Studio 17.8 on), and a newer reference than
+             the host compiler makes it fail to load with CS8032 -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="4.8.0" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+        <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+
+</Project>

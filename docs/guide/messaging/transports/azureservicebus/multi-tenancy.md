@@ -302,7 +302,7 @@ using var host = await Host.CreateDefaultBuilder()
 // At publish time, the tenant id is supplied via DeliveryOptions.
 // The route source resolves the correct per-tenant topic before the
 // message ever reaches the transport.
-var bus = host.Services.GetRequiredService<IMessageBus>();
+var bus = host.MessageBus();
 await bus.PublishAsync(
     new TenantBoundMessage("hello"),
     new DeliveryOptions { TenantId = "tenant-b" });

@@ -40,9 +40,25 @@ list.
 | Wolverine metric instrument names | dashed (`wolverine-messages-sent`) | dotted (`wolverine.messages.sent`) *(BREAKING for dashboards and alerts)* | Rename the series in dashboards, alerts and recording rules; see [the full table](#opentelemetry-meter-and-metric-names-breaking) |
 | `WolverineOptions.ServiceName` default | the entry assembly name | `OTEL_SERVICE_NAME` when set, then the entry assembly name | None, unless a service relied on the assembly name while `OTEL_SERVICE_NAME` was set to something else: set `opts.ServiceName` explicitly |
 | `Saga.LastModified` | not there | new `DateTimeOffset` property on the base `Saga`, set to UTC now by every saga store on insert and update *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga LastModified](#saga-lastmodified-is-set-by-every-saga-store) |
+| Roslyn analyzers | none | **`WolverineFx.Analyzers`**, a dependency of `WolverineFx`: rules `WOLV0001`-`WOLV0004`, all warnings, on by default | Fix what they report, or lower a rule's severity in `.editorconfig` (`dotnet_diagnostic.WOLV0004.severity = none`). Builds that treat warnings as errors fail on them; see [Wolverine's analyzers](#wolverine-s-analyzers-are-on-by-default) |
 | Code generation in the `Production` profile (Wolverine hosts) | `TypeLoadMode.Dynamic`: compiled at runtime | `TypeLoadMode.Static` with `AssertAllPreGeneratedTypesExist`: pre-generated code is required *(BREAKING for applications that deploy without `codegen write`)* | Run `dotnet run -- codegen write` in the build, or call `RestoreV6Defaults()`. See [deploying 7.0 to production](#deploying-7-0-to-production) |
 | Transport timestamp headers (`sent-at`, `time-to-send`, `deliver-by`) | written as `yyyy-MM-dd HH:mm:ss:ffffff Z` | written in round-trip ISO 8601 (`"o"`, UTC); both formats are still read | 5.x nodes running beside 7.0 nodes need WolverineFx 5.41.1 or later; 6.x already reads both. See [transport timestamp headers](#transport-timestamp-headers-are-written-in-round-trip-iso-8601) |
 | Publishing to a full durable local queue | once the queue held 10,000 messages, a publish to it, and the flush after a committed transaction, waited for room in the queue | the message waits in the inbox and the durability agent moves it into the queue as the queue drains; the publisher does not wait | None. See [a full durable local queue no longer holds the publisher](#a-full-durable-local-queue-no-longer-holds-the-publisher) |
+
+### Wolverine's analyzers are on by default
+
+`WolverineFx` now depends on `WolverineFx.Analyzers`, a set of Roslyn analyzers for Wolverine's handler, saga and
+testing conventions. They report warnings, so a project that treats warnings as errors fails to build on whatever
+they find. Every rule is meant to report real mistakes only, but you can lower or turn off any of them in
+`.editorconfig`:
+
+```ini
+[*.cs]
+dotnet_diagnostic.WOLV0001.severity = suggestion
+dotnet_diagnostic.WOLV0004.severity = none
+```
+
+See [Analyzers](/guide/analyzers/) for the rules.
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 

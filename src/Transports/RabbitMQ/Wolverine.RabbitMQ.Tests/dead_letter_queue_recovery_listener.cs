@@ -109,7 +109,7 @@ public class dead_letter_queue_recovery_listener : IAsyncLifetime
     public async Task recovers_multiple_messages()
     {
         // Send messages that will all fail — use the bus directly
-        var bus = _host.Services.GetRequiredService<IMessageBus>();
+        var bus = _host.MessageBus();
         for (int i = 0; i < 3; i++)
         {
             await bus.PublishAsync(new RecoveryTestMessage($"multi-{i}"));

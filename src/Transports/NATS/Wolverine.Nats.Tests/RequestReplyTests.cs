@@ -98,7 +98,7 @@ public class RequestReplyTests : IAsyncLifetime
             return;
         }
 
-        var bus = _host.Services.GetRequiredService<IMessageBus>();
+        var bus = _host.MessageBus();
 
         await Assert.ThrowsAsync<UnknownEndpointException>(async () =>
         {

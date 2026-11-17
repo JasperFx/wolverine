@@ -14,4 +14,5 @@
   <Project Path="src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/MultiTenantedTodoWebService.csproj" />
   <Project Path="src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/MultiTenantedTodoWebService.Tests.csproj" />
   <Project Path="src/Wolverine/Wolverine.csproj" />
+  <Project Path="src/Wolverine.Analyzers/Wolverine.Analyzers.csproj" />
 </Solution>

@@ -129,8 +129,7 @@ public class send_by_topics : IAsyncLifetime
     internal async Task send_by_topic_sample()
     {
         #region sample_send_to_topic
-        var publisher = theSender.Services
-            .GetRequiredService<IMessageBus>();
+        var publisher = theSender.MessageBus();
 
         await publisher.BroadcastToTopicAsync("color.purple", new Message1());
 
@@ -367,8 +366,7 @@ public class send_by_topics_durable : IAsyncLifetime
     internal async Task send_by_topic_sample()
     {
         #region sample_send_to_topic
-        var publisher = theSender.Services
-            .GetRequiredService<IMessageBus>();
+        var publisher = theSender.MessageBus();
 
         await publisher.BroadcastToTopicAsync("color.purple", new Message1());
 
