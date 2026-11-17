@@ -11,6 +11,12 @@ public static class SagaTableIndexes
     public const string LastModifiedColumn = "last_modified";
 
     /// <summary>
+    /// GH-5572. When a retained saga completed. Null for every saga that has not completed, and for every saga of a
+    /// type that is not retained, since those are deleted on completion
+    /// </summary>
+    public const string CompletedAtColumn = "completed_at";
+
+    /// <summary>
     /// The name of the index on <see cref="LastModifiedColumn"/> for a saga table, kept within the database's
     /// identifier limit. A name that would be too long keeps a readable prefix and ends with a short hash of the
     /// table name, so it stays unique and the same on every start (a changing name would rebuild the index)

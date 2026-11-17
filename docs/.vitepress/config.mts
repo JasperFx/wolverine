@@ -137,6 +137,16 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Heartbeats', link: '/guide/runtime/heartbeats'},
                         {text: 'Instrumentation and Metrics', link: '/guide/logging'},
                         {text: 'Diagnostics', link: '/guide/diagnostics'},
+                        {
+                            text: 'Analyzers', link: '/guide/analyzers/',
+                            collapsed: true,
+                            items: [
+                                {text: 'WOLV0001: Handler is not public', link: '/guide/analyzers/wolv0001'},
+                                {text: 'WOLV0002: Saga identity member not found', link: '/guide/analyzers/wolv0002'},
+                                {text: 'WOLV0003: Task in a cascading tuple', link: '/guide/analyzers/wolv0003'},
+                                {text: 'WOLV0004: IMessageBus from IHost.Services', link: '/guide/analyzers/wolv0004'},
+                            ]
+                        },
                         {text: 'Health Checks', link: '/guide/health-checks'},
                         {text: 'Serverless Hosting', link: '/guide/serverless'},          
                         {text: 'Test Automation Support', link: '/guide/testing'},

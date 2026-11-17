@@ -75,6 +75,21 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!--
+          GH-5403. WolverineFx.Analyzers ships as its own package, and WolverineFx depends on it so the
+          analyzers are on by default for every WolverineFx consumer. PrivateAssets="none" is what makes the
+          analyzer flow on to the consumer, the same as JasperFx.SourceGenerator above. OutputItemType="Analyzer"
+          also runs it over Wolverine itself. The reference has to reach the restore graph for pack to write the
+          dependency, which ReferenceOutputAssembly="false" would prevent, so ExcludeAssets="compile;runtime" is
+          what keeps the analyzer assembly out of the compile references and bin folders of every project that
+          references Wolverine here. The package has no lib/ folder, so excluding those costs consumers nothing.
+          Every other project in this repository gets the analyzer from Directory.Build.targets.
+        -->
+        <ProjectReference Include="..\Wolverine.Analyzers\Wolverine.Analyzers.csproj"
+                          OutputItemType="Analyzer" PrivateAssets="none" ExcludeAssets="compile;runtime" Private="false" />
+    </ItemGroup>
+
+    <ItemGroup>
       <None Include="Runtime\Metrics\METRICS.md" />
     </ItemGroup>
 

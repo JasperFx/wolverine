@@ -113,7 +113,7 @@ public class resequencer_saga_end_to_end : PostgresqlContext, IAsyncLifetime
         // Send message 1 which fills the gap - ShouldProceed will republish 2
         await _host.ExecuteAndWaitAsync(async () =>
         {
-            await _host.Services.GetRequiredService<IMessageBus>()
+            await _host.MessageBus()
                 .PublishAsync(new MartenSequencedCommand(sagaId, 1));
         }, timeoutInMilliseconds: 30000);
 

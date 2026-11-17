@@ -54,8 +54,7 @@ public class PublishingSamples
                     .Named("Two");
             }).StartAsync();
 
-        var bus = host.Services
-            .GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         // Explicitly send a message to a named endpoint
         await bus.EndpointFor("One").SendAsync(new SomeMessage());

@@ -80,11 +80,17 @@ internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, ISa
         return SagaQueryCapabilities.None;
     }
 
-    public async Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options, CancellationToken ct)
+    public Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options, CancellationToken ct)
+    {
+        return QuerySagasAsync(sagaTypeName, options, false, ct);
+    }
+
+    public async Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options,
+        bool includeCompleted, CancellationToken ct)
     {
         var routes = await ensureRoutesAsync(ct).ConfigureAwait(false);
         if (routes.TryGetValue(sagaTypeName, out var child))
-            return await child.QuerySagasAsync(sagaTypeName, options, ct).ConfigureAwait(false);
+            return await child.QuerySagasAsync(sagaTypeName, options, includeCompleted, ct).ConfigureAwait(false);
 
         var (pageNumber, pageSize) = SagaQueryCriteria.Page(options);
         return SagaQueryResult.Empty(pageNumber, pageSize);

@@ -25,6 +25,9 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
     // integrations were registered in
     public bool IsCatchAll => true;
 
+    // GH-5572: completed sagas can be retained
+    public SagaRetentionSupport SagaRetentionSupportFor(Type sagaType, IServiceContainer container) => SagaRetentionSupport.Supported;
+
     // GH-5514: lets the store-agnostic [DocumentExists<T>] in Wolverine.Persistence.Requirements reach this store
     Wolverine.Persistence.DocumentStores.Codegen.DocumentSessionTypes Wolverine.Persistence.DocumentStores.IDocumentStoreFrameProvider.SessionTypes
         => PolecatIntegration.SessionTypes;

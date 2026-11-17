@@ -349,6 +349,7 @@ partial class Build : NukeBuild
         new[]
             {
                 Solution.Wolverine,
+                Solution.Wolverine_Analyzers,
                 Solution.Wolverine_RuntimeCompilation,
                 Solution.Wolverine_HealthChecks,
                 Solution.Wolverine_ServiceDefaults,

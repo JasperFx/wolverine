@@ -20,8 +20,7 @@ using var host = await Host.CreateDefaultBuilder()
             .Named("Two");
     }).StartAsync();
 
-var bus = host.Services
-    .GetRequiredService<IMessageBus>();
+var bus = host.MessageBus();
 
 // Explicitly send a message to a named endpoint
 await bus.EndpointFor("One").SendAsync(new SomeMessage());
@@ -33,7 +32,7 @@ await bus.EndpointFor("One").InvokeAsync(new SomeMessage());
 var answer = bus.EndpointFor("One")
     .InvokeAsync<Answer>(new Question());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L46-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_endpoint_by_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L46-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_to_endpoint_by_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There's another option to reference a messaging endpoint by `Uri` as shown below:
@@ -45,5 +44,5 @@ There's another option to reference a messaging endpoint by `Uri` as shown below
 await bus.EndpointFor(new Uri("rabbitmq://queue/rabbit-one"))
     .InvokeAsync(new SomeMessage());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L73-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accessing_endpoint_by_uri' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L72-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accessing_endpoint_by_uri' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

@@ -111,7 +111,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
     public void SendMessagesContinuously(string name, int batchSize, TimeSpan duration)
     {
         var endingDate = DateTimeOffset.UtcNow.Add(duration);
-        var bus = _senders[name].Services.GetRequiredService<IMessageBus>();
+        var bus = _senders[name].MessageBus();
         var random = new Random().Next(0, 10);
         if (random > 8)
         {
@@ -142,7 +142,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
     public async Task SendMessages(string name, int number)
     {
         var original = number;
-        var bus = _senders[name].Services.GetRequiredService<IMessageBus>();
+        var bus = _senders[name].MessageBus();
         var random = new Random().Next(0, 10);
         if (random > 8)
         {
