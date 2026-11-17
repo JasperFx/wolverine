@@ -23,6 +23,9 @@ public static class CardPayments
 // What a Fault<ReserveInventory> that belongs to no Order turns into (GH-4484's IdNotProvided)
 public record UnmatchedInventoryFailure(string Sku);
 
+// What a CardCharged that belongs to no Order turns into (IdNotProvided for any message type)
+public record UnmatchedPayment(decimal Amount);
+
 // A stock check orders makes outside any saga, asking for its fault explicitly (GH-5553's FaultTo / ReturnFaultToSender)
 public static class StockChecks
 {
@@ -71,6 +74,7 @@ public class RefundAlreadyIssuedException(Guid orderId) : Exception($"Order {ord
 public static class Storefront
 {
     public static void Handle(UnmatchedInventoryFailure failure) { }
+    public static void Handle(UnmatchedPayment payment) { }
     public static void Handle(RefundPayment refund) { }
     public static void Handle(CancelOrder cancel) { }
     public static void Handle(NotifyCustomer notify) { }

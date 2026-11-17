@@ -3,8 +3,8 @@ using Microsoft.Extensions.Hosting;
 
 namespace Wolverine.Bobcat;
 
-// GH-5553 / GH-5554 / GH-5556: the PROPOSED vocabulary of WolverineScenario.Faults.cs, as members of the spec base class.
-// See SPEC-REVIEW-5553.md.
+// GH-5553 / GH-5554 / GH-5556: the vocabulary of WolverineScenario.Faults.cs and WolverineScenario.Sagas.cs, as members of
+// the spec base class.
 public abstract partial class WolverineSpec
 {
     // ---- several services -------------------------------------------------------------------------
@@ -21,17 +21,20 @@ public abstract partial class WolverineSpec
 
     // ---- dead letters and handling by service -----------------------------------------------------
 
-    /// <inheritdoc cref="WolverineScenario.ThenDeadLettered{T}" />
-    public void ThenDeadLettered<T>(string? by = null, string? tagged = null) => Scenario.ThenDeadLettered<T>(by, tagged);
+    /// <inheritdoc cref="WolverineScenario.ThenDeadLettered{T}(string?)" />
+    public void ThenDeadLettered<T>(string? by = null) => Scenario.ThenDeadLettered<T>(by);
+
+    /// <inheritdoc cref="WolverineScenario.ThenDeadLettered{T}(string?, string)" />
+    public Task ThenDeadLettered<T>(string? by, string tagged) => Scenario.ThenDeadLettered<T>(by, tagged);
 
     /// <inheritdoc cref="WolverineScenario.ThenNotDeadLettered{T}" />
     public void ThenNotDeadLettered<T>(string? by = null) => Scenario.ThenNotDeadLettered<T>(by);
 
-    /// <inheritdoc cref="WolverineScenario.ThenHandledBy{T}" />
-    public void ThenHandledBy<T>(string service) => Scenario.ThenHandledBy<T>(service);
+    /// <inheritdoc cref="WolverineScenario.ThenHandled{T}(string)" />
+    public void ThenHandled<T>(string by) => Scenario.ThenHandled<T>(by);
 
-    /// <inheritdoc cref="WolverineScenario.ThenNotHandledBy{T}" />
-    public void ThenNotHandledBy<T>(string service) => Scenario.ThenNotHandledBy<T>(service);
+    /// <inheritdoc cref="WolverineScenario.ThenNotHandled{T}(string)" />
+    public void ThenNotHandled<T>(string by) => Scenario.ThenNotHandled<T>(by);
 
     /// <inheritdoc cref="WolverineScenario.ThenAttempted{T}" />
     public void ThenAttempted<T>(int count, string? by = null) => Scenario.ThenAttempted<T>(count, by);
@@ -45,25 +48,18 @@ public abstract partial class WolverineSpec
     public void ThenTheSagaHandled<TSaga, TMessage>(object sagaId) where TSaga : Saga
         => Scenario.ThenTheSagaHandled<TSaga, TMessage>(sagaId);
 
-    /// <summary>
-    /// PROPOSED (GH-5556). Arrange a saga in the state the act starts from. Today the saga's document store's
-    /// <see cref="CritterStackSpec.GivenReadModel{T}(object)" />, and its wording; storage-agnostic (lightweight tables,
-    /// EF Core) and its own wording once the proposal is settled.
-    /// </summary>
-    public Task GivenSaga<TSaga>(object saga) where TSaga : Saga => Scenario.GivenReadModel<TSaga>(saga);
+    /// <inheritdoc cref="WolverineScenario.GivenSaga{TSaga}(object)" />
+    public Task GivenSaga<TSaga>(object saga) where TSaga : Saga => Scenario.GivenSaga<TSaga>(saga);
 
-    /// <summary>
-    /// PROPOSED (GH-5556). The saga with this identity, judged against <paramref name="expected" />. Today the saga's
-    /// document store's <see cref="CritterStackSpec.ThenDocument{T}(object, object)" />, and its wording.
-    /// </summary>
+    /// <inheritdoc cref="WolverineScenario.ThenSaga{TSaga}(object, object)" />
     public Task<TSaga> ThenSaga<TSaga>(object sagaId, object expected) where TSaga : Saga
-        => Scenario.ThenDocument<TSaga>(sagaId, expected);
+        => Scenario.ThenSaga<TSaga>(sagaId, expected);
 
-    /// <summary>
-    /// PROPOSED (GH-5556). No saga with this identity exists: it was completed, or never started. Today the saga's
-    /// document store's <see cref="CritterStackSpec.ThenNoReadModel{T}(object)" />, and its wording.
-    /// </summary>
-    public Task ThenNoSaga<TSaga>(object sagaId) where TSaga : Saga => Scenario.ThenNoReadModel<TSaga>(sagaId);
+    /// <inheritdoc cref="WolverineScenario.ThenSaga{TSaga}(object)" />
+    public Task<TSaga> ThenSaga<TSaga>(object sagaId) where TSaga : Saga => Scenario.ThenSaga<TSaga>(sagaId);
+
+    /// <inheritdoc cref="WolverineScenario.ThenNoSaga{TSaga}(object)" />
+    public Task ThenNoSaga<TSaga>(object sagaId) where TSaga : Saga => Scenario.ThenNoSaga<TSaga>(sagaId);
 
     // ---- seams (stubs) ----------------------------------------------------------------------------
 

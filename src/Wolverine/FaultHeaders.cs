@@ -27,8 +27,9 @@ public static class FaultHeaders
     /// <summary>
     /// GH-5553. Where the receiving service sends the <see cref="Fault{T}"/> of a message that failed, before
     /// falling back to routing. Set by <see cref="DeliveryOptions.FaultTo"/> and
-    /// <see cref="DeliveryOptions.ReturnFaultToSender"/>, and stamped automatically on every message a saga
-    /// that declares <c>Handle(Fault&lt;T&gt;)</c> sends. A receiver that predates the header ignores it.
+    /// <see cref="DeliveryOptions.ReturnFaultToSender"/>, and stamped automatically on every <c>T</c> a saga
+    /// that declares <c>Handle(Fault&lt;T&gt;)</c> or a <c>Compensate</c> for <c>T</c> sends. A receiver that
+    /// predates the header ignores it.
     /// </summary>
     public const string ReplyTo = "wolverine.fault.reply-to";
 }

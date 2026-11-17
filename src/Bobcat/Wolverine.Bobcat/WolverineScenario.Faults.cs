@@ -8,29 +8,23 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Bobcat;
 
-// GH-5553 / GH-5554 / GH-5556: PROPOSED vocabulary for specifying faults, dead letters and sagas across services.
-// Written with the specifications in src/Samples/SagaFaults so the rendered wording can be reviewed before any of it is
-// final (SPEC-REVIEW-5553.md). The steps that read the tracked session work; the ones that need a seam in Wolverine
-// (a crash after the dead-letter move, a write that lands while a saga is compensated) are stubs that render and fail,
-// saying so, and let the rest of the specification render.
+// GH-5553 / GH-5554 / GH-5556: vocabulary for specifying faults, dead letters and sagas across services.
+// Written with the specifications in src/Samples/SagaFaults, wording settled by Jeremy on 2026-11-17. The steps that
+// read the tracked session work; the ones that need a seam in Wolverine (a crash after the dead-letter move, a write
+// that lands while a saga is compensated) are stubs until GH-5554 and GH-5556 are built: they render and fail, saying
+// so, and let the rest of the specification render.
 public partial class WolverineScenario
 {
-    /// <summary>
-    /// The header a compensated dead letter is tagged with. PROPOSED (GH-5556): the name, and whether a tag is a
-    /// header or a dead-letter column, are open questions in SPEC-REVIEW-5553.md.
-    /// </summary>
-    public const string DeadLetterTagHeader = "wolverine.dead-letter.tag";
-
     private readonly Dictionary<string, IHost> _otherServices = new(StringComparer.OrdinalIgnoreCase);
     private bool _deadLettersFailTheAct = true;
 
     // ---- several services --------------------------------------------------------------------
 
     /// <summary>
-    /// PROPOSED (GH-5553). Every act also tracks <paramref name="service" />, a second Wolverine application -- usually
+    /// GH-5553. Every act also tracks <paramref name="service" />, a second Wolverine application -- usually
     /// another host in the same test process, connected over TCP or a broker -- and waits for what the act caused there
     /// too. Its messages are judged by the same Then steps, and named by its <c>ServiceName</c> in the steps that take
-    /// one (<see cref="ThenDeadLettered{T}" />, <see cref="ThenHandledBy{T}" />). Not a step: it says how the
+    /// one (<see cref="ThenDeadLettered{T}(string?)" />, <see cref="ThenHandled{T}(string)" />). Not a step: it says how the
     /// specification is run, as <see cref="Timeout" /> does.
     /// </summary>
     public void AlsoTrack(IHost service)
@@ -41,9 +35,9 @@ public partial class WolverineScenario
     }
 
     /// <summary>
-    /// PROPOSED (GH-5553). Whether a message that was dead-lettered while the act ran makes the act fail -- as any
+    /// GH-5553. Whether a message that was dead-lettered while the act ran makes the act fail -- as any
     /// exception the tracked session saw always has. True by default. A specification about failures turns it off:
-    /// a dead letter is then an outcome <see cref="ThenDeadLettered{T}" /> judges, and the act fails only on an
+    /// a dead letter is then an outcome <see cref="ThenDeadLettered{T}(string?)" /> judges, and the act fails only on an
     /// exception that did not end in a dead letter.
     /// </summary>
     public bool DeadLettersFailTheAct
@@ -71,40 +65,80 @@ public partial class WolverineScenario
     // ---- dead letters -------------------------------------------------------------------------
 
     /// <summary>
-    /// PROPOSED (GH-5553). A <typeparamref name="T" /> was dead-lettered (moved to the error queue) while the act ran --
-    /// by <paramref name="by" />, a service's <c>ServiceName</c>, when given, and carrying the dead-letter tag
-    /// <paramref name="tagged" /> when given. Judged whether or not the act failed: the failure is the story.
+    /// GH-5553. A <typeparamref name="T" /> was dead-lettered (moved to the error queue) while the act ran -- by
+    /// <paramref name="by" />, a service's <c>ServiceName</c>, when given. Judged whether or not the act failed: the
+    /// failure is the story.
     /// </summary>
-    public void ThenDeadLettered<T>(string? by = null, string? tagged = null)
+    public void ThenDeadLettered<T>(string? by = null)
     {
-        var text = $"{nameOf(typeof(T))} is dead-lettered" + (by is null ? "" : $" by {by}") +
-                   (tagged is null ? "" : $", tagged \"{tagged}\"");
-        using var step = ScenarioRecorder.Step("Then", text);
+        using var step = ScenarioRecorder.Step("Then", deadLetteredText<T>(by, null));
+        deadLettered<T>(by);
+    }
+
+    /// <summary>
+    /// GH-5556. A <typeparamref name="T" /> was dead-lettered while the act ran, by <paramref name="by" /> when given,
+    /// and its dead letter is tagged <paramref name="tagged" /> (<c>compensated</c>, <c>compensation-failed</c>,
+    /// <c>compensation-saga-missing</c>). The tag is read back from that service's dead-letter storage, where it is a
+    /// column of its own.
+    /// </summary>
+    public Task ThenDeadLettered<T>(string? by, string tagged)
+    {
+        ArgumentNullException.ThrowIfNull(tagged);
+        return inStep(ScenarioRecorder.Step("Then", deadLetteredText<T>(by, tagged)), async () =>
+        {
+            var records = deadLettered<T>(by);
+            if (records.Count == 0) return;
+
+            var tags = new List<string?>();
+            foreach (var record in records)
+            {
+                var runtime = runtimeOf(record.ServiceName);
+                var stored = runtime is null || record.Envelope is null
+                    ? null
+                    : await runtime.Storage.DeadLetters.DeadLetterEnvelopeByIdAsync(record.Envelope.Id, record.Envelope.TenantId);
+                tags.Add(stored?.Tag);
+            }
+
+            Verdicts.Check("tag", tags.FirstOrDefault(x => x == tagged) ?? tags.FirstOrDefault() ?? "(none)", tagged);
+            messageFact(tags.Contains(tagged),
+                $"Expected the dead-lettered {nameOf(typeof(T))} to be tagged \"{tagged}\", but it was tagged " +
+                $"{string.Join(", ", tags.Distinct().Select(x => x is null ? "nothing" : $"\"{x}\""))}.");
+        });
+    }
+
+    private static string deadLetteredText<T>(string? by, string? tagged)
+        => $"{nameOf(typeof(T))} is dead-lettered" + (by is null ? "" : $" by {by}") +
+           (tagged is null ? "" : $", tagged \"{tagged}\"");
+
+    // The step in progress judges that a T was dead-lettered, by the named service when given; the records when it was
+    private IReadOnlyList<EnvelopeRecord> deadLettered<T>(string? by)
+    {
         if (!acted)
         {
             Verdicts.Fail($"Expected a {nameOf(typeof(T))} to be dead-lettered, but no act has run.");
-            return;
+            return [];
         }
 
-        var deadLettered = recordsOf(MessageEventType.MovedToErrorQueue, typeof(T))
-            .Where(x => by is null || string.Equals(x.ServiceName, by, StringComparison.OrdinalIgnoreCase)).ToList();
-        Verdicts.Check("dead-lettered", deadLettered.Count > 0 ? "yes" : "no", "yes");
-        if (!messageFact(deadLettered.Count > 0,
-                $"Expected a {nameOf(typeof(T))} to be dead-lettered{(by is null ? "" : $" by {by}")}, but {whatHappenedTo(typeof(T), out _)}{actFailure()}"))
-        {
-            return;
-        }
-
-        if (tagged is null) return;
-
-        var tags = deadLettered.Select(x => x.Envelope?.Headers.TryGetValue(DeadLetterTagHeader, out var tag) == true ? tag : null).ToList();
-        Verdicts.Check("tag", tags.FirstOrDefault(x => x == tagged) ?? tags.FirstOrDefault() ?? "(none)", tagged);
-        messageFact(tags.Contains(tagged),
-            $"Expected the dead-lettered {nameOf(typeof(T))} to be tagged \"{tagged}\", but it was tagged " +
-            $"{string.Join(", ", tags.Select(x => x is null ? "nothing" : $"\"{x}\""))}.");
+        var records = recordsOf(MessageEventType.MovedToErrorQueue, typeof(T))
+            .Where(x => by is null || string.Equals(x.ServiceName, by, StringComparison.OrdinalIgnoreCase))
+            .DistinctBy(x => x.Envelope?.Id).ToList();
+        Verdicts.Check("dead-lettered", records.Count > 0 ? "yes" : "no", "yes");
+        messageFact(records.Count > 0,
+            $"Expected a {nameOf(typeof(T))} to be dead-lettered{(by is null ? "" : $" by {by}")}, but {whatHappenedTo(typeof(T), out _)}{actFailure()}");
+        return records;
     }
 
-    /// <summary>PROPOSED (GH-5553). No <typeparamref name="T" /> was dead-lettered while the act ran, by <paramref name="by" /> when given.</summary>
+    // The Wolverine runtime of a service this specification tracks, by its ServiceName
+    private IWolverineRuntime? runtimeOf(string? serviceName)
+    {
+        var own = Services.GetRequiredService<IWolverineRuntime>();
+        if (serviceName is null || string.Equals(own.Options.ServiceName, serviceName, StringComparison.OrdinalIgnoreCase)) return own;
+        return root._otherServices.TryGetValue(serviceName, out var host)
+            ? host.Services.GetRequiredService<IWolverineRuntime>()
+            : null;
+    }
+
+    /// <summary>GH-5553. No <typeparamref name="T" /> was dead-lettered while the act ran, by <paramref name="by" /> when given.</summary>
     public void ThenNotDeadLettered<T>(string? by = null)
     {
         using var step = ScenarioRecorder.Step("Then", $"no {nameOf(typeof(T))} is dead-lettered{(by is null ? "" : $" by {by}")}");
@@ -121,11 +155,12 @@ public partial class WolverineScenario
     // ---- handled by a service -------------------------------------------------------------------
 
     /// <summary>
-    /// PROPOSED (GH-5553). A <typeparamref name="T" /> was handled successfully by <paramref name="service" />, a
-    /// service's <c>ServiceName</c>. Judged whether or not the act failed.
+    /// GH-5553. A <typeparamref name="T" /> was handled successfully by <paramref name="by" />, a service's
+    /// <c>ServiceName</c>: "Fault&lt;CheckStock&gt; is handled by orders". Judged whether or not the act failed.
     /// </summary>
-    public void ThenHandledBy<T>(string service)
+    public void ThenHandled<T>(string by)
     {
+        var service = by;
         using var step = ScenarioRecorder.Step("Then", $"{nameOf(typeof(T))} is handled by {service}");
         if (!acted)
         {
@@ -145,9 +180,10 @@ public partial class WolverineScenario
                       " " + activitySummary(LastAct));
     }
 
-    /// <summary>PROPOSED (GH-5553). No <typeparamref name="T" /> was handled by <paramref name="service" />: no execution of it even started there.</summary>
-    public void ThenNotHandledBy<T>(string service)
+    /// <summary>GH-5553. No <typeparamref name="T" /> was handled by <paramref name="by" />, a service's <c>ServiceName</c>: no execution of it even started there.</summary>
+    public void ThenNotHandled<T>(string by)
     {
+        var service = by;
         using var step = ScenarioRecorder.Step("Then", $"no {nameOf(typeof(T))} is handled by {service}");
         if (!canJudgeAnAbsence($"Expected no {nameOf(typeof(T))} to be handled by {service}")) return;
 
@@ -157,7 +193,7 @@ public partial class WolverineScenario
     }
 
     /// <summary>
-    /// PROPOSED (GH-5556). A <typeparamref name="T" /> was attempted exactly <paramref name="count" /> times -- by
+    /// GH-5556. A <typeparamref name="T" /> was attempted exactly <paramref name="count" /> times -- by
     /// <paramref name="by" /> when given -- counting the first attempt and every retry. Judged whether or not the act failed.
     /// </summary>
     public void ThenAttempted<T>(int count, string? by = null)
@@ -187,7 +223,7 @@ public partial class WolverineScenario
     // ---- sagas ----------------------------------------------------------------------------------
 
     /// <summary>
-    /// PROPOSED (GH-5553). The <typeparamref name="TSaga" /> saga with this identity handled a <typeparamref name="TMessage" />
+    /// GH-5553. The <typeparamref name="TSaga" /> saga with this identity handled a <typeparamref name="TMessage" />
     /// successfully: an execution of it completed for an envelope carrying that saga id. Judged whether or not the act
     /// failed.
     /// </summary>
@@ -218,7 +254,7 @@ public partial class WolverineScenario
     }
 
     /// <summary>
-    /// PROPOSED (GH-4484, folded into GH-5553). Every <typeparamref name="T" /> sent while the act ran carried the group id
+    /// GH-4484, folded into GH-5553. Every <typeparamref name="T" /> sent while the act ran carried the group id
     /// <paramref name="groupId" />: what partitioned messaging, or <c>UseInferredMessageGrouping()</c>, assigned it.
     /// </summary>
     public void ThenGroupedBy<T>(object groupId)
@@ -244,7 +280,7 @@ public partial class WolverineScenario
     // ---- seams: stubs until Wolverine has them ----------------------------------------------------
 
     /// <summary>
-    /// PROPOSED (GH-5554), NOT BUILT. The service named <paramref name="service" /> dies right after its next dead-letter
+    /// GH-5554, NOT BUILT YET. The service named <paramref name="service" /> dies right after its next dead-letter
     /// move commits, before it can send anything else -- the crash window a durable fault closes.
     /// </summary>
     public void GivenTheServiceDiesAfterItsNextDeadLetter(string service)
@@ -252,7 +288,7 @@ public partial class WolverineScenario
             "GH-5554: it needs a seam in Wolverine's dead-letter move that stops the service once the move commits");
 
     /// <summary>
-    /// PROPOSED (GH-5554), NOT BUILT. The service named <paramref name="service" />, stopped by
+    /// GH-5554, NOT BUILT YET. The service named <paramref name="service" />, stopped by
     /// <see cref="GivenTheServiceDiesAfterItsNextDeadLetter" />, starts again and recovers its durable inbox and outbox.
     /// The new act.
     /// </summary>
@@ -264,7 +300,7 @@ public partial class WolverineScenario
     }
 
     /// <summary>
-    /// PROPOSED (GH-5554), NOT BUILT. The next dead-letter move in the service named <paramref name="service" /> fails
+    /// GH-5554, NOT BUILT YET. The next dead-letter move in the service named <paramref name="service" /> fails
     /// and rolls back, so whatever was written in its transaction is gone too.
     /// </summary>
     public void GivenTheNextDeadLetterMoveFails(string service)
@@ -272,7 +308,7 @@ public partial class WolverineScenario
             "GH-5554: it needs a seam in Wolverine's dead-letter move that fails its transaction");
 
     /// <summary>
-    /// PROPOSED (GH-5556), NOT BUILT. While the <typeparamref name="TSaga" /> saga with this identity is compensated,
+    /// GH-5556, NOT BUILT YET. While the <typeparamref name="TSaga" /> saga with this identity is compensated,
     /// another message saves it first -- once, or on every attempt -- so saving the compensated saga meets a
     /// concurrency conflict.
     /// </summary>
@@ -283,7 +319,7 @@ public partial class WolverineScenario
             "GH-5556: it needs a seam between loading the saga for compensation and saving it, as WhileActing has for events");
 
     /// <summary>
-    /// PROPOSED (GH-5556), NOT BUILT. While the <typeparamref name="TSaga" /> saga with this identity is about to be
+    /// GH-5556, NOT BUILT YET. While the <typeparamref name="TSaga" /> saga with this identity is about to be
     /// compensated, another message completes it, so compensation finds no saga.
     /// </summary>
     public void WhileCompensatingTheSagaIsCompleted<TSaga>(object sagaId) where TSaga : Saga
@@ -295,6 +331,6 @@ public partial class WolverineScenario
     private static void notBuilt(string keyword, string text, string because)
     {
         using var step = ScenarioRecorder.Step(keyword, text);
-        Verdicts.Fail($"Proposed Bobcat vocabulary, not built yet ({because}). See SPEC-REVIEW-5553.md.");
+        Verdicts.Fail($"Not built yet ({because}).");
     }
 }

@@ -36,11 +36,11 @@ public class a_failed_steps_fault_goes_back_to_the_saga(FaultHandlingServices se
         await WhenReceived(new PlaceOrder(OrderId, "widget", 1, 100m));
 
         ThenDeadLettered<ReserveInventory>(by: InventoryService.Name);
-        ThenHandledBy<Fault<ReserveInventory>>(TwoServices.OrdersName);
+        ThenHandled<Fault<ReserveInventory>>(by: TwoServices.OrdersName);
 
         // The inventory service routes its own Fault<ReserveInventory> to a local audit queue, but fault events are
         // off there, so that route is not used: the fault goes only where the saga asked for it
-        ThenNotHandledBy<Fault<ReserveInventory>>(InventoryService.Name);
+        ThenNotHandled<Fault<ReserveInventory>>(by: InventoryService.Name);
     }
 
     [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
@@ -71,7 +71,7 @@ public class a_sender_asks_for_the_fault(FaultHandlingServices services) : SagaF
             bus => bus.SendAsync(new CheckStock("widget"), new DeliveryOptions().FaultTo(TheServices.OrdersUri)).AsTask());
 
         ThenDeadLettered<CheckStock>(by: InventoryService.Name);
-        ThenHandledBy<Fault<CheckStock>>(TwoServices.OrdersName);
+        ThenHandled<Fault<CheckStock>>(by: TwoServices.OrdersName);
     }
 
     [BobcatSpec(typeof(CheckStock), Lifecycle = Lifecycle.Acceptance)]
@@ -83,7 +83,7 @@ public class a_sender_asks_for_the_fault(FaultHandlingServices services) : SagaF
             bus => bus.SendAsync(new CheckStock("widget"), new DeliveryOptions().ReturnFaultToSender()).AsTask());
 
         ThenDeadLettered<CheckStock>(by: InventoryService.Name);
-        ThenHandledBy<Fault<CheckStock>>(TwoServices.OrdersName);
+        ThenHandled<Fault<CheckStock>>(by: TwoServices.OrdersName);
     }
 
     // Today's behaviour, and it stays: a fault goes back only when the sender asks for it. With fault events off in
@@ -96,7 +96,7 @@ public class a_sender_asks_for_the_fault(FaultHandlingServices services) : SagaF
         await WhenReceived(new CheckStock("widget"));
 
         ThenDeadLettered<CheckStock>(by: InventoryService.Name);
-        ThenNotHandledBy<Fault<CheckStock>>(TwoServices.OrdersName);
+        ThenNotHandled<Fault<CheckStock>>(by: TwoServices.OrdersName);
     }
 }
 
@@ -137,8 +137,18 @@ public class saga_identity_from_the_saga_id_header(FaultHandlingServices service
             bus => bus.SendAsync(new ReserveInventory("widget", 1), new DeliveryOptions().ReturnFaultToSender()).AsTask());
 
         ThenDeadLettered<ReserveInventory>(by: InventoryService.Name);
-        ThenHandledBy<Fault<ReserveInventory>>(TwoServices.OrdersName);
+        ThenHandled<Fault<ReserveInventory>>(by: TwoServices.OrdersName);
         ThenMessageSent(new UnmatchedInventoryFailure("widget"));
         ThenNotDeadLettered<Fault<ReserveInventory>>(by: TwoServices.OrdersName);
+    }
+
+    // IdNotProvided covers any message type, not only Fault<T>
+    [BobcatSpec(typeof(CardCharged), Lifecycle = Lifecycle.Acceptance)]
+    public async Task a_reply_that_belongs_to_no_saga_goes_to_IdNotProvided()
+    {
+        await WhenReceived(new CardCharged(100m));
+
+        ThenMessageSent(new UnmatchedPayment(100m));
+        ThenNotDeadLettered<CardCharged>(by: TwoServices.OrdersName);
     }
 }

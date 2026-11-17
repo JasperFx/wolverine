@@ -46,4 +46,8 @@ public class Order : Saga
     // GH-4484: a Fault<ReserveInventory> with no saga id -- the ReserveInventory was not sent by an Order -- comes here
     // instead of failing with IndeterminateSagaStateIdException
     public static UnmatchedInventoryFailure IdNotProvided(Fault<ReserveInventory> fault) => new(fault.Message.Sku);
+
+    // IdNotProvided is not only for faults: any message that reaches the saga with no saga id comes to the one declared
+    // for its type. A card payment confirmed outside any order
+    public static UnmatchedPayment IdNotProvided(CardCharged charged) => new(charged.Amount);
 }

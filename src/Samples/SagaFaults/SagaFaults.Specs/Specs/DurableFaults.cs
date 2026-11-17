@@ -22,7 +22,7 @@ public class a_fault_is_written_with_its_dead_letter(DurableFaultServices servic
         await WhenReceived(new PlaceOrder(OrderId, "widget", 1, 100m));
 
         ThenDeadLettered<ReserveInventory>(by: InventoryService.Name);
-        ThenNotHandledBy<Fault<ReserveInventory>>(TwoServices.OrdersName);
+        ThenNotHandled<Fault<ReserveInventory>>(by: TwoServices.OrdersName);
 
         await WhenTheServiceRecovers(InventoryService.Name);
 
@@ -38,6 +38,6 @@ public class a_fault_is_written_with_its_dead_letter(DurableFaultServices servic
         await WhenReceived(new PlaceOrder(OrderId, "widget", 1, 100m));
 
         ThenNotDeadLettered<ReserveInventory>(by: InventoryService.Name);
-        ThenNotHandledBy<Fault<ReserveInventory>>(TwoServices.OrdersName);
+        ThenNotHandled<Fault<ReserveInventory>>(by: TwoServices.OrdersName);
     }
 }

@@ -3,6 +3,7 @@ using SagaFaults.Inventory;
 using SagaFaults.Orders;
 using SagaFaults.Orders.Compensation;
 using Wolverine;
+using Wolverine.Util;
 
 namespace SagaFaults.Specs;
 
@@ -27,7 +28,7 @@ public class compensating_a_step_that_failed_downstream(CompensationServices ser
         await ThenSaga<Order>(OrderId, Specify<Order>()
             .With(x => x.Status, SagaStatus.Compensated)
             .With(x => x.CompensationLog, Expect.Exactly(Specify<CompensationLogEntry>()
-                .With(x => x.Step, typeof(ReserveInventory).FullName)
+                .With(x => x.Step, typeof(ReserveInventory).ToMessageTypeName())
                 .With(x => x.ExceptionType, typeof(OutOfStockException).FullName)
                 .With(x => x.Outcome, CompensationOutcome.Compensated))));
     }
@@ -74,7 +75,7 @@ public class compensating_the_sagas_own_failed_handler(CompensationServices serv
         await WhenReceived(new PaymentReceived(OrderId, 100m));
 
         ThenAttempted<PaymentReceived>(3);
-        ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensated");
+        await ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensated");
         ThenMessageSent(new RefundPayment(OrderId, 100m));
         await ThenSaga<Order>(OrderId, Specify<Order>().With(x => x.Status, SagaStatus.Compensated));
     }
@@ -95,7 +96,7 @@ public class compensating_a_terminal_failure(CompensationServices services) : Sa
         await WhenReceived(new PaymentReceived(OrderId, 90m));
 
         ThenAttempted<PaymentReceived>(1);
-        ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensated");
+        await ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensated");
         ThenMessageSent(new RefundPayment(OrderId, 90m));
         await ThenSaga<Order>(OrderId, Specify<Order>().With(x => x.Status, SagaStatus.Compensated));
     }
@@ -127,12 +128,12 @@ public class when_compensation_fails(CompensationServices services) : SagaFaults
 
         await WhenReceived(new PaymentReceived(OrderId, 90m));
 
-        ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensation-failed");
+        await ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensation-failed");
         ThenNoMessageSent<RefundPayment>();
         await ThenSaga<Order>(OrderId, Specify<Order>()
             .With(x => x.Status, SagaStatus.CompensationFailed)
             .With(x => x.CompensationLog, Expect.Exactly(Specify<CompensationLogEntry>()
-                .With(x => x.Step, typeof(PaymentReceived).FullName)
+                .With(x => x.Step, typeof(PaymentReceived).ToMessageTypeName())
                 .With(x => x.ExceptionType, typeof(PaymentAmountMismatchException).FullName)
                 .With(x => x.Outcome, CompensationOutcome.Failed))));
     }
@@ -157,7 +158,7 @@ public class when_compensation_fails(CompensationServices services) : SagaFaults
 
         await WhenReceived(new PaymentReceived(OrderId, 90m));
 
-        ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensation-failed");
+        await ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensation-failed");
         ThenNoMessageSent<RefundPayment>();
         await ThenSaga<Order>(OrderId, Specify<Order>().With(x => x.Status, SagaStatus.CompensationFailed));
     }
@@ -189,7 +190,7 @@ public class when_the_saga_is_gone(CompensationServices services) : SagaFaultsSp
 
         await WhenReceived(new PaymentReceived(OrderId, 90m));
 
-        ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensation-saga-missing");
+        await ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensation-saga-missing");
         ThenNoMessageSent<RefundPayment>();
         await ThenNoSaga<Order>(OrderId);
     }
