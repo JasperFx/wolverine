@@ -29,7 +29,7 @@ namespace Wolverine.Persistence.Sagas;
 ///     catch-all document stores — so a host that also runs EF Core sagas does not see them listed twice.
 ///     </para>
 /// </remarks>
-internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics
+internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics, ISagaRetentionSweeper
 {
     private readonly IWolverineRuntime _runtime;
     private readonly IDocumentSessionFactory _sessions;
@@ -112,8 +112,16 @@ internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics,
 
     [UnconditionalSuppressMessage("AOT", "IL3050",
         Justification = "Runs in a native image. Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code, so no new native code is needed. Same suppression the Marten-only copy carried (GH-5142).")]
-    public async Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options,
+    public Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options,
         CancellationToken ct)
+    {
+        return QuerySagasAsync(sagaTypeName, options, false, ct);
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Runs in a native image. Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code, so no new native code is needed. Same suppression the Marten-only copy carried (GH-5142).")]
+    public async Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options,
+        bool includeCompleted, CancellationToken ct)
     {
         var (pageNumber, pageSize) = SagaQueryCriteria.Page(options);
         SagaQueryCriteria.RefuseCriteria(options, GetQueryCapabilities(sagaTypeName));
@@ -129,7 +137,7 @@ internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics,
             .MakeGenericMethod(entry.SagaType);
 
         var task = (Task<SagaQueryResult>)helper.Invoke(null,
-            [session, entry.SagaType, options, pageNumber, pageSize, ct])!;
+            [session, entry.SagaType, options, includeCompleted, pageNumber, pageSize, ct])!;
         return await task.ConfigureAwait(false);
     }
 
@@ -138,10 +146,12 @@ internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics,
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "Saga criteria are refused through GetQueryCapabilities when dynamic code is unavailable.")]
     private static async Task<SagaQueryResult> querySagasAsync<TSaga>(IDocumentReadOperations session,
-        Type sagaType, DocumentQueryOptions options, int pageNumber, int pageSize, CancellationToken ct)
+        Type sagaType, DocumentQueryOptions options, bool includeCompleted, int pageNumber, int pageSize,
+        CancellationToken ct)
         where TSaga : notnull
     {
-        var queryable = SagaQueryCriteria.Apply(options, session.Query<TSaga>(), "Id");
+        var source = SagaCompletionQueries.OpenOnly(session.Query<TSaga>(), includeCompleted);
+        var queryable = SagaQueryCriteria.Apply(options, source, "Id");
         try
         {
             var total = await queryable.CountAsync(ct).ConfigureAwait(false);
@@ -192,8 +202,40 @@ internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics,
     private static async Task<long> countIdleAsync<TSaga>(IDocumentReadOperations session, DateTimeOffset modifiedBefore,
         CancellationToken ct) where TSaga : Saga
     {
-        return await session.Query<TSaga>().Where(x => x.LastModified < modifiedBefore).CountAsync(ct)
-            .ConfigureAwait(false);
+        return await session.Query<TSaga>().Where(x => x.CompletedAt == null && x.LastModified < modifiedBefore)
+            .CountAsync(ct).ConfigureAwait(false);
+    }
+
+    // GH-5572: retained, completed sagas are swept with a plain DeleteWhere
+
+    public string RetentionStoreName => _storeName;
+
+    public IReadOnlyList<Type> SagaTypesForRetention() => sagaIndex().Values.Select(x => x.SagaType).Distinct().ToArray();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<long> DeleteCompletedSagasAsync(Type sagaType, DateTimeOffset completedBefore, CancellationToken ct)
+    {
+        if (!sagaType.CanBeCastTo<Saga>() || !sagaIndex().ContainsKey(sagaType.FullName!)) return 0;
+
+        var task = (Task<long>)typeof(DocumentStoreSagaStoreDiagnostics)
+            .GetMethod(nameof(deleteCompletedAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sagaType)
+            .Invoke(null, [_sessions, completedBefore, ct])!;
+        return await task.ConfigureAwait(false);
+    }
+
+    private static async Task<long> deleteCompletedAsync<TSaga>(IDocumentSessionFactory sessions,
+        DateTimeOffset completedBefore, CancellationToken ct) where TSaga : Saga
+    {
+        await using var session = sessions.LightweightSession();
+        var count = await SagaCompletionQueries.CompletedBefore(session.Query<TSaga>(), completedBefore)
+            .CountAsync(ct).ConfigureAwait(false);
+        if (count == 0) return 0;
+
+        session.DeleteWhere<TSaga>(x => x.CompletedAt != null && x.CompletedAt < completedBefore);
+        await session.SaveChangesAsync(ct).ConfigureAwait(false);
+        return count;
     }
 
     [UnconditionalSuppressMessage("AOT", "IL3050",
@@ -225,7 +267,8 @@ internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics,
         Type sagaType, SagaLastModifiedRange range, DocumentQueryOptions options, int pageNumber, int pageSize,
         CancellationToken ct) where TSaga : Saga
     {
-        var queryable = SagaLastModifiedQueries.Filter(session.Query<TSaga>(), range);
+        // GH-5572: a retained, completed saga is not idle
+        var queryable = SagaLastModifiedQueries.Filter(SagaCompletionQueries.OpenOnly(session.Query<TSaga>()), range);
         queryable = SagaLastModifiedQueries.Order(queryable, options, "Id");
 
         try

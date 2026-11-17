@@ -250,6 +250,9 @@ public static class HostBuilderExtensions
 
         services.AddSingleton<IWolverineRuntime, WolverineRuntime>();
 
+        // GH-5572. Sweeps retained, completed sagas. It has no agents unless a saga type is retained.
+        services.AddSingleton<IAgentFamily, Wolverine.Persistence.Sagas.SagaRetentionAgentFamily>();
+
 #if NET11_0_OR_GREATER
         // GH-5148. Registered unconditionally because budgets may be declared after UseWolverine()
         // (ConfigureWolverine); the validator returns at once when none are. Registered only as

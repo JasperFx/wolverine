@@ -44,9 +44,9 @@ public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> wh
         _settings = settings;
         IdSource = LambdaBuilder.Getter<TSaga, TId>(definition.IdMember);
 
-        _insertSql = $"insert into {settings.SchemaName}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}, last_modified) values (@id, @body, 1, @last_modified)";
+        _insertSql = $"insert into {settings.SchemaName}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}, last_modified, {SagaTableIndexes.CompletedAtColumn}) values (@id, @body, 1, @last_modified, @completed_at)";
         _updateSql =
-            $"update {settings.SchemaName}.{definition.TableName} set {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = @last_modified where {DatabaseConstants.Id} = @id and {DatabaseConstants.Version} = @version";
+            $"update {settings.SchemaName}.{definition.TableName} set {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = @last_modified, {SagaTableIndexes.CompletedAtColumn} = @completed_at where {DatabaseConstants.Id} = @id and {DatabaseConstants.Version} = @version";
         _loadSql = $"select body, version, last_modified from {settings.SchemaName}.{definition.TableName} where {DatabaseConstants.Id} = @id";
 
         _deleteSql = $"delete from {settings.SchemaName}.{definition.TableName} where id = @id";
@@ -65,6 +65,9 @@ public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> wh
         table.AddColumn(DatabaseConstants.Version, "int").DefaultValue(1).NotNull();
         table.AddColumn<DateTimeOffset>("created").DefaultValueByExpression("SYSDATETIMEOFFSET()").NotNull();
         table.AddColumn<DateTimeOffset>("last_modified").DefaultValueByExpression("SYSDATETIMEOFFSET()").NotNull();
+
+        // GH-5572: when a retained saga completed
+        table.AddColumn<DateTimeOffset>(SagaTableIndexes.CompletedAtColumn).AllowNulls();
 
         // GH-5558: "sagas idle for more than N days" filters on last_modified
         table.Indexes.Add(new IndexDefinition(SagaTableIndexes.LastModifiedIndexName(definition.TableName, 128))
@@ -112,6 +115,7 @@ public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> wh
             .With("id", id!)
             .With("body", JsonSerializer.SerializeToUtf8Bytes(saga, _settings.SagaSerializerOptions))
             .With("last_modified", saga.LastModified)
+            .With("completed_at", (object?)saga.CompletedAt ?? DBNull.Value)
             .ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
@@ -129,6 +133,7 @@ public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> wh
             .With("body", JsonSerializer.SerializeToUtf8Bytes(saga, _settings.SagaSerializerOptions))
             .With("version", saga.Version)
             .With("last_modified", saga.LastModified)
+            .With("completed_at", (object?)saga.CompletedAt ?? DBNull.Value)
             .ExecuteNonQueryAsync(cancellationToken);
 
         if (count == 0)
