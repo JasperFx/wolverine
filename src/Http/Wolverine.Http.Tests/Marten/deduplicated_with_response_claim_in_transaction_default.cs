@@ -1,6 +1,9 @@
 using Alba;
 using IntegrationTests;
+using JasperFx.CodeGeneration;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
+using JasperFx.Events;
 using JasperFx.Resources;
 using Marten;
 using Microsoft.AspNetCore.Builder;
@@ -106,6 +109,24 @@ public class deduplicated_with_response_claim_in_transaction_default : IAsyncLif
         source.ShouldNotContain(".TryClaimAsync(");
     }
 
+    [Fact]
+    public void an_endpoint_that_cannot_take_the_application_default_keeps_claim_and_release()
+    {
+        compile(theHost, "/claim-default/after-commit");
+
+        var source = sourceFor("/claim-default/after-commit");
+        source.ShouldContain(".TryClaimAsync(");
+        source.ShouldNotContain(".QueueClaim(");
+    }
+
+    internal static void compile(IAlbaHost host, string route)
+    {
+        var graph = host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
+        var chain = graph.Chains.Single(x => x.RoutePattern!.RawText == route);
+
+        chain.As<ICodeFile>().InitializeSynchronously(graph.Rules, graph, host.Services);
+    }
+
     private Task<IScenarioResult> postAsync<T>(string url, T body, string key) where T : class
         => theHost.Scenario(x =>
         {
@@ -164,10 +185,126 @@ public static class DefaultClaimInTransactionEndpoints
     public static DeduplicatedOrderCreated PostOn(DeduplicatedOrder request, IDocumentSession session)
         => store(request, session);
 
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/claim-default/after-commit")]
+    public static (UpdatedAggregate, Events) PostAfterCommit(IncrementDeduplicatedCounter command,
+        [WriteAggregate] IEventStream<DeduplicatedCounter> stream)
+        => (new UpdatedAggregate(), [new DeduplicatedCounterIncremented(command.Note)]);
+
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/claim-default/no-session")]
+    public static DeduplicatedOrderCreated PostNoSession(DeduplicatedOrder request) => new(Guid.NewGuid());
+
     private static DeduplicatedOrderCreated store(DeduplicatedOrder request, IDocumentSession session)
     {
         var document = new DeduplicatedOrderDocument { Id = Guid.NewGuid(), Name = request.Name };
         session.Store(document);
         return new DeduplicatedOrderCreated(document.Id);
     }
+}
+
+public class deduplicated_with_response_claim_in_transaction_fallback_throws : IAsyncLifetime
+{
+    private IAlbaHost theHost = null!;
+
+    public async ValueTask InitializeAsync()
+    {
+        var builder = WebApplication.CreateBuilder([]);
+
+        builder.Host.UseWolverine(opts =>
+        {
+            opts.Durability.Mode = DurabilityMode.Solo;
+            opts.Durability.EnableDeduplicatedResponses = true;
+            opts.Durability.DeduplicationWindow = 1.Hours();
+
+            opts.Discovery.DisableConventionalDiscovery();
+            opts.Policies.AutoApplyTransactions();
+
+            opts.Discovery.IncludeAssembly(typeof(deduplicated_with_response_claim_in_transaction_fallback_throws)
+                .Assembly);
+        });
+
+        builder.Services.AddMarten(m =>
+        {
+            m.Connection(Servers.PostgresConnectionString);
+            m.DatabaseSchemaName = "http_dedup_response_fallback_throws";
+            m.DisableNpgsqlLogging = true;
+        }).IntegrateWithWolverine().UseLightweightSessions();
+
+        builder.Services.AddWolverineHttp();
+
+        theHost = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
+        {
+            opts.DefaultClaimInTransaction = true;
+
+            #region sample_throw_when_claim_in_transaction_falls_back
+
+            opts.ThrowWhenClaimInTransactionFallsBack = true;
+
+            #endregion
+
+            opts.CustomizeHttpEndpointDiscovery(q =>
+                q.Excludes.WithCondition("Not a ClaimInTransaction fallback test endpoint",
+                    type => type != typeof(DefaultClaimInTransactionEndpoints) &&
+                            type != typeof(MartenDeduplicatedResponseEndpoints)));
+        }));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await theHost.DisposeAsync();
+    }
+
+    [Fact]
+    public void an_endpoint_that_inherits_the_default_and_cannot_take_it_fails()
+    {
+        var ex = Should.Throw<InvalidOperationException>(() =>
+            deduplicated_with_response_claim_in_transaction_default.compile(theHost, "/claim-default/after-commit"));
+
+        ex.Message.ShouldContain("/claim-default/after-commit");
+        ex.Message.ShouldContain("DefaultClaimInTransaction");
+        ex.Message.ShouldContain("only produced after the commit");
+    }
+
+    [Fact]
+    public void an_endpoint_without_a_store_that_can_claim_in_its_transaction_fails()
+    {
+        var ex = Should.Throw<InvalidOperationException>(() =>
+            deduplicated_with_response_claim_in_transaction_default.compile(theHost, "/claim-default/no-session"));
+
+        ex.Message.ShouldContain("/claim-default/no-session");
+        ex.Message.ShouldContain("its persistence cannot write the claim inside its transaction");
+    }
+
+    [Fact]
+    public void an_endpoint_that_asks_for_it_and_cannot_take_it_fails()
+    {
+        var ex = Should.Throw<InvalidOperationException>(() =>
+            deduplicated_with_response_claim_in_transaction_default.compile(theHost,
+                "/marten-deduplicated-response/updated-aggregate"));
+
+        ex.Message.ShouldContain("/marten-deduplicated-response/updated-aggregate");
+        ex.Message.ShouldContain("ClaimInTransaction = true");
+        ex.Message.ShouldContain("only produced after the commit");
+    }
+
+    [Fact]
+    public void an_endpoint_that_claims_in_its_transaction_compiles()
+    {
+        deduplicated_with_response_claim_in_transaction_default.compile(theHost, "/claim-default/unset");
+
+        sourceFor("/claim-default/unset").ShouldContain(".QueueClaim(");
+    }
+
+    [Fact]
+    public void an_endpoint_that_never_asked_for_it_compiles()
+    {
+        deduplicated_with_response_claim_in_transaction_default.compile(theHost, "/claim-default/off");
+
+        sourceFor("/claim-default/off").ShouldContain(".TryClaimAsync(");
+    }
+
+    private string sourceFor(string route)
+        => theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.Chains
+            .Single(x => x.RoutePattern!.RawText == route).SourceCode.ShouldNotBeNull();
 }

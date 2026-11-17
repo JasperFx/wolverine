@@ -14,8 +14,9 @@ public static class TransientPostgresFailure
     /// <summary>
     ///     True for a <see cref="NpgsqlException" /> that Npgsql reports as transient, a
     ///     <see cref="MartenCommandException" /> wrapping one, and the <see cref="ObjectDisposedException" /> on
-    ///     the <see cref="NpgsqlTransaction" /> that a handler sees after its connection broke mid-transaction
-    ///     (nothing was committed).
+    ///     the <see cref="NpgsqlTransaction" /> that a handler sees after its connection broke mid-transaction.
+    ///     If the connection broke during the commit itself, the first attempt may have committed, so a retry
+    ///     is at-least-once.
     /// </summary>
     public static bool Is(Exception exception) => exception switch
     {

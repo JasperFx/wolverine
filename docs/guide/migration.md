@@ -41,6 +41,8 @@ list.
 | `WolverineOptions.ServiceName` default | the entry assembly name | `OTEL_SERVICE_NAME` when set, then the entry assembly name | None, unless a service relied on the assembly name while `OTEL_SERVICE_NAME` was set to something else: set `opts.ServiceName` explicitly |
 | `Saga.LastModified` | not there | new `DateTimeOffset` property on the base `Saga`, set to UTC now by every saga store on insert and update *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga LastModified](#saga-lastmodified-is-set-by-every-saga-store) |
 | Code generation in the `Production` profile (Wolverine hosts) | `TypeLoadMode.Dynamic`: compiled at runtime | `TypeLoadMode.Static` with `AssertAllPreGeneratedTypesExist`: pre-generated code is required *(BREAKING for applications that deploy without `codegen write`)* | Run `dotnet run -- codegen write` in the build, or call `RestoreV6Defaults()`. See [deploying 7.0 to production](#deploying-7-0-to-production) |
+| Transport timestamp headers (`sent-at`, `time-to-send`, `deliver-by`) | written as `yyyy-MM-dd HH:mm:ss:ffffff Z` | written in round-trip ISO 8601 (`"o"`, UTC); both formats are still read | 5.x nodes running beside 7.0 nodes need WolverineFx 5.41.1 or later; 6.x already reads both. See [transport timestamp headers](#transport-timestamp-headers-are-written-in-round-trip-iso-8601) |
+| Publishing to a full durable local queue | once the queue held 10,000 messages, a publish to it, and the flush after a committed transaction, waited for room in the queue | the message waits in the inbox and the durability agent moves it into the queue as the queue drains; the publisher does not wait | None. See [a full durable local queue no longer holds the publisher](#a-full-durable-local-queue-no-longer-holds-the-publisher) |
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 
@@ -74,6 +76,17 @@ See the [Kafka transport docs](/guide/messaging/transports/kafka) for the full c
 ### Async serializers are awaited when sending
 
 Wolverine now awaits `IAsyncMessageSerializer.WriteAsync` (the schema registry serializers, encryption, claim checks) when it batches outgoing messages, rather than calling the synchronous `Write`. For a durable message the serialization runs when the message is published, before it is written to the outbox, so the outbox write does not block on an async serializer. A serializer failure, such as an unreachable schema registry, now fails the handler that published the message and goes through its error policies, rather than surfacing later when the outbox is flushed.
+
+### A full durable local queue no longer holds the publisher
+
+A durable local queue keeps up to 10,000 messages in memory. In 6.x, once its handlers fell that far behind, publishing another message to it waited for room. That included the flush after a transaction committed, so an HTTP request could stay open after its changes were already saved, and a client could time out and retry work that had succeeded.
+
+In 7.0 the publisher never waits on the queue. When the queue is full, the message is written to the inbox owned by any node instead of this one, and it stays there until the durability agent recovers it into the queue, which happens once the queue drains below its `BufferingLimits`. The queue stops taking new messages directly at 10,000 and starts again once it has drained to its `BufferingLimits.Restart`. Nothing changes for a queue that never fills.
+
+Two things to know:
+
+- Messages that waited in the inbox can run after messages published later. If you rely on the order of a sequential local queue under that kind of load, look at partitioned or global partitioned messaging instead.
+- Recovery runs on the durability agent's schedule, `DurabilitySettings.ScheduledJobPollingTime`, so a message that waited in the inbox starts up to that long after the queue has room.
 
 ### Disposal and receive loop changes for transport authors (BREAKING)
 
@@ -868,6 +881,25 @@ Before the first 7.0 node starts:
 `RestoreV6Defaults()` turns off the deduplication tables, the optional schema objects, the dead letter expiration
 column and inbox partitioning, so it avoids all of this except the SQLite queue indexes, the saga `last_modified`
 indexes and the dead letter `saga_id` column.
+
+### Transport timestamp headers are written in round-trip ISO 8601
+
+The transport envelope mappers now write the `sent-at`, `time-to-send` and `deliver-by` headers as invariant
+round-trip (`"o"`) timestamps in UTC instead of Wolverine's own `yyyy-MM-dd HH:mm:ss:ffffff Z` format
+([GH-3645](https://github.com/JasperFx/wolverine/issues/3645)). Standard date parsers in any language can read the
+new values, and all seven fractional-second digits survive. Wolverine still reads the old format, so messages already
+sitting in a broker, in durable storage or in a dead letter queue keep their scheduled time and expiration. There is
+no database schema change.
+
+A receiver that only understands the old format silently drops the scheduled time and expiration of a message sent
+in the new one, so check what reads the messages before the first 7.0 node starts sending:
+
+* **Wolverine 6.x** reads both formats (6.23.0 and later, [#3656](https://github.com/JasperFx/wolverine/pull/3656)).
+* **Wolverine 5.x** nodes running beside 7.0 nodes need **WolverineFx 5.41.1 or later**, the first 5.x release with
+  the same reader ([#4583](https://github.com/JasperFx/wolverine/pull/4583)).
+* **Non-Wolverine consumers** that parse these headers themselves need to accept ISO 8601.
+
+A custom envelope mapper that writes these headers itself keeps whatever format it writes.
 
 ### OpenTelemetry meter and metric names (BREAKING)
 

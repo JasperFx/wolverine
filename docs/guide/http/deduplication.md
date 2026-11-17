@@ -168,7 +168,7 @@ For a given `Idempotency-Key`:
 | Request | Answer |
 |---|---|
 | The first | Runs normally |
-| The same request again | The first response: its status, body and `Location` (no body with [`StoreBody = false`](#leaving-the-body-out)). The endpoint does not run |
+| The same request again | The first response: its status, body and `Location` (no body with [`StoreBody = false`](#leaving-the-body-out)), [marked as a replay](#marking-a-replay). The endpoint does not run |
 | A different request | **422** with a `ProblemDetails` body. Send a new key for a new request |
 | The same request while the first is still running | **409** with a `ProblemDetails` body. With [`ClaimInTransaction`](#claiming-inside-the-transaction), it runs too ([see below](#claiming-inside-the-transaction)) |
 | No key | **400**, unless `Required = false` |
@@ -234,7 +234,7 @@ it out:
 <!-- snippet: sample_deduplicated_with_response_without_storing_the_body -->
 <a id='snippet-sample_deduplicated_with_response_without_storing_the_body'></a>
 ```cs
-// The secret is in the first response and is never stored. A repeat gets the 201 and Location alone
+// The secret is in the first response and is never stored. A repeat gets the 201 and Location, with no body
 [DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
 [WolverinePost("/deduplicated-response/secret-result")]
 public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder request)
@@ -244,7 +244,7 @@ public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder req
         new DeduplicatedSecret(created.Id, Guid.NewGuid().ToString()));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response.cs#L852-L862' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_with_response_without_storing_the_body' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response.cs#L900-L910' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_with_response_without_storing_the_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The body is never serialized or written. The claim still stores the status and `Location`, so a repeat
@@ -252,7 +252,42 @@ is answered with those and no body, and the caller follows `Location` to the res
 shown again.
 
 This fits an endpoint that answers with a `Location`, such as `Created`. One that sets no `Location`
-answers a repeat with the bare status, which a client cannot tell from an empty success.
+answers a repeat with the bare status and the [replay header](#marking-a-replay), and nothing else.
+
+### Marking a replay
+
+By default, Wolverine marks every replayed response with an `Idempotent-Replayed: true` header. The first
+response, and the 409 and 422 refusals, never carry it.
+
+A browser on another origin can read the header only if your CORS policy exposes it, for example with
+`WithExposedHeaders("Idempotent-Replayed")`.
+
+Rename the header, or turn it off, application-wide:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    opts.DeduplicatedReplayHeaderName = "X-Idempotent-Replay";
+
+    // or send no header at all
+    opts.MarkDeduplicatedReplays = false;
+});
+```
+
+### Metrics and tracing
+
+Each request that carries a key is counted once on the `wolverine.http.deduplication.outcomes` counter, tagged by
+`http.route`, `http.request.method`, `source` (the service name) and `wolverine.deduplication.outcome`:
+
+| Outcome | The request was |
+|---|---|
+| `claimed` | the first with its key: its work is done, and its claim is kept for repeats |
+| `replayed` | a repeat, answered with the stored response |
+| `mismatched` | a different request under a key already used, refused with 422 |
+| `in_progress` | a repeat while the first is still running, or of a claim with no stored response, refused with 409 |
+
+A request without a key is not counted, and neither is a first request that fails and gives its claim back. The
+same outcome is added to the request's span as a `wolverine.deduplication.{outcome}` event.
 
 ### The window
 
@@ -306,9 +341,10 @@ request's claim and answers from it.
   claim-and-release.
 
 An endpoint that asks for `ClaimInTransaction` but cannot take it — another store, database per tenant, a
-message store in another database, no commit through the middleware — keeps claim-and-release, and the
-host logs a warning naming it. The database check is repeated at runtime, so pre-generated code built
-against a different configuration fails loudly rather than writing claims where they are never read.
+message store in another database, no commit through the middleware — keeps claim-and-release, and
+Wolverine logs a warning naming it once its code is generated. The database check is repeated at runtime,
+so pre-generated code built against a different configuration fails loudly rather than writing claims
+where they are never read.
 
 Don't call `SaveChangesAsync` yourself in such an endpoint as well. Your own commit writes the work
 before the middleware's commit writes the claim, so a crash between them, or a concurrent repeat, runs
@@ -326,7 +362,7 @@ endpoint in your application, set `DefaultClaimInTransaction` when you map the e
 // writes its claim inside its own transaction where it can
 opts.DefaultClaimInTransaction = true;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L53-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L56-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 An endpoint that doesn't set `ClaimInTransaction` takes that default. An endpoint that sets it, either
@@ -347,12 +383,30 @@ public static DeduplicatedOrderCreated PostUnset(DeduplicatedOrder request, IDoc
 public static DeduplicatedOrderCreated PostOff(DeduplicatedOrder request, IDocumentSession session)
     => store(request, session);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L146-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L167-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Endpoints that can't claim inside their transaction keep claim-and-release, as above. When they only
 inherited the default instead of asking for it, Wolverine logs that at debug level rather than as a
 warning.
+
+To fail instead of logging, set `ThrowWhenClaimInTransactionFallsBack`. It is off by default. When it is
+on, generating the code for an endpoint that would fall back to claim-and-release throws an
+`InvalidOperationException` naming the endpoint and the reason. That applies whether the endpoint set
+`ClaimInTransaction = true` itself or inherited `DefaultClaimInTransaction`:
+
+<!-- snippet: sample_throw_when_claim_in_transaction_falls_back -->
+<a id='snippet-sample_throw_when_claim_in_transaction_falls_back'></a>
+```cs
+opts.ThrowWhenClaimInTransactionFallsBack = true;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L240-L244' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_throw_when_claim_in_transaction_falls_back' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+It throws when the endpoint's code is generated: inside `MapWolverineEndpoints` when `WarmUpRoutes` is
+`RouteWarmup.Eager`, and otherwise on the first request to that endpoint. Pre-generated code
+(`TypeLoadMode.Static`, or `TypeLoadMode.Auto` once the generated code exists) is not generated at
+runtime, so nothing throws there. Run `codegen write` with the option on to check it.
 
 #### Claim-and-release
 
@@ -393,7 +447,8 @@ releasing it with a rolled-back transaction.
   replayed results is refused at startup.
 - The request body is buffered to compute the fingerprint, and the resource is serialized a second
   time to store it, unless [`StoreBody = false`](#leaving-the-body-out).
-- Only the status, body and `Location` are replayed; other response headers are not.
+- Only the status, body and `Location` are replayed; other response headers are not. The replay adds
+  its own [replay header](#marking-a-replay).
 - Form posts and file uploads are supported, whether the endpoint binds `[FromForm]` values, an
   `IFormFile`, an `IFormCollection` or a `MultipartReader`, and whether the antiforgery token is sent in
   the request header or as a form field.

@@ -322,6 +322,10 @@ public abstract partial class HttpHandler
     // throw inside the commit call.
     private static readonly object _deduplicatedDatabaseCommitted = new();
 
+    // Set once a claim-and-release endpoint holds the claim on its key: its claim is kept as soon as its work is done.
+    // A claim written inside the transaction is not kept until its commit, so the work being done is not enough there.
+    private static readonly object _deduplicatedClaimHeld = new();
+
     /// <summary>
     /// GH-4742. Folds the <see cref="DeduplicationScope" /> parts into a <c>[DeduplicatedWithResponse]</c> key.
     /// Each part is length-prefixed so none can shift another; a missing key passes through so it is still
@@ -674,6 +678,7 @@ public abstract partial class HttpHandler
 
         if (claim.Fingerprint != fingerprint)
         {
+            recordDeduplicationOutcome(context, ClaimOutcome.Mismatched);
             await WriteProblems(StatusCodes.Status422UnprocessableEntity,
                 $"This '{keyName}' was already used for a different request; send a new key for a new request",
                 context, null).ConfigureAwait(false);
@@ -682,13 +687,21 @@ public abstract partial class HttpHandler
 
         if (claim.Response is not { } response)
         {
+            recordDeduplicationOutcome(context, ClaimOutcome.InProgress);
             await WriteProblems(StatusCodes.Status409Conflict,
                 $"A request with this '{keyName}' is still being processed; retry later", context, null)
                 .ConfigureAwait(false);
             return;
         }
 
+        recordDeduplicationOutcome(context, ClaimOutcome.Replayed);
+
         context.Response.StatusCode = response.StatusCode;
+
+        if (_options.MarkDeduplicatedReplays)
+        {
+            context.Response.Headers[_options.DeduplicatedReplayHeaderName] = "true";
+        }
 
         if (response.Location != null)
         {
@@ -740,6 +753,7 @@ public abstract partial class HttpHandler
                 logger?.LogWarning(failure,
                     "The commit for deduplicated id '{DeduplicationId}' failed after its claim was written; a retry will be answered from that claim",
                     deduplicationId);
+                recordDeduplicationOutcome(context, ClaimOutcome.Claimed);
                 return false;
             }
 
@@ -769,6 +783,8 @@ public abstract partial class HttpHandler
     {
         context.Items[_deduplicatedResponseCommitted] = true;
         releaseDeduplicatedRefusalWatch(context);
+
+        if (IsDeduplicatedWorkDone(context)) recordDeduplicationOutcome(context, ClaimOutcome.Claimed);
     }
 
     /// <summary>GH-5160. Has the commit of a <c>[DeduplicatedWithResponse]</c> claim written inside the transaction succeeded?</summary>
@@ -805,7 +821,7 @@ public abstract partial class HttpHandler
         var status = resource is null ? missingResourceStatusCode : context.Response.StatusCode;
         if (status >= 400) return null;
 
-        context.Items[_deduplicatedWorkDone] = true;
+        markDeduplicatedWorkDone(context);
 
         var location = context.Response.Headers.Location;
 
@@ -865,7 +881,7 @@ public abstract partial class HttpHandler
         var status = (result as IStatusCodeHttpResult)?.StatusCode ?? context.Response.StatusCode;
         if (status >= 400 || result is ChallengeHttpResult or ForbidHttpResult) return null;
 
-        context.Items[_deduplicatedWorkDone] = true;
+        markDeduplicatedWorkDone(context);
 
         var type = result.GetType();
 
@@ -953,6 +969,21 @@ public abstract partial class HttpHandler
     /// <summary>GH-4742. Has the endpoint's work been done, so its claim must be kept?</summary>
     public static bool IsDeduplicatedWorkDone(HttpContext context) => context.Items.ContainsKey(_deduplicatedWorkDone);
 
+    // Both CompleteDeduplicatedRequest and KeepDeduplicatedClaimIfCommitted can get here in one request (the commit
+    // succeeds, then the flush throws), so only the first counts
+    private static void markDeduplicatedWorkDone(HttpContext context)
+    {
+        if (!context.Items.TryAdd(_deduplicatedWorkDone, true)) return;
+
+        if (context.Items.ContainsKey(_deduplicatedClaimHeld))
+        {
+            recordDeduplicationOutcome(context, ClaimOutcome.Claimed);
+        }
+    }
+
+    private static void recordDeduplicationOutcome(HttpContext context, ClaimOutcome outcome)
+        => context.RequestServices.GetService<DeduplicatedResponses>()?.RecordOutcome(context, outcome);
+
     /// <summary>
     /// GH-5165. The database commit of a claim-and-release <c>[DeduplicatedWithResponse]</c> endpoint succeeded. Called
     /// by the persistence provider as soon as it does, before anything else inside the commit call can still throw.
@@ -973,7 +1004,7 @@ public abstract partial class HttpHandler
     {
         if (context.Items.ContainsKey(_deduplicatedDatabaseCommitted))
         {
-            context.Items[_deduplicatedWorkDone] = true;
+            markDeduplicatedWorkDone(context);
         }
     }
 
@@ -986,6 +1017,8 @@ public abstract partial class HttpHandler
         DeduplicatedResponses responses, string? deduplicationId, string claimToken, Type? ancillaryStoreMarker)
     {
         if (string.IsNullOrWhiteSpace(deduplicationId)) return;
+
+        context.Items[_deduplicatedClaimHeld] = true;
 
         context.Response.OnStarting(async () =>
         {

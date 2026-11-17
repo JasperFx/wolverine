@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Security.Claims;
@@ -95,7 +96,51 @@ public class deduplicated_with_response : IAsyncLifetime
         repeat.Context.Response.Headers.Location.ToString()
             .ShouldBe(first.Context.Response.Headers.Location.ToString());
 
+        first.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
+        repeat.Context.Response.Headers["Idempotent-Replayed"].ToString().ShouldBe("true");
+
         DeduplicatedResponseEndpoints.Runs("first").ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_replay_is_marked_with_the_configured_header()
+    {
+        theHost.Services.GetRequiredService<WolverineHttpOptions>().DeduplicatedReplayHeaderName = "X-Replayed";
+
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("renamed-" + key);
+
+        var first = await postAsync(request, key, 201);
+        var repeat = await postAsync(request, key, 201);
+
+        first.Context.Response.Headers.ContainsKey("X-Replayed").ShouldBeFalse();
+        repeat.Context.Response.Headers["X-Replayed"].ToString().ShouldBe("true");
+        repeat.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task with_replay_marking_off_a_replay_is_not_marked()
+    {
+        theHost.Services.GetRequiredService<WolverineHttpOptions>().MarkDeduplicatedReplays = false;
+
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("unmarked-" + key);
+
+        var first = await postAsync(request, key, 201);
+        var repeat = await postAsync(request, key, 201);
+
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+        repeat.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void a_blank_replay_header_name_is_refused(string? name)
+    {
+        // Instead of a 500 on every replay
+        Should.Throw<ArgumentException>(() => new WolverineHttpOptions().DeduplicatedReplayHeaderName = name!);
     }
 
     [Fact]
@@ -104,7 +149,9 @@ public class deduplicated_with_response : IAsyncLifetime
         var key = Guid.NewGuid().ToString();
 
         await postAsync(new DeduplicatedOrder("original"), key, 201);
-        await postAsync(new DeduplicatedOrder("changed"), key, 422);
+        var different = await postAsync(new DeduplicatedOrder("changed"), key, 422);
+
+        different.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
 
         DeduplicatedResponseEndpoints.Runs("changed").ShouldBe(0);
     }
@@ -233,7 +280,8 @@ public class deduplicated_with_response : IAsyncLifetime
 
         try
         {
-            await postAsync(request, key, 409);
+            var refused = await postAsync(request, key, 409);
+            refused.Context.Response.Headers.ContainsKey("Idempotent-Replayed").ShouldBeFalse();
         }
         finally
         {
@@ -464,6 +512,7 @@ public class deduplicated_with_response : IAsyncLifetime
 
         (await repeat.ReadAsTextAsync()).ShouldBeEmpty();
         repeat.Context.Response.Headers.Location.ToString().ShouldBe(location);
+        repeat.Context.Response.Headers["Idempotent-Replayed"].ToString().ShouldBe("true");
 
         DeduplicatedResponseEndpoints.Runs(request.Name).ShouldBe(1);
     }
@@ -633,6 +682,125 @@ public class deduplicated_with_response : IAsyncLifetime
 
         // Nothing from [Deduplicated].
         source.ShouldNotContain("IMessageDeduplicator");
+    }
+
+    [Fact]
+    public async Task each_keyed_request_counts_one_outcome_against_its_route_template()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+        var key = Guid.NewGuid().ToString();
+        const string url = "/deduplicated-response/endpoint/counted";
+
+        await postAsync(new DeduplicatedOrder("counted"), key, 201, url: url);
+        await postAsync(new DeduplicatedOrder("counted"), key, 201, url: url);
+        await postAsync(new DeduplicatedOrder("changed"), key, 422, url: url);
+
+        outcomes.On("/deduplicated-response/endpoint/{name}").ShouldBe(["claimed", "replayed", "mismatched"]);
+        outcomes.All.ShouldAllBe(x => x.Method == "POST");
+    }
+
+    [Fact]
+    public async Task a_repeat_while_the_first_request_is_still_running_counts_as_in_progress()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder(DeduplicatedResponseEndpoints.Slow);
+
+        var first = postAsync(request, key, 201);
+        await DeduplicatedResponseEndpoints.SlowRequestArrived.WaitAsync(TimeSpan.FromSeconds(10),
+            TestContext.Current.CancellationToken);
+
+        try
+        {
+            await postAsync(request, key, 409);
+        }
+        finally
+        {
+            DeduplicatedResponseEndpoints.ReleaseSlowRequest();
+        }
+
+        await first;
+
+        outcomes.On("/deduplicated-response/orders").ShouldBe(["in_progress", "claimed"]);
+    }
+
+    [Fact]
+    public async Task a_request_without_a_key_counts_no_outcome()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DeduplicatedOrder("optional")).ToUrl("/deduplicated-response/optional");
+            x.StatusCodeShouldBe(201);
+        });
+
+        outcomes.On("/deduplicated-response/optional").ShouldBeEmpty();
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DeduplicatedOrder("optional")).ToUrl("/deduplicated-response/optional");
+            x.WithRequestHeader("Idempotency-Key", Guid.NewGuid().ToString());
+            x.StatusCodeShouldBe(201);
+        });
+
+        outcomes.On("/deduplicated-response/optional").ShouldBe(["claimed"]);
+    }
+
+    [Fact]
+    public async Task a_first_request_that_fails_and_gives_its_claim_back_counts_no_outcome()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+
+        var answered = Guid.NewGuid().ToString();
+        await postAsync(new DeduplicatedOrder(DeduplicatedResponseEndpoints.Missing), answered, 404);
+        await postAsync(new DeduplicatedOrder("after the 404"), answered, 201);
+
+        var thrown = Guid.NewGuid().ToString();
+        await failingPostAsync(new DeduplicatedOrder(DeduplicatedResponseEndpoints.Throw), thrown);
+        await postAsync(new DeduplicatedOrder("after the throw"), thrown, 201);
+
+        outcomes.On("/deduplicated-response/orders").ShouldBe(["claimed", "claimed"]);
+    }
+
+    [Fact]
+    public async Task a_repeat_of_a_claim_with_no_stored_response_counts_as_in_progress()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("counted-text-result");
+
+        await postAsync(request, key, 200, url: "/deduplicated-response/text-result");
+        await postAsync(request, key, 409, url: "/deduplicated-response/text-result");
+
+        outcomes.On("/deduplicated-response/text-result").ShouldBe(["claimed", "in_progress"]);
+    }
+
+    [Fact]
+    public async Task the_outcome_is_an_event_on_the_request_span()
+    {
+        using var spans = new DeduplicationOutcomeListener.RequestSpans();
+        var key = Guid.NewGuid().ToString();
+        var request = new DeduplicatedOrder("traced-" + key);
+
+        async Task<string[]> eventsOf(DeduplicatedOrder body, int status)
+        {
+            var trace = ActivityTraceId.CreateRandom();
+
+            await theHost.Scenario(x =>
+            {
+                x.Post.Json(body).ToUrl("/deduplicated-response/orders");
+                x.WithRequestHeader("Idempotency-Key", key);
+                x.WithRequestHeader("traceparent", DeduplicationOutcomeListener.RequestSpans.TraceParent(trace));
+                x.StatusCodeShouldBe(status);
+            });
+
+            return await spans.DeduplicationEventsIn(trace);
+        }
+
+        (await eventsOf(request, 201)).ShouldBe([WolverineTracing.DeduplicationClaimed]);
+        (await eventsOf(request, 201)).ShouldBe([WolverineTracing.DeduplicationReplayed]);
+        (await eventsOf(new DeduplicatedOrder("other-" + key), 422)).ShouldBe([WolverineTracing.DeduplicationMismatched]);
     }
 
     /// <summary>
@@ -850,7 +1018,7 @@ public static class DeduplicatedResponseEndpoints
         => new(run(request).Id, Guid.NewGuid().ToString());
 
     #region sample_deduplicated_with_response_without_storing_the_body
-    // The secret is in the first response and is never stored. A repeat gets the 201 and Location alone
+    // The secret is in the first response and is never stored. A repeat gets the 201 and Location, with no body
     [DeduplicatedWithResponse(DeduplicationScope.User, StoreBody = false)]
     [WolverinePost("/deduplicated-response/secret-result")]
     public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder request)
