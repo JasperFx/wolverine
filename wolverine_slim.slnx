@@ -14,5 +14,8 @@
   <Project Path="src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/MultiTenantedTodoWebService.csproj" />
   <Project Path="src/Samples/MultiTenantedTodoService/MultiTenantedTodoWebService.Tests/MultiTenantedTodoWebService.Tests.csproj" />
   <Project Path="src/Wolverine/Wolverine.csproj" />
-  <Project Path="src/Wolverine.Analyzers/Wolverine.Analyzers.csproj" />
+  <!-- Built through the references, never by the solution itself: see wolverine.slnx (GH-5622) -->
+  <Project Path="src/Wolverine.Analyzers/Wolverine.Analyzers.csproj">
+    <Build Project="false" />
+  </Project>
 </Solution>

@@ -1,12 +1,15 @@
-<!-- TreatAsLocalProperty: CI builds the whole solution with -f net10.0 (Compile in build/Build.cs), which would
-     otherwise force this netstandard2.0 analyzer to build as net10.0 and fail with NETSDK1005 -->
-<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="TargetFramework">
+<!--
+  netstandard2.0 as a one-entry <TargetFrameworks>, never <TargetFramework> (GH-5622, VerifyProjectReferenceFrameworks):
+  every project in the repository references this one, and they all negotiate TargetFramework=netstandard2.0, so
+  there is one build of it. wolverine.slnx and wolverine_slim.slnx carry it with Build Project="false", so the
+  pinned solution build (-f net10.0) never builds a second, net10.0 instance of it; the references build it.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <Description>Roslyn analyzers for Wolverine handler, saga and testing conventions. Referenced by WolverineFx, so they are on by default</Description>
         <PackageId>WolverineFx.Analyzers</PackageId>
         <!-- Analyzers load into the compiler and the IDE, so this is netstandard2.0 whatever the rest of the repo targets -->
-        <TargetFramework>netstandard2.0</TargetFramework>
         <TargetFrameworks>netstandard2.0</TargetFrameworks>
         <ImplicitUsings>false</ImplicitUsings>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
@@ -34,7 +37,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+        <!-- Pack runs in the outer (multi-target) build, where $(OutputPath) has no framework folder, so the path is spelled out -->
+        <None Include="$(MSBuildThisFileDirectory)bin/$(Configuration)/netstandard2.0/$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     </ItemGroup>
 
 </Project>
