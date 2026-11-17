@@ -72,7 +72,9 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable, IReportConnecti
         // as "channel healthy" would latch the agent permanently after a channel-only
         // shutdown that didn't surface as a callback exception (see #3171), so we
         // re-build whenever the channel is missing or no longer open.
-        if (Channel is { IsOpen: true })
+        // Also require Connected: the caller opening the channel assigns it before it sets State, and a
+        // concurrent caller that skipped the lock in between saw an open channel on a Disconnected agent.
+        if (State == AgentState.Connected && Channel is { IsOpen: true })
             return;
 
         await Locker.WaitAsync();
