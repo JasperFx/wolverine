@@ -274,6 +274,21 @@ app.MapWolverineEndpoints(opts =>
 });
 ```
 
+### Metrics and tracing
+
+Each request that carries a key is counted once on the `wolverine.http.deduplication.outcomes` counter, tagged by
+`http.route`, `http.request.method`, `source` (the service name) and `wolverine.deduplication.outcome`:
+
+| Outcome | The request was |
+|---|---|
+| `claimed` | the first with its key: its work is done, and its claim is kept for repeats |
+| `replayed` | a repeat, answered with the stored response |
+| `mismatched` | a different request under a key already used, refused with 422 |
+| `in_progress` | a repeat while the first is still running, or of a claim with no stored response, refused with 409 |
+
+A request without a key is not counted, and neither is a first request that fails and gives its claim back. The
+same outcome is added to the request's span as a `wolverine.deduplication.{outcome}` event.
+
 ### The window
 
 Claims last for the [deduplication window](/guide/durability/idempotency#the-deduplication-window), or
