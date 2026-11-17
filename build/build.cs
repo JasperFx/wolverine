@@ -359,6 +359,7 @@ partial class Build : NukeBuild
                 Solution.Transports.Pulsar.Wolverine_Aspire_Hosting_Pulsar,
                 Solution.Transports.GCP.Wolverine_Pubsub,
                 Solution.Transports.GCP.Wolverine_Pubsub_Http,
+                Solution.Transports.GCP.Wolverine_Aspire_Hosting_Pubsub,
                 Solution.Persistence.Wolverine_RDBMS,
                 Solution.Persistence.PostgreSQL.Wolverine_Postgresql,
                 Solution.Persistence.Marten.Wolverine_Marten,

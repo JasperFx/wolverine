@@ -24,6 +24,8 @@
     <ItemGroup>
         <ProjectReference Include="..\..\Samples\AspireWithLocalStack\AppHost\AspireWithLocalStack.AppHost.csproj" />
         <ProjectReference Include="..\..\Transports\AWS\Wolverine.Aspire.Hosting.LocalStack\Wolverine.Aspire.Hosting.LocalStack.csproj" />
+        <ProjectReference Include="..\..\Samples\AspireWithPubsub\AppHost\AspireWithPubsub.AppHost.csproj" />
+        <ProjectReference Include="..\..\Transports\GCP\Wolverine.Aspire.Hosting.Pubsub\Wolverine.Aspire.Hosting.Pubsub.csproj" />
         <ProjectReference Include="..\..\Samples\AspireWithPulsar\AppHost\AspireWithPulsar.AppHost.csproj" />
         <ProjectReference Include="..\..\Transports\Pulsar\Wolverine.Aspire.Hosting.Pulsar\Wolverine.Aspire.Hosting.Pulsar.csproj" />
     </ItemGroup>

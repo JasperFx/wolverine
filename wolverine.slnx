@@ -204,6 +204,10 @@
     <Project Path="src/Samples/AspireWithLocalStack/AppHost/AspireWithLocalStack.AppHost.csproj" />
     <Project Path="src/Samples/AspireWithLocalStack/Pinger/AspireWithLocalStack.Pinger.csproj" />
   </Folder>
+  <Folder Name="/Samples/AspireWithPubsub/">
+    <Project Path="src/Samples/AspireWithPubsub/AppHost/AspireWithPubsub.AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithPubsub/Pinger/AspireWithPubsub.Pinger.csproj" />
+  </Folder>
   <Folder Name="/Samples/AspireWithPulsar/">
     <Project Path="src/Samples/AspireWithPulsar/AppHost/AspireWithPulsar.AppHost.csproj" />
     <Project Path="src/Samples/AspireWithPulsar/Pinger/AspireWithPulsar.Pinger.csproj" />
@@ -373,6 +377,7 @@
     <Project Path="src/Transports/Azure/Wolverine.AzureServiceBus/Wolverine.AzureServiceBus.csproj" />
   </Folder>
   <Folder Name="/Transports/GCP/">
+    <Project Path="src/Transports/GCP/Wolverine.Aspire.Hosting.Pubsub/Wolverine.Aspire.Hosting.Pubsub.csproj" />
     <Project Path="src/Transports/GCP/Wolverine.Pubsub.Http/Wolverine.Pubsub.Http.csproj" />
     <Project Path="src/Transports/GCP/Wolverine.Pubsub.Tests/Wolverine.Pubsub.Tests.csproj" />
     <Project Path="src/Transports/GCP/Wolverine.Pubsub/Wolverine.Pubsub.csproj" />

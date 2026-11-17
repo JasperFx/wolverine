@@ -64,7 +64,7 @@ The `...UsingNamedConnection()` methods aren't Aspire specific at all. Anything 
 | [Redis](/guide/messaging/transports/redis) | `UseRedisTransportUsingNamedConnection(name)` | `AddRedis(name)` |
 | [Pulsar](/guide/messaging/transports/pulsar) | `UsePulsarUsingNamedConnection(name)` | `AddPulsar(name)` (WolverineFx.Aspire.Hosting.Pulsar) |
 | [MQTT](/guide/messaging/transports/mqtt) | `UseMqttUsingNamedConnection(name)` | `AddMosquitto(name)` (CommunityToolkit) |
-| [GCP Pub/Sub](/guide/messaging/transports/gcp-pubsub/) | `UsePubsubUsingNamedConnection(projectId, name)` | `AddFlociGcp(name)` (emulator only) |
+| [GCP Pub/Sub](/guide/messaging/transports/gcp-pubsub/) | `UsePubsubUsingNamedConnection(projectId, name)` | `AddPubsubEmulator(name, projectId)` (WolverineFx.Aspire.Hosting.Pubsub) or `AddFlociGcp(name)` (emulators only) |
 
 Every transport above that supports more than one broker also has an
 `AddNamed{Transport}BrokerUsingNamedConnection(brokerName, connectionStringName)` method for applications talking
