@@ -1,6 +1,7 @@
+using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 
-namespace Aspire.Hosting;
+namespace Wolverine.Aspire.Hosting;
 
 /// <summary>
 /// LocalStack, the AWS emulator, running SQS and SNS in a container. Its connection string is the emulator's

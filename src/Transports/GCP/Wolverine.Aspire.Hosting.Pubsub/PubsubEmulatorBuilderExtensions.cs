@@ -1,6 +1,7 @@
+using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 
-namespace Aspire.Hosting;
+namespace Wolverine.Aspire.Hosting;
 
 /// <summary>
 /// AppHost extensions for running the Google Cloud Pub/Sub emulator

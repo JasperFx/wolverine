@@ -1,6 +1,7 @@
+using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 
-namespace Aspire.Hosting;
+namespace Wolverine.Aspire.Hosting;
 
 /// <summary>
 /// An Apache Pulsar broker running as <c>bin/pulsar standalone</c> in a container. Its connection string is the

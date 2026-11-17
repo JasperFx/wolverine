@@ -196,7 +196,7 @@
     <Project Path="src/Samples/WebApiWithMarten/WebApiWithMarten.csproj" />
   </Folder>
   <Folder Name="/Samples/AspireWithKafka/">
-    <Project Path="src/Samples/AspireWithKafka/AppHost/AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithKafka/AppHost/AspireWithKafka.AppHost.csproj" />
     <Project Path="src/Samples/AspireWithKafka/Consumer/Consumer.csproj" />
     <Project Path="src/Samples/AspireWithKafka/Publisher/Publisher.csproj" />
   </Folder>
@@ -213,7 +213,7 @@
     <Project Path="src/Samples/AspireWithPulsar/Pinger/AspireWithPulsar.Pinger.csproj" />
   </Folder>
   <Folder Name="/Samples/AspireWithRabbitMq/">
-    <Project Path="src/Samples/AspireWithRabbitMq/AppHost/AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithRabbitMq/AppHost/AspireWithRabbitMq.AppHost.csproj" />
     <Project Path="src/Samples/AspireWithRabbitMq/Pinger/Pinger.csproj" />
     <Project Path="src/Samples/AspireWithRabbitMq/Ponger/Ponger.csproj" />
   </Folder>

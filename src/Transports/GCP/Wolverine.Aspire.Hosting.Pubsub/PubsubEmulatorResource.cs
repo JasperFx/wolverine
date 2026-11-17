@@ -1,6 +1,7 @@
+using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 
-namespace Aspire.Hosting;
+namespace Wolverine.Aspire.Hosting;
 
 /// <summary>
 /// The Google Cloud Pub/Sub emulator from the gcloud CLI, running in a container. Its connection string is the

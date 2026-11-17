@@ -1,4 +1,6 @@
 #region sample_aspire_pulsar_apphost
+using Wolverine.Aspire.Hosting;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // A Pulsar broker, run as `bin/pulsar standalone` in a container. The name "pulsar" becomes the

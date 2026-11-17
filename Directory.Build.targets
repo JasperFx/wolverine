@@ -97,4 +97,14 @@
         <OnlyReferenceAndBuildProjectsEnabledInSolutionConfiguration>false</OnlyReferenceAndBuildProjectsEnabledInSolutionConfiguration>
     </PropertyGroup>
 
+    <!--
+      GH-5624. The sample AppHosts declare a one-entry <TargetFrameworks> (GH-5622), which gives them an outer build,
+      and the Aspire AppHost SDK picks the dashboard and DCP runtime identifier in Restore, in that outer build, with
+      the .NET SDK's in-process PickBestRid task. The SDK only declares that task for an inner build, so the outer
+      build fails with MSB4036. Outside an inner build, use the SDK's own out-of-process fallback instead.
+    -->
+    <PropertyGroup Condition=" '$(IsAspireHost)' == 'true' And '$(TargetFramework)' == '' ">
+        <_AspireUseSdkPickBestRid>false</_AspireUseSdkPickBestRid>
+    </PropertyGroup>
+
 </Project>

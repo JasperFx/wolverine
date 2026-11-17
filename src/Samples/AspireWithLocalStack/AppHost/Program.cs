@@ -1,4 +1,6 @@
 #region sample_aspire_localstack_apphost
+using Wolverine.Aspire.Hosting;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // LocalStack running SQS and SNS in a container. The name "aws" becomes the connection string

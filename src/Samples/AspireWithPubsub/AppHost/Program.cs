@@ -1,4 +1,6 @@
 #region sample_aspire_pubsub_apphost
+using Wolverine.Aspire.Hosting;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // The gcloud Pub/Sub emulator in a container, started for the "wolverine" project. The name

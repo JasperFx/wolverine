@@ -250,9 +250,14 @@ talks to LocalStack too. The region is `us-east-1` unless you pass another one t
 runs on a random host port unless you pass `port`. It's the same `localstack/localstack:4` image Wolverine's own tests
 use. There's a working sample in `src/Samples/AspireWithLocalStack`.
 
+The extension methods are in the `Wolverine.Aspire.Hosting` namespace, so add `using Wolverine.Aspire.Hosting;` to the
+AppHost's `Program.cs`.
+
 ::: tip
-LocalStack ships its own Aspire package, `LocalStack.Aspire.Hosting`, which also has an `AddLocalStack()` method. Use
-one or the other in an AppHost, not both.
+LocalStack ships its own Aspire package, `LocalStack.Aspire.Hosting`, which also has an `AddLocalStack()` method (in
+the `Aspire.Hosting` namespace, so the two don't clash). If your AppHost already uses LocalStack's package, keep it.
+Its resource name is the name of the connection string it hands a referencing project, so point Wolverine at it with
+`UseAmazonSqsTransportUsingNamedConnection(name)` and `UseAmazonSnsTransportUsingNamedConnection(name)` just the same.
 :::
 
 ## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
