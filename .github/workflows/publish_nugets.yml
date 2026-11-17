@@ -7,6 +7,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # NuGet trusted publishing (same as main and 6.0): NuGet/login trades this run's GitHub OIDC token for a
+    # short-lived API key under the trusted publishing policy on nuget.org that names this repository and
+    # THIS workflow file. The old NUGET_API_KEY secret expired, so 5.41.1's first publish pushed nothing.
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
       - uses: actions/checkout@v6
 
@@ -29,8 +36,16 @@ jobs:
         run: ./build.sh pack
         shell: bash
 
+      - name: NuGet login
+        id: nuget_login
+        uses: NuGet/login@v1
+        with:
+          user: jeremydmiller
+
       - name: Publish to NuGet
+        # xargs exits non-zero when any push fails, so a refused push fails the run instead of passing silently
         run: |
-          find . -name '*.nupkg' -exec dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k ${{secrets.NUGET_API_KEY}} --skip-duplicate \;
-          # find . -name '*.snupkg' -exec dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k ${{secrets.NUGET_API_KEY}} \;
+          find . -name '*.nupkg' -print0 | xargs -0 -I{} dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY" --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ steps.nuget_login.outputs.NUGET_API_KEY }}
         shell: bash
