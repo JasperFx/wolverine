@@ -45,9 +45,9 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         IdSource = LambdaBuilder.Getter<T, TId>(definition.IdMember);
 
         _insertSql =
-            $"INSERT INTO {settings.SchemaName}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}, last_modified) VALUES (@id, @body, 1, @last_modified)";
+            $"INSERT INTO {settings.SchemaName}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}, last_modified, {SagaTableIndexes.CompletedAtColumn}) VALUES (@id, @body, 1, @last_modified, @completed_at)";
         _updateSql =
-            $"UPDATE {settings.SchemaName}.{definition.TableName} SET {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = @last_modified WHERE {DatabaseConstants.Id} = @id AND {DatabaseConstants.Version} = @version";
+            $"UPDATE {settings.SchemaName}.{definition.TableName} SET {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = @last_modified, {SagaTableIndexes.CompletedAtColumn} = @completed_at WHERE {DatabaseConstants.Id} = @id AND {DatabaseConstants.Version} = @version";
         _loadSql =
             $"SELECT body, version, last_modified FROM {settings.SchemaName}.{definition.TableName} WHERE {DatabaseConstants.Id} = @id";
 
@@ -61,6 +61,9 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         // GH-5558: DATETIME(6), not the plain DATETIME a DateTimeOffset column maps to, which keeps whole seconds
         // only, so idle saga ranges and their least-recently-modified ordering were accurate to the second
         table.AddColumn("last_modified", "DATETIME(6)").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();
+
+        // GH-5572: when a retained saga completed, in UTC
+        table.AddColumn(SagaTableIndexes.CompletedAtColumn, "DATETIME(6)").AllowNulls();
 
         // GH-5558: "sagas idle for more than N days" filters on last_modified
         table.Indexes.Add(new IndexDefinition(SagaTableIndexes.LastModifiedIndexName(definition.TableName, 64))
@@ -115,6 +118,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         // MySQL JSON columns require string input, not binary
         cmd.Parameters.AddWithValue("@body", JsonSerializer.Serialize(saga, _settings.SagaSerializerOptions));
         cmd.Parameters.AddWithValue("@last_modified", saga.LastModified.UtcDateTime);
+        cmd.Parameters.AddWithValue("@completed_at", (object?)saga.CompletedAt?.UtcDateTime ?? DBNull.Value);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
@@ -136,6 +140,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@version", saga.Version);
         cmd.Parameters.AddWithValue("@last_modified", saga.LastModified.UtcDateTime);
+        cmd.Parameters.AddWithValue("@completed_at", (object?)saga.CompletedAt?.UtcDateTime ?? DBNull.Value);
         var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         if (count == 0)

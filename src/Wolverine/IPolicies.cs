@@ -71,6 +71,18 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void AlwaysMakeScheduledMessagesDurable();
 
     /// <summary>
+    ///     GH-5572. Keep completed sagas for <paramref name="retention" /> instead of deleting them, so finished
+    ///     instances can still be read and queried. A retained saga is marked completed
+    ///     (<see cref="Saga.CompletedAt" />), and a later message for it is treated as a message for a saga that does
+    ///     not exist: it goes to <c>NotFound</c>, never to <c>Handle</c>. A node agent deletes retained sagas once
+    ///     they are older than the retention period. Applies to every saga type whose storage supports retention
+    ///     (the lightweight database tables, Marten, Polecat, Fisher, EF Core, RavenDB and CosmosDB);
+    ///     <see cref="RetainWhenCompletedAttribute" /> sets a different period for one saga type. Off by default.
+    /// </summary>
+    /// <param name="retention">How long to keep a completed saga</param>
+    void RetainCompletedSagas(TimeSpan retention);
+
+    /// <summary>
     ///     Create a policy for all listening *non local* endpoints
     /// </summary>
     /// <param name="configure"></param>

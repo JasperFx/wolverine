@@ -114,6 +114,16 @@ public sealed partial class WolverineOptions : IPolicies
         Durability.AlwaysMakeScheduledMessagesDurable = true;
     }
 
+    void IPolicies.RetainCompletedSagas(TimeSpan retention)
+    {
+        if (retention <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(retention), "The retention period must be positive");
+        }
+
+        Durability.CompletedSagaRetention = retention;
+    }
+
     void IPolicies.AllListeners(Action<ListenerConfiguration> configure)
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, _) =>

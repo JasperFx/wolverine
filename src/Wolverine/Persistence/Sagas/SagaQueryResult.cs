@@ -1,9 +1,10 @@
 using JasperFx.Descriptors;
+using JasperFx.Documents;
 
 namespace Wolverine.Persistence.Sagas;
 
 /// <summary>
-/// One page of saga instances answered by <see cref="ISagaStoreDiagnostics.QuerySagasAsync"/>.
+/// One page of saga instances answered by <see cref="ISagaStoreDiagnostics.QuerySagasAsync(string, DocumentQueryOptions, CancellationToken)"/>.
 /// </summary>
 /// <param name="Instances">The page's instances, in the requested order (by saga identity when none was requested).</param>
 /// <param name="TotalCount">How many instances matched the criteria across all pages.</param>
@@ -15,7 +16,7 @@ public record SagaQueryResult(IReadOnlyList<SagaInstanceState> Instances, long T
 }
 
 /// <summary>
-/// What a saga storage can honour in <see cref="ISagaStoreDiagnostics.QuerySagasAsync"/> for one saga type,
+/// What a saga storage can honour in <see cref="ISagaStoreDiagnostics.QuerySagasAsync(string, DocumentQueryOptions, CancellationToken)"/> for one saga type,
 /// so a UI offers only what works.
 /// </summary>
 /// <param name="CanQuery">Whether <c>QuerySagasAsync</c> answers at all (paging, ordering by identity and a total count).</param>

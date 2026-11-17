@@ -553,6 +553,93 @@ public void Handle(CompleteOrder complete, ILogger<Order> logger)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L35-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_saga_mark_completed' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Keeping Completed Sagas <Badge type="tip" text="7.0" />
+
+By default a saga is deleted as soon as it calls `MarkCompleted()`. That leaves nothing to look at afterward, so you
+can't answer "what happened to order 123 yesterday?" from the saga itself. You can opt into keeping completed sagas
+for a while instead, either for one saga type with an attribute:
+
+<!-- snippet: sample_retain_when_completed -->
+<a id='snippet-sample_retain_when_completed'></a>
+```cs
+// Keep each shipment for two days after it completes
+[RetainWhenCompleted(Days = 2)]
+public class ShipmentSaga : Saga
+{
+    public string Id { get; set; } = string.Empty;
+    public bool Delivered { get; set; }
+
+    public static ShipmentSaga Start(ShipmentRequested command) => new() { Id = command.ShipmentId };
+
+    public void Handle(ShipmentDelivered command)
+    {
+        Delivered = true;
+        MarkCompleted();
+    }
+
+    // A message for a shipment that already completed comes here, never to Handle()
+    public static void NotFound(ShipmentDelivered command, ILogger<ShipmentSaga> logger)
+    {
+        logger.LogInformation("Shipment {Id} was already delivered", command.ShipmentId);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Sagas/saga_retention_policy_5572.cs#L37-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_retain_when_completed' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+or for every saga type in the application:
+
+<!-- snippet: sample_retain_completed_sagas_policy -->
+<a id='snippet-sample_retain_completed_sagas_policy'></a>
+```cs
+// Keep every completed saga for 3 days before deleting it
+opts.Policies.RetainCompletedSagas(3.Days());
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Sagas/saga_retention_policy_5572.cs#L79-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_retain_completed_sagas_policy' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The attribute takes `Days`, `Hours` and `Minutes`, adds them up, and wins over the global policy for that saga type.
+
+A retained saga that completes is saved with `Saga.CompletedAt` set to the time it completed, and `IsCompleted()`
+returns true for it. From then on Wolverine treats it like a saga that no longer exists:
+
+* A message for it goes to the saga's `NotFound` method for that message type, never to `Handle`
+* A `TimeoutMessage` for it is ignored
+* With no `NotFound` method, the message fails with `UnknownSagaException`, the same as for a deleted saga
+* A `StartOrHandle` message for it does not start a new saga over the completed one, which keeps its id. The message
+  is logged and not handled
+
+A saga that completes in its `Start` method is kept as well.
+
+Retained sagas are deleted once they have been completed for longer than the retention period. A node agent does that,
+one per saga store, so only one node in the cluster sweeps each store. It runs every hour by default; change that with
+`opts.Durability.CompletedSagaSweepInterval`. The agent needs Wolverine's node coordination, so it runs in the
+`Balanced` and `Solo` durability modes, but not with `MediatorOnly` or `Serverless`.
+
+The saga diagnostics on `IWolverineRuntime.SagaStorage` leave completed sagas out of `QuerySagasAsync()` and
+`ListSagaInstancesAsync()`, so you see the same instances you did before turning retention on. Pass
+`includeCompleted: true` to `QuerySagasAsync()` to see them too. `ReadSagaAsync()` reads a completed saga by its id
+either way, and idle saga queries never count a completed saga.
+
+Retention works with these saga storages:
+
+| Saga storage | How completed sagas are kept |
+|---|---|
+| Lightweight tables (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) | A nullable `completed_at` column, added to existing tables by the usual migration. The sweep covers every tenant database under database-per-tenant storage |
+| Marten, Polecat, Fisher | `CompletedAt` on the saga document. The sweep reads the default tenant |
+| EF Core | `CompletedAt` as a mapped column on your saga entity, which needs a migration. If you `Ignore()` it, retaining that saga type is refused at startup |
+| RavenDB | `CompletedAt` on the saga document |
+| CosmosDB | `CompletedAt` on the saga document. Saga documents carry no type marker, so with several retained saga types the sweep keeps every completed saga for the longest of their retention periods |
+| In memory | Not retained: completed sagas are deleted as before |
+| Redis, Azure Blob Storage, Amazon S3 | Not supported. `[RetainWhenCompleted]` on a saga stored there is refused at startup, and the global policy skips it |
+
+If one of your saga types already has a property named `CompletedAt`, it hides the one on `Saga` (compiler warning
+CS0108), and a retained saga would not be recognized as completed when it is loaded again. Rename your property before
+turning retention on.
+
+Turning retention off again leaves the sagas that were already kept in storage. They are no longer swept, and nothing
+stops a later message from reaching them, so delete them first.
+
 ## Last Modified Time <Badge type="tip" text="7.0" />
 
 Every `Saga` has a `LastModified` property, a `DateTimeOffset` in UTC. Wolverine sets it whenever it inserts or
@@ -595,7 +682,8 @@ if (idle.SupportsIdleQueries(sagaType))
 ```
 
 `SagaLastModifiedRange` takes a modified-after bound (inclusive) and a modified-before bound (exclusive), and either can
-be left open. Completed sagas are deleted, so every instance these calls find is still open.
+be left open. Completed sagas are either deleted or, when [they are kept](#keeping-completed-sagas), left out, so every
+instance these calls find is still open.
 
 Which saga storage answers depends on where the saga lives:
 

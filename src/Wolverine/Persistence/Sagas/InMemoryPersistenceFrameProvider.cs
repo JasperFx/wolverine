@@ -33,6 +33,9 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
     // selective providers for the entity types they actually map
     public bool IsCatchAll => true;
 
+    // GH-5572
+    public SagaRetentionSupport SagaRetentionSupportFor(Type sagaType, IServiceContainer container) => SagaRetentionSupport.Ignored;
+
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
         persistenceService = GetType();
