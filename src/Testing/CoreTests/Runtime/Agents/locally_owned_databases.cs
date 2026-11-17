@@ -1,9 +1,11 @@
 using JasperFx.Descriptors;
+using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using Shouldly;
 using Wolverine;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
+using Wolverine.Tracking;
 using Xunit;
 
 namespace CoreTests.Runtime.Agents;
@@ -85,5 +87,28 @@ public class locally_owned_databases
         var after = runtime.LocallyOwnedDatabases();
         after.Contains(Claims129).ShouldBeFalse();
         after.Contains(Claims130).ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(DurabilityMode.Serverless)]
+    [InlineData(DurabilityMode.ServerlessWithOutbox)]
+    [InlineData(DurabilityMode.MediatorOnly)]
+    public async Task modes_that_run_no_agents_own_nothing(DurabilityMode mode)
+    {
+        // No node agents ever run in these modes, so IsNone is the final answer here, not "nothing assigned yet"
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = mode;
+                opts.Discovery.DisableConventionalDiscovery();
+            })
+            .StartAsync(TestContext.Current.CancellationToken);
+
+        var owned = host.GetRuntime().LocallyOwnedDatabases();
+
+        owned.IsNone.ShouldBeTrue();
+        owned.IsEvery.ShouldBeFalse();
+        owned.Ids.ShouldBeEmpty();
+        owned.Contains(Claims129).ShouldBeFalse();
     }
 }

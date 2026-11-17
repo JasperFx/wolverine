@@ -26,7 +26,7 @@ opts.Services.AddMarten(m =>
         m.UseWolverineManagedEventSubscriptionDistribution = true;
     });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L60-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opt_into_wolverine_managed_subscription_distribution' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L59-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opt_into_wolverine_managed_subscription_distribution' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -85,6 +85,34 @@ with the number of databases, not `nodes × databases`. The grouping key is the
 agents share one group. Whole groups are still spread across the cluster largest-first, so total agent counts stay
 balanced. A single-database store in the same application keeps the default even distribution — each store is
 distributed in its own pass.
+
+### Which databases does this node own? <Badge type="tip" text="7.0" />
+
+Per-node work like a readiness check or a progress query only needs the databases whose agents run on this node.
+Ask the runtime with `LocallyOwnedDatabases()`, and ask it with the Marten database itself:
+
+<!-- snippet: sample_which_databases_does_this_node_own -->
+<a id='snippet-sample_which_databases_does_this_node_own'></a>
+```cs
+var locallyOwned = host.GetRuntime().LocallyOwnedDatabases();
+var databases = await host.Services.GetRequiredService<IDocumentStore>().Storage.AllDatabases();
+
+// Only the shard databases whose agents run on this node
+var mine = databases.Where(d => locallyOwned.Contains(d)).ToList();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/sharded_two_databases_affine_colocation.cs#L184-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_which_databases_does_this_node_own' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`Contains()` compares the database's `Id`, which is what the agent `Uri` carries. Don't compare Marten's shard
+`Identifier`, that never matches anything.
+
+What you get back depends on the durability mode:
+
+* `Balanced`: the databases of the agents running here right now. `IsNone` can just mean the leader hasn't assigned
+  anything to this node yet. Assignments move as nodes come and go, so ask again instead of holding on to the result.
+* `Solo`: every database, because every agent runs on the one node. `IsEvery` is true and `Contains()` is always true.
+* `Serverless`, `ServerlessWithOutbox` and `MediatorOnly`: no agents run at all, so `IsNone` is the answer and it
+  never changes. Don't wait for it to.
 
 ## Uri Structure
 
@@ -147,8 +175,6 @@ var host = await Host.CreateDefaultBuilder()
 
         opts.UseMessagePackSerialization();
 
-        opts.UseSharedMemoryQueueing();
-
         opts.Services.AddMarten(m =>
             {
                 m.DisableNpgsqlLogging = true;
@@ -182,7 +208,7 @@ var host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/with_ancillary_stores.cs#L59-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_distributed_projections_with_ancillary_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/with_ancillary_stores.cs#L58-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_distributed_projections_with_ancillary_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

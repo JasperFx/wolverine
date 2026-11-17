@@ -181,8 +181,15 @@ public class sharded_two_databases_affine_colocation(ITestOutputHelper output) :
 
             // Asked with the database itself, so nobody picks which name to compare: the Marten shard
             // Identifier ("shard-1") is not what the agent URIs carry, the database Id is.
+            #region sample_which_databases_does_this_node_own
             var locallyOwned = host.GetRuntime().LocallyOwnedDatabases();
             var databases = await host.Services.GetRequiredService<IDocumentStore>().Storage.AllDatabases();
+
+            // Only the shard databases whose agents run on this node
+            var mine = databases.Where(d => locallyOwned.Contains(d)).ToList();
+            #endregion
+
+            mine.Count.ShouldBe(1);
             databases.Count.ShouldBe(2);
             databases.Count(d => locallyOwned.Contains(d)).ShouldBe(1);
             locallyOwned.Contains(databases.Single(d => owned.Contains(d.Id))).ShouldBeTrue();
