@@ -193,7 +193,7 @@ public partial class HttpChain
         if (rules.GetPersistenceProviders(this, container) is not ITransactionalReplayableDeduplicationProvider
             provider)
         {
-            warnClaimInTransactionFallsBack(container, asked,
+            reportClaimInTransactionFallsBack(container, asked,
                 "its persistence cannot write the claim inside its transaction; only Marten can today");
             return false;
         }
@@ -207,7 +207,7 @@ public partial class HttpChain
         if (!provider.TryBuildTransactionalReplayableDeduplication(this, storageId.Variable, requirement.Required,
                 prepare.Variable, container, out var transactional))
         {
-            warnClaimInTransactionFallsBack(container, asked,
+            reportClaimInTransactionFallsBack(container, asked,
                 "it does not commit through Wolverine's Marten transactional middleware on a single-database store with the PostgreSQL message store in the same database");
             return false;
         }
@@ -219,7 +219,7 @@ public partial class HttpChain
         // commit would pull that read ahead of the commit, and answer with the aggregate before this request's events
         if (resource.Creator != null && Postprocessors.IndexOf(resource.Creator) > commit)
         {
-            warnClaimInTransactionFallsBack(container, asked,
+            reportClaimInTransactionFallsBack(container, asked,
                 "its response is only produced after the commit (UpdatedAggregate, say), and the claim has to be written before it");
             return false;
         }
@@ -254,11 +254,21 @@ public partial class HttpChain
         typeof(HttpHandler).GetMethod(nameof(HttpHandler.MarkDeduplicatedDatabaseCommitted))!;
 
     /// <param name="asked">
-    /// The endpoint asked for it itself. One that only inherited <see cref="WolverineHttpOptions.DefaultClaimInTransaction" />
-    /// is logged at debug level: a global default is expected to miss endpoints on other stores.
+    /// The endpoint asked for it itself. When the fallback is logged rather than refused, one that only inherited
+    /// <see cref="WolverineHttpOptions.DefaultClaimInTransaction" /> is logged at debug level: a global default is
+    /// expected to miss endpoints on other stores.
     /// </param>
-    private void warnClaimInTransactionFallsBack(IServiceContainer container, bool asked, string reason)
+    private void reportClaimInTransactionFallsBack(IServiceContainer container, bool asked, string reason)
     {
+        var endpoint = RoutePattern?.RawText ?? Description;
+
+        if (_parent.ThrowWhenClaimInTransactionFallsBack)
+        {
+            throw new InvalidOperationException(asked
+                ? $"[DeduplicatedWithResponse(ClaimInTransaction = true)] on {endpoint} cannot claim inside its transaction, because {reason}. WolverineHttpOptions.ThrowWhenClaimInTransactionFallsBack refuses the claim-and-release fallback. See GH-5160"
+                : $"[DeduplicatedWithResponse] on {endpoint} cannot claim inside its transaction despite WolverineHttpOptions.DefaultClaimInTransaction, because {reason}. WolverineHttpOptions.ThrowWhenClaimInTransactionFallsBack refuses the claim-and-release fallback. See GH-5160");
+        }
+
         try
         {
             var logger = container.GetInstance<ILogger<HttpGraph>>();
@@ -266,13 +276,13 @@ public partial class HttpChain
             {
                 logger.LogWarning(
                     "[DeduplicatedWithResponse(ClaimInTransaction = true)] on {Endpoint} keeps claim-and-release, because {Reason}. See GH-5160",
-                    RoutePattern?.RawText ?? Description, reason);
+                    endpoint, reason);
             }
             else
             {
                 logger.LogDebug(
                     "[DeduplicatedWithResponse] on {Endpoint} keeps claim-and-release despite WolverineHttpOptions.DefaultClaimInTransaction, because {Reason}. See GH-5160",
-                    RoutePattern?.RawText ?? Description, reason);
+                    endpoint, reason);
             }
         }
         catch (Exception)

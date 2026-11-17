@@ -205,6 +205,26 @@ public class WolverineHttpOptions
     public bool DefaultClaimInTransaction { get; set; }
 
     /// <summary>
+    ///     Fail, rather than log, when a <c>[DeduplicatedWithResponse]</c> endpoint that should claim inside its
+    ///     transaction cannot, and would otherwise keep claim-and-release. Defaults to false.
+    ///
+    ///     <para>
+    ///     This covers endpoints that set <c>ClaimInTransaction = true</c> themselves and endpoints that inherit
+    ///     <see cref="DefaultClaimInTransaction" />. An endpoint that never asked for the transactional path is not
+    ///     affected.
+    ///     </para>
+    ///
+    ///     <para>
+    ///     The <see cref="InvalidOperationException" /> is thrown when the endpoint's code is generated: in
+    ///     <c>MapWolverineEndpoints</c> when <see cref="WarmUpRoutes" /> is <see cref="RouteWarmup.Eager" />, and
+    ///     otherwise on the first request to that route. Pre-generated code (<c>TypeLoadMode.Static</c>, or
+    ///     <c>TypeLoadMode.Auto</c> once the generated code exists) is not generated at runtime, so nothing throws
+    ///     there. Run <c>codegen write</c> with this option on to check it.
+    ///     </para>
+    /// </summary>
+    public bool ThrowWhenClaimInTransactionFallsBack { get; set; }
+
+    /// <summary>
     ///     Mark a response that <c>[DeduplicatedWithResponse]</c> replays with the
     ///     <see cref="DeduplicatedReplayHeaderName" /> header, set to <c>true</c>. Defaults to true.
     ///
