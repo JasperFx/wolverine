@@ -952,7 +952,13 @@ public sealed partial class WolverineOptions
         }
 
 
-        if (_applicationAssembly == null)
+        if (_applicationAssembly == null && !RememberApplicationAssembly)
+        {
+            // GH-3521: opted out of the process-wide pin. JasperFx's value is the assembly that BUILT the host when
+            // UseWolverine() was registered elsewhere, so use this host's own registration assembly.
+            establishApplicationAssembly(null);
+        }
+        else if (_applicationAssembly == null)
         {
             // GH-3776: JasperFx resolves its own application assembly with the same kind of stack walk and has
             // no test-runner exclusion, so in a test process it can hand us the RUNNER assembly. Adopting that

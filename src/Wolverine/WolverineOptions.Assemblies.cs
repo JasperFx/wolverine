@@ -17,6 +17,41 @@ public sealed partial class WolverineOptions
     /// </summary>
     public static Assembly? RememberedApplicationAssembly;
 
+    /// <summary>
+    ///     Clears <see cref="RememberedApplicationAssembly"/> and JasperFx's own
+    ///     <c>JasperFxOptions.RememberedApplicationAssembly</c>, so the next host to start without an explicit
+    ///     application assembly resolves its own again. For test fixtures that start several hosts in one process.
+    /// </summary>
+    public static void ResetRememberedApplicationAssembly()
+    {
+        RememberedApplicationAssembly = null;
+        JasperFxOptions.ResetRememberedApplicationAssembly();
+    }
+
+    /// <summary>
+    ///     Whether this host takes part in the process-wide <see cref="RememberedApplicationAssembly"/> (and JasperFx's
+    ///     twin). The default is true: the first host to start records its application assembly, and every later host
+    ///     that doesn't name one reuses it. Set this to false and the host neither records nor reuses the remembered
+    ///     assembly; without an explicit <see cref="ApplicationAssembly"/> it uses the assembly that called
+    ///     <c>UseWolverine()</c> or <c>AddWolverine()</c>. Useful in a test suite where handler discovery would
+    ///     otherwise depend on which test ran first (GH-3521).
+    /// </summary>
+    public bool RememberApplicationAssembly { get; set; } = true;
+
+    // GH-3521: the assembly this host's registration seeded JasperFxOptions.RememberedApplicationAssembly with, so a
+    // host that turns RememberApplicationAssembly off (which the registration can't see yet) can take it back
+    internal Assembly? SeededRememberedApplicationAssembly { get; set; }
+
+    internal void ForgetSeededRememberedApplicationAssembly()
+    {
+        var seeded = SeededRememberedApplicationAssembly;
+        if (seeded == null) return;
+
+        // Only if no other host has replaced it since
+        Interlocked.CompareExchange(ref JasperFxOptions.RememberedApplicationAssembly, null, seeded);
+        SeededRememberedApplicationAssembly = null;
+    }
+
     // GH-3521: a warning buffered during options configuration (before any logger exists) and emitted at
     // WolverineRuntime startup when an implicit host silently inherited a different host's scanned assembly.
     internal string? ApplicationAssemblyReuseWarning { get; private set; }
@@ -209,6 +244,11 @@ public sealed partial class WolverineOptions
         if (assemblyName.IsNotEmpty())
         {
             ApplicationAssembly ??= Assembly.Load(assemblyName);
+        }
+        else if (!RememberApplicationAssembly)
+        {
+            // GH-3521: opted out of the process-wide pin, so use where this host was registered, and record nothing
+            ApplicationAssembly = RegistrationCallingAssembly ?? determineCallingAssembly();
         }
         else if (RememberedApplicationAssembly != null)
         {

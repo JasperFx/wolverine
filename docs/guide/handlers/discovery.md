@@ -100,6 +100,23 @@ using var host = Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/BootstrappingSamples.cs#L10-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_application_assembly' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Opting out of the remembered application assembly <Badge type="tip" text="7.0" />
+
+In a test suite that starts several hosts in one process, you can also take a host out of the process-wide
+application assembly altogether. It then neither reuses the assembly an earlier host remembered nor remembers its
+own for later hosts, and uses the assembly that called `UseWolverine()`:
+
+<!-- snippet: sample_opting_out_of_the_remembered_application_assembly -->
+<!-- endSnippet -->
+
+Or clear the remembered assembly between hosts, say in a test fixture. This clears JasperFx's copy as well:
+
+<!-- snippet: sample_resetting_the_remembered_application_assembly -->
+<!-- endSnippet -->
+
+`opts.RememberApplicationAssembly = false` also turns off JasperFx's `RememberApplicationAssembly` for the host, so
+Marten, Polecat and Fisher in the same host behave the same way.
+
 To pull in handlers from other assemblies, you can either decorate an assembly with this attribute:
 
 <!-- snippet: sample_using_wolverine_module_attribute -->
