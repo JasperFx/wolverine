@@ -41,6 +41,7 @@ list.
 | `WolverineOptions.ServiceName` default | the entry assembly name | `OTEL_SERVICE_NAME` when set, then the entry assembly name | None, unless a service relied on the assembly name while `OTEL_SERVICE_NAME` was set to something else: set `opts.ServiceName` explicitly |
 | `Saga.LastModified` | not there | new `DateTimeOffset` property on the base `Saga`, set to UTC now by every saga store on insert and update *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga LastModified](#saga-lastmodified-is-set-by-every-saga-store) |
 | Code generation in the `Production` profile (Wolverine hosts) | `TypeLoadMode.Dynamic`: compiled at runtime | `TypeLoadMode.Static` with `AssertAllPreGeneratedTypesExist`: pre-generated code is required *(BREAKING for applications that deploy without `codegen write`)* | Run `dotnet run -- codegen write` in the build, or call `RestoreV6Defaults()`. See [deploying 7.0 to production](#deploying-7-0-to-production) |
+| Transport timestamp headers (`sent-at`, `time-to-send`, `deliver-by`) | written as `yyyy-MM-dd HH:mm:ss:ffffff Z` | written in round-trip ISO 8601 (`"o"`, UTC); both formats are still read | 5.x nodes running beside 7.0 nodes need WolverineFx 5.41.1 or later; 6.x already reads both. See [transport timestamp headers](#transport-timestamp-headers-are-written-in-round-trip-iso-8601) |
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 
@@ -868,6 +869,25 @@ Before the first 7.0 node starts:
 `RestoreV6Defaults()` turns off the deduplication tables, the optional schema objects, the dead letter expiration
 column and inbox partitioning, so it avoids all of this except the SQLite queue indexes, the saga `last_modified`
 indexes and the dead letter `saga_id` column.
+
+### Transport timestamp headers are written in round-trip ISO 8601
+
+The transport envelope mappers now write the `sent-at`, `time-to-send` and `deliver-by` headers as invariant
+round-trip (`"o"`) timestamps in UTC instead of Wolverine's own `yyyy-MM-dd HH:mm:ss:ffffff Z` format
+([GH-3645](https://github.com/JasperFx/wolverine/issues/3645)). Standard date parsers in any language can read the
+new values, and all seven fractional-second digits survive. Wolverine still reads the old format, so messages already
+sitting in a broker, in durable storage or in a dead letter queue keep their scheduled time and expiration. There is
+no database schema change.
+
+A receiver that only understands the old format silently drops the scheduled time and expiration of a message sent
+in the new one, so check what reads the messages before the first 7.0 node starts sending:
+
+* **Wolverine 6.x** reads both formats (6.23.0 and later, [#3656](https://github.com/JasperFx/wolverine/pull/3656)).
+* **Wolverine 5.x** nodes running beside 7.0 nodes need **WolverineFx 5.41.1 or later**, the first 5.x release with
+  the same reader ([#4583](https://github.com/JasperFx/wolverine/pull/4583)).
+* **Non-Wolverine consumers** that parse these headers themselves need to accept ISO 8601.
+
+A custom envelope mapper that writes these headers itself keeps whatever format it writes.
 
 ### OpenTelemetry meter and metric names (BREAKING)
 
