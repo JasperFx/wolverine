@@ -38,6 +38,16 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
     public Variable SagaId { get; }
 
     /// <summary>
+    /// GH-4484. When the saga declares IdNotProvided for this message, a missing id is not an error: the frame sets
+    /// <see cref="SagaIdGuardFrame.MissingVariableName"/> instead of throwing, and <see cref="SagaIdGuardFrame"/> acts on it
+    /// </summary>
+    public bool ReportsMissingId { get; set; }
+
+    private string missing(string condition) => ReportsMissingId
+        ? $"var {SagaIdGuardFrame.MissingVariableName} = {condition};"
+        : $"if ({condition}) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope!.Usage}, {csharpDiagnosticArguments});";
+
+    /// <summary>
     /// GH-4531: the saga type and identity member name the failure message needs, rendered for a C# call.
     /// </summary>
     private string csharpDiagnosticArguments =>
@@ -56,8 +66,7 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
         {
             writer.Write(
                 $"{_sagaIdType.NameInCode()} {SagaChain.SagaIdVariableName} = {_message!.Usage}.{_sagaIdMember.Name} ?? {_envelope!.Usage}.{nameof(Envelope.SagaId)};");
-            writer.Write(
-                $"if (string.{nameof(string.IsNullOrEmpty)}({SagaChain.SagaIdVariableName})) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage}, {csharpDiagnosticArguments});");
+            writer.Write(missing($"string.{nameof(string.IsNullOrEmpty)}({SagaChain.SagaIdVariableName})"));
         }
         else
         {
@@ -71,13 +80,11 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
 
             if (_sagaIdType == typeof(Guid))
             {
-                writer.Write(
-                    $"if ({SagaId.Usage} == System.Guid.Empty) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage}, {csharpDiagnosticArguments});");
+                writer.Write(missing($"{SagaId.Usage} == System.Guid.Empty"));
             }
             else
             {
-                writer.Write(
-                    $"if ({SagaId.Usage} == 0) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage}, {csharpDiagnosticArguments});");
+                writer.Write(missing($"{SagaId.Usage} == 0"));
             }
         }
 
@@ -138,8 +145,7 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
             $"var {SagaChain.SagaIdVariableName} = {_message!.Usage}.{_sagaIdMember.Name};");
 
         // Check for default value
-        writer.Write(
-            $"if ({SagaChain.SagaIdVariableName}.Equals(default({typeNameInCode}))) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope!.Usage}, {csharpDiagnosticArguments});");
+        writer.Write(missing($"{SagaChain.SagaIdVariableName}.Equals(default({typeNameInCode}))"));
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)

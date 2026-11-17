@@ -32,4 +32,11 @@ public static class FaultHeaders
     /// predates the header ignores it.
     /// </summary>
     public const string ReplyTo = "wolverine.fault.reply-to";
+
+    /// <summary>
+    /// GH-5553. The value of <see cref="ReplyTo"/> that means "the sender's reply address": the receiver sends the
+    /// fault to the failed envelope's <see cref="Envelope.ReplyUri"/>. Written when the sender's reply address is not
+    /// known yet as the message is sent.
+    /// </summary>
+    public const string ReplyToSender = "sender";
 }

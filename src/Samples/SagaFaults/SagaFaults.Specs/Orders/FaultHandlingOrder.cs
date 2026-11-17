@@ -5,6 +5,7 @@ namespace SagaFaults.Orders.FaultHandling;
 
 // Chapter 1 (GH-5553, with GH-4484 folded in): the Order saga hears about a step that failed, in another service or
 // in its own.
+#region sample_saga_that_hears_about_its_failed_steps
 public class Order : Saga
 {
     public Guid Id { get; set; }
@@ -28,8 +29,8 @@ public class Order : Saga
     public void Handle(CardCharged charged) => Paid = true;
 
     // Declaring this is what has Wolverine ask for the fault of every ReserveInventory this saga sends: the
-    // wolverine.fault.reply-to header, stamped at code generation (GH-5553). No routing rule for Fault<ReserveInventory>
-    // anywhere, and fault events can stay off in the inventory service.
+    // wolverine.fault.reply-to header, worked out when the application starts. No routing rule for
+    // Fault<ReserveInventory> anywhere, and fault events can stay off in the inventory service.
     public void Handle(Fault<ReserveInventory> fault)
     {
         FailedStep = nameof(ReserveInventory);
@@ -43,7 +44,7 @@ public class Order : Saga
         FailureReason = fault.Exception.Message;
     }
 
-    // GH-4484: a Fault<ReserveInventory> with no saga id -- the ReserveInventory was not sent by an Order -- comes here
+    // A Fault<ReserveInventory> with no saga id -- the ReserveInventory was not sent by an Order -- comes here
     // instead of failing with IndeterminateSagaStateIdException
     public static UnmatchedInventoryFailure IdNotProvided(Fault<ReserveInventory> fault) => new(fault.Message.Sku);
 
@@ -51,3 +52,4 @@ public class Order : Saga
     // for its type. A card payment confirmed outside any order
     public static UnmatchedPayment IdNotProvided(CardCharged charged) => new(charged.Amount);
 }
+#endregion

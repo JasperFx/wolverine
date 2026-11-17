@@ -24,6 +24,12 @@ public class SagaChain : HandlerChain
     public const string StartsOrHandles = "StartsOrHandles";
     public const string NotFound = "NotFound";
 
+    /// <summary>
+    /// GH-4484. A static method a saga declares for a message that reaches it with no saga id -- on the message or in
+    /// the saga-id envelope header -- instead of the message failing with <see cref="IndeterminateSagaStateIdException" />
+    /// </summary>
+    public const string IdNotProvided = "IdNotProvided";
+
     public const string SagaIdMemberName = "SagaId";
     public const string SagaIdVariableName = "sagaId";
     public static readonly Type[] ValidSagaIdTypes = [typeof(Guid), typeof(int), typeof(long), typeof(string)];
@@ -118,6 +124,11 @@ public class SagaChain : HandlerChain
     public MethodCall[] NotFoundCalls { get; set; } = [];
 
     /// <summary>
+    /// GH-4484. The saga's IdNotProvided methods for this message type
+    /// </summary>
+    public MethodCall[] IdNotProvidedCalls { get; set; } = [];
+
+    /// <summary>
     /// GH-5331. Every saga handler method on this chain, whether or not the chain has compiled.
     /// DetermineFrames sorts the saga calls into StartingCalls / ExistingCalls / NotFoundCalls and then
     /// clears Handlers, so anything describing the saga after the first message was handled has to read
@@ -131,6 +142,7 @@ public class SagaChain : HandlerChain
             .Concat(StartingCalls)
             .Concat(ExistingCalls)
             .Concat(NotFoundCalls)
+            .Concat(IdNotProvidedCalls)
             .Distinct()
             .ToArray();
     }
@@ -201,6 +213,14 @@ public class SagaChain : HandlerChain
         frameProvider.ApplyTransactionSupport(this, container);
 
         NotFoundCalls = findByNames(NotFound);
+        IdNotProvidedCalls = findByNames(IdNotProvided);
+
+        var instanceIdNotProvided = IdNotProvidedCalls.Where(x => !x.Method.IsStatic).ToArray();
+        if (instanceIdNotProvided.Length != 0)
+        {
+            throw new InvalidSagaException(
+                $"{SagaType.FullNameInCode()}.{instanceIdNotProvided[0].Method.Name}() must be static: there is no saga to call it on when the message carries no saga id");
+        }
         StartingCalls = findByNames(Start, Starts, StartOrHandle, StartsOrHandles);
 
         ExistingCalls = findByNames(Orchestrate, Orchestrates, StartOrHandle, StartsOrHandles, Handle, Handles,
@@ -217,7 +237,9 @@ public class SagaChain : HandlerChain
 
         var list = new List<Frame>();
 
-        if (ExistingCalls.Length == 0)
+        // GH-5553: a saga that declares only NotFound or IdNotProvided for a message -- NotFound(Fault<T>) is the usual
+        // one -- loads the saga like any other. Treating it as a starting message created an empty saga
+        if (ExistingCalls.Length == 0 && StartingCalls.Length != 0)
         {
             generateForOnlyStartingSaga(container, frameProvider, list);
         }
@@ -243,6 +265,12 @@ public class SagaChain : HandlerChain
 
         var load = frameProvider.DetermineLoadFrame(container, SagaType, findSagaId.Creates.First());
 
+        if (IdNotProvidedCalls.Length != 0)
+        {
+            generateCodeWithIdNotProvided(container, frameProvider, frames, messageVariable, findSagaId, load);
+            return;
+        }
+
         // Using this one frame to tie everything together
         var resolve = new ResolveSagaFrame(findSagaId, load);
         frames.Add(resolve);
@@ -255,6 +283,36 @@ public class SagaChain : HandlerChain
             existingFrames);
 
         frames.Add(ifNullBlock);
+    }
+
+    // GH-4484: as generateCodeForMaybeExisting, except that a message with no saga id goes to IdNotProvided
+    private void generateCodeWithIdNotProvided(IServiceContainer container, IPersistenceFrameProvider frameProvider,
+        List<Frame> frames, MessageVariable? messageVariable, Frame findSagaId, Frame load)
+    {
+        switch (findSagaId)
+        {
+            case PullSagaIdFromEnvelopeFrame fromEnvelope:
+                fromEnvelope.ReportsMissingId = true;
+                break;
+            case PullSagaIdFromMessageFrame fromMessage:
+                fromMessage.ReportsMissingId = true;
+                break;
+        }
+
+        var idNotProvided = new List<Frame>();
+        foreach (var call in IdNotProvidedCalls)
+        {
+            idNotProvided.Add(call);
+            idNotProvided.AddRange(call.Creates.SelectMany(x => x.ReturnAction(this).Frames()));
+        }
+
+        var guard = new SagaIdGuardFrame(SagaType, findSagaId, load, idNotProvided.ToArray());
+
+        var startingFrames = DetermineSagaDoesNotExistSteps(guard.SagaId, guard.Saga, frameProvider, container).ToArray();
+        var existingFrames = DetermineSagaExistsSteps(guard.SagaId, guard.Saga, frameProvider, container, messageVariable).ToArray();
+        guard.WhenTheIdIsKnown(new IfElseNullGuardFrame(guard.Saga, startingFrames, existingFrames));
+
+        frames.Add(guard);
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2072",

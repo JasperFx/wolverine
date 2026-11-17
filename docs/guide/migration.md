@@ -735,6 +735,23 @@ its version alone.
 If a saga type of yours already declares its own `LastModified`, it now hides the base property (compiler warning
 CS0108). Wolverine still sets the base `Saga.LastModified`; rename or remove your own property.
 
+### A saga that handles `Fault<T>` gets the fault back without a routing rule
+
+In 7.0 a saga that declares a handler for `Fault<T>` asks for the fault of every `T` it sends, with a
+`wolverine.fault.reply-to` header (GH-5553), and a 7.0 receiver sends the fault there when `T` is dead lettered,
+whether or not it has `PublishFaultEvents()` on. See
+[Hearing About Failed Steps](/guide/durability/sagas#hearing-about-failed-steps).
+
+If you already route `Fault<T>` back to the saga's service yourself, check where that route ends up. Wolverine sends
+the fault only once to any one address, and two local queues count as one, so a route to the saga service's own
+listener or a local queue is fine. A route to some other queue in the saga's service means the saga now hears the
+fault twice: once through your route and once through the reply address. Take the route out, since the saga no longer
+needs it.
+
+A `Saga` that declares only `NotFound` (or the new `IdNotProvided`) for a message type now loads the saga for that
+message like any other, and calls `NotFound` when it is missing. Before 7.0 such a message never reached `NotFound`:
+it created and saved a new, empty saga instead.
+
 ### Obsolete in 7.0
 
 Wolverine.Marten, Wolverine.Polecat and Wolverine.Fisher each shipped their own copy of a few public types. 7.0 adds one

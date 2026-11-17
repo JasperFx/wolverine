@@ -19,6 +19,16 @@ internal class PullSagaIdFromEnvelopeFrame : SyncFrame
     public Variable SagaId { get; }
 
     /// <summary>
+    /// GH-4484. When the saga declares IdNotProvided for this message, a missing id is not an error: the frame sets
+    /// <see cref="SagaIdGuardFrame.MissingVariableName"/> instead of throwing, and <see cref="SagaIdGuardFrame"/> acts on it
+    /// </summary>
+    public bool ReportsMissingId { get; set; }
+
+    private string missing(string condition) => ReportsMissingId
+        ? $"var {SagaIdGuardFrame.MissingVariableName} = {condition};"
+        : $"if ({condition}) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope!.Usage}, {csharpDiagnosticArguments});";
+
+    /// <summary>
     /// GH-4531: this frame is the "the message has no identity member" path, so the failure message says
     /// the envelope header was the only source there was. A null member name selects that wording.
     /// </summary>
@@ -31,8 +41,7 @@ internal class PullSagaIdFromEnvelopeFrame : SyncFrame
         if (SagaId.VariableType == typeof(string))
         {
             writer.Write($"var {SagaId.Usage} = {_envelope!.Usage}.{nameof(Envelope.SagaId)};");
-            writer.Write(
-                $"if (string.{nameof(string.IsNullOrEmpty)}({SagaChain.SagaIdVariableName})) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage}, {csharpDiagnosticArguments});");
+            writer.Write(missing($"string.{nameof(string.IsNullOrEmpty)}({SagaChain.SagaIdVariableName})"));
         }
         else
         {
@@ -40,8 +49,7 @@ internal class PullSagaIdFromEnvelopeFrame : SyncFrame
                 ? typeof(Guid).FullName
                 : SagaId.VariableType.FullNameInCode();
 
-            writer.Write(
-                $"if (!{typeNameInCode}.TryParse({_envelope!.Usage}.{nameof(Envelope.SagaId)}, out {typeNameInCode} sagaId)) throw new {typeof(IndeterminateSagaStateIdException).FullName}({_envelope.Usage}, {csharpDiagnosticArguments});");
+            writer.Write(missing($"!{typeNameInCode}.TryParse({_envelope!.Usage}.{nameof(Envelope.SagaId)}, out {typeNameInCode} sagaId)"));
         }
 
         Next?.GenerateCode(method, writer);

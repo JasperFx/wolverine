@@ -4,6 +4,7 @@ using System.Diagnostics.Metrics;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
+using Wolverine.Transports;
 using Wolverine.Runtime.Serialization.Encryption;
 using Wolverine.Util;
 
@@ -60,9 +61,14 @@ internal sealed class FaultPublisher : IFaultPublisher
         if (messageType.IsValueType) return;
 
         var decision = _policy.Resolve(messageType);
+        var routed = decision.Mode != FaultPublishingMode.None &&
+                     (trigger != FaultTrigger.Discarded || decision.Mode == FaultPublishingMode.DlqAndDiscard);
 
-        if (decision.Mode == FaultPublishingMode.None) return;
-        if (trigger == FaultTrigger.Discarded && decision.Mode != FaultPublishingMode.DlqAndDiscard) return;
+        // GH-5553: the sender asked for this message's fault (FaultTo, ReturnFaultToSender, or a saga that handles
+        // Fault<T>). It goes there when the message is dead-lettered, whether or not fault events are on
+        var replyTo = trigger == FaultTrigger.MovedToErrorQueue ? replyAddressOf(original) : null;
+
+        if (!routed && replyTo is null) return;
 
         try
         {
@@ -76,30 +82,41 @@ internal sealed class FaultPublisher : IFaultPublisher
                 decision.IncludeStackTrace);
             var faultMessage = shape.Create(original.Message, exceptionInfo, original);
 
-            var options = new DeliveryOptions();
-            options.Headers[FaultHeaders.AutoPublished] = "true";
-            options.Headers[FaultHeaders.OriginalId] = original.Id.ToString();
-            options.Headers[FaultHeaders.OriginalType] = shape.MessageTypeName;
-
-            var router = _runtime.RoutingFor(faultMessage.GetType());
-            var outgoing = router.RouteForPublish(faultMessage, options);
-            if (outgoing is null || outgoing.Length == 0)
+            if (routed)
             {
-                _logger.LogDebug(
-                    "No routes configured for auto-published Fault<{MessageType}>; envelope {EnvelopeId} skipped",
-                    messageType.FullName, original.Id);
-                activity?.AddEvent(new ActivityEvent(
-                    WolverineTracing.FaultNoRoute,
-                    tags: new ActivityTagsCollection
+                var options = faultOptions(original, shape);
+                var router = _runtime.RoutingFor(faultMessage.GetType());
+                var outgoing = router.RouteForPublish(faultMessage, options);
+                if (outgoing is null || outgoing.Length == 0)
+                {
+                    _logger.LogDebug(
+                        "No routes configured for auto-published Fault<{MessageType}>; envelope {EnvelopeId} skipped",
+                        messageType.FullName, original.Id);
+                    activity?.AddEvent(new ActivityEvent(
+                        WolverineTracing.FaultNoRoute,
+                        tags: new ActivityTagsCollection
+                        {
+                            [WolverineTracing.MessageType] = messageType.FullName
+                        }));
+                }
+                else
+                {
+                    await lifecycle.PublishAsync(faultMessage, options);
+                    activity?.AddEvent(new ActivityEvent(WolverineTracing.FaultPublished));
+
+                    // GH-5553: both the routes and the reply address, but only once to any one address
+                    if (replyTo is not null && outgoing.Any(x => sameDestination(x.Destination, replyTo)))
                     {
-                        [WolverineTracing.MessageType] = messageType.FullName
-                    }));
-                return;
+                        replyTo = null;
+                    }
+                }
             }
 
-            await lifecycle.PublishAsync(faultMessage, options);
-
-            activity?.AddEvent(new ActivityEvent(WolverineTracing.FaultPublished));
+            if (replyTo is not null)
+            {
+                await lifecycle.EndpointFor(replyTo).SendAsync(faultMessage, faultOptions(original, shape));
+                activity?.AddEvent(new ActivityEvent(WolverineTracing.FaultPublished));
+            }
         }
         catch (Exception ex)
         {
@@ -114,6 +131,61 @@ internal sealed class FaultPublisher : IFaultPublisher
             activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
             activity?.AddEvent(new ActivityEvent(WolverineTracing.FaultPublishFailed));
         }
+    }
+
+    // Two local queues reach the same handlers in this process, so a fault routed to one local queue is not sent
+    // again to another
+    private static bool sameDestination(Uri? routed, Uri replyTo)
+    {
+        if (routed is null) return false;
+        if (routed.Equals(replyTo)) return true;
+
+        return routed.Scheme == TransportConstants.Local && replyTo.Scheme == TransportConstants.Local;
+    }
+
+    private static DeliveryOptions faultOptions(Envelope original, FaultShape shape)
+    {
+        var options = new DeliveryOptions();
+        options.Headers[FaultHeaders.AutoPublished] = "true";
+        options.Headers[FaultHeaders.OriginalId] = original.Id.ToString();
+        options.Headers[FaultHeaders.OriginalType] = shape.MessageTypeName;
+        return options;
+    }
+
+    /// <summary>
+    /// GH-5553. Where the sender asked for the fault of <paramref name="original" />: the address in its
+    /// <see cref="FaultHeaders.ReplyTo" /> header, or its reply address for <see cref="FaultHeaders.ReplyToSender" />.
+    /// Null when it asked for nothing, or for an address that cannot be used.
+    /// </summary>
+    private Uri? replyAddressOf(Envelope original)
+    {
+        if (!original.HasHeaders || !original.Headers.TryGetValue(FaultHeaders.ReplyTo, out var value) ||
+            string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (value == FaultHeaders.ReplyToSender)
+        {
+            // A receiver fills in its own address when an envelope arrives with no reply address, and sending the
+            // fault there would only send it back to this service
+            if (original.ReplyUri is null || original.ReplyUri.Equals(original.Destination))
+            {
+                _logger.LogWarning(
+                    "Envelope {EnvelopeId} ({MessageType}) asked for its fault to go back to the sender, but it carries no reply address of the sender's. No fault was sent back",
+                    original.Id, original.MessageType);
+                return null;
+            }
+
+            return original.ReplyUri;
+        }
+
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri)) return uri;
+
+        _logger.LogWarning(
+            "Envelope {EnvelopeId} ({MessageType}) asked for its fault to go to '{ReplyTo}', which is not an absolute address. No fault was sent there",
+            original.Id, original.MessageType, value);
+        return null;
     }
 
     /// <summary>

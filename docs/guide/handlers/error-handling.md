@@ -824,6 +824,27 @@ first, stopping before `System.Exception`), and `ExceptionInfo.Is<T>()` / `Is(fu
 thrown type or any of its base types:
 
 <!-- snippet: sample_matching_a_remote_exception_by_base_type -->
+<a id='snippet-sample_matching_a_remote_exception_by_base_type'></a>
+```cs
+[Fact]
+public void match_a_fault_by_its_exception_type_or_a_base_type()
+{
+    var info = ExceptionInfo.From(new OutOfStockException("sku-1"));
+
+    // The thrown type, any base type, and System.Exception all match
+    info.Is<OutOfStockException>().ShouldBeTrue();
+    info.Is<InventoryException>().ShouldBeTrue();
+    info.Is<Exception>().ShouldBeTrue();
+
+    // By full type name, for a receiver that cannot reference the sender's exception types
+    info.Is("CoreTests.ErrorHandling.Faults.InventoryException").ShouldBeTrue();
+
+    // Unrelated types do not
+    info.Is<InvalidOperationException>().ShouldBeFalse();
+    info.Is<SomeOtherInventoryException>().ShouldBeFalse();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/ErrorHandling/Faults/ExceptionInfoTests.cs#L208-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_matching_a_remote_exception_by_base_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A fault published by a Wolverine 6.x sender has an empty `TypeHierarchy`, and `Is()` then matches the
@@ -880,6 +901,49 @@ public static class OrderPlacedFaultHandler
 > requires class names ending in `Handler` or `Consumer` (or
 > `[WolverineHandler]` on the class). A class named
 > `OrderPlacedFaultSink` will not be discovered automatically.
+
+### Sending a fault back to the sender <Badge type="tip" text="7.0" />
+
+Fault events are routed like any other message, so the service that fails a message needs a routing rule to get
+the fault back to whoever cares. Often that's just the service that sent the message in the first place. Starting
+with Wolverine 7.0, the sender can ask for the fault itself when it sends the message:
+
+<!-- snippet: sample_return_fault_to_sender -->
+<a id='snippet-sample_return_fault_to_sender'></a>
+```cs
+// If CheckStock fails for good in inventory, send its Fault<CheckStock> back to this service
+await bus.SendAsync(new CheckStock("widget"), new DeliveryOptions().ReturnFaultToSender());
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaFaults/SagaFaults.Specs/Specs/FaultsGoBackToTheSender.cs#L91-L94' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_return_fault_to_sender' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+or name the address it wants the fault sent to:
+
+<!-- snippet: sample_fault_to_an_address -->
+<a id='snippet-sample_fault_to_an_address'></a>
+```cs
+// If CheckStock fails for good in inventory, send its Fault<CheckStock> to this address
+await bus.SendAsync(new CheckStock("widget"), new DeliveryOptions().FaultTo(TheServices.OrdersUri));
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaFaults/SagaFaults.Specs/Specs/FaultsGoBackToTheSender.cs#L73-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fault_to_an_address' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Either one puts a `wolverine.fault.reply-to` header (`FaultHeaders.ReplyTo`) on the outgoing envelope. When the
+message is dead lettered on the receiving side, Wolverine sends its `Fault<T>` to that address:
+
+- The receiver does not need `PublishFaultEvents()`. With fault events off, the fault goes only to the address the
+  sender asked for.
+- With fault events on, the fault goes to both the receiver's routes and the address the sender asked for, but only
+  once to any one address. Two local queues count as the same address, since they reach the same handlers.
+- It only happens when the message is moved to the dead letter queue, not when it's discarded.
+- `ReturnFaultToSender()` uses the envelope's reply address, so the sender needs a listener the receiver can reach,
+  and of course a handler for `Fault<T>`.
+- The redaction settings of the receiver still apply to the exception in the fault.
+- A receiver on an older version of Wolverine ignores the header, and routes the fault (or doesn't) like it always
+  has.
+
+A saga that handles `Fault<T>` asks for the fault of every `T` it sends automatically. See
+[Sagas](/guide/durability/sagas#hearing-about-failed-steps).
 
 ### Per-type fault configuration
 

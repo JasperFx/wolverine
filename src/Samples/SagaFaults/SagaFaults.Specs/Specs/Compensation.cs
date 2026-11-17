@@ -168,7 +168,8 @@ public class when_compensation_fails(CompensationServices services) : SagaFaults
 [Collection(nameof(CompensationCollection))]
 public class when_the_saga_is_gone(CompensationServices services) : SagaFaultsSpec(services)
 {
-    [BobcatSpec(typeof(ReserveInventory), Lifecycle = Lifecycle.Acceptance)]
+    // Built with GH-5553: the saga asks for the fault because it declares NotFound(Fault<ReserveInventory>)
+    [BobcatSpec(typeof(ReserveInventory))]
     public async Task a_fault_for_a_completed_order_goes_to_NotFound()
     {
         await InventoryHas(0, "widget");

@@ -736,6 +736,9 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         options.MessagePartitioning.MaybeInferGrouping(this);
 
+        // GH-5553: what each saga asks for the faults of, worked out once for the send path
+        FaultReplies = SagaFaultReplies.Build(SagaChains());
+
         // Pre-populate the per-message-type cascading-async-enumerable cache on
         // MessageContext so the reflective lazy-init in
         // MessageContext.ResolveTypedAsyncEnumerableCascader never fires at
@@ -949,6 +952,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         if (call.HandlerType.CanBeCastTo<Saga>())
         {
             if (call.Method.Name == SagaChain.NotFound) return true;
+            if (call.Method.Name is SagaChain.IdNotProvided or SagaChain.IdNotProvided + "Async") return true;
             
             // Legal for Start() methods to be be a static 
             if (!call.Method.IsStatic) return true;
@@ -1131,6 +1135,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     /// whose messages are all shared with another saga is not missed.
     /// </summary>
     internal IEnumerable<SagaChain> SagaChains() => EveryChain().OfType<SagaChain>();
+
+    /// <summary>
+    /// GH-5553. The messages each saga asks for the <see cref="Fault{T}" /> of. See <see cref="SagaFaultReplies" />
+    /// </summary>
+    internal SagaFaultReplies FaultReplies { get; private set; } = SagaFaultReplies.None;
 
     /// <summary>
     /// GH-4060 / GH-5133. Is any requeue-shaped error handling configured, globally or on any chain?

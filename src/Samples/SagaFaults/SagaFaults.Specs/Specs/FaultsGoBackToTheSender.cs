@@ -14,7 +14,7 @@ namespace SagaFaults.Specs;
 [Collection(nameof(FaultHandlingCollection))]
 public class a_failed_steps_fault_goes_back_to_the_saga(FaultHandlingServices services) : SagaFaultsSpec(services)
 {
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task the_saga_hears_that_a_step_failed_in_another_service()
     {
         await InventoryHas(0, "widget");
@@ -28,7 +28,7 @@ public class a_failed_steps_fault_goes_back_to_the_saga(FaultHandlingServices se
             .With(x => x.FailureReason, "widget is out of stock"));
     }
 
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task the_fault_goes_only_to_the_saga_while_fault_events_are_off()
     {
         await InventoryHas(0, "widget");
@@ -43,7 +43,7 @@ public class a_failed_steps_fault_goes_back_to_the_saga(FaultHandlingServices se
         ThenNotHandled<Fault<ReserveInventory>>(by: InventoryService.Name);
     }
 
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task the_saga_hears_that_a_step_failed_in_its_own_service()
     {
         await InventoryHas(5, "widget");
@@ -62,25 +62,37 @@ public class a_failed_steps_fault_goes_back_to_the_saga(FaultHandlingServices se
 [Collection(nameof(FaultHandlingCollection))]
 public class a_sender_asks_for_the_fault(FaultHandlingServices services) : SagaFaultsSpec(services)
 {
-    [BobcatSpec(typeof(CheckStock), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(CheckStock))]
     public async Task the_fault_goes_to_the_address_the_sender_named()
     {
         await InventoryHas(0, "widget");
 
         await WhenTracked("orders sends CheckStock(\"widget\") to inventory, asking for its fault at orders' address",
-            bus => bus.SendAsync(new CheckStock("widget"), new DeliveryOptions().FaultTo(TheServices.OrdersUri)).AsTask());
+            async bus =>
+            {
+                #region sample_fault_to_an_address
+                // If CheckStock fails for good in inventory, send its Fault<CheckStock> to this address
+                await bus.SendAsync(new CheckStock("widget"), new DeliveryOptions().FaultTo(TheServices.OrdersUri));
+                #endregion
+            });
 
         ThenDeadLettered<CheckStock>(by: InventoryService.Name);
         ThenHandled<Fault<CheckStock>>(by: TwoServices.OrdersName);
     }
 
-    [BobcatSpec(typeof(CheckStock), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(CheckStock))]
     public async Task the_fault_goes_back_to_the_sender()
     {
         await InventoryHas(0, "widget");
 
         await WhenTracked("orders sends CheckStock(\"widget\") to inventory, asking for its fault back",
-            bus => bus.SendAsync(new CheckStock("widget"), new DeliveryOptions().ReturnFaultToSender()).AsTask());
+            async bus =>
+            {
+                #region sample_return_fault_to_sender
+                // If CheckStock fails for good in inventory, send its Fault<CheckStock> back to this service
+                await bus.SendAsync(new CheckStock("widget"), new DeliveryOptions().ReturnFaultToSender());
+                #endregion
+            });
 
         ThenDeadLettered<CheckStock>(by: InventoryService.Name);
         ThenHandled<Fault<CheckStock>>(by: TwoServices.OrdersName);
@@ -106,7 +118,7 @@ public class a_sender_asks_for_the_fault(FaultHandlingServices services) : SagaF
 [Collection(nameof(FaultHandlingCollection))]
 public class saga_identity_from_the_saga_id_header(FaultHandlingServices services) : SagaFaultsSpec(services)
 {
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task a_reply_with_no_saga_id_member_is_grouped_by_its_saga()
     {
         await InventoryHas(5, "widget");
@@ -117,7 +129,7 @@ public class saga_identity_from_the_saga_id_header(FaultHandlingServices service
         ThenTheSagaHandled<Order, CardCharged>(OrderId);
     }
 
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task a_fault_is_grouped_by_the_saga_that_sent_the_failed_message()
     {
         await InventoryHas(5, "widget");
@@ -128,7 +140,7 @@ public class saga_identity_from_the_saga_id_header(FaultHandlingServices service
         ThenGroupedBy<Fault<ChargeCard>>(OrderId);
     }
 
-    [BobcatSpec(typeof(ReserveInventory), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(ReserveInventory))]
     public async Task a_fault_that_belongs_to_no_saga_goes_to_IdNotProvided()
     {
         await InventoryHas(0, "widget");
@@ -143,7 +155,7 @@ public class saga_identity_from_the_saga_id_header(FaultHandlingServices service
     }
 
     // IdNotProvided covers any message type, not only Fault<T>
-    [BobcatSpec(typeof(CardCharged), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(CardCharged))]
     public async Task a_reply_that_belongs_to_no_saga_goes_to_IdNotProvided()
     {
         await WhenReceived(new CardCharged(100m));

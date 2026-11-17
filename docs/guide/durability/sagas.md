@@ -476,6 +476,7 @@ name identically to the bare name:
 | `Consume`, `Consumes`                | `ConsumeAsync`, `ConsumesAsync`                    | Called only when the identified saga already exists |
 | `Orchestrate`, `Orchestrates`        | `OrchestrateAsync`, `OrchestratesAsync`           | Called only when the identified saga already exists |
 | `NotFound`                           | `NotFoundAsync`                                    | Only called if the identified saga does not already exist, and there is no matching `Start` handler for the incoming message |
+| `IdNotProvided` <Badge type="tip" text="7.0" /> | `IdNotProvidedAsync`                     | Only called if the incoming message carries no saga id at all, on the message or in the saga-id header. See [When a Message Has No Saga Id](#when-a-message-has-no-saga-id) |
 
 Pick whichever form reads better in your codebase. Mixing styles within a single saga is allowed
 but generally discouraged for readability.
@@ -499,9 +500,9 @@ public class OrderSaga : Saga
 }
 ```
 
-Note that only `Start` / `Starts` / `StartAsync` / `StartsAsync` and
-`NotFound` / `NotFoundAsync` methods can be static methods, because these
-methods logically assume that the identified `Saga` does not yet exist.
+Note that only `Start` / `Starts` / `StartAsync` / `StartsAsync`,
+`NotFound` / `NotFoundAsync` and `IdNotProvided` / `IdNotProvidedAsync` methods can be static methods, because these
+methods logically assume that the identified `Saga` does not yet exist. `IdNotProvided` has to be static.
 Wolverine as of 4.6 will assert that other named `Saga` methods are instance
 methods to try to head off confusion.
 
@@ -532,6 +533,120 @@ public static void NotFound(CompleteOrder complete, ILogger<Order> logger)
 
 Note that you will have to explicitly use `IMessageBus` as an argument to a `NotFound` method to send out any messages
 to potentially take action on a missing saga if you so wish.
+
+## When a Message Has No Saga Id <Badge type="tip" text="7.0" />
+
+A message that reaches a saga with no saga id -- none on the message, and no saga-id header on the envelope -- fails
+with an `IndeterminateSagaStateIdException`. That's usually right, but some messages legitimately show up without one.
+A reply from a handler that is sometimes used by a saga and sometimes not is the common case, and the `Fault<T>` of a
+message that wasn't sent by a saga is another.
+
+For those, write a static `IdNotProvided` method on the saga for that message type. It works like `NotFound`: it's
+matched by message type, it can take the usual handler arguments, and it can return cascading messages:
+
+<!-- snippet: sample_saga_IdNotProvided -->
+<a id='snippet-sample_saga_IdNotProvided'></a>
+```cs
+public class UnmatchedSaga : Saga
+{
+    public Guid Id { get; set; }
+    public int Nudges { get; set; }
+    public int Pokes { get; set; }
+
+    public static UnmatchedSaga Start(StartUnmatchedSaga command) => new() { Id = command.Id };
+
+    public void Handle(SagaNudge nudge) => Nudges++;
+
+    public void Handle(SagaPoke poke) => Pokes++;
+
+    // A SagaNudge that reached this saga with no saga id, instead of IndeterminateSagaStateIdException
+    public static UnmatchedNudge IdNotProvided(SagaNudge nudge) => new(nudge.Note);
+
+    public static UnmatchedPoke IdNotProvided(SagaPoke poke) => new();
+
+    // Only NotFound for SagaCheck: an existing saga has nothing to do with it
+    public static SagaWasGone NotFound(SagaCheck check) => new();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Persistence/Sagas/saga_faults_and_IdNotProvided_5553.cs#L211-L232' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_saga_IdNotProvided' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A message type without an `IdNotProvided` method behaves exactly as it did before.
+
+## Hearing About Failed Steps <Badge type="tip" text="7.0" />
+
+A saga usually sends messages to other handlers, often in other services, and needs to know when one of them fails
+for good. Declare a handler for `Fault<T>` on the saga, and Wolverine asks for the fault of every `T` the saga sends:
+
+<!-- snippet: sample_saga_that_hears_about_its_failed_steps -->
+<a id='snippet-sample_saga_that_hears_about_its_failed_steps'></a>
+```cs
+public class Order : Saga
+{
+    public Guid Id { get; set; }
+    public string Sku { get; set; } = "";
+    public int Quantity { get; set; }
+    public decimal Amount { get; set; }
+
+    public bool InventoryReserved { get; set; }
+    public bool Paid { get; set; }
+
+    public string? FailedStep { get; set; }
+    public string? FailureReason { get; set; }
+
+    public static (Order, ReserveInventory, ChargeCard) Start(PlaceOrder command)
+        => (new Order { Id = command.OrderId, Sku = command.Sku, Quantity = command.Quantity, Amount = command.Amount },
+            new ReserveInventory(command.Sku, command.Quantity),
+            new ChargeCard(command.Amount));
+
+    public void Handle(InventoryReserved reserved) => InventoryReserved = true;
+
+    public void Handle(CardCharged charged) => Paid = true;
+
+    // Declaring this is what has Wolverine ask for the fault of every ReserveInventory this saga sends: the
+    // wolverine.fault.reply-to header, worked out when the application starts. No routing rule for
+    // Fault<ReserveInventory> anywhere, and fault events can stay off in the inventory service.
+    public void Handle(Fault<ReserveInventory> fault)
+    {
+        FailedStep = nameof(ReserveInventory);
+        FailureReason = fault.Exception.Message;
+    }
+
+    // The same for a step in this service
+    public void Handle(Fault<ChargeCard> fault)
+    {
+        FailedStep = nameof(ChargeCard);
+        FailureReason = fault.Exception.Message;
+    }
+
+    // A Fault<ReserveInventory> with no saga id -- the ReserveInventory was not sent by an Order -- comes here
+    // instead of failing with IndeterminateSagaStateIdException
+    public static UnmatchedInventoryFailure IdNotProvided(Fault<ReserveInventory> fault) => new(fault.Message.Sku);
+
+    // IdNotProvided is not only for faults: any message that reaches the saga with no saga id comes to the one declared
+    // for its type. A card payment confirmed outside any order
+    public static UnmatchedPayment IdNotProvided(CardCharged charged) => new(charged.Amount);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaFaults/SagaFaults.Specs/Orders/FaultHandlingOrder.cs#L8-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_saga_that_hears_about_its_failed_steps' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Because the saga declares `Handle(Fault<ReserveInventory>)`, every `ReserveInventory` it sends carries a
+`wolverine.fault.reply-to` header with the saga service's own reply address. When that `ReserveInventory` is dead
+lettered, the receiving service sends the `Fault<ReserveInventory>` straight back, even though neither service turns on
+`PublishFaultEvents()` or has a routing rule for the fault. See
+[Sending a fault back to the sender](/guide/handlers/error-handling#sending-a-fault-back-to-the-sender) for the details.
+
+`Fault<T>` has no saga id member, so the fault finds its saga through the saga-id header that Wolverine copies from
+the failed message. A few more things to know:
+
+- It works the same for a step in the saga's own service, like `ChargeCard` above.
+- The receiving service has to be on Wolverine 7.0 or later. An older receiver ignores the header, and only sends the
+  fault if its own routing does.
+- A `NotFound(Fault<T>)` method on its own also asks for the fault, and is called when the saga is gone by the time
+  the fault arrives.
+- An `IdNotProvided(Fault<T>)` method catches a fault of a `T` that some other handler sent with
+  `ReturnFaultToSender()`, so it has no saga id.
 
 ## Marking a Saga as Complete
 
@@ -1146,6 +1261,10 @@ properties on messages and uses them as the partition key. All messages with the
 routed to the same local queue partition, guaranteeing they are processed one at a time. This
 eliminates concurrency conflicts entirely for saga messages, at the cost of limiting parallelism
 per saga instance.
+
+Starting with Wolverine 7.0, a message a saga handles that has no saga identity member of its own -- a reply from
+another handler, or a `Fault<T>` -- is grouped by the saga-id envelope header instead, so it lands in the same
+partition as the rest of its saga's messages.
 
 ::: tip
 Partitioned sequential messaging is the recommended default strategy for sagas that use the

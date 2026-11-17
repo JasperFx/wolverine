@@ -98,6 +98,14 @@ public class DeliveryOptions
         if (_headers is { Count: > 0 })
         {
             foreach (var header in _headers) envelope.Headers[header.Key] = header.Value;
+
+            // GH-5553: ReturnFaultToSender() names the reply address once it is known. The route has set it by now;
+            // when it has not, the receiver reads the envelope's reply address instead
+            if (envelope.ReplyUri != null && _headers.TryGetValue(FaultHeaders.ReplyTo, out var replyTo) &&
+                replyTo == FaultHeaders.ReplyToSender)
+            {
+                envelope.Headers[FaultHeaders.ReplyTo] = envelope.ReplyUri.ToString();
+            }
         }
 
         // The status should be a state machine set by the deliver by or scheduled time setters
@@ -231,25 +239,38 @@ public class DeliveryOptions
     }
 
     /// <summary>
-    ///     GH-5553. If this message fails for good on the receiving side (retries used up, dead-lettered), send its
-    ///     <see cref="Fault{T}" /> to <paramref name="destination" /> -- even when the receiver has not turned on
-    ///     <c>PublishFaultEvents()</c>, and only to that address
+    ///     GH-5553. If this message fails for good on the receiving side (its retries used up and it is
+    ///     dead-lettered), send its <see cref="Fault{T}" /> to <paramref name="destination" />, even when the
+    ///     receiver has not turned on <c>PublishFaultEvents()</c>. With fault events on, the fault also goes
+    ///     wherever the receiver routes it, but only once to any one address
     /// </summary>
-    /// <remarks>SPEC STUB (GH-5553): specified by Bobcat specifications first, not built yet.</remarks>
+    /// <remarks>
+    ///     Sets the <see cref="FaultHeaders.ReplyTo" /> header. A receiver on a Wolverine version that predates it
+    ///     ignores the header and routes the fault as it always has, which with fault events off means not at all
+    /// </remarks>
     public DeliveryOptions FaultTo(Uri destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
-        throw new NotImplementedException("GH-5553: DeliveryOptions.FaultTo() is specified but not built yet");
+        Headers[FaultHeaders.ReplyTo] = destination.ToString();
+        return this;
     }
 
     /// <summary>
-    ///     GH-5553. If this message fails for good on the receiving side, send its <see cref="Fault{T}" /> back to
-    ///     the sender's reply address -- even when the receiver has not turned on <c>PublishFaultEvents()</c>, and
-    ///     only to that address
+    ///     GH-5553. If this message fails for good on the receiving side (its retries used up and it is
+    ///     dead-lettered), send its <see cref="Fault{T}" /> back to the sender's reply address
+    ///     (<see cref="Envelope.ReplyUri" />), even when the receiver has not turned on
+    ///     <c>PublishFaultEvents()</c>. The sender needs a listener the receiver can reach, and a handler for the
+    ///     <see cref="Fault{T}" />
     /// </summary>
-    /// <remarks>SPEC STUB (GH-5553): specified by Bobcat specifications first, not built yet.</remarks>
+    /// <remarks>
+    ///     Sets the <see cref="FaultHeaders.ReplyTo" /> header to <see cref="FaultHeaders.ReplyToSender" />. A
+    ///     receiver on a Wolverine version that predates it ignores the header
+    /// </remarks>
     public DeliveryOptions ReturnFaultToSender()
-        => throw new NotImplementedException("GH-5553: DeliveryOptions.ReturnFaultToSender() is specified but not built yet");
+    {
+        Headers[FaultHeaders.ReplyTo] = FaultHeaders.ReplyToSender;
+        return this;
+    }
 
     /// <summary>
     ///     Shortcut to build DeliveryOptions requiring the specified response type
