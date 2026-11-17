@@ -266,6 +266,11 @@
          Its CI target builds and runs it at net10.0 (frameworkFor in build/SupervisedTests.cs). -->
     <Project Path="src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers.Tests/ProcessManagerViaHandlers.Tests.csproj" />
   </Folder>
+  <Folder Name="/Samples/SagaFaults/">
+    <!-- GH-5553 / GH-5554 / GH-5556: the saga fault and compensation specifications, written first. net10.0-only,
+         like the other spec samples -->
+    <Project Path="src/Samples/SagaFaults/SagaFaults.Specs/SagaFaults.Specs.csproj" />
+  </Folder>
   <Folder Name="/Samples/PingPongWithGrpc/">
     <Project Path="src/Samples/PingPongWithGrpc/Messages/Messages.csproj" />
     <Project Path="src/Samples/PingPongWithGrpc/Pinger/Pinger.csproj" />

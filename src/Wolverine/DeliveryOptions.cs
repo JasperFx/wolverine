@@ -231,6 +231,27 @@ public class DeliveryOptions
     }
 
     /// <summary>
+    ///     GH-5553. If this message fails for good on the receiving side (retries used up, dead-lettered), send its
+    ///     <see cref="Fault{T}" /> to <paramref name="destination" /> -- even when the receiver has not turned on
+    ///     <c>PublishFaultEvents()</c>, and only to that address
+    /// </summary>
+    /// <remarks>SPEC STUB (GH-5553): specified by Bobcat specifications first, not built yet.</remarks>
+    public DeliveryOptions FaultTo(Uri destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        throw new NotImplementedException("GH-5553: DeliveryOptions.FaultTo() is specified but not built yet");
+    }
+
+    /// <summary>
+    ///     GH-5553. If this message fails for good on the receiving side, send its <see cref="Fault{T}" /> back to
+    ///     the sender's reply address -- even when the receiver has not turned on <c>PublishFaultEvents()</c>, and
+    ///     only to that address
+    /// </summary>
+    /// <remarks>SPEC STUB (GH-5553): specified by Bobcat specifications first, not built yet.</remarks>
+    public DeliveryOptions ReturnFaultToSender()
+        => throw new NotImplementedException("GH-5553: DeliveryOptions.ReturnFaultToSender() is specified but not built yet");
+
+    /// <summary>
     ///     Shortcut to build DeliveryOptions requiring the specified response type
     /// </summary>
     /// <typeparam name="T"></typeparam>

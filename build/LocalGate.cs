@@ -303,6 +303,10 @@ partial class Build
         {
             Postgres = ServerUse.OwnDatabase, SqlServer = ServerUse.OwnDatabase
         },
+        new("src/Samples/SagaFaults/SagaFaults.Specs/SagaFaults.Specs.csproj", "CIBobcat")
+        {
+            Postgres = ServerUse.OwnDatabase
+        },
 
         // ─── CIExtensions ───
         new("src/Extensions/Wolverine.AI.Tests/Wolverine.AI.Tests.csproj", "CIExtensions"),

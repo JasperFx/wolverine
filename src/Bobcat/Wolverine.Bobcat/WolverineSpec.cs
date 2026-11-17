@@ -34,7 +34,7 @@ namespace Wolverine.Bobcat;
 /// Every member is public, not protected, so a test's own helpers in another class can drive it too.
 /// </para>
 /// </remarks>
-public abstract class WolverineSpec : CritterStackSpec
+public abstract partial class WolverineSpec : CritterStackSpec
 {
     protected WolverineSpec(IHost host, string? storeName = null) : this(new WolverineScenario(host, storeName))
     {
