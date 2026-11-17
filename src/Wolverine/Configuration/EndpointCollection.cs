@@ -494,7 +494,9 @@ public class EndpointCollection : IEndpointCollection
     /// <remarks>
     ///     "Dedicated" is the point: a transport with no response queue of its own falls back to one of its
     ///     application listeners as its reply endpoint, and listening to that would consume application messages.
-    ///     Only a system endpoint marked as used for replies counts -- the response queues the brokers create.
+    ///     Only an endpoint marked as used for replies counts -- the response queues and subjects the brokers
+    ///     create (not all of them are System endpoints: NATS's is not), or a listener the application itself
+    ///     marked with <c>UseForReplies()</c>.
     /// </remarks>
     internal static IReadOnlyList<Endpoint> ControlAndReplyEndpoints(WolverineOptions options)
     {
@@ -502,7 +504,7 @@ public class EndpointCollection : IEndpointCollection
 
         foreach (var transport in options.Transports)
         {
-            if (transport.ReplyEndpoint() is { IsUsedForReplies: true, Role: EndpointRole.System } reply &&
+            if (transport.ReplyEndpoint() is { IsUsedForReplies: true } reply &&
                 !endpoints.Contains(reply))
             {
                 endpoints.Add(reply);
