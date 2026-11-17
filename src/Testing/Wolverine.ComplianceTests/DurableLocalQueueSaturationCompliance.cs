@@ -6,6 +6,8 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.Persistence;
+using Wolverine.Tracking;
+using Wolverine.Transports.Local;
 using Xunit;
 
 namespace Wolverine.ComplianceTests;
@@ -129,6 +131,27 @@ public abstract class DurableLocalQueueSaturationCompliance : IAsyncLifetime
 
         Gate.Release();
         await Gate.WaitForAsync(FillCount + 250, 2.Minutes());
+    }
+
+    [Fact]
+    public async Task the_queue_takes_messages_directly_again_once_it_has_drained()
+    {
+        var runtime = Host.GetRuntime();
+        var queue = (DurableLocalQueue)runtime.Endpoints.GetOrBuildSendingAgent(new Uri("local://" + QueueName));
+
+        await fillTheQueueAsync();
+        queue.IsFull.ShouldBeTrue();
+
+        Gate.Release();
+        await Gate.WaitForAsync(FillCount, 2.Minutes());
+        queue.IsFull.ShouldBeFalse();
+
+        var tracked = await Host.TrackActivity().Timeout(30.Seconds())
+            .PublishMessageAndWaitAsync(new SaturatingLocalMessage(Guid.NewGuid()));
+
+        // Owned by this node and enqueued right away, not left in the inbox for recovery
+        tracked.Sent.SingleEnvelope<SaturatingLocalMessage>().OwnerId
+            .ShouldBe(runtime.DurabilitySettings.AssignedNodeNumber);
     }
 
     [Fact]

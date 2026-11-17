@@ -329,6 +329,16 @@ using var host = await Host.CreateDefaultBuilder()
 
 See [Durable Inbox and Outbox Messaging](/guide/durability/) for more information.
 
+### When a durable local queue is full <Badge type="tip" text="7.0" />
+
+A durable local queue keeps up to 10,000 messages in memory. Publishing to it never waits for room, including the
+flush after a transaction commits. Once the queue is full, a new message is written to the inbox owned by any node and
+left there, and the durability agent moves it into the queue as the queue drains below its `BufferingLimits`. The queue
+takes messages directly again once it has drained to `BufferingLimits.Restart`.
+
+A message that waited in the inbox can run after messages that were published later. Before 7.0, the publisher waited
+for room in the queue instead, which could hold an HTTP request open after its transaction had committed.
+
 ## Circuit Breakers on Local Queues
 
 You can put a [circuit breaker](/guide/handlers/error-handling#circuit-breaker) on a local queue, but only on a
