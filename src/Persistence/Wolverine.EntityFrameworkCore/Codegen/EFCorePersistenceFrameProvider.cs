@@ -47,6 +47,25 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
     Justification = "EFCore codegen frame provider — closed generics over runtime DbContext / entity types at codegen time. See AOT guide.")]
 internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 {
+    /// <summary>
+    ///     GH-5572. Completed sagas can be retained, as long as the DbContext maps <see cref="Saga.CompletedAt" />:
+    ///     otherwise the completion would not be saved and the saga would be handled again.
+    /// </summary>
+    public SagaRetentionSupport SagaRetentionSupportFor(Type sagaType, IServiceContainer container)
+    {
+        var dbContextType = DetermineDbContextType(sagaType, container);
+
+        using var nested = container.Services.CreateScope();
+        var context = resolveDbContext(nested, dbContextType);
+        if (context.Model.FindEntityType(sagaType)?.FindProperty(nameof(Saga.CompletedAt)) is null)
+        {
+            throw new InvalidSagaException(
+                $"Completed sagas of type {sagaType.FullNameInCode()} are retained, but {nameof(Saga.CompletedAt)} is not mapped for it in DbContext {dbContextType.FullNameInCode()}. Map the property (and add a migration) to retain completed sagas.");
+        }
+
+        return SagaRetentionSupport.Supported;
+    }
+
     public const string UsingEfCoreTransaction = "uses_efcore_transaction";
     public const string TransactionModeKey = "TransactionMiddlewareMode";
     private ImHashMap<Type, Type?> _dbContextTypes = ImHashMap<Type, Type?>.Empty;

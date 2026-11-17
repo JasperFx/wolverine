@@ -38,6 +38,10 @@ tables alongside Fisher's in the same file: use a transaction participant there 
 Leader election and agent distribution require several nodes sharing one database, and a Fisher store
 is a file. Configure `opts.Durability.Mode = DurabilityMode.Solo`. If you need several nodes over one
 event store, use [Marten](/guide/durability/marten/) or [Polecat](/guide/durability/polecat/).
+
+Because of that, `runtime.LocallyOwnedDatabases()` always answers `IsEvery` on a Fisher node. The `Contains()`
+overload that takes the Fisher database is in the `Wolverine.Fisher` namespace, the same as the
+[Marten one](/guide/durability/marten/distribution#which-databases-does-this-node-own).
 :::
 
 ## Getting Started
@@ -101,7 +105,7 @@ var builder = Host.CreateDefaultBuilder()
             });
     });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/FisherTests/Bug_3947_prefix_name_for_sqlite_queue_tables.cs#L132-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fisher_prefix_name_for_sqlite_queue_tables' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/FisherTests/Bug_3947_prefix_name_for_sqlite_queue_tables.cs#L102-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fisher_prefix_name_for_sqlite_queue_tables' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This is completely opt in. If you never set `PrefixName`, or you set it to SQLite's built-in `"main"`, the

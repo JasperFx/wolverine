@@ -71,6 +71,9 @@ public class CosmosDbPersistenceFrameProvider : IPersistenceFrameProvider
     // integrations were registered in
     public bool IsCatchAll => true;
 
+    // GH-5572: completed sagas can be retained
+    public SagaRetentionSupport SagaRetentionSupportFor(Type sagaType, IServiceContainer container) => SagaRetentionSupport.Supported;
+
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
         persistenceService = typeof(Container);

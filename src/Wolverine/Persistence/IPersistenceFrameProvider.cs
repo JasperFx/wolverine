@@ -20,6 +20,17 @@ public interface IPersistenceFrameProvider
     /// </summary>
     bool IsCatchAll => false;
 
+    /// <summary>
+    ///     GH-5572. Whether this provider can keep completed sagas for a retention period
+    ///     (<c>opts.Policies.RetainCompletedSagas()</c> / <c>[RetainWhenCompleted]</c>): store
+    ///     <see cref="Saga.CompletedAt" />, filter on it, and delete retained sagas past their period. The default
+    ///     says no, and a retained saga type stored here is refused at startup. Only asked about a saga type that is
+    ///     retained; an implementation may throw <see cref="Wolverine.Persistence.Sagas.InvalidSagaException" /> to say
+    ///     exactly what is missing for that type.
+    /// </summary>
+    SagaRetentionSupport SagaRetentionSupportFor(Type sagaType, IServiceContainer container) =>
+        SagaRetentionSupport.NotSupported;
+
     void ApplyTransactionSupport(IChain chain, IServiceContainer container);
     void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType);
     bool CanApply(IChain chain, IServiceContainer container);
@@ -338,5 +349,25 @@ public interface IPersistenceFrameProvider
     }
 }
 
+/// <summary>
+///     GH-5572. What a saga storage can do with <c>opts.Policies.RetainCompletedSagas()</c> and
+///     <c>[RetainWhenCompleted]</c>
+/// </summary>
+public enum SagaRetentionSupport
+{
+    /// <summary>
+    ///     A retained saga type stored here is refused at startup
+    /// </summary>
+    NotSupported,
 
+    /// <summary>
+    ///     Completed sagas are kept and swept
+    /// </summary>
+    Supported,
 
+    /// <summary>
+    ///     Nothing outlives the process anyway (sagas kept in memory), so completed sagas are deleted as before and
+    ///     retention is ignored
+    /// </summary>
+    Ignored
+}

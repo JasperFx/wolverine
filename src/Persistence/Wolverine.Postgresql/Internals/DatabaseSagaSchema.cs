@@ -48,9 +48,9 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         IdSource = LambdaBuilder.Getter<T, TId>(definition.IdMember);
 
         var quotedSchema = settings.SchemaName.QuoteIdentifier();
-        _insertSql = $"insert into {quotedSchema}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}, last_modified) values (@id, @body, 1, @last_modified)";
+        _insertSql = $"insert into {quotedSchema}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}, last_modified, {SagaTableIndexes.CompletedAtColumn}) values (@id, @body, 1, @last_modified, @completed_at)";
         _updateSql =
-            $"update {quotedSchema}.{definition.TableName} set {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = @last_modified where {DatabaseConstants.Id} = @id and {DatabaseConstants.Version} = @version";
+            $"update {quotedSchema}.{definition.TableName} set {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = @last_modified, {SagaTableIndexes.CompletedAtColumn} = @completed_at where {DatabaseConstants.Id} = @id and {DatabaseConstants.Version} = @version";
         _loadSql = $"select body, version, last_modified from {quotedSchema}.{definition.TableName} where {DatabaseConstants.Id} = @id";
 
         _deleteSql = $"delete from {quotedSchema}.{definition.TableName} where id = @id";
@@ -61,6 +61,9 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         table.AddColumn(DatabaseConstants.Version, "int").DefaultValue(1).NotNull();
         table.AddColumn<DateTimeOffset>("created").DefaultValueByExpression("now()").NotNull();
         table.AddColumn<DateTimeOffset>("last_modified").DefaultValueByExpression("now()").NotNull();
+
+        // GH-5572: when a retained saga completed
+        table.AddColumn<DateTimeOffset>(SagaTableIndexes.CompletedAtColumn).AllowNulls();
 
         // GH-5558: "sagas idle for more than N days" filters on last_modified
         table.Indexes.Add(new IndexDefinition(SagaTableIndexes.LastModifiedIndexName(definition.TableName, 63))
@@ -108,6 +111,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
             .With("id", id!)
             .With("body", JsonSerializer.SerializeToUtf8Bytes(saga, _settings.SagaSerializerOptions), NpgsqlDbType.Jsonb)
             .With("last_modified", saga.LastModified)
+            .With("completed_at", (object?)saga.CompletedAt ?? DBNull.Value, NpgsqlDbType.TimestampTz)
             .ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
@@ -125,6 +129,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
             .With("id", id!)
             .With("version", saga.Version)
             .With("last_modified", saga.LastModified)
+            .With("completed_at", (object?)saga.CompletedAt ?? DBNull.Value, NpgsqlDbType.TimestampTz)
             .ExecuteNonQueryAsync(cancellationToken);
 
         if (count == 0)

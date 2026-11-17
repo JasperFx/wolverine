@@ -4,7 +4,7 @@ using JasperFx.Documents;
 namespace Wolverine.Persistence.Sagas;
 
 /// <summary>
-/// Shared rules for <see cref="ISagaStoreDiagnostics.QuerySagasAsync"/> so every saga storage refuses and
+/// Shared rules for <see cref="ISagaStoreDiagnostics.QuerySagasAsync(string, DocumentQueryOptions, CancellationToken)"/> so every saga storage refuses and
 /// pages the same way: unsupported criteria throw <see cref="DocumentCriteriaNotSupportedException"/> rather
 /// than yielding an unfiltered page, the page size is clamped, and an unordered query is ordered by identity.
 /// </summary>
@@ -36,7 +36,7 @@ public static class SagaQueryCriteria
 
     /// <summary>
     /// GH-5558. Split the tenant off <paramref name="options" /> for <see cref="ISagaIdleDiagnostics" />, which
-    /// honours <see cref="DocumentQueryOptions.TenantId" /> where <see cref="ISagaStoreDiagnostics.QuerySagasAsync" />
+    /// honours <see cref="DocumentQueryOptions.TenantId" /> where <see cref="ISagaStoreDiagnostics.QuerySagasAsync(string, DocumentQueryOptions, CancellationToken)" />
     /// refuses it. The tenant comes back normalized: null for the default tenant.
     /// </summary>
     public static (string? TenantId, DocumentQueryOptions Options) TakeTenant(DocumentQueryOptions options)

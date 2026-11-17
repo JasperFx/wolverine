@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Diagnostics.CodeAnalysis;
 using JasperFx.Documents;
 
@@ -39,5 +40,36 @@ public static class SagaLastModifiedQueries
             ? options with { OrderBy = nameof(Saga.LastModified) }
             : options;
         return SagaQueryCriteria.Apply(ordered, source, idMember);
+    }
+}
+
+/// <summary>
+/// GH-5572. The <see cref="Saga.CompletedAt" /> filters shared by the LINQ-backed saga storages (document stores, EF
+/// Core, RavenDB), for saga types whose completed instances are retained.
+/// </summary>
+public static class SagaCompletionQueries
+{
+    /// <summary>
+    /// <paramref name="source" /> without the retained, completed sagas, or unchanged when
+    /// <paramref name="includeCompleted" /> is true or <typeparamref name="T" /> is not a saga.
+    /// </summary>
+    public static IQueryable<T> OpenOnly<T>(IQueryable<T> source, bool includeCompleted = false)
+    {
+        if (includeCompleted || !typeof(Saga).IsAssignableFrom(typeof(T))) return source;
+
+        var parameter = Expression.Parameter(typeof(T), "x");
+        var completedAt = Expression.Property(parameter, typeof(Saga).GetProperty(nameof(Saga.CompletedAt))!);
+        var isOpen = Expression.Equal(completedAt, Expression.Constant(null, typeof(DateTimeOffset?)));
+        return source.Where(Expression.Lambda<Func<T, bool>>(isOpen, parameter));
+    }
+
+    /// <summary>
+    /// <paramref name="source" /> restricted to the sagas that completed before <paramref name="completedBefore" />,
+    /// the ones a retention sweep deletes
+    /// </summary>
+    public static IQueryable<TSaga> CompletedBefore<TSaga>(IQueryable<TSaga> source, DateTimeOffset completedBefore)
+        where TSaga : Saga
+    {
+        return source.Where(x => x.CompletedAt != null && x.CompletedAt < completedBefore);
     }
 }

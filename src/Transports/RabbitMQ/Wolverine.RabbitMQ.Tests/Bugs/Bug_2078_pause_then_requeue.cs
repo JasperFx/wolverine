@@ -56,7 +56,7 @@ public class Bug_2078_pause_then_requeue : IAsyncLifetime
         // Reproduce GH-2078: with PreFetchCount(1) and PauseThenRequeue,
         // the message should be reprocessed after the pause period.
         // The handler succeeds on attempt 2.
-        var bus = _host.Services.GetRequiredService<IMessageBus>();
+        var bus = _host.MessageBus();
         await bus.PublishAsync(new PauseThenRequeueMessage());
 
         // With PauseThenRequeue(3.Seconds()), the message should:

@@ -34,6 +34,17 @@
         <ProjectReference Include="..\..\Extensions\Wolverine.Newtonsoft\Wolverine.Newtonsoft.csproj" />
     </ItemGroup>
 
+    <!--
+      GH-5403. The analyzer tests in Analyzers/ instantiate WolverineFx.Analyzers' analyzers directly. Directory.Build.targets
+      already references the project as an analyzer (which builds it first), and a second ProjectReference to the same
+      project is NU1504, so the built assembly is referenced by path. It is netstandard2.0 whatever the configuration.
+    -->
+    <ItemGroup>
+        <Reference Include="Wolverine.Analyzers">
+            <HintPath>..\..\Wolverine.Analyzers\bin\$(Configuration)\netstandard2.0\Wolverine.Analyzers.dll</HintPath>
+        </Reference>
+    </ItemGroup>
+
     <ItemGroup>
         <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
         <Content Update="appsettings.json">

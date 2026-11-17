@@ -34,7 +34,7 @@ public sealed record SagaLastModifiedRange(DateTimeOffset? ModifiedAfter = null,
 /// </para>
 /// <para>
 /// Saga types are named the same way as on <see cref="ISagaStoreDiagnostics" />: the full name in code, or the
-/// short type name. Completed sagas are deleted by every saga store, so every instance counted here is still open.
+/// short type name. Completed sagas are either deleted or, for a retained saga type, left out (GH-5572), so every instance counted here is still open.
 /// </para>
 /// </remarks>
 public interface ISagaIdleDiagnostics
@@ -66,7 +66,7 @@ public interface ISagaIdleDiagnostics
     /// <paramref name="range" />, with the total count, least recently modified first unless
     /// <see cref="DocumentQueryOptions.OrderBy" /> says otherwise. Paging, <see cref="DocumentQueryOptions.Where" />
     /// and <see cref="DocumentQueryOptions.OrderBy" /> follow the same rules as
-    /// <see cref="ISagaStoreDiagnostics.QuerySagasAsync" />; <see cref="DocumentQueryOptions.TenantId" /> names the
+    /// <see cref="ISagaStoreDiagnostics.QuerySagasAsync(string, DocumentQueryOptions, CancellationToken)" />; <see cref="DocumentQueryOptions.TenantId" /> names the
     /// tenant, with the same refusal rule as <see cref="CountIdleSagasAsync" />.
     /// </summary>
     /// <exception cref="NotSupportedException">The storage that owns the saga type does not support idle queries.</exception>

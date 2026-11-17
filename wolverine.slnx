@@ -414,6 +414,12 @@
     <Build Project="false" />
   </Project>
   <Project Path="src/Wolverine/Wolverine.csproj" />
+  <!-- GH-5403 / GH-5622: every C# project references the analyzer (Directory.Build.targets, Wolverine.csproj) and
+       builds it as netstandard2.0. Built here as well, the pinned solution build (-f net10.0) would make a second
+       instance of it writing the same obj/ files. The references are its gate. -->
+  <Project Path="src/Wolverine.Analyzers/Wolverine.Analyzers.csproj">
+    <Build Project="false" />
+  </Project>
   <Project Path="src/Wolverine.HealthChecks/Wolverine.HealthChecks.csproj" />
   <Project Path="src/Wolverine.HealthChecks.Tests/Wolverine.HealthChecks.Tests.csproj" />
   <Project Path="src/Wolverine.ServiceDefaults/Wolverine.ServiceDefaults.csproj" />

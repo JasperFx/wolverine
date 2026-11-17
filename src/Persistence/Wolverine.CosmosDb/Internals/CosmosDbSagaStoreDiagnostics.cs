@@ -27,7 +27,7 @@ namespace Wolverine.CosmosDb.Internals;
 ///     documents, will deserialize those as the saga type being queried. A query's own <c>Where</c> is the way to
 ///     narrow it.
 /// </remarks>
-internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics
+internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics, ISagaRetentionSweeper
 {
     private readonly Container _container;
     private readonly IWolverineRuntime _runtime;
@@ -98,8 +98,14 @@ internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISag
                     "Saga filters and orderings need runtime code generation, which is unavailable in a Native AOT process.")
             : SagaQueryCapabilities.None;
 
-    public async Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options,
+    public Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options,
         CancellationToken ct)
+    {
+        return QuerySagasAsync(sagaTypeName, options, false, ct);
+    }
+
+    public async Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options,
+        bool includeCompleted, CancellationToken ct)
     {
         var (pageNumber, pageSize) = SagaQueryCriteria.Page(options);
         SagaQueryCriteria.RefuseCriteria(options, GetQueryCapabilities(sagaTypeName));
@@ -110,7 +116,7 @@ internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISag
             .GetMethod(nameof(querySagasAsync), BindingFlags.Instance | BindingFlags.NonPublic)!
             .MakeGenericMethod(sagaType);
 
-        var task = (Task<SagaQueryResult>)helper.Invoke(this, [sagaType, options, pageNumber, pageSize, ct])!;
+        var task = (Task<SagaQueryResult>)helper.Invoke(this, [sagaType, options, includeCompleted, pageNumber, pageSize, ct])!;
         return await task.ConfigureAwait(false);
     }
 
@@ -119,10 +125,14 @@ internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISag
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "Saga criteria are refused through GetQueryCapabilities when dynamic code is unavailable.")]
     private async Task<SagaQueryResult> querySagasAsync<TSaga>(Type sagaType, DocumentQueryOptions options,
-        int pageNumber, int pageSize, CancellationToken ct) where TSaga : class
+        bool includeCompleted, int pageNumber, int pageSize, CancellationToken ct) where TSaga : class
     {
         var idMember = idMemberName(sagaType);
-        var source = _container.GetItemLinqQueryable<TSaga>();
+        IQueryable<TSaga> source = _container.GetItemLinqQueryable<TSaga>();
+        if (!includeCompleted && typeof(TSaga).CanBeCastTo<Saga>())
+        {
+            source = openOnly(source);
+        }
 
         try
         {
@@ -189,7 +199,7 @@ internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISag
     private async Task<long> countIdleAsync<TSaga>(DateTimeOffset modifiedBefore, CancellationToken ct)
         where TSaga : Saga
     {
-        var queryable = sagaDocuments<TSaga>().Where(x => x.LastModified < modifiedBefore);
+        var queryable = openOnly(sagaDocuments<TSaga>()).Where(x => x.LastModified < modifiedBefore);
         return (await queryable.CountAsync(ct).ConfigureAwait(false)).Resource;
     }
 
@@ -220,7 +230,7 @@ internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISag
         try
         {
             var queryable = SagaLastModifiedQueries.Order(
-                SagaLastModifiedQueries.Filter(sagaDocuments<TSaga>(), range), options, idMemberName(sagaType));
+                SagaLastModifiedQueries.Filter(openOnly(sagaDocuments<TSaga>()), range), options, idMemberName(sagaType));
 
             var total = (await queryable.CountAsync(ct).ConfigureAwait(false)).Resource;
 
@@ -240,6 +250,97 @@ internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISag
         {
             throw options.Untranslatable(e);
         }
+    }
+
+    /// <summary>
+    /// GH-5572. Leave out retained, completed sagas. A document without CompletedAt at all (written before 7.0) has
+    /// not completed: Cosmos does not treat an undefined property as null.
+    /// </summary>
+    private static IQueryable<TSaga> openOnly<TSaga>(IQueryable<TSaga> source)
+    {
+        var parameter = System.Linq.Expressions.Expression.Parameter(typeof(TSaga), "x");
+        var completedAt = System.Linq.Expressions.Expression.Property(parameter,
+            typeof(Saga).GetProperty(nameof(Saga.CompletedAt))!);
+        var isDefined = System.Linq.Expressions.Expression.Call(
+            typeof(CosmosLinqExtensions).GetMethod(nameof(CosmosLinqExtensions.IsDefined), [typeof(object)])!,
+            System.Linq.Expressions.Expression.Convert(completedAt, typeof(object)));
+        var isNull = System.Linq.Expressions.Expression.Equal(completedAt,
+            System.Linq.Expressions.Expression.Constant(null, typeof(DateTimeOffset?)));
+        var open = System.Linq.Expressions.Expression.OrElse(System.Linq.Expressions.Expression.Not(isDefined), isNull);
+        return source.Where(System.Linq.Expressions.Expression.Lambda<Func<TSaga, bool>>(open, parameter));
+    }
+
+    // GH-5572: retained, completed sagas are found by query and deleted one by one. Saga documents carry no type
+    // marker, so a sweep for one saga type sees every completed saga document in the container. Only retained saga
+    // types ever keep a completed document, so with several saga types in the container the sweep uses the longest
+    // retention period of them all: nothing is deleted early, though a saga with a shorter period may be kept longer.
+
+    public string RetentionStoreName => "CosmosDb";
+
+    public IReadOnlyList<Type> SagaTypesForRetention()
+        => sagaIndex().Values.Where(x => x.CanBeCastTo<Saga>()).Distinct().ToArray();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<long> DeleteCompletedSagasAsync(Type sagaType, DateTimeOffset completedBefore, CancellationToken ct)
+    {
+        if (!sagaType.CanBeCastTo<Saga>() || !sagaIndex().ContainsKey(sagaType.FullName!)) return 0;
+
+        var cutoff = completedBefore;
+        var sagaTypes = SagaTypesForRetention();
+        if (sagaTypes.Count > 1)
+        {
+            var longest = sagaTypes
+                .Select(x => SagaRetention.For(x, _runtime.Options))
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .DefaultIfEmpty(TimeSpan.Zero)
+                .Max();
+            var conservative = DateTimeOffset.UtcNow.Subtract(longest);
+            if (conservative < cutoff) cutoff = conservative;
+        }
+
+        var task = (Task<long>)typeof(CosmosDbSagaStoreDiagnostics)
+            .GetMethod(nameof(deleteCompletedAsync), BindingFlags.Instance | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sagaType)
+            .Invoke(this, [sagaType, cutoff.ToUniversalTime(), ct])!;
+        return await task.ConfigureAwait(false);
+    }
+
+    private async Task<long> deleteCompletedAsync<TSaga>(Type sagaType, DateTimeOffset completedBefore,
+        CancellationToken ct) where TSaga : Saga
+    {
+        var queryable = sagaDocuments<TSaga>()
+            .Where(x => x.CompletedAt.IsDefined() && x.CompletedAt != null && x.CompletedAt < completedBefore);
+
+        var ids = new List<string>();
+        using (var iterator = queryable.ToFeedIterator())
+        {
+            while (iterator.HasMoreResults)
+            {
+                foreach (var saga in await iterator.ReadNextAsync(ct).ConfigureAwait(false))
+                {
+                    if (extractIdentity(saga, sagaType)?.ToString() is { } id) ids.Add(id);
+                }
+            }
+        }
+
+        long deleted = 0;
+        foreach (var id in ids)
+        {
+            var partitionKey = partitionById(sagaType) ? new PartitionKey(id) : PartitionKey.None;
+            try
+            {
+                await _container.DeleteItemAsync<TSaga>(id, partitionKey, cancellationToken: ct).ConfigureAwait(false);
+                deleted++;
+            }
+            catch (CosmosException e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                // Already gone
+            }
+        }
+
+        return deleted;
     }
 
     // Only saga documents have LastModified: Wolverine's own envelope, node and lock documents do not

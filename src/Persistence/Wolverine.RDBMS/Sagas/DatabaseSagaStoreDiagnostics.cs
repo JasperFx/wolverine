@@ -33,7 +33,7 @@ namespace Wolverine.RDBMS.Sagas;
 /// RavenDB diagnostics so callers see one unified saga catalog
 /// regardless of how many storages are wired up.
 /// </remarks>
-public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics
+public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics, ISagaRetentionSweeper
 {
     private readonly IWolverineRuntime _runtime;
     private readonly IMessageDatabase _database;
@@ -135,7 +135,13 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
                 "Lightweight saga storage keeps the saga as an opaque JSON body, so it can page and count and order by identity, but cannot filter or order on saga members. Use a storage with a queryable saga model (Marten, EF Core, RavenDB) for that.")
             : SagaQueryCapabilities.None;
 
-    public async Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options, CancellationToken ct)
+    public Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options, CancellationToken ct)
+    {
+        return QuerySagasAsync(sagaTypeName, options, false, ct);
+    }
+
+    public async Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options,
+        bool includeCompleted, CancellationToken ct)
     {
         var (pageNumber, pageSize) = SagaQueryCriteria.Page(options);
         SagaQueryCriteria.RefuseCriteria(options, GetQueryCapabilities(sagaTypeName));
@@ -151,13 +157,13 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
             long total;
             await using (var countCmd = conn.CreateCommand())
             {
-                countCmd.CommandText = $"select count(*) from {table}";
+                countCmd.CommandText = $"select count(*) from {table}{openOnly(includeCompleted)}";
                 total = Convert.ToInt64(await countCmd.ExecuteScalarAsync(ct).ConfigureAwait(false));
             }
 
             var list = new List<SagaInstanceState>();
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = renderPageQuery(conn, table, (pageNumber - 1) * pageSize, pageSize);
+            cmd.CommandText = renderPageQuery(conn, table, openOnly(includeCompleted), (pageNumber - 1) * pageSize, pageSize);
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
             {
@@ -261,6 +267,72 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
         }
     }
 
+    // GH-5572: retained, completed sagas are deleted with one statement per saga table and database
+
+    public string RetentionStoreName => "Database";
+
+    public IReadOnlyList<Type> SagaTypesForRetention()
+        => sagaIndex().Values.Select(x => x.SagaType).Distinct().ToArray();
+
+    public async Task<long> DeleteCompletedSagasAsync(Type sagaType, DateTimeOffset completedBefore, CancellationToken ct)
+    {
+        if (!sagaIndex().TryGetValue(sagaType.FullName!, out var definition)) return 0;
+
+        long deleted = 0;
+        foreach (var database in allDatabases())
+        {
+            var conn = database.DataSource.CreateConnection();
+            await conn.OpenAsync(ct).ConfigureAwait(false);
+            try
+            {
+                await using var cmd = conn.CreateCommand();
+                var prefix = isOracle(conn) ? ":" : "@";
+                var p = cmd.CreateParameter();
+                p.ParameterName = "completed_before";
+                p.Value = isSqlite(conn)
+                    ? completedBefore.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss.fff", System.Globalization.CultureInfo.InvariantCulture)
+                    : isMySql(conn) ? completedBefore.UtcDateTime : completedBefore.ToUniversalTime();
+                cmd.Parameters.Add(p);
+                cmd.CommandText =
+                    $"delete from {qualifyTableName(database, definition.TableName)} where {SagaTableIndexes.CompletedAtColumn} is not null and {SagaTableIndexes.CompletedAtColumn} < {prefix}completed_before";
+                deleted += await cmd.ExecuteNonQueryAsync(ct).ConfigureAwait(false);
+            }
+            catch (DbException e) when (isMissingTableException(e))
+            {
+                // No table yet means nothing to delete (GH-3887)
+            }
+            finally
+            {
+                await conn.CloseAsync().ConfigureAwait(false);
+            }
+        }
+
+        return deleted;
+    }
+
+    /// <summary>
+    /// The main database, plus every tenant database under database-per-tenant message storage
+    /// </summary>
+    private IReadOnlyList<IMessageDatabase> allDatabases()
+    {
+        var databases = new List<IMessageDatabase> { _database };
+        if (_runtime.Storage is MultiTenantedMessageStore multiTenanted)
+        {
+            foreach (var database in multiTenanted.ActiveDatabases().OfType<IMessageDatabase>())
+            {
+                if (!databases.Contains(database)) databases.Add(database);
+            }
+        }
+
+        return databases;
+    }
+
+    private static bool isSqlite(DbConnection conn)
+        => (conn.GetType().FullName ?? string.Empty).Contains("Sqlite", StringComparison.OrdinalIgnoreCase);
+
+    private static bool isMySql(DbConnection conn)
+        => (conn.GetType().FullName ?? string.Empty).Contains("MySql", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// The database holding the tenant's lightweight saga tables: the main database for no tenant (or the
     /// default tenant), the tenant's own database under database-per-tenant message storage
@@ -304,7 +376,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
 
     /// <summary>
     /// Adds the range's parameters to <paramref name="cmd" /> and returns the where clause (with a leading space),
-    /// or an empty string for an open range. SQLite keeps last_modified as UTC text in a sortable format, so it
+    /// which always leaves out retained, completed sagas. SQLite keeps last_modified as UTC text in a sortable format, so it
     /// compares against the same text; the other databases compare timestamps, passed in UTC.
     /// </summary>
     private static string renderLastModifiedFilter(DbCommand cmd, SagaLastModifiedRange range)
@@ -325,10 +397,12 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
             clauses.Add($"{SagaTableIndexes.LastModifiedColumn} {op} {prefix}{name}");
         }
 
+        // GH-5572: a retained, completed saga is not idle
+        clauses.Add($"{SagaTableIndexes.CompletedAtColumn} is null");
         if (range.ModifiedAfter is { } after) add("modified_after", ">=", after);
         if (range.ModifiedBefore is { } before) add("modified_before", "<", before);
 
-        return clauses.Count == 0 ? string.Empty : " where " + string.Join(" and ", clauses);
+        return " where " + string.Join(" and ", clauses);
     }
 
     /// <summary>
@@ -398,12 +472,18 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
     /// Detected from the connection's CLR type to keep this provider Wolverine-side without a circular
     /// reference into the dialect packages.
     /// </summary>
-    private static string renderPageQuery(DbConnection conn, string table, int offset, int count)
+    private static string renderPageQuery(DbConnection conn, string table, string where, int offset, int count)
     {
         return renderPage(conn,
-            $"select {DatabaseConstants.Id}, {DatabaseConstants.Body} from {table} order by {DatabaseConstants.Id}",
+            $"select {DatabaseConstants.Id}, {DatabaseConstants.Body} from {table}{where} order by {DatabaseConstants.Id}",
             offset, count);
     }
+
+    /// <summary>
+    /// GH-5572. The where clause (with a leading space) that leaves out retained, completed sagas, or nothing
+    /// </summary>
+    private static string openOnly(bool includeCompleted)
+        => includeCompleted ? string.Empty : $" where {SagaTableIndexes.CompletedAtColumn} is null";
 
     private static string renderPage(DbConnection conn, string select, int offset, int count)
     {
@@ -439,6 +519,15 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
             if (state.ValueKind == JsonValueKind.Object &&
                 state.TryGetProperty("_isCompleted", out var flag) &&
                 flag.ValueKind == JsonValueKind.True)
+            {
+                isCompleted = true;
+            }
+
+            // GH-5572: a retained saga that completed carries Saga.CompletedAt in its body, under whatever
+            // naming policy the saga serializer uses
+            if (state.ValueKind == JsonValueKind.Object && state.EnumerateObject().Any(x =>
+                    x.Name.Equals(nameof(Saga.CompletedAt), StringComparison.OrdinalIgnoreCase) &&
+                    x.Value.ValueKind != JsonValueKind.Null))
             {
                 isCompleted = true;
             }

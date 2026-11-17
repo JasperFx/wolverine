@@ -538,6 +538,20 @@ public class DurabilitySettings : IDescribeMyself
     internal bool AlwaysMakeScheduledMessagesDurableExplicitly => _alwaysMakeScheduledMessagesDurable == true;
 
     /// <summary>
+    ///     GH-5572. How long completed sagas are kept before they are deleted, for every saga type whose storage
+    ///     supports retention and that does not set its own period with <see cref="RetainWhenCompletedAttribute" />.
+    ///     Null, the default, deletes a saga as soon as it completes. Set with
+    ///     <see cref="IPolicies.RetainCompletedSagas" />.
+    /// </summary>
+    public TimeSpan? CompletedSagaRetention { get; set; }
+
+    /// <summary>
+    ///     GH-5572. How often the node agent that deletes retained, completed sagas past their retention period runs
+    ///     against each saga store. The default is one hour.
+    /// </summary>
+    public TimeSpan CompletedSagaSweepInterval { get; set; } = 1.Hours();
+
+    /// <summary>
     ///     How long should successfully handled messages be kept to use in idempotency checking
     /// </summary>
     public TimeSpan KeepAfterMessageHandling { get; set; } = 5.Minutes();

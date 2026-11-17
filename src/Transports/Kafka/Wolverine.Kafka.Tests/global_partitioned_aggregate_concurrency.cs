@@ -152,7 +152,7 @@ public class global_partitioned_aggregate_concurrency : IAsyncLifetime
         var store = _replica1.Services.GetRequiredService<IDocumentStore>();
         await store.Advanced.Clean.DeleteAllEventDataAsync(TestContext.Current.CancellationToken);
 
-        var bus = _publisher.Services.GetRequiredService<IMessageBus>();
+        var bus = _publisher.MessageBus();
 
         // Use a small number of stream IDs but many messages per stream
         var streamIds = Enumerable.Range(1, 4).Select(_ => Guid.NewGuid()).ToArray();

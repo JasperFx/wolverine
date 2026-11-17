@@ -128,7 +128,7 @@ public class DocumentationSamples
             }).StartAsync();
 
         // Send directly to specific database URIs
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         await bus.EndpointFor(ordersUri).SendAsync(new OrderCreated("123", 99.99m, DateTime.Now));
 
         #endregion

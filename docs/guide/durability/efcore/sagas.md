@@ -146,6 +146,19 @@ not own your EF Core schema:
 modelBuilder.Entity<OrderSaga>().HasIndex(x => x.LastModified);
 ```
 
+## The CompletedAt Column <Badge type="tip" text="7.0" />
+
+The base `Saga` type also has a nullable `CompletedAt` property, which Wolverine sets when a saga it is
+[keeping after completion](/guide/durability/sagas#keeping-completed-sagas) completes. EF Core maps it as a column
+by convention too, so add it in the same migration. If you never retain a saga type, you can ignore it instead:
+
+```cs
+modelBuilder.Entity<OrderSaga>().Ignore(x => x.CompletedAt);
+```
+
+A saga type that is retained needs the column: with `CompletedAt` ignored, Wolverine refuses to retain it at startup,
+because the completion would never be saved.
+
 ## When to Use EF Core vs Lightweight Storage?
 
 As to the question, when should you opt for lightweight storage where Wolverine just sticks serialized JSON into a single 

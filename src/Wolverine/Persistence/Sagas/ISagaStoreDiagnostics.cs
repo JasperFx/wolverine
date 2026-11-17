@@ -49,11 +49,11 @@ public interface ISagaStoreDiagnostics
     Task<SagaInstanceState?> ReadSagaAsync(string sagaTypeName, object identity, CancellationToken ct);
 
     /// <summary>
-    /// Return up to <paramref name="count"/> recent saga instances of
-    /// type <paramref name="sagaTypeName"/>, ordered by saga identity
+    /// Return up to <paramref name="count"/> saga instances of
+    /// type <paramref name="sagaTypeName"/> that have not completed, ordered by saga identity
     /// ascending, as the store itself compares the key, so the same call returns the same instances. This is a
     /// bounded peek for monitoring UIs, never an unbounded scan, and it
-    /// says nothing about recency: use <see cref="QuerySagasAsync"/> to
+    /// says nothing about recency: use <see cref="QuerySagasAsync(string, DocumentQueryOptions, CancellationToken)"/> to
     /// filter, order by a saga member, page and count. Returns an empty list when this storage does not
     /// own the requested saga type.
     /// </summary>
@@ -64,7 +64,7 @@ public interface ISagaStoreDiagnostics
     Task<IReadOnlyList<SagaInstanceState>> ListSagaInstancesAsync(string sagaTypeName, int count, CancellationToken ct);
 
     /// <summary>
-    /// What <see cref="QuerySagasAsync"/> can honour for <paramref name="sagaTypeName"/> on this
+    /// What <see cref="QuerySagasAsync(string, DocumentQueryOptions, CancellationToken)"/> can honour for <paramref name="sagaTypeName"/> on this
     /// storage, so a UI offers only what works. The default says nothing is supported, which is what a
     /// storage written before querying existed does.
     /// </summary>
@@ -74,7 +74,8 @@ public interface ISagaStoreDiagnostics
     /// Query instances of <paramref name="sagaTypeName"/>: a filter and ordering over the saga's own
     /// members (<see cref="DocumentQueryOptions.Where"/> / <see cref="DocumentQueryOptions.OrderBy"/>, as
     /// Dynamic LINQ text), a page, and the total count. Ordered by saga identity when no ordering is given.
-    /// The page size is clamped to <see cref="SagaQueryCriteria.MaxPageSize"/>.
+    /// The page size is clamped to <see cref="SagaQueryCriteria.MaxPageSize"/>. Retained, completed sagas are left
+    /// out (GH-5572); the overload taking <c>includeCompleted</c> can include them.
     /// </summary>
     /// <remarks>
     /// A storage that cannot honour a criterion throws <see cref="DocumentCriteriaNotSupportedException"/>;
@@ -84,4 +85,21 @@ public interface ISagaStoreDiagnostics
     /// </remarks>
     Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options, CancellationToken ct)
         => throw new NotSupportedException($"{GetType().FullName} does not support querying saga instances.");
+
+    /// <summary>
+    /// GH-5572. <see cref="QuerySagasAsync(string, DocumentQueryOptions, CancellationToken)" />, choosing whether
+    /// retained, completed sagas (<see cref="Saga.CompletedAt" />) are included. The overload without
+    /// <paramref name="includeCompleted" /> leaves them out, as does <see cref="ListSagaInstancesAsync" />; a saga
+    /// type that is not retained has no completed instances to include. <see cref="ReadSagaAsync" /> reads a
+    /// completed saga by its id either way.
+    /// </summary>
+    /// <remarks>
+    /// Default-implemented so that a storage built against an older Wolverine still loads: it answers without the
+    /// completed sagas, and refuses to include them.
+    /// </remarks>
+    Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options, bool includeCompleted,
+        CancellationToken ct)
+        => includeCompleted
+            ? throw new NotSupportedException($"{GetType().FullName} cannot include completed sagas in a saga query.")
+            : QuerySagasAsync(sagaTypeName, options, ct);
 }

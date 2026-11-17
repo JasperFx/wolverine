@@ -72,4 +72,18 @@
         <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     </PropertyGroup>
 
+    <!--
+      GH-5403. Runs Wolverine's own analyzers (src/Wolverine.Analyzers, the WolverineFx.Analyzers package) over
+      every C# project in the repository, so the code here is held to the same warnings a WolverineFx consumer
+      gets. A ProjectReference does not pass an analyzer on to the projects that reference it, so it is added to
+      each project here. Wolverine.csproj declares its own (it is the one that makes the package depend on it),
+      and PrivateAssets="all" keeps every other package from depending on WolverineFx.Analyzers.
+      Build with -p:WolverineAnalyzers=false to leave them out.
+    -->
+    <ItemGroup Condition=" '$(MSBuildProjectExtension)' == '.csproj' And '$(WolverineAnalyzers)' != 'false' And '$(MSBuildProjectName)' != 'Wolverine' And '$(MSBuildProjectName)' != 'Wolverine.Analyzers' And Exists('$(MSBuildThisFileDirectory)src/Wolverine.Analyzers/Wolverine.Analyzers.csproj') ">
+        <ProjectReference Include="$(MSBuildThisFileDirectory)src/Wolverine.Analyzers/Wolverine.Analyzers.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"
+                          IsAspireProjectResource="false" />
+    </ItemGroup>
+
 </Project>

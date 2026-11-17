@@ -19,7 +19,7 @@ public abstract class Saga
     /// </summary>
     public bool IsCompleted()
     {
-        return _isCompleted;
+        return _isCompleted || CompletedAt.HasValue;
     }
 
     /// <summary>
@@ -51,6 +51,15 @@ public abstract class Saga
     /// Useful for finding saga instances that have sat untouched for a long time.
     /// </summary>
     public DateTimeOffset LastModified { get; set; }
+
+    /// <summary>
+    /// GH-5572. When this saga completed, in UTC, for a saga type whose completed instances are kept for a while
+    /// (<c>opts.Policies.RetainCompletedSagas()</c> or <see cref="RetainWhenCompletedAttribute"/>). Null for a saga
+    /// that has not completed, and always null for a saga type that is not retained, because a completed saga of
+    /// that type is deleted. Wolverine's saga persistence sets it. A retained saga with a value here is never handed
+    /// to a <c>Handle</c> method again.
+    /// </summary>
+    public DateTimeOffset? CompletedAt { get; set; }
 }
 
 #endregion
