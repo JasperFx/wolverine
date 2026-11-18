@@ -8,7 +8,7 @@ using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS;
 
-public abstract partial class MessageDatabase<T>
+public abstract partial class MessageDatabase<T> : IDeadLetterFaultStorage
 {
     protected string? _markEnvelopeAsHandledById;
     protected string _incrementIncomingEnvelopeAttempts;
@@ -139,6 +139,73 @@ public abstract partial class MessageDatabase<T>
 
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
+        var builder = await buildDeadLetterMoveAsync(envelope, exception);
+        if (builder == null) return;
+
+        try
+        {
+            await executeCommandBatch(builder, _cancellation);
+        }
+        catch (Exception e)
+        {
+            if (IsDuplicateEnvelopeException(e)) return;
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// GH-5554. The dead-letter move, and in the same transaction the dead letter's faults to durable destinations:
+    /// the outgoing ones to the outbox, the ones for durable local queues to the inbox
+    /// </summary>
+    async Task IDeadLetterFaultStorage.MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception,
+        DeadLetterFaults faults)
+    {
+        var builder = await buildDeadLetterMoveAsync(envelope, exception);
+        if (builder == null)
+        {
+            faults.AssertCanCommit();
+            return;
+        }
+
+        await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
+        try
+        {
+            await using var tx = await conn.BeginTransactionAsync(_cancellation);
+            try
+            {
+                await using (var cmd = builder.Compile())
+                {
+                    cmd.Connection = conn;
+                    cmd.Transaction = tx;
+                    await cmd.ExecuteNonQueryAsync(_cancellation).ConfigureAwait(false);
+                }
+
+                if (faults.Outgoing.Count > 0) await StoreOutgoingAsync(tx, faults.Outgoing.ToArray());
+                if (faults.Incoming.Count > 0) await StoreIncomingAsync(tx, faults.Incoming.ToArray());
+
+                faults.AssertCanCommit();
+
+                await tx.CommitAsync(_cancellation).ConfigureAwait(false);
+                faults.Written = true;
+            }
+            catch (Exception e)
+            {
+                await tx.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+
+                // Already dead lettered: nothing more to write. The faults are sent best-effort after the move
+                if (IsDuplicateEnvelopeException(e) && !faults.FailBeforeCommit) return;
+                throw;
+            }
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    // The statements of a dead-letter move, or null when there is nothing to move
+    private async Task<DbCommandBuilder?> buildDeadLetterMoveAsync(Envelope envelope, Exception? exception)
+    {
         // GH-5116. Never return quietly here: callers settle the message with the broker once this returns, so a
         // dead letter "written" to a disposed store would be completed and lost
         if (HasDisposed)
@@ -155,7 +222,7 @@ public abstract partial class MessageDatabase<T>
             Logger.LogWarning(exception,
                 "Envelope {EnvelopeId} at {Uri} was not moved to dead letter storage because the inbox already shows it handled",
                 envelope.Id, envelope.Destination);
-            return;
+            return null;
         }
 
         if (Durability.DeadLetterQueueExpirationEnabled && envelope.DeliverBy == null)
@@ -163,34 +230,26 @@ public abstract partial class MessageDatabase<T>
             envelope.DeliverBy = DateTimeOffset.UtcNow.Add(Durability.DeadLetterQueueExpiration);
         }
 
-        try
+        var builder = ToCommandBuilder();
+        builder.Append($"delete from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} WHERE id = ");
+        builder.AppendParameter(envelope.Id);
+        if (envelope.Destination == null)
         {
-            var builder = ToCommandBuilder();
-            builder.Append($"delete from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} WHERE id = ");
-            builder.AppendParameter(envelope.Id);
-            if (envelope.Destination == null)
-            {
-                // GH-5139. An envelope dead-lettered without a destination (GH-3166) used to throw here. Only a row
-                // stored with no destination can be its inbox row
-                builder.Append($" and {DatabaseConstants.ReceivedAt} is null");
-            }
-            else
-            {
-                builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
-                builder.AppendParameter(envelope.Destination.ToString(), AddressParameterType);
-            }
-
-            builder.Append(';');
-
-            DatabasePersistence.ConfigureDeadLetterCommands(Durability, envelope, exception, builder, this);
-
-            await executeCommandBatch(builder, _cancellation);
+            // GH-5139. An envelope dead-lettered without a destination (GH-3166) used to throw here. Only a row
+            // stored with no destination can be its inbox row
+            builder.Append($" and {DatabaseConstants.ReceivedAt} is null");
         }
-        catch (Exception e)
+        else
         {
-            if (IsDuplicateEnvelopeException(e)) return;
-            throw;
+            builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
+            builder.AppendParameter(envelope.Destination.ToString(), AddressParameterType);
         }
+
+        builder.Append(';');
+
+        DatabasePersistence.ConfigureDeadLetterCommands(Durability, envelope, exception, builder, this);
+
+        return builder;
     }
 
     /// <summary>

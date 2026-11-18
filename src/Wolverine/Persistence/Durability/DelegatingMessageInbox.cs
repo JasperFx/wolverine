@@ -4,7 +4,7 @@ namespace Wolverine.Persistence.Durability;
 /// This is necessary when the Wolverine system has "ancillary" message
 /// stores that are in separate databases
 /// </summary>
-internal class DelegatingMessageInbox : IMessageInbox, IMessageInboxHeartbeat
+internal class DelegatingMessageInbox : IMessageInbox, IMessageInboxHeartbeat, IDeadLetterFaultStorage
 {
     private readonly IMessageInbox _inner;
     private readonly MessageStoreCollection _stores;
@@ -49,6 +49,19 @@ internal class DelegatingMessageInbox : IMessageInbox, IMessageInboxHeartbeat
     public Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         return (envelope.Store?.Inbox ?? _inner).MoveToDeadLetterStorageAsync(envelope, exception);
+    }
+
+    // GH-5554
+    public Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception, DeadLetterFaults faults)
+    {
+        var inbox = envelope.Store?.Inbox ?? _inner;
+        if (inbox is IDeadLetterFaultStorage storage)
+        {
+            return storage.MoveToDeadLetterStorageAsync(envelope, exception, faults);
+        }
+
+        faults.AssertCanCommit();
+        return inbox.MoveToDeadLetterStorageAsync(envelope, exception);
     }
 
     public Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)

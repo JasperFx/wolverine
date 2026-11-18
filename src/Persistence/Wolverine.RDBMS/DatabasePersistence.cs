@@ -7,6 +7,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS;
@@ -260,7 +261,7 @@ public static class DatabasePersistence
         CancellationToken cancellation)
     {
         const int start = 10;
-        if (reader.FieldCount < start + 8 ||
+        if (reader.FieldCount < start + 9 ||
             !reader.GetName(start).Equals(DatabaseConstants.FailureGroup, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -276,6 +277,7 @@ public static class DatabasePersistence
         deadLetter.LastReplayedAt = await ReadNullableTimestampAsync(reader, start + 5, cancellation);
         deadLetter.ArchivedAt = await ReadNullableTimestampAsync(reader, start + 6, cancellation);
         deadLetter.SagaId = await readNullableStringAsync(reader, start + 7, cancellation);
+        deadLetter.Tag = await readNullableStringAsync(reader, start + 8, cancellation);
     }
 
     private static async Task<string?> readNullableStringAsync(DbDataReader reader, int ordinal,
@@ -402,7 +404,8 @@ public static class DatabasePersistence
             "@" + builder.AddParameter(fingerprint.Group).ParameterName,
             "@" + builder.AddParameter(fingerprint.Title).ParameterName,
             "@" + now.ParameterName,
-            "@" + builder.AddParameter(DeadLetterSagaId(envelope)).ParameterName
+            "@" + builder.AddParameter(DeadLetterSagaId(envelope)).ParameterName,
+            "@" + builder.AddParameter(DeadLetterQueueConstants.DeadLetterTagOf(envelope)).ParameterName
         };
 
         // GH-5209. A message that was replayed out of dead letter storage and failed again picks its replay
@@ -416,7 +419,7 @@ public static class DatabasePersistence
         values.Add(historyOf(DatabaseConstants.LastReplayedAt));
 
         var deadLetterFields =
-            $"{DatabaseConstants.DeadLetterFields}, {DatabaseConstants.FailureGroup}, {DatabaseConstants.FailureTitle}, {DatabaseConstants.FailedAt}, {DatabaseConstants.SagaId}, {DatabaseConstants.FirstFailedAt}, {DatabaseConstants.ReplayCount}, {DatabaseConstants.LastReplayedAt}";
+            $"{DatabaseConstants.DeadLetterFields}, {DatabaseConstants.FailureGroup}, {DatabaseConstants.FailureTitle}, {DatabaseConstants.FailedAt}, {DatabaseConstants.SagaId}, {DatabaseConstants.Tag}, {DatabaseConstants.FirstFailedAt}, {DatabaseConstants.ReplayCount}, {DatabaseConstants.LastReplayedAt}";
         if (durability.DeadLetterQueueExpirationEnabled)
         {
             // If there is a deliver by, use that

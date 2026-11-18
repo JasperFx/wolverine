@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 using Wolverine.Util;
@@ -450,6 +451,9 @@ internal class Executor : IExecutor
         var timeoutSpan = chain?.DetermineMessageTimeout(runtime.Options) ?? 5.Seconds();
         var rules = chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
 
+        // GH-5556: a saga chain compensates after its retries
+        if (chain is SagaChain sagaChain) SagaCompensations.ApplyTo(sagaChain, rules, runtime);
+
         if (runtime.Options.InvokeTracing == InvokeTracingMode.Full)
         {
             return new TracingExecutor(contextPool, runtime, handler, rules, timeoutSpan);
@@ -464,6 +468,9 @@ internal class Executor : IExecutor
         var chain = (handler as MessageHandler)?.Chain;
         var timeoutSpan = chain?.DetermineMessageTimeout(runtime.Options) ?? 5.Seconds();
         var rules = chain?.Failures.CombineRules(handlerGraph.Failures) ?? handlerGraph.Failures;
+
+        // GH-5556: a saga chain compensates after its retries
+        if (chain is SagaChain sagaChain) SagaCompensations.ApplyTo(sagaChain, rules, runtime);
 
         var logger = runtime.LoggerFactory.CreateLogger(handler.MessageType);
 

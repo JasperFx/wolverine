@@ -43,6 +43,16 @@ public class HandlerCall : MethodCall
         CommentText = "The actual message execution";
     }
 
+    /// <summary>
+    /// GH-5556. A saga's <c>Compensate(T failed, ...)</c> method, filed under <c>Fault&lt;T&gt;</c>: the chain that
+    /// compensates T. The method is never called directly by the generated code; see <c>SagaCompensations</c>
+    /// </summary>
+    internal HandlerCall(Type handlerType, MethodInfo method, Type messageType) : base(handlerType, method)
+    {
+        MessageType = messageType;
+        CommentText = "Compensation";
+    }
+
     public Type MessageType { get; }
 
     public new static HandlerCall For<T>(Expression<Action<T>> method)

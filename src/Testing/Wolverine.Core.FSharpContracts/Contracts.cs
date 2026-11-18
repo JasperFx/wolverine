@@ -156,3 +156,38 @@ public class CountingSaga : Saga
         }
     }
 }
+
+// -----------------------------------------------------------------------------
+// GH-5556: a saga with a Compensate method gets a Fault<T> chain whose
+// CompensateSagaFrame must render as F#.
+// -----------------------------------------------------------------------------
+
+/// <summary>Starts a <see cref="StockSaga" />.</summary>
+public record StartStock(string Id);
+
+/// <summary>Handled by <see cref="StockSaga" />, and compensated when it fails.</summary>
+public record ReserveStock(string Id);
+
+/// <summary>Cascaded by <see cref="StockSaga" />'s Compensate method.</summary>
+public record StockReleased(string Id);
+
+/// <summary>A minimal saga with a Compensate method over the in-memory store.</summary>
+public class StockSaga : Saga
+{
+    public string? Id { get; set; }
+
+    public static StockSaga Start(StartStock command)
+    {
+        return new StockSaga { Id = command.Id };
+    }
+
+    public void Handle(ReserveStock command)
+    {
+    }
+
+    public StockReleased Compensate(ReserveStock failed, ExceptionInfo ex)
+    {
+        MarkCompleted();
+        return new StockReleased(Id!);
+    }
+}

@@ -148,7 +148,8 @@ public partial class RavenDbMessageStore : IDeadLetters
         return messages
             .Select(m => m.ToEnvelope())
             .Where(e => query.MatchesHeaders(e.Envelope) && query.MatchesExceptionMessage(e.ExceptionMessage) &&
-                        query.MatchesFailureGroup(e.FailureGroup, e.ExceptionType) && query.MatchesSagaId(e.SagaId))
+                        query.MatchesFailureGroup(e.FailureGroup, e.ExceptionType) && query.MatchesSagaId(e.SagaId) &&
+                        query.MatchesTag(e.Tag))
             .ToList();
     }
 
@@ -188,6 +189,13 @@ public partial class RavenDbMessageStore : IDeadLetters
         {
             var sagaId = query.SagaId;
             queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.SagaId == sagaId);
+        }
+
+        // GH-5556
+        if (query.Tag.IsNotEmpty())
+        {
+            var tag = query.Tag;
+            queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.Tag == tag);
         }
 
         if (query.Range.From.HasValue)
@@ -289,7 +297,8 @@ public partial class RavenDbMessageStore : IDeadLetters
                                                   DeadLetterCapabilities.OperationCounts |
                                                   DeadLetterCapabilities.ArchiveAndRestore |
                                                   DeadLetterCapabilities.ExceptionMessageMatching |
-                                                  DeadLetterCapabilities.SagaIds;
+                                                  DeadLetterCapabilities.SagaIds |
+                                                  DeadLetterCapabilities.Tags;
 
     public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
@@ -467,6 +476,13 @@ update
         {
             conditions.Add("m.SagaId = $sagaId");
             parameters["sagaId"] = query.SagaId;
+        }
+
+        // GH-5556
+        if (query.Tag.IsNotEmpty())
+        {
+            conditions.Add("m.Tag = $tag");
+            parameters["tag"] = query.Tag;
         }
 
         // See buildDeadLetterQuery for why this is a range rather than a null check

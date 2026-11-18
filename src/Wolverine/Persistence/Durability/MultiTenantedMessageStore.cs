@@ -19,7 +19,7 @@ using Wolverine.Transports;
 namespace Wolverine.Persistence.Durability;
 
 public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IMessageStoreAdmin,
-    IDeadLetters, ISagaSupport, INodeAgentPersistence, IMessageInboxHeartbeat
+    IDeadLetters, ISagaSupport, INodeAgentPersistence, IMessageInboxHeartbeat, IDeadLetterFaultStorage
 {
     private readonly ILogger _logger;
     private readonly RetryBlock<IEnvelopeCommand> _retryBlock;
@@ -184,6 +184,21 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     async Task IMessageInbox.MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         var database = await GetDatabaseAsync(envelope.TenantId);
+        await database.Inbox.MoveToDeadLetterStorageAsync(envelope, exception);
+    }
+
+    // GH-5554: the faults go in the tenant database the dead letter goes in
+    async Task IDeadLetterFaultStorage.MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception,
+        DeadLetterFaults faults)
+    {
+        var database = await GetDatabaseAsync(envelope.TenantId);
+        if (database.Inbox is IDeadLetterFaultStorage storage)
+        {
+            await storage.MoveToDeadLetterStorageAsync(envelope, exception, faults);
+            return;
+        }
+
+        faults.AssertCanCommit();
         await database.Inbox.MoveToDeadLetterStorageAsync(envelope, exception);
     }
 

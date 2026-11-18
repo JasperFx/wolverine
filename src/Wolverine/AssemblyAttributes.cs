@@ -79,3 +79,4 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Oracle")]
 [assembly: InternalsVisibleTo("RavenDbTests")]
 [assembly: InternalsVisibleTo("CosmosDbTests")]
+[assembly: InternalsVisibleTo("Wolverine.Bobcat")]

@@ -786,7 +786,10 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             warnAboutNearMissHandlerTypes(logger);
         }
 
-        var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
+        var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2)).ToList();
+
+        // GH-5556: a saga's Compensate(T, ...) methods are its chain for Fault<T>
+        calls.AddRange(SagaCompensations.FindCalls(calls).ToArray());
 
         if (methods.Length == 0)
         {

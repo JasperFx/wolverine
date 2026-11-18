@@ -241,6 +241,16 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
 
     public HandlerGraph Handlers { get; }
 
+    /// <summary>
+    /// GH-5556. Test seams for saga compensation
+    /// </summary>
+    internal Wolverine.Persistence.Sagas.SagaCompensationHooks CompensationHooks { get; } = new();
+
+    /// <summary>
+    /// GH-5554. Test seams in the dead-letter move
+    /// </summary>
+    internal Wolverine.Persistence.Durability.DeadLetterMoveHooks DeadLetterHooks { get; } = new();
+
     internal IScheduledJobProcessor ScheduledJobs { get; private set; } = null!;
 
     public IMessageInvoker FindInvoker(Type messageType)

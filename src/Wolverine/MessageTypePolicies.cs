@@ -160,8 +160,8 @@ public class MessageTypePolicies<T>
     /// </para>
     /// <para>
     /// <b>Delivery semantics.</b> See <see cref="WolverineOptions.PublishFaultEvents(bool, bool, bool)"/>
-    /// — auto-published fault events are best-effort and not transactionally co-committed with
-    /// the dead-letter-queue move.
+    /// — which faults are written in the dead-letter move's transaction, and which are sent after it,
+    /// best-effort.
     /// </para>
     /// <para>
     /// <b>Scope.</b> See <see cref="WolverineOptions.PublishFaultEvents(bool, bool, bool)"/> —

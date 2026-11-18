@@ -8,6 +8,7 @@ using SagaFaults.Inventory;
 using SagaFaults.Orders;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Runtime;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 
@@ -35,10 +36,19 @@ public abstract class TwoServices : IAsyncLifetime
     /// <summary>The Order saga for this chapter, and anything else only this fixture's orders service has.</summary>
     protected abstract void ConfigureOrders(WolverineOptions opts);
 
+    /// <summary>Anything only this fixture's inventory service has. Nothing, unless a fixture says otherwise.</summary>
+    protected virtual void ConfigureInventory(WolverineOptions opts)
+    {
+    }
+
     public async ValueTask InitializeAsync()
     {
         Inventory = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => InventoryService.Configure(opts, InventoryPort, OrdersPort, $"{Schema}_inventory"))
+            .UseWolverine(opts =>
+            {
+                InventoryService.Configure(opts, InventoryPort, OrdersPort, $"{Schema}_inventory");
+                ConfigureInventory(opts);
+            })
             .StartAsync();
 
         Orders = await Host.CreateDefaultBuilder()
@@ -83,6 +93,12 @@ public abstract class TwoServices : IAsyncLifetime
     {
         await Orders.ResetAllMartenDataAsync();
         await Inventory.ResetAllMartenDataAsync();
+
+        // Nothing a specification left in an inbox, outbox or dead letter table reaches the next one: a message a failed
+        // dead-letter move handed back is tried again later
+        await Orders.Services.GetRequiredService<IWolverineRuntime>().Storage.Admin.ClearAllAsync();
+        await Inventory.Services.GetRequiredService<IWolverineRuntime>().Storage.Admin.ClearAllAsync();
+
         Orders.Services.GetRequiredService<Ledger>().Available = true;
     }
 
@@ -114,6 +130,26 @@ public class FaultHandlingServices : TwoServices
 public class DurableFaultServices : FaultHandlingServices
 {
     protected override string Schema => "saga_durable_faults";
+
+    // A restart recovers the outbox on the durability agent's next pass: look every second rather than every five
+    protected override void ConfigureInventory(WolverineOptions opts)
+        => opts.Durability.ScheduledJobPollingTime = 1.Seconds();
+}
+
+/// <summary>
+/// GH-5554 with fault events on in inventory: its own Fault&lt;ReserveInventory&gt; route to the durable "fault-audit"
+/// queue is used as well as the address the saga asked for, so one dead letter has two faults to write.
+/// </summary>
+public class DurableFaultEventServices : FaultHandlingServices
+{
+    protected override string Schema => "saga_durable_fault_events";
+
+    protected override void ConfigureInventory(WolverineOptions opts)
+    {
+        opts.PublishFaultEvents();
+        opts.LocalQueue("fault-audit").UseDurableInbox();
+        opts.Durability.ScheduledJobPollingTime = 1.Seconds();
+    }
 }
 
 /// <summary>Chapter 2 (GH-5556): the Order saga that compensates.</summary>
@@ -130,6 +166,9 @@ public class FaultHandlingCollection : ICollectionFixture<FaultHandlingServices>
 
 [CollectionDefinition(nameof(DurableFaultCollection))]
 public class DurableFaultCollection : ICollectionFixture<DurableFaultServices>;
+
+[CollectionDefinition(nameof(DurableFaultEventCollection))]
+public class DurableFaultEventCollection : ICollectionFixture<DurableFaultEventServices>;
 
 [CollectionDefinition(nameof(CompensationCollection))]
 public class CompensationCollection : ICollectionFixture<CompensationServices>;

@@ -690,6 +690,7 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
             ExceptionMessageMatch = request.ExceptionMessageMatch,
             FailureGroup = request.FailureGroup,
             SagaId = request.SagaId,
+            Tag = request.Tag,
             Archived = request.Archived
         };
 

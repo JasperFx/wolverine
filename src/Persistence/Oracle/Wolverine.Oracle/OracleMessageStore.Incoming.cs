@@ -271,10 +271,10 @@ internal partial class OracleMessageStore
         string historyOf(string column) => $"(SELECT h.{column} FROM {history} h WHERE h.id = :id)";
 
         var deadLetterFields =
-            $"{DatabaseConstants.DeadLetterFields}, {DatabaseConstants.FailureGroup}, {DatabaseConstants.FailureTitle}, {DatabaseConstants.FailedAt}, {DatabaseConstants.SagaId}, {DatabaseConstants.FirstFailedAt}, {DatabaseConstants.ReplayCount}, {DatabaseConstants.LastReplayedAt}";
+            $"{DatabaseConstants.DeadLetterFields}, {DatabaseConstants.FailureGroup}, {DatabaseConstants.FailureTitle}, {DatabaseConstants.FailedAt}, {DatabaseConstants.SagaId}, {DatabaseConstants.Tag}, {DatabaseConstants.FirstFailedAt}, {DatabaseConstants.ReplayCount}, {DatabaseConstants.LastReplayedAt}";
         var deadLetterValues =
             ":id, :executionTime, :body, :messageType, :receivedAt, :source, :exceptionType, :exceptionMessage, :sentAt, :replayable, " +
-            $":failureGroup, :failureTitle, :failedAt, :sagaId, COALESCE({historyOf(DatabaseConstants.FirstFailedAt)}, :failedAt), " +
+            $":failureGroup, :failureTitle, :failedAt, :sagaId, :tag, COALESCE({historyOf(DatabaseConstants.FirstFailedAt)}, :failedAt), " +
             $"COALESCE({historyOf(DatabaseConstants.ReplayCount)}, 0), {historyOf(DatabaseConstants.LastReplayedAt)}";
 
         if (_durability.DeadLetterQueueExpirationEnabled)
@@ -303,6 +303,8 @@ internal partial class OracleMessageStore
         insertCmd.With("failureTitle", fingerprint.Title);
         insertCmd.Parameters.Add(new OracleParameter("sagaId", OracleDbType.Varchar2)
             { Value = (object?)DatabasePersistence.DeadLetterSagaId(envelope) ?? DBNull.Value });
+        insertCmd.Parameters.Add(new OracleParameter("tag", OracleDbType.Varchar2)
+            { Value = (object?)DeadLetterQueueConstants.DeadLetterTagOf(envelope) ?? DBNull.Value });
         insertCmd.Parameters.Add(new OracleParameter("failedAt", OracleDbType.TimeStampTZ) { Value = DateTimeOffset.UtcNow });
 
         if (_durability.DeadLetterQueueExpirationEnabled)

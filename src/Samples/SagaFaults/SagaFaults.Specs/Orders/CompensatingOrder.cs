@@ -1,4 +1,5 @@
 using SagaFaults.Inventory;
+using JasperFx;
 using Wolverine;
 
 namespace SagaFaults.Orders.Compensation;
@@ -9,7 +10,11 @@ namespace SagaFaults.Orders.Compensation;
 // wolverine.fault.reply-to header), as Handle(Fault<ReserveInventory>) does in chapter 1.
 // Each Compensate runs as a handler chain of its own, so error policies -- attributes on the method, or global ones --
 // apply to it as to any handler. There is no separate retry setting for compensation.
-public class Order : Saga, ICompensatingSaga
+// Any Saga may declare Compensate methods. The CompensatingSaga base type adds the saga's compensation status and log.
+// IRevisioned has Marten check the saga's version when it saves it, so another message saving the Order while it is
+// compensated is a concurrency conflict, retried like any other failure of the compensation.
+#region sample_saga_that_compensates
+public class Order : CompensatingSaga, IRevisioned
 {
     public Guid Id { get; set; }
     public string Sku { get; set; } = "";
@@ -19,10 +24,6 @@ public class Order : Saga, ICompensatingSaga
     public bool InventoryReserved { get; set; }
     public bool Paid { get; set; }
     public bool Refunded { get; set; }
-
-    // ICompensatingSaga: kept in the saga body, so no schema change
-    public SagaStatus Status { get; set; } = SagaStatus.Active;
-    public List<CompensationLogEntry> CompensationLog { get; set; } = [];
 
     public static (Order, ReserveInventory) Start(PlaceOrder command)
         => (new Order { Id = command.OrderId, Sku = command.Sku, Quantity = command.Quantity, Amount = command.Amount },
@@ -58,3 +59,4 @@ public class Order : Saga, ICompensatingSaga
     // The saga is gone (completed or deleted) when a fault of its ReserveInventory arrives
     public static OrderAlreadyClosed NotFound(Fault<ReserveInventory> fault) => new(fault.Message.Sku);
 }
+#endregion

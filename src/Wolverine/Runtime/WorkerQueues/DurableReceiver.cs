@@ -1288,6 +1288,20 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 {
                     await _deadLetterSender.SendAsync(envelope).ConfigureAwait(false);
                 }
+                else if (envelope.DeadLetterFaults is { } faults)
+                {
+                    // GH-5554: the faults of a durable destination are written in the dead letter's transaction
+                    if (_inbox is IDeadLetterFaultStorage storage)
+                    {
+                        await storage.MoveToDeadLetterStorageAsync(envelope, envelope.Failure, faults)
+                            .ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        faults.AssertCanCommit();
+                        await _inbox.MoveToDeadLetterStorageAsync(envelope, envelope.Failure).ConfigureAwait(false);
+                    }
+                }
                 else
                 {
                     await _inbox.MoveToDeadLetterStorageAsync(envelope, envelope.Failure).ConfigureAwait(false);

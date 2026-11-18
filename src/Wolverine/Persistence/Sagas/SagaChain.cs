@@ -133,6 +133,11 @@ public class SagaChain : HandlerChain
     public MethodCall[] IdNotProvidedCalls { get; set; } = [];
 
     /// <summary>
+    /// GH-5556. The saga's Compensate methods for the T of this chain's Fault&lt;T&gt;
+    /// </summary>
+    public MethodCall[] CompensateCalls { get; set; } = [];
+
+    /// <summary>
     /// GH-5572. How long completed instances of this chain's saga type are kept, or null when they are deleted on
     /// completion. Known once the chain has generated its code.
     /// </summary>
@@ -155,6 +160,7 @@ public class SagaChain : HandlerChain
             .Concat(ExistingCalls)
             .Concat(NotFoundCalls)
             .Concat(IdNotProvidedCalls)
+            .Concat(CompensateCalls)
             .Distinct()
             .ToArray();
     }
@@ -239,6 +245,13 @@ public class SagaChain : HandlerChain
 
         ExistingCalls = findByNames(Orchestrate, Orchestrates, StartOrHandle, StartsOrHandles, Handle, Handles,
             Consume, Consumes);
+
+        CompensateCalls = findByNames(SagaCompensations.Compensate);
+        if (CompensateCalls.Length != 0 && ExistingCalls.Length != 0)
+        {
+            throw new InvalidSagaException(
+                $"{SagaType.FullNameInCode()} both handles {MessageType.FullNameInCode()} and declares Compensate methods for its message. Use one or the other");
+        }
 
         var statics = ExistingCalls.Where(x => x.Method.IsStatic);
         if (statics.Any())
@@ -504,6 +517,12 @@ public class SagaChain : HandlerChain
         {
             handlerFrames.Add(call);
             foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction(this).Frames())) handlerFrames.Add(frame);
+        }
+
+        // GH-5556: the saga's Compensate methods for the failed message this Fault<T> carries
+        if (CompensateCalls.Length != 0)
+        {
+            handlerFrames.Add(new CompensateSagaFrame(saga, MessageType));
         }
 
         // For ResequencerSaga<T>, wrap handler calls with ShouldProceed() guard

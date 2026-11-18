@@ -44,6 +44,9 @@ public class DatabaseConstants
     // GH-5557. The saga id of a dead lettered envelope. Nullable, so additive for an existing table
     public const string SagaId = "saga_id";
 
+    // GH-5556. Why Wolverine dead lettered the message (compensated, compensation-failed, ...). Nullable, so additive
+    public const string Tag = "tag";
+
     public const string ControlQueueTableName = "wolverine_control_queue";
 
     public const string NodeTableName = "wolverine_nodes";
@@ -254,7 +257,7 @@ public class DatabaseConstants
     /// <see cref="DatabasePersistence.ReadDeadLetterAsync"/> reads them after <see cref="DeadLetterFields"/>
     /// </summary>
     public static readonly string DeadLetterExtendedFields =
-        $"{FailureGroup}, {FailureTitle}, {FailedAt}, {FirstFailedAt}, {ReplayCount}, {LastReplayedAt}, {ArchivedAt}, {SagaId}";
+        $"{FailureGroup}, {FailureTitle}, {FailedAt}, {FirstFailedAt}, {ReplayCount}, {LastReplayedAt}, {ArchivedAt}, {SagaId}, {Tag}";
 
     /// <summary>
     /// GH-5209. Everything a dead letter query selects: <see cref="DeadLetterFields"/> followed by
@@ -265,7 +268,7 @@ public class DatabaseConstants
     /// <summary>
     /// Number of columns in <see cref="DeadLetterQueryFields"/>
     /// </summary>
-    public const int DeadLetterQueryFieldCount = 18;
+    public const int DeadLetterQueryFieldCount = 19;
 
     public static readonly string NodeNumber = "node_number";
     public static readonly string NodeId = "node_id";

@@ -35,6 +35,7 @@ public static class FSharpCodegenSample
                     opts.Discovery.IncludeType<CheckThingHandler>();
                     opts.Discovery.IncludeType<GateHandler>();
                     opts.Discovery.IncludeType<CountingSaga>();
+                    opts.Discovery.IncludeType<StockSaga>();
                     opts.Discovery.IncludeType<TickHandler>();
 
                     // TickMiddleware has both Before() and Finally() methods. When applied to
@@ -62,9 +63,14 @@ public static class FSharpCodegenSample
             // compile gate exercises the whole Phase A frame set (validation, requirement-result, the
             // HandlerContinuation gate, OTel/audit tags, cascading) in one build.
             var contractsAssembly = typeof(CreateName).Assembly;
+            // A Fault<T> chain (GH-5556: a saga's Compensate methods) has a Wolverine message type, so it is
+            // matched by its contracts-assembly type argument.
             var chains = handlerGraph.AllChains()
-                .Where(c => c.MessageType.Assembly == contractsAssembly)
+                .Where(c => c.MessageType.Assembly == contractsAssembly ||
+                            (c.MessageType.IsGenericType &&
+                             c.MessageType.GetGenericArguments().Any(a => a.Assembly == contractsAssembly)))
                 .OrderBy(c => c.MessageType.Name)
+                .ThenBy(c => c.MessageType.ToString())
                 .ToArray();
 
             if (chains.Length == 0)

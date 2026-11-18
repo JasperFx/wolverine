@@ -84,9 +84,15 @@ public enum DeadLetterCapabilities
     SagaIds = 32,
 
     /// <summary>
+    /// GH-5556. Dead letters record <see cref="DeadLetterEnvelope.Tag"/>, and <see cref="DeadLetterEnvelopeQuery.Tag"/>
+    /// filters on it
+    /// </summary>
+    Tags = 64,
+
+    /// <summary>
     /// Everything above
     /// </summary>
-    All = FailureGroups | OperationCounts | ArchiveAndRestore | ReplayHistory | ExceptionMessageMatching | SagaIds
+    All = FailureGroups | OperationCounts | ArchiveAndRestore | ReplayHistory | ExceptionMessageMatching | SagaIds | Tags
 }
 
 /// <summary>

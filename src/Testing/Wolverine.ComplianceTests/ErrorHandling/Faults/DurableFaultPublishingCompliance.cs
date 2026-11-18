@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -83,13 +84,60 @@ public abstract class DurableFaultPublishingCompliance : IAsyncLifetime
         }
     }
 
-    // Note: a rollback test is intentionally omitted from this suite. In Wolverine's
-    // current implementation, the DLQ insert (via Storage.Inbox.MoveToDeadLetterStorageAsync)
-    // and the fault publish (via lifecycle.PublishAsync) commit in independent batches —
-    // the local-queue persistence path enqueues immediately rather than enrolling in the
-    // receive-side MessageContext's outbox transaction. Forcing a crash between the two
-    // therefore observes (DLQ=1, Fault=1), making a rollback assertion meaningless in this
-    // routing topology. A properly-targeted rollback test would need to route Fault<T>
-    // through a destination whose persistence enrols in the active outbox transaction,
-    // which is a follow-up exercise.
+    // GH-5554: the fault is written in the same transaction as the dead-letter move. A crash right after that move
+    // commits leaves the fault written, waiting to be recovered, where it used to be lost
+    [Fact]
+    public async Task a_crash_right_after_the_dead_letter_move_leaves_the_fault_written()
+    {
+        var host = await BuildCleanHostAsync();
+        try
+        {
+            host.GetRuntime().DeadLetterHooks.CrashAfterNextMove();
+
+            var session = await host.TrackActivity()
+                .DoNotAssertOnExceptionsDetected()
+                .Timeout(30.Seconds())
+                .PublishMessageAndWaitAsync(new OrderPlaced("crash-1"));
+
+            // Nothing was sent after the "crash"
+            session.AutoFaultsPublished.MessagesOf<Fault<OrderPlaced>>().ShouldBeEmpty();
+            host.GetRuntime().DeadLetterHooks.Stranded.Count.ShouldBe(1);
+
+            var snapshot = await SnapshotAsync(host);
+            snapshot.DeadLetterRowCount.ShouldBe(1);
+            snapshot.OutgoingFaultRowCount.ShouldBe(1);
+        }
+        finally
+        {
+            await host.StopAsync();
+            host.Dispose();
+        }
+    }
+
+    // GH-5554: a dead-letter move that rolls back takes its fault with it, and the message stays in the inbox
+    [Fact]
+    public async Task a_dead_letter_move_that_rolls_back_takes_the_fault_with_it()
+    {
+        var host = await BuildCleanHostAsync();
+        try
+        {
+            host.GetRuntime().DeadLetterHooks.FailNextMove();
+
+            await host.TrackActivity()
+                .DoNotAssertOnExceptionsDetected()
+                .Timeout(30.Seconds())
+                .WaitForMessageToBeRequeued<OrderPlaced>()
+                .PublishMessageAndWaitAsync(new OrderPlaced("rollback-1"));
+
+            var snapshot = await SnapshotAsync(host);
+            snapshot.DeadLetterRowCount.ShouldBe(0);
+            snapshot.OutgoingFaultRowCount.ShouldBe(0);
+        }
+        finally
+        {
+            host.GetRuntime().DeadLetterHooks.Reset();
+            await host.StopAsync();
+            host.Dispose();
+        }
+    }
 }

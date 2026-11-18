@@ -226,6 +226,40 @@ public abstract class DeadLetterFailureGroupCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task tag_is_recorded_and_filters_query_and_discard()
+    {
+        if (!supports(DeadLetterCapabilities.Tags | DeadLetterCapabilities.OperationCounts)) return;
+
+        // GH-5556: written from the dead-letter tag header a saga's compensation stamps
+        await deadLetters(2, i => Failures.CardDeclined(i.ToString()),
+            e => e.Headers[DeadLetterQueueConstants.DeadLetterTagHeader] = DeadLetterQueueConstants.CompensatedTag);
+        await deadLetters(1, i => Failures.CardDeclined(i.ToString()),
+            e => e.Headers[DeadLetterQueueConstants.DeadLetterTagHeader] = DeadLetterQueueConstants.CompensationFailedTag);
+        await deadLetters(2, i => Failures.OutOfStock(i.ToString()));
+
+        var stored = await all();
+        stored.Count.ShouldBe(5);
+        stored.Count(x => x.Tag == DeadLetterQueueConstants.CompensatedTag).ShouldBe(2);
+        stored.Count(x => x.Tag == null).ShouldBe(2);
+
+        var byId = await theDeadLetters.DeadLetterEnvelopeByIdAsync(
+            stored.First(x => x.Tag == DeadLetterQueueConstants.CompensationFailedTag).Id);
+        byId!.Tag.ShouldBe(DeadLetterQueueConstants.CompensationFailedTag);
+
+        var compensated = await all(new DeadLetterEnvelopeQuery { Tag = DeadLetterQueueConstants.CompensatedTag });
+        compensated.Count.ShouldBe(2);
+        compensated.ShouldAllBe(x => x.Tag == DeadLetterQueueConstants.CompensatedTag);
+
+        (await all(new DeadLetterEnvelopeQuery { Tag = DeadLetterQueueConstants.CompensatedTag, MessageType = "nonexistent" }))
+            .ShouldBeEmpty();
+
+        var discarded = await theDeadLetters.DiscardMatchingAsync(
+            new DeadLetterEnvelopeQuery { Tag = DeadLetterQueueConstants.CompensatedTag }, CancellationToken.None);
+        discarded.Affected.ShouldBe(2);
+        (await all()).Count.ShouldBe(3);
+    }
+
+    [Fact]
     public async Task summarize_by_failure_group()
     {
         if (!supports(DeadLetterCapabilities.FailureGroups)) return;

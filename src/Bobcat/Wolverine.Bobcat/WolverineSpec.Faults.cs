@@ -61,13 +61,14 @@ public abstract partial class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.ThenNoSaga{TSaga}(object)" />
     public Task ThenNoSaga<TSaga>(object sagaId) where TSaga : Saga => Scenario.ThenNoSaga<TSaga>(sagaId);
 
-    // ---- seams (stubs) ----------------------------------------------------------------------------
+    // ---- seams in the dead-letter move and in compensation ---------------------------------------------------
 
-    /// <inheritdoc cref="WolverineScenario.GivenTheServiceDiesAfterItsNextDeadLetter" />
-    public void GivenTheServiceDiesAfterItsNextDeadLetter(string service) => Scenario.GivenTheServiceDiesAfterItsNextDeadLetter(service);
+    /// <inheritdoc cref="WolverineScenario.GivenTheServiceCrashesAfterItsNextDeadLetter" />
+    public void GivenTheServiceCrashesAfterItsNextDeadLetter(string service)
+        => Scenario.GivenTheServiceCrashesAfterItsNextDeadLetter(service);
 
-    /// <inheritdoc cref="WolverineScenario.WhenTheServiceRecovers" />
-    public Task WhenTheServiceRecovers(string service) => Scenario.WhenTheServiceRecovers(service);
+    /// <inheritdoc cref="WolverineScenario.WhenTheServiceRestarts" />
+    public Task WhenTheServiceRestarts(string service) => Scenario.WhenTheServiceRestarts(service);
 
     /// <inheritdoc cref="WolverineScenario.GivenTheNextDeadLetterMoveFails" />
     public void GivenTheNextDeadLetterMoveFails(string service) => Scenario.GivenTheNextDeadLetterMoveFails(service);
@@ -79,4 +80,29 @@ public abstract partial class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.WhileCompensatingTheSagaIsCompleted{TSaga}" />
     public void WhileCompensatingTheSagaIsCompleted<TSaga>(object sagaId) where TSaga : Saga
         => Scenario.WhileCompensatingTheSagaIsCompleted<TSaga>(sagaId);
+
+    // ---- the inbox and outbox, and compensation ----------------------------------------------------------------
+
+    /// <inheritdoc cref="WolverineScenario.ThenWaitingInTheOutbox{T}" />
+    public Task ThenWaitingInTheOutbox<T>(string by, string to) => Scenario.ThenWaitingInTheOutbox<T>(by, to);
+
+    /// <inheritdoc cref="WolverineScenario.ThenNothingWaitingInTheOutbox{T}" />
+    public Task ThenNothingWaitingInTheOutbox<T>(string by) => Scenario.ThenNothingWaitingInTheOutbox<T>(by);
+
+    /// <inheritdoc cref="WolverineScenario.ThenStillInTheInbox{T}" />
+    public Task ThenStillInTheInbox<T>(string by) => Scenario.ThenStillInTheInbox<T>(by);
+
+    /// <inheritdoc cref="WolverineScenario.ThenTheSagaStatusIs{TSaga}" />
+    public Task ThenTheSagaStatusIs<TSaga>(object sagaId, SagaStatus status) where TSaga : CompensatingSaga
+        => Scenario.ThenTheSagaStatusIs<TSaga>(sagaId, status);
+
+    /// <inheritdoc cref="WolverineScenario.ThenTheSagaCompensated{TSaga, TMessage, TException}" />
+    public Task ThenTheSagaCompensated<TSaga, TMessage, TException>(object sagaId)
+        where TSaga : CompensatingSaga where TException : Exception
+        => Scenario.ThenTheSagaCompensated<TSaga, TMessage, TException>(sagaId);
+
+    /// <inheritdoc cref="WolverineScenario.ThenTheSagaFailedToCompensate{TSaga, TMessage, TException}" />
+    public Task ThenTheSagaFailedToCompensate<TSaga, TMessage, TException>(object sagaId)
+        where TSaga : CompensatingSaga where TException : Exception
+        => Scenario.ThenTheSagaFailedToCompensate<TSaga, TMessage, TException>(sagaId);
 }
