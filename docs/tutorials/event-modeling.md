@@ -555,6 +555,10 @@ A few things to note about what the scaffold does:
 * Method bodies throw `NotImplementedException`, so a slice nobody has filled in yet never stops the rest of the
   application from compiling
 * An existing aggregate or view gets the `Apply` methods it's missing added to the end of its class
+* When a slice works against more than one stream, say it decides against `Lead` and starts an `Account` stream, say
+  which stream each event goes to with `.Emits<LeadConvertedToAccount>().OnStream<Lead>()`. Without that, an event
+  goes to the one aggregate that already has an `Apply` or `Create` for it, and an event nothing settles gets no
+  `Apply` at all and an `emitted-event-stream-ambiguous` notice instead
 * A view declared with `AsMultiStream()` gets its projection class, plus a note telling you to register it with an
   `Async` lifecycle
 * A slice triggered by `TriggerKind.Human` becomes a message handler that your UI sends to. Declare

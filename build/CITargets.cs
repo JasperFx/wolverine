@@ -1139,14 +1139,17 @@ partial class Build
             var processManager = RootDirectory / "src" / "Samples" / "ProcessManagerViaHandlers" /
                                  "ProcessManagerViaHandlers.Tests" / "ProcessManagerViaHandlers.Tests.csproj";
 
-            BuildTestProjects(tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager);
+            // GH-5553 / GH-5554 / GH-5556: the saga fault and compensation specifications, Acceptance specs until built
+            var sagaFaults = RootDirectory / "src" / "Samples" / "SagaFaults" / "SagaFaults.Specs" / "SagaFaults.Specs.csproj";
+
+            BuildTestProjects(tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager, sagaFaults);
 
             // The store-agnostic specs (GH-4892, GH-4920, GH-4921) run on Marten, Polecat AND Fisher, and
             // Polecat needs SQL Server. Without it every Polecat fixture fails to start, which surfaced as a
             // NullReferenceException in DisposeAsync rather than as the connection failure it was.
             StartDockerServices("postgresql", "sqlserver");
 
-            RunTestProjects([tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager]);
+            RunTestProjects([tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager, sagaFaults]);
         });
 
     Target CIKafka => _ => _
@@ -1349,6 +1352,22 @@ partial class Build
             BuildTestProjectsWithFramework("net10.0", ravenDbTests, leaderElectionTests);
 
             RunTestProjects([ravenDbTests, leaderElectionTests], frameworkOverride: "net10.0");
+        });
+
+    /// <summary>
+    /// GH-5603/5604/5605: Wolverine's Aspire hosting integrations (WolverineFx.Aspire.Hosting.*). Each test starts a
+    /// sample AppHost through Aspire.Hosting.Testing, so the broker or emulator runs in a container Aspire starts
+    /// on random host ports. No docker-compose service is needed or touched.
+    /// </summary>
+    Target CIAspireHosting => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Testing" / "Wolverine.Aspire.Hosting.Tests" / "Wolverine.Aspire.Hosting.Tests.csproj";
+
+            BuildTestProjects(tests);
+
+            RunTestProject(tests);
         });
 
     Target CIGrpc => _ => _

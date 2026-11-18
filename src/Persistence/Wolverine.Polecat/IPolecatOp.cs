@@ -208,7 +208,7 @@ public static partial class PolecatOps
 
     public static IStartStream StartStream<T>(params object[] events) where T : class
     {
-        var streamId = CombGuidIdGeneration.NewGuid();
+        var streamId = SequentialGuid.NextSqlServerOrder();
         return new StartStream<T>(streamId, events);
     }
 

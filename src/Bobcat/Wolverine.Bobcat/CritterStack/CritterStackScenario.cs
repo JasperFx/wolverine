@@ -2511,7 +2511,7 @@ public class CritterStackScenario
     }
 
     // Judge subject against expected on the step in progress: a partial object on the members it names, else structurally
-    private void judge(object? subject, object expected)
+    private protected void judge(object? subject, object expected)
     {
         if (expected is IPartialObject partial)
         {

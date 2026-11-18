@@ -398,6 +398,7 @@
       "path": "src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj",
       "ciTargets": "CIAzureServiceBus, CIAzureServiceBusLeader, CIAzureServiceBusRouting",
       "workers": 1,
+      "optIn": true,
       "postgres": "OwnDatabase",
       "services": [
         "postgresql",
@@ -512,6 +513,14 @@
       "tracks": []
     },
     {
+      "name": "Wolverine.Aspire.Hosting.Tests",
+      "path": "src/Testing/Wolverine.Aspire.Hosting.Tests/Wolverine.Aspire.Hosting.Tests.csproj",
+      "ciTargets": "CIAspireHosting",
+      "workers": 1,
+      "services": [],
+      "tracks": []
+    },
+    {
       "name": "Wolverine.Http.Tests",
       "path": "src/Http/Wolverine.Http.Tests/Wolverine.Http.Tests.csproj",
       "ciTargets": "CIHttp",
@@ -616,6 +625,17 @@
       "services": [
         "postgresql",
         "sqlserver"
+      ],
+      "tracks": []
+    },
+    {
+      "name": "SagaFaults.Specs",
+      "path": "src/Samples/SagaFaults/SagaFaults.Specs/SagaFaults.Specs.csproj",
+      "ciTargets": "CIBobcat",
+      "workers": 1,
+      "postgres": "OwnDatabase",
+      "services": [
+        "postgresql"
       ],
       "tracks": []
     },

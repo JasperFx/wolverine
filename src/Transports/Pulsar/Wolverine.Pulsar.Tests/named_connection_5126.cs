@@ -40,6 +40,9 @@ public class named_connection_5126
         ex.Missing.Select(x => x.Name).ShouldBe(["pulsar"]);
         ex.Message.ShouldContain("'pulsar'");
         ex.Message.ShouldContain("Pulsar");
+
+        // GH-5603: names the AppHost call from WolverineFx.Aspire.Hosting.Pulsar
+        ex.Message.ShouldContain("builder.AddPulsar(\"pulsar\")");
     }
 
     [Fact]

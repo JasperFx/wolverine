@@ -88,7 +88,7 @@ public static class CreateItemEndpoint
         var item = new Item
         {
             Name = command.Name,
-            Id = CombGuidIdGeneration.NewGuid()
+            Id = SequentialGuid.NextSqlServerOrder()
         };
 
         return (new ItemCreated { Id = item.Id }, Storage.Insert(item));

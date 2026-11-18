@@ -20,7 +20,7 @@ public static class TodoListEndpoint
         CreateTodoListRequest request
     )
     {
-        var listId = CombGuidIdGeneration.NewGuid();
+        var listId = SequentialGuid.NextPostgresOrder();
         var result = new TodoListCreated(listId, request.Title);
         var startStream = MartenOps.StartStream<TodoList>(listId, result);
 

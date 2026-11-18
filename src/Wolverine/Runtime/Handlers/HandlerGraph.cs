@@ -736,6 +736,9 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         options.MessagePartitioning.MaybeInferGrouping(this);
 
+        // GH-5553: what each saga asks for the faults of, worked out once for the send path
+        FaultReplies = SagaFaultReplies.Build(SagaChains());
+
         // Pre-populate the per-message-type cascading-async-enumerable cache on
         // MessageContext so the reflective lazy-init in
         // MessageContext.ResolveTypedAsyncEnumerableCascader never fires at
@@ -949,6 +952,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         if (call.HandlerType.CanBeCastTo<Saga>())
         {
             if (call.Method.Name == SagaChain.NotFound) return true;
+            if (call.Method.Name is SagaChain.IdNotProvided or SagaChain.IdNotProvided + "Async") return true;
             
             // Legal for Start() methods to be be a static 
             if (!call.Method.IsStatic) return true;
@@ -1131,6 +1135,38 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     /// whose messages are all shared with another saga is not missed.
     /// </summary>
     internal IEnumerable<SagaChain> SagaChains() => EveryChain().OfType<SagaChain>();
+
+    /// <summary>
+    /// GH-5553. The messages each saga asks for the <see cref="Fault{T}" /> of. See <see cref="SagaFaultReplies" />
+    /// </summary>
+    internal SagaFaultReplies FaultReplies { get; private set; } = SagaFaultReplies.None;
+
+    /// <summary>
+    /// GH-5553. Once routing is known: a saga does not ask for the fault of a <c>T</c> when this application already
+    /// subscribes to <c>Fault&lt;T&gt;</c> -- a route for it to anywhere other than a local queue, or a listener whose
+    /// default incoming message type it is. Such an application gets the fault through its own routing, as before 7.0,
+    /// and asking for it as well would deliver it twice
+    /// </summary>
+    internal void DropFaultRepliesTheApplicationAlreadySubscribesTo(WolverineRuntime runtime)
+    {
+        var requested = FaultReplies.RequestedMessageTypes();
+        if (requested.Length == 0) return;
+
+        var subscribed = requested
+            .Where(x => alreadySubscribesToFaultsOf(runtime, typeof(Fault<>).MakeGenericType(x)))
+            .ToHashSet();
+
+        FaultReplies = FaultReplies.Without(subscribed);
+    }
+
+    private static bool alreadySubscribesToFaultsOf(WolverineRuntime runtime, Type faultType)
+    {
+        if (runtime.Options.Transports.AllEndpoints().Any(x => x.IsListener && x.MessageType == faultType)) return true;
+
+        // A local queue is where the saga's own handler for Fault<T> runs anyway, so only a route elsewhere counts
+        return runtime.RoutingFor(faultType).Routes
+            .Any(x => x.Describe().Endpoint.Scheme != TransportConstants.Local);
+    }
 
     /// <summary>
     /// GH-4060 / GH-5133. Is any requeue-shaped error handling configured, globally or on any chain?

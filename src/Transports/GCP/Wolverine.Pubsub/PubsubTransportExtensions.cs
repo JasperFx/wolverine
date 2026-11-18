@@ -78,8 +78,9 @@ public static class PubsubTransportExtensions
     /// <summary>
     /// Connect to a Google Cloud Platform Pub/Sub <b>emulator</b> whose endpoint comes from the named connection
     /// string in IConfiguration. This option is useful for Aspire integration between Wolverine and Aspire, e.g.
-    /// the CommunityToolkit Floci GCP emulator (<c>builder.AddFlociGcp("gcp")</c>), whose connection string is the
-    /// emulator URL <c>http://host:port</c>.
+    /// the gcloud Pub/Sub emulator from WolverineFx.Aspire.Hosting.Pubsub (<c>builder.AddPubsubEmulator("pubsub")</c>),
+    /// whose connection string is <c>host:port</c>, or the CommunityToolkit Floci GCP emulator
+    /// (<c>builder.AddFlociGcp("gcp")</c>), whose connection string is the emulator URL <c>http://host:port</c>.
     ///
     /// <para>
     /// The value is the emulator endpoint, either as a URL (<c>http://host:port</c>, or <c>https://host:port</c> for
@@ -148,7 +149,9 @@ public static class PubsubTransportExtensions
         // resolved and applied at the top of host startup. The emulator endpoint is applied FIRST, ahead of any
         // ConfigurePublisherApiClient()/ConfigureSubscriberApiClient()/ConfigureSubscriberClient() callbacks, so
         // those can still override it.
-        endpoints.ApplyNamedConnectionString("GCP Pub/Sub", connectionStringName, "AddFlociGcp", value =>
+        // The missing-connection message names AddPubsubEmulator(), from Wolverine's own hosting integration,
+        // WolverineFx.Aspire.Hosting.Pubsub (GH-5605).
+        endpoints.ApplyNamedConnectionString("GCP Pub/Sub", connectionStringName, "AddPubsubEmulator", value =>
         {
             var (endpoint, credentials) = ParseEmulatorConnectionString(value);
             transport.EmulatorEndpoint = endpoint;

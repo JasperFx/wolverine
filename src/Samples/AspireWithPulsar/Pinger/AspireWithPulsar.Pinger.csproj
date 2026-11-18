@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- One-entry TargetFrameworks, never TargetFramework (GH-5622, VerifyProjectReferenceFrameworks). Beside the root
+         Directory.Build.props' net10.0;net11.0 list, a TargetFramework makes `dotnet run` (how you start an AppHost,
+         and how an AppHost starts a project) refuse the project with "Your project targets multiple frameworks"
+         (GH-5624), and a reference to it builds a second instance of it beside the pinned solution build. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../Transports/Pulsar/Wolverine.Pulsar/Wolverine.Pulsar.csproj" />
+    <!-- Compiles Wolverine's generated handler code at runtime (TypeLoadMode.Dynamic) -->
+    <ProjectReference Include="../../../Wolverine.RuntimeCompilation/Wolverine.RuntimeCompilation.csproj" />
+    <ProjectReference Include="../../AspireServiceDefaults/AspireServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

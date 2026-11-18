@@ -108,9 +108,11 @@ await host.StartAsync();
 
 ## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
 
-Let's say you're developing locally under [.NET Aspire](/guide/aspire) against an AWS emulator. The LocalStack
-(`AddLocalStack()`) and CommunityToolkit Floci (`AddFlociAws()`) hosting integrations put the emulator's service URL,
-something like `http://localhost:4566`, at `ConnectionStrings:<resource name>`:
+Let's say you're developing locally under [.NET Aspire](/guide/aspire) against an AWS emulator. Wolverine's own
+LocalStack hosting integration (`AddLocalStack()` from `WolverineFx.Aspire.Hosting.LocalStack`, see
+[the SQS page](/guide/messaging/transports/sqs/#running-localstack-from-an-aspire-apphost)) and the CommunityToolkit
+Floci one (`AddFlociAws()`) put the emulator's service URL, something like `http://localhost:4566`, at
+`ConnectionStrings:<resource name>`:
 
 ```csharp
 // In the AppHost

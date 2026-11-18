@@ -27,7 +27,7 @@ public static partial class PolecatOps
     /// <summary>
     /// Return a side effect of starting a new event stream with no aggregate type, by Guid identity.
     /// An event stream does not need an aggregate type; this is the shape for a model that names none
-    /// (GH-4892). Mint the id with <c>Guid.CreateVersion7()</c> so the event store's indexes stay sequential.
+    /// (GH-4892). Mint the id with <c>SequentialGuid.NextSqlServerOrder()</c> from JasperFx.Core, the order SQL Server sorts a <c>uniqueidentifier</c> in, so the event store's indexes stay sequential.
     /// </summary>
     public static StartStreamWithoutAggregate StartStream(Guid streamId, params object[] events) => new(streamId, events);
 

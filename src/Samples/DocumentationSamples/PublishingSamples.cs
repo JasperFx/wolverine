@@ -311,7 +311,7 @@ public class PublishingSamples
             {
                 // I need to assign the image id in memory
                 // to make this all work
-                Id = CombGuidIdGeneration.NewGuid()
+                Id = SequentialGuid.NextPostgresOrder()
             };
 
             var outgoing = new GenerateImage(request.Prompt, imageSaga.Id);

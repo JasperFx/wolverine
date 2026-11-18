@@ -51,6 +51,9 @@ jobs:
           - CIAWSSqsCompliance
           - CIAWSSns
           - CIAmazonS3
+          # Wolverine's Aspire hosting integrations: each test starts a sample AppHost, which runs its own
+          # Pulsar / LocalStack / Pub/Sub emulator container through Aspire. GH-5603/5604/5605.
+          - CIAspireHosting
           - CIAzureBlobStorage
           # GH-4833: WolverineFx.Bobcat (net10.0;net11.0) and WolverineFx.Bobcat.Http (net10.0, Alba 9) against Postgres.
           - CIBobcat

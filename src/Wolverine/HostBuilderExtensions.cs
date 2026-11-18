@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Commands;
@@ -107,9 +108,11 @@ public static class HostBuilderExtensions
         // harness whose hosts are built by a shared helper in another assembly it pinned the HELPER's assembly,
         // and every later host in the process scanned that assembly for handlers instead of its own. Seed the pin
         // with the assembly this registration was actually made from. ??= leaves an existing pin alone.
-        if (registeredFrom != null)
+        if (registeredFrom != null &&
+            Interlocked.CompareExchange(ref JasperFxOptions.RememberedApplicationAssembly, registeredFrom, null) == null)
         {
-            JasperFxOptions.RememberedApplicationAssembly ??= registeredFrom;
+            // GH-3521: noted, so a host that turns RememberApplicationAssembly off can take it back
+            options.SeededRememberedApplicationAssembly = registeredFrom;
         }
 
         return AddWolverine(services, options, discovery, configure);
@@ -360,6 +363,13 @@ public static class HostBuilderExtensions
         }
 
         configure?.Invoke(options);
+
+        if (!options.RememberApplicationAssembly)
+        {
+            // GH-3521: neither record nor reuse the process-wide application assembly, here or in JasperFx
+            options.ForgetSeededRememberedApplicationAssembly();
+            services.Configure<JasperFxOptions>(x => x.RememberApplicationAssembly = false);
+        }
 
         if (options.Discovery.IncludeHandlerModules)
         {

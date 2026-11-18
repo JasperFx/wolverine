@@ -45,7 +45,7 @@ public class RabbitMqEnvelopeMapper : EnvelopeMapper<IReadOnlyBasicProperties, I
             else
             {
                 // Might not be a real Guid coming from the outside world
-                e.Id = CombGuidIdGeneration.NewGuid();
+                e.Id = SequentialGuid.NextPostgresOrder();
             }
         };
 

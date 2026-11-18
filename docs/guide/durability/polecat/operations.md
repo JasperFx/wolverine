@@ -111,7 +111,7 @@ public static class TodoListEndpoint
         CreateTodoListRequest request
     )
     {
-        var listId = CombGuidIdGeneration.NewGuid();
+        var listId = SequentialGuid.NextSqlServerOrder();
         var result = new TodoListCreated(listId, request.Title);
         var startStream = PolecatOps.StartStream<TodoList>(listId, result);
 

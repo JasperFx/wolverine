@@ -422,6 +422,9 @@ public partial class WolverineRuntime
             if (mode is not (DurabilityMode.MediatorOnly or DurabilityMode.Serverless or DurabilityMode.ServerlessWithOutbox))
             {
                 PrepopulateRoutingCache(Handlers.AllMessageTypes());
+
+                // GH-5553: routing is known now, so a saga stops asking for faults the application already routes to itself
+                Options.HandlerGraph.DropFaultRepliesTheApplicationAlreadySubscribesTo(this);
             }
 
             await Observer.RuntimeIsFullyStarted();

@@ -35,6 +35,7 @@ stoat gate run {plan}/{node}                        # from the worktree; the nod
 ./build.sh LocalGate                                # by hand: the suites, then the extras
 ./build.sh LocalGateSuites                          # the suites alone
 ./build.sh LocalGateSuites --gate-only Marten Http  # only suites whose project name contains one of these
+./build.sh LocalGate --gate-with AzureServiceBus    # the whole gate plus the opt-in Azure Service Bus suite
 ./build.sh LocalGate --framework all                # every framework each suite declares (EF Core 9 and 10)
 ```
 
@@ -55,6 +56,10 @@ stoat gate run {plan}/{node}                        # from the worktree; the nod
   `CICodegenTest`, then `CICodegenDrift`. The codegen pair rewrites the generated tree; drift goes last
   and regenerates it, so a green run leaves the tree as it was. A red one leaves the regenerated files
   for you to read (`git checkout -- .` puts them back). Every extra runs even when an earlier one is red.
+- **Opt-in suites.** `Wolverine.AzureServiceBus.Tests` is left out of a default run (the log says it was
+  skipped as opt-in). Include it only when the change touches `src/Transports/Azure`: add
+  `--gate-with AzureServiceBus` to the whole gate, or run it alone with `--gate-only AzureServiceBus`. It is
+  still in the table, not in `NotGated`, so `VerifyLocalGateCoverage` counts it as gated.
 - **The list** is the table at the top of `build/LocalGate.cs`; `build/gates.json` is generated from it
   (`./build.sh LocalGateManifest`). `VerifyLocalGateCoverage` (part of `./build.sh ci`) fails when a
   test project in `wolverine.slnx` is in neither the table nor its `NotGated` list, or when
@@ -153,6 +158,7 @@ own projects.
 | `CIHttpAspVersioning` | Wolverine.Http.AspVersioning.Tests | none | net10.0 |
 | `CIHttpCompat` | Wolverine.Http.Compat.Tests | none | runs net10.0 and net11.0 itself (GH-5147) |
 | `CIGrpc` | Wolverine.Grpc.Tests | none | |
+| `CIAspireHosting` | Wolverine.Aspire.Hosting.Tests | none from compose | starts the AspireWith* sample AppHosts through Aspire.Hosting.Testing, which run their own Pulsar / LocalStack / Pub/Sub emulator containers on random ports; net10.0 |
 | `CIOtel` | TracingTests | rabbitmq | |
 | `CIBobcat` | Wolverine.Bobcat.Tests, Wolverine.Bobcat.Http.Tests, IncidentService.Tests, ProcessManagerViaHandlers.Tests | postgresql, sqlserver | Bobcat.Xunit spec projects |
 | `CIExtensions` | Wolverine.AI, DataAnnotationsValidation, FluentValidation, MemoryPack, MessagePack and Protobuf tests | none | |
@@ -230,7 +236,8 @@ For Stoat's resource declarations (JasperFx/stoat#101):
   so two runs that use lanes collide on those names.
 - **Suites with no service** (`CoreTests`, `CISqlite`, `CIFisher`, `CIRavenDb`, `CIGrpc`,
   `CIHttpAspVersioning`, `CIHttpCompat`, `CIExtensions`) only compete for CPU and memory. `CICosmosDb` starts its own
-  emulator on dynamic ports, so it does not collide either, but the emulator is heavy.
+  emulator on dynamic ports, so it does not collide either, but the emulator is heavy. `CIAspireHosting` is the
+  same: Aspire starts each broker and emulator itself, on random host ports.
 - **One target per worktree at a time.** The build writes `bin/` and `obj/` in place, and `CoreTests`
   compiles the whole solution, so two gates in one worktree race on the same outputs.
 - **CPU.** The supervisor clamps a target's workers to half the machine's cores, so a box running

@@ -201,6 +201,10 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         envelope.TenantId = options?.TenantId;
         envelope.GroupId = options?.GroupId;
 
+        // GH-4484: a message grouped by the saga-id header needs its saga id before the group id is worked out.
+        // DeliveryOptions.Override below stamps the same value again
+        envelope.SagaId = options?.SagaId;
+
         // GH-4325: IsLocal is the ctor-computed answer to exactly this type test
         if (IsLocal)
         {

@@ -1346,6 +1346,19 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     public void SetSagaId(object sagaId) => _sagaId = sagaId;
 
+    private protected override DeliveryOptions? applySagaGrouping(DeliveryOptions? options, Type messageType)
+    {
+        if (options?.SagaId != null || !Runtime.Options.MessagePartitioning.GroupsBySagaId(messageType)) return options;
+
+        // The same precedence TrackEnvelopeCorrelation stamps the outgoing saga id with
+        var sagaId = _sagaId?.ToString() ?? Envelope?.SagaId;
+        if (sagaId.IsEmpty()) return options;
+
+        options ??= new DeliveryOptions();
+        options.SagaId = sagaId;
+        return options;
+    }
+
     internal void ReadEnvelope(Envelope? originalEnvelope, IChannelCallback channel)
     {
         Envelope = originalEnvelope ?? throw new ArgumentNullException(nameof(originalEnvelope));
@@ -1455,6 +1468,27 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         outbound.SagaId = outbound.SagaId.IsNotEmpty()
             ? outbound.SagaId
             : (_sagaId?.ToString() ?? Envelope?.SagaId);
+
+        if (outbound.Message is { } outgoingMessage)
+        {
+            var messageType = outgoingMessage.GetType();
+
+            // GH-4484: a message grouped by the saga-id header that reached here without a group id -- sent to an
+            // explicit endpoint, which works out no group id -- takes the saga id it now carries
+            if (outbound.GroupId == null && outbound.SagaId.IsNotEmpty() &&
+                Runtime.Options.MessagePartitioning.GroupsBySagaId(messageType))
+            {
+                outbound.GroupId = outbound.SagaId;
+            }
+
+            // GH-5553: a saga that handles Fault<T> asks for the fault of every T it sends. The header names where
+            // this message's replies come back to, or asks the receiver to use the envelope's reply address
+            if (Envelope?.Message is { } incoming && Runtime.Options.HandlerGraph.FaultReplies.IsRequested(incoming.GetType(), messageType)
+                && !(outbound.HasHeaders && outbound.Headers.ContainsKey(FaultHeaders.ReplyTo)))
+            {
+                outbound.Headers[FaultHeaders.ReplyTo] = outbound.ReplyUri?.ToString() ?? FaultHeaders.ReplyToSender;
+            }
+        }
 
         if (ConversationId != Guid.Empty)
         {

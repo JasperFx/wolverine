@@ -206,6 +206,14 @@ public class MessagePartitioningRules
         return this;
     }
     
+    private SagaIdHeaderGrouping? _sagaIdGrouping;
+
+    /// <summary>
+    /// GH-4484. Is this message type grouped by the saga-id envelope header? True only under
+    /// <see cref="UseInferredMessageGrouping" />, for a message a saga handles that has no saga id member of its own
+    /// </summary>
+    internal bool GroupsBySagaId(Type messageType) => _sagaIdGrouping != null && _sagaIdGrouping.Handles(messageType);
+
     internal string? DetermineGroupId(Envelope envelope)
     {
         if (envelope.GroupId.IsNotEmpty()) return envelope.GroupId;
@@ -318,13 +326,28 @@ public class MessagePartitioningRules
             // GH-5133 / GH-5136. A message type with several handler types has one chain per handler type, and
             // the saga or aggregate that gives away the identity is in one of them. The first chain that can
             // infer it wins.
+            var inferred = false;
             foreach (var candidate in group.Chains)
             {
                 if (candidate.TryInferMessageIdentity(out var property))
                 {
                     ByMessage(group.MessageType, property!);
+                    inferred = true;
                     break;
                 }
+            }
+
+            // GH-4484. A message a saga handles with no saga id member of its own -- a reply from another handler,
+            // or a Fault<T> -- is tied to its saga by the saga-id envelope header, so that is its group id too
+            if (!inferred && group.Chains.Any(x => x is Wolverine.Persistence.Sagas.SagaChain))
+            {
+                if (_sagaIdGrouping == null)
+                {
+                    _sagaIdGrouping = new SagaIdHeaderGrouping();
+                    _rules.Add(_sagaIdGrouping);
+                }
+
+                _sagaIdGrouping.AddMessageType(group.MessageType);
             }
 
             // For messages implementing SequencedMessage, use Order as the group id
@@ -470,6 +493,31 @@ internal class SequencedMessageGroupingRule : IGroupingRule
         if (envelope.Message is SequencedMessage sequenced && envelope.Message.GetType() == _messageType)
         {
             groupId = sequenced.Order?.ToString() ?? Guid.NewGuid().ToString();
+            return true;
+        }
+
+        groupId = default!;
+        return false;
+    }
+}
+
+/// <summary>
+/// GH-4484. Groups a message a saga handles by the saga-id envelope header, for a message type with no saga id member
+/// of its own. Built once at startup by <see cref="MessagePartitioningRules.UseInferredMessageGrouping" />
+/// </summary>
+internal class SagaIdHeaderGrouping : IGroupingRule
+{
+    private ImHashMap<Type, bool> _messageTypes = ImHashMap<Type, bool>.Empty;
+
+    public void AddMessageType(Type messageType) => _messageTypes = _messageTypes.AddOrUpdate(messageType, true);
+
+    public bool Handles(Type messageType) => _messageTypes.TryFind(messageType, out _);
+
+    public bool TryFindIdentity(Envelope envelope, out string groupId)
+    {
+        if (envelope.Message != null && envelope.SagaId.IsNotEmpty() && Handles(envelope.Message.GetType()))
+        {
+            groupId = envelope.SagaId!;
             return true;
         }
 

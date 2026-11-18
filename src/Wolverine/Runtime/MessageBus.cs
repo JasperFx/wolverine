@@ -283,6 +283,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
         Runtime.AssertHasStarted();
         assertNotMediatorOnly();
         options = applyTenantContext(options);
+        options = applySagaGrouping(options, message.GetType());
 
         // Cannot trust the T here. Can be "object"
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
@@ -308,6 +309,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
         Runtime.AssertHasStarted();
         assertNotMediatorOnly();
         options = applyTenantContext(options);
+        options = applySagaGrouping(options, message.GetType());
 
         // You can't trust the T here.
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
@@ -518,6 +520,12 @@ public partial class MessageBus : IMessageBus, IMessageContext
     {
         return envelope.Sender?.IsDurable ?? Runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination!).IsDurable;
     }
+
+    /// <summary>
+    /// GH-4484. A message context hands the saga id it is working under to a message grouped by the saga-id header,
+    /// so the group id is known while the message is routed, as a partitioned route needs. Nothing to do outside one
+    /// </summary>
+    private protected virtual DeliveryOptions? applySagaGrouping(DeliveryOptions? options, Type messageType) => options;
 
     private DeliveryOptions? applyTenantContext(DeliveryOptions? options)
     {
