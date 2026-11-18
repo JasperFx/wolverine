@@ -84,12 +84,31 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
     public override ValueTask SetupAsync(ILogger logger)
     {
-        return new ValueTask(Parent.WithManagementClientAsync((c, transport) => SetupAsync(c, logger, transport.TargetsEmulator)));
+        return new ValueTask(Parent.WithManagementClientAsync((c, transport) => setupAsync(c, logger, transport)));
     }
 
     internal Task SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
-        return SetupAsync(client, logger, Parent.TargetsEmulator);
+        return setupAsync(client, logger, Parent);
+    }
+
+    // The namespaces (this transport or a tenant's) where this topic was created by this process
+    private readonly HashSet<AzureServiceBusTransport> _createdIn = new();
+
+    /// <summary>
+    /// True when this process created the topic in that namespace, so none of its subscriptions can exist yet
+    /// </summary>
+    internal bool WasCreatedIn(AzureServiceBusTransport transport)
+    {
+        lock (_createdIn) return _createdIn.Contains(transport);
+    }
+
+    private async Task setupAsync(ServiceBusAdministrationClient client, ILogger logger, AzureServiceBusTransport transport)
+    {
+        if (await SetupAsync(client, logger, transport.TargetsEmulator))
+        {
+            lock (_createdIn) _createdIn.Add(transport);
+        }
     }
 
     /// <param name="createFirst">
@@ -97,25 +116,29 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
     /// emulator, where an existence check for a topic that is not there takes about 0.7 seconds, a create about 0.25,
     /// and a create of a topic that already exists a few milliseconds. A real namespace keeps the existence check first
     /// </param>
-    internal async Task SetupAsync(ServiceBusAdministrationClient client, ILogger logger, bool createFirst)
+    /// <returns>Whether this call created the topic</returns>
+    internal async Task<bool> SetupAsync(ServiceBusAdministrationClient client, ILogger logger, bool createFirst)
     {
-        if (IsExternallyOwned) return;
+        if (IsExternallyOwned) return false;
 
-        if (!createFirst && (await client.TopicExistsAsync(TopicName, CancellationToken.None)).Value) return;
+        if (!createFirst && (await client.TopicExistsAsync(TopicName, CancellationToken.None)).Value) return false;
 
         Options.Name = TopicName;
 
         try
         {
             await client.CreateTopicAsync(Options);
+            return true;
         }
         catch (ServiceBusException e) when (createFirst && e.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists)
         {
             // It exists, which is all the existence check would have said
+            return false;
         }
         catch (Exception e)
         {
             logger.LogError(e, "Error trying to initialize topic {Name}", TopicName);
+            return false;
         }
     }
 
@@ -126,21 +149,21 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
             return;
         }
 
-        await Parent.WithManagementClientAsync((client, transport) => initializeAsync(client, logger, transport.TargetsEmulator));
+        await Parent.WithManagementClientAsync((client, transport) => initializeAsync(client, logger, transport));
 
         _hasInitialized = true;
     }
 
     internal ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
-        return new ValueTask(initializeAsync(client, logger, Parent.TargetsEmulator));
+        return new ValueTask(initializeAsync(client, logger, Parent));
     }
 
-    private Task initializeAsync(ServiceBusAdministrationClient client, ILogger logger, bool createFirst)
+    private Task initializeAsync(ServiceBusAdministrationClient client, ILogger logger, AzureServiceBusTransport transport)
     {
         if (Parent.AutoProvision && !IsExternallyOwned)
         {
-            return SetupAsync(client, logger, createFirst);
+            return setupAsync(client, logger, transport);
         }
 
         return Task.CompletedTask;

@@ -118,7 +118,7 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         await Parent.WithManagementClientAsync(async (client, transport) =>
         {
             namespaces++;
-            if (await SetupAsync(client, logger, transport.TargetsEmulator)) created++;
+            if (await SetupAsync(client, logger, createFirstIn(transport))) created++;
         });
 
         return namespaces > 0 && created == namespaces;
@@ -126,18 +126,26 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     internal async ValueTask SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
-        await SetupAsync(client, logger, Parent.TargetsEmulator);
+        await SetupAsync(client, logger, createFirstIn(Parent));
     }
+
+    /// <summary>
+    /// Create first only on the emulator, and only when this process just created the topic there, so the subscription
+    /// cannot exist yet. Unlike a queue or a topic, a create of a subscription that already exists is not cheap on the
+    /// emulator: the 409 takes about a second, the same as an existence check that answers "missing", while one that
+    /// answers "present" takes a few milliseconds
+    /// </summary>
+    private bool createFirstIn(AzureServiceBusTransport transport)
+        => transport.TargetsEmulator && Topic.WasCreatedIn(transport);
 
     /// <summary>
     /// Creates the subscription if it does not exist, or brings an existing one's rules in line with the configuration.
     /// Answers whether this call created it.
     /// </summary>
     /// <param name="createFirst">
-    /// Create without checking for existence first, and take "already exists" (409) as the answer. Only for the
-    /// emulator, where an existence check for a subscription that is not there takes about a second, a create about
-    /// 0.25 seconds, and a create of one that already exists a few milliseconds. A real namespace keeps the existence
-    /// check first
+    /// Create without checking for existence first, and take "already exists" (409) as the answer. See
+    /// <see cref="createFirstIn" /> for when. On the emulator an existence check for a subscription that is not there
+    /// takes about a second and a create about 0.1 to 0.25 seconds
     /// </param>
     internal async Task<bool> SetupAsync(ServiceBusAdministrationClient client, ILogger logger, bool createFirst)
     {

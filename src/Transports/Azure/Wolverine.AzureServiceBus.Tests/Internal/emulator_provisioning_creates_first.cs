@@ -105,6 +105,43 @@ public class emulator_provisioning_creates_first
         await theClient.Received().CreateTopicAsync(Arg.Is<CreateTopicOptions>(x => x.Name == "outgoing"), Arg.Any<CancellationToken>());
     }
 
+    private static AzureServiceBusTransport emulatorTransport() => new()
+    {
+        ConnectionString = "Endpoint=sb://localhost:5673;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+    };
+
+    [Fact]
+    public async Task an_emulator_subscription_is_created_first_when_this_process_just_created_its_topic()
+    {
+        var transport = emulatorTransport();
+        var topic = new AzureServiceBusTopic(transport, "foo");
+        var subscription = new AzureServiceBusSubscription(transport, topic, "bar");
+
+        await topic.SetupAsync(theClient, NullLogger.Instance);
+        await subscription.SetupAsync(theClient, NullLogger.Instance);
+
+        await theClient.DidNotReceive().SubscriptionExistsAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await theClient.Received().CreateSubscriptionAsync(Arg.Any<CreateSubscriptionOptions>(), Arg.Any<CreateRuleOptions>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task an_emulator_subscription_on_a_topic_that_was_already_there_checks_first()
+    {
+        // A 409 for a subscription costs the emulator about a second, unlike a queue's or a topic's, so a subscription
+        // that may well exist is still checked for first
+        theClient.CreateTopicAsync(Arg.Any<CreateTopicOptions>(), Arg.Any<CancellationToken>()).ThrowsAsync(alreadyExists());
+
+        var transport = emulatorTransport();
+        var topic = new AzureServiceBusTopic(transport, "foo");
+        var subscription = new AzureServiceBusSubscription(transport, topic, "bar");
+
+        await topic.SetupAsync(theClient, NullLogger.Instance);
+        await subscription.SetupAsync(theClient, NullLogger.Instance);
+
+        await theClient.Received().SubscriptionExistsAsync("foo", "bar", Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task an_emulator_subscription_is_created_without_an_existence_check()
     {
