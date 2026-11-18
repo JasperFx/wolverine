@@ -48,7 +48,11 @@ public abstract class SagaHistoryMultiTenancyCompliance : IAsyncLifetime
     {
         await Host.StopAsync();
         Host.Dispose();
+        await CleanUpAsync();
     }
+
+    /// <summary>Release anything <see cref="ConfigureStorage" /> created, such as SQLite database files.</summary>
+    protected virtual ValueTask CleanUpAsync() => ValueTask.CompletedTask;
 
     private static string newId() => Guid.NewGuid().ToString();
 
