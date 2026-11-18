@@ -362,7 +362,7 @@ public partial class SagaChain : HandlerChain
         if (retainsCompletedSagas)
         {
             // GH-5572: a completed saga of a retained type is still in storage, but must never reach Handle
-            var completedFrames = DetermineRetainedSagaCompletedSteps(sagaId, saga).ToArray();
+            var completedFrames = DetermineRetainedSagaCompletedSteps(sagaId, saga, frameProvider, container).ToArray();
             frames.Add(new RetainedSagaGuardFrame(saga, startingFrames, completedFrames, existingFrames));
             return;
         }
@@ -402,7 +402,7 @@ public partial class SagaChain : HandlerChain
         // GH-5572: as in generateCodeForMaybeExisting, a retained completed saga never reaches Handle
         guard.WhenTheIdIsKnown(retainsCompletedSagas
             ? new RetainedSagaGuardFrame(guard.Saga, startingFrames,
-                DetermineRetainedSagaCompletedSteps(guard.SagaId, guard.Saga).ToArray(), existingFrames)
+                DetermineRetainedSagaCompletedSteps(guard.SagaId, guard.Saga, frameProvider, container).ToArray(), existingFrames)
             : new IfElseNullGuardFrame(guard.Saga, startingFrames, existingFrames));
 
         frames.Add(guard);
@@ -450,7 +450,8 @@ public partial class SagaChain : HandlerChain
     /// GH-5572. What happens to a message for a retained saga that has already completed: the same as for a saga
     /// that does not exist, except that it never starts a new saga over the completed one, which keeps its id.
     /// </summary>
-    internal IEnumerable<Frame> DetermineRetainedSagaCompletedSteps(Variable sagaId, Variable saga)
+    internal IEnumerable<Frame> DetermineRetainedSagaCompletedSteps(Variable sagaId, Variable saga,
+        IPersistenceFrameProvider frameProvider, IServiceContainer container)
     {
         if (MessageType.CanBeCastTo<TimeoutMessage>())
         {
@@ -474,8 +475,13 @@ public partial class SagaChain : HandlerChain
                 foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction(this).Frames())) yield return frame;
             }
 
-            // GH-5665: the retained saga is still there, so the late message joins its history
-            if (recordHistory(saga, sagaId, NotFoundCalls, SagaHistoryStep.NotFound) is { } record) yield return record;
+            // GH-5665: the retained saga is still there, so the late message joins its history. Nothing else is saved on
+            // this branch, so the unit of work is committed for the row, as the other branches commit it with the saga
+            if (recordHistory(saga, sagaId, NotFoundCalls, SagaHistoryStep.NotFound) is { } record)
+            {
+                yield return record;
+                yield return frameProvider.CommitUnitOfWorkFrame(saga, container);
+            }
         }
         else if (StartingCalls.Length != 0)
         {
