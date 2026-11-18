@@ -392,7 +392,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
 
 
         var retryName =
-            SanitizeIdentifier(PrefixSystemQueueName($"wolverine.retries.{runtime.Options.ServiceName}").ToLower());
+            SanitizeIdentifier(PrefixSystemQueueName($"wolverine.retries.{runtime.Options.ServiceName}").ToLowerInvariant());
         var retryQueue = Queues[retryName];
         retryQueue.Mode = EndpointMode.BufferedInMemory;
         retryQueue.IsListener = true;
