@@ -4,6 +4,9 @@ using Testcontainers.CosmosDb;
 using Wolverine;
 using Wolverine.CosmosDb.Internals;
 
+// GH-5634: the shared emulator is stopped when the test run ends
+[assembly: AssemblyFixture(typeof(CosmosDbTests.CosmosDbEmulatorLifetime))]
+
 namespace CosmosDbTests;
 
 public class AppFixture : IAsyncLifetime
@@ -18,8 +21,8 @@ public class AppFixture : IAsyncLifetime
     private const string CosmosDbImage =
         "mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator@sha256:4535ddbd27bba762f3e068f7585feb0022a2559ceccc9394b23aa38d91d77c38";
 
-    // Static container shared across all AppFixture instances
-    private static CosmosDbContainer _sharedContainer = null!;
+    // Static container shared across all AppFixture instances, stopped by CosmosDbEmulatorLifetime
+    private static CosmosDbContainer? _sharedContainer;
     private static string _sharedConnectionString = null!;
     private static readonly SemaphoreSlim _lock = new(1, 1);
     public static string ConnectionString => _sharedConnectionString;
@@ -34,16 +37,40 @@ public class AppFixture : IAsyncLifetime
         {
             if (_sharedContainer != null) return;
 
-            _sharedContainer = new CosmosDbBuilder(CosmosDbImage)
+            var container = new CosmosDbBuilder(CosmosDbImage)
                 .Build();
 
-            await _sharedContainer.StartAsync();
-            _sharedConnectionString = _sharedContainer.GetConnectionString();
+            // GH-5634: set before the start, so a start that fails part way is still stopped
+            _sharedContainer = container;
+
+            // The assembly fixture stops the container at the end of a normal run. This covers a run that ends
+            // without it, such as a cancelled one. Testcontainers' Ryuk reaper would do both, but it is often
+            // turned off locally, and each run then left an emulator using several GB of the Docker VM.
+            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            {
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
+                StopSharedContainerAsync().GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
+            };
+
+            await container.StartAsync();
+            _sharedConnectionString = container.GetConnectionString();
         }
         finally
         {
             _lock.Release();
         }
+    }
+
+    /// <summary>
+    ///     GH-5634: stop and remove the shared emulator container, if this process started one.
+    /// </summary>
+    internal static async Task StopSharedContainerAsync()
+    {
+        var container = Interlocked.Exchange(ref _sharedContainer, null);
+        if (container == null) return;
+
+        await container.DisposeAsync();
     }
 
     public async ValueTask InitializeAsync()
@@ -55,7 +82,7 @@ public class AppFixture : IAsyncLifetime
             HttpClientFactory = () =>
             {
                 var handler = new HttpClientHandler();
-                var port = _sharedContainer.GetMappedPublicPort(8081);
+                var port = _sharedContainer!.GetMappedPublicPort(8081);
                 return new HttpClient(new FixRequestLocationHandler(port, handler));
             },
             ConnectionMode = ConnectionMode.Gateway,
@@ -108,6 +135,17 @@ public class AppFixture : IAsyncLifetime
         var store = BuildMessageStore();
         await store.Admin.ClearAllAsync();
     }
+}
+
+/// <summary>
+///     GH-5634. xUnit disposes an assembly fixture once every test in the assembly has run, which is when the
+///     emulator the <see cref="AppFixture" /> instances share can go.
+/// </summary>
+public sealed class CosmosDbEmulatorLifetime : IAsyncLifetime
+{
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
+
+    public async ValueTask DisposeAsync() => await AppFixture.StopSharedContainerAsync();
 }
 
 [CollectionDefinition("cosmosdb")]
