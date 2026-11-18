@@ -212,15 +212,91 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         var outgoing = await beginFlushAsync().ConfigureAwait(false);
         if (outgoing == null) return;
 
-        foreach (var envelope in outgoing)
+        await flushEnvelopesAsync(outgoing).ConfigureAwait(false);
+
+        await completeFlushAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// GH-5587. Hand every envelope to its destination in order, without letting a destination that is slow to take
+    /// one hold up the envelopes for any other destination. While nothing waits this is the plain loop it always was.
+    /// The first time a destination makes it wait, the rest go out by destination: each destination's envelopes still
+    /// one at a time and in order, the destinations side by side.
+    /// </summary>
+    private Task flushEnvelopesAsync(Envelope[] outgoing)
+    {
+        for (var i = 0; i < outgoing.Length; i++)
         {
+            var envelope = outgoing[i];
+
             // https://github.com/JasperFx/wolverine/issues/2006
             if (envelope == null) continue;
 
-            await flushEnvelopeAsync(envelope).ConfigureAwait(false);
+            var flushing = flushEnvelopeAsync(envelope);
+            if (!flushing.IsCompleted)
+            {
+                return flushRemainingByDestinationAsync(outgoing, i, flushing);
+            }
         }
 
-        await completeFlushAsync().ConfigureAwait(false);
+        return Task.CompletedTask;
+    }
+
+    private async Task flushRemainingByDestinationAsync(Envelope[] outgoing, int waitingIndex, Task waiting)
+    {
+        // Only the destinations that are waiting. A destination that took its envelope right away has nothing for
+        // the next one to wait behind. Bounded by the number of envelopes in this flush, and nothing outlives it
+        var waitingByDestination = new Dictionary<Uri, Task>
+        {
+            [destinationOf(outgoing[waitingIndex])] = waiting
+        };
+
+        for (var i = waitingIndex + 1; i < outgoing.Length; i++)
+        {
+            var envelope = outgoing[i];
+            if (envelope == null) continue;
+
+            var destination = destinationOf(envelope);
+            if (waitingByDestination.TryGetValue(destination, out var ahead) && !ahead.IsCompleted)
+            {
+                // Never alongside the envelope ahead of it: a destination takes its envelopes one at a time
+                waitingByDestination[destination] = flushAfterAsync(ahead, envelope);
+                continue;
+            }
+
+            var flushing = flushEnvelopeAsync(envelope);
+            if (flushing.IsCompleted)
+            {
+                waitingByDestination.Remove(destination);
+            }
+            else
+            {
+                waitingByDestination[destination] = flushing;
+            }
+        }
+
+        // flushEnvelopeAsync() logs and swallows its own failures, so this waits for every destination
+        foreach (var flushing in waitingByDestination.Values)
+        {
+#pragma warning disable VSTHRD003 // started by this flush, and waiting for it is the whole point
+            await flushing.ConfigureAwait(false);
+#pragma warning restore VSTHRD003
+        }
+    }
+
+    private async Task flushAfterAsync(Task ahead, Envelope envelope)
+    {
+#pragma warning disable VSTHRD003 // started by this flush: the envelope ahead of this one at the same destination
+        await ahead.ConfigureAwait(false);
+#pragma warning restore VSTHRD003
+        await flushEnvelopeAsync(envelope).ConfigureAwait(false);
+    }
+
+    private static readonly Uri _noDestination = new("unknown://none");
+
+    private static Uri destinationOf(Envelope envelope)
+    {
+        return envelope.Destination ?? envelope.Sender?.Destination ?? _noDestination;
     }
 
     /// <summary>

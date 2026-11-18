@@ -87,6 +87,9 @@ public class Bug_4417_recovered_outgoing_carries_its_store : IAsyncLifetime
         var command = new RecoverOutgoingMessagesCommand(sendingAgent, ancillaryStore, NullLogger.Instance);
         await command.ExecuteAsync(runtime, CancellationToken.None);
 
+        // GH-5587. The command starts the recovery on the destination's lane and returns
+        await runtime.RecoveryLanes.WaitForIdleAsync();
+
         recovered.Store.ShouldBeSameAs(ancillaryStore);
     }
 
@@ -120,6 +123,7 @@ public class Bug_4417_recovered_outgoing_carries_its_store : IAsyncLifetime
 
         var command = new RecoverOutgoingMessagesCommand(sendingAgent, otherStore, NullLogger.Instance);
         await command.ExecuteAsync(runtime, CancellationToken.None);
+        await runtime.RecoveryLanes.WaitForIdleAsync();
 
         recovered.Store.ShouldBeSameAs(alreadyKnown);
     }

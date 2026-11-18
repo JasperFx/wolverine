@@ -88,6 +88,11 @@ public class durability_recovery_capacity(DatabaseFixture fixture)
                 var method = typeof(RavenDbDurabilityAgent).GetMethod("tryRecoverIncomingMessages",
                     BindingFlags.Instance | BindingFlags.NonPublic)!;
                 await ((Task)method.Invoke(agent, null)!).WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
+
+                // GH-5587. The sweep starts each listener's recovery on its own lane and returns
+                var lanes = typeof(RavenDbDurabilityAgent).GetMethod("WaitForRecoveryLanesAsync",
+                    BindingFlags.Instance | BindingFlags.NonPublic)!;
+                await ((Task)lanes.Invoke(agent, null)!).WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
             }
 
             await sweep();
