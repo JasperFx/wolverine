@@ -167,6 +167,9 @@ public class node_workloads_unit_tests_5601
     {
         requiredWorkloadOf<MessageStoreCollection>().ShouldBe(NodeWorkloads.Durability);
         requiredWorkloadOf<MultiTenantedMessageStore>().ShouldBe(NodeWorkloads.Durability);
+
+        // Storage housekeeping, like dead letter expiry
+        requiredWorkloadOf<Wolverine.Persistence.Sagas.SagaRetentionAgentFamily>().ShouldBe(NodeWorkloads.Durability);
     }
 
     [Fact]
