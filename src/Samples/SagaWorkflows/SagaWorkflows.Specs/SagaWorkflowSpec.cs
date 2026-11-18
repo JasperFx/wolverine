@@ -81,24 +81,26 @@ public abstract class SagaWorkflowSpec : WolverineSpec, IAsyncLifetime
     // ---- what the workflows service says about its sagas --------------------------------------------------------------
 
     /// <summary>
-    /// GH-5672. The service's description (what <c>describe</c> and CritterWatch read) lists <paramref name="method" />
-    /// of <typeparamref name="TSaga" /> as compensating exactly <paramref name="messageTypes" />.
+    /// GH-5672. The service's description (what <c>describe</c> and CritterWatch read) lists the <c>Compensate</c>
+    /// method of <typeparamref name="TSaga" /> for <paramref name="failedMessageType" /> as compensating exactly
+    /// <paramref name="messageTypes" />.
     /// </summary>
-    [Then("the {method} method of the saga compensates {messageTypes}")]
-    public async Task ThenTheCompensateMethodCovers<TSaga>(string method, params Type[] messageTypes) where TSaga : Saga
+    [Then("the Compensate method for {failedMessageType} compensates {messageTypes}")]
+    public async Task ThenTheCompensateMethodCovers<TSaga>(Type failedMessageType, params Type[] messageTypes)
+        where TSaga : Saga
     {
         var capabilities = await ServiceCapabilities.ReadFrom(
             _services.Workflows.Services.GetRequiredService<IWolverineRuntime>(), null, CancellationToken.None);
 
         var saga = capabilities.Sagas.SingleOrDefault(x => x.StateType.FullName == typeof(TSaga).FullName);
-        var compensation = saga?.Compensations.SingleOrDefault(x => x.Method == method);
+        var compensation = saga?.Compensations.FirstOrDefault(x => x.FailedMessageType.FullName == failedMessageType.FullName);
 
         SpecAssert.Fact(compensation is not null,
-            $"Expected {typeof(TSaga).Name} to describe a method {method}, but it describes " +
-            (saga is null ? "no such saga" : string.Join(", ", saga.Compensations.Select(x => x.Method))));
+            $"Expected {typeof(TSaga).Name} to describe a Compensate method for {failedMessageType.Name}, but it describes " +
+            (saga is null ? "no such saga" : string.Join(", ", saga.Compensations.Select(x => x.FailedMessageType.Name))));
 
-        var covered = compensation?.Covers.Select(x => x.Name).Order().ToArray() ?? [];
+        var covered = compensation?.Covers.Select(x => x.Name).Order(StringComparer.Ordinal).ToArray() ?? [];
         SpecAssert.Check("compensates", string.Join(", ", covered),
-            string.Join(", ", messageTypes.Select(x => x.NameInCode()).Order()));
+            string.Join(", ", messageTypes.Select(x => x.NameInCode()).Order(StringComparer.Ordinal)));
     }
 }

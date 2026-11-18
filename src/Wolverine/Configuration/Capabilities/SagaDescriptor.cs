@@ -68,19 +68,67 @@ public class SagaDescriptor
     public bool SupportsHistory { get; set; }
 
     /// <summary>
-    /// GH-5672. The saga's <c>Compensate</c> methods, each with the concrete message types it compensates. A method
-    /// for an interface or a base type covers every concrete message type assignable to it that the application knows,
-    /// plus those named with <c>[Compensates]</c>. Empty for a saga with no <c>Compensate</c> methods.
+    /// GH-5670. Whether this is an <see cref="EventSourcedSaga" />, whose methods append events to the
+    /// saga's own stream (<see cref="SagaMethodDescriptor.Events" />) besides sending messages.
+    /// </summary>
+    public bool IsEventSourced { get; set; }
+
+    /// <summary>
+    /// GH-5670. The saga's <c>Compensate</c> methods: which failed message and exception each one compensates, and the
+    /// undo messages (and, for an event-sourced saga, the events) it returns. GH-5672: and the concrete message types it
+    /// covers (<see cref="SagaCompensationDescriptor.Covers" />).
     /// </summary>
     public List<SagaCompensationDescriptor> Compensations { get; set; } = new();
 }
 
 /// <summary>
-/// GH-5672. One <c>Compensate</c> method of a saga and the message types whose failure it compensates.
+/// GH-5670. One saga method that handles a message, and what it returns as far as its signature says. A message the
+/// method sends through <c>IMessageBus</c> instead of returning it cannot be seen here, and a return type such as
+/// <c>OutgoingMessages</c> or <c>IEnumerable&lt;object&gt;</c> only says that more is decided at run time
+/// (<see cref="ReturnsMoreAtRunTime" />).
 /// </summary>
-/// <param name="Method">The method, as <c>Compensate(ITransferStep, ExceptionInfo)</c></param>
-/// <param name="Covers">The concrete message types it compensates, as declared and as found</param>
-public record SagaCompensationDescriptor(string Method, TypeDescriptor[] Covers);
+/// <param name="Name">The method's name: <c>Start</c>, <c>StartOrHandle</c>, <c>Handle</c>, <c>NotFound</c>, ...</param>
+/// <param name="Role">
+/// What the method does with the saga. <see cref="SagaRole.NotFound" /> runs when no saga matches the message, or the
+/// saga has already completed.
+/// </param>
+/// <param name="Messages">Messages it sends right away.</param>
+/// <param name="Scheduled">Messages it schedules for later: a <see cref="TimeoutMessage" /> or a <c>ScheduledMessage&lt;T&gt;</c>.</param>
+/// <param name="Events">For an event-sourced saga, the events it appends to the saga's stream.</param>
+public record SagaMethodDescriptor(
+    string Name,
+    SagaRole Role,
+    TypeDescriptor[] Messages,
+    TypeDescriptor[] Scheduled,
+    TypeDescriptor[] Events)
+{
+    /// <summary>
+    /// The method returns something whose contents are only known at run time, such as <c>OutgoingMessages</c>,
+    /// <c>IEnumerable&lt;object&gt;</c> or <c>object</c>: messages, or for an event-sourced saga events, that the
+    /// signature doesn't name.
+    /// </summary>
+    public bool ReturnsMoreAtRunTime { get; init; }
+}
+
+/// <summary>
+/// GH-5670. One <c>Compensate</c> method of a saga: it runs when <paramref name="FailedMessageType" /> fails with
+/// <paramref name="ExceptionType" /> (or a subclass) after its retries.
+/// </summary>
+/// <param name="FailedMessageType">The message whose failure it compensates.</param>
+/// <param name="ExceptionType">The exception it matches; <see cref="Exception" /> when it takes any failure.</param>
+/// <param name="Method">What the method returns: the undo messages, and for an event-sourced saga, events.</param>
+public record SagaCompensationDescriptor(
+    TypeDescriptor FailedMessageType,
+    TypeDescriptor ExceptionType,
+    SagaMethodDescriptor Method)
+{
+    /// <summary>
+    /// GH-5672. The concrete message types this method compensates. For a method whose failed message is an interface
+    /// or a base type, every concrete message type assignable to it that the application knows, plus those named with
+    /// <c>[Compensates]</c>; for any other, the failed message type itself.
+    /// </summary>
+    public TypeDescriptor[] Covers { get; init; } = [];
+}
 
 /// <summary>
 /// One incoming message's role inside a saga, plus the messages that
@@ -106,7 +154,30 @@ public record SagaMessageRole(
     TypeDescriptor MessageType,
     SagaRole Role,
     string? SagaIdMember,
-    TypeDescriptor[] PublishedTypes);
+    TypeDescriptor[] PublishedTypes)
+{
+    /// <summary>GH-5670. The message is a <see cref="TimeoutMessage" />, which the saga schedules for itself.</summary>
+    public bool IsTimeout { get; init; }
+
+    /// <summary>
+    /// GH-5670. Every saga method that handles this message, in the order Wolverine runs them, with what each returns.
+    /// A <c>NotFound</c> method beside a <c>Handle</c> is how the saga handles a message that arrives after it completed.
+    /// </summary>
+    public SagaMethodDescriptor[] Methods { get; init; } = [];
+
+    /// <summary>
+    /// GH-5674. When the saga is gone and it has no <c>NotFound</c> for this message, the message is logged and dropped
+    /// (<c>[DiscardIfSagaMissing]</c>, <c>[SagaMissing(Discard)]</c> or <c>opts.Policies.WhenSagaIsMissing()</c>)
+    /// rather than failing with <c>UnknownSagaException</c>.
+    /// </summary>
+    public bool DiscardedIfSagaMissing { get; init; }
+
+    /// <summary>
+    /// GH-5674. The message is a timeout that replaces the earlier ones the saga scheduled under the same key
+    /// (<c>[ReplacesEarlierTimeouts]</c> or <c>TimeoutMessage.TimeoutKey</c>): a superseded one is dropped.
+    /// </summary>
+    public bool ReplacesEarlierTimeouts { get; init; }
+}
 
 /// <summary>
 /// What a particular handler does to / for the saga.

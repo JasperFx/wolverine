@@ -106,6 +106,25 @@ public class saga_missing_and_replaced_timeouts_5674
     }
 
     [Fact]
+    public async Task the_saga_descriptor_and_flow_show_dropped_messages_and_replacing_timeouts()
+    {
+        using var host = await hostAsync(opts => opts.Policies.WhenSagaIsMissing(SagaMissingBehavior.Discard),
+            typeof(KennelSaga));
+
+        var capabilities = await Wolverine.Configuration.Capabilities.ServiceCapabilities.ReadFrom(host.GetRuntime(), null,
+            TestContext.Current.CancellationToken);
+        var saga = capabilities.Sagas.Single(x => x.StateType.FullName == typeof(KennelSaga).FullName);
+
+        saga.Messages.Single(x => x.MessageType.Name == nameof(WalkDog)).DiscardedIfSagaMissing.ShouldBeTrue();
+        saga.Messages.Single(x => x.MessageType.Name == nameof(FeedingTime)).ReplacesEarlierTimeouts.ShouldBeTrue();
+        saga.Messages.Single(x => x.MessageType.Name == nameof(KennelClosingTime)).ReplacesEarlierTimeouts.ShouldBeFalse();
+
+        var mermaid = Wolverine.Configuration.Capabilities.SagaFlowDiagram.ToMermaid(saga);
+        mermaid.ShouldContain("msg_WalkDog -.->|\"no saga, or completed\"| dropped");
+        mermaid.ShouldContain("replaces earlier ones");
+    }
+
+    [Fact]
     public void timeout_types_that_replace()
     {
         SagaTimeouts.Replaces(typeof(FeedingTime)).ShouldBeTrue();

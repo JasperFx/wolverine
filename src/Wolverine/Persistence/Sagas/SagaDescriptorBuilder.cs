@@ -1,7 +1,9 @@
 using System.Reflection;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
+using Wolverine.Configuration;
 using Wolverine.Configuration.Capabilities;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Persistence.Sagas;
@@ -32,9 +34,11 @@ internal static class SagaDescriptorBuilder
     /// </param>
     public static SagaDescriptor Build(HandlerGraph graph, Type sagaType, string? storageProvider)
     {
+        var eventSourced = sagaType.CanBeCastTo<EventSourcedSaga>();
         var descriptor = new SagaDescriptor(TypeDescriptor.For(sagaType))
         {
-            StorageProvider = storageProvider
+            StorageProvider = storageProvider,
+            IsEventSourced = eventSourced
         };
 
         var chainsForSaga = CollectSagaChains(graph)
@@ -56,49 +60,188 @@ internal static class SagaDescriptorBuilder
             var role = ClassifyRole(chain);
             if (role is null) continue;
 
-            var published = chain.PublishedTypes()
-                .Distinct()
-                .Select(TypeDescriptor.For)
-                .ToArray();
+            var methods = DescribeMethods(chain, sagaType, eventSourced);
+
+            // GH-5670: an event-sourced saga's methods return events as well as messages, and only the messages are
+            // published
+            var published = eventSourced
+                ? methods.SelectMany(x => x.Messages.Concat(x.Scheduled)).Distinct().ToArray()
+                : chain.PublishedTypes()
+                    .Distinct()
+                    .Select(TypeDescriptor.For)
+                    .ToArray();
 
             descriptor.Messages.Add(new SagaMessageRole(
                 TypeDescriptor.For(chain.MessageType),
                 role.Value,
                 chain.SagaIdMember?.Name,
-                published));
+                published)
+            {
+                IsTimeout = chain.MessageType.CanBeCastTo<TimeoutMessage>(),
+                Methods = methods,
+                DiscardedIfSagaMissing = chain.DetermineSagaMissingBehavior() == SagaMissingBehavior.Discard,
+                ReplacesEarlierTimeouts = SagaTimeouts.Replaces(chain.MessageType)
+            });
         }
 
-        descriptor.Compensations.AddRange(BuildCompensations(graph, sagaType));
+        // GH-5670: the Compensate methods, in the order Wolverine prefers them
+        foreach (var method in SagaCompensationMethods.For(sagaType).Select(x => x).OrderBy(x => x.FailedType.Name).ThenBy(x => x.Order))
+        {
+            descriptor.Compensations.Add(new SagaCompensationDescriptor(
+                TypeDescriptor.For(method.FailedType),
+                TypeDescriptor.For(method.ExceptionType),
+                DescribeMethod(method.Method, SagaRole.Orchestrate, sagaType, eventSourced))
+            {
+                Covers = CoveredBy(graph, sagaType, method)
+            });
+        }
 
         return descriptor;
     }
 
     /// <summary>
-    /// GH-5672. Each of the saga's Compensate methods, with the concrete message types whose Fault&lt;T&gt; chain it
-    /// was filed under
+    /// GH-5672. The concrete message types whose Fault&lt;T&gt; chain a Compensate method was filed under
     /// </summary>
-    public static IEnumerable<SagaCompensationDescriptor> BuildCompensations(HandlerGraph graph, Type sagaType)
-    {
-        var methods = SagaCompensationMethods.For(sagaType);
-        if (methods.Count == 0) yield break;
-
-        var covered = CollectSagaChains(graph)
+    internal static TypeDescriptor[] CoveredBy(HandlerGraph graph, Type sagaType, CompensateMethod method)
+        => CollectSagaChains(graph)
             .Where(c => c.SagaType == sagaType && SagaCompensations.FaultMessageType(c.MessageType) != null)
-            .SelectMany(c => c.SagaHandlerCalls().Select(call => (call.Method, Failed: SagaCompensations.FaultMessageType(c.MessageType)!)))
+            .Where(c => c.SagaHandlerCalls().Any(call => call.Method == method.Method))
+            .Select(c => SagaCompensations.FaultMessageType(c.MessageType)!)
+            .Where(x => !x.IsInterface && !x.IsAbstract && x != typeof(object))
+            .Distinct()
+            .OrderBy(x => x.FullNameInCode(), StringComparer.Ordinal)
+            .Select(TypeDescriptor.For)
             .ToArray();
 
-        foreach (var method in methods)
-        {
-            var types = covered.Where(x => x.Method == method.Method)
-                .Select(x => x.Failed)
-                .Where(x => !x.IsInterface && !x.IsAbstract && x != typeof(object))
-                .Distinct()
-                .OrderBy(x => x.FullNameInCode())
-                .Select(TypeDescriptor.For)
-                .ToArray();
+    /// <summary>
+    /// GH-5670. The saga methods of one chain, starting methods first, then the ones for an existing saga, then
+    /// NotFound: the order a reader follows them in.
+    /// </summary>
+    internal static SagaMethodDescriptor[] DescribeMethods(SagaChain chain, Type sagaType, bool eventSourced)
+    {
+        var calls = chain.SagaHandlerCalls()
+            .Where(x => x.HandlerType.CanBeCastTo<Saga>())
+            .Select(x => x.Method)
+            .Where(x => !x.Name.StartsWith(SagaCompensations.Compensate, StringComparison.Ordinal))
+            .Distinct()
+            .Select(x => (Method: x, Role: roleOf(x.Name)))
+            .Where(x => x.Role.HasValue)
+            .OrderBy(x => x.Role!.Value)
+            .ThenBy(x => x.Method.Name, StringComparer.Ordinal);
 
-            yield return new SagaCompensationDescriptor(method.Signature, types);
+        return calls.Select(x => DescribeMethod(x.Method, x.Role!.Value, sagaType, eventSourced)).ToArray();
+    }
+
+    private static SagaRole? roleOf(string methodName)
+    {
+        var name = methodName.EndsWith("Async") ? methodName[..^"Async".Length] : methodName;
+        return name switch
+        {
+            SagaChain.StartOrHandle or SagaChain.StartsOrHandles => SagaRole.StartOrHandle,
+            SagaChain.Start or SagaChain.Starts => SagaRole.Start,
+            SagaChain.Orchestrate or SagaChain.Orchestrates or "Handle" or "Handles" or "Consume" or "Consumes" => SagaRole.Orchestrate,
+            SagaChain.NotFound => SagaRole.NotFound,
+            _ => null
+        };
+    }
+
+    /// <summary>
+    /// GH-5670. What one saga method returns, as far as its signature says. A NotFound method never appends events: there
+    /// is no saga for them to go to, so what it returns is sent.
+    /// </summary>
+    internal static SagaMethodDescriptor DescribeMethod(MethodInfo method, SagaRole role, Type sagaType, bool eventSourced)
+    {
+        var messages = new List<Type>();
+        var scheduled = new List<Type>();
+        var events = new List<Type>();
+        var dynamic = false;
+        var appends = eventSourced && role != SagaRole.NotFound;
+
+        foreach (var type in returnedTypes(method.ReturnType))
+        {
+            if (type == typeof(object) || type == typeof(OutgoingMessages) ||
+                (type != typeof(string) && type.CanBeCastTo<IEnumerable<object>>()) ||
+                type == typeof(IAsyncEnumerable<object>))
+            {
+                dynamic = true;
+                continue;
+            }
+
+            // A start method of a document saga returns the saga itself, which is its state rather than a message
+            if (type.CanBeCastTo<Saga>()) continue;
+
+            if (type.CanBeCastTo<TimeoutMessage>())
+            {
+                scheduled.Add(type);
+                continue;
+            }
+
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ScheduledMessage<>))
+            {
+                scheduled.Add(type.GetGenericArguments()[0]);
+                continue;
+            }
+
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(DeliveryMessage<>))
+            {
+                messages.Add(type.GetGenericArguments()[0]);
+                continue;
+            }
+
+            // Side effects, storage actions and the like are consumed inside the chain and never routed
+            if (type.CanBeCastTo<INotToBeRouted>()) continue;
+
+            if (appends && !type.CanBeCastTo<IWolverineReturnType>())
+            {
+                events.Add(type);
+            }
+            else
+            {
+                messages.Add(type);
+            }
         }
+
+        return new SagaMethodDescriptor(method.Name, role,
+            messages.Distinct().Select(TypeDescriptor.For).ToArray(),
+            scheduled.Distinct().Select(TypeDescriptor.For).ToArray(),
+            events.Distinct().Select(TypeDescriptor.For).ToArray())
+        {
+            ReturnsMoreAtRunTime = dynamic
+        };
+    }
+
+    // The types a method returns: Task<T> and ValueTask<T> unwrapped, and each member of a returned tuple
+    private static IEnumerable<Type> returnedTypes(Type returnType)
+    {
+        if (returnType == typeof(void) || returnType == typeof(Task) || returnType == typeof(ValueTask)) yield break;
+
+        if (returnType.IsGenericType)
+        {
+            var definition = returnType.GetGenericTypeDefinition();
+            if (definition == typeof(Task<>) || definition == typeof(ValueTask<>))
+            {
+                foreach (var inner in returnedTypes(returnType.GetGenericArguments()[0])) yield return inner;
+                yield break;
+            }
+
+            if (returnType.FullName?.StartsWith("System.ValueTuple`", StringComparison.Ordinal) == true)
+            {
+                foreach (var member in returnType.GetGenericArguments())
+                {
+                    foreach (var inner in returnedTypes(member)) yield return inner;
+                }
+
+                yield break;
+            }
+
+            if (definition == typeof(Nullable<>))
+            {
+                yield return returnType.GetGenericArguments()[0];
+                yield break;
+            }
+        }
+
+        yield return returnType;
     }
 
     /// <summary>

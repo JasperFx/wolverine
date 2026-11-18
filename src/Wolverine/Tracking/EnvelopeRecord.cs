@@ -30,6 +30,10 @@ public class EnvelopeRecord
     
     public bool WasScheduled { get; set; }
 
+    // GH-5664. When a scheduled envelope is due on the session's clock, worked out as it is recorded: the in-memory
+    // scheduler clears the envelope's ScheduledTime as soon as it takes the envelope
+    internal DateTimeOffset? DueAt { get; set; }
+
     public object? Message => Envelope?.Message;
 
     /// <summary>

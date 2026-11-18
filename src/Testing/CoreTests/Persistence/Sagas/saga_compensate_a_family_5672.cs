@@ -93,8 +93,13 @@ public class saga_compensate_a_family_5672
         var saga = capabilities.Sagas.Single(x => x.StateType.FullName == typeof(ShipmentSaga).FullName);
 
         var compensation = saga.Compensations.ShouldHaveSingleItem();
-        compensation.Method.ShouldBe("Compensate(IShipmentStep, ExceptionInfo)");
+        compensation.FailedMessageType.Name.ShouldBe(nameof(IShipmentStep));
         compensation.Covers.Select(x => x.Name).ShouldBe(["LoadTruck", "PackParcel"]);
+
+        // The flow diagram draws a failure edge from each concrete message the method covers
+        var mermaid = SagaFlowDiagram.ToMermaid(saga);
+        mermaid.ShouldContain("msg_LoadTruck -.->|\"fails\"| Compensate_IShipmentStep_1");
+        mermaid.ShouldContain("msg_PackParcel -.->|\"fails\"| Compensate_IShipmentStep_1");
     }
 }
 

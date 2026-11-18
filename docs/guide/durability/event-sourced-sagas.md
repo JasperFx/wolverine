@@ -151,6 +151,11 @@ The rules are the [aggregate handler workflow's](/guide/durability/marten/event-
 
 So a `PaymentTimeout : TimeoutMessage` returned from `Start` is scheduled, while `OrderFulfillmentStarted` is appended.
 
+`dotnet run -- saga-flow` draws the saga with the events each method appends to its stream, next to the messages it
+sends; see [Drawing a Saga's Flow](/guide/durability/sagas#drawing-a-sagas-flow). An event the signature names, such as
+a single returned event or a tuple member, is drawn. Events in an `IEnumerable<object>` are only known at run time, so
+return them as a tuple where you want them in the picture.
+
 ## Completing an event-sourced saga
 
 A saga is completed once Wolverine's own `SagaCompleted` event is in its stream. There are two ways to get it there,

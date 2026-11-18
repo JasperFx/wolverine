@@ -85,6 +85,8 @@ public partial class SagaChain : HandlerChain
         // GH-5572. Refused here, while the handler graph is built at startup, rather than when the chain first
         // generates its code
         SagaRetention.AssertCompletedAtIsNotHidden(SagaType, options);
+
+        _options = options;
     }
 
     public SagaChain(HandlerCall handlerCall, HandlerGraph handlerGraph, Endpoint[] endpoints) : base(handlerCall, handlerGraph)
@@ -231,7 +233,7 @@ public partial class SagaChain : HandlerChain
         frameProvider.ApplyTransactionSupport(this, container);
 
         CompletedSagaRetention = determineRetention(frameProvider, container);
-        _options = container.Services.GetService(typeof(WolverineOptions)) as WolverineOptions;
+        _options ??= container.Services.GetService(typeof(WolverineOptions)) as WolverineOptions;
 
         NotFoundCalls = findByNames(NotFound);
         IdNotProvidedCalls = findByNames(IdNotProvided);
@@ -297,6 +299,9 @@ public partial class SagaChain : HandlerChain
     /// <see cref="SagaMissingAttribute" /> on the saga type, then <c>opts.Policies.WhenSagaIsMissing()</c>. A saga's
     /// compensation chain always reports a missing saga, which is how a compensation with no saga is told apart
     /// </summary>
+    internal SagaMissingBehavior DetermineSagaMissingBehavior() => DetermineSagaMissingBehavior(_options);
+
+    /// <inheritdoc cref="DetermineSagaMissingBehavior()" />
     internal SagaMissingBehavior DetermineSagaMissingBehavior(WolverineOptions? options)
     {
         if (CompensateCalls.Length != 0 || SagaCompensations.FaultMessageType(MessageType) != null)

@@ -83,6 +83,12 @@ internal class WolverineSystemPart : SystemPartBase
             WriteListeners();
             AnsiConsole.WriteLine();
             WriteErrorHandling();
+
+            // GH-5670
+            if (WriteSagaFlows())
+            {
+                AnsiConsole.WriteLine();
+            }
         }
         finally
         {
@@ -122,6 +128,33 @@ internal class WolverineSystemPart : SystemPartBase
         }
 
         (console ?? AnsiConsole.Console).Write(table);
+        return true;
+    }
+
+    /// <summary>
+    /// GH-5670. Each saga's flow as a Mermaid diagram, in a Markdown <c>```mermaid</c> block that pastes into a README.
+    /// The <c>saga-flow</c> command writes the same thing on its own, or to a file.
+    /// </summary>
+    /// <param name="console">Defaults to <see cref="AnsiConsole.Console"/></param>
+    /// <returns>Whether anything was written</returns>
+    public bool WriteSagaFlows(IAnsiConsole? console = null)
+    {
+        var sagas = Configuration.Capabilities.ServiceCapabilities.ReadSagaDescriptors(_runtime);
+        if (sagas.Count == 0) return false;
+
+        console ??= AnsiConsole.Console;
+        console.Write(new Rule("Saga Flows") { Justification = Justify.Left });
+        console.WriteLine();
+        // Straight to the writer: Spectre would wrap the long lines at the console's width, and the Markdown has to
+        // paste as it is
+        var writer = console.Profile.Out.Writer;
+        foreach (var saga in sagas)
+        {
+            writer.WriteLine(Configuration.Capabilities.SagaFlowDiagram.ToMarkdown(saga));
+        }
+
+        writer.Flush();
+
         return true;
     }
 

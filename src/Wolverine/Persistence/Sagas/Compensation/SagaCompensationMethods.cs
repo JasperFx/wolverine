@@ -132,10 +132,6 @@ internal sealed class CompensateMethod
     /// <summary>Can this method compensate a failed <paramref name="messageType" />?</summary>
     public bool Covers(Type messageType) => FailedType.IsAssignableFrom(messageType);
 
-    /// <summary>A readable signature, for describe and for error messages</summary>
-    public string Signature
-        => $"{Method.Name}({string.Join(", ", Method.GetParameters().Take(2).Select(x => x.ParameterType.NameInCode()))})";
-
     public static CompensateMethod For(Type sagaType, MethodInfo method, int order)
     {
         var parameters = method.GetParameters();

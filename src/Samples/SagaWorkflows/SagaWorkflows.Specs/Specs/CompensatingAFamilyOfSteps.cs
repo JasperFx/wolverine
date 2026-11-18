@@ -97,9 +97,9 @@ public class compensating_a_family_of_steps(DocumentSagaServices services) : Sag
     [BobcatSpec]
     public async Task the_service_describes_which_steps_each_Compensate_method_covers()
     {
-        await ThenTheCompensateMethodCovers<Transfer>("Compensate(ITransferStep, ExceptionInfo)",
+        await ThenTheCompensateMethodCovers<Transfer>(typeof(ITransferStep),
             typeof(Deposit), typeof(RecordTransfer), typeof(ScreenTransfer), typeof(Withdraw));
-        await ThenTheCompensateMethodCovers<Transfer>("Compensate(Deposit, ExceptionInfo)", typeof(Deposit));
+        await ThenTheCompensateMethodCovers<Transfer>(typeof(Deposit), typeof(Deposit));
     }
 }
 
@@ -156,7 +156,7 @@ public class compensating_a_family_of_steps_on_an_event_sourced_saga(EventSource
     [BobcatSpec]
     public async Task the_service_describes_which_steps_each_Compensate_method_covers()
     {
-        await ThenTheCompensateMethodCovers<EventSourcedTransfer>("Compensate(ITransferStep, ExceptionInfo)",
+        await ThenTheCompensateMethodCovers<EventSourcedTransfer>(typeof(ITransferStep),
             typeof(Deposit), typeof(RecordTransfer), typeof(ScreenTransfer), typeof(Withdraw));
     }
 }

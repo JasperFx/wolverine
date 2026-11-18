@@ -107,6 +107,9 @@ public abstract partial class WolverineSpec : CritterStackSpec
     /// <inheritdoc cref="WolverineScenario.WhenScheduledMessagesAreExecuted" />
     public Task WhenScheduledMessagesAreExecuted(TimeSpan? timeout = null) => Scenario.WhenScheduledMessagesAreExecuted(timeout);
 
+    /// <inheritdoc cref="WolverineScenario.WhenTimePasses(TimeSpan, TimeSpan?)" />
+    public Task WhenTimePasses(TimeSpan duration, TimeSpan? timeout = null) => Scenario.WhenTimePasses(duration, timeout);
+
     /// <inheritdoc cref="WolverineScenario.GivenReceived" />
     // An arranged message is run evidence, never the act: the Document role puts its type in the specification's resolved
     // types only -- no canvas element -- and, unlike a Command role or a trigger, does not make this call the slice's act
