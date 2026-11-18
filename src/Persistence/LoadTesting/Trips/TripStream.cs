@@ -46,7 +46,7 @@ public class TripStream
         return new TimeOnly(hour, 0, 0);
     }
 
-    public Guid Id = CombGuidIdGeneration.NewGuid();
+    public Guid Id = SequentialGuid.NextPostgresOrder();
 
     public readonly Queue<object> Messages = new();
 

@@ -54,8 +54,7 @@ public class PublishingSamples
                     .Named("Two");
             }).StartAsync();
 
-        var bus = host.Services
-            .GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         // Explicitly send a message to a named endpoint
         await bus.EndpointFor("One").SendAsync(new SomeMessage());
@@ -312,7 +311,7 @@ public class PublishingSamples
             {
                 // I need to assign the image id in memory
                 // to make this all work
-                Id = CombGuidIdGeneration.NewGuid()
+                Id = SequentialGuid.NextPostgresOrder()
             };
 
             var outgoing = new GenerateImage(request.Prompt, imageSaga.Id);

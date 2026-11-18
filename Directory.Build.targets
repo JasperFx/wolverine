@@ -72,4 +72,39 @@
         <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
     </PropertyGroup>
 
+    <!--
+      GH-5403. Runs Wolverine's own analyzers (src/Wolverine.Analyzers, the WolverineFx.Analyzers package) over
+      every C# project in the repository, so the code here is held to the same warnings a WolverineFx consumer
+      gets. A ProjectReference does not pass an analyzer on to the projects that reference it, so it is added to
+      each project here. Wolverine.csproj declares its own (it is the one that makes the package depend on it),
+      and PrivateAssets="all" keeps every other package from depending on WolverineFx.Analyzers.
+      Build with -p:WolverineAnalyzers=false to leave them out.
+    -->
+    <ItemGroup Condition=" '$(MSBuildProjectExtension)' == '.csproj' And '$(WolverineAnalyzers)' != 'false' And '$(MSBuildProjectName)' != 'Wolverine' And '$(MSBuildProjectName)' != 'Wolverine.Analyzers' And Exists('$(MSBuildThisFileDirectory)src/Wolverine.Analyzers/Wolverine.Analyzers.csproj') ">
+        <ProjectReference Include="$(MSBuildThisFileDirectory)src/Wolverine.Analyzers/Wolverine.Analyzers.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all"
+                          IsAspireProjectResource="false" />
+    </ItemGroup>
+
+    <!--
+      wolverine.slnx and wolverine_slim.slnx carry the analyzer project with Build Project="false", so the pinned
+      solution build never makes a net10.0 instance of it. A solution build drops every reference to a project the
+      solution does not build, unless this is false: without it the references above never built the analyzer, the
+      projects compiled without it, and CoreTests (which references the built assembly by path) failed in a fresh
+      checkout. build/build.csproj is the only other project with Build="false", and nothing references it.
+    -->
+    <PropertyGroup>
+        <OnlyReferenceAndBuildProjectsEnabledInSolutionConfiguration>false</OnlyReferenceAndBuildProjectsEnabledInSolutionConfiguration>
+    </PropertyGroup>
+
+    <!--
+      GH-5624. The sample AppHosts declare a one-entry <TargetFrameworks> (GH-5622), which gives them an outer build,
+      and the Aspire AppHost SDK picks the dashboard and DCP runtime identifier in Restore, in that outer build, with
+      the .NET SDK's in-process PickBestRid task. The SDK only declares that task for an inner build, so the outer
+      build fails with MSB4036. Outside an inner build, use the SDK's own out-of-process fallback instead.
+    -->
+    <PropertyGroup Condition=" '$(IsAspireHost)' == 'true' And '$(TargetFramework)' == '' ">
+        <_AspireUseSdkPickBestRid>false</_AspireUseSdkPickBestRid>
+    </PropertyGroup>
+
 </Project>

@@ -506,32 +506,27 @@ serialization.
 
 ## Envelope ID Generation <Badge type="tip" text="5.26" />
 
-Every message envelope in Wolverine is assigned a unique `Guid` identifier. By default, Wolverine uses [MassTransit's NewId](https://masstransit.io/documentation/patterns/newid) algorithm which generates sequential GUIDs based on machine identity (MAC address or DNS hostname) and a timestamp. Those ids sort in time order the way .NET and PostgreSQL compare GUIDs, which keeps the PostgreSQL inbox and outbox indexes compact. SQL Server is a different story, and Wolverine picks a different layout for it [automatically](#envelope-ids-for-sql-server).
+Every message envelope in Wolverine is assigned a unique `Guid` identifier. By default, Wolverine uses JasperFx's `SequentialGuid`, which keeps [MassTransit's NewId](https://masstransit.io/documentation/patterns/newid) layout: a 100 ns timestamp, a worker id, and a sequence. Those ids sort in time order the way .NET and PostgreSQL compare GUIDs, which keeps the PostgreSQL inbox and outbox indexes compact. SQL Server is a different story, and Wolverine picks a different layout for it [automatically](#envelope-ids-for-sql-server).
 
-However, in **cloud environments where multiple instances share network identity** — such as Kubernetes pods, Google Cloud Run, AWS Lambda, or other containerized/serverless platforms — `NewId` can produce **duplicate envelope IDs** because it relies on machine-specific properties that are identical across instances.
+Before Wolverine 7.0, the worker id came from the machine's network identity, so containers or serverless instances that shared one could draw the same ids. The worker id is now 6 random bytes drawn once per process, so that is no longer a reason to switch.
 
-For **greenfield applications**, or any deployment where instances may share network identity, use `GuidV7`:
+You can still use `Guid.CreateVersion7()` if you want:
 
 ```csharp
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        // Recommended for new applications and cloud deployments
         opts.EnvelopeIdGeneration = EnvelopeIdGeneration.GuidV7;
     }).StartAsync();
 ```
 
-`GuidV7` uses `Guid.CreateVersion7()` per [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562), which produces GUIDs with a millisecond timestamp and cryptographically strong random bits. This guarantees uniqueness without relying on machine-specific properties. Just know that ids created within the same millisecond are in random order, so under a heavy message load they index about like random GUIDs, and SQL Server doesn't sort them by time at all.
-
-::: warning
-`EnvelopeIdGeneration.GuidV7` requires **.NET 9 or later**. `Guid.CreateVersion7()` is not available on .NET 8. Attempting to use this option on .NET 8 will throw a `NotSupportedException` at startup.
-:::
+`GuidV7` uses `Guid.CreateVersion7()` per [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562), which produces GUIDs with a millisecond timestamp and cryptographically strong random bits. Just know that ids created within the same millisecond are in random order, so under a heavy message load they index about like random GUIDs, and SQL Server doesn't sort them by time at all.
 
 | Strategy | Uniqueness Source | Sorted in time order by | Best For |
 |----------|------------------|-------------|----------|
-| `NewId` (default) | Machine identity + timestamp | .NET and PostgreSQL | Single-machine or unique-network deployments, and PostgreSQL message storage |
-| `GuidV7` | Cryptographic randomness + timestamp | .NET and PostgreSQL, to the millisecond | Cloud, containers, serverless, greenfield apps |
-| `NewIdSqlServerOrder` | Machine identity + timestamp | SQL Server | Applications whose envelopes are stored in SQL Server (automatic when every message store is SQL Server) |
+| `NewId` (default) | Random worker id per process + timestamp + sequence | .NET and PostgreSQL | Most applications, and PostgreSQL message storage |
+| `GuidV7` | Cryptographic randomness + timestamp | .NET and PostgreSQL, to the millisecond | Applications that want RFC 9562 ids |
+| `NewIdSqlServerOrder` | Random worker id per process + timestamp + sequence | SQL Server | Applications whose envelopes are stored in SQL Server (automatic when every message store is SQL Server) |
 
 ### Envelope IDs for SQL Server <Badge type="tip" text="6.49" />
 
@@ -541,7 +536,7 @@ SQL Server inbox, outbox, and dead letter tables are clustered on the envelope i
 pages. One user [measured](https://github.com/JasperFx/wolverine/issues/4902) a production inbox that was 99%
 fragmented with its pages half full, which means every scan of that table reads about twice the pages it should.
 
-`EnvelopeIdGeneration.NewIdSqlServerOrder` uses the same NewId algorithm with the timestamp laid out where SQL Server
+`EnvelopeIdGeneration.NewIdSqlServerOrder` uses the same generator with the timestamp laid out where SQL Server
 looks for it, and **Wolverine switches to it automatically at startup when every message store in your application is
 SQL Server** -- plain SQL Server persistence, the SQL Server transport, EF Core on SQL Server, or Polecat -- and you
 haven't set `EnvelopeIdGeneration` yourself. If any message store disagrees, Wolverine keeps the default. You can
@@ -554,7 +549,7 @@ also set it directly:
 // setting it explicitly forces it no matter what the message stores prefer
 opts.EnvelopeIdGeneration = EnvelopeIdGeneration.NewIdSqlServerOrder;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/envelope_id_generation.cs#L112-L118' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_ids_in_sql_server_order' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/envelope_id_generation.cs#L111-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_ids_in_sql_server_order' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning

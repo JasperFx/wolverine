@@ -19,8 +19,8 @@ internal static class ManagedEventSubscriptionDistribution
     {
         services.TryAddSingleton<EventSubscriptionAgentFamily>();
 
-        // A marker rather than a look for IEventSubscriptionAgentFamily: Marten's ancillary-only path registers
-        // that alias with TryAdd semantics of its own, and must not stop this one from aliasing IAgentFamily
+        // A marker rather than a look for IAgentFamily or IEventSubscriptionAgentFamily: other agent families
+        // register as IAgentFamily too, and Marten's ancillary-only path calls this as well
         if (services.Any(x => x.ServiceType == typeof(EventSubscriptionAgentFamilyAliases))) return;
         services.AddSingleton<EventSubscriptionAgentFamilyAliases>();
 

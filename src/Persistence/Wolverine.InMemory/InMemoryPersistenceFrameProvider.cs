@@ -41,6 +41,9 @@ internal class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider, IEv
     // they actually map, whatever order the integrations were registered in
     public bool IsCatchAll => true;
 
+    // GH-5572
+    public SagaRetentionSupport SagaRetentionSupportFor(Type sagaType, IServiceContainer container) => SagaRetentionSupport.Ignored;
+
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
         persistenceService = typeof(IInMemoryDocumentSession);

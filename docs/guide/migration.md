@@ -39,10 +39,27 @@ list.
 | Wolverine's OpenTelemetry `Meter` name | `Wolverine:{ServiceName}`, so only `AddMeter("Wolverine*")` collected it | exactly `Wolverine` *(BREAKING for exact-name meter filters)* | `AddMeter("Wolverine")` now works; `AddMeter("Wolverine*")` keeps working. See [meter and metric names](#opentelemetry-meter-and-metric-names-breaking) |
 | Wolverine metric instrument names | dashed (`wolverine-messages-sent`) | dotted (`wolverine.messages.sent`) *(BREAKING for dashboards and alerts)* | Rename the series in dashboards, alerts and recording rules; see [the full table](#opentelemetry-meter-and-metric-names-breaking) |
 | `WolverineOptions.ServiceName` default | the entry assembly name | `OTEL_SERVICE_NAME` when set, then the entry assembly name | None, unless a service relied on the assembly name while `OTEL_SERVICE_NAME` was set to something else: set `opts.ServiceName` explicitly |
+| `Saga.CompletedAt`, `[RetainWhenCompleted]`, `opts.Policies.RetainCompletedSagas()` | not there | completed sagas can be kept for a retention period; off by default. New nullable `completed_at` column on every lightweight saga table *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga CompletedAt](#saga-completedat-and-retaining-completed-sagas) |
 | `Saga.LastModified` | not there | new `DateTimeOffset` property on the base `Saga`, set to UTC now by every saga store on insert and update *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga LastModified](#saga-lastmodified-is-set-by-every-saga-store) |
+| Roslyn analyzers | none | **`WolverineFx.Analyzers`**, a dependency of `WolverineFx`: rules `WOLV0001`-`WOLV0004`, all warnings, on by default | Fix what they report, or lower a rule's severity in `.editorconfig` (`dotnet_diagnostic.WOLV0004.severity = none`). Builds that treat warnings as errors fail on them; see [Wolverine's analyzers](#wolverine-s-analyzers-are-on-by-default) |
 | Code generation in the `Production` profile (Wolverine hosts) | `TypeLoadMode.Dynamic`: compiled at runtime | `TypeLoadMode.Static` with `AssertAllPreGeneratedTypesExist`: pre-generated code is required *(BREAKING for applications that deploy without `codegen write`)* | Run `dotnet run -- codegen write` in the build, or call `RestoreV6Defaults()`. See [deploying 7.0 to production](#deploying-7-0-to-production) |
 | Transport timestamp headers (`sent-at`, `time-to-send`, `deliver-by`) | written as `yyyy-MM-dd HH:mm:ss:ffffff Z` | written in round-trip ISO 8601 (`"o"`, UTC); both formats are still read | 5.x nodes running beside 7.0 nodes need WolverineFx 5.41.1 or later; 6.x already reads both. See [transport timestamp headers](#transport-timestamp-headers-are-written-in-round-trip-iso-8601) |
 | Publishing to a full durable local queue | once the queue held 10,000 messages, a publish to it, and the flush after a committed transaction, waited for room in the queue | the message waits in the inbox and the durability agent moves it into the queue as the queue drains; the publisher does not wait | None. See [a full durable local queue no longer holds the publisher](#a-full-durable-local-queue-no-longer-holds-the-publisher) |
+
+### Wolverine's analyzers are on by default
+
+`WolverineFx` now depends on `WolverineFx.Analyzers`, a set of Roslyn analyzers for Wolverine's handler, saga and
+testing conventions. They report warnings, so a project that treats warnings as errors fails to build on whatever
+they find. Every rule is meant to report real mistakes only, but you can lower or turn off any of them in
+`.editorconfig`:
+
+```ini
+[*.cs]
+dotnet_diagnostic.WOLV0001.severity = suggestion
+dotnet_diagnostic.WOLV0004.severity = none
+```
+
+See [Analyzers](/guide/analyzers/) for the rules.
 
 ### Kafka transport now runs on Dekaf (BREAKING)
 
@@ -486,9 +503,9 @@ The other relational stores keep their unpartitioned inbox and only use the part
 `EnableInboxPartitioning = true` explicitly, as in 6.x.
 
 **An existing inbox is rebuilt on the first 7.0 start.** PostgreSQL cannot partition a table in place, so with
-`AutoCreate.CreateOrUpdate` the first 7.0 node to start changes the inbox's primary key, copies the table aside, drops
-it, creates it again partitioned and copies the rows back, in one transaction. Main database and every tenant database
-alike. The primary key change takes an `ACCESS EXCLUSIVE` lock first, so the copy sees every committed row and **every
+`AutoCreate.CreateOrUpdate` the first 7.0 node to start copies the table aside, drops it, creates it again partitioned
+and copies the rows back, in one transaction. Main database and every tenant database alike. The transaction takes an
+`ACCESS EXCLUSIVE` lock on the inbox first, so the copy sees every committed row and **every
 read and write of the inbox waits until the rebuild commits**. That takes as long as the copies take, so it grows with
 the number of rows, including the Handled rows kept for `KeepAfterMessageHandling`. As a guide, an inbox of 100,000
 rows with 500-byte bodies was rebuilt in well under a second on a laptop's PostgreSQL in Docker. Wolverine serializes its
@@ -725,8 +742,12 @@ What each store needs from you:
 |---|---|---|
 | Marten | none; the property is also mapped to Marten's own `mt_last_modified` column | loaded with their `mt_last_modified` value |
 | Lightweight saga tables (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) | none; every table already had a `last_modified` column. It is now written with the property's value | PostgreSQL, SQL Server, MySQL and SQLite load the column into the property. Oracle reads `default(DateTimeOffset)` until the saga's next update |
-| EF Core | **yes**: the base-class property becomes a mapped column in your `DbContext`. Add an EF Core migration for it, or `modelBuilder.Entity<MySaga>().Ignore(x => x.LastModified)` to keep the old schema (the property is still set in memory) | the column's value from your migration's default (or `default(DateTimeOffset)`) until the saga's next update |
+| EF Core | **yes**: the base-class property becomes a mapped column in your `DbContext`. With `UseEntityFrameworkCoreWolverineManagedMigrations()`, Wolverine adds the column to the existing table at startup. With EF Core migrations, add a migration for it, or `modelBuilder.Entity<MySaga>().Ignore(x => x.LastModified)` to keep the old schema (the property is still set in memory) | `DateTimeOffset.MinValue`, the column's default, until the saga's next update |
 | Polecat, Fisher, RavenDb, CosmosDb, Redis, Azure Blob Storage, Amazon S3, in-memory | none; the value is saved with the rest of the saga | `default(DateTimeOffset)` until the saga's next update |
+
+On EF Core, Wolverine gives the mapped `LastModified` column a default of `DateTimeOffset.MinValue` (unless you
+configured a default yourself), so the column can be added to a table that already has rows (GH-5636). Your next EF
+Core migration picks that default up.
 
 On EF Core, a saga that is loaded and saved again is now always written: setting `LastModified` makes the entity
 `Modified`, which also increments `Version`. Before 7.0, a message that changed nothing on the saga left the row and
@@ -751,6 +772,22 @@ asks.
 A `Saga` that declares only `NotFound` (or the new `IdNotProvided`) for a message type now loads the saga for that
 message like any other, and calls `NotFound` when it is missing. Before 7.0 such a message never reached `NotFound`:
 it created and saved a new, empty saga instead.
+
+### `Saga.CompletedAt` and retaining completed sagas
+
+7.0 can keep completed sagas for a while instead of deleting them (GH-5572), with `[RetainWhenCompleted]` on a saga
+type or `opts.Policies.RetainCompletedSagas()` for all of them. See [keeping completed sagas](/guide/durability/sagas#keeping-completed-sagas).
+It is off by default, and with it off completed sagas are deleted as before. Whether or not you use it, the base `Saga`
+type has a new `public DateTimeOffset? CompletedAt { get; set; }`, and:
+
+| Store | Schema change |
+|---|---|
+| Lightweight saga tables (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) | a nullable `completed_at` column on every saga table, added by the usual migration |
+| EF Core | **yes**: the base-class property becomes a mapped column in your `DbContext`. Add an EF Core migration for it, or `Ignore(x => x.CompletedAt)` if you will not retain that saga type |
+| Marten, Polecat, Fisher, RavenDb, CosmosDb, Redis, Azure Blob Storage, Amazon S3, in-memory | none; the value is saved with the rest of the saga |
+
+If a saga type of yours already declares its own `CompletedAt`, it now hides the base property (compiler warning
+CS0108). Rename yours before retaining that saga type.
 
 ### Obsolete in 7.0
 
@@ -879,6 +916,8 @@ the main message database and every tenant database. Everything it adds is addit
 * the dead letter `expires` column and its index
   ([dead letter expiration](#scheduled-messages-inbox-partitioning-dead-letter-expiration-and-stale-times-in-7-0))
 * an index on `last_modified` for every lightweight saga table (PostgreSQL, SQL Server, MySQL, SQLite, Oracle)
+* a nullable `completed_at` column on every lightweight saga table
+  ([retaining completed sagas](#saga-completedat-and-retaining-completed-sagas))
 * the nullable dead letter `saga_id` column and its index
   ([saga ids on dead letters](/guide/durability/dead-letter-storage#finding-a-saga-s-dead-letters)). This one is
   not behind a flag, so `RestoreV6Defaults()` does not avoid it
@@ -897,7 +936,7 @@ Before the first 7.0 node starts:
 
 `RestoreV6Defaults()` turns off the deduplication tables, the optional schema objects, the dead letter expiration
 column and inbox partitioning, so it avoids all of this except the SQLite queue indexes, the saga `last_modified`
-indexes and the dead letter `saga_id` column.
+indexes, the saga `completed_at` column and the dead letter `saga_id` column.
 
 ### Transport timestamp headers are written in round-trip ISO 8601
 

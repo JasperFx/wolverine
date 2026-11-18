@@ -66,8 +66,9 @@ The credential manages its own token refresh lifecycle, so no additional backgro
 
 ## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
 
-Let's say you're developing locally under [.NET Aspire](/guide/aspire) against a Pub/Sub emulator like the
-CommunityToolkit Floci GCP emulator. Your AppHost declares the emulator and references it from your Wolverine
+Let's say you're developing locally under [.NET Aspire](/guide/aspire) against a Pub/Sub emulator, either the gcloud
+emulator from Wolverine's own hosting integration ([see below](#running-the-pub-sub-emulator-from-an-aspire-apphost))
+or the CommunityToolkit Floci GCP emulator. Your AppHost declares the emulator and references it from your Wolverine
 service:
 
 ```csharp
@@ -90,7 +91,7 @@ and you tell Wolverine that name along with your project id:
 opts.UsePubsubUsingNamedConnection("wolverine", "gcp")
     .AutoProvision();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/named_connection_5126.cs#L161-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/named_connection_5126.cs#L163-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_using_named_connection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The value can be a URL (`http://host:port`, or `https://host:port` for TLS) or a bare `host:port` in the same format as
@@ -111,13 +112,78 @@ There's a named broker version as well:
 opts.AddNamedPubsubBrokerUsingNamedConnection(new BrokerName("secondary"), "wolverine-named", "gcp2")
     .AutoProvision();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/named_connection_5126.cs#L170-L177' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/named_connection_5126.cs#L172-L179' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
 This is strictly for the Pub/Sub emulator. Production Google Cloud Pub/Sub doesn't have a connection string, so use
 `UsePubsub(projectId)` there.
 :::
+
+### Running the Pub/Sub emulator from an Aspire AppHost <Badge type="tip" text="7.0" />
+
+Wolverine has its own Aspire hosting integration for the gcloud Pub/Sub emulator in the
+`WolverineFx.Aspire.Hosting.Pubsub` Nuget. Add that to your AppHost project (not to your service), and
+`AddPubsubEmulator()` runs the emulator in a container:
+
+<!-- snippet: sample_aspire_pubsub_apphost -->
+<a id='snippet-sample_aspire_pubsub_apphost'></a>
+```cs
+using Wolverine.Aspire.Hosting;
+
+var builder = DistributedApplication.CreateBuilder(args);
+
+// The gcloud Pub/Sub emulator in a container, started for the "wolverine" project. The name
+// "pubsub" becomes the connection string injected into every project that references it,
+// ConnectionStrings__pubsub, and its value is the emulator's endpoint, {host}:{port}
+var pubsub = builder.AddPubsubEmulator("pubsub", projectId: "wolverine");
+
+builder.AddProject<Projects.AspireWithPubsub_Pinger>("pinger")
+    // Also sets PUBSUB_EMULATOR_HOST and PUBSUB_PROJECT_ID for any Google client the
+    // project builds itself
+    .WithReference(pubsub)
+    // The pinger does not start until the emulator answers
+    .WaitFor(pubsub)
+    .WithHttpHealthCheck("/health");
+
+await builder.Build().RunAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithPubsub/AppHost/Program.cs#L1-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_pubsub_apphost' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Any project that references the emulator gets its endpoint, `{host}:{port}`, as the connection string with the
+resource's name, and `WaitFor()` holds the project back until the emulator answers. In the service, pass the same
+project id to the named connection:
+
+<!-- snippet: sample_aspire_pubsub_service_setup -->
+<a id='snippet-sample_aspire_pubsub_service_setup'></a>
+```cs
+var builder = WebApplication.CreateBuilder(args);
+
+// The shared Aspire service defaults: OpenTelemetry for Wolverine, exported to the Aspire
+// dashboard, plus the default health checks
+builder.AddServiceDefaults();
+
+builder.UseWolverine(opts =>
+{
+    // Reads the "pubsub" connection string, which the AppHost's AddPubsubEmulator("pubsub") +
+    // WithReference(pubsub) injected as the emulator's endpoint. The project id is the one the
+    // AppHost started the emulator with.
+    opts.UsePubsubUsingNamedConnection("wolverine", "pubsub")
+        .AutoProvision();
+
+    opts.PublishMessage<Ping>().ToPubsubTopic("pings");
+    opts.ListenToPubsubTopic("pings");
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithPubsub/Pinger/Program.cs#L5-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_pubsub_service_setup' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`WithReference()` also sets `PUBSUB_EMULATOR_HOST` and `PUBSUB_PROJECT_ID` in the project, the same two variables
+`gcloud beta emulators pubsub env-init` gives you, for any Google client your service builds for itself. The project
+id is `wolverine` unless you pass another one to `AddPubsubEmulator()`, and the emulator runs on a random host port
+unless you pass `port`. It's the same `gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators` image Wolverine's own
+tests use. There's a working sample in `src/Samples/AspireWithPubsub`.
 
 See [Aspire Integration](/guide/aspire) for the full picture.
 

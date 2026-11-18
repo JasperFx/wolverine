@@ -1,0 +1,28 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.5">
+
+  <!-- Keep the SDK version above and the Aspire.Hosting.* versions in the root
+       Directory.Packages.props on the same Aspire release. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- One-entry TargetFrameworks, never TargetFramework (GH-5622, VerifyProjectReferenceFrameworks). Beside the root
+         Directory.Build.props' net10.0;net11.0 list, a TargetFramework makes `dotnet run` (how you start an AppHost,
+         and how an AppHost starts a project) refuse the project with "Your project targets multiple frameworks"
+         (GH-5624), and a reference to it builds a second instance of it beside the pinned solution build. -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- ASPIRE010: this sample runs with `dotnet run` on the dashboard and orchestrator packages the
+         SDK references for us, not the Aspire CLI bundle -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WolverineFx.Aspire.Hosting.Pulsar as a NuGet package in your own AppHost. It is a library, not a
+         service, so it is not an Aspire project resource. -->
+    <ProjectReference Include="../../../Transports/Pulsar/Wolverine.Aspire.Hosting.Pulsar/Wolverine.Aspire.Hosting.Pulsar.csproj"
+                      IsAspireProjectResource="false" />
+    <ProjectReference Include="../Pinger/AspireWithPulsar.Pinger.csproj" />
+  </ItemGroup>
+
+</Project>

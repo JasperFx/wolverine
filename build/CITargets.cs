@@ -1354,6 +1354,22 @@ partial class Build
             RunTestProjects([ravenDbTests, leaderElectionTests], frameworkOverride: "net10.0");
         });
 
+    /// <summary>
+    /// GH-5603/5604/5605: Wolverine's Aspire hosting integrations (WolverineFx.Aspire.Hosting.*). Each test starts a
+    /// sample AppHost through Aspire.Hosting.Testing, so the broker or emulator runs in a container Aspire starts
+    /// on random host ports. No docker-compose service is needed or touched.
+    /// </summary>
+    Target CIAspireHosting => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Testing" / "Wolverine.Aspire.Hosting.Tests" / "Wolverine.Aspire.Hosting.Tests.csproj";
+
+            BuildTestProjects(tests);
+
+            RunTestProject(tests);
+        });
+
     Target CIGrpc => _ => _
         .ProceedAfterFailure()
         .Executes(() =>

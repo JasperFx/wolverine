@@ -81,6 +81,10 @@ public class SagaChain : HandlerChain
                 $"Command types cannot be handled by multiple saga types. Message {MessageType.FullNameInCode()} is handled by sagas {handlerTypes}",
                 e);
         }
+
+        // GH-5572. Refused here, while the handler graph is built at startup, rather than when the chain first
+        // generates its code
+        SagaRetention.AssertCompletedAtIsNotHidden(SagaType, options);
     }
 
     public SagaChain(HandlerCall handlerCall, HandlerGraph handlerGraph, Endpoint[] endpoints) : base(handlerCall, handlerGraph)
@@ -127,6 +131,14 @@ public class SagaChain : HandlerChain
     /// GH-4484. The saga's IdNotProvided methods for this message type
     /// </summary>
     public MethodCall[] IdNotProvidedCalls { get; set; } = [];
+
+    /// <summary>
+    /// GH-5572. How long completed instances of this chain's saga type are kept, or null when they are deleted on
+    /// completion. Known once the chain has generated its code.
+    /// </summary>
+    public TimeSpan? CompletedSagaRetention { get; private set; }
+
+    private bool retainsCompletedSagas => CompletedSagaRetention.HasValue;
 
     /// <summary>
     /// GH-5331. Every saga handler method on this chain, whether or not the chain has compiled.
@@ -212,6 +224,8 @@ public class SagaChain : HandlerChain
 
         frameProvider.ApplyTransactionSupport(this, container);
 
+        CompletedSagaRetention = determineRetention(frameProvider, container);
+
         NotFoundCalls = findByNames(NotFound);
         IdNotProvidedCalls = findByNames(IdNotProvided);
 
@@ -255,6 +269,30 @@ public class SagaChain : HandlerChain
             .ToList();
     }
 
+    private TimeSpan? determineRetention(IPersistenceFrameProvider frameProvider, IServiceContainer container)
+    {
+        var options = container.Services.GetService(typeof(WolverineOptions)) as WolverineOptions;
+        SagaRetention.AssertCompletedAtIsNotHidden(SagaType, options);
+
+        var explicitRetention = SagaRetention.ExplicitFor(SagaType);
+        var retention = explicitRetention ?? options?.Durability.CompletedSagaRetention;
+        if (retention == null) return null;
+
+        switch (frameProvider.SagaRetentionSupportFor(SagaType, container))
+        {
+            case SagaRetentionSupport.Supported:
+                return retention;
+
+            case SagaRetentionSupport.NotSupported when explicitRetention.HasValue:
+                throw new InvalidSagaException(
+                    $"Saga type {SagaType.FullNameInCode()} is marked with [{nameof(RetainWhenCompletedAttribute)}], but its storage ({frameProvider.GetType().FullNameInCode()}) cannot retain completed sagas. Retention works with the lightweight database saga tables, Marten, Polecat, Fisher, EF Core, RavenDB and CosmosDB.");
+
+            // The global policy only applies where it can, and a saga kept in memory does not outlive the process anyway
+            default:
+                return null;
+        }
+    }
+
     private void generateCodeForMaybeExisting(IServiceContainer container, IPersistenceFrameProvider frameProvider,
         List<Frame> frames, MessageVariable? messageVariable = null)
     {
@@ -279,6 +317,15 @@ public class SagaChain : HandlerChain
 
         var startingFrames = DetermineSagaDoesNotExistSteps(sagaId, saga, frameProvider, container).ToArray();
         var existingFrames = DetermineSagaExistsSteps(sagaId, saga, frameProvider, container, messageVariable).ToArray();
+
+        if (retainsCompletedSagas)
+        {
+            // GH-5572: a completed saga of a retained type is still in storage, but must never reach Handle
+            var completedFrames = DetermineRetainedSagaCompletedSteps(sagaId, saga).ToArray();
+            frames.Add(new RetainedSagaGuardFrame(saga, startingFrames, completedFrames, existingFrames));
+            return;
+        }
+
         var ifNullBlock = new IfElseNullGuardFrame(saga, startingFrames,
             existingFrames);
 
@@ -310,7 +357,12 @@ public class SagaChain : HandlerChain
 
         var startingFrames = DetermineSagaDoesNotExistSteps(guard.SagaId, guard.Saga, frameProvider, container).ToArray();
         var existingFrames = DetermineSagaExistsSteps(guard.SagaId, guard.Saga, frameProvider, container, messageVariable).ToArray();
-        guard.WhenTheIdIsKnown(new IfElseNullGuardFrame(guard.Saga, startingFrames, existingFrames));
+
+        // GH-5572: as in generateCodeForMaybeExisting, a retained completed saga never reaches Handle
+        guard.WhenTheIdIsKnown(retainsCompletedSagas
+            ? new RetainedSagaGuardFrame(guard.Saga, startingFrames,
+                DetermineRetainedSagaCompletedSteps(guard.SagaId, guard.Saga).ToArray(), existingFrames)
+            : new IfElseNullGuardFrame(guard.Saga, startingFrames, existingFrames));
 
         frames.Add(guard);
     }
@@ -346,8 +398,47 @@ public class SagaChain : HandlerChain
                 frames.Add(frame);
         }
 
-        var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container);
+        var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container, retainsCompletedSagas);
         frames.Add(ifNotCompleted);
+    }
+
+    /// <summary>
+    /// GH-5572. What happens to a message for a retained saga that has already completed: the same as for a saga
+    /// that does not exist, except that it never starts a new saga over the completed one, which keeps its id.
+    /// </summary>
+    internal IEnumerable<Frame> DetermineRetainedSagaCompletedSteps(Variable sagaId, Variable saga)
+    {
+        if (MessageType.CanBeCastTo<TimeoutMessage>())
+        {
+            yield return new ReturnFrame();
+            yield break;
+        }
+
+        if (NotFoundCalls.Length != 0)
+        {
+            // The not-found branch may already use these calls, and a frame can only appear once
+            foreach (var original in NotFoundCalls)
+            {
+                var call = new MethodCall(original.HandlerType, original.Method)
+                {
+                    CommentText = original.CommentText
+                };
+                foreach (var alias in original.Aliases) call.Aliases[alias.Key] = alias.Value;
+
+                call.TrySetArgument(sagaId);
+                yield return call;
+                foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction(this).Frames())) yield return frame;
+            }
+        }
+        else if (StartingCalls.Length != 0)
+        {
+            yield return new SkipStartOfCompletedSagaFrame(SagaType, sagaId);
+            yield return new ReturnFrame();
+        }
+        else
+        {
+            yield return new AssertSagaStateExistsFrame(saga, sagaId);
+        }
     }
 
     internal IEnumerable<Frame> DetermineSagaDoesNotExistSteps(Variable sagaId, Variable saga,
@@ -376,7 +467,7 @@ public class SagaChain : HandlerChain
                 }
             }
 
-            var ifNotCompleted = buildFrameForConditionalInsert(saga, frameProvider, container);
+            var ifNotCompleted = buildFrameForConditionalInsert(saga, frameProvider, container, retainsCompletedSagas);
             yield return ifNotCompleted;
         }
         else if (NotFoundCalls.Length != 0)
@@ -395,11 +486,11 @@ public class SagaChain : HandlerChain
     }
 
     private static Frame buildFrameForConditionalInsert(Variable saga, IPersistenceFrameProvider frameProvider,
-        IServiceContainer container)
+        IServiceContainer container, bool retain)
     {
         var insert = frameProvider.DetermineInsertFrame(saga, container);
         var commit = frameProvider.CommitUnitOfWorkFrame(saga, container);
-        return new ConditionalSagaInsertFrame(saga, insert, commit);
+        return new ConditionalSagaInsertFrame(saga, insert, commit, retain);
     }
 
     internal IEnumerable<Frame> DetermineSagaExistsSteps(Variable sagaId, Variable saga,
@@ -428,7 +519,7 @@ public class SagaChain : HandlerChain
         var update = frameProvider.DetermineUpdateFrame(saga, container);
         var delete = frameProvider.DetermineDeleteFrame(sagaId, saga, container);
 
-        yield return new SagaStoreOrDeleteFrame(saga, update, delete);
+        yield return new SagaStoreOrDeleteFrame(saga, update, delete, retainsCompletedSagas);
 
         yield return frameProvider.CommitUnitOfWorkFrame(saga, container);
     }

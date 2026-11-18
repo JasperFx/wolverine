@@ -398,6 +398,7 @@
       "path": "src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj",
       "ciTargets": "CIAzureServiceBus, CIAzureServiceBusLeader, CIAzureServiceBusRouting",
       "workers": 1,
+      "optIn": true,
       "postgres": "OwnDatabase",
       "services": [
         "postgresql",
@@ -507,6 +508,14 @@
       "name": "Wolverine.Grpc.Tests",
       "path": "src/Wolverine.Grpc.Tests/Wolverine.Grpc.Tests.csproj",
       "ciTargets": "CIGrpc",
+      "workers": 1,
+      "services": [],
+      "tracks": []
+    },
+    {
+      "name": "Wolverine.Aspire.Hosting.Tests",
+      "path": "src/Testing/Wolverine.Aspire.Hosting.Tests/Wolverine.Aspire.Hosting.Tests.csproj",
+      "ciTargets": "CIAspireHosting",
       "workers": 1,
       "services": [],
       "tracks": []

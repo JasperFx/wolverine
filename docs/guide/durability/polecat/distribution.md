@@ -50,6 +50,13 @@ Some other facts about this integration:
 * Wolverine is able to support blue/green deployment
 * This capability depends on Wolverine's built-in leadership election
 
+## Which databases does this node own? <Badge type="tip" text="7.0" />
+
+`runtime.LocallyOwnedDatabases()` works the same way with Polecat as it does with
+[Marten](/guide/durability/marten/distribution#which-databases-does-this-node-own). Pass the Polecat database to
+`Contains()` (the extension method is in the `Wolverine.Polecat` namespace) so the database `Id` is what gets compared.
+Under `Serverless`, `ServerlessWithOutbox` and `MediatorOnly` no agents run, so the answer is always `IsNone`.
+
 ## Uri Structure
 
 The `Uri` structure for event subscriptions or projections is:

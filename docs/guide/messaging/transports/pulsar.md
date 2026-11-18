@@ -77,7 +77,7 @@ from `ConnectionStrings:<name>` at startup:
 // the "pulsar" connection string in IConfiguration
 opts.UsePulsarUsingNamedConnection("pulsar");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/named_connection_5126.cs#L142-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/named_connection_5126.cs#L145-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_using_named_connection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The value is a Pulsar service URL like `pulsar://localhost:6650` or `pulsar+ssl://broker:6651`, and a bare
@@ -91,17 +91,68 @@ connecting to more than one Pulsar cluster, there's a named broker version too:
 // A second Pulsar broker, whose service URL comes from the "pulsar2" connection string
 opts.AddNamedPulsarBrokerUsingNamedConnection(new BrokerName("secondary"), "pulsar2");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/named_connection_5126.cs#L150-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/named_connection_5126.cs#L153-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_named_broker_using_named_connection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-::: info
-There isn't an Aspire hosting integration for Pulsar as of this writing, but you can still declare the connection
-string in your AppHost with `builder.AddConnectionString("pulsar")` and reference it from your service with
-`.WithReference()` like any other resource. To run the broker itself from the AppHost, add Pulsar's standalone
-image as a plain container, for example `builder.AddContainer("pulsar", "apachepulsar/pulsar").WithArgs("bin/pulsar", "standalone").WithEndpoint(6650, 6650, scheme: "pulsar", name: "broker")`,
-and hand the service a connection string like `pulsar://localhost:6650`. The community toolkit repository doesn't
-have a Pulsar package yet.
-:::
+### Running Pulsar from an Aspire AppHost <Badge type="tip" text="7.0" />
+
+Wolverine has its own Aspire hosting integration for Pulsar in the `WolverineFx.Aspire.Hosting.Pulsar` Nuget. Add that
+to your AppHost project (not to your service), and `AddPulsar()` runs a Pulsar broker as `bin/pulsar standalone` in a
+container:
+
+<!-- snippet: sample_aspire_pulsar_apphost -->
+<a id='snippet-sample_aspire_pulsar_apphost'></a>
+```cs
+using Wolverine.Aspire.Hosting;
+
+var builder = DistributedApplication.CreateBuilder(args);
+
+// A Pulsar broker, run as `bin/pulsar standalone` in a container. The name "pulsar" becomes the
+// connection string injected into every project that references it, ConnectionStrings__pulsar,
+// and its value is the broker's service URL, pulsar://{host}:{port}
+var pulsar = builder.AddPulsar("pulsar");
+
+builder.AddProject<Projects.AspireWithPulsar_Pinger>("pinger")
+    .WithReference(pulsar)
+    // The pinger does not start until the broker's health endpoint answers
+    .WaitFor(pulsar)
+    .WithHttpHealthCheck("/health");
+
+await builder.Build().RunAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithPulsar/AppHost/Program.cs#L1-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_pulsar_apphost' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Any project that references the broker gets its service URL, `pulsar://{host}:{port}`, as the connection string with
+the resource's name, and `WaitFor()` holds the project back until the broker's health endpoint answers. Over in the
+service, it's just the named connection from above:
+
+<!-- snippet: sample_aspire_pulsar_service_setup -->
+<a id='snippet-sample_aspire_pulsar_service_setup'></a>
+```cs
+var builder = WebApplication.CreateBuilder(args);
+
+// The shared Aspire service defaults: OpenTelemetry for Wolverine, exported to the Aspire
+// dashboard, plus the default health checks
+builder.AddServiceDefaults();
+
+builder.UseWolverine(opts =>
+{
+    // Reads the "pulsar" connection string, which the AppHost's AddPulsar("pulsar") +
+    // WithReference(pulsar) injected as the broker's service URL
+    opts.UsePulsarUsingNamedConnection("pulsar");
+
+    opts.PublishMessage<Ping>().ToPulsarTopic("persistent://public/default/pings");
+    opts.ListenToPulsarTopic("persistent://public/default/pings");
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithPulsar/Pinger/Program.cs#L5-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_pulsar_service_setup' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The broker runs the same `apachepulsar/pulsar` image Wolverine's own tests use, on random host ports unless you pass
+`port` and `adminPort` to `AddPulsar()`. A referencing project also gets the URL of Pulsar's admin REST API as the
+`{NAME}_ADMINURL` environment variable (`PULSAR_ADMINURL` for a resource named "pulsar") if you need to call it
+yourself. There's a working sample in `src/Samples/AspireWithPulsar`.
 
 See [Aspire Integration](/guide/aspire) for the full picture.
 

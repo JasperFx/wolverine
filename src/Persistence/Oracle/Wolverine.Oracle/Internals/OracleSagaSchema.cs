@@ -49,9 +49,9 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
         var tableName = definition.TableName.ToUpperInvariant();
 
         _insertSql =
-            $"INSERT INTO {schemaName}.{tableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}) VALUES (:id, :body, 1)";
+            $"INSERT INTO {schemaName}.{tableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}, {SagaTableIndexes.CompletedAtColumn}) VALUES (:id, :body, 1, :completed_at)";
         _updateSql =
-            $"UPDATE {schemaName}.{tableName} SET {DatabaseConstants.Body} = :body, {DatabaseConstants.Version} = :version + 1, last_modified = SYSTIMESTAMP AT TIME ZONE 'UTC' WHERE {DatabaseConstants.Id} = :id AND {DatabaseConstants.Version} = :version";
+            $"UPDATE {schemaName}.{tableName} SET {DatabaseConstants.Body} = :body, {DatabaseConstants.Version} = :version + 1, last_modified = SYSTIMESTAMP AT TIME ZONE 'UTC', {SagaTableIndexes.CompletedAtColumn} = :completed_at WHERE {DatabaseConstants.Id} = :id AND {DatabaseConstants.Version} = :version";
         _loadSql =
             $"SELECT body, version FROM {schemaName}.{tableName} WHERE {DatabaseConstants.Id} = :id";
 
@@ -86,6 +86,9 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
         table.AddColumn(DatabaseConstants.Version, "NUMBER(10)").DefaultValue(1).NotNull();
         table.AddColumn<DateTimeOffset>("created").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'").NotNull();
         table.AddColumn<DateTimeOffset>("last_modified").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE 'UTC'").NotNull();
+
+        // GH-5572: when a retained saga completed
+        table.AddColumn<DateTimeOffset>(SagaTableIndexes.CompletedAtColumn).AllowNulls();
 
         // GH-5558: "sagas idle for more than N days" filters on last_modified
         table.Indexes.Add(new IndexDefinition(SagaTableIndexes.LastModifiedIndexName(tableName, 128))
@@ -140,6 +143,8 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
         await using var cmd = ((OracleConnection)transaction.Connection!).CreateCommand(_insertSql, (OracleTransaction)transaction);
         addIdParameter(cmd, "id", id);
         cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Clob) { Value = JsonSerializer.Serialize(saga, _settings.SagaSerializerOptions) });
+        cmd.Parameters.Add(new OracleParameter("completed_at", OracleDbType.TimeStampTZ)
+            { Value = (object?)saga.CompletedAt ?? DBNull.Value });
         await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         saga.Version = 1;
@@ -155,6 +160,8 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
 
         await using var cmd = ((OracleConnection)transaction.Connection!).CreateCommand(_updateSql, (OracleTransaction)transaction);
         cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Clob) { Value = JsonSerializer.Serialize(saga, _settings.SagaSerializerOptions) });
+        cmd.Parameters.Add(new OracleParameter("completed_at", OracleDbType.TimeStampTZ)
+            { Value = (object?)saga.CompletedAt ?? DBNull.Value });
         addIdParameter(cmd, "id", id);
         cmd.With("version", saga.Version);
         var count = await cmd.ExecuteNonQueryAsync(cancellationToken);

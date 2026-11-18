@@ -144,7 +144,7 @@ public class sticky_handlers_with_global_partitioning
 
         // Don't use tracked session since the duplicate execution causes tracking to hang.
         // Instead just publish and wait.
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         await bus.PublishAsync(message);
 
         // Wait for handlers to process

@@ -29,6 +29,7 @@ public class WolverineModelCustomizer : RelationalModelCustomizer
         }
 
         markSagaIdentifiersAsApplicationAssigned(modelBuilder);
+        giveSagaLastModifiedADefault(modelBuilder);
     }
 
     // Resolves through the application service provider (like EF's own throwing
@@ -74,5 +75,30 @@ public class WolverineModelCustomizer : RelationalModelCustomizer
             }
         }
     }
-}
 
+    // GH-5636. Wolverine 7.0 added Saga.LastModified, a non-nullable DateTimeOffset, so EF Core maps it as a NOT NULL
+    // column with no default. Weasel cannot add a column like that to an existing table that has rows, so a saga table
+    // a 6.x application created through Wolverine-managed migrations stopped the 7.0 host from starting. With a
+    // default, the column can be added. The default is DateTimeOffset.MinValue, which is what the property reads as
+    // for a row written before 7.0 (see Saga.LastModified): a row Wolverine never touched since the upgrade is the
+    // oldest there is, not one modified just now. Wolverine sets LastModified on every insert and update, so the
+    // default never applies to a row it writes. A default the application configured itself is left alone.
+    private static void giveSagaLastModifiedADefault(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (!entityType.ClrType.CanBeCastTo<Saga>()) continue;
+
+            var property = entityType.FindProperty(nameof(Saga.LastModified));
+            if (property == null || property.ClrType != typeof(DateTimeOffset)) continue;
+
+            if (property.GetDefaultValueSql() != null || property.TryGetDefaultValue(out _) ||
+                property.GetComputedColumnSql() != null)
+            {
+                continue;
+            }
+
+            property.SetDefaultValue(DateTimeOffset.MinValue);
+        }
+    }
+}

@@ -111,9 +111,10 @@ await host.StartAsync();
 
 ## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
 
-Let's say you're developing locally under [.NET Aspire](/guide/aspire) against an AWS emulator. The LocalStack
-(`AddLocalStack()`) and CommunityToolkit Floci (`AddFlociAws()`) hosting integrations put the emulator's service URL,
-something like `http://localhost:4566`, at `ConnectionStrings:<resource name>`:
+Let's say you're developing locally under [.NET Aspire](/guide/aspire) against an AWS emulator. Wolverine's own
+LocalStack hosting integration (`AddLocalStack()`, [see below](#running-localstack-from-an-aspire-apphost)) and the
+CommunityToolkit Floci one (`AddFlociAws()`) put the emulator's service URL, something like `http://localhost:4566`, at
+`ConnectionStrings:<resource name>`:
 
 ```csharp
 // In the AppHost
@@ -181,6 +182,85 @@ to pick out something like a keyed service, and `AddNamedAmazonSqsBrokerWithClie
 does the same thing for a named broker.
 
 See [Aspire Integration](/guide/aspire) for the full picture.
+
+### Running LocalStack from an Aspire AppHost <Badge type="tip" text="7.0" />
+
+Wolverine has its own Aspire hosting integration for LocalStack in the `WolverineFx.Aspire.Hosting.LocalStack` Nuget.
+Add that to your AppHost project (not to your service), and `AddLocalStack()` runs LocalStack with the SQS and SNS
+services in a container:
+
+<!-- snippet: sample_aspire_localstack_apphost -->
+<a id='snippet-sample_aspire_localstack_apphost'></a>
+```cs
+using Wolverine.Aspire.Hosting;
+
+var builder = DistributedApplication.CreateBuilder(args);
+
+// LocalStack running SQS and SNS in a container. The name "aws" becomes the connection string
+// injected into every project that references it, ConnectionStrings__aws, and its value is the
+// emulator's endpoint, http://{host}:{port}
+var aws = builder.AddLocalStack("aws");
+
+builder.AddProject<Projects.AspireWithLocalStack_Pinger>("pinger")
+    // Also sets AWS_ENDPOINT_URL, AWS_REGION and placeholder credentials, so any AWS SDK client
+    // the project builds itself talks to LocalStack as well
+    .WithReference(aws)
+    // The pinger does not start until LocalStack's health endpoint answers
+    .WaitFor(aws)
+    .WithHttpHealthCheck("/health");
+
+await builder.Build().RunAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithLocalStack/AppHost/Program.cs#L1-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_localstack_apphost' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Any project that references it gets LocalStack's endpoint as the connection string with the resource's name, and
+`WaitFor()` holds the project back until LocalStack's health endpoint answers. The SQS and SNS transports in the
+service just use that name:
+
+<!-- snippet: sample_aspire_localstack_service_setup -->
+<a id='snippet-sample_aspire_localstack_service_setup'></a>
+```cs
+var builder = WebApplication.CreateBuilder(args);
+
+// The shared Aspire service defaults: OpenTelemetry for Wolverine, exported to the Aspire
+// dashboard, plus the default health checks
+builder.AddServiceDefaults();
+
+builder.UseWolverine(opts =>
+{
+    // Both read the "aws" connection string, which the AppHost's AddLocalStack("aws") +
+    // WithReference(aws) injected as LocalStack's endpoint
+    opts.UseAmazonSqsTransportUsingNamedConnection("aws").AutoProvision();
+    opts.UseAmazonSnsTransportUsingNamedConnection("aws").AutoProvision();
+
+    // Ping goes through an SQS queue
+    opts.PublishMessage<Ping>().ToSqsQueue("pings");
+    opts.ListenToSqsQueue("pings");
+
+    // Pong goes through an SNS topic, which delivers it to an SQS queue
+    opts.PublishMessage<Pong>().ToSnsTopic("pongs").SubscribeSqsQueue("pongs");
+    opts.ListenToSqsQueue("pongs").ReceiveSnsTopicMessage();
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithLocalStack/Pinger/Program.cs#L6-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_localstack_service_setup' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`WithReference()` also sets `AWS_ENDPOINT_URL`, `AWS_REGION`, `AWS_DEFAULT_REGION` and placeholder
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` in the project, so any AWS SDK client your service builds for itself
+talks to LocalStack too. The region is `us-east-1` unless you pass another one to `AddLocalStack()`, and LocalStack
+runs on a random host port unless you pass `port`. It's the same `localstack/localstack:4` image Wolverine's own tests
+use. There's a working sample in `src/Samples/AspireWithLocalStack`.
+
+The extension methods are in the `Wolverine.Aspire.Hosting` namespace, so add `using Wolverine.Aspire.Hosting;` to the
+AppHost's `Program.cs`.
+
+::: tip
+LocalStack ships its own Aspire package, `LocalStack.Aspire.Hosting`, which also has an `AddLocalStack()` method (in
+the `Aspire.Hosting` namespace, so the two don't clash). If your AppHost already uses LocalStack's package, keep it.
+Its resource name is the name of the connection string it hands a referencing project, so point Wolverine at it with
+`UseAmazonSqsTransportUsingNamedConnection(name)` and `UseAmazonSnsTransportUsingNamedConnection(name)` just the same.
+:::
 
 ## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
 
