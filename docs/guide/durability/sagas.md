@@ -652,6 +652,146 @@ the failed message. A few more things to know:
 - An `IdNotProvided(Fault<T>)` method catches a fault of a `T` that some other handler sent with
   `ReturnFaultToSender()`, so it has no saga id.
 
+## Compensating Failed Steps <Badge type="tip" text="7.0" />
+
+A saga can say what to do when a step fails, by the failed message and the exception type, with `Compensate` methods.
+They cover both kinds of failure: the saga's own handler failing, and a message the saga sent failing somewhere else.
+
+<!-- snippet: sample_saga_that_compensates -->
+<a id='snippet-sample_saga_that_compensates'></a>
+```cs
+public class Order : CompensatingSaga
+{
+    public Guid Id { get; set; }
+    public string Sku { get; set; } = "";
+    public int Quantity { get; set; }
+    public decimal Amount { get; set; }
+
+    public bool InventoryReserved { get; set; }
+    public bool Paid { get; set; }
+    public bool Refunded { get; set; }
+
+    public static (Order, ReserveInventory) Start(PlaceOrder command)
+        => (new Order { Id = command.OrderId, Sku = command.Sku, Quantity = command.Quantity, Amount = command.Amount },
+            new ReserveInventory(command.Sku, command.Quantity));
+
+    public void Handle(InventoryReserved reserved) => InventoryReserved = true;
+
+    // The saga's own handler. It fails when the ledger is down (retried, then compensated) or when the amount is wrong
+    // (a terminal failure: compensated at once)
+    public void Handle(PaymentReceived payment, Ledger ledger)
+    {
+        if (payment.Amount != Amount) throw new PaymentAmountMismatchException(Amount, payment.Amount);
+
+        ledger.Record(Id, payment.Amount);
+        Paid = true;
+    }
+
+    // ReserveInventory failed in the inventory service with OutOfStockException, or a subclass, after that service's
+    // retries. Only an ExceptionInfo crosses the wire, so a failure in another service is a RemoteFailure<TException>,
+    // matched through the exception's type hierarchy (GH-5555)
+    public object[] Compensate(ReserveInventory failed, RemoteFailure<OutOfStockException> failure)
+        => [new CancelOrder(Id), new NotifyCustomer(Id, $"{failed.Sku} is out of stock")];
+
+    // Any other failure of that step, local or remote
+    public RefundPayment Compensate(ReserveInventory failed, ExceptionInfo ex) => new(Id, Amount);
+
+    // The saga's own handler failed, in this service: the live exception
+    public RefundPayment Compensate(PaymentReceived failed, PaymentAmountMismatchException ex)
+        => Refunded ? throw new RefundAlreadyIssuedException(Id) : new RefundPayment(Id, failed.Amount);
+
+    public RefundPayment Compensate(PaymentReceived failed, LedgerUnavailableException ex) => new(Id, failed.Amount);
+
+    // The saga is gone (completed or deleted) when a fault of its ReserveInventory arrives
+    public static OrderAlreadyClosed NotFound(Fault<ReserveInventory> fault) => new(fault.Message.Sku);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaFaults/SagaFaults.Specs/Orders/CompensatingOrder.cs#L13-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_saga_that_compensates' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A `Compensate` method takes the failed message first, then the exception, in one of three forms:
+
+| Second parameter | Matches |
+|---|---|
+| an exception type, like `LedgerUnavailableException` | a failure of the saga's own handler, in this service, of that type or a subclass |
+| `RemoteFailure<TException>` | a failure of that type or a subclass, here or in another service, matched by the exception's type hierarchy |
+| `ExceptionInfo` | any failure of that message |
+
+When more than one matches, the most specific exception type wins, then the most specific message type, then an
+exception parameter over `RemoteFailure<T>` over `ExceptionInfo`. A method can also take `IMessageContext`, `Envelope`,
+`CancellationToken` or a singleton service. What it returns is sent like any cascading message.
+
+**The saga's own handler.** When `Handle(PaymentReceived)` fails, Wolverine first applies the usual error policies.
+Once the retries are used up, it compensates: it loads the saga again in a new transaction, calls the matching
+`Compensate`, saves the saga and sends what the method returned. Then the original message is dead lettered anyway,
+tagged with how the compensation went:
+
+| Tag | When |
+|---|---|
+| `compensated` | the compensation succeeded |
+| `compensation-failed` | the compensation failed after its own retries |
+| `compensation-saga-missing` | the saga was gone (completed or deleted) before it could be compensated |
+
+The tag is in `DeadLetterEnvelope.Tag`, and `DeadLetterEnvelopeQuery.Tag` filters on it. A failure that no
+`Compensate` method matches is retried and dead lettered as before, with no tag.
+
+**A step that failed somewhere else.** Declaring a `Compensate` for `ReserveInventory` asks for the fault of every
+`ReserveInventory` the saga sends, as a `Handle(Fault<ReserveInventory>)` would (see
+[Hearing About Failed Steps](#hearing-about-failed-steps)). When the fault arrives, the saga is loaded, the matching
+`Compensate` runs, and the saga is saved. A saga can't have both `Handle(Fault<T>)` and `Compensate(T, ...)` for the same
+`T`. `NotFound(Fault<T>)` still handles a fault for a saga that is gone.
+
+**Retries.** A compensation is a handler chain of its own, the saga's chain for `Fault<T>`, so the global error policies,
+and error handling attributes like `[RetryNow]` on the `Compensate` methods, apply to it. A concurrency conflict when the compensated saga is saved is retried the same
+way. When the compensation gives up, Wolverine loads the saga again and saves only its status and a failed log entry,
+once, without retrying. If that fails too, the dead letter is the only record. A compensation is never compensated.
+
+**Terminal failures.** An exception type marked with `[TerminalFailure]` or `ITerminalFailure` skips the retries, so
+the saga compensates right away. This works for any handler, not only sagas: see
+[Terminal failures](/guide/handlers/error-handling#terminal-failures).
+
+### Compensation status and log
+
+Any `Saga` can declare `Compensate` methods. Derive from `CompensatingSaga` instead of `Saga` to also keep the saga's
+compensation state:
+
+- `Status`: `Active`, `Compensated` or `CompensationFailed`
+- `CompensationLog`: one entry per compensation, with the failed message type, the type of the exception that was
+  actually thrown, the outcome and the time
+
+Both are saved with the saga, so document stores and the lightweight saga tables need no schema change.
+`CompensatingSaga` implements `IRevisioned`, so Marten, Polecat and Fisher check its version when they save it.
+
+With EF Core, map the two members with `MapCompensatingSaga()`. The log is stored as JSON in one text column:
+
+<!-- snippet: sample_mapping_a_compensating_saga_with_ef_core -->
+<a id='snippet-sample_mapping_a_compensating_saga_with_ef_core'></a>
+```cs
+public class CompensatedSagaDbContext : DbContext
+{
+    public CompensatedSagaDbContext(DbContextOptions<CompensatedSagaDbContext> options) : base(options)
+    {
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<CompensatedSaga>(map =>
+        {
+            map.ToTable("CompensatedSaga", "saga_compensation");
+            map.HasKey(x => x.Id);
+
+            // The saga's compensation status and log
+            map.MapCompensatingSaga();
+        });
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/Sagas/saga_compensation_5556.cs#L12-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mapping_a_compensating_saga_with_ef_core' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Compensation runs when a message is processed from a queue. A failure of `InvokeAsync()` is thrown to the caller and is
+not compensated.
+
 ## Marking a Saga as Complete
 
 When a `Saga` workflow is complete, call the `MarkCompleted()` method as shown in the following method

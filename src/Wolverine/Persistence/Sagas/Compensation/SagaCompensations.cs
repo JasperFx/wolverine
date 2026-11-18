@@ -40,24 +40,27 @@ public static class SagaCompensations
         var live = envelope?.CompensatingException;
         var thrownType = live?.GetType().FullName ?? fault.Exception.Type;
 
+        // The failed message's own type, which may derive from the TMessage this chain is for
+        var messageType = fault.Message.GetType();
+
         if (envelope != null && envelope.HasHeaders && envelope.Headers.ContainsKey(MarkFailedHeader))
         {
-            record(saga, typeof(TMessage), thrownType, CompensationOutcome.Failed, SagaStatus.CompensationFailed);
+            record(saga, messageType, thrownType, CompensationOutcome.Failed, SagaStatus.CompensationFailed);
             return;
         }
 
-        var method = SagaCompensationMethods.For(typeof(TSaga)).Select(typeof(TMessage), fault.Exception, live);
+        var method = SagaCompensationMethods.For(typeof(TSaga)).Select(messageType, fault.Exception, live);
         if (method == null)
         {
             context.Runtime.Logger.LogDebug(
                 "No Compensate method of saga {SagaType} matches the failure of {MessageType} with {ExceptionType}, so nothing was compensated",
-                typeof(TSaga).FullNameInCode(), typeof(TMessage).FullNameInCode(), thrownType);
+                typeof(TSaga).FullNameInCode(), messageType.FullNameInCode(), thrownType);
             return;
         }
 
         var result = await method.InvokeAsync(saga, fault.Message, fault.Exception, live, context).ConfigureAwait(false);
 
-        record(saga, typeof(TMessage), thrownType, CompensationOutcome.Compensated, SagaStatus.Compensated);
+        record(saga, messageType, thrownType, CompensationOutcome.Compensated, SagaStatus.Compensated);
 
         if (result != null)
         {
@@ -233,7 +236,8 @@ internal sealed class CompensationTarget
     /// </summary>
     public Envelope BuildFaultEnvelope(Envelope original, Exception exception, string sagaId)
     {
-        var fault = FaultPublisher.CreateFault(original.Message!, ExceptionInfo.From(exception), original);
+        // A Fault of the type the compensation chain is for, which may be a base type of the failed message
+        var fault = FaultPublisher.CreateFault(FailedType, original.Message!, ExceptionInfo.From(exception), original);
         return new Envelope(fault)
         {
             SagaId = sagaId,

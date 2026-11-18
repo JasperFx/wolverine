@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Wolverine.Attributes;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Tracking;
@@ -61,6 +62,24 @@ public class saga_compensation_5556
     }
 
     [Fact]
+    public async Task a_Compensate_for_a_base_message_type_compensates_any_failed_message()
+    {
+        using var host = await hostAsync(typeof(CatchAllParcelSaga), typeof(ParcelSink));
+        var id = Guid.NewGuid();
+        await host.InvokeMessageAndWaitAsync(new StartCatchAllParcel(id));
+
+        var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected().Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(new StampParcel(id));
+
+        deadLetterTag<StampParcel>(session).ShouldBe(DeadLetterQueueConstants.CompensatedTag);
+        session.Sent.SingleMessage<ParcelReturned>().Id.ShouldBe(id);
+
+        var saga = sagas(host).Load<CatchAllParcelSaga>(id)!;
+        saga.Status.ShouldBe(SagaStatus.Compensated);
+        saga.CompensationLog.ShouldHaveSingleItem().Step.ShouldBe(typeof(StampParcel).ToMessageTypeName());
+    }
+
+    [Fact]
     public async Task a_failure_no_Compensate_matches_is_dead_lettered_as_before()
     {
         using var host = await hostAsync(typeof(LoggedParcelSaga), typeof(ParcelSink));
@@ -114,6 +133,30 @@ public class saga_compensation_5556
         LoggedParcelSaga.CompensateCalls[id].ShouldBe(2);
         session.Sent.SingleMessage<ParcelReturned>().Id.ShouldBe(id);
         sagas(host).Load<LoggedParcelSaga>(id)!.Status.ShouldBe(SagaStatus.Compensated);
+    }
+
+    [Fact]
+    public async Task an_error_policy_attribute_on_a_Compensate_method_applies_to_the_compensation()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<AttributedParcelSaga>()
+                    .IncludeType(typeof(ParcelSink));
+
+                // No retries at all, except the ones the Compensate method asks for
+                opts.OnException<Exception>().MoveToErrorQueue();
+            }).StartAsync(TestContext.Current.CancellationToken);
+
+        var id = Guid.NewGuid();
+        await host.InvokeMessageAndWaitAsync(new StartAttributedParcel(id));
+
+        var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected().Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(new MeasureParcel(id));
+
+        attempts<MeasureParcel>(session).ShouldBe(1);
+        deadLetterTag<MeasureParcel>(session).ShouldBe(DeadLetterQueueConstants.CompensatedTag);
+        sagas(host).Load<AttributedParcelSaga>(id)!.CompensateCalls.ShouldBe(4);
     }
 
     [Fact]
@@ -289,7 +332,9 @@ public record ParcelReturned(Guid Id);
 
 public class ScaleBrokenException() : Exception("The scale is broken");
 
-// A plain Saga: Compensate methods work without the CompensatingSaga base type
+// A plain Saga: Compensate methods work without the CompensatingSaga base type. Every saga and handler here is kept out
+// of conventional discovery, which would otherwise hand them to every CoreTests host
+[WolverineIgnore]
 public class PlainParcelSaga : Saga
 {
     public Guid Id { get; set; }
@@ -302,6 +347,57 @@ public class PlainParcelSaga : Saga
     public ParcelReturned Compensate(WeighParcel failed, ScaleBrokenException ex)
     {
         Returned = true;
+        return new ParcelReturned(Id);
+    }
+}
+
+public record StartCatchAllParcel(Guid Id);
+
+public record StampParcel(Guid CatchAllParcelSagaId);
+
+[WolverineIgnore]
+public class CatchAllParcelSaga : CompensatingSaga
+{
+    public Guid Id { get; set; }
+
+    public static CatchAllParcelSaga Start(StartCatchAllParcel command) => new() { Id = command.Id };
+
+    public void Handle(StampParcel command) => throw new ScaleBrokenException();
+
+    // Any failed message of this saga, any failure
+    public ParcelReturned Compensate(object failed, ExceptionInfo ex) => new(Id);
+}
+
+public record StartAttributedParcel(Guid Id);
+
+public record MeasureParcel(Guid AttributedParcelSagaId);
+
+[WolverineIgnore]
+public class AttributedParcelSaga : Saga
+{
+    private static readonly Dictionary<Guid, int> _calls = new();
+
+    public Guid Id { get; set; }
+    public int CompensateCalls { get; set; }
+
+    public static AttributedParcelSaga Start(StartAttributedParcel command) => new() { Id = command.Id };
+
+    public void Handle(MeasureParcel command) => throw new ScaleBrokenException();
+
+    // Retried three times inline before it gives up; it succeeds on the fourth call
+    [RetryNow(typeof(CompensationRefusedException), 0, 0, 0)]
+    public ParcelReturned Compensate(MeasureParcel failed, ScaleBrokenException ex)
+    {
+        int calls;
+        lock (_calls)
+        {
+            calls = _calls.GetValueOrDefault(Id) + 1;
+            _calls[Id] = calls;
+        }
+
+        if (calls < 4) throw new CompensationRefusedException();
+
+        CompensateCalls = calls;
         return new ParcelReturned(Id);
     }
 }
@@ -331,6 +427,7 @@ public class CourierClosedException() : Exception("The courier has closed");
 
 public class CompensationRefusedException() : Exception("The compensation was refused");
 
+[WolverineIgnore]
 public class LoggedParcelSaga : CompensatingSaga
 {
     public static readonly Dictionary<Guid, int> FlakyCompensations = new();
@@ -373,6 +470,7 @@ public class LoggedParcelSaga : CompensatingSaga
         => CompensationFails ? throw new CompensationRefusedException() : new ParcelReturned(Id);
 }
 
+[WolverineIgnore]
 public class BadlyCompensatingSaga : Saga
 {
     public Guid Id { get; set; }
@@ -384,6 +482,7 @@ public class BadlyCompensatingSaga : Saga
     }
 }
 
+[WolverineIgnore]
 public class ChoosingSaga : Saga
 {
     public Guid Id { get; set; }
@@ -394,6 +493,7 @@ public class ChoosingSaga : Saga
     public void Compensate(LabelParcel failed, UnknownAddressException ex) { }
 }
 
+[WolverineIgnore]
 public static class CourierHandler
 {
     public static void Handle(CollectParcel command)
@@ -404,6 +504,7 @@ public static class CourierHandler
     public static void Handle(CancelCourier command) => throw new CourierClosedException();
 }
 
+[WolverineIgnore]
 public static class ParcelSink
 {
     public static void Handle(ParcelReturned returned)

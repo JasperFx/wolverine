@@ -89,6 +89,23 @@ using var host = await Host.CreateDefaultBuilder()
 
 You have to explicitly discard a message or it will eventually be sent to a dead letter queue when the message has exhausted its configured retries or requeues.
 
+## Terminal Failures <Badge type="tip" text="7.0" />
+
+Some failures can't be fixed by trying again. Mark the exception type with `[TerminalFailure]`, or have it implement
+`ITerminalFailure`, and Wolverine skips the retries for it, in any handler:
+
+```cs
+[TerminalFailure]
+public class PaymentAmountMismatchException(decimal expected, decimal received)
+    : Exception($"Expected a payment of {expected}, but received {received}");
+
+public class DiscontinuedException(string sku) : Exception($"{sku} is discontinued"), ITerminalFailure;
+```
+
+A retry, scheduled retry, requeue or "do this, then retry" rule that matches a terminal failure becomes a move to the
+error queue, so the message is dead lettered, its `Fault<T>` is published, and a saga compensates it right away. A rule
+that discards the message, or a custom action, still applies. `InvokeAsync()` doesn't retry a terminal failure either.
+
 
 ## Exponential Backoff
 
@@ -866,13 +883,24 @@ A fault is **not** published in these bypass paths:
 - **Pre-handler crypto failures** — `EncryptionPolicyViolationException`, `EncryptionMissingHeaderException`, `EncryptionDecryptionException` short-circuit before the handler runs.
 - **Fault-publish recursion** — a failing `Fault<T>` handler will not trigger a `Fault<Fault<T>>`. The recursion guard logs at Debug and emits a `wolverine.fault.recursion_suppressed` activity event.
 
-> **Atomicity caveat.** Fault publish is **best-effort, not transactionally
-> co-committed** with the DLQ insert. The receive-side outbox does not
-> enrol the fault publish in the same transaction as the DLQ row. In the
-> unlikely window where the DLQ commit succeeds but the fault enqueue
-> throws, the fault is dropped (logged at Error and the failure counter
-> is incremented). Subscribers must therefore be resilient to gaps; they
-> cannot use Fault events as a strict audit log.
+#### When the fault is written with its dead letter <Badge type="tip" text="7.0" />
+
+Where a fault goes is worked out before the message is moved to the dead letter queue. When the message came in on a
+**durable** endpoint and its dead letter goes to the message store, every fault for a destination with a **durable**
+sending endpoint (a durable outbox, or a durable local queue) is written in the same transaction as the dead letter,
+then sent. A crash right after the move leaves the fault in the outbox, and it is sent when the outbox is recovered.
+If the move rolls back, the fault goes with it and the message stays in the inbox.
+
+That needs a message store that can write both in one transaction: PostgreSQL (and Marten), SQL Server, MySQL,
+SQLite and RavenDB. Everywhere else the fault is sent right after the move, best-effort, as before 7.0:
+
+- inline and buffered receiving endpoints, which keep no inbox,
+- dead letters kept by the broker (native dead letter queues),
+- destinations without a durable sending endpoint,
+- the Oracle and CosmosDB message stores.
+
+A best-effort fault can be lost in the window between the dead letter commit and the send. It is logged at Error and
+counted when the send itself fails.
 
 ### Subscribing to faults
 

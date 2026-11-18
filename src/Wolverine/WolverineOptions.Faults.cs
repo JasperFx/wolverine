@@ -19,12 +19,12 @@ public sealed partial class WolverineOptions
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Delivery semantics.</b> Auto-published <see cref="Fault{T}"/> events are best-effort,
-    /// not transactionally co-committed with the dead-letter-queue move. If the process crashes
-    /// between the DLQ insert and the fault publish, the original envelope is in the DLQ but the
-    /// fault event is permanently lost — Wolverine does not auto-replay DLQ rows. For workflows
-    /// where the fault event is itself critical, treat the DLQ as the source of truth and
-    /// reconcile from there.
+    /// <b>Delivery semantics.</b> Since 7.0 (GH-5554), a fault for a destination with a durable sending
+    /// endpoint is written in the same transaction as the dead-letter move, when the message came in on a
+    /// durable endpoint and the message store can do that (PostgreSQL, SQL Server, MySQL, SQLite, RavenDB).
+    /// Every other fault is sent right after the move, best-effort: inline and buffered endpoints, dead
+    /// letters kept by the broker, non-durable destinations, and the Oracle and CosmosDB stores. A
+    /// best-effort fault is lost if the process crashes between the dead-letter move and the send.
     /// </para>
     /// <para>
     /// <b>Scope.</b> Fault events are emitted only on the receiving end, when a handler permanently

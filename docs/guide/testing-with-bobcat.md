@@ -446,6 +446,36 @@ so a green suite pays nothing for them, and each is capped at 200 rows with "…
 `bobcat run --verbose` (or `BOBCAT_VERBOSE_REPORTS=1`) writes them for passing specifications too. See
 [Custom Telemetry on Failure](https://bobcat.jasperfx.net/failure-telemetry).
 
+## Faults, dead letters and sagas across services {#faults-dead-letters-and-sagas} <Badge type="tip" text="7.0" />
+
+A specification about failures usually spans two services, each a host of its own in the test process. `AlsoTrack(host)`
+tracks the second one in every act, and `DeadLettersFailTheAct = false` makes a dead letter an outcome to judge rather
+than a failed act. Steps that take `by` name a service by its `ServiceName`. The
+[SagaFaults sample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/SagaFaults) uses all of these.
+
+| Step | |
+|---|---|
+| `ThenDeadLettered<T>(by?)` / `ThenNotDeadLettered<T>(by?)` | a `T` was (not) moved to the error queue |
+| `ThenDeadLettered<T>(by, tagged)` | and its dead letter carries that [tag](/guide/durability/dead-letter-storage#dead-letter-tags), read back from the service's dead letter storage |
+| `ThenHandled<T>(by)` / `ThenNotHandled<T>(by)` | a `T` was (not) handled in that service |
+| `ThenAttempted<T>(count, by?)` | a `T` was attempted exactly `count` times, the first attempt and every retry |
+| `ThenTheSagaHandled<TSaga, TMessage>(id)` | the saga with that id handled a `TMessage` |
+| `GivenSaga<TSaga>(saga)`, `ThenSaga<TSaga>(id, expected?)`, `ThenNoSaga<TSaga>(id)` | arrange or check a saga through its own storage: a document store, the lightweight saga tables, or memory |
+| `ThenTheSagaStatusIs<TSaga>(id, status)` | a `CompensatingSaga`'s status |
+| `ThenTheSagaCompensated<TSaga, TMessage, TException>(id)` / `ThenTheSagaFailedToCompensate<…>(id)` | its compensation log has that entry: the failed message, the thrown exception or a subclass of it, and the outcome |
+| `ThenWaitingInTheOutbox<T>(by, to)` / `ThenNothingWaitingInTheOutbox<T>(by)` | a `T` to the service named `to` is (not) waiting in the durable outbox of `by` |
+| `ThenStillInTheInbox<T>(by)` | a `T` is still in the durable inbox of `by`, to be tried again |
+
+Some failures can only be arranged from inside Wolverine, so these steps go through test hooks in it:
+
+| Step | Arranges |
+|---|---|
+| `GivenTheServiceCrashesAfterItsNextDeadLetter(service)` | the service stops right after its next dead-letter move commits, so the faults written with the dead letter stay in its outbox |
+| `WhenTheServiceRestarts(service)` | a new act: what the service owned in its inbox and outbox is released and recovered, as for a node that went away, and the act waits until what the crash left behind is handled |
+| `GivenTheNextDeadLetterMoveFails(service)` | the next dead-letter move fails before it commits and rolls back. The act waits until the message is handed back to the inbox |
+| `WhileCompensatingTheSagaIsChanged<TSaga>(id, onEveryAttempt)` | another message saves the saga while it is being compensated, once or on every attempt |
+| `WhileCompensatingTheSagaIsCompleted<TSaga>(id)` | another message completes the saga just before it is compensated |
+
 ## Dynamic Consistency Boundaries {#dynamic-consistency-boundaries}
 
 For a decision whose consistency boundary is a tag query rather than one stream:

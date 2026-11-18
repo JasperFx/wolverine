@@ -139,7 +139,13 @@ internal sealed class FaultPublisher : IFaultPublisher
     /// GH-5556. A Fault&lt;T&gt; for <paramref name="message" />, built as a published fault is
     /// </summary>
     internal static object CreateFault(object message, ExceptionInfo exceptionInfo, Envelope envelope)
-        => _staticShapes.GetOrAdd(message.GetType(), FaultShape.For).Create(message, exceptionInfo, envelope);
+        => CreateFault(message.GetType(), message, exceptionInfo, envelope);
+
+    /// <summary>
+    /// GH-5556. A Fault&lt;T&gt; of <paramref name="messageType" />, which <paramref name="message" /> is or derives from
+    /// </summary>
+    internal static object CreateFault(Type messageType, object message, ExceptionInfo exceptionInfo, Envelope envelope)
+        => _staticShapes.GetOrAdd(messageType, FaultShape.For).Create(message, exceptionInfo, envelope);
 
     // Two local queues reach the same handlers in this process, so a fault routed to one local queue is not sent
     // again to another

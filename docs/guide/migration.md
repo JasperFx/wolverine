@@ -775,6 +775,20 @@ A `Saga` that declares only `NotFound` (or the new `IdNotProvided`) for a messag
 message like any other, and calls `NotFound` when it is missing. Before 7.0 such a message never reached `NotFound`:
 it created and saved a new, empty saga instead.
 
+### Saga compensation, terminal failures and faults written with the dead letter
+
+These are new in 7.0 and change nothing for an application that doesn't use them, with two exceptions:
+
+* An exception type marked `[TerminalFailure]` or `ITerminalFailure` is no longer retried. Both were declared in the
+  7.0 alphas without any effect.
+* On a durable endpoint, the faults of a dead letter going to a durable destination are now written in the same
+  transaction as the dead-letter move (GH-5554), on PostgreSQL, SQL Server, MySQL, SQLite and RavenDB. Before, they were
+  published right after the move. See
+  [When the fault is written with its dead letter](/guide/handlers/error-handling#when-the-fault-is-written-with-its-dead-letter).
+
+The `ICompensatingSaga` interface of the 7.0 alphas is gone: derive from `CompensatingSaga` instead. See
+[Compensating Failed Steps](/guide/durability/sagas#compensating-failed-steps).
+
 ### `Saga.CompletedAt` and retaining completed sagas
 
 7.0 can keep completed sagas for a while instead of deleting them (GH-5572), with `[RetainWhenCompleted]` on a saga
@@ -937,6 +951,8 @@ the main message database and every tenant database. Everything it adds is addit
 * the nullable dead letter `saga_id` column and its index
   ([saga ids on dead letters](/guide/durability/dead-letter-storage#finding-a-saga-s-dead-letters)). This one is
   not behind a flag, so `RestoreV6Defaults()` does not avoid it
+* the nullable dead letter `tag` column and its index
+  ([dead letter tags](/guide/durability/dead-letter-storage#dead-letter-tags)). Not behind a flag either
 
 On PostgreSQL it also **rebuilds the inbox table as a partitioned table**, which is not additive: see
 [the PostgreSQL inbox](#the-postgresql-inbox-is-partitioned) for the lock it takes and how to roll it out.
@@ -952,7 +968,7 @@ Before the first 7.0 node starts:
 
 `RestoreV6Defaults()` turns off the deduplication tables, the optional schema objects, the dead letter expiration
 column and inbox partitioning, so it avoids all of this except the SQLite queue indexes, the saga `last_modified`
-indexes, the saga `completed_at` column and the dead letter `saga_id` column.
+indexes, the saga `completed_at` column and the dead letter `saga_id` and `tag` columns.
 
 ### Transport timestamp headers are written in round-trip ISO 8601
 

@@ -311,14 +311,28 @@ await deadLetters.ReplayMatchingAsync(query, cancellation);
 A dead letter recorded before Wolverine 7.0, or for a message with no saga, has no saga id. A saga id longer than 500
 characters is not recorded rather than truncated. Stores that support this report `DeadLetterCapabilities.SagaIds`.
 
+### Dead letter tags <Badge type="tip" text="7.0" />
+
+A dead letter can carry a tag that says why Wolverine dead lettered it when there is more to say than the exception.
+Today the tags come from [saga compensation](/guide/durability/sagas#compensating-failed-steps): `compensated`,
+`compensation-failed` and `compensation-saga-missing`. Read it from `DeadLetterEnvelope.Tag`, and filter on it with
+`DeadLetterEnvelopeQuery.Tag`:
+
+```csharp
+var query = new DeadLetterEnvelopeQuery { Tag = "compensation-failed" };
+var failed = await deadLetters.QueryAsync(query, cancellation);
+```
+
+An ordinary dead letter has no tag. Stores that support this report `DeadLetterCapabilities.Tags`.
+
 ### Store Support
 
 `IDeadLetters.Capabilities` says which of these features a store supports, so a tool can check before offering them:
 
-| Store | Failure groups | Counts | Archive and restore | Replay history | Exception message matching | Saga ids |
-|-------|----------------|--------|---------------------|----------------|----------------------------|----------|
-| PostgreSQL, SQL Server, SQLite, MySQL, Oracle | Yes | Yes | Yes | Yes | Yes | Yes |
-| RavenDb, CosmosDb | Yes | Yes | Yes | No | Yes | Yes |
+| Store | Failure groups | Counts | Archive and restore | Replay history | Exception message matching | Saga ids | Tags |
+|-------|----------------|--------|---------------------|----------------|----------------------------|----------|------|
+| PostgreSQL, SQL Server, SQLite, MySQL, Oracle | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| RavenDb, CosmosDb | Yes | Yes | Yes | No | Yes | Yes | Yes |
 
 `ArchivedDeadLetterRetention` is enforced by the relational stores. For a custom `IDeadLetters` implementation,
 `Capabilities` defaults to `None`, the counting operations report `null`, and archiving throws `NotSupportedException`.
@@ -326,7 +340,7 @@ characters is not recorded rather than truncated. Stores that support this repor
 ::: warning
 The relational stores add new nullable columns to `wolverine_dead_letters` (`failure_group`, `failure_title`,
 `failed_at`, `first_failed_at`, `replay_count`, `last_replayed_at` and `archived_at`), an index on `failure_group`, and
-the new `wolverine_dead_letter_history` table. Wolverine 7.0 adds a nullable `saga_id` column with its own index. Like any other Wolverine schema change, these are applied by the normal
+the new `wolverine_dead_letter_history` table. Wolverine 7.0 adds nullable `saga_id` and `tag` columns, each with its own index. Like any other Wolverine schema change, these are applied by the normal
 schema migration. See the indexing warning above if your dead letter table is very large.
 :::
 
