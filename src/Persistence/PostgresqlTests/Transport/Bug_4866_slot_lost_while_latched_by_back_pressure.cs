@@ -210,6 +210,59 @@ public class Bug_4866_slot_lost_while_latched_by_back_pressure : IAsyncLifetime
     }
 
     /// <summary>
+    /// The race CI found on a slower runner. The stop drops the slot's receiver before it drains the companion
+    /// queue, so for the length of that drain the listener still reads <c>TooBusy</c> with a local count of 0.
+    /// A back pressure sweep landing in that window took it for a backlog that had drained, and restarted the
+    /// listener underneath the stop: the companion queue got a fresh receiver and went straight back to work,
+    /// and the stop then reported <c>Stopped</c> over a slot that was running again. Here the sweep is run at
+    /// exactly that moment instead of waiting for the 2 second timer to land there.
+    /// </summary>
+    [Fact]
+    public async Task a_back_pressure_sweep_during_the_stop_does_not_revive_the_slot()
+    {
+        var slot = theSlot();
+        var companion = slot.GlobalPartitionLocalQueueUri!;
+        const int total = 20;
+        await backlogOnATooBusySlotAsync(slot, total);
+
+        var agent = (ListeningAgent)_runtime.Endpoints.FindListeningAgent(slot.Uri)!;
+        agent.QueueCount.ShouldBeGreaterThan(slot.BufferingLimits.Restart,
+            "Precondition: before the stop, the backlog is what keeps back pressure from lifting");
+
+        var stopping = Task.Run(() => _runtime.Endpoints.StopListenerAsync(slot, TestContext.Current.CancellationToken),
+            TestContext.Current.CancellationToken);
+
+        // The window: the stop has let go of the receiver, but has not finished draining or flipped the status
+        var deadline = DateTimeOffset.UtcNow.Add(10.Seconds());
+        while (!(agent.Status == ListeningStatus.TooBusy && agent.QueueCount <= slot.BufferingLimits.Restart))
+        {
+            stopping.IsCompleted.ShouldBeFalse("The stop finished before the sweep could be run inside it");
+            DateTimeOffset.UtcNow.ShouldBeLessThan(deadline, "Never saw the stop let go of the receiver");
+            await Task.Yield();
+        }
+
+        // Exactly what the 2 second sweep does
+        await agent.BackPressure!.CheckNowAsync();
+
+        await stopping;
+
+        var atStop = BusySlotHandler.Handled.Count;
+        atStop.ShouldBeLessThan(total, "Precondition: a backlog has to be left over");
+
+        await Task.Delay(2.Seconds(), TestContext.Current.CancellationToken);
+
+        agent.Status.ShouldBe(ListeningStatus.Stopped);
+        agent.Listener.ShouldBeNull("A sweep during the stop must not build the slot a new listener");
+        BusySlotHandler.Handled.Count.ShouldBe(atStop,
+            $"A node that has given up the slot must not execute any more of its messages. Handled {atStop} " +
+            $"at the stop and {BusySlotHandler.Handled.Count} two seconds later");
+
+        var dormant = await _store.LoadPageOfGloballyOwnedIncomingAsync(companion, total * 2);
+        (atStop + dormant.Count).ShouldBeGreaterThanOrEqualTo(total,
+            "Every message should be either executed or released at the companion address");
+    }
+
+    /// <summary>
     /// The guard that the fix does not over-correct: a slot given up from the too-busy state can still be
     /// re-acquired, and when it is, the released backlog gets finished.
     /// </summary>

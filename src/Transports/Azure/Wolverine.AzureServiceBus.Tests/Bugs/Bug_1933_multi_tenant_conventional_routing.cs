@@ -19,20 +19,17 @@ public static class Bug1933MessageHandler
 public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
 {
     public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
-    public async ValueTask DisposeAsync()
-    {
-        await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
 
-        try
-        {
-            await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync(
-                Servers.AzureServiceBusConnectionString);
-        }
-        catch
-        {
-            // Tenant emulator cleanup is best-effort
-        }
-    }
+    // The "test" tenant is the same emulator as the default namespace, so one wipe cleans up both
+    public async ValueTask DisposeAsync() => await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
+
+    /// <summary>
+    /// Conventional routing only for this repro's own message. Left unrestricted, the convention provisions and purges
+    /// a queue for every handled message type in this assembly, in both namespaces. That was most of this class's 207
+    /// seconds, and it has nothing to do with GH-1933
+    /// </summary>
+    private static void onlyTheBug1933Message(AzureServiceBusMessageRoutingConvention convention)
+        => convention.IncludeTypes(t => t == typeof(Bug1933Message));
 
     [Fact]
     public async Task should_receive_message_when_published_without_tenant_id()
@@ -47,7 +44,7 @@ public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
                 opts.UseAzureServiceBusTesting()
                     .AutoPurgeOnStartup()
                     .AddTenantByConnectionString("test", Servers.AzureServiceBusConnectionString)
-                    .UseConventionalRouting();
+                    .UseConventionalRouting(onlyTheBug1933Message);
 
                 // Set the tenant's management connection string for the emulator. This has to be the
                 // *management* endpoint -- pointing it at the AMQP endpoint made every tenant
@@ -82,7 +79,7 @@ public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
 
                 opts.UseAzureServiceBusTesting()
                     .AutoPurgeOnStartup()
-                    .UseConventionalRouting();
+                    .UseConventionalRouting(onlyTheBug1933Message);
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var message = new Bug1933Message("Hello from default namespace");

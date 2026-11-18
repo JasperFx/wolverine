@@ -1886,6 +1886,8 @@ partial class Build
         // This run owns the emulators, so it starts both pairs fresh (GH-5532). GH-5196: strict_tenancy_5196 uses the
         // second pair (asb-emulator-2, Servers' tenant connection strings) as a tenant's own namespace, so every shard
         // starts it: the "everything else" shard holds that class today, and a rebalance must not strand it.
+        // One Azure Service Bus run on the box at a time, when a shard is run locally (build/AzureServiceBusLock.cs)
+        using var asbLock = acquireAzureServiceBusLock();
         StartServicesFresh("asb-emulator", "asb-emulator-2", "postgresql");
 
         RunTestProject(tests, testFilter: testFilter);

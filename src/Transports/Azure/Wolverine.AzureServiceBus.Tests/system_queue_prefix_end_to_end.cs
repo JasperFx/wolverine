@@ -19,6 +19,15 @@ public class system_queue_prefix_end_to_end : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
+        // the_prefixed_system_queues_are_provisioned says nothing was provisioned under the unprefixed dead letter queue
+        // name, so it must not be there before this host starts. Another class that ran earlier in the same emulator
+        // and does not clean up after itself can leave it behind, which failed this test whenever such a class ran first
+        var admin = new ServiceBusAdministrationClient(Servers.AzureServiceBusManagementConnectionString);
+        if ((await admin.QueueExistsAsync("wolverine-dead-letter-queue")).Value)
+        {
+            await admin.DeleteQueueAsync("wolverine-dead-letter-queue");
+        }
+
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

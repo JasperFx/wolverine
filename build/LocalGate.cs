@@ -123,6 +123,12 @@ partial class Build
         public Dictionary<string, string> Environment { get; init; } = new();
 
         /// <summary>
+        /// Connection strings each lane gets its own of, by lane number, handed over as ConnectionStrings__{name}
+        /// (which src/Servers.cs reads first). For services the gate already runs one of per lane.
+        /// </summary>
+        public Dictionary<string, Func<int, string>> LaneConnectionStrings { get; init; } = new();
+
+        /// <summary>
         /// Left out of a default LocalGate run; it runs only when named with --gate-with or --gate-only. Still a
         /// gated suite as far as VerifyLocalGateCoverage is concerned, so it never goes in NotGated.
         /// </summary>
@@ -244,8 +250,17 @@ partial class Build
         new("src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj",
             "CIAzureServiceBus, CIAzureServiceBusLeader, CIAzureServiceBusRouting")
         {
-            // GH-5196: asb-emulator-2 is a tenant's own namespace in strict_tenancy_5196
-            Services = ["asb-emulator", "asb-emulator-2"], Postgres = ServerUse.OwnDatabase,
+            // Two lanes, one emulator pair each. The suite deletes everything in its emulator between tests, so two lanes
+            // can never share one, and the supervisor keeps each class on one lane. GH-5196: strict_tenancy_5196 uses
+            // asb-emulator-2 as a tenant's own namespace, so it is [Trait("Isolated", "true")] and runs alone after the
+            // lanes. The Postgres-backed classes use schemas of their own (registry, asb_dlq_recovery, gletters_asb,
+            // gh5116_asb, Bug_5202's prefix), so the lanes share the suite's database
+            Services = ["asb-emulator", "asb-emulator-2"], Postgres = ServerUse.OwnDatabase, Workers = 2,
+            LaneConnectionStrings = new()
+            {
+                ["azureservicebus"] = lane => azureServiceBusEmulatorForLane(lane, management: false),
+                ["azureservicebus-management"] = lane => azureServiceBusEmulatorForLane(lane, management: true)
+            },
             // Jeremy 2026-11-17: opt-in. The emulators are slow and contended, so the suite runs only when a change
             // touches src/Transports/Azure: --gate-with AzureServiceBus, or --gate-only AzureServiceBus alone
             OptIn = true
@@ -466,6 +481,11 @@ partial class Build
 
             if (rest.Length > 0) LaunchDockerServices(rest);
             if (!GateSkipBuild) buildGateUnits(units);
+
+            // Taken after the build and before the emulators are started fresh, and held until every unit is done: one
+            // Azure Service Bus run on this box at a time (build/AzureServiceBusLock.cs)
+            using var asbLock = services.Contains("asb-emulator") ? acquireAzureServiceBusLock() : null;
+
             if (fresh.Length > 0) StartServicesFresh(fresh);
             if (rest.Length > 0) AwaitDockerServices(rest);
 
@@ -591,7 +611,32 @@ partial class Build
             connectionStrings.Add("sqlserver", context => sqlServerLaneConnectionString(context.Lane));
         }
 
+        foreach (var (name, forLane) in suite.LaneConnectionStrings)
+        {
+            connectionStrings.Add(name, context => forLane(context.Lane));
+        }
+
         return connectionStrings.Names.Count > 0 ? connectionStrings : null;
+    }
+
+    /// <summary>
+    /// The Azure Service Bus emulator pair for a lane: asb-emulator (5673, management 5300) for lane 0, which is also
+    /// where retries and isolated tests run, and asb-emulator-2 (5674, management 5301) for lane 1. The same strings
+    /// as Servers' defaults.
+    /// </summary>
+    static string azureServiceBusEmulatorForLane(int lane, bool management)
+    {
+        var port = (lane, management) switch
+        {
+            (0, false) => 5673,
+            (0, true) => 5300,
+            (1, false) => 5674,
+            (1, true) => 5301,
+            _ => throw new ArgumentOutOfRangeException(nameof(lane), lane,
+                "There are two Azure Service Bus emulator pairs in docker-compose.yml, so two lanes at most")
+        };
+
+        return $"Endpoint=sb://localhost:{port};SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
     }
 
     void recreatePostgresDatabase(string database)
