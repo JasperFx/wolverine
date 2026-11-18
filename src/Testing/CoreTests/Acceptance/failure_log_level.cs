@@ -25,9 +25,11 @@ public class failure_log_level
             {
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(FlakyMessageHandler))
-                    .IncludeType(typeof(QuietlyFlakyMessageHandler));
+                    .IncludeType(typeof(QuietlyFlakyMessageHandler))
+                    .IncludeType(typeof(RequeuedOnceMessageHandler));
 
                 opts.OnException<FlakyException>().RetryTimes(2);
+                opts.OnException<RequeueOnceException>().Requeue();
                 configure(opts);
             }).StartAsync();
 
@@ -81,9 +83,51 @@ public class failure_log_level
             chainFor<FlakyMessage>(host).FailureLogLevel.ShouldBe(LogLevel.Error);
         }
     }
+    [Fact]
+    public async Task a_requeue_logs_at_error_by_default()
+    {
+        var (host, logs) = await startAsync(_ => { });
+        using (host)
+        {
+            RequeuedOnceMessageHandler.Attempts = 0;
+            await host.SendMessageAndWaitAsync(new RequeuedOnceMessage());
+            RequeuedOnceMessageHandler.Attempts.ShouldBe(2);
+            logs.RescheduledLevels().ShouldBe([LogLevel.Error]);
+        }
+    }
+
+    [Fact]
+    public async Task a_requeue_logs_at_the_failure_log_level_of_the_chain()
+    {
+        // The requeue is the retry of the failed attempt, so it must not log above the attempt itself
+        var (host, logs) = await startAsync(opts => opts.Policies.MessageFailureLogLevel(LogLevel.Warning));
+        using (host)
+        {
+            RequeuedOnceMessageHandler.Attempts = 0;
+            await host.SendMessageAndWaitAsync(new RequeuedOnceMessage());
+            RequeuedOnceMessageHandler.Attempts.ShouldBe(2);
+            logs.FailureLevels().ShouldBe([LogLevel.Warning]);
+            logs.RescheduledLevels().ShouldBe([LogLevel.Warning]);
+        }
+    }
 }
 
+
 public class FlakyException : Exception;
+
+public class RequeueOnceException : Exception;
+
+public record RequeuedOnceMessage;
+
+public static class RequeuedOnceMessageHandler
+{
+    public static int Attempts;
+
+    public static void Handle(RequeuedOnceMessage message)
+    {
+        if (Interlocked.Increment(ref Attempts) == 1) throw new RequeueOnceException();
+    }
+}
 
 public record FlakyMessage;
 
@@ -115,6 +159,11 @@ public class CapturingLoggerProvider : ILoggerProvider
 
     public void Dispose()
     {
+    }
+
+    public LogLevel[] RescheduledLevels()
+    {
+        return Entries.Where(x => x.Message.EndsWith("was rescheduled to queue")).Select(x => x.Level).ToArray();
     }
 
     public LogLevel[] FailureLevels()

@@ -25,7 +25,10 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public const int RescheduledEventId = 109;
 
     private static readonly Action<ILogger, Envelope, Exception?> _movedToErrorQueue;
-    private static readonly Action<ILogger, Envelope, Exception?> _rescheduled;
+    // A requeue or reschedule is the retry of a failed attempt, so it logs at the chain's FailureLogLevel (GH-5043) like
+    // the failed attempt itself: one template per level
+    private static readonly Action<ILogger, Envelope, Exception?>[] _rescheduled =
+        new Action<ILogger, Envelope, Exception?>[(int)LogLevel.Critical + 1];
     private static readonly Action<ILogger, string?, string, Guid, string, Exception?> _noHandler;
     private static readonly Action<ILogger, Envelope, Exception?> _noRoutes;
     private static readonly Action<ILogger, string, string, Guid, string, string, Exception?> _received;
@@ -53,8 +56,11 @@ public sealed partial class WolverineRuntime : IMessageTracker
         _noRoutes = LoggerMessage.Define<Envelope>(LogLevel.Information, NoRoutesEventId,
             "No routes can be determined for {envelope}");
 
-        _rescheduled = LoggerMessage.Define<Envelope>(LogLevel.Error, RescheduledEventId,
-            "Envelope {envelope} was rescheduled to queue");
+        for (var level = LogLevel.Trace; level <= LogLevel.Critical; level++)
+        {
+            _rescheduled[(int)level] = LoggerMessage.Define<Envelope>(level, RescheduledEventId,
+                "Envelope {envelope} was rescheduled to queue");
+        }
 
         _movedToErrorQueue = LoggerMessage.Define<Envelope>(LogLevel.Error, MovedToErrorQueueId,
             "Envelope {envelope} was moved to the error queue");
@@ -315,7 +321,11 @@ public sealed partial class WolverineRuntime : IMessageTracker
     {
         Logger.LogInformation("Requeue for message {Id} of message type {MessageType}", envelope.Id, envelope.MessageType);
         ActiveSession?.Record(MessageEventType.Requeued, envelope, _serviceName, _uniqueNodeId);
-        _rescheduled(Logger, envelope, null);
+        var level = envelope.Message is { } message ? Handlers.HandlerFor(message.GetType())?.FailureLogLevel ?? LogLevel.Error : LogLevel.Error;
+        if (level != LogLevel.None)
+        {
+            _rescheduled[(int)level](Logger, envelope, null);
+        }
     }
 
     public void LogException(Exception ex, object? correlationId = null,
