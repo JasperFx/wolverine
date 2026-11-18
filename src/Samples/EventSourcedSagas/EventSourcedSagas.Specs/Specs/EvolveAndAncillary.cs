@@ -8,12 +8,10 @@ namespace EventSourcedSagas.Specs;
 
 // GH-5415: a saga written with Evolve(), and a saga kept in an ancillary store.
 
-// The completion and compensation specifications here need JasperFx/jasperfx#1241 (an inherited Apply runs beside a
-// type's own Evolve), which is not released yet. Until it is, the base type's Apply methods never run for an Evolve
-// saga, so they stay Acceptance specs
-[BobcatFeature("An event-sourced saga written with Evolve()")]
-[Collection(nameof(FulfillmentCollection))]
-public class an_event_sourced_saga_written_with_evolve(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
+// Wolverine's own events reach the EventSourcedSaga base type's Apply methods beside the saga's own Evolve: an inherited
+// Apply runs first, then Evolve (JasperFx/jasperfx#1241, JasperFx 3.8.0)
+// "An event-sourced saga written with Evolve()": run on Marten, Polecat and Fisher by the classes in StoreParity.cs
+public abstract class an_event_sourced_saga_written_with_evolve(FulfillmentServices services) : EventSourcedSagaSpec(services)
 {
     private Guid ReturnRequestId { get; } = Guid.NewGuid();
 
@@ -39,7 +37,7 @@ public class an_event_sourced_saga_written_with_evolve(InlineFulfillmentServices
         await ThenSaga<ReturnRequest>(ReturnRequestId, Specify<ReturnRequest>().With(x => x.ItemsReceived, true));
     }
 
-    [BobcatSpec(typeof(RefundReturn), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(RefundReturn))]
     public async Task refunding_the_return_completes_it()
     {
         await GivenEvents<ReturnRequest>(ReturnRequestId, new ReturnRequested(OrderFulfillmentId, 100m), new ReturnedItemsReceived());
@@ -50,7 +48,7 @@ public class an_event_sourced_saga_written_with_evolve(InlineFulfillmentServices
         await ThenTheSagaIsCompleted<ReturnRequest>(ReturnRequestId);
     }
 
-    [BobcatSpec(typeof(RefundReturn), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(RefundReturn))]
     public async Task a_refund_the_ledger_cannot_record_is_compensated()
     {
         await GivenEvents<ReturnRequest>(ReturnRequestId, new ReturnRequested(OrderFulfillmentId, 100m), new ReturnedItemsReceived());

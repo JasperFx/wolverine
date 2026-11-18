@@ -23,16 +23,21 @@ internal static class FisherEventSourcedSagas
         Justification = "Closes Snapshot<T> over saga types rooted by handler discovery while the store is configured.")]
     public static void Configure(IServiceProvider services, StoreOptions options, Type? storeType)
     {
+        var wolverine = services.GetService<WolverineOptions>();
+        if (wolverine == null) return;
+
+        // Nothing at all for a store that keeps no event-sourced saga: registering event types makes a store's event
+        // storage part of its schema, which an application with no event-sourced sagas never asked for
+        var registration = wolverine.EventSourcedSagas;
+        var sagaTypes = registration.SagaTypesFor(wolverine, storeType);
+        if (sagaTypes.Count == 0) return;
+
         foreach (var (eventType, alias) in EventSourcedSagaRegistration.FrameworkEvents)
         {
             options.EventGraph.EventMappingFor(eventType).EventTypeName = alias;
         }
 
-        var wolverine = services.GetService<WolverineOptions>();
-        if (wolverine == null) return;
-
-        var registration = wolverine.EventSourcedSagas;
-        foreach (var sagaType in registration.SagaTypesFor(wolverine, storeType))
+        foreach (var sagaType in sagaTypes)
         {
             EventSourcedSagaRegistration.AssertIdentity(sagaType, options.Events.StreamIdentity, "Fisher");
 

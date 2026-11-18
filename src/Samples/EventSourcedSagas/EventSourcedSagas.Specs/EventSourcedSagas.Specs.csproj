@@ -1,9 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!-- GH-5415 (Wolverine 7.0): first-class event-sourced sagas, written as Bobcat specifications first. One service,
-         "fulfillment", with the OrderFulfillment saga of the process-manager docs page rebuilt as an EventSourcedSaga.
-         The two specifications of an Evolve() saga's own completion and compensation stay Acceptance specs until
-         JasperFx/jasperfx#1241 ships: they run every time and report as skipped while they fail. -->
+         "fulfillment", with the OrderFulfillment saga of the process-manager docs page rebuilt as an EventSourcedSaga,
+         on Marten, Polecat and Fisher. -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
@@ -18,6 +17,11 @@
         <!-- The source generator: marker comments, and the spec manifest the bobcat tool lists from -->
         <PackageReference Include="Bobcat.Generators" />
         <PackageReference Include="Shouldly" />
+        <!-- The aggregate source generator at JasperFx's own version. Marten 10.0.0-alpha.3 bundles an older copy, which
+             does not hand an Evolve() saga the base type's Apply methods (JasperFx/jasperfx#1241, fixed in 3.8.0); the
+             standalone package wins over a bundled copy -->
+        <PackageReference Include="JasperFx.Events.SourceGenerator"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
         <PackageReference Include="xunit.v3" />
         <!-- IDE discovery (Rider, Visual Studio): Bobcat warns BOBCAT033 without these -->
         <PackageReference Include="Microsoft.NET.Test.Sdk" />

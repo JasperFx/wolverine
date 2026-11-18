@@ -247,9 +247,16 @@ Wolverine's own events (`SagaCompleted` and the compensation events below) still
 an inherited `Apply` runs first, then your `Evolve`. You never forward them by hand.
 
 ::: warning
-That needs a JasperFx.Events release with [jasperfx#1241](https://github.com/JasperFx/jasperfx/issues/1241). Until
-then, an `Evolve()` saga never sees Wolverine's own events: it never reads as completed and its compensation status
-stays `Active`. Use `Apply` methods until then.
+That needs the JasperFx.Events source generator 3.8.0 or later
+([jasperfx#1241](https://github.com/JasperFx/jasperfx/issues/1241)). A store package may bundle an older copy of the
+generator (Marten 10.0.0-alpha.3 does), in which case an `Evolve()` saga never sees Wolverine's own events: it never
+reads as completed, and its compensation status stays `Active`. Reference the generator package directly, and its copy
+wins over the bundled one:
+
+```xml
+<PackageReference Include="JasperFx.Events.SourceGenerator" Version="3.8.0"
+                  OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+```
 :::
 
 Use type patterns with a variable or a discard in `Evolve` (`case ReturnedItemsReceived _:`): the JasperFx.Events

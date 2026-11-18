@@ -125,3 +125,15 @@ public class reading_an_event_sourced_sagas_history_on_polecat(PolecatFulfillmen
 [BobcatFeature("An event-sourced saga's history (Fisher)")]
 [Collection(nameof(FisherFulfillmentCollection))]
 public class reading_an_event_sourced_sagas_history_on_fisher(FisherFulfillmentServices services) : reading_an_event_sourced_sagas_history(services);
+
+[BobcatFeature("An event-sourced saga written with Evolve()")]
+[Collection(nameof(FulfillmentCollection))]
+public class an_event_sourced_saga_written_with_evolve_on_marten(InlineFulfillmentServices services) : an_event_sourced_saga_written_with_evolve(services);
+
+[BobcatFeature("An event-sourced saga written with Evolve() (Polecat)")]
+[Collection(nameof(PolecatFulfillmentCollection))]
+public class an_event_sourced_saga_written_with_evolve_on_polecat(PolecatFulfillmentServices services) : an_event_sourced_saga_written_with_evolve(services);
+
+[BobcatFeature("An event-sourced saga written with Evolve() (Fisher)")]
+[Collection(nameof(FisherFulfillmentCollection))]
+public class an_event_sourced_saga_written_with_evolve_on_fisher(FisherFulfillmentServices services) : an_event_sourced_saga_written_with_evolve(services);
