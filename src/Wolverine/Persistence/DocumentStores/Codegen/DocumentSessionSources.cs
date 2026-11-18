@@ -50,6 +50,12 @@ internal sealed class DocumentSessionTypes
     ///     <c>Fisher.Events.EventOperations</c>)
     /// </summary>
     public required Type EventOperations { get; init; }
+
+    /// <summary>
+    ///     The store's own default store interface, e.g. <c>Marten.IDocumentStore</c>. GH-5401: the store a
+    ///     <c>[WaitForProjection&lt;T&gt;]</c> waits on when the chain is not routed to an ancillary store.
+    /// </summary>
+    public required Type DocumentStore { get; init; }
 }
 
 /// <summary>

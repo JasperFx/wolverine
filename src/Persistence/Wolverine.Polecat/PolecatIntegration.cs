@@ -145,7 +145,8 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding, Wolveri
         OutboxedSessionFactory = typeof(Wolverine.Polecat.Publishing.OutboxedSessionFactory),
         NativeSessionFactory = typeof(global::Polecat.ISessionFactory),
         DocumentOperations = typeof(global::Polecat.IDocumentOperations),
-        EventOperations = typeof(global::Polecat.Events.IEventOperations)
+        EventOperations = typeof(global::Polecat.Events.IEventOperations),
+        DocumentStore = typeof(global::Polecat.IDocumentStore)
     };
 
     internal EventForwardingRouter EventRouter { get; } = new();

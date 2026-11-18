@@ -170,6 +170,9 @@ public partial class HttpChain
 
     internal IEnumerable<Frame> DetermineFrames(GenerationRules rules)
     {
+        // GH-5401: before the writers, so the wait lands between the commit and the response
+        applyReadYourWrites();
+
         // Add frames for any writers
         if (ResourceType != typeof(void))
         {

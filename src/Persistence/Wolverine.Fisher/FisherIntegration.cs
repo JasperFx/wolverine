@@ -140,7 +140,8 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding, Wolverin
         OutboxedSessionFactory = typeof(Wolverine.Fisher.Publishing.OutboxedSessionFactory),
         NativeSessionFactory = typeof(global::Fisher.ISessionFactory),
         DocumentOperations = typeof(global::Fisher.IDocumentOperations),
-        EventOperations = typeof(global::Fisher.Events.EventOperations)
+        EventOperations = typeof(global::Fisher.Events.EventOperations),
+        DocumentStore = typeof(global::Fisher.IDocumentStore)
     };
 
     internal EventForwardingRouter EventRouter { get; } = new();
