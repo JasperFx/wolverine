@@ -20,7 +20,7 @@ public sealed partial class HandlerDiscovery
     [
         HandlerChain.Handle, HandlerChain.Handles, HandlerChain.Consume, HandlerChain.Consumes, SagaChain.Orchestrate,
         SagaChain.Orchestrates, SagaChain.Start, SagaChain.Starts, SagaChain.StartOrHandle, SagaChain.StartsOrHandles,
-        SagaChain.NotFound
+        SagaChain.NotFound, SagaChain.IdNotProvided
     ];
 
     private bool _conventionalDiscoveryDisabled;
@@ -65,6 +65,11 @@ public sealed partial class HandlerDiscovery
             m => m.HasAttribute<WolverineHandlerAttribute>());
 
         MethodExcludes.WithCondition("Method is declared by object", method => method.DeclaringType == typeof(object));
+
+        // GH-4484: IdNotProvided is a saga convention only, so a method of that name anywhere else is not a handler
+        MethodExcludes.WithCondition("IdNotProvided() outside a saga",
+            method => method.Name is SagaChain.IdNotProvided or SagaChain.IdNotProvided + "Async" &&
+                      !(method.ReflectedType ?? method.DeclaringType)!.CanBeCastTo<Saga>());
         MethodExcludes.WithCondition("IDisposable.Dispose()", method => method.Name == nameof(IDisposable.Dispose));
         MethodExcludes.WithCondition("IAsyncDisposable.DisposeAsync()",
             method => method.Name == nameof(IAsyncDisposable.DisposeAsync));

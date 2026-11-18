@@ -629,6 +629,17 @@
       "tracks": []
     },
     {
+      "name": "SagaFaults.Specs",
+      "path": "src/Samples/SagaFaults/SagaFaults.Specs/SagaFaults.Specs.csproj",
+      "ciTargets": "CIBobcat",
+      "workers": 1,
+      "postgres": "OwnDatabase",
+      "services": [
+        "postgresql"
+      ],
+      "tracks": []
+    },
+    {
       "name": "Wolverine.AI.Tests",
       "path": "src/Extensions/Wolverine.AI.Tests/Wolverine.AI.Tests.csproj",
       "ciTargets": "CIExtensions",

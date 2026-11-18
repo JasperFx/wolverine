@@ -140,8 +140,8 @@ public class saga_handles_fault_of_a_message_it_sent
             .Single(x => x.Message is Fault<ReserveStock>);
         fault.SagaId.ShouldBeNull();
 
-        // Today the saga's Fault<ReserveStock> handler throws IndeterminateSagaStateIdException (the
-        // IdNotProvided case #4484 asks for a hook for), and the fault itself is dead-lettered
+        // A saga with no IdNotProvided for Fault<ReserveStock> still throws IndeterminateSagaStateIdException, and the
+        // fault itself is dead-lettered. GH-4484's IdNotProvided hook is opt-in: see saga_faults_and_IdNotProvided_5553
         var deadLettered = session.MovedToErrorQueue.Envelopes().Single(x => x.Message is Fault<ReserveStock>);
         var record = session.AllRecordsInOrder(MessageEventType.MovedToErrorQueue)
             .Single(x => x.Envelope?.Id == deadLettered.Id);

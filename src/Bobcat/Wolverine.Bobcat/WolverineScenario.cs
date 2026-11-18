@@ -109,7 +109,7 @@ public sealed record ActOutcome(
 /// <see cref="SpecificationFailedException" />.
 /// </para>
 /// </remarks>
-public class WolverineScenario : CritterStackScenario
+public partial class WolverineScenario : CritterStackScenario
 {
     // GH-4931: the message an act dispatches -- built from a partial object, so not always the object the
     // step was given -- which is how its own events are told from its cascades'
@@ -728,7 +728,9 @@ public class WolverineScenario : CritterStackScenario
         try
         {
             session = await dispatch(tracking);
-            error = session.AllExceptions().FirstOrDefault();
+            // GH-5553 (proposed): with DeadLettersFailTheAct off, a failure that ended in a dead letter is an outcome
+            // ThenDeadLettered judges, not the act failing
+            error = DeadLettersFailTheAct ? session.AllExceptions().FirstOrDefault() : failureNotDeadLettered(session);
         }
         catch (Exception e)
         {
@@ -812,6 +814,10 @@ public class WolverineScenario : CritterStackScenario
     private TrackedSessionConfiguration trackActivity()
     {
         var tracking = (_host is null ? Services.TrackActivity() : _host.TrackActivity()).Timeout(Timeout).DoNotAssertOnExceptionsDetected();
+
+        // GH-5553 (proposed): every other service the specification tracks
+        if (root._otherServices.Count > 0) tracking = tracking.AlsoTrack(root._otherServices.Values.ToArray());
+
         return IncludeExternalTransports ? tracking.IncludeExternalTransports() : tracking;
     }
 
