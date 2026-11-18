@@ -900,8 +900,9 @@ public partial class WolverineScenario : CritterStackScenario
     /// <see cref="EventuallyTimeout" /> for work that lands after the daemons, such as a handler on a local queue.
     /// </para>
     /// <para>
-    /// The store must record correlation ids, which Marten, Polecat and Fisher all leave off by default. When it
-    /// does not, the step fails and says how to turn them on. The correlation only reaches an event when every
+    /// The store must record correlation ids, which Marten 10, Polecat 6 and Fisher 2 do by default; a store can turn
+    /// them off, or <c>RestoreV9Defaults()</c> turns them off on Marten. When it does not record them, the step fails
+    /// and says how to turn them on. The correlation only reaches an event when every
     /// hop carries it: Wolverine's handlers do, but an event subscription or a projection's side effect that
     /// publishes a message has to pass the event's <c>CorrelationId</c> on itself.
     /// </para>

@@ -36,7 +36,7 @@ public class dynamically_spin_up_new_tenant_databases_with_autocreate
 
             // Dynamically add a new tenant
             var tenancy = (MasterTableTenancy)store.Options.Tenancy;
-            await tenancy.AddDatabaseRecordAsync("tenant1", tenantConnectionString);
+            await tenancy.AddDatabaseRecordAsync("tenant1", tenantConnectionString, TestContext.Current.CancellationToken);
 
             // Apply Marten migrations to the tenant database
             var db = await tenancy.FindOrCreateDatabase("tenant1");

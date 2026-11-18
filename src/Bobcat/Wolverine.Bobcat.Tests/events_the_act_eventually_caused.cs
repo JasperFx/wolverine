@@ -273,8 +273,8 @@ public sealed class polecat_events_the_act_eventually_caused(PolecatParcelHost a
 public sealed class fisher_events_the_act_eventually_caused(FisherParcelHost app)
     : events_the_act_eventually_caused<FisherParcelHost>(app), IClassFixture<FisherParcelHost>;
 
-// GH-4939: correlation ids are off by default on every store, and a skipped "then" looks green, so the step
-// fails and says how to turn them on for the store it is running against. The Tab hosts leave them off.
+// GH-4939: a store can have correlation ids turned off, and a skipped "then" looks green, so the step fails and says
+// how to turn them on for the store it is running against. The Tab hosts turn them off.
 public abstract class correlation_ids_off<THost>(THost app, string howToTurnThemOn) : WolverineSpec(app.Host)
     where THost : TabHost
 {

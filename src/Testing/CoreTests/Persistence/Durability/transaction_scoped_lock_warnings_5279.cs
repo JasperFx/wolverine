@@ -75,6 +75,20 @@ public class transaction_scoped_lock_warnings_5279 : IAsyncLifetime
         warning.ShouldContain("event sequence gap");
     }
 
+    // GH-5620. Marten's IntegrateWithWolverine() registers the lock with Marten's gap detection, which then ignores it
+    [Fact]
+    public async Task no_warning_about_extension_steps_when_gap_detection_ignores_the_lock()
+    {
+        var store = new GapDetectionAwarePassStore("postgresql", MessageStoreRole.Main, new RecordingStep("outgoing", DurabilityPassStepResult.Nothing))
+        {
+            SupportsTransactionScopedDurabilityPassLock = true
+        };
+
+        await runTwiceAsync([store], new RecordingStep("projections", DurabilityPassStepResult.Nothing));
+
+        lockWarnings().ShouldBeEmpty();
+    }
+
     [Fact]
     public async Task no_warning_for_a_supporting_store_without_extension_steps()
     {
@@ -87,4 +101,10 @@ public class transaction_scoped_lock_warnings_5279 : IAsyncLifetime
 
         lockWarnings().ShouldBeEmpty();
     }
+}
+
+internal class GapDetectionAwarePassStore(string name, MessageStoreRole role, params IDurabilityPassStep[] steps)
+    : FakePassStore(name, role, steps), IDurabilityPassLockIgnoredByGapDetection
+{
+    public bool DurabilityPassLockIgnoredByGapDetection => true;
 }

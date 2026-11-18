@@ -40,6 +40,13 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
 
     protected abstract void configurePersistence(WolverineOptions opts, string connectionString, string schemaName);
 
+    /// <summary>
+    /// The schema of the message store these hosts use. A provider whose other test classes keep their message store in
+    /// the default schema of the same database overrides this: two Solo nodes on one message store each recover and run
+    /// the other's scheduled messages, so a scheduled message another test is waiting for can be taken by these hosts
+    /// </summary>
+    protected virtual string messageStoreSchemaName => "wolverine";
+
 
     public async ValueTask InitializeAsync()
     {
@@ -63,7 +70,7 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
                 opts.Durability.ScheduledJobPollingTime = 1.Seconds();
                 opts.Discovery.IncludeType(typeof(ExternalTableTransportComplianceHandler));
                 opts.Discovery.IncludeType(typeof(ExternalTableBlowsUpHandler));
-                configurePersistence(opts, connectionString, "wolverine");
+                configurePersistence(opts, connectionString, messageStoreSchemaName);
                 if (table != null)
                 {
                     opts.ListenForMessagesFromExternalDatabaseTable(table.TableName.Schema,

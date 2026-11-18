@@ -283,7 +283,7 @@ using var host = await Host.CreateDefaultBuilder()
 
         // Take the durability pass lock inside a transaction that stays
         // open for the pass, so it is taken and released on the same
-        // server connection. Don't use this with Marten's async daemon
+        // server connection
         opts.Durability.UseTransactionScopedDurabilityPassLock = true;
     }).StartAsync();
 ```
@@ -301,11 +301,11 @@ the lock finds that the server connection it reached doesn't hold it, and that w
 ::: warning
 The lock connection sits idle in an open transaction for as long as the pass runs, which is why this is off by default.
 Marten's async daemon treats any session with an open transaction older than an event sequence gap as a possible
-reserver of that gap, so asynchronous projections can't get past a gap that was first seen while a pass is running.
-That includes a gap the daemon only discovers during the pass, so a custom `IDurabilityPassStep` that waits for
-asynchronous projections to catch up will wait on its own pass until the pass runs out of time. Wolverine logs a warning
-the first time a pass runs extension steps under this lock. Only use this option if you don't run Marten's async daemon
-against the same database, or if that wait is acceptable to you.
+reserver of that gap. `IntegrateWithWolverine()` registers the durability pass lock with Marten's gap detection, so
+Marten ignores the lock's session and a custom `IDurabilityPassStep` that waits for asynchronous projections to catch
+up is not held behind its own pass. A Marten store that is not integrated with Wolverine doesn't
+know about the lock, and a step that waits for its projections waits on the pass until the pass runs out of time;
+Wolverine logs a warning the first time a pass runs extension steps under a lock no Marten store has registered.
 
 Wolverine turns off the server's `idle_in_transaction_session_timeout` for the lock transaction alone, with `SET LOCAL`.
 It can't do the same for PgBouncer's `idle_transaction_timeout`, so if you set that one, make it longer than a pass. If

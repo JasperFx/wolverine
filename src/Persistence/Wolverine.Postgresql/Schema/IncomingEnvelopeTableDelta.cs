@@ -20,9 +20,11 @@ namespace Wolverine.Postgresql.Schema;
 /// sees every committed row and nothing reads or writes the inbox until the commit. PostgreSQL refuses LOCK TABLE in the
 /// implicit transaction a pipelined script runs in, hence the explicit block.</para>
 ///
-/// <para>Partitioning an unpartitioned inbox is Weasel's own rebuild, wrapped in the same transaction and lock. Before
-/// Weasel 10.0.0-alpha.8 that rebuild started with the primary key change, whose ALTER TABLE took the lock; weasel#871
-/// dropped that step, and with it the lock, so a row another node committed while the copy aside ran was lost.</para>
+/// <para>Partitioning an unpartitioned inbox is Weasel's own rebuild, unchanged. Since Weasel 10.0.0-alpha.10
+/// (weasel#882) that rebuild takes the same <c>ACCESS EXCLUSIVE</c> lock before its copy aside, inside the transaction
+/// the migrator opens for it (or one of its own when it is written on its own), so a row another node commits while the
+/// copy runs is not lost. Until then Wolverine wrapped it in a transaction and lock of its own (#5637); that
+/// wrapper's <c>commit;</c> would now end the migrator's transaction early.</para>
 ///
 /// <para>A partitioned inbox can hold one message identity as both Incoming and Scheduled (and Handled), which the
 /// unpartitioned primary key cannot. The copy back keeps the row that supersedes the others, as the scheduled message
@@ -40,23 +42,8 @@ internal class IncomingEnvelopeTableDelta : TableDelta
     public bool UnpartitionsExistingTable =>
         Actual?.Partitioning != null && Expected.Partitioning == null && PartitionDelta == PartitionDelta.Rebuild;
 
-    /// <summary>
-    /// True when this delta partitions an existing, unpartitioned inbox
-    /// </summary>
-    public bool PartitionsExistingTable =>
-        Actual != null && Actual.Partitioning == null && Expected.Partitioning != null && PartitionDelta == PartitionDelta.Rebuild;
-
     public override void WriteUpdate(Migrator rules, TextWriter writer)
     {
-        if (PartitionsExistingTable)
-        {
-            writer.WriteLine("begin;");
-            writer.WriteLine($"lock table {Expected.Identifier} in access exclusive mode;");
-            base.WriteUpdate(rules, writer);
-            writer.WriteLine("commit;");
-            return;
-        }
-
         if (!UnpartitionsExistingTable)
         {
             base.WriteUpdate(rules, writer);

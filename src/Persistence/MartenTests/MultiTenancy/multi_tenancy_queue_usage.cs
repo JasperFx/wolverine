@@ -174,8 +174,8 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
     public async Task spin_up_new_databases_and_see_listeners_be_created()
     {
         var tenancy = (MasterTableTenancy)theStore.Options.Tenancy;
-        await tenancy.AddDatabaseRecordAsync("tenant3", tenant3ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant4", tenant4ConnectionString);
+        await tenancy.AddDatabaseRecordAsync("tenant3", tenant3ConnectionString, TestContext.Current.CancellationToken);
+        await tenancy.AddDatabaseRecordAsync("tenant4", tenant4ConnectionString, TestContext.Current.CancellationToken);
 
         for (int i = 0; i < 10; i++)
         {

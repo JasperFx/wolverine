@@ -83,6 +83,12 @@ internal class MartenMessageDatabaseSource : TenantedMessageDatabaseSource<IMart
 
         store.TenantIds.AddRange(database.TenantIds.Distinct());
 
+        // GH-5620
+        if (_store is DocumentStore documentStore)
+        {
+            DurabilityPassGapDetection.MarkIfRegistered(documentStore.Options, store);
+        }
+
         return store;
     }
 }

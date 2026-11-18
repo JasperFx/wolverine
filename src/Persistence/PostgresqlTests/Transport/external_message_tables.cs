@@ -23,6 +23,10 @@ public class external_message_tables : ExternalTableTransportCompliance
     protected override string timestampColumnType => "timestamp with time zone";
     protected override string messageTypeColumnType => "varchar";
 
+    // Not the default "wolverine" schema: LocalPostgresqlBackedTransportCompliance runs beside this class on that schema,
+    // and these hosts took its scheduled message (schedule_send timed out)
+    protected override string messageStoreSchemaName => "ext_wolverine";
+
     protected override void configurePersistence(WolverineOptions opts, string connectionString, string schemaName) =>
         opts.UsePostgresqlPersistenceAndTransport(connectionString, schemaName);
 

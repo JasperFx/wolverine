@@ -117,7 +117,7 @@ public class DurabilityModes
 
                 // Take the durability pass lock inside a transaction that stays
                 // open for the pass, so it is taken and released on the same
-                // server connection. Don't use this with Marten's async daemon
+                // server connection
                 opts.Durability.UseTransactionScopedDurabilityPassLock = true;
             }).StartAsync();
 

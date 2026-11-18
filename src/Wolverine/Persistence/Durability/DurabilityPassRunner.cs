@@ -263,13 +263,17 @@ internal class DurabilityPassRunner
             return;
         }
 
-        if (extensionSteps.Count > 0)
+        // GH-5620. The Marten integration registers the lock with Marten's gap detection, which then ignores it
+        if (extensionSteps.Count > 0 && store is not IDurabilityPassLockIgnoredByGapDetection
+            {
+                DurabilityPassLockIgnoredByGapDetection: true
+            })
         {
             // GH-5279. Marten's gap detection counts the lock's open transaction as a possible reserver of any
             // sequence gap first seen after the pass started, so a step that waits for projections to catch up can
-            // wait on its own pass until the pass runs out of time
+            // wait on its own pass until the pass runs out of time, unless the lock was registered with it
             _logger.LogWarning(
-                "The durability pass steps {Steps} run against message store {Store} while its transaction-scoped durability pass lock holds an open transaction. A step that waits for Marten's asynchronous projections to catch up cannot get past an event sequence gap while that transaction is open, and will wait until the pass runs out of time",
+                "The durability pass steps {Steps} run against message store {Store} while its transaction-scoped durability pass lock holds an open transaction. A step that waits for Marten's asynchronous projections to catch up cannot get past an event sequence gap while that transaction is open, and will wait until the pass runs out of time. Marten's IntegrateWithWolverine() registers the lock with Marten's gap detection so this does not happen, but this store's lock was not registered",
                 string.Join(", ", extensionSteps.Select(x => x.Name)), store.Uri);
         }
     }

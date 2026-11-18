@@ -342,6 +342,9 @@ public static class WolverineOptionsMartenExtensions
         };
 
 
+        // GH-5620
+        DurabilityPassGapDetection.MarkIfRegistered(store.Options, main);
+
         var source = new MartenMessageDatabaseSource(schemaName, autoCreate ?? store.Options.AutoCreateSchemaObjects,
             store, runtime);
 
@@ -368,8 +371,13 @@ public static class WolverineOptionsMartenExtensions
         var dataSource = store.Storage.Database.As<PostgresqlDatabase>().DataSource;
 
         // Marten's data source, so Marten disposes it when it should
-        return new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger,
+        var messageStore = new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger,
             ownsDataSource: false);
+
+        // GH-5620
+        DurabilityPassGapDetection.MarkIfRegistered(store.Options, messageStore);
+
+        return messageStore;
     }
 
     internal static MartenIntegration? FindMartenIntegration(this IServiceCollection services)
