@@ -348,8 +348,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         var container = services!.GetRequiredService<IServiceContainer>();
         applyCustomizations(rules, container);
 
-        Handler = (MessageHandler)container.QuickBuild(_handlerType);
-        Handler.Chain = this;
+        // GH-5642: give the handler its chain *before* publishing it. HandlerGraph reads Handler outside its
+        // compiling lock, so another thread may pick it up the moment it is assigned
+        var handler = (MessageHandler)container.QuickBuild(_handlerType);
+        handler.Chain = this;
+        Handler = handler;
 
         Debug.WriteLine(_generatedType?.SourceCode);
 
