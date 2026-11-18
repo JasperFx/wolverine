@@ -662,8 +662,8 @@ public class CritterStackScenario
         var values = document is IPartialObject partial ? PartialObjects.DescribeValues(partial) : ScenarioValues.DescribeDocument(document);
         var inline = values.Length <= ScenarioValues.InlineLimit;
         var text = asTenant(inline && values.Length > 0
-            ? $"there is a {nameOf(typeof(T))} with {values}"
-            : $"there is a {nameOf(typeof(T))}");
+            ? $"there is {articleFor(typeof(T))} {nameOf(typeof(T))} with {values}"
+            : $"there is {articleFor(typeof(T))} {nameOf(typeof(T))}");
         await inStep(ScenarioRecorder.Step("Given", text), async () =>
         {
             // bobcat#618: a document too long for the line keeps its values, as a table under the step
@@ -2023,7 +2023,9 @@ public class CritterStackScenario
         });
     }
 
-    private static string existsText<T>(object id) => $"there is a {documentNamed<T>(id)}";
+    private static string existsText<T>(object id) => $"there is {articleFor(typeof(T))} {documentNamed<T>(id)}";
+
+    private static string articleFor(Type type) => "AEIOU".Contains(char.ToUpperInvariant(nameOf(type)[0])) ? "an" : "a";
 
     // bobcat#682: "the Wallet #fromWallet matches", so a from- and a to-wallet checked side by side can be told apart
     private static string matchesText<T>(object id) => $"the {documentNamed<T>(id)} matches";

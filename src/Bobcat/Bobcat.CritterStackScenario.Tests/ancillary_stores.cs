@@ -26,6 +26,23 @@ public abstract class ancillary_stores<THost, TMarker>(THost host) where THost :
     // ---- A: route by type --------------------------------------------------------------------
 
     [Fact]
+    public async Task vowel_starting_document_names_use_an_in_rendered_steps()
+    {
+        var scenario = newScenario();
+        var id = Guid.NewGuid();
+
+        var recording = await Recordings.RecordAsync(async () =>
+        {
+            await scenario.GivenReadModel<InvoiceSummary>(new InvoiceSummary { Id = id });
+            await scenario.ThenDocument<InvoiceSummary>(id);
+        });
+
+        recording.GatheredFailures().ShouldBeNull();
+        recording.Steps[0].Text.ShouldBe("there is an InvoiceSummary");
+        recording.Steps[1].Text.ShouldBe("there is an InvoiceSummary #InvoiceSummary");
+    }
+
+    [Fact]
     public async Task givens_and_thens_go_to_the_store_that_registers_their_type()
     {
         // Every step here names a type exactly one store registers, so the types decide
