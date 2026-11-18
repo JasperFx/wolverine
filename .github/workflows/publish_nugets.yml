@@ -37,7 +37,7 @@ jobs:
 
       - name: Publish to NuGet
         run: |
-          find . -name '*.nupkg' -exec dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY" --skip-duplicate \;
+          find . -name '*.nupkg' -print0 | xargs -0 -r -I{} dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY" --skip-duplicate
           # find . -name '*.snupkg' -exec dotnet nuget push "{}" -s https://api.nuget.org/v3/index.json -k "$NUGET_API_KEY" \;
         env:
           NUGET_API_KEY: ${{ steps.nuget_login.outputs.NUGET_API_KEY }}
