@@ -45,6 +45,7 @@ list.
 | Code generation in the `Production` profile (Wolverine hosts) | `TypeLoadMode.Dynamic`: compiled at runtime | `TypeLoadMode.Static` with `AssertAllPreGeneratedTypesExist`: pre-generated code is required *(BREAKING for applications that deploy without `codegen write`)* | Run `dotnet run -- codegen write` in the build, or call `RestoreV6Defaults()`. See [deploying 7.0 to production](#deploying-7-0-to-production) |
 | Transport timestamp headers (`sent-at`, `time-to-send`, `deliver-by`) | written as `yyyy-MM-dd HH:mm:ss:ffffff Z` | written in round-trip ISO 8601 (`"o"`, UTC); both formats are still read | 5.x nodes running beside 7.0 nodes need WolverineFx 5.41.1 or later; 6.x already reads both. See [transport timestamp headers](#transport-timestamp-headers-are-written-in-round-trip-iso-8601) |
 | Publishing to a full durable local queue | once the queue held 10,000 messages, a publish to it, and the flush after a committed transaction, waited for room in the queue | the message waits in the inbox and the durability agent moves it into the queue as the queue drains; the publisher does not wait | None. See [a full durable local queue no longer holds the publisher](#a-full-durable-local-queue-no-longer-holds-the-publisher) |
+| `DurabilitySettings.Workloads` | not there: every node ran listeners, agents and scheduled polling | new, default `All`, so nothing changes; `None` makes an HTTP-only node | None. Roll out workloads other than `All` only after every node runs 7.0; see [node workloads](#node-workloads-http-only-messaging-and-durability-nodes) |
 
 ### Wolverine's analyzers are on by default
 
@@ -1016,6 +1017,19 @@ Wolverine's metrics move to the OpenTelemetry naming conventions in 7.0 (GH-5128
 | 6.x tag key | 7.0 tag key | Prometheus label (6.x → 7.0) |
 |---|---|---|
 | `message.type` | `wolverine.message.type` | `message_type` → `wolverine_message_type` |
+
+### Node workloads: HTTP-only, messaging and durability nodes
+
+New in 7.0, and off unless you set it: `opts.Durability.Workloads` lets one build of your application run as an
+HTTP tier, a messaging tier and the nodes that hold the durability agents. See [Node Roles](/guide/durability/node-roles).
+The default is `All`, which is exactly what every node did in 6.x, and a node from 6.x reads as `All` to a 7.0 leader.
+
+Upgrade every node to 7.0 before any node runs less than `All`. During a rolling upgrade a 6.x leader can still send
+listeners to an HTTP-only node, because its even spread doesn't look at capabilities. The HTTP-only node refuses to
+start them, so nothing runs where it shouldn't, but the leader keeps reassigning them until the leader is on 7.0.
+
+The sweep that deletes [retained completed sagas](/guide/durability/sagas#keeping-completed-sagas), also new in 7.0,
+runs only on a node with the `Durability` workload, like the rest of the storage housekeeping.
 
 ### Changed during 6.x without a flag
 

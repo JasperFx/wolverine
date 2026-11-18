@@ -33,6 +33,11 @@ Running on PostgreSQL and seeing frequent **"Lost advisory-lock connection"**, *
 :::
 
 
+::: tip
+To keep the durability agents, listeners or projections off some of your nodes -- an HTTP-only tier, say -- see
+[Node Roles](/guide/durability/node-roles).
+:::
+
 ## Solo Mode
 
 Let's say that you're working on an individual development machine and frequently stopping and starting the application.
@@ -352,7 +357,7 @@ on the database's role**:
 
 | Store | Polled by | Starts |
 |-------|-----------|--------|
-| Main and ancillary stores | **Every node** | Immediately at startup |
+| Main and ancillary stores | **Every node** running the `Messaging` [workload](/guide/durability/node-roles) | Immediately at startup |
 | Tenant databases (database-per-tenant) | **Only the node that owns that database's durability agent** | Once agent assignment completes |
 
 Either way a due message executes exactly once. Where every node polls, the poll takes a per-database lock

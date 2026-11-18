@@ -10,6 +10,7 @@ public class DurabilitySettingsDescription
     {
         Mode = settings.Mode.ToString();
         DurabilityAgentEnabled = settings.DurabilityAgentEnabled;
+        Workloads = settings.Workloads.ToString();
         RecoveryBatchSize = settings.RecoveryBatchSize;
         KeepAfterMessageHandling = settings.KeepAfterMessageHandling.ToString();
         ScheduledJobPollingTime = settings.ScheduledJobPollingTime.ToString();
@@ -30,6 +31,13 @@ public class DurabilitySettingsDescription
 
     public string Mode { get; set; } = "Balanced";
     public bool DurabilityAgentEnabled { get; set; } = true;
+
+    /// <summary>
+    ///     GH-5601. This node's <see cref="DurabilitySettings.Workloads" />, as the flags text ("All", "None",
+    ///     "Messaging, Projections")
+    /// </summary>
+    public string Workloads { get; set; } = "All";
+
     public int RecoveryBatchSize { get; set; } = 100;
     public string KeepAfterMessageHandling { get; set; } = "00:05:00";
     public string ScheduledJobPollingTime { get; set; } = "00:00:05";

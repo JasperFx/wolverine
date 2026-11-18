@@ -373,7 +373,10 @@ public partial class WolverineRuntime : IAgentRuntime
                 // GH-4569: every Balanced node polls the scheduled rows of its stores whether or not it was
                 // assigned anything, and executes what comes due on itself. A warm-up node must never run a
                 // production message, so it does not poll at all; the serving nodes keep doing it.
-                if (Options.Durability.NodeRole == NodeRole.Serving)
+                //
+                // GH-5601: nor does a node without the Messaging workload. Its scheduled sends are persisted rows that
+                // a messaging node's poller runs.
+                if (Options.Durability.NodeRole == NodeRole.Serving && Options.Durability.Runs(NodeWorkloads.Messaging))
                 {
                     await startDurableScheduledJobs();
                 }

@@ -8,34 +8,15 @@ public partial class NodeAgentController
     public async Task<AgentCommands> StartLocalAgentProcessingAsync(WolverineOptions options)
     {
         var current = WolverineNode.For(options);
-        foreach (var controller in _agentFamilies.Values.OfType<IStaticAgentFamily>())
+
+        var staticFamilies = new List<(IAgentFamily, IReadOnlyList<Uri>)>();
+        foreach (var family in _agentFamilies.Values.OfType<IStaticAgentFamily>())
         {
-            current.Capabilities.AddRange(await controller.SupportedAgentsAsync());
+            staticFamilies.Add((family, await family.SupportedAgentsAsync()));
         }
 
-        // GH-3954: the durability agent family is deliberately NOT an IStaticAgentFamily -- its agent list
-        // grows at runtime as tenant databases are added -- so none of its wolverinedb:// Uris pass through
-        // the loop above, and the leader had no way to tell a node that runs durability agents from one with
-        // Durability.DurabilityAgentEnabled = false. It assigned to both, the incapable node threw
-        // "Unrecognized agent scheme 'wolverinedb'", and the assignment never converged while staged
-        // envelopes sat unrecovered. Publish a single node-level marker instead; see
-        // MessageStoreCollection.DurabilityCapabilityUri.
-        // Keyed on the setting rather than on _agentFamilies[_runtime.Stores.Scheme], which is the same
-        // condition -- the constructor registers the family if and only if this flag is set -- but reaches
-        // through Stores, and that is null on a runtime with no message store.
-        //
-        // GH-4569: a warm-up node never recovers or schedules envelopes, so it never advertises the durability
-        // marker -- which keeps durability agents off it even under a leader that predates node roles -- and
-        // advertises its role instead. The role rides on the capability list rather than a column of its own
-        // so no store's node table changes; see NodeAgentController.WarmupRoleUri.
-        if (options.Durability.NodeRole == NodeRole.Warmup)
-        {
-            current.Capabilities.Add(WarmupRoleUri);
-        }
-        else if (options.Durability.DurabilityAgentEnabled)
-        {
-            current.Capabilities.Add(MessageStoreCollection.DurabilityCapabilityUri);
-        }
+        // GH-3954 / GH-4569 / GH-5601: the agents this node can run, plus the node-level markers. See the method.
+        current.Capabilities.AddRange(BuildCapabilities(options.Durability, staticFamilies));
 
         // GH-3604 / D2: remember the capabilities so we can re-register with them if a peer ever deletes our
         // row out from under us. WolverineNode.For() alone carries none.

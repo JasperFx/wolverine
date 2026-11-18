@@ -151,3 +151,10 @@ Not yet. Today Wolverine measures and reports; it does not throttle itself when 
 tight. Adaptive back-off — scaling daemon polling and concurrency down under pressure, with
 hysteresis so a single threshold doesn't flap — is planned as a follow-up and will be opt-in. See
 [GH-3397](https://github.com/JasperFx/wolverine/issues/3397).
+
+## Node roles and connection pools
+
+If you split your nodes into [workloads](/guide/durability/node-roles), a shard database's durability agent can only
+follow its projections to a node that also runs `Durability`. With projections on nodes that don't, each shard
+database is opened by two nodes instead of one. Give your projection nodes `Durability` too if that matters for
+your budget.

@@ -11,6 +11,11 @@ public abstract partial class MessageDatabase<T> : IAgentFamily
 
     public string Scheme => PersistenceConstants.AgentScheme;
 
+    /// <summary>
+    ///     GH-5601: durability agents only go to nodes running the Durability workload
+    /// </summary>
+    public NodeWorkloads RequiredWorkload => NodeWorkloads.Durability;
+
     public ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
         var list = new List<Uri> { _defaultAgent };

@@ -28,6 +28,12 @@ internal class SagaRetentionAgentFamily : IStaticAgentFamily
 
     public string Scheme => SchemeName;
 
+    /// <summary>
+    ///     GH-5601: deleting retained sagas is storage housekeeping, like dead letter and handled envelope expiry, so it
+    ///     goes to the nodes that hold the durability agents
+    /// </summary>
+    public NodeWorkloads RequiredWorkload => NodeWorkloads.Durability;
+
     public static Uri UriFor(string storeName)
     {
         return new Uri($"{SchemeName}:///{Uri.EscapeDataString(storeName)}");

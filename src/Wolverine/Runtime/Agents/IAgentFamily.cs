@@ -52,6 +52,13 @@ public interface IAgentFamily
     /// <param name="assignments"></param>
     /// <returns></returns>
     ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments);
+
+    /// <summary>
+    ///     GH-5601. The workload a node has to run (<see cref="DurabilitySettings.Workloads" />) to be given this
+    ///     family's agents. The default is <see cref="NodeWorkloads.Messaging" />, so a custom family is treated as
+    ///     messaging work unless it says otherwise
+    /// </summary>
+    NodeWorkloads RequiredWorkload => NodeWorkloads.Messaging;
 }
 
 #endregion

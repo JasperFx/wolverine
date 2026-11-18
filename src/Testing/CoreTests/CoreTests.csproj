@@ -17,6 +17,11 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
+        <!-- GH-5601: the node workload specifications (Runtime/Agents/Workloads) are Bobcat specifications, so they
+             render as Given/When/Then: the session hook (Bobcat.Xunit's props) and the generator that records each
+             step. Every other test here is an ordinary xUnit test and is untouched by either. -->
+        <PackageReference Include="Bobcat.Xunit" />
+        <PackageReference Include="Bobcat.Generators" />
     </ItemGroup>
 
     <ItemGroup>

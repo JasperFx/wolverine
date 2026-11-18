@@ -212,6 +212,17 @@ public sealed class LeadershipSteps : IAsyncDisposable
         });
     }
 
+    /// <summary>
+    ///     GH-5601. A node with no workloads: it serves HTTP and publishes through the outbox, holds no agents and
+    ///     never leads. Normal heartbeat, so a scenario can show that it does not take the leadership either.
+    /// </summary>
+    [Given("an HTTP-only node starts")]
+    public Task<ClusterNode> AnHttpOnlyNodeStarts()
+    {
+        Telemetry.AttachToScenario();
+        return StartNodeAsync(o => o.Durability.RunAsHttpOnlyNode());
+    }
+
     [When("node {node} stops")]
     public async Task NodeStops(int node)
     {
@@ -308,6 +319,50 @@ public sealed class LeadershipSteps : IAsyncDisposable
 
         Telemetry.AttachToScenario();
         SpecAssert.Check($"{subject} leads", subject.Host.GetRuntime().IsLeader(), false);
+    }
+
+    /// <summary>
+    ///     GH-5601. Polls for the whole period: the point is that no node takes the leadership, not that none has
+    ///     yet.
+    /// </summary>
+    [Then("no node takes the leadership within {seconds} seconds")]
+    public async Task NoNodeTakesTheLeadershipWithin(int seconds)
+    {
+        Telemetry.AttachToScenario();
+
+        var someoneLed = await pollAsync(() => _nodes.Any(x => x.Host.GetRuntime().IsLeader()), describeLeadership,
+            seconds.Seconds());
+
+        SpecAssert.Check("leader", currentLeader(), "none");
+        if (someoneLed) SpecLog.Write($"{currentLeader()} took the leadership");
+    }
+
+    /// <summary>GH-5601. Nothing at all: no ordinary agent, no durability agent, no singular agent.</summary>
+    [Then("node {node} runs no agents")]
+    public void NodeRunsNoAgents(int node)
+    {
+        var subject = nodeNumbered(node);
+
+        Telemetry.AttachToScenario();
+        var running = subject.Host.RunningAgents().Where(x => x != NodeAgentController.LeaderUri).ToArray();
+        SpecAssert.Check($"{subject} runs", names(running), "none");
+    }
+
+    /// <summary>
+    ///     GH-5601. The workloads travel to the leader as a marker in the node's capabilities, so this is the store
+    ///     carrying the marker through its node table unchanged.
+    /// </summary>
+    [Then("node {node} is in the node table with workloads {workloads}")]
+    public async Task NodeIsInTheNodeTableAs(int node, NodeWorkloads workloads)
+    {
+        var subject = nodeNumbered(node);
+
+        Telemetry.AttachToScenario();
+
+        var nodes = await subject.Host.GetRuntime().Storage.Nodes.LoadAllNodesAsync(CancellationToken.None);
+        var row = nodes.FirstOrDefault(x => x.NodeId == subject.Id);
+        SpecAssert.Check($"{subject}'s workloads in the node table", row?.Workloads.ToString() ?? "no row",
+            workloads.ToString());
     }
 
     [Then("node {node} is the only node with a persisted leader row")]

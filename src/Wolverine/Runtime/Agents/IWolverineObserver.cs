@@ -65,6 +65,15 @@ public interface IWolverineObserver
     Task AgentStartFailed(Uri agentUri, ShardStartFailureReason reason, Exception exception) =>
         Task.CompletedTask;
 
+    /// <summary>
+    ///     GH-5601. This node's heartbeat found no live node in the cluster running the
+    ///     <see cref="NodeWorkloads.Messaging" /> workload (<see cref="DurabilitySettings.Workloads" />): nothing
+    ///     consumes the application's queues or runs its scheduled messages, and there is no leader, because only a
+    ///     Messaging node leads. Fires once per transition on each node that sees it, where the matching warning is
+    ///     logged, not on every heartbeat. Default no-op so existing observers are unaffected.
+    /// </summary>
+    Task NoLiveNodeRunsMessaging() => Task.CompletedTask;
+
     // Loop through and decide what you want here.
     Task AssignmentsChanged(AssignmentGrid grid, AgentCommands commands);
     

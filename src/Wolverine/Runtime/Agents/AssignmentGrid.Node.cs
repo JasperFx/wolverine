@@ -71,6 +71,7 @@ public partial class AssignmentGrid
             _capabilities.Fill(agentUris);
             _capabilityLookup = null;
             _capabilityKeys = null;
+            _workloads = null;
             _orderedByScheme.Clear();
             return this;
         }
@@ -105,6 +106,20 @@ public partial class AssignmentGrid
         ///     only ever receives event subscription agents that no serving node declares.
         /// </summary>
         public bool IsWarmup => Declares(NodeAgentController.WarmupRoleUri);
+
+        /// <summary>
+        ///     GH-5601. The workloads this node runs, read from the marker it published
+        ///     (<see cref="NodeAgentController.WorkloadsMarkerFor" />). A node without one -- every 6.x node, and every
+        ///     node left on the default -- runs <see cref="NodeWorkloads.All" />.
+        /// </summary>
+        public NodeWorkloads Workloads => _workloads ??= NodeAgentController.WorkloadsOf(_capabilities);
+
+        private NodeWorkloads? _workloads;
+
+        /// <summary>
+        ///     GH-5601. Whether this node runs every workload in <paramref name="workloads" />.
+        /// </summary>
+        public bool Runs(NodeWorkloads workloads) => (Workloads & workloads) == workloads;
 
         public bool IsLeader { get; internal set; }
 

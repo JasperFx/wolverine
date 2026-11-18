@@ -75,9 +75,20 @@ public abstract class SingularAgent : IAgent, IAgentFamily
         // the leader, so without this a warm-up node would be the FIRST choice for recurring schedules.
         if (agent.AssignedNode is { IsWarmup: true } && !agent.IsPinned) agent.Detach();
 
+        // GH-5601: and never on a node outside its workload -- an HTTP-only node is never the leader either, so it
+        // would otherwise be the first choice too. A hard requirement, so a pin there does not survive it.
+        var eligible = assignments.NodesFor(Scheme);
+        if (agent.AssignedNode != null && !eligible.Contains(agent.AssignedNode)) agent.Detach();
+
         if (agent.AssignedNode != null) return new ValueTask();
 
-        var serving = assignments.Nodes.Where(x => !x.IsWarmup).ToList();
+        if (eligible.Count == 0)
+        {
+            agent.UnplacedReason = UnplacedReason.NoNodeForWorkload;
+            return new ValueTask();
+        }
+
+        var serving = eligible.Where(x => !x.IsWarmup).ToList();
         var node = serving.FirstOrDefault(x => !x.IsLeader) ?? serving.FirstOrDefault();
         if (node == null)
         {

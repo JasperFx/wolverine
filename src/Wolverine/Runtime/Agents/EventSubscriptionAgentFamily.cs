@@ -177,6 +177,11 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
     public string Scheme => SchemeName;
 
     /// <summary>
+    ///     GH-5601: projections and subscriptions only go to nodes running the Projections workload
+    /// </summary>
+    public NodeWorkloads RequiredWorkload => NodeWorkloads.Projections;
+
+    /// <summary>
     ///     GH-4569: set on a <see cref="NodeRole.Warmup" /> node. The node then advertises -- and can build --
     ///     async projection shards only, never subscriptions: a subscription is a side effect by definition, and
     ///     the serving nodes keep running every one of them until cut over.

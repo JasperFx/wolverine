@@ -31,6 +31,7 @@ public partial class NodeAgentController
 
     private int _lastUndeclaredAssignmentCount;
     private int _lastAwaitingCapacityCount;
+    private string _lastNoNodeForWorkloadReport = "";
 
     /// <summary>
     ///     GH-4897. How many assignment evaluations this node has run since it last assumed leadership; null
@@ -134,6 +135,40 @@ public partial class NodeAgentController
     }
 
     /// <summary>
+    ///     GH-5601. Agents no live node runs the workload of are left unassigned with
+    ///     <see cref="UnplacedReason.NoNodeForWorkload" />, and a parked steady state issues no commands, so say so.
+    ///     One line per workload, latched on what is missing, so the same steady state is not logged again on every
+    ///     evaluation.
+    /// </summary>
+    internal static void WarnAboutAgentsWithNoNodeForWorkload(AssignmentGrid grid, ILogger logger,
+        ref string lastReport)
+    {
+        var missing = grid.AllAgents
+            .Where(x => x.UnplacedReason == UnplacedReason.NoNodeForWorkload)
+            .GroupBy(x => grid.RequiredWorkloadFor(x.Uri.Scheme))
+            .OrderBy(x => x.Key)
+            .ToArray();
+
+        var report = string.Join(";", missing.Select(x => $"{x.Key}:{x.Count()}"));
+        if (report == lastReport)
+        {
+            return;
+        }
+
+        lastReport = report;
+
+        foreach (var group in missing)
+        {
+            var agents = group.ToArray();
+            var sample = string.Join(", ", agents.Take(5).Select(x => x.Uri.ToString()));
+
+            logger.LogWarning(
+                "{Count} agent(s) need a node running the {Workload} workload, and no live node in this cluster runs it (Durability.Workloads), so they are not running anywhere. Start a node with {Workload}: {Sample}{More}",
+                agents.Length, group.Key, group.Key, sample, agents.Length > 5 ? $", and {agents.Length - 5} more" : "");
+        }
+    }
+
+    /// <summary>
     ///     GH-3750: refresh the pending-assignment ledger for agents a resolving batch command just
     ///     confirmed. The dispatcher's in-flight hold ends the moment the command resolves, but the
     ///     ledger entry still carries the SentAt from when the batch was DISPATCHED — for a batch of
@@ -190,7 +225,7 @@ public partial class NodeAgentController
         if (!nodes.Any())
         {
             // At least use the current node
-            nodes = new List<WolverineNode> { WolverineNode.For(_runtime.Options) };
+            nodes = new List<WolverineNode> { syntheticSelf() };
             nodes[0].AssignAgents([LeaderUri]);
         }
         else if (nodes.All(x => x.NodeId != _runtime.Options.UniqueNodeId))
@@ -201,7 +236,7 @@ public partial class NodeAgentController
             // doesn't omit the leader. The current node only owes the LeaderUri
             // here when IsLeader is true on this tick — the heartbeat path
             // upstream is responsible for actually calling AddAssignmentAsync.
-            var self = WolverineNode.For(_runtime.Options);
+            var self = syntheticSelf();
             if (IsLeader) self.AssignAgents([LeaderUri]);
             nodes = nodes.Concat(new[] { self }).ToList();
         }
@@ -242,6 +277,12 @@ public partial class NodeAgentController
         // previously put the durability family last only by Dictionary insertion-order accident.
         var families = _agentFamilies.Values
             .OrderBy(x => x.Scheme == PersistenceConstants.AgentScheme ? 1 : 0);
+
+        // GH-5601: before any family distributes, so every pass knows which nodes run its agents' workload
+        foreach (var family in _agentFamilies.Values)
+        {
+            grid.RequireWorkload(family.Scheme, family.RequiredWorkload);
+        }
 
         foreach (var agentFamily in families)
         {
@@ -318,6 +359,7 @@ public partial class NodeAgentController
 
         WarnAboutUndeclaredAssignments(grid, issued, _logger, ref _lastUndeclaredAssignmentCount);
         ReportAgentsAwaitingCapacity(grid, _logger, ref _lastAwaitingCapacityCount);
+        WarnAboutAgentsWithNoNodeForWorkload(grid, _logger, ref _lastNoNodeForWorkloadReport);
 
         // GH-3604 / D3+D6: before the observer logs anything, so a slow start isn't punished with a
         // duplicate control-queue flood and a matching burst of AssignmentChanged telemetry rows.

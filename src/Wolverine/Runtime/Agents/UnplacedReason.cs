@@ -46,5 +46,14 @@ public enum UnplacedReason
     ///     (a store-global agent replaced by per-tenant ones, or the reverse). It stays visible only while some
     ///     node still declares it from its startup capabilities.
     /// </summary>
-    Superseded
+    Superseded,
+
+    /// <summary>
+    ///     GH-5601. No live node runs the workload this agent needs (<see cref="DurabilitySettings.Workloads" />):
+    ///     a durability agent with no node running <see cref="NodeWorkloads.Durability" />, a projection with no
+    ///     node running <see cref="NodeWorkloads.Projections" />, or a listener or other messaging agent with no
+    ///     node running <see cref="NodeWorkloads.Messaging" />. Start a node with that workload; more capacity on the
+    ///     other nodes would not place it.
+    /// </summary>
+    NoNodeForWorkload
 }

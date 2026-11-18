@@ -473,6 +473,11 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
     }
 
     public string Scheme => PersistenceConstants.AgentScheme;
+
+    /// <summary>
+    ///     GH-5601: the durability agents only go to nodes running the Durability workload
+    /// </summary>
+    public NodeWorkloads RequiredWorkload => NodeWorkloads.Durability;
     public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
         var stores = await FindAllAsync<IMessageStoreWithAgentSupport>();
@@ -547,8 +552,10 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         }
 
         alreadyWarned = true;
+        // GH-5601: two causes now, and the message names both, because they look the same from here: the leader
+        // only sees that no node published the durability marker.
         logger.LogWarning(
-            "No node in this Wolverine cluster can run durability agents, so none were assigned and no outgoing envelope recovery, scheduled message processing or node reassignment will happen for any message store. Every node in the cluster started with Durability.DurabilityAgentEnabled = false. Enable it on at least one node.");
+            "No node in this Wolverine cluster can run durability agents, so none were assigned and no outgoing envelope recovery, scheduled message processing or node reassignment will happen for any message store. Either every node started with Durability.DurabilityAgentEnabled = false, or no live node runs the Durability workload (Durability.Workloads). Start at least one node with DurabilityAgentEnabled and the Durability workload.");
     }
 
     internal async Task<IAgent> StartScheduledJobProcessing(IWolverineRuntime runtime)

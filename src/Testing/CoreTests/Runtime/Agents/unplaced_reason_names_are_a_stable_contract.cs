@@ -19,7 +19,8 @@ public class unplaced_reason_names_are_a_stable_contract
         "NoCapableNode",
         "Paused",
         "TakeoverHold",
-        "Superseded"
+        "Superseded",
+        "NoNodeForWorkload"
     ];
 
     [Theory]
