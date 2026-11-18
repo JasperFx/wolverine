@@ -163,7 +163,8 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding, Wolverin
         OutboxedSessionFactory = typeof(Wolverine.Marten.Publishing.OutboxedSessionFactory),
         NativeSessionFactory = typeof(global::Marten.ISessionFactory),
         DocumentOperations = typeof(global::Marten.IDocumentOperations),
-        EventOperations = typeof(global::Marten.Events.IEventStoreOperations)
+        EventOperations = typeof(global::Marten.Events.IEventStoreOperations),
+        DocumentStore = typeof(global::Marten.IDocumentStore)
     };
 
     internal EventForwardingRouter EventRouter { get; } = new();
@@ -244,6 +245,15 @@ internal class MartenOverrides : IConfigureMarten
     // message store (its configured SchemaName / database). See GH-2887.
     protected virtual Type? StoreType => null;
 
+    // GH-5620: the schema of the message store Wolverine builds for this Marten store, the same formula
+    // IntegrateWithWolverine() uses when it builds that store
+    protected virtual string? messageStorageSchemaName(IServiceProvider services, StoreOptions options)
+    {
+        return services.GetService<MartenIntegration>()?.MessageStorageSchemaName ??
+               services.GetService<WolverineOptions>()?.Durability.MessageStorageSchemaName ??
+               options.DatabaseSchemaName;
+    }
+
     // GH-4825. Envelope is registered as a Marten document below, and Marten's DocumentMapping then finds
     // its identity by walking GetProperties()/GetFields() for an "id"/"Id" member. Schema.For<Envelope>()
     // is a static generic over a type this assembly names directly, so ILC keeps the TYPE -- but nothing
@@ -259,6 +269,9 @@ internal class MartenOverrides : IConfigureMarten
 
         // GH-5385: a tracked session hears events committed through sessions Wolverine did not open too
         options.Listeners.Add(new RecordEventsCommittedOutsideAMessage(services));
+
+        // GH-5620: the async daemon's gap detection ignores the session holding the durability pass lock
+        DurabilityPassGapDetection.Register(options, messageStorageSchemaName(services, options));
 
         // GH-3290: when Wolverine manages the event subscription distribution, it replaces
         // Marten's AddAsyncDaemon() registration outright — Marten hosts no coordinator and
@@ -330,7 +343,25 @@ internal class MartenOverrides : IConfigureMarten
 
 internal class MartenOverrides<T> : MartenOverrides, IConfigureMarten<T> where T : IDocumentStore
 {
+    private readonly AncillaryMartenIntegration? _integration;
+
+    public MartenOverrides()
+    {
+    }
+
+    public MartenOverrides(AncillaryMartenIntegration integration)
+    {
+        _integration = integration;
+    }
+
     protected override Type? StoreType => typeof(T);
+
+    protected override string? messageStorageSchemaName(IServiceProvider services, StoreOptions options)
+    {
+        return _integration?.SchemaName ??
+               services.GetService<WolverineOptions>()?.Durability.MessageStorageSchemaName ??
+               options.DatabaseSchemaName;
+    }
 }
 
 [Obsolete("Use Wolverine.Persistence.EventSourcing.Forwarding.IEventForwarding; this type will be removed in Wolverine 8.0")]

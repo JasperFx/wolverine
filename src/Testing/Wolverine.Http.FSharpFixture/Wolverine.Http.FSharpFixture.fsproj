@@ -24,6 +24,8 @@
 
     <ItemGroup>
         <Compile Include="Generated.fs" />
+        <!-- GH-5401: the Marten-backed [WaitForProjection<T>] endpoints, rendered from a host with Marten -->
+        <Compile Include="ReadYourWritesGenerated.fs" />
     </ItemGroup>
 
     <ItemGroup>

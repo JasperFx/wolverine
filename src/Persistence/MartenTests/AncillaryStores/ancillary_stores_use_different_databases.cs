@@ -103,7 +103,7 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
         
         context.Storage.Uri.ShouldBe(new Uri("wolverinedb://postgresql/localhost/players/wolverine"));
 
-        var builder = new NpgsqlConnectionStringBuilder(session.Connection.ConnectionString);
+        var builder = new NpgsqlConnectionStringBuilder((await session.GetConnectionAsync(TestContext.Current.CancellationToken)).ConnectionString);
         builder.Database.ShouldBe("players");
     }
 

@@ -113,4 +113,47 @@ public class HttpFSharpFrameTests
         Code.ShouldContain("(httpContext, scopedDeduplicationId, thingCreated_response, 404), null)");
         Code.ShouldContain("(httpContext, scopedDeduplicationId, thingCreated_response, 404, false), null)");
     }
+
+    private static readonly Lazy<string> _readYourWrites =
+        new(HttpFSharpCodegenSample.GenerateReadYourWritesCode, LazyThreadSafetyMode.ExecutionAndPublication);
+
+    [Fact]
+    public void wait_for_projection_reads_the_request_token_before_the_endpoint()
+    {
+        // GH-5401
+        var code = _readYourWrites.Value;
+        const string wait =
+            "do! Wolverine.Http.ConsistencyTokenHeaders.WaitForRequestTokenAsync(httpContext, _documentStore, [| typeof<Wolverine.Http.FSharpContracts.PointsView> |], 5000, messageContext, httpContext.RequestAborted)";
+
+        code.ShouldContain(wait);
+        code.IndexOf(wait, StringComparison.Ordinal)
+            .ShouldBeLessThan(code.IndexOf("ReadYourWritesEndpoints.Post(", StringComparison.Ordinal));
+
+        // The read's own timeout
+        code.ShouldContain("[| typeof<Wolverine.Http.FSharpContracts.PointsView> |], 2000, messageContext");
+    }
+
+    [Fact]
+    public void wait_for_projection_waits_after_the_commit_and_writes_the_headers()
+    {
+        // GH-5401
+        var code = _readYourWrites.Value;
+        const string wait =
+            "let! projectionWait = Wolverine.Persistence.EventSourcing.ReadYourWrites.WaitForAppendedEventsAsync(_documentStore, documentSession, ";
+        const string headers = "Wolverine.Http.ConsistencyTokenHeaders.Write(httpContext, projectionWait)";
+
+        var commit = code.IndexOf("do! documentSession.SaveChangesAsync(", StringComparison.Ordinal);
+        commit.ShouldBeGreaterThan(0);
+        code.IndexOf(wait, StringComparison.Ordinal).ShouldBeGreaterThan(commit);
+        code.IndexOf(headers, StringComparison.Ordinal).ShouldBeGreaterThan(code.IndexOf(wait, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void a_query_session_from_the_document_session_is_an_fsharp_upcast()
+    {
+        // GH-5401: the read endpoint's IQuerySession is the chain's document session, which C# casts
+        _readYourWrites.Value.ShouldContain(
+            "ReadYourWritesEndpoints.Get(id, (documentSession :> Marten.IQuerySession))");
+        _readYourWrites.Value.ShouldNotContain("((Marten.IQuerySession)");
+    }
 }

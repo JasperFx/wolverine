@@ -103,9 +103,9 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
 
 
         var tenancy = (MasterTableTenancy)theStore.Options.Tenancy;
-        await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant3", tenant3ConnectionString);
+        await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString, TestContext.Current.CancellationToken);
+        await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString, TestContext.Current.CancellationToken);
+        await tenancy.AddDatabaseRecordAsync("tenant3", tenant3ConnectionString, TestContext.Current.CancellationToken);
 
         await _host.WaitUntilAssignmentsChangeTo(w =>
         {

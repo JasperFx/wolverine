@@ -100,8 +100,9 @@ public class inbox_partitioning_migration_5519 : IAsyncLifetime
         var table = $"{schema}.{DatabaseConstants.IncomingTable}";
 
         // The rebuild runs in one explicit transaction that takes ACCESS EXCLUSIVE on the inbox first, so the copy aside
-        // sees every committed row and nothing can write until the commit. Weasel's own rebuild no longer changes the
-        // primary key first (weasel#871), so no ALTER TABLE takes the lock for it.
+        // sees every committed row and nothing can write until the commit. That is Weasel's own rebuild since
+        // 10.0.0-alpha.10 (weasel#882): written on its own like this it opens its transaction itself, and the migrator
+        // opens one around it instead. Wolverine adds no transaction of its own, which would end the migrator's early.
         var lockAt = script.IndexOf($"lock table {table} in access exclusive mode;", StringComparison.Ordinal);
         var copyAt = script.IndexOf($"create table {table}_temp as select * from {table};", StringComparison.Ordinal);
         var copyBackAt = script.IndexOf($"from {table}_temp;", StringComparison.Ordinal);
@@ -113,6 +114,7 @@ public class inbox_partitioning_migration_5519 : IAsyncLifetime
         copyAt.ShouldBeGreaterThan(lockAt);
         copyBackAt.ShouldBeGreaterThan(copyAt);
         commitAt.ShouldBeGreaterThan(copyBackAt);
+        script.Split("begin;").Length.ShouldBe(2, "one transaction, not one nested in another");
 
         // The migrator sends the script as one command -- one transaction -- except where it is split around a
         // concurrent index build. Nothing may split the lock from the copy back, or the lock is released while the

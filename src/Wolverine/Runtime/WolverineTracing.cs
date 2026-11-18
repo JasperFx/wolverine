@@ -299,6 +299,11 @@ public static class WolverineTracing
     /// </summary>
     public const string DeduplicationInProgress = "wolverine.deduplication.in_progress";
 
+    /// <summary>
+    /// GH-5401. Span tag with how a <c>[WaitForProjection]</c> wait ended: Reached, TimedOut, Paused or Rebuilding
+    /// </summary>
+    public const string ProjectionWaitStatus = "wolverine.projection.wait_status";
+
     #endregion
 
     public static ActivitySource ActivitySource { get; } = new(

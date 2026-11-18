@@ -103,6 +103,9 @@ public sealed class MartenTabHost : TabHost
             m.Connection(Servers.PostgresConnectionString);
             m.DatabaseSchemaName = "bobcat_the_acts_own_events";
             m.DisableNpgsqlLogging = true;
+
+            // On by default since Marten 10; correlation_ids_off needs a store without them
+            m.Events.MetadataConfig.CorrelationIdEnabled = false;
         }).IntegrateWithWolverine();
 
     public override async Task CommitThroughAnInjectedSessionAsync(Guid id, string name)
@@ -121,6 +124,9 @@ public sealed class PolecatTabHost : TabHost
         {
             m.ConnectionString = Servers.SqlServerConnectionString;
             m.DatabaseSchemaName = "bobcat_the_acts_own_events";
+
+            // On by default since Polecat 6; correlation_ids_off needs a store without them
+            m.Events.EnableCorrelationId = false;
         }).IntegrateWithWolverine();
 
     protected override Task AfterStartAsync()
@@ -144,6 +150,9 @@ public sealed class FisherTabHost : TabHost
             {
                 o.Connection($"Data Source={_file}");
                 o.AutoCreateSchemaObjects = AutoCreate.All;
+
+                // On by default since Fisher 2; correlation_ids_off needs a store without them
+                o.Events.EnableCorrelationId = false;
             })
             .ApplyAllDatabaseChangesOnStartup()
             .IntegrateWithWolverine();

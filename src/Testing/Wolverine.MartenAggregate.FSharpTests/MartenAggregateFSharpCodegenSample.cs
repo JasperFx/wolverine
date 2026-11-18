@@ -5,7 +5,10 @@ using JasperFx.Events.Projections;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using JasperFx;
 using Wolverine;
+using Wolverine.Configuration;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Marten;
 using Wolverine.Runtime.Handlers;
 using WolverineMartenAggregateFSharpSample;
@@ -43,6 +46,9 @@ public static class MartenAggregateFSharpCodegenSample
 
                     opts.Discovery.DisableConventionalDiscovery();
                     opts.Discovery.IncludeType<IncrementHandler>();
+
+                    // GH-5401: read-your-writes on the aggregate handler
+                    opts.Policies.Add(new WaitForTheCounterProjection());
                 })
                 .Build();
 
@@ -62,6 +68,22 @@ public static class MartenAggregateFSharpCodegenSample
         finally
         {
             DynamicCodeBuilder.WithinCodegenCommand = false;
+        }
+    }
+
+    /// <summary>
+    ///     Puts <c>[WaitForProjection&lt;Counter&gt;]</c> on the F# IncrementHandler chain, the way the attribute would
+    ///     if F# could apply a generic attribute. Exercises both read-your-writes frames in their message handler
+    ///     form: the envelope's consistency token before the handler, and the wait after the commit.
+    /// </summary>
+    private class WaitForTheCounterProjection : IHandlerPolicy
+    {
+        public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
+        {
+            foreach (var chain in chains.Where(x => x.MessageType == typeof(IncrementCounter)))
+            {
+                new WaitForProjectionAttribute<Counter>().Modify(chain, rules, container);
+            }
         }
     }
 

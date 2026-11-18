@@ -113,9 +113,9 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
         }, 10.Seconds());
         
         var tenancy = (MasterTableTenancy)theStore.Options.Tenancy;
-        await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant3", tenant3ConnectionString);
+        await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString, TestContext.Current.CancellationToken);
+        await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString, TestContext.Current.CancellationToken);
+        await tenancy.AddDatabaseRecordAsync("tenant3", tenant3ConnectionString, TestContext.Current.CancellationToken);
 
         await _host.WaitUntilAssignmentsChangeTo(w =>
         {
@@ -131,8 +131,8 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
     {
         // Adding new tenant databases
         var tenancy = (MasterTableTenancy)theStore.Options.Tenancy;
-        await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString);
+        await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString, TestContext.Current.CancellationToken);
+        await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString, TestContext.Current.CancellationToken);
 
         var command = new PersistDoc(Guid.NewGuid());
 
@@ -184,8 +184,8 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
             .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tenancy = (MasterTableTenancy)theStore.Options.Tenancy;
-        await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString);
+        await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString, TestContext.Current.CancellationToken);
+        await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString, TestContext.Current.CancellationToken);
 
         var command = new PersistDoc(Guid.NewGuid());
 

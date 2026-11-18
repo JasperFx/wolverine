@@ -81,7 +81,7 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
 
         // Npgsql runs a command in its connection's open transaction, which is the session's
         await using var command = builder.Compile();
-        command.Connection = Session.Connection;
+        command.Connection = await Session.GetConnectionAsync(cancellation);
 
         try
         {

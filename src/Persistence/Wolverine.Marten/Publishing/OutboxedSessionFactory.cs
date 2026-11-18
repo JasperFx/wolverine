@@ -1,3 +1,4 @@
+using System.Data;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Marten;
@@ -70,7 +71,7 @@ public class OutboxedSessionFactory
                     options.TenantId = c.TenantId;
                 }
 
-                return _store.OpenSession(options);
+                return openSession(options, factoryBase);
             };
         }
         else
@@ -86,6 +87,23 @@ public class OutboxedSessionFactory
         }
     }
     
+    // GH-5570: Marten 10 has no synchronous way to open a Serializable session that opens its own connection, because
+    // that session begins its transaction as it is created. Wolverine opens a handler's session synchronously, so a
+    // SessionFactoryBase asking for Serializable fails here, and the message says what to do instead
+    private IDocumentSession openSession(SessionOptions options, SessionFactoryBase factory)
+    {
+        try
+        {
+            return _store.OpenSession(options);
+        }
+        catch (NotSupportedException e) when (options.IsolationLevel == IsolationLevel.Serializable)
+        {
+            throw new NotSupportedException(
+                $"{factory.GetType().FullNameInCode()}.BuildOptions() asks for a Serializable session, which Marten 10 can only open asynchronously, and Wolverine opens the session for a handler synchronously. Use a weaker isolation level in BuildOptions(), or open the session in the handler with IDocumentStore.LightweightSerializableSessionAsync() (or one of its siblings) and enroll it in the outbox with IMartenOutbox.Enroll()",
+                e);
+        }
+    }
+
     /// <summary>
     /// The message store this factory enlists sessions in. Defaults to the runtime's <b>Main</b> store,
     /// resolved on every read rather than captured in the constructor; an ancillary-store subclass
