@@ -5,6 +5,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 
 namespace Wolverine.CosmosDb.Internals;
 
@@ -26,6 +27,7 @@ public class DeadLetterMessage
         FailureTitle = fingerprint.Title;
         FailedAt = DateTimeOffset.UtcNow;
         SagaId = envelope.SagaId;
+        Tag = DeadLetterQueueConstants.DeadLetterTagOf(envelope);
 
         Id = $"deadletter|{envelope.Id}";
         EnvelopeId = envelope.Id;
@@ -118,6 +120,11 @@ public class DeadLetterMessage
     [JsonPropertyName("sagaId")]
     public string? SagaId { get; set; }
 
+    // GH-5556
+    [JsonProperty("tag")]
+    [JsonPropertyName("tag")]
+    public string? Tag { get; set; }
+
     [JsonProperty("_etag")]
     [JsonPropertyName("_etag")]
     public string? ETag { get; set; }
@@ -133,7 +140,8 @@ public class DeadLetterMessage
             FailedAt = FailedAt,
             FirstFailedAt = FailedAt,
             ArchivedAt = ArchivedAt,
-            SagaId = SagaId
+            SagaId = SagaId,
+            Tag = Tag
         };
     }
 

@@ -7,13 +7,13 @@ using Wolverine;
 namespace SagaFaults.Specs;
 
 // GH-5556, chapter 2 of the saga example: the Order saga compensates a failed step, selected by the failed message and
-// the exception type, after the retries are used up. Its status and compensation log come from ICompensatingSaga.
+// the exception type, after the retries are used up. Its status and compensation log come from the CompensatingSaga base type.
 
 [BobcatFeature("A saga compensates a step that failed in another service")]
 [Collection(nameof(CompensationCollection))]
 public class compensating_a_step_that_failed_downstream(CompensationServices services) : SagaFaultsSpec(services)
 {
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task an_item_out_of_stock_cancels_the_order_and_tells_the_customer()
     {
         await InventoryHas(0, "widget");
@@ -21,15 +21,15 @@ public class compensating_a_step_that_failed_downstream(CompensationServices ser
         await WhenReceived(new PlaceOrder(OrderId, "widget", 1, 100m));
 
         ThenDeadLettered<ReserveInventory>(by: InventoryService.Name);
-        ThenTheSagaCompensated<Order, ReserveInventory, OutOfStockException>(OrderId);
+        await ThenTheSagaCompensated<Order, ReserveInventory, OutOfStockException>(OrderId);
         ThenMessageSent(new CancelOrder(OrderId));
         ThenMessageSent(new NotifyCustomer(OrderId, "widget is out of stock"));
         ThenNoMessageSent<RefundPayment>();
-        ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.Compensated);
+        await ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.Compensated);
     }
 
     // GH-5555: the fault carries the exception's type hierarchy, so a subclass thrown in another service still matches
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task a_backordered_item_is_compensated_as_out_of_stock()
     {
         await Backordered("widget");
@@ -37,12 +37,12 @@ public class compensating_a_step_that_failed_downstream(CompensationServices ser
         await WhenReceived(new PlaceOrder(OrderId, "widget", 1, 100m));
 
         ThenDeadLettered<ReserveInventory>(by: InventoryService.Name);
-        ThenTheSagaCompensated<Order, ReserveInventory, BackorderedException>(OrderId);
+        await ThenTheSagaCompensated<Order, ReserveInventory, BackorderedException>(OrderId);
         ThenMessageSent(new NotifyCustomer(OrderId, "widget is out of stock"));
         ThenNoMessageSent<RefundPayment>();
     }
 
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task any_other_failure_of_the_reservation_refunds_the_payment()
     {
         await WarehouseIsOffline();
@@ -50,10 +50,10 @@ public class compensating_a_step_that_failed_downstream(CompensationServices ser
         await WhenReceived(new PlaceOrder(OrderId, "widget", 1, 100m));
 
         ThenDeadLettered<ReserveInventory>(by: InventoryService.Name);
-        ThenTheSagaCompensated<Order, ReserveInventory, WarehouseOfflineException>(OrderId);
+        await ThenTheSagaCompensated<Order, ReserveInventory, WarehouseOfflineException>(OrderId);
         ThenMessageSent(new RefundPayment(OrderId, 100m));
         ThenNoMessageSent<NotifyCustomer>();
-        ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.Compensated);
+        await ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.Compensated);
     }
 }
 
@@ -61,7 +61,7 @@ public class compensating_a_step_that_failed_downstream(CompensationServices ser
 [Collection(nameof(CompensationCollection))]
 public class compensating_the_sagas_own_failed_handler(CompensationServices services) : SagaFaultsSpec(services)
 {
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_payment_the_ledger_cannot_record_is_retried_and_then_refunded()
     {
         await GivenSaga<Order>(AnOrderAwaitingPayment(100m));
@@ -71,9 +71,9 @@ public class compensating_the_sagas_own_failed_handler(CompensationServices serv
 
         ThenAttempted<PaymentReceived>(3);
         await ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensated");
-        ThenTheSagaCompensated<Order, PaymentReceived, LedgerUnavailableException>(OrderId);
+        await ThenTheSagaCompensated<Order, PaymentReceived, LedgerUnavailableException>(OrderId);
         ThenMessageSent(new RefundPayment(OrderId, 100m));
-        ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.Compensated);
+        await ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.Compensated);
     }
 }
 
@@ -82,7 +82,7 @@ public class compensating_the_sagas_own_failed_handler(CompensationServices serv
 public class compensating_a_terminal_failure(CompensationServices services) : SagaFaultsSpec(services)
 {
     // PaymentAmountMismatchException is marked [TerminalFailure]
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_wrong_payment_amount_is_refunded_at_once()
     {
         await GivenSaga<Order>(AnOrderAwaitingPayment(100m));
@@ -91,13 +91,13 @@ public class compensating_a_terminal_failure(CompensationServices services) : Sa
 
         ThenAttempted<PaymentReceived>(1);
         await ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensated");
-        ThenTheSagaCompensated<Order, PaymentReceived, PaymentAmountMismatchException>(OrderId);
+        await ThenTheSagaCompensated<Order, PaymentReceived, PaymentAmountMismatchException>(OrderId);
         ThenMessageSent(new RefundPayment(OrderId, 90m));
-        ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.Compensated);
+        await ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.Compensated);
     }
 
     // DiscontinuedException implements ITerminalFailure, and is thrown in the inventory service, which has no saga
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task a_discontinued_item_is_not_retried_in_the_other_service_either()
     {
         await Discontinued("widget");
@@ -106,7 +106,7 @@ public class compensating_a_terminal_failure(CompensationServices services) : Sa
 
         ThenAttempted<ReserveInventory>(1, by: InventoryService.Name);
         ThenDeadLettered<ReserveInventory>(by: InventoryService.Name);
-        ThenTheSagaCompensated<Order, ReserveInventory, DiscontinuedException>(OrderId);
+        await ThenTheSagaCompensated<Order, ReserveInventory, DiscontinuedException>(OrderId);
         ThenMessageSent(new RefundPayment(OrderId, 100m));
     }
 }
@@ -117,7 +117,7 @@ public class when_compensation_fails(CompensationServices services) : SagaFaults
 {
     // The Compensate for a wrong amount throws RefundAlreadyIssuedException when the order was already refunded.
     // Compensation runs as a handler chain of its own, so the orders service's retry policy applies to it first
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_compensation_that_throws_leaves_the_saga_compensation_failed()
     {
         await GivenSaga<Order>(Specify<Order>()
@@ -128,12 +128,12 @@ public class when_compensation_fails(CompensationServices services) : SagaFaults
         await WhenReceived(new PaymentReceived(OrderId, 90m));
 
         await ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensation-failed");
-        ThenTheSagaFailedToCompensate<Order, PaymentReceived, PaymentAmountMismatchException>(OrderId);
+        await ThenTheSagaFailedToCompensate<Order, PaymentReceived, PaymentAmountMismatchException>(OrderId);
         ThenNoMessageSent<RefundPayment>();
-        ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.CompensationFailed);
+        await ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.CompensationFailed);
     }
 
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_concurrency_conflict_saving_the_compensated_saga_is_retried()
     {
         await GivenSaga<Order>(AnOrderAwaitingPayment(100m));
@@ -143,10 +143,10 @@ public class when_compensation_fails(CompensationServices services) : SagaFaults
 
         await ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensated");
         ThenMessageSent(new RefundPayment(OrderId, 90m));
-        ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.Compensated);
+        await ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.Compensated);
     }
 
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_conflict_on_every_attempt_leaves_the_saga_compensation_failed()
     {
         await GivenSaga<Order>(AnOrderAwaitingPayment(100m));
@@ -156,7 +156,7 @@ public class when_compensation_fails(CompensationServices services) : SagaFaults
 
         await ThenDeadLettered<PaymentReceived>(by: TwoServices.OrdersName, tagged: "compensation-failed");
         ThenNoMessageSent<RefundPayment>();
-        ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.CompensationFailed);
+        await ThenTheSagaStatusIs<Order>(OrderId, SagaStatus.CompensationFailed);
     }
 }
 
@@ -180,7 +180,7 @@ public class when_the_saga_is_gone(CompensationServices services) : SagaFaultsSp
     }
 
     // There is no NotFound for the saga's own failed handler (decided in the GH-5553 spec review, 2026-11-17)
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_payment_for_an_order_completed_before_it_is_compensated_is_dead_lettered_as_saga_missing()
     {
         await GivenSaga<Order>(AnOrderAwaitingPayment(100m));

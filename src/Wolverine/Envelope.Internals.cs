@@ -400,6 +400,18 @@ public partial class Envelope
         return child;
     }
 
+    /// <summary>
+    /// GH-5556. On the Fault&lt;T&gt; that compensates a saga's own failed handler in this process: the live exception,
+    /// so a <c>Compensate(T, TException)</c> method can take it. Never serialized
+    /// </summary>
+    internal Exception? CompensatingException { get; set; }
+
+    /// <summary>
+    /// GH-5554. The durable faults to write in the same transaction as this envelope's dead-letter move, while it is
+    /// being moved. Never serialized
+    /// </summary>
+    internal DeadLetterFaults? DeadLetterFaults { get; set; }
+
     internal ValueTask StoreAndForwardAsync()
     {
         if (_enqueued)
@@ -693,6 +705,8 @@ public partial class Envelope
 
         // Public / internal settable properties — runtime-only (Envelope.Internals.cs)
         WasPersistedInInbox = false;
+        CompensatingException = null;
+        DeadLetterFaults = null;
         LeftInInboxForRecovery = false;
         WasTrackedAsReceived = false;
         Serializer = null;

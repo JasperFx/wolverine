@@ -90,6 +90,44 @@ public static class DeadLetterQueueConstants
     ];
 
     /// <summary>
+    /// GH-5556. Header key for why Wolverine dead lettered the message, when it has more to say than the exception:
+    /// <see cref="CompensatedTag"/>, <see cref="CompensationFailedTag"/> or <see cref="CompensationSagaMissingTag"/>.
+    /// The message stores record it as <see cref="Wolverine.Persistence.Durability.DeadLetterEnvelope.Tag"/>
+    /// </summary>
+    public const string DeadLetterTagHeader = "wolverine.dead-letter.tag";
+
+    /// <summary>
+    /// GH-5556. A saga's own handler failed, and the saga compensated it
+    /// </summary>
+    public const string CompensatedTag = "compensated";
+
+    /// <summary>
+    /// GH-5556. A saga's compensation failed too: its own failed handler, or a failure a downstream step reported
+    /// </summary>
+    public const string CompensationFailedTag = "compensation-failed";
+
+    /// <summary>
+    /// GH-5556. A saga's own handler failed, and the saga was gone (completed or deleted) by the time it could be
+    /// compensated
+    /// </summary>
+    public const string CompensationSagaMissingTag = "compensation-saga-missing";
+
+    /// <summary>
+    /// GH-5556. The widest tag the relational dead letter tables hold
+    /// </summary>
+    public const int MaxDeadLetterTagLength = 100;
+
+    /// <summary>
+    /// GH-5556. The tag to record for a dead letter, from <see cref="DeadLetterTagHeader"/>. A tag wider than
+    /// <see cref="MaxDeadLetterTagLength"/> is left out rather than truncated, so the dead letter is never refused for it
+    /// </summary>
+    public static string? DeadLetterTagOf(Envelope envelope)
+    {
+        if (!envelope.HasHeaders || !envelope.Headers.TryGetValue(DeadLetterTagHeader, out var tag)) return null;
+        return tag is { Length: > 0 and <= MaxDeadLetterTagLength } ? tag : null;
+    }
+
+    /// <summary>
     /// The default queue/topic name used for dead letter queues across all transports.
     /// </summary>
     public const string DefaultQueueName = "wolverine-dead-letter-queue";

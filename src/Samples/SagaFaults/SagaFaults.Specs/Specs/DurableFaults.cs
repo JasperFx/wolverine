@@ -16,25 +16,25 @@ namespace SagaFaults.Specs;
 [Collection(nameof(DurableFaultCollection))]
 public class a_fault_is_written_with_its_dead_letter(DurableFaultServices services) : SagaFaultsSpec(services)
 {
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task a_fault_survives_a_crash_right_after_the_dead_letter_move()
     {
         await InventoryHas(0, "widget");
-        GivenTheServiceDiesAfterItsNextDeadLetter(InventoryService.Name);
+        GivenTheServiceCrashesAfterItsNextDeadLetter(InventoryService.Name);
 
         await WhenReceived(new PlaceOrder(OrderId, "widget", 1, 100m));
 
         ThenDeadLettered<ReserveInventory>(by: InventoryService.Name);
-        ThenWaitingInTheOutbox<Fault<ReserveInventory>>(by: InventoryService.Name, to: TwoServices.OrdersName);
+        await ThenWaitingInTheOutbox<Fault<ReserveInventory>>(by: InventoryService.Name, to: TwoServices.OrdersName);
         ThenNotHandled<Fault<ReserveInventory>>(by: TwoServices.OrdersName);
 
-        await WhenTheServiceRecovers(InventoryService.Name);
+        await WhenTheServiceRestarts(InventoryService.Name);
 
         ThenTheSagaHandled<Order, Fault<ReserveInventory>>(OrderId);
-        ThenNothingWaitingInTheOutbox<Fault<ReserveInventory>>(by: InventoryService.Name);
+        await ThenNothingWaitingInTheOutbox<Fault<ReserveInventory>>(by: InventoryService.Name);
     }
 
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task a_dead_letter_move_that_rolls_back_takes_the_fault_with_it()
     {
         await InventoryHas(0, "widget");
@@ -43,8 +43,8 @@ public class a_fault_is_written_with_its_dead_letter(DurableFaultServices servic
         await WhenReceived(new PlaceOrder(OrderId, "widget", 1, 100m));
 
         ThenNotDeadLettered<ReserveInventory>(by: InventoryService.Name);
-        ThenStillInTheInbox<ReserveInventory>(by: InventoryService.Name);
-        ThenNothingWaitingInTheOutbox<Fault<ReserveInventory>>(by: InventoryService.Name);
+        await ThenStillInTheInbox<ReserveInventory>(by: InventoryService.Name);
+        await ThenNothingWaitingInTheOutbox<Fault<ReserveInventory>>(by: InventoryService.Name);
         ThenNotHandled<Fault<ReserveInventory>>(by: TwoServices.OrdersName);
     }
 }
@@ -55,11 +55,11 @@ public class every_fault_is_written_with_its_dead_letter(DurableFaultEventServic
 {
     // Inventory publishes fault events here, and routes its own Fault<ReserveInventory> to a durable local audit queue.
     // The saga asked for the fault too, so the one dead letter has two faults, and both are written in its transaction
-    [BobcatSpec(typeof(PlaceOrder), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PlaceOrder))]
     public async Task both_the_saga_and_the_audit_queue_get_their_fault_after_a_crash()
     {
         await InventoryHas(0, "widget");
-        GivenTheServiceDiesAfterItsNextDeadLetter(InventoryService.Name);
+        GivenTheServiceCrashesAfterItsNextDeadLetter(InventoryService.Name);
 
         await WhenReceived(new PlaceOrder(OrderId, "widget", 1, 100m));
 
@@ -67,7 +67,7 @@ public class every_fault_is_written_with_its_dead_letter(DurableFaultEventServic
         ThenNotHandled<Fault<ReserveInventory>>(by: TwoServices.OrdersName);
         ThenNotHandled<Fault<ReserveInventory>>(by: InventoryService.Name);
 
-        await WhenTheServiceRecovers(InventoryService.Name);
+        await WhenTheServiceRestarts(InventoryService.Name);
 
         ThenTheSagaHandled<Order, Fault<ReserveInventory>>(OrderId);
         ThenHandled<Fault<ReserveInventory>>(by: InventoryService.Name);

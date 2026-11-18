@@ -8,6 +8,7 @@ using SagaFaults.Inventory;
 using SagaFaults.Orders;
 using Wolverine;
 using Wolverine.Marten;
+using Wolverine.Runtime;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 
@@ -92,6 +93,12 @@ public abstract class TwoServices : IAsyncLifetime
     {
         await Orders.ResetAllMartenDataAsync();
         await Inventory.ResetAllMartenDataAsync();
+
+        // Nothing a specification left in an inbox, outbox or dead letter table reaches the next one: a message a failed
+        // dead-letter move handed back is tried again later
+        await Orders.Services.GetRequiredService<IWolverineRuntime>().Storage.Admin.ClearAllAsync();
+        await Inventory.Services.GetRequiredService<IWolverineRuntime>().Storage.Admin.ClearAllAsync();
+
         Orders.Services.GetRequiredService<Ledger>().Available = true;
     }
 
@@ -123,6 +130,10 @@ public class FaultHandlingServices : TwoServices
 public class DurableFaultServices : FaultHandlingServices
 {
     protected override string Schema => "saga_durable_faults";
+
+    // A restart recovers the outbox on the durability agent's next pass: look every second rather than every five
+    protected override void ConfigureInventory(WolverineOptions opts)
+        => opts.Durability.ScheduledJobPollingTime = 1.Seconds();
 }
 
 /// <summary>
@@ -137,6 +148,7 @@ public class DurableFaultEventServices : FaultHandlingServices
     {
         opts.PublishFaultEvents();
         opts.LocalQueue("fault-audit").UseDurableInbox();
+        opts.Durability.ScheduledJobPollingTime = 1.Seconds();
     }
 }
 

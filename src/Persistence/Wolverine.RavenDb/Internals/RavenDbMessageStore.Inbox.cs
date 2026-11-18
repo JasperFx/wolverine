@@ -11,7 +11,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.RavenDb.Internals;
 
-public partial class RavenDbMessageStore : IMessageInbox
+public partial class RavenDbMessageStore : IMessageInbox, IDeadLetterFaultStorage
 {
     public async Task ScheduleExecutionAsync(Envelope envelope)
     {
@@ -65,6 +65,39 @@ public partial class RavenDbMessageStore : IMessageInbox
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
         using var session = _store.OpenAsyncSession();
+        await stageDeadLetterMoveAsync(session, envelope, exception);
+        await session.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// GH-5554. The dead-letter move and the dead letter's durable faults in one session, which RavenDB saves as one
+    /// batch
+    /// </summary>
+    async Task IDeadLetterFaultStorage.MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception,
+        DeadLetterFaults faults)
+    {
+        using var session = _store.OpenAsyncSession();
+        await stageDeadLetterMoveAsync(session, envelope, exception);
+
+        foreach (var outgoing in faults.Outgoing)
+        {
+            await session.StoreAsync(new OutgoingMessage(outgoing) { OwnerId = _options.Durability.OutgoingOwnerId });
+        }
+
+        foreach (var incoming in faults.Incoming)
+        {
+            await StoreIncomingAsync(session, incoming);
+        }
+
+        faults.AssertCanCommit();
+        await session.SaveChangesAsync();
+
+        foreach (var outgoing in faults.Outgoing) outgoing.WasPersistedInOutbox = true;
+        faults.Written = true;
+    }
+
+    private async Task stageDeadLetterMoveAsync(IAsyncDocumentSession session, Envelope envelope, Exception? exception)
+    {
         session.Delete(_identity(envelope));
         var dlq = new DeadLetterMessage(envelope, exception, _options.Durability.DeadLetterFingerprinter);
 
@@ -78,7 +111,6 @@ public partial class RavenDbMessageStore : IMessageInbox
         }
 
         await session.StoreAsync(dlq);
-        await session.SaveChangesAsync();
     }
 
     public async Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)

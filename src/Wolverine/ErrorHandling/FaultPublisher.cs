@@ -133,6 +133,14 @@ internal sealed class FaultPublisher : IFaultPublisher
         }
     }
 
+    private static readonly ConcurrentDictionary<Type, FaultShape> _staticShapes = new();
+
+    /// <summary>
+    /// GH-5556. A Fault&lt;T&gt; for <paramref name="message" />, built as a published fault is
+    /// </summary>
+    internal static object CreateFault(object message, ExceptionInfo exceptionInfo, Envelope envelope)
+        => _staticShapes.GetOrAdd(message.GetType(), FaultShape.For).Create(message, exceptionInfo, envelope);
+
     // Two local queues reach the same handlers in this process, so a fault routed to one local queue is not sent
     // again to another
     private static bool sameDestination(Uri? routed, Uri replyTo)

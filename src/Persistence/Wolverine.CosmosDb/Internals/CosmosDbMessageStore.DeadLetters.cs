@@ -185,7 +185,8 @@ public partial class CosmosDbMessageStore : IDeadLetters
                                                   DeadLetterCapabilities.OperationCounts |
                                                   DeadLetterCapabilities.ArchiveAndRestore |
                                                   DeadLetterCapabilities.ExceptionMessageMatching |
-                                                  DeadLetterCapabilities.SagaIds;
+                                                  DeadLetterCapabilities.SagaIds |
+                                                  DeadLetterCapabilities.Tags;
 
     public Task DiscardAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
@@ -438,6 +439,9 @@ public partial class CosmosDbMessageStore : IDeadLetters
         // GH-5557
         if (query.SagaId.IsNotEmpty()) conditions.Add("c.sagaId = @sagaId");
 
+        // GH-5556
+        if (query.Tag.IsNotEmpty()) conditions.Add("c.tag = @tag");
+
         if (archived == DeadLetterArchiveFilter.Exclude)
         {
             conditions.Add(NotArchived);
@@ -473,6 +477,7 @@ public partial class CosmosDbMessageStore : IDeadLetters
         }
 
         if (query.SagaId.IsNotEmpty()) queryDef = queryDef.WithParameter("@sagaId", query.SagaId);
+        if (query.Tag.IsNotEmpty()) queryDef = queryDef.WithParameter("@tag", query.Tag);
 
         return queryDef;
     }

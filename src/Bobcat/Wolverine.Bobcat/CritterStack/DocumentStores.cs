@@ -112,6 +112,30 @@ public static class DocumentStores
     }
 
     /// <summary>
+    /// GH-5556. Delete one document and commit
+    /// </summary>
+    public static async Task DeleteAsync<T>(IEventStore store, T document, CancellationToken token = default)
+        where T : notnull
+    {
+        var session = SessionFactoryFor(store).LightweightSession();
+        try
+        {
+            if (session is not IDocumentWriteOperations writes)
+                throw new InvalidOperationException(
+                    $"The lightweight session {session.GetType().FullName} opened by "
+                    + $"{EventStores.Describe(store)} is not a JasperFx.Events.Documents.IDocumentWriteOperations, "
+                    + "so Bobcat cannot delete documents through it.");
+
+            writes.Delete(document);
+            await session.SaveChangesAsync(token).ConfigureAwait(false);
+        }
+        finally
+        {
+            await disposeAsync(session).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     /// bobcat#536. A document session for one tenant, opened on the database that tenant lives in. Not
     /// <c>IDocumentSessionFactory.LightweightSession(tenantId)</c>: Marten does not implement that overload, so it
     /// throws there. The event store's own tenant session (<see cref="EventStores.OpenTenantSessionAsync"/>) is the

@@ -39,6 +39,11 @@ public class DeadLetterEnvelopeGetRequest
     public string? SagaId { get; set; }
 
     /// <summary>
+    /// GH-5556. When set, restricts results to the dead letters with this tag. See <see cref="DeadLetterEnvelopeQuery.Tag"/>
+    /// </summary>
+    public string? Tag { get; set; }
+
+    /// <summary>
     /// Which dead letters to return by archived state. See <see cref="DeadLetterEnvelopeQuery.Archived"/>
     /// </summary>
     public DeadLetterArchiveFilter? Archived { get; set; }

@@ -712,6 +712,13 @@ public partial class WolverineScenario : CritterStackScenario
 
         var tracking = trackActivity().WithCorrelationId(correlationId);
 
+        // GH-5554 / GH-5556: what the Givens armed for this act -- a condition its session waits for, a seam to disarm
+        var conditions = _actConditions;
+        _actConditions = [];
+        foreach (var condition in conditions) tracking = tracking.WaitForCondition(condition);
+        var cleanups = _afterAct;
+        _afterAct = [];
+
         // GH-4940: arm the concurrent writer for this act alone, by its flow and its correlation id
         var concurrent = _concurrently;
         _concurrently = null;
@@ -739,6 +746,7 @@ public partial class WolverineScenario : CritterStackScenario
         finally
         {
             armed?.Dispose();
+            foreach (var cleanup in cleanups) cleanup();
         }
 
         // GH-4940: whether the concurrent append landed is the tracked session's to say
@@ -1316,21 +1324,14 @@ public partial class WolverineScenario : CritterStackScenario
     [EventModelRole(SliceRole.Message, nameof(expected))]
     public void ThenMessageSent(object expected)
     {
-        if (expected is IPartialObject partial)
-        {
-            using var partialStep = ScenarioRecorder.Step("Then", $"{partial.Type.Name} is sent");
-            if (!actSucceeded()) return;
-            judgeMessage(partial, sentOf(partial.Type).Select(x => x.Message!).ToArray(), "sent",
-                scheduledOf(partial.Type).Any() ? " (one was SCHEDULED for later: use ThenMessageScheduled)" : "");
-            return;
-        }
-
-        var value = unwrap(expected);
-        using var step = ScenarioRecorder.Step("Then", $"{value.GetType().Name} is sent");
+        // GH-5556: the expected values on the step's own line when they fit, as ThenMessageScheduled has them
+        var type = PartialMatching.ExpectedType(expected);
+        var (described, inline) = describe([expected is IPartialObject ? expected : unwrap(expected)]);
+        using var step = ScenarioRecorder.Step("Then", $"{(inline ? described : nameOf(type))} is sent");
         if (!actSucceeded()) return;
 
-        judgeMessage(expected, sentOf(value.GetType()).Select(x => x.Message!).ToArray(), "sent",
-            scheduledOf(value.GetType()).Any() ? " (one was SCHEDULED for later: use ThenMessageScheduled)" : "");
+        judgeMessage(expected, sentOf(type).Select(x => x.Message!).ToArray(), "sent",
+            scheduledOf(type).Any() ? " (one was SCHEDULED for later: use ThenMessageScheduled)" : "");
     }
 
     /// <summary>The act sent no <typeparamref name="T" /> anywhere.</summary>

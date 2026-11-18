@@ -57,6 +57,13 @@ internal class DeadLettersTable : Table
             Columns = [DatabaseConstants.SagaId]
         });
 
+        // GH-5556: why Wolverine dead lettered the message (compensated, compensation-failed, ...). Nullable
+        AddColumn(DatabaseConstants.Tag, "TEXT");
+        Indexes.Add(new IndexDefinition($"idx_{tableName}_{DatabaseConstants.Tag}")
+        {
+            Columns = [DatabaseConstants.Tag]
+        });
+
         if (durability.DeadLetterQueueExpirationEnabled)
         {
             // GH-3071 — every other RDBMS backend (Postgres, SqlServer, MySql,

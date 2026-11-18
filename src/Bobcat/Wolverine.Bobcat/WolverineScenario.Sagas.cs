@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
+using Wolverine.Util;
 
 namespace Wolverine.Bobcat;
 
@@ -43,7 +44,8 @@ public partial class WolverineScenario
                         $"'{withArticle(label)}': a {nameOf(PartialMatching.ExpectedType(saga))} cannot be stored as {withArticle(label)}.");
 
         var id = sagaIdOf(built);
-        var values = saga is IPartialObject partial ? PartialObjects.DescribeValues(partial) : ScenarioValues.DescribeDocument(built);
+        var values = withoutIdentity(
+            saga is IPartialObject partial ? PartialObjects.DescribeValues(partial) : ScenarioValues.DescribeDocument(built), id);
         var inline = values.Length <= ScenarioValues.InlineLimit;
         var named = $"{withArticle(nameOf(typeof(TSaga)))} saga {ScenarioValues.Format(id)}";
         var text = inline && values.Length > 0 ? $"{named} with {values}" : named;
@@ -108,40 +110,174 @@ public partial class WolverineScenario
         });
     }
 
-    // ---- proposed vocabulary for GH-5556 (spec review of 2026-11-18): renders, then fails ------------------------
+    // ---- compensation (GH-5556) -----------------------------------------------------------------------------------
 
     /// <summary>
-    /// GH-5556, PROPOSED, NOT BUILT YET. The <typeparamref name="TSaga" /> saga with this identity has
-    /// <paramref name="status" />, loaded through the saga's own persistence as <see cref="ThenSaga{TSaga}(object, object)" />
-    /// loads it. Reads "the Order saga #OrderId has status Compensated".
+    /// GH-5556. The <typeparamref name="TSaga" /> saga with this identity has <paramref name="status" />, loaded through
+    /// the saga's own persistence as <see cref="ThenSaga{TSaga}(object, object)" /> loads it. Reads
+    /// "the Order saga #OrderId has status Compensated".
     /// </summary>
-    public void ThenTheSagaStatusIs<TSaga>(object sagaId, SagaStatus status) where TSaga : Saga, ICompensatingSaga
-        => notBuilt("Then", $"the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} has status {status}",
-            "proposed Bobcat vocabulary: ICompensatingSaga.Status, loaded as ThenSaga loads the saga");
+    public Task ThenTheSagaStatusIs<TSaga>(object sagaId, SagaStatus status) where TSaga : CompensatingSaga
+    {
+        var text = $"the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} has status {status}";
+        return inStep(ScenarioRecorder.Step("Then", text), async () =>
+        {
+            var saga = await compensatingSagaAsync<TSaga>(sagaId, text);
+            if (saga is null) return;
+
+            Verdicts.Check("status", saga.Status.ToString(), status.ToString());
+        });
+    }
 
     /// <summary>
-    /// GH-5556, PROPOSED, NOT BUILT YET. The <typeparamref name="TSaga" /> saga with this identity compensated its failed
+    /// GH-5556. The <typeparamref name="TSaga" /> saga with this identity compensated its failed
     /// <typeparamref name="TMessage" /> for a <typeparamref name="TException" /> or a subclass: its compensation log has
     /// that entry, with the outcome <see cref="CompensationOutcome.Compensated" />. Reads
     /// "the Order saga #OrderId compensates ReserveInventory for OutOfStockException".
     /// </summary>
-    public void ThenTheSagaCompensated<TSaga, TMessage, TException>(object sagaId)
-        where TSaga : Saga, ICompensatingSaga where TException : Exception
-        => notBuilt("Then",
-            $"the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} compensates {nameOf(typeof(TMessage))} for {nameOf(typeof(TException))}",
-            "proposed Bobcat vocabulary: an ICompensatingSaga.CompensationLog entry for the message type and the exception type");
+    public Task ThenTheSagaCompensated<TSaga, TMessage, TException>(object sagaId)
+        where TSaga : CompensatingSaga where TException : Exception
+        => thenCompensation<TSaga, TMessage, TException>(sagaId, CompensationOutcome.Compensated,
+            $"the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} compensates {nameOf(typeof(TMessage))} for {nameOf(typeof(TException))}");
 
     /// <summary>
-    /// GH-5556, PROPOSED, NOT BUILT YET. The <typeparamref name="TSaga" /> saga with this identity tried to compensate its
-    /// failed <typeparamref name="TMessage" /> for a <typeparamref name="TException" />, and that compensation failed: its
+    /// GH-5556. The <typeparamref name="TSaga" /> saga with this identity tried to compensate its failed
+    /// <typeparamref name="TMessage" /> for a <typeparamref name="TException" />, and that compensation failed: its
     /// compensation log has that entry, with the outcome <see cref="CompensationOutcome.Failed" />. Reads
     /// "the Order saga #OrderId fails to compensate PaymentReceived for PaymentAmountMismatchException".
     /// </summary>
-    public void ThenTheSagaFailedToCompensate<TSaga, TMessage, TException>(object sagaId)
-        where TSaga : Saga, ICompensatingSaga where TException : Exception
-        => notBuilt("Then",
-            $"the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} fails to compensate {nameOf(typeof(TMessage))} for {nameOf(typeof(TException))}",
-            "proposed Bobcat vocabulary: an ICompensatingSaga.CompensationLog entry with the outcome Failed");
+    public Task ThenTheSagaFailedToCompensate<TSaga, TMessage, TException>(object sagaId)
+        where TSaga : CompensatingSaga where TException : Exception
+        => thenCompensation<TSaga, TMessage, TException>(sagaId, CompensationOutcome.Failed,
+            $"the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} fails to compensate {nameOf(typeof(TMessage))} for {nameOf(typeof(TException))}");
+
+    private Task thenCompensation<TSaga, TMessage, TException>(object sagaId, CompensationOutcome outcome, string text)
+        where TSaga : CompensatingSaga where TException : Exception
+        => inStep(ScenarioRecorder.Step("Then", text), async () =>
+        {
+            var saga = await compensatingSagaAsync<TSaga>(sagaId, text);
+            if (saga is null) return;
+
+            var step = typeof(TMessage).ToMessageTypeName();
+            var log = saga.CompensationLog ?? [];
+            var entry = log.LastOrDefault(x => x.Step == step && x.Outcome == outcome && isA(x.ExceptionType, typeof(TException)));
+
+            Verdicts.Check("compensation", entry is null ? describeLog(log) : $"{nameOf(typeof(TMessage))} for {shortName(entry.ExceptionType)}, {outcome}",
+                $"{nameOf(typeof(TMessage))} for {nameOf(typeof(TException))}, {outcome}");
+            Verdicts.Fact(entry is not null,
+                $"Expected the {nameOf(typeof(TSaga))} saga's compensation log to have {nameOf(typeof(TMessage))} for " +
+                $"{nameOf(typeof(TException))} with the outcome {outcome}, but it has {describeLog(log)}.");
+        });
+
+    private async Task<TSaga?> compensatingSagaAsync<TSaga>(object sagaId, string text) where TSaga : CompensatingSaga
+    {
+        if (!acted)
+        {
+            Verdicts.Fail($"Expected a {nameOf(typeof(TSaga))} saga with id {sagaId}, but no act has run.");
+            return null;
+        }
+
+        var saga = await loadSagaAsync<TSaga>(sagaId, text);
+        if (saga is null)
+        {
+            Verdicts.Fail($"No {nameOf(typeof(TSaga))} saga with id {sagaId}: it was completed, or never started.");
+            return null;
+        }
+
+        recordTouched(typeof(TSaga));
+        return saga;
+    }
+
+    private static string describeLog(IReadOnlyList<CompensationLogEntry> log)
+        => log.Count == 0
+            ? "no entries"
+            : string.Join("; ", log.Select(x => $"{shortName(x.Step)} for {shortName(x.ExceptionType)}, {x.Outcome}"));
+
+    private static string shortName(string fullName)
+    {
+        var index = fullName.LastIndexOfAny(['.', '+']);
+        return index < 0 ? fullName : fullName[(index + 1)..];
+    }
+
+    // The thrown exception type, named in the log, is the expected type or a subclass of it
+    private static bool isA(string thrownTypeName, Type expected)
+    {
+        if (thrownTypeName == expected.FullName) return true;
+
+        var thrown = AppDomain.CurrentDomain.GetAssemblies()
+            .Select(x => x.GetType(thrownTypeName, false))
+            .FirstOrDefault(x => x is not null);
+        return thrown is not null && expected.IsAssignableFrom(thrown);
+    }
+
+    // "Another message saves the saga": the saga saved again through its own persistence, so its version moves on
+    private async Task updateSagaAsync<TSaga>(TSaga saga, string step) where TSaga : Saga
+    {
+        var (kind, provider) = sagaPersistenceFor(typeof(TSaga));
+        switch (kind)
+        {
+            case SagaPersistence.InMemory:
+                Services.GetRequiredService<InMemorySagaPersistor>().Store(saga);
+                break;
+
+            case SagaPersistence.DocumentStore:
+                await DocumentStores.StoreAllAsync(await storeForAsync(step, typeof(TSaga)), typeof(TSaga), [saga]);
+                break;
+
+            case SagaPersistence.Lightweight:
+                await withLightweightStorage<TSaga, bool>(provider!, async (storage, _) =>
+                {
+                    await storage.UpdateAsync(saga, CancellationToken.None);
+                    await storage.SaveChangesAsync(CancellationToken.None);
+                    return true;
+                }, sagaIdOf(saga));
+                break;
+
+            default:
+                throw new SpecCriticalException(
+                    $"'{step}': the {nameOf(typeof(TSaga))} saga is kept by {provider!.GetType().NameInCode()}, which this step cannot write to.");
+        }
+    }
+
+    // "Another message completes the saga": deleted through its own persistence
+    private async Task deleteSagaAsync<TSaga>(TSaga saga, string step) where TSaga : Saga
+    {
+        var (kind, provider) = sagaPersistenceFor(typeof(TSaga));
+        switch (kind)
+        {
+            case SagaPersistence.InMemory:
+                Services.GetRequiredService<InMemorySagaPersistor>().Delete<TSaga>(sagaIdOf(saga));
+                break;
+
+            case SagaPersistence.DocumentStore:
+                await DocumentStores.DeleteAsync(await storeForAsync(step, typeof(TSaga)), saga);
+                break;
+
+            case SagaPersistence.Lightweight:
+                await withLightweightStorage<TSaga, bool>(provider!, async (storage, _) =>
+                {
+                    await storage.DeleteAsync(saga, CancellationToken.None);
+                    await storage.SaveChangesAsync(CancellationToken.None);
+                    return true;
+                }, sagaIdOf(saga));
+                break;
+
+            default:
+                throw new SpecCriticalException(
+                    $"'{step}': the {nameOf(typeof(TSaga))} saga is kept by {provider!.GetType().NameInCode()}, which this step cannot write to.");
+        }
+    }
+
+    // "an Order saga #OrderId with Amount: 100", not "... with Id: #OrderId, Amount: 100": the id is already named
+    private static string withoutIdentity(string values, object id)
+    {
+        var identity = $"Id: {ScenarioValues.Format(id)}";
+        if (values == identity) return "";
+
+        return values.StartsWith(identity + ", ", StringComparison.Ordinal)
+            ? values[(identity.Length + 2)..]
+            : values.Replace(", " + identity, "", StringComparison.Ordinal);
+    }
 
     private static async Task<T> inSagaStep<T>(IDisposable step, Func<Task<T>> body)
     {

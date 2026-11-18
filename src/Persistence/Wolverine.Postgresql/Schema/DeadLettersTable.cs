@@ -64,6 +64,13 @@ internal class DeadLettersTable : Table
             Columns = [DatabaseConstants.SagaId]
         });
 
+        // GH-5556: why Wolverine dead lettered the message (compensated, compensation-failed, ...). Nullable
+        AddColumn(DatabaseConstants.Tag, "varchar(100)").AllowNulls();
+        Indexes.Add(new IndexDefinition(PostgresqlIdentifier.Shorten($"idx_{DatabaseConstants.DeadLetterTable}_{DatabaseConstants.Tag}"))
+        {
+            Columns = [DatabaseConstants.Tag]
+        });
+
         if (durability.DeadLetterQueueExpirationEnabled)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Expires).AllowNulls();

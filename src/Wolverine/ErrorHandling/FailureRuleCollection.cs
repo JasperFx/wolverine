@@ -59,7 +59,31 @@ public class FailureRuleCollection : IEnumerable<FailureRule>
         return MaximumAttempts.HasValue || _rules.Any(x => x.AnyRequeueContinuations());
     }
 
+    /// <summary>
+    /// GH-5556. What a chain does in place of moving the message to the error queue once its retries are used up:
+    /// a saga's compensation. Set on the combined rules of one chain only, never on the global rules
+    /// </summary>
+    internal Func<MoveToErrorQueue, Envelope, IContinuation>? InsteadOfErrorQueue { get; set; }
+
     internal IContinuation DetermineExecutionContinuation(Exception e, Envelope envelope)
+    {
+        var continuation = determineExecutionContinuation(e, envelope);
+
+        // GH-5556: a terminal failure skips the retries and goes straight to what comes after them
+        if (TerminalFailures.IsTerminal(e) && TerminalFailures.Retries(continuation))
+        {
+            continuation = new MoveToErrorQueue(e);
+        }
+
+        if (InsteadOfErrorQueue != null && continuation is MoveToErrorQueue moveToErrorQueue)
+        {
+            continuation = InsteadOfErrorQueue(moveToErrorQueue, envelope);
+        }
+
+        return continuation;
+    }
+
+    private IContinuation determineExecutionContinuation(Exception e, Envelope envelope)
     {
         foreach (var rule in _rules)
         {
@@ -74,6 +98,9 @@ public class FailureRuleCollection : IEnumerable<FailureRule>
 
     internal IInlineContinuation? TryFindInlineContinuation(Exception e, Envelope envelope)
     {
+        // GH-5556: a terminal failure is never retried, inline or not
+        if (TerminalFailures.IsTerminal(e)) return null;
+
         foreach (var rule in _rules)
         {
             if (!rule.TryCreateContinuation(e, envelope, out var continuation))

@@ -5,14 +5,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
+using Wolverine.Util;
 
 namespace Wolverine.Bobcat;
 
 // GH-5553 / GH-5554 / GH-5556: vocabulary for specifying faults, dead letters and sagas across services.
-// Written with the specifications in src/Samples/SagaFaults, wording settled by Jeremy on 2026-11-17. The steps that
-// read the tracked session work; the ones that need a seam in Wolverine (a crash after the dead-letter move, a write
-// that lands while a saga is compensated) are stubs until GH-5554 and GH-5556 are built: they render and fail, saying
-// so, and let the rest of the specification render.
+// Written with the specifications in src/Samples/SagaFaults, wording settled by Jeremy on 2026-11-17 and 2026-11-18.
+// The seams -- a crash right after a dead-letter move, a move that rolls back, another message saving a saga while it is
+// compensated -- go through internal test hooks in Wolverine.
 public partial class WolverineScenario
 {
     private readonly Dictionary<string, IHost> _otherServices = new(StringComparer.OrdinalIgnoreCase);
@@ -277,89 +277,244 @@ public partial class WolverineScenario
             $"{string.Join(", ", sent.Select(x => x.GroupId ?? "(none)").Distinct())}.");
     }
 
-    // ---- seams: stubs until Wolverine has them ----------------------------------------------------
+    // ---- seams in Wolverine's dead-letter move and saga compensation (internal test hooks) ---------------------
+
+    private List<ITrackedCondition> _actConditions = [];
+    private List<Action> _afterAct = [];
+
+    private WolverineRuntime wolverineRuntimeOf(string service, string step)
+        => runtimeOf(service) as WolverineRuntime
+           ?? throw new SpecCriticalException($"'{step}': this specification does not track a service named '{service}'. Track it with AlsoTrack(host).");
 
     /// <summary>
-    /// GH-5554, NOT BUILT YET. The service named <paramref name="service" /> dies right after its next dead-letter
-    /// move commits, before it can send anything else -- the crash window a durable fault closes.
+    /// GH-5554. The service named <paramref name="service" /> crashes right after its next dead-letter move commits,
+    /// before it sends anything else: the faults written with the dead letter stay in its outbox. Reads
+    /// "inventory crashes right after its next dead-letter move commits".
     /// </summary>
-    public void GivenTheServiceDiesAfterItsNextDeadLetter(string service)
-        => notBuilt("Given", $"{service} dies right after its next dead-letter move commits",
-            "GH-5554: it needs a seam in Wolverine's dead-letter move that stops the service once the move commits");
-
-    /// <summary>
-    /// GH-5554, NOT BUILT YET. The service named <paramref name="service" />, stopped by
-    /// <see cref="GivenTheServiceDiesAfterItsNextDeadLetter" />, starts again and recovers its durable inbox and outbox.
-    /// The new act.
-    /// </summary>
-    public Task WhenTheServiceRecovers(string service)
+    public void GivenTheServiceCrashesAfterItsNextDeadLetter(string service)
     {
-        notBuilt("When", $"{service} starts again and recovers its outbox",
-            "GH-5554: it restarts the service GivenTheServiceDiesAfterItsNextDeadLetter stopped");
-        return Task.CompletedTask;
+        var text = $"{service} crashes right after its next dead-letter move commits";
+        using var step = ScenarioRecorder.Step("Given", text);
+        var hooks = wolverineRuntimeOf(service, text).DeadLetterHooks;
+        hooks.Reset();
+        hooks.CrashAfterNextMove();
     }
 
     /// <summary>
-    /// GH-5554, NOT BUILT YET. The next dead-letter move in the service named <paramref name="service" /> fails
-    /// and rolls back, so whatever was written in its transaction is gone too.
+    /// GH-5554. The service named <paramref name="service" />, crashed by
+    /// <see cref="GivenTheServiceCrashesAfterItsNextDeadLetter" />, restarts: what it owned in its inbox and outbox
+    /// is released and recovered, as it is for a node that went away. The new act: it waits until every fault the crash
+    /// left behind has been handled. Reads "inventory restarts and recovers its outbox".
+    /// </summary>
+    public Task WhenTheServiceRestarts(string service)
+    {
+        var text = $"{service} restarts and recovers its outbox";
+        var runtime = wolverineRuntimeOf(service, text);
+        var stranded = runtime.DeadLetterHooks.Stranded.Select(x => x.Id).ToArray();
+
+        return root.ActAsync(text, tracking => ownCorrelation(null, tracking, null)
+            .WaitForCondition(new EnvelopesFinished(stranded))
+            .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
+            {
+                runtime.DeadLetterHooks.Reset();
+                await runtime.Storage.Admin.ReleaseAllOwnershipAsync(runtime.DurabilitySettings.AssignedNodeNumber);
+            })));
+    }
+
+    /// <summary>
+    /// GH-5554. The next dead-letter move in the service named <paramref name="service" /> fails after its statements
+    /// ran, so its transaction rolls back with everything written in it. The act then waits until that service has
+    /// handed the message back to its inbox. Reads "the next dead-letter move in inventory fails and rolls back".
     /// </summary>
     public void GivenTheNextDeadLetterMoveFails(string service)
-        => notBuilt("Given", $"the next dead-letter move in {service} fails and rolls back",
-            "GH-5554: it needs a seam in Wolverine's dead-letter move that fails its transaction");
+    {
+        var text = $"the next dead-letter move in {service} fails and rolls back";
+        using var step = ScenarioRecorder.Step("Given", text);
+        var hooks = wolverineRuntimeOf(service, text).DeadLetterHooks;
+        hooks.Reset();
+        hooks.FailNextMove();
+
+        root._actConditions.Add(new RequeuedIn(service));
+        root._afterAct.Add(hooks.Reset);
+    }
 
     /// <summary>
-    /// GH-5556, NOT BUILT YET. While the <typeparamref name="TSaga" /> saga with this identity is compensated,
-    /// another message saves it first -- once, or on every attempt -- so saving the compensated saga meets a
-    /// concurrency conflict.
+    /// GH-5556. While the <typeparamref name="TSaga" /> saga with this identity is compensated, another message saves it
+    /// first -- once, or on every attempt -- so saving the compensated saga meets a concurrency conflict. Reads
+    /// "another message saves the Order saga #OrderId while it is being compensated, once".
     /// </summary>
     public void WhileCompensatingTheSagaIsChanged<TSaga>(object sagaId, bool onEveryAttempt = false) where TSaga : Saga
-        => notBuilt("Given",
-            $"while the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} is compensated, another message changes it first" +
-            (onEveryAttempt ? ", on every attempt" : ", once"),
-            "GH-5556: it needs a seam between loading the saga for compensation and saving it, as WhileActing has for events");
+    {
+        var text = $"another message saves the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} while it is being compensated" +
+                   (onEveryAttempt ? ", on every attempt" : ", once");
+        using var step = ScenarioRecorder.Step("Given", text);
+
+        var hooks = ((WolverineRuntime)sagaRuntime).CompensationHooks;
+        var id = sagaId.ToString();
+        var saved = 0;
+        hooks.BeforeSave = async saga =>
+        {
+            if (saga is not TSaga || sagaIdOf(saga).ToString() != id) return;
+            if (!onEveryAttempt && Interlocked.Increment(ref saved) > 1) return;
+
+            var current = await loadSagaAsync<TSaga>(sagaId, text);
+            if (current != null) await updateSagaAsync(current, text);
+        };
+        root._afterAct.Add(() => hooks.BeforeSave = null);
+    }
 
     /// <summary>
-    /// GH-5556, NOT BUILT YET. While the <typeparamref name="TSaga" /> saga with this identity is about to be
-    /// compensated, another message completes it, so compensation finds no saga.
+    /// GH-5556. While the <typeparamref name="TSaga" /> saga with this identity is about to be compensated, another
+    /// message completes it, so compensation finds no saga. Reads
+    /// "while the Order saga #OrderId is about to be compensated, another message completes it".
     /// </summary>
     public void WhileCompensatingTheSagaIsCompleted<TSaga>(object sagaId) where TSaga : Saga
-        => notBuilt("Given",
-            $"while the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} is about to be compensated, another message completes it",
-            "GH-5556: it needs a seam between the failure and compensation loading the saga");
+    {
+        var text = $"while the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} is about to be compensated, another message completes it";
+        using var step = ScenarioRecorder.Step("Given", text);
 
-    // ---- proposed vocabulary for GH-5554 (spec review of 2026-11-18): renders, then fails ------------------------
+        var hooks = ((WolverineRuntime)sagaRuntime).CompensationHooks;
+        var id = sagaId.ToString();
+        hooks.BeforeCompensating = async (sagaType, compensatedId) =>
+        {
+            if (sagaType != typeof(TSaga) || compensatedId.ToString() != id) return;
+
+            var current = await loadSagaAsync<TSaga>(sagaId, text);
+            if (current != null) await deleteSagaAsync(current, text);
+        };
+        root._afterAct.Add(() => hooks.BeforeCompensating = null);
+    }
+
+    // ---- the inbox and outbox of a service (GH-5554) --------------------------------------------------------------
 
     /// <summary>
-    /// GH-5554, PROPOSED, NOT BUILT YET. A <typeparamref name="T" /> addressed to the service named <paramref name="to" />
-    /// is waiting in the durable outbox of the service named <paramref name="by" />: written, not sent yet. Reads
+    /// GH-5554. A <typeparamref name="T" /> addressed to the service named <paramref name="to" /> is waiting in the
+    /// durable outbox of the service named <paramref name="by" />: written, not sent yet. Reads
     /// "a Fault&lt;ReserveInventory&gt; to orders waits in inventory's outbox".
     /// </summary>
-    public void ThenWaitingInTheOutbox<T>(string by, string to)
-        => notBuilt("Then", $"{withArticle(nameOf(typeof(T)))} to {to} waits in {by}'s outbox",
-            "proposed Bobcat vocabulary: it reads the service's outgoing envelopes from its message store and matches " +
-            "their destination against the named service's listeners");
-
-    /// <summary>
-    /// GH-5554, PROPOSED, NOT BUILT YET. No <typeparamref name="T" /> is waiting in the durable outbox of the service
-    /// named <paramref name="by" />. Reads "no Fault&lt;ReserveInventory&gt; waits in inventory's outbox".
-    /// </summary>
-    public void ThenNothingWaitingInTheOutbox<T>(string by)
-        => notBuilt("Then", $"no {nameOf(typeof(T))} waits in {by}'s outbox",
-            "proposed Bobcat vocabulary: it reads the service's outgoing envelopes from its message store");
-
-    /// <summary>
-    /// GH-5554, PROPOSED, NOT BUILT YET. The <typeparamref name="T" /> is still in the durable inbox of the service named
-    /// <paramref name="by" />, neither handled nor dead-lettered, so it will be tried again. Reads
-    /// "ReserveInventory is still in inventory's inbox".
-    /// </summary>
-    public void ThenStillInTheInbox<T>(string by)
-        => notBuilt("Then", $"{nameOf(typeof(T))} is still in {by}'s inbox",
-            "proposed Bobcat vocabulary: it reads the service's incoming envelopes from its message store");
-
-    // Renders the step and fails it, without stopping the specification, so the steps after it still render for review
-    private static void notBuilt(string keyword, string text, string because)
+    public Task ThenWaitingInTheOutbox<T>(string by, string to)
     {
-        using var step = ScenarioRecorder.Step(keyword, text);
-        Verdicts.Fail($"Not built yet ({because}).");
+        var text = $"{withArticle(nameOf(typeof(T)))} to {to} waits in {by}'s outbox";
+        return inStep(ScenarioRecorder.Step("Then", text), async () =>
+        {
+            var runtime = wolverineRuntimeOf(by, text);
+            var addresses = listenerAddressesOf(wolverineRuntimeOf(to, text));
+            var waiting = (await outgoingOf<T>(runtime)).ToList();
+            var toService = waiting.Where(x => x.Destination != null && addresses.Contains(normalize(x.Destination))).ToList();
+
+            Verdicts.Check("waiting", toService.Count > 0 ? "yes" : "no", "yes");
+            Verdicts.Fact(toService.Count > 0, waiting.Count == 0
+                ? $"Expected {withArticle(nameOf(typeof(T)))} to {to} in {by}'s outbox, but there is none."
+                : $"Expected {withArticle(nameOf(typeof(T)))} to {to} in {by}'s outbox, but the ones there go to " +
+                  $"{string.Join(", ", waiting.Select(x => x.Destination).Distinct())}.");
+        });
+    }
+
+    /// <summary>
+    /// GH-5554. No <typeparamref name="T" /> is waiting in the durable outbox of the service named
+    /// <paramref name="by" />, once what it was sending has been sent. Reads
+    /// "no Fault&lt;ReserveInventory&gt; waits in inventory's outbox".
+    /// </summary>
+    public Task ThenNothingWaitingInTheOutbox<T>(string by)
+    {
+        var text = $"no {nameOf(typeof(T))} waits in {by}'s outbox";
+        return inStep(ScenarioRecorder.Step("Then", text), async () =>
+        {
+            var runtime = wolverineRuntimeOf(by, text);
+
+            // A sent envelope leaves the outbox right after it is sent, which can be just after the act ended
+            var waiting = await eventuallyAsync(() => outgoingOf<T>(runtime), x => x.Count == 0);
+            Verdicts.Fact(waiting.Count == 0,
+                $"Expected no {nameOf(typeof(T))} in {by}'s outbox, but {waiting.Count} still wait there, to " +
+                $"{string.Join(", ", waiting.Select(x => x.Destination).Distinct())}.");
+        });
+    }
+
+    /// <summary>
+    /// GH-5554. The <typeparamref name="T" /> is still in the durable inbox of the service named <paramref name="by" />,
+    /// neither handled nor dead-lettered, so it will be tried again. Reads "ReserveInventory is still in inventory's inbox".
+    /// </summary>
+    public Task ThenStillInTheInbox<T>(string by)
+    {
+        var text = $"{nameOf(typeof(T))} is still in {by}'s inbox";
+        return inStep(ScenarioRecorder.Step("Then", text), async () =>
+        {
+            var runtime = wolverineRuntimeOf(by, text);
+            var messageType = typeof(T).ToMessageTypeName();
+
+            var incoming = await eventuallyAsync(
+                async () => (await runtime.Storage.Admin.AllIncomingAsync())
+                    .Where(x => x.MessageType == messageType && x.Status != EnvelopeStatus.Handled).ToList(),
+                x => x.Count > 0);
+
+            Verdicts.Check("in the inbox", incoming.Count > 0 ? "yes" : "no", "yes");
+            Verdicts.Fact(incoming.Count > 0, $"Expected a {nameOf(typeof(T))} to be waiting in {by}'s inbox, but there is none.");
+        });
+    }
+
+    private static async Task<IReadOnlyList<Envelope>> outgoingOf<T>(IWolverineRuntime runtime)
+    {
+        var messageType = typeof(T).ToMessageTypeName();
+        return (await runtime.Storage.Admin.AllOutgoingAsync()).Where(x => x.MessageType == messageType).ToList();
+    }
+
+    private static HashSet<string> listenerAddressesOf(IWolverineRuntime runtime)
+        => runtime.Endpoints.ActiveListeners().Select(x => normalize(x.Uri)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private static string normalize(Uri uri) => uri.ToString().TrimEnd('/');
+
+    // Polls for a short while, for what a service finishes just after the act
+    private static async Task<T> eventuallyAsync<T>(Func<Task<T>> read, Func<T, bool> done)
+    {
+        var value = await read();
+        for (var i = 0; i < 50 && !done(value); i++)
+        {
+            await Task.Delay(100);
+            value = await read();
+        }
+
+        return value;
+    }
+
+    // The act's session waits until each of these envelopes finished, wherever it ran
+    private sealed class EnvelopesFinished(IReadOnlyCollection<Guid> ids) : ITrackedCondition
+    {
+        private readonly HashSet<Guid> _remaining = ids.ToHashSet();
+
+        public void Record(EnvelopeRecord record)
+        {
+            if (record.Envelope is null) return;
+            if (record.MessageEventType is MessageEventType.MessageSucceeded or MessageEventType.MovedToErrorQueue
+                or MessageEventType.MessageFailed)
+            {
+                lock (_remaining) _remaining.Remove(record.Envelope.Id);
+            }
+        }
+
+        public bool IsCompleted()
+        {
+            lock (_remaining) return _remaining.Count == 0;
+        }
+
+        public override string ToString() => $"Every envelope a crash left in the outbox is handled ({_remaining.Count} remaining)";
+    }
+
+    // The act's session waits until the named service hands a message back to be tried again
+    private sealed class RequeuedIn(string service) : ITrackedCondition
+    {
+        private bool _requeued;
+
+        public void Record(EnvelopeRecord record)
+        {
+            if (record.MessageEventType == MessageEventType.Requeued &&
+                string.Equals(record.ServiceName, service, StringComparison.OrdinalIgnoreCase))
+            {
+                _requeued = true;
+            }
+        }
+
+        public bool IsCompleted() => _requeued;
+
+        public override string ToString() => $"A message is handed back to be tried again in {service}";
     }
 }

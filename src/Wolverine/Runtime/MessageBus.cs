@@ -362,6 +362,13 @@ public partial class MessageBus : IMessageBus, IMessageContext
             throw new InvalidOperationException("Envelope has not been routed");
         }
 
+        // GH-5554: a dead letter's faults are routed now and written with the dead-letter move
+        if (CapturedOutgoing is not null)
+        {
+            CapturedOutgoing.Add(envelope);
+            return;
+        }
+
         if (Transaction is not null)
         {
             // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
@@ -383,6 +390,11 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
         await envelope.StoreAndForwardAsync().ConfigureAwait(false);
     }
+
+    /// <summary>
+    ///     GH-5554. While set, everything this bus would persist or send is only routed and collected here
+    /// </summary>
+    internal List<Envelope>? CapturedOutgoing { get; set; }
 
     public void EnlistInOutbox(IEnvelopeTransaction transaction)
     {
@@ -449,6 +461,13 @@ public partial class MessageBus : IMessageBus, IMessageContext
                     rule.ApplyCorrelation(this, envelope);
                 }
             }
+        }
+
+        // GH-5554: a dead letter's faults are routed now and written with the dead-letter move
+        if (CapturedOutgoing is not null)
+        {
+            CapturedOutgoing.AddRange(outgoing);
+            return;
         }
 
         if (Transaction != null)

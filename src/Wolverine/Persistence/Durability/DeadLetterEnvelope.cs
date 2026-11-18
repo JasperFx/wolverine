@@ -67,14 +67,9 @@ public class DeadLetterEnvelope
     /// <summary>
     /// GH-5556. Why Wolverine dead lettered the message, when it has more to say than the exception: a saga's
     /// own handler that failed and was then compensated is tagged <c>compensated</c>, <c>compensation-failed</c>
-    /// or <c>compensation-saga-missing</c>. Null for an ordinary dead letter
+    /// or <c>compensation-saga-missing</c>, and a fault whose compensation failed is tagged <c>compensation-failed</c>.
+    /// Null for an ordinary dead letter. Filter on it with <see cref="DeadLetterManagement.DeadLetterEnvelopeQuery.Tag"/>
     /// </summary>
-    /// <remarks>
-    /// SPEC STUB (GH-5556): specified by Bobcat specifications first. The tag becomes a column of
-    /// <c>wolverine_dead_letters</c>, queryable like <see cref="SagaId"/>, when compensation is built; until then
-    /// nothing writes it, and no store reads it back. There is deliberately no query filter for it yet: a filter
-    /// a store ignored would widen a discard or replay to every dead letter.
-    /// </remarks>
     public string? Tag { get; set; }
 
     /// <summary>

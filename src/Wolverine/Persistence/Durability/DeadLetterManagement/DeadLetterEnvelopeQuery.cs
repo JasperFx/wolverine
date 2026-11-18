@@ -49,6 +49,13 @@ public class DeadLetterEnvelopeQuery
     public string? SagaId { get; set; }
 
     /// <summary>
+    /// GH-5556. When set, restricts results to the dead letters with this tag (<see cref="DeadLetterEnvelope.Tag"/>):
+    /// <c>compensated</c>, <c>compensation-failed</c> or <c>compensation-saga-missing</c>. Only honored by a store that
+    /// reports <see cref="DeadLetterCapabilities.Tags"/>
+    /// </summary>
+    public string? Tag { get; set; }
+
+    /// <summary>
     /// When set, scopes the query to one tenant. Dead letters are stored per database, so for a multi-tenanted
     /// message store this routes the query to the tenant's database. A message store that serves a single
     /// database ignores it
@@ -88,6 +95,7 @@ public class DeadLetterEnvelopeQuery
             ExceptionMessageMatch = ExceptionMessageMatch,
             FailureGroup = FailureGroup,
             SagaId = SagaId,
+            Tag = Tag,
             TenantId = TenantId,
             Archived = Archived,
             Replayable = Replayable,
@@ -139,6 +147,15 @@ public class DeadLetterEnvelopeQuery
     {
         if (string.IsNullOrEmpty(SagaId)) return true;
         return string.Equals(sagaId, SagaId, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// GH-5556. Does this dead letter satisfy the <see cref="Tag"/> criteria? For stores that match in memory
+    /// </summary>
+    public bool MatchesTag(string? tag)
+    {
+        if (string.IsNullOrEmpty(Tag)) return true;
+        return string.Equals(tag, Tag, StringComparison.Ordinal);
     }
 
     /// <summary>

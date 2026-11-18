@@ -745,6 +745,11 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     /// </summary>
     internal bool HasRescheduledEnvelope => _rescheduled;
 
+    /// <summary>
+    ///     GH-5556. The saga id a saga handler resolved for the current message, if it got that far
+    /// </summary>
+    internal object? ResolvedSagaId => _sagaId;
+
     private ISupportNativeScheduling? tryGetRescheduler(IChannelCallback? channel, Envelope e)
     {
         // TODO: is that ok, or should we modify Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time) in DurableReceiver and BufferedReceiver?
