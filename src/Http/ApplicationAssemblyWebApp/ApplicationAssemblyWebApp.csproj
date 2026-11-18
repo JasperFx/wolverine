@@ -5,7 +5,7 @@
          assembly, apart from the test project, because the bug was Wolverine scanning the test project
          instead of the application. -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>net10.0</TargetFrameworks>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <IsPackable>false</IsPackable>
