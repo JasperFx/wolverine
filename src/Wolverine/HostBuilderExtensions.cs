@@ -200,13 +200,15 @@ public static class HostBuilderExtensions
         services.AddSingleton(s =>
         {
             var jasperfx = s.GetRequiredService<JasperFxOptions>();
+            var environment = s.GetService<IHostEnvironment>();
 
+            // GH-5667: ahead of ReadJasperFxOptions, so the application the host names outranks a guessed pin
+            options.ReadHostEnvironment(environment, jasperfx);
             options.ReadJasperFxOptions(jasperfx);
-            
+
             var extensions = s.GetServices<IWolverineExtension>();
             options.ApplyExtensions(extensions.ToArray());
 
-            var environment = s.GetService<IHostEnvironment>();
             var directory = environment?.ContentRootPath ?? AppContext.BaseDirectory;
 
             // Don't correct for the path if it's already been set (from JasperFxOptions or user)
