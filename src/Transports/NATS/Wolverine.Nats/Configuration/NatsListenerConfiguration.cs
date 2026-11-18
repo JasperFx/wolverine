@@ -51,7 +51,7 @@ public class NatsListenerConfiguration
     private static void applyJetStream(NatsEndpoint endpoint, string? streamName, string? consumerName)
     {
         endpoint.UseJetStream = true;
-        endpoint.StreamName = streamName ?? endpoint.Subject.Replace(".", "_").ToUpper();
+        endpoint.StreamName = streamName ?? endpoint.Subject.Replace(".", "_").ToUpperInvariant();
         endpoint.ConsumerName = consumerName;
     }
 
