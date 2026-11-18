@@ -7,9 +7,8 @@ namespace EventSourcedSagas.Specs;
 // GH-5415: the payment timeout, a TimeoutMessage, fired with WhenScheduledMessagesAreExecuted
 // (ITrackedSession.PlayScheduledMessagesAsync) rather than by waiting for the clock.
 
-[BobcatFeature("An event-sourced saga's timeout")]
-[Collection(nameof(FulfillmentCollection))]
-public class the_payment_timeout(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
+// "An event-sourced saga's timeout": run on Marten, Polecat and Fisher by the classes in StoreParity.cs
+public abstract class the_payment_timeout(FulfillmentServices services) : EventSourcedSagaSpec(services)
 {
     [BobcatSpec(typeof(PaymentTimeout))]
     public async Task an_unpaid_fulfillment_is_cancelled_when_its_payment_times_out()

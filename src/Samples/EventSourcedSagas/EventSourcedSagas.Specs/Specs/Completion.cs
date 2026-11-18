@@ -10,9 +10,8 @@ namespace EventSourcedSagas.Specs;
 // GH-5415: a completed event-sourced saga keeps its stream and its snapshot. Wolverine checks for completion before any
 // Handle runs, so a late message goes to NotFound, or is treated as a message for a missing saga is today (GH-5572).
 
-[BobcatFeature("Messages for a completed event-sourced saga")]
-[Collection(nameof(FulfillmentCollection))]
-public class messages_for_a_completed_event_sourced_saga(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
+// "Messages for a completed event-sourced saga": run on Marten, Polecat and Fisher by the classes in StoreParity.cs
+public abstract class messages_for_a_completed_event_sourced_saga(FulfillmentServices services) : EventSourcedSagaSpec(services)
 {
     [BobcatSpec(typeof(CarrierConfirmedShipment))]
     public async Task a_late_shipment_goes_to_NotFound()
@@ -50,9 +49,8 @@ public class messages_for_a_completed_event_sourced_saga(InlineFulfillmentServic
     }
 }
 
-[BobcatFeature("An event-sourced saga completes with a SagaCompleted event")]
-[Collection(nameof(FulfillmentCollection))]
-public class completing_an_event_sourced_saga(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
+// "An event-sourced saga completes with a SagaCompleted event": run on Marten, Polecat and Fisher by the classes in StoreParity.cs
+public abstract class completing_an_event_sourced_saga(FulfillmentServices services) : EventSourcedSagaSpec(services)
 {
     private Guid TicketId { get; } = Guid.NewGuid();
 

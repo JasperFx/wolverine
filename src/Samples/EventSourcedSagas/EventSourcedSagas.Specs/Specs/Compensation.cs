@@ -9,9 +9,8 @@ namespace EventSourcedSagas.Specs;
 // the compensation as events of its own on the saga's stream -- SagaCompensating, then SagaCompensated or
 // SagaCompensationFailed -- and the EventSourcedSaga base type rebuilds Status and CompensationLog from them.
 
-[BobcatFeature("An event-sourced saga's compensation is recorded as events")]
-[Collection(nameof(FulfillmentCollection))]
-public class compensating_an_event_sourced_saga(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
+// "An event-sourced saga's compensation is recorded as events": run on Marten, Polecat and Fisher by the classes in StoreParity.cs
+public abstract class compensating_an_event_sourced_saga(FulfillmentServices services) : EventSourcedSagaSpec(services)
 {
     // Wolverine's own events, for a failed PaymentReceived and the exception it failed with
     private Specified<SagaCompensating> Compensating<TException>() where TException : Exception
@@ -70,9 +69,8 @@ public class compensating_an_event_sourced_saga(InlineFulfillmentServices servic
     }
 }
 
-[BobcatFeature("An event-sourced saga's compensation meets a concurrent append")]
-[Collection(nameof(FulfillmentCollection))]
-public class compensating_while_another_message_appends(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
+// "An event-sourced saga's compensation meets a concurrent append": run on Marten, Polecat and Fisher by the classes in StoreParity.cs
+public abstract class compensating_while_another_message_appends(FulfillmentServices services) : EventSourcedSagaSpec(services)
 {
     // The compensation loads the stream, then another message appends to it before the compensation saves: the save is a
     // concurrency conflict, and the compensation is retried under its own error policies

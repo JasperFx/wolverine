@@ -6,9 +6,8 @@ namespace EventSourcedSagas.Specs;
 
 // GH-5415: an event-sourced saga starts from events alone, and continues from its own stream.
 
-[BobcatFeature("An event-sourced saga starts from events alone")]
-[Collection(nameof(FulfillmentCollection))]
-public class starting_an_event_sourced_saga(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
+// "An event-sourced saga starts from events alone": run on Marten, Polecat and Fisher by the classes in StoreParity.cs
+public abstract class starting_an_event_sourced_saga(FulfillmentServices services) : EventSourcedSagaSpec(services)
 {
     [BobcatSpec(typeof(StartOrderFulfillment))]
     public async Task starting_a_fulfillment_appends_its_first_event_and_schedules_the_payment_timeout()
@@ -76,9 +75,8 @@ public class starting_an_event_sourced_saga(InlineFulfillmentServices services) 
     }
 }
 
-[BobcatFeature("An event-sourced saga continues from its own stream")]
-[Collection(nameof(FulfillmentCollection))]
-public class continuing_an_event_sourced_saga(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
+// "An event-sourced saga continues from its own stream": run on Marten, Polecat and Fisher by the classes in StoreParity.cs
+public abstract class continuing_an_event_sourced_saga(FulfillmentServices services) : EventSourcedSagaSpec(services)
 {
     [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_payment_is_appended_to_the_fulfillments_own_stream()

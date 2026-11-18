@@ -8,9 +8,8 @@ namespace EventSourcedSagas.Specs;
 // events. An application's own registration wins: Live works, but the saga explorer can then only open one at a time.
 // Async is refused at startup (see identity_and_registration).
 
-[BobcatFeature("An event-sourced saga is kept as an Inline snapshot")]
-[Collection(nameof(FulfillmentCollection))]
-public class an_inline_snapshot(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
+// "An event-sourced saga is kept as an Inline snapshot": run on Marten, Polecat and Fisher by the classes in StoreParity.cs
+public abstract class an_inline_snapshot(FulfillmentServices services) : EventSourcedSagaSpec(services)
 {
     [BobcatSpec(typeof(StartOrderFulfillment))]
     public async Task the_snapshot_is_written_with_the_events_and_the_saga_explorer_can_search_it()

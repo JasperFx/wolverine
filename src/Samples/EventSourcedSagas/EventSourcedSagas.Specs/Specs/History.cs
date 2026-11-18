@@ -9,9 +9,8 @@ namespace EventSourcedSagas.Specs;
 // GH-5415, for CritterWatch#1680: ISagaHistoryDiagnostics reads an event-sourced saga's stream a page at a time, and its
 // state at a version or a point in time with the store's own time travel. No audit table, no extra writes.
 
-[BobcatFeature("An event-sourced saga's history")]
-[Collection(nameof(FulfillmentCollection))]
-public class reading_an_event_sourced_sagas_history(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
+// "An event-sourced saga's history": run on Marten, Polecat and Fisher by the classes in StoreParity.cs
+public abstract class reading_an_event_sourced_sagas_history(FulfillmentServices services) : EventSourcedSagaSpec(services)
 {
     [BobcatSpec]
     public async Task the_history_is_read_a_page_at_a_time()

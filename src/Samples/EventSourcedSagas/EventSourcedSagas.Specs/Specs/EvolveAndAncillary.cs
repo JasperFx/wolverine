@@ -92,3 +92,30 @@ public class an_event_sourced_saga_in_an_ancillary_store(InlineFulfillmentServic
         await In<IGiftCardStore>().ThenTheSagaIsCompleted<GiftCard>(GiftCardId);
     }
 }
+
+[BobcatFeature("An event-sourced saga kept in an ancillary Polecat store")]
+[Collection(nameof(PolecatFulfillmentCollection))]
+public class an_event_sourced_saga_in_an_ancillary_polecat_store(PolecatFulfillmentServices services) : EventSourcedSagaSpec(services)
+{
+    private Guid GiftCardId { get; } = Guid.NewGuid();
+
+    [BobcatSpec(typeof(IssuePolecatGiftCard))]
+    public async Task issuing_a_gift_card_starts_its_stream_in_the_gift_card_store()
+    {
+        await WhenReceived(new IssuePolecatGiftCard(GiftCardId, 50m));
+
+        await In<IPolecatGiftCardStore>().ThenStreamIsStartedWithEvents<PolecatGiftCard>(new GiftCardIssued(50m));
+        await In<IPolecatGiftCardStore>().ThenTheSagaSnapshot<PolecatGiftCard>(GiftCardId, Specify<PolecatGiftCard>().With(x => x.Balance, 50m));
+    }
+
+    [BobcatSpec(typeof(RedeemPolecatGiftCard))]
+    public async Task redeeming_the_whole_balance_completes_the_gift_card()
+    {
+        await In<IPolecatGiftCardStore>().GivenEvents<PolecatGiftCard>(GiftCardId, new GiftCardIssued(50m));
+
+        await WhenReceived(new RedeemPolecatGiftCard(GiftCardId, 50m));
+
+        ThenEvents(new GiftCardRedeemed(50m), new SagaCompleted());
+        await In<IPolecatGiftCardStore>().ThenTheSagaIsCompleted<PolecatGiftCard>(GiftCardId);
+    }
+}
