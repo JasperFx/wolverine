@@ -3,6 +3,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.Attributes;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
+using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Transports.Tcp;
@@ -12,6 +13,11 @@ public class message_forwarding
     [Fact]
     public async Task send_message_via_forwarding()
     {
+        // Not a fixed port. Several other suites (PostgresqlTests, SqliteTests, OracleTests...) listen at 2345, and
+        // the local gate runs suites side by side. When another process held 2345 this listener failed to bind
+        // without failing the host, the send went to the other process, and the tracked session timed out.
+        var port = PortFinder.GetAvailablePort();
+
         using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.DisableConventionalDiscovery();
@@ -24,10 +30,10 @@ public class message_forwarding
             opts.Publish(x =>
             {
                 x.Message<OriginalMessage>();
-                x.ToPort(2345);
+                x.ToPort(port);
             });
 
-            opts.ListenAtPort(2345);
+            opts.ListenAtPort(port);
         });
 
         var originalMessage = new OriginalMessage { FirstName = "James", LastName = "Worthy" };
@@ -35,7 +41,7 @@ public class message_forwarding
         var session = await host
             .TrackActivity()
             .IncludeExternalTransports()
-            .ExecuteAndWaitAsync(c => c.EndpointFor("tcp://localhost:2345".ToUri()).SendAsync( originalMessage));
+            .ExecuteAndWaitAsync(c => c.EndpointFor($"tcp://localhost:{port}".ToUri()).SendAsync( originalMessage));
 
 
         session.FindSingleTrackedMessageOfType<NewMessage>(MessageEventType.MessageSucceeded)
