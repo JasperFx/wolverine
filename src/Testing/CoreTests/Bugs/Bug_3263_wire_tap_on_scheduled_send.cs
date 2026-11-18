@@ -142,6 +142,9 @@ public class Bug_3263_wire_tap_on_scheduled_send : IAsyncLifetime
         var command = new RecoverOutgoingMessagesCommand(sendingAgent, store, NullLogger.Instance);
         await command.ExecuteAsync(runtime, CancellationToken.None);
 
+        // GH-5587. The command starts the recovery on the destination's lane and returns
+        await runtime.RecoveryLanes.WaitForIdleAsync();
+
         // The send-side wire tap is fired fire-and-forget from WolverineRuntime.Sent.
         await Task.Delay(250, TestContext.Current.CancellationToken);
 

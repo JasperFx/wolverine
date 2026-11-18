@@ -376,6 +376,22 @@ worth remembering: **if no node in the cluster is running an exclusive endpoint'
 unowned inbox messages stay put by design.** They are recovered promptly once a listener activates. See
 [Exclusive Node Processing](/guide/messaging/exclusive-node-processing#inbox-recovery-ownership).
 
+### One Slow Destination Doesn't Hold Up Recovery <Badge type="tip" text="6.65" />
+
+The durability agent recovers each destination on its own, so a destination that is slow to take its messages
+doesn't hold up any other destination. That could be a sequential listener whose handler is still busy, or a broker
+that isn't accepting sends. Inbox and outbox recovery don't wait on each other either, and this is the same for
+every message store.
+
+While a destination is still taking what was recovered for it, later recovery passes skip it, and nothing more is
+claimed for it until it has taken that. The rest of its messages stay in the database for any node to pick up, so a
+stuck destination never ends up with more than one page of recovered messages in memory, and a sequential listener
+is never handed a second message while it is still running the first.
+
+The same goes for the flush after a transaction commits. If one destination makes the flush wait, the messages for
+the other destinations still go out while it waits. Each destination still gets its own messages one at a time and
+in the order they were published, and the flush still finishes only once every destination has its messages.
+
 ## When a Tenant Database Is Down <Badge type="tip" text="6.42" />
 
 Let's say you're using [multi-tenancy through separate databases](/guide/handlers/multi-tenancy), and you've

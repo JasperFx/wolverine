@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Raven.Client.Documents;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
 
 namespace Wolverine.RavenDb.Internals.Durability;
@@ -46,8 +47,12 @@ public partial class RavenDbDurabilityAgent
                     continue;
                 }
 
-                // Harden around this!
-                await recoverMessagesForListener(receivedAt, circuit);
+                // GH-5587. Each listener recovers on its own lane, so one that is slow to take its messages holds up
+                // neither the other listeners nor the outgoing recovery that follows. A listener still taking an
+                // earlier page is skipped on this pass, before anything more is claimed for it.
+                var listener = receivedAt;
+                _lanes.TryStart(RecoveryDirection.Incoming, listener,
+                    () => recoverMessagesForListener(listener, circuit));
             }
         }
         catch (Exception e)
@@ -80,18 +85,12 @@ public partial class RavenDbDurabilityAgent
     {
         try
         {
-            var candidates = await _parent.LoadPageOfGloballyOwnedIncomingAsync(listener, _settings.RecoveryBatchSize);
-            var envelopes = await _parent.TryClaimIncomingAsync(_settings.AssignedNodeNumber, candidates);
-            if (envelopes.Count == 0) return;
-
-            await circuit.EnqueueDirectlyAsync(envelopes);
-            _logger.RecoveredIncoming(envelopes);
-
-            if (envelopes.Count > 0)
-            {
-                _logger.LogInformation("Successfully recovered {Count} messages from the inbox for listener {Listener}",
-                    envelopes.Count, listener);
-            }
+            // GH-5587. Up to RecoveryBatchSize per pass, and only what the listener has room for, like relational
+            // recovery: an exact fit is allowed, with one slot of headroom only when the batch would exceed the limit.
+            // This snapshot is not a reservation.
+            await DestinationRecovery.RecoverIncomingAsync(_parent, listener, circuit, _settings.RecoveryBatchSize,
+                remaining => RecoverIncomingMessagesCommand.PageSizeFor(circuit, remaining, _settings), _settings,
+                _logger, _lanes, _combined.Token);
         }
         catch (Exception e)
         {
@@ -99,4 +98,8 @@ public partial class RavenDbDurabilityAgent
         }
     }
 
+    /// <summary>
+    /// GH-5587. Wait for the recovery this agent has started to finish. For tests
+    /// </summary>
+    internal Task WaitForRecoveryLanesAsync() => _lanes.WaitForIdleAsync();
 }
