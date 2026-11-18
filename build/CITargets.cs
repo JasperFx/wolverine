@@ -1145,14 +1145,17 @@ partial class Build
             // GH-5415: the event-sourced saga specifications, on Marten, Polecat and Fisher
             var eventSourcedSagas = RootDirectory / "src" / "Samples" / "EventSourcedSagas" / "EventSourcedSagas.Specs" / "EventSourcedSagas.Specs.csproj";
 
-            BuildTestProjects(tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager, sagaFaults, eventSourcedSagas);
+            // GH-5672 / GH-5673 / GH-5674: the workflow samples of the sagas vs durable workflows evaluation
+            var sagaWorkflows = RootDirectory / "src" / "Samples" / "SagaWorkflows" / "SagaWorkflows.Specs" / "SagaWorkflows.Specs.csproj";
+
+            BuildTestProjects(tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager, sagaFaults, eventSourcedSagas, sagaWorkflows);
 
             // The store-agnostic specs (GH-4892, GH-4920, GH-4921) run on Marten, Polecat AND Fisher, and
             // Polecat needs SQL Server. Without it every Polecat fixture fails to start, which surfaced as a
             // NullReferenceException in DisposeAsync rather than as the connection failure it was.
             StartDockerServices("postgresql", "sqlserver");
 
-            RunTestProjects([tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager, sagaFaults, eventSourcedSagas]);
+            RunTestProjects([tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager, sagaFaults, eventSourcedSagas, sagaWorkflows]);
         });
 
     Target CIKafka => _ => _

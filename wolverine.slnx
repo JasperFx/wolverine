@@ -288,6 +288,11 @@
     <!-- GH-5415: the event-sourced saga specifications, written first. net10.0-only, like the other spec samples -->
     <Project Path="src/Samples/EventSourcedSagas/EventSourcedSagas.Specs/EventSourcedSagas.Specs.csproj" />
   </Folder>
+  <Folder Name="/Samples/SagaWorkflows/">
+    <!-- GH-5672 / GH-5673 / GH-5674: the workflow samples of the sagas vs durable workflows evaluation, as Bobcat
+         specifications for the saga features they asked for. net10.0-only, like the other spec samples -->
+    <Project Path="src/Samples/SagaWorkflows/SagaWorkflows.Specs/SagaWorkflows.Specs.csproj" />
+  </Folder>
   <Folder Name="/Samples/PingPongWithGrpc/">
     <Project Path="src/Samples/PingPongWithGrpc/Messages/Messages.csproj" />
     <Project Path="src/Samples/PingPongWithGrpc/Pinger/Pinger.csproj" />

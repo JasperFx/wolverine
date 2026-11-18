@@ -66,7 +66,21 @@ public class SagaDescriptor
     /// Marten, Polecat or Fisher; false for a saga kept as a document or a row.
     /// </summary>
     public bool SupportsHistory { get; set; }
+
+    /// <summary>
+    /// GH-5672. The saga's <c>Compensate</c> methods, each with the concrete message types it compensates. A method
+    /// for an interface or a base type covers every concrete message type assignable to it that the application knows,
+    /// plus those named with <c>[Compensates]</c>. Empty for a saga with no <c>Compensate</c> methods.
+    /// </summary>
+    public List<SagaCompensationDescriptor> Compensations { get; set; } = new();
 }
+
+/// <summary>
+/// GH-5672. One <c>Compensate</c> method of a saga and the message types whose failure it compensates.
+/// </summary>
+/// <param name="Method">The method, as <c>Compensate(ITransferStep, ExceptionInfo)</c></param>
+/// <param name="Covers">The concrete message types it compensates, as declared and as found</param>
+public record SagaCompensationDescriptor(string Method, TypeDescriptor[] Covers);
 
 /// <summary>
 /// One incoming message's role inside a saga, plus the messages that

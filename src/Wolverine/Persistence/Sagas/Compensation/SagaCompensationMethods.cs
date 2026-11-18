@@ -97,13 +97,14 @@ internal enum CompensateExceptionKind
 internal sealed class CompensateMethod
 {
     private CompensateMethod(MethodInfo method, Type failedType, CompensateExceptionKind kind, Type exceptionType,
-        int order)
+        int order, Type[] namedTypes)
     {
         Method = method;
         FailedType = failedType;
         Kind = kind;
         ExceptionType = exceptionType;
         Order = order;
+        NamedTypes = namedTypes;
         _exceptionName = exceptionType.FullName ?? exceptionType.Name;
     }
 
@@ -114,6 +115,26 @@ internal sealed class CompensateMethod
     public CompensateExceptionKind Kind { get; }
     public Type ExceptionType { get; }
     public int Order { get; }
+
+    /// <summary>
+    /// GH-5672. The message types <see cref="CompensatesAttribute" /> names on this method: messages the saga sends
+    /// that Wolverine cannot see in any signature, such as one sent through <c>IMessageBus</c>
+    /// </summary>
+    public Type[] NamedTypes { get; }
+
+    /// <summary>
+    /// GH-5672. Is the failed-message parameter an interface or a base type, so the method compensates every concrete
+    /// message type assignable to it rather than one exact type?
+    /// </summary>
+    public bool CoversAFamily => FailedType.IsInterface || FailedType.IsAbstract || FailedType == typeof(object) ||
+                                 !FailedType.IsSealed;
+
+    /// <summary>Can this method compensate a failed <paramref name="messageType" />?</summary>
+    public bool Covers(Type messageType) => FailedType.IsAssignableFrom(messageType);
+
+    /// <summary>A readable signature, for describe and for error messages</summary>
+    public string Signature
+        => $"{Method.Name}({string.Join(", ", Method.GetParameters().Take(2).Select(x => x.ParameterType.NameInCode()))})";
 
     public static CompensateMethod For(Type sagaType, MethodInfo method, int order)
     {
@@ -157,7 +178,24 @@ internal sealed class CompensateMethod
                 $"{where()}: the second parameter is the exception, as an Exception type (a failure in this service), RemoteFailure<TException> or ExceptionInfo");
         }
 
-        return new CompensateMethod(method, failedType, kind, exceptionType, order);
+        var namedTypes = method.GetCustomAttributes<CompensatesAttribute>().SelectMany(x => x.MessageTypes).Distinct()
+            .ToArray();
+        foreach (var named in namedTypes)
+        {
+            if (named.IsValueType || named.IsAbstract || named.IsInterface || SagaCompensations.FaultMessageType(named) != null)
+            {
+                throw new InvalidSagaException(
+                    $"{where()} is marked [Compensates(typeof({named.NameInCode()}))], but [Compensates] names concrete message classes, not an interface, an abstract type or a Fault<T>");
+            }
+
+            if (!failedType.IsAssignableFrom(named))
+            {
+                throw new InvalidSagaException(
+                    $"{where()} is marked [Compensates(typeof({named.NameInCode()}))], but a {named.NameInCode()} cannot be passed as its failed message, a {failedType.NameInCode()}");
+            }
+        }
+
+        return new CompensateMethod(method, failedType, kind, exceptionType, order, namedTypes);
     }
 
     /// <summary>

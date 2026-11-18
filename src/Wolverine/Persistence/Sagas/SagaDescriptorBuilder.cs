@@ -68,7 +68,37 @@ internal static class SagaDescriptorBuilder
                 published));
         }
 
+        descriptor.Compensations.AddRange(BuildCompensations(graph, sagaType));
+
         return descriptor;
+    }
+
+    /// <summary>
+    /// GH-5672. Each of the saga's Compensate methods, with the concrete message types whose Fault&lt;T&gt; chain it
+    /// was filed under
+    /// </summary>
+    public static IEnumerable<SagaCompensationDescriptor> BuildCompensations(HandlerGraph graph, Type sagaType)
+    {
+        var methods = SagaCompensationMethods.For(sagaType);
+        if (methods.Count == 0) yield break;
+
+        var covered = CollectSagaChains(graph)
+            .Where(c => c.SagaType == sagaType && SagaCompensations.FaultMessageType(c.MessageType) != null)
+            .SelectMany(c => c.SagaHandlerCalls().Select(call => (call.Method, Failed: SagaCompensations.FaultMessageType(c.MessageType)!)))
+            .ToArray();
+
+        foreach (var method in methods)
+        {
+            var types = covered.Where(x => x.Method == method.Method)
+                .Select(x => x.Failed)
+                .Where(x => !x.IsInterface && !x.IsAbstract && x != typeof(object))
+                .Distinct()
+                .OrderBy(x => x.FullNameInCode())
+                .Select(TypeDescriptor.For)
+                .ToArray();
+
+            yield return new SagaCompensationDescriptor(method.Signature, types);
+        }
     }
 
     /// <summary>
