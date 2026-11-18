@@ -743,9 +743,9 @@ var session = await host.TrackActivity()
 From there you can query the event store by that correlation id once the async daemons have caught up.
 
 ::: warning
-Correlation ids are **off by default** in Marten, Polecat and Fisher. You'll need
-`opts.Events.MetadataConfig.CorrelationIdEnabled = true` in `AddMarten()`, or
-`opts.Events.EnableCorrelationId = true` in `AddPolecat()` or `AddFisher()`, and the new column in your schema.
+Correlation ids are **on by default** in Marten 10, Polecat 6 and Fisher 2. If you turned them off, or called
+`RestoreV9Defaults()` on Marten, you'll need `opts.Events.MetadataConfig.CorrelationIdEnabled = true` in `AddMarten()`,
+or `opts.Events.EnableCorrelationId = true` in `AddPolecat()` or `AddFisher()`, and the column in your schema.
 :::
 
 The correlation id only reaches an event if every hop carries it. Wolverine's own handlers do that for you, but an

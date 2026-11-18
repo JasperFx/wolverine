@@ -532,8 +532,9 @@ after the daemons.
 
 Three things it needs from you:
 
-- **The store has to record correlation ids**, which Marten, Polecat and Fisher all leave off by default; on Marten,
-  `Events.MetadataConfig.CorrelationIdEnabled = true`. When it doesn't, the step fails and says how to turn them on.
+- **The store has to record correlation ids.** Marten 10, Polecat 6 and Fisher 2 do by default; on Marten they are
+  off again if you set `Events.MetadataConfig.CorrelationIdEnabled = false` or call `RestoreV9Defaults()`. When the
+  store doesn't record them, the step fails and says how to turn them on.
 - **Every hop has to carry the id.** Wolverine's handlers do. An event subscription or a projection's side effect that
   publishes a message has to pass the event's `CorrelationId` on itself, as in
   `bus.PublishAsync(message, new DeliveryOptions { CorrelationId = e.CorrelationId })`.
