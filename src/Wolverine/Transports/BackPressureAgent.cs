@@ -93,7 +93,19 @@ internal class BackPressureAgent : IDisposable
             if (_agent.QueueCount <= _endpoint.BufferingLimits.Restart)
             {
                 _latchedChecks = 0;
-                await _agent.StartAsync();
+
+                // GH-4866. A ListeningAgent re-checks that it is still TooBusy, and that no stop is under way, under
+                // its own lock. The two reads above are not enough: a stop drops the receiver before it drains, so a
+                // listener being given up reads TooBusy with a count of 0 until the drain is over.
+                if (_agent is ListeningAgent listeningAgent)
+                {
+                    if (!await listeningAgent.ResumeFromBackPressureAsync()) return;
+                }
+                else
+                {
+                    await _agent.StartAsync();
+                }
+
                 await _observer.BackPressureLifted(_endpoint);
             }
             else if (++_latchedChecks % LatchedChecksPerReminder == 0)
