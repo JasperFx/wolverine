@@ -51,6 +51,16 @@ public interface IMessageStoreWithDurabilityPass : IMessageStore
 }
 
 /// <summary>
+///     GH-5620. A message store whose transaction-scoped durability pass lock an event store's gap detection has been
+///     told to ignore, so a durability pass step that waits for asynchronous projections is not held behind its own
+///     pass's lock
+/// </summary>
+internal interface IDurabilityPassLockIgnoredByGapDetection
+{
+    bool DurabilityPassLockIgnoredByGapDetection { get; }
+}
+
+/// <summary>
 ///     GH-5016. The bounds of one durability pass
 /// </summary>
 public class DurabilityPassOptions

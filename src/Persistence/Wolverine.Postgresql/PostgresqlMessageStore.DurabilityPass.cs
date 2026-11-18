@@ -21,14 +21,30 @@ namespace Wolverine.Postgresql;
 ///     <see cref="DurabilityMode.ServerlessWithOutbox" />
 /// </summary>
 internal partial class PostgresqlMessageStore : IMessageStoreWithDurabilityPass, IStaleOutgoingSource,
-    IDurabilityPassInboxSource
+    IDurabilityPassInboxSource, IDurabilityPassLockIgnoredByGapDetection
 {
     /// <summary>
     ///     The advisory lock that keeps two overlapping durability passes against the same message schema from
     ///     sending the same rows twice. Derived from the schema name so that two Wolverine applications sharing
     ///     one database with their own schemas do not skip each other's passes
     /// </summary>
-    internal int DurabilityPassLockId => $"{SchemaName}:durability-pass".GetDeterministicHashCode();
+    internal int DurabilityPassLockId => DurabilityPassLockIdFor(SchemaName);
+
+    /// <summary>
+    ///     The durability pass lock key of the message store in <paramref name="schemaName" />
+    /// </summary>
+    internal static int DurabilityPassLockIdFor(string schemaName) =>
+        $"{schemaName}:durability-pass".GetDeterministicHashCode();
+
+    /// <summary>
+    ///     GH-5620. Set by the Marten integration once Marten's async daemon ignores this store's durability pass
+    ///     lock in its gap detection, so a transaction-scoped pass lock no longer holds asynchronous projections
+    ///     behind a sequence gap
+    /// </summary>
+    internal bool DurabilityPassLockIgnoredByGapDetection { get; set; }
+
+    bool IDurabilityPassLockIgnoredByGapDetection.DurabilityPassLockIgnoredByGapDetection =>
+        DurabilityPassLockIgnoredByGapDetection;
 
     public bool SupportsTransactionScopedDurabilityPassLock => true;
 

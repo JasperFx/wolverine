@@ -104,7 +104,7 @@ public static class AncillaryWolverineOptionsMartenExtensions
         // handler ran. Idempotent, so a host that also has a main store is unaffected in either call order.
         expression.Services.AddCoreMartenWiring(null);
 
-        expression.Services.AddSingleton<IConfigureMarten<T>, MartenOverrides<T>>();
+        expression.Services.AddSingleton<IConfigureMarten<T>>(new MartenOverrides<T>(integration));
 
         expression.Services.AddSingleton<AncillaryMessageStore>(s =>
         {
@@ -224,6 +224,9 @@ public static class AncillaryWolverineOptionsMartenExtensions
             SubjectUri = new Uri($"wolverine://messages/{typeof(T).Name.ToLowerInvariant()}")
         };
 
+        // GH-5620
+        DurabilityPassGapDetection.MarkIfRegistered(store.Options, master);
+
         var source = new MartenMessageDatabaseSource<T>(schemaName, autoCreate ?? store.Options.AutoCreateSchemaObjects, store.As<T>(), runtime);
 
         master.Initialize(runtime);
@@ -252,6 +255,9 @@ public static class AncillaryWolverineOptionsMartenExtensions
         var messageStore = new PostgresqlMessageStore(settings, runtime.Options.Durability, dataSource, logger,
             ownsDataSource: false);
         messageStore.SubjectUri = new Uri($"wolverine://messages/{typeof(T).Name.ToLowerInvariant()}");
+
+        // GH-5620
+        DurabilityPassGapDetection.MarkIfRegistered(store.Options, messageStore);
 
         return new(typeof(T), messageStore);
     }
