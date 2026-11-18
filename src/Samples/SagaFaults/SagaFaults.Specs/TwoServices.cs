@@ -161,6 +161,24 @@ public class CompensationServices : TwoServices
         => opts.Discovery.IncludeType(typeof(Orders.Compensation.Order));
 }
 
+// GH-5665: chapter 2's Order saga, recording the message history of every document saga
+public class HistoryServices : TwoServices
+{
+    protected override string Schema => "saga_history";
+
+    protected override void ConfigureOrders(WolverineOptions opts)
+    {
+        opts.Discovery.IncludeType(typeof(Orders.Compensation.Order));
+
+        #region sample_record_saga_history_for_every_saga
+        opts.Policies.RecordSagaHistory();
+        #endregion
+    }
+}
+
+[CollectionDefinition(nameof(HistoryCollection))]
+public class HistoryCollection : ICollectionFixture<HistoryServices>;
+
 [CollectionDefinition(nameof(FaultHandlingCollection))]
 public class FaultHandlingCollection : ICollectionFixture<FaultHandlingServices>;
 
