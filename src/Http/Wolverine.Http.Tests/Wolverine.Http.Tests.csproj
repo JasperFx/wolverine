@@ -34,6 +34,8 @@
              that project. See its csproj for why an endpoint needing an unregistered store cannot live in
              a widely-discovered assembly. -->
         <ProjectReference Include="..\Wolverine.Http.Tests.AncillaryStore\Wolverine.Http.Tests.AncillaryStore.csproj" />
+        <!-- A web application hosted through Alba without naming its application assembly (application_assembly_under_web_application_factory.cs) -->
+        <ProjectReference Include="..\ApplicationAssemblyWebApp\ApplicationAssemblyWebApp.csproj" />
         <ProjectReference Include="..\Wolverine.Http.Tests.DifferentAssembly\Wolverine.Http.Tests.DifferentAssembly.csproj" />
         <ProjectReference Include="..\Wolverine.Http.Tests.EfCoreOnly\Wolverine.Http.Tests.EfCoreOnly.csproj" />
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
