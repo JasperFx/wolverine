@@ -1130,6 +1130,142 @@ public void Handle(OrderTimeout timeout, ILogger<Order> logger)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L47-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_a_timeout_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Drawing a Saga's Flow {#drawing-a-sagas-flow} <Badge type="tip" text="7.0" />
+
+A saga's steps are spread across its `Start`, `Handle`, `NotFound` and `Compensate` methods, so you follow it by
+message type rather than reading it top to bottom. Wolverine can draw the flow for you as a
+[Mermaid](https://mermaid.js.org/) diagram: each message in, the saga method that handles it, and what that method
+sends, schedules or appends.
+
+```bash
+# Every saga in the application, as Markdown
+dotnet run -- saga-flow
+
+# One saga, by its class name or full name
+dotnet run -- saga-flow ReportExport
+
+# Just the Mermaid source of one saga, written to a file
+dotnet run -- saga-flow ReportExport --mermaid-only --file docs/report-export.mmd
+```
+
+`dotnet run -- describe` prints the same diagrams in its "Saga Flows" section. The Markdown is a heading and a
+` ```mermaid ` block per saga, which GitHub, GitLab and Azure DevOps render as the diagram, so it pastes straight into
+a README. For a VitePress site like this one, add `vitepress-plugin-mermaid`. In code, the same diagram comes from
+`SagaFlowDiagram.ToMermaid(descriptor)` or `SagaFlowDiagram.ToMarkdown(descriptor)` over a `SagaDescriptor` from
+`ServiceCapabilities.ReadFrom()`.
+
+For this saga, which polls an export every five minutes under an hour's deadline:
+
+<!-- snippet: sample_saga_for_the_flow_diagram -->
+<a id='snippet-sample_saga_for_the_flow_diagram'></a>
+```cs
+public class ReportExport : Saga
+{
+    public Guid Id { get; set; }
+    public int Polls { get; set; }
+
+    public static (ReportExport, PollReportExport, ReportExportDeadline) Start(StartReportExport command)
+        => (new ReportExport { Id = command.ReportExportId }, new PollReportExport(command.ReportExportId),
+            new ReportExportDeadline(command.ReportExportId));
+
+    public PollReportExport Handle(PollReportExport poll)
+    {
+        Polls++;
+        return new PollReportExport(Id);
+    }
+
+    // What it sends is decided at run time, so the diagram can only say that there is more
+    public OutgoingMessages Handle(ReportExportReady ready)
+    {
+        MarkCompleted();
+        return [new DownloadReportExport(Id, ready.Download)];
+    }
+
+    public ReportExportAbandoned Handle(ReportExportDeadline deadline)
+    {
+        MarkCompleted();
+        return new ReportExportAbandoned(Id);
+    }
+
+    public void Handle(CancelReportExport command) => MarkCompleted();
+
+    // A cancellation that arrives after the export finished
+    public static ReportExportAlreadyClosed NotFound(CancelReportExport command) => new(command.ReportExportId);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/drawing_saga_flows_5670.cs#L365-L401' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_saga_for_the_flow_diagram' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`saga-flow ReportExport` draws:
+
+```mermaid
+flowchart TD
+    %% The flow of ReportExport, drawn by Wolverine from its saga metadata
+    msg_StartReportExport(["StartReportExport"])
+    msg_CancelReportExport(["CancelReportExport"])
+    msg_PollReportExport{{"PollReportExport"}}
+    msg_ReportExportDeadline{{"ReportExportDeadline"}}
+    msg_ReportExportReady(["ReportExportReady"])
+    msg_ReportExportAlreadyClosed(["ReportExportAlreadyClosed"])
+    msg_ReportExportAbandoned(["ReportExportAbandoned"])
+    subgraph saga_ReportExport["ReportExport"]
+        Start_StartReportExport["Start(StartReportExport)"]
+        Handle_CancelReportExport["Handle(CancelReportExport)"]
+        NotFound_CancelReportExport["NotFound(CancelReportExport)"]
+        Handle_PollReportExport["Handle(PollReportExport)"]
+        Handle_ReportExportDeadline["Handle(ReportExportDeadline)"]
+        Handle_ReportExportReady["Handle(ReportExportReady)"]
+    end
+    runtime["more messages, decided at run time"]
+    msg_StartReportExport --> Start_StartReportExport
+    Start_StartReportExport -.->|"schedules"| msg_PollReportExport
+    Start_StartReportExport -.->|"schedules"| msg_ReportExportDeadline
+    msg_CancelReportExport --> Handle_CancelReportExport
+    msg_CancelReportExport -.->|"no saga, or completed"| NotFound_CancelReportExport
+    NotFound_CancelReportExport --> msg_ReportExportAlreadyClosed
+    msg_PollReportExport --> Handle_PollReportExport
+    Handle_PollReportExport -.->|"schedules"| msg_PollReportExport
+    msg_ReportExportDeadline --> Handle_ReportExportDeadline
+    Handle_ReportExportDeadline --> msg_ReportExportAbandoned
+    msg_ReportExportReady --> Handle_ReportExportReady
+    Handle_ReportExportReady -.-> runtime
+    subgraph legend["Legend"]
+        legend_text["Rounded: a message<br/>Hexagon: a message scheduled for later, such as a timeout<br/>Rectangle: a method of the saga<br/>Dashed: scheduled, a failure, or a message that finds no saga or a completed one<br/>A timeout that finds no saga, or a completed one, is dropped<br/>Messages a method sends through IMessageBus, rather than returns, are not shown"]
+    end
+    classDef message fill:#e8f1fb,stroke:#3b78c2,color:#10243e
+    classDef timeout fill:#fff4dd,stroke:#c98a00,color:#3d2a00
+    classDef event fill:#ffe2c6,stroke:#d9731a,color:#3d1f00
+    classDef method fill:#f4f4f4,stroke:#6b6b6b,color:#1c1c1c
+    classDef compensate fill:#fde8e8,stroke:#c53030,color:#3d0d0d
+    classDef legend fill:#ffffff,stroke:#b0b0b0,color:#333333
+    class msg_StartReportExport,msg_CancelReportExport,msg_ReportExportReady,msg_ReportExportAlreadyClosed,msg_ReportExportAbandoned message
+    class msg_PollReportExport,msg_ReportExportDeadline timeout
+    class Start_StartReportExport,Handle_CancelReportExport,NotFound_CancelReportExport,Handle_PollReportExport,Handle_ReportExportDeadline,Handle_ReportExportReady method
+    class legend_text legend
+```
+
+What the diagram shows:
+
+- **Rounded boxes** are messages, and **hexagons** are messages scheduled for later, such as a `TimeoutMessage`.
+- **Rectangles**, inside the saga's box, are its methods. A message points at the method that handles it.
+- A method points at what it **returns**: a solid arrow for a message it sends, a dashed "schedules" arrow for a
+  timeout or a `ScheduledMessage<T>`. A return type such as `OutgoingMessages`, `IEnumerable<object>` or `object`
+  only says that more is decided at run time.
+- A **dashed "no saga, or completed" arrow** leads to `NotFound`, which handles a message that finds no saga, or one
+  that has already completed. A timeout for a missing saga is dropped.
+- A **`Compensate` method** hangs off the message whose failure it compensates, with a dashed "fails" arrow, and
+  points at the undo messages it returns. See [Compensating Failed Steps](#compensating-failed-steps).
+- For an [event-sourced saga](/guide/durability/event-sourced-sagas), the slanted boxes are the **events** each method
+  appends to the saga's own stream.
+
+Only what the methods' signatures say can be drawn. A message a handler sends through `IMessageBus` or
+`IMessageContext`, rather than returning it, doesn't appear, and the diagram's legend says so. Prefer returning
+messages if you want them in the picture.
+
+The diagram is built from the same `SagaDescriptor` metadata that CritterWatch draws its saga view from, so the two
+pictures agree. Each `SagaMessageRole` lists the saga's `Methods` with what each returns, and `SagaDescriptor`
+carries `IsEventSourced` and the `Compensations`.
+
 ## Saga Concurrency
 
 Both the Marten and EF Core backed saga support has built in support for optimistic concurrency checks on persisting
@@ -1818,6 +1954,11 @@ public async Task play_back_scheduled_timeout()
 
 The `PlayScheduledMessagesAsync()` method on `ITrackedSession` is the key here — it lets you "fast forward" scheduled messages in tests without waiting for real time to pass.
 
+When a saga schedules more than one timeout, such as a recurring poll under an overall deadline, play them as time
+passes instead of all at once: `PlayScheduledMessagesAsync(advanceBy: 1.Hours())` plays only what comes due within the
+hour, in due order, and keeps a virtual clock the saga can read through `TimeProvider`. See
+[Letting time pass](/guide/testing#letting-time-pass).
+
 ### Testing the NotFound Path
 
 Wolverine sagas support a static `NotFound()` method that handles messages when no matching saga state exists. This is a common pattern for handling race conditions or out-of-order message delivery:
@@ -1867,7 +2008,7 @@ var allMessages = tracked.Sent.AllMessages().ToArray();
 | Feature | NServiceBus | Rebus | Wolverine |
 |---------|-------------|-------|-----------|
 | **Testing API** | `SagaScenarioTestingLibrary` with virtual storage | `SagaFixture<T>` with in-memory storage | `TrackedSession` + real or in-memory persistence |
-| **Virtual time** | Built-in time advancement | Manual timeout delivery | `PlayScheduledMessagesAsync()` on `ITrackedSession` |
+| **Virtual time** | Built-in time advancement | Manual timeout delivery | `PlayScheduledMessagesAsync(advanceBy:)` on `ITrackedSession` |
 | **Message assertions** | Saga-specific assert methods | `fixture.AssertSagaData()` | `tracked.Sent.SingleMessage<T>()`, `tracked.Executed.MessagesOf<T>()` |
 | **State inspection** | Via virtual saga storage | Via `SagaFixture.Data` | Load state directly from persistence (in-memory, Marten, EF Core, etc.) |
 | **External messages** | Separate test transport | Separate fake transport | `DisableAllExternalWolverineTransports()` + `tracked.Sent` inspection |

@@ -446,13 +446,23 @@ public class ServiceCapabilities : OptionsDescription
     /// </summary>
     private static void readSagas(IWolverineRuntime runtime, ServiceCapabilities capabilities)
     {
+        capabilities.Sagas.AddRange(ReadSagaDescriptors(runtime));
+    }
+
+    /// <summary>
+    /// GH-5670. One <see cref="SagaDescriptor" /> per saga type in the handler graph, as <see cref="Sagas" /> carries
+    /// them. Shared by the capabilities read, the <c>describe</c> section and the <c>saga-flow</c> command.
+    /// </summary>
+    internal static List<SagaDescriptor> ReadSagaDescriptors(IWolverineRuntime runtime)
+    {
+        var descriptors = new List<SagaDescriptor>();
         var sagaTypes = SagaDescriptorBuilder.CollectSagaChains(runtime.Options.HandlerGraph)
             .Where(c => c.SagaHandlerCalls().Length != 0) // GH-5331: Handlers is empty once the chain compiles
             .Select(c => c.SagaType)
             .Distinct()
             .OrderBy(t => t.FullNameInCode())
             .ToArray();
-        if (sagaTypes.Length == 0) return;
+        if (sagaTypes.Length == 0) return descriptors;
 
         var providers = runtime.Options.CodeGeneration.OrderedPersistenceProviders();
         var container = runtime.Options.HandlerGraph.Container;
@@ -464,8 +474,10 @@ public class ServiceCapabilities : OptionsDescription
 
             // GH-5665: a document saga that records its message history
             SagaHistory.Describe(runtime, descriptor, sagaType);
-            capabilities.Sagas.Add(descriptor);
+            descriptors.Add(descriptor);
         }
+
+        return descriptors;
     }
 
     /// <summary>
