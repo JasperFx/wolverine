@@ -152,11 +152,13 @@ public partial class CosmosDbMessageStore : IDeadLetters
         if (query.PageNumber <= 0) query.PageNumber = 1;
         var skip = (query.PageNumber - 1) * query.PageSize;
 
-        var pagedQueryText =
-            $"SELECT * FROM c WHERE {whereClause} ORDER BY c.sentAt OFFSET @skip LIMIT @take";
-        var pagedQuery = RebuildQueryDef(pagedQueryText, query)
-            .WithParameter("@skip", skip)
-            .WithParameter("@take", query.PageSize);
+        // A PageSize of 0 means "no paging", as it does for the relational stores and RavenDB. `LIMIT 0`
+        // would return nothing at all.
+        var pagedQuery = query.PageSize > 0
+            ? RebuildQueryDef($"SELECT * FROM c WHERE {whereClause} ORDER BY c.sentAt OFFSET @skip LIMIT @take", query)
+                .WithParameter("@skip", skip)
+                .WithParameter("@take", query.PageSize)
+            : RebuildQueryDef($"SELECT * FROM c WHERE {whereClause} ORDER BY c.sentAt", query);
 
         var messages = new List<DeadLetterMessage>();
         using var pagedIterator = _container.GetItemQueryIterator<DeadLetterMessage>(pagedQuery,
