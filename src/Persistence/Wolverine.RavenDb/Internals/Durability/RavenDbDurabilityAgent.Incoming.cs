@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Raven.Client.Documents;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
 
 namespace Wolverine.RavenDb.Internals.Durability;
@@ -46,8 +47,12 @@ public partial class RavenDbDurabilityAgent
                     continue;
                 }
 
-                // Harden around this!
-                await recoverMessagesForListener(receivedAt, circuit);
+                // GH-5587. Each listener recovers on its own lane, so one that is slow to take its messages holds up
+                // neither the other listeners nor the outgoing recovery that follows. A listener still taking an
+                // earlier page is skipped on this pass, before anything more is claimed for it.
+                var listener = receivedAt;
+                _lanes.TryStart(RecoveryDirection.Incoming, listener,
+                    () => recoverMessagesForListener(listener, circuit));
             }
         }
         catch (Exception e)
@@ -80,28 +85,11 @@ public partial class RavenDbDurabilityAgent
     {
         try
         {
-            // Match relational recovery: allow an exact fit, retaining one slot of headroom
-            // only when the proposed batch exceeds the limit. This snapshot is not a reservation.
-            var queueCount = circuit.QueueCount;
-            var pageSize = _settings.RecoveryBatchSize;
-            if (pageSize + queueCount > circuit.Endpoint.BufferingLimits.Maximum)
-            {
-                pageSize = circuit.Endpoint.BufferingLimits.Maximum - queueCount - 1;
-            }
-            if (pageSize <= 0) return;
-
-            var candidates = await _parent.LoadPageOfGloballyOwnedIncomingAsync(listener, pageSize);
-            var envelopes = await _parent.TryClaimIncomingAsync(_settings.AssignedNodeNumber, candidates);
-            if (envelopes.Count == 0) return;
-
-            await circuit.EnqueueDirectlyAsync(envelopes);
-            _logger.RecoveredIncoming(envelopes);
-
-            if (envelopes.Count > 0)
-            {
-                _logger.LogInformation("Successfully recovered {Count} messages from the inbox for listener {Listener}",
-                    envelopes.Count, listener);
-            }
+            // Up to RecoveryBatchSize per pass, as before GH-5587. Match relational recovery: allow an exact fit, retaining one slot
+            // of headroom only when the proposed batch exceeds the limit. This snapshot is not a reservation.
+            await DestinationRecovery.RecoverIncomingAsync(_parent, listener, circuit, _settings.RecoveryBatchSize,
+                remaining => RecoverIncomingMessagesCommand.PageSizeFor(circuit, remaining, _settings), _settings,
+                _logger, _lanes, _combined.Token);
         }
         catch (Exception e)
         {
@@ -109,4 +97,8 @@ public partial class RavenDbDurabilityAgent
         }
     }
 
+    /// <summary>
+    /// GH-5587. Wait for the recovery this agent has started to finish. For tests
+    /// </summary>
+    internal Task WaitForRecoveryLanesAsync() => _lanes.WaitForIdleAsync();
 }

@@ -28,84 +28,46 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)
     {
-        var pageSize = DeterminePageSize(_circuit, _count, _settings);
-        if (pageSize == 0)
+        // GH-5587. The recovery runs on this destination's own lane, in the background, so a listener that is slow
+        // to take what is recovered for it holds up neither the agents queue this command runs on nor any other
+        // destination's recovery. A destination whose lane is still busy with an earlier pass is skipped, and nothing
+        // more is claimed for it until it has taken what it already has.
+        var lanes = DestinationRecovery.LanesFor(runtime);
+        if (lanes == null)
         {
-            _logger.LogInformation(
-                "Unable to recover inbox messages to destination {Destination}. Listener has status {Status}, queued count {QueuedCount}, and BufferingLimits {BufferedLimits}",
-                _count.Destination, _circuit.Status, _circuit.QueueCount, _circuit.Endpoint.BufferingLimits);
+            await recoverAsync(null, cancellationToken);
             return AgentCommands.Empty;
         }
 
-        var candidates = await _store.LoadPageOfGloballyOwnedIncomingAsync(_count.Destination, pageSize);
-
-        // Ensure each recovered envelope carries a reference to the store it was loaded from.
-        // This is critical for ancillary stores: without this, the envelope's Store property
-        // is null and DelegatingMessageInbox falls back to the main store when marking the
-        // envelope as handled — leaving it stuck as "Incoming" in the ancillary store.
-        // See https://github.com/JasperFx/wolverine/issues/2318
-        foreach (var envelope in candidates)
+        if (!lanes.TryStart(RecoveryDirection.Incoming, _count.Destination,
+                () => recoverAsync(lanes, _settings.Cancellation)))
         {
-            envelope.Store ??= _store;
-        }
-
-        var envelopes = await _store.TryClaimIncomingAsync(_settings.AssignedNodeNumber, candidates);
-        if (envelopes.Count == 0)
-        {
-            return AgentCommands.Empty;
-        }
-
-        // GH-3680. The rows above are now owned by *this* node, and orphan recovery only ever releases
-        // rows owned by a node it has proven to be dead. If the hand-off into the listener fails -- and it
-        // absolutely can, because a circuit breaker trip between DeterminePageSize() and here nulls out the
-        // agent's receiver -- then nothing on any node will ever release them again and the messages are
-        // lost for the life of the process. Hand ownership back so the next sweep can retry.
-        try
-        {
-            await _circuit.EnqueueDirectlyAsync(envelopes);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e,
-                "Error trying to enqueue {Count} recovered messages into the listener for {Destination}. Releasing them back to any node so that they are recovered on a later sweep",
-                envelopes.Count, _count.Destination);
-
-            await releaseAsync(envelopes);
-
-            return AgentCommands.Empty;
-        }
-
-        _logger.RecoveredIncoming(envelopes);
-
-        _logger.LogInformation("Successfully recovered {Count} messages from the inbox for listener {Listener}",
-            envelopes.Count, _count.Destination);
-
-        if (pageSize < _count.Count)
-        {
-            var count = _count with { Count = _count.Count - pageSize };
-
-            return [new RecoverIncomingMessagesCommand(_store, count, _circuit, _settings, _logger)];
+            _logger.LogDebug(
+                "Skipping inbox recovery for {Destination} on this pass, because it has not yet taken the messages recovered for it earlier",
+                _count.Destination);
         }
 
         return AgentCommands.Empty;
     }
 
-    private async Task releaseAsync(IReadOnlyList<Envelope> envelopes)
+    private Task recoverAsync(RecoveryLanes? lanes, CancellationToken token)
     {
-        try
-        {
-            await _store.ReassignIncomingAsync(TransportConstants.AnyNode, envelopes);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e,
-                "Error trying to release {Count} un-enqueued messages for {Destination} back to any node",
-                envelopes.Count, _count.Destination);
-        }
+        return DestinationRecovery.RecoverIncomingAsync(_store, _count.Destination, _circuit, _count.Count,
+            remaining => DeterminePageSize(_circuit, _count with { Count = remaining }, _settings), _settings, _logger,
+            lanes, token);
     }
 
     public virtual int DeterminePageSize(IListenerCircuit listener, IncomingCount count,
         DurabilitySettings durabilitySettings)
+    {
+        return PageSizeFor(listener, count.Count, durabilitySettings);
+    }
+
+    /// <summary>
+    /// How many of <paramref name="available" /> recoverable envelopes the listener has room for right now. This is
+    /// a snapshot, not a reservation.
+    /// </summary>
+    internal static int PageSizeFor(IListenerCircuit listener, int available, DurabilitySettings durabilitySettings)
     {
         if (listener.Status != ListeningStatus.Accepting)
         {
@@ -123,9 +85,9 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
         }
 
         var pageSize = durabilitySettings.RecoveryBatchSize;
-        if (pageSize > count.Count)
+        if (pageSize > available)
         {
-            pageSize = count.Count;
+            pageSize = available;
         }
 
         if (pageSize + listener.QueueCount > listener.Endpoint.BufferingLimits.Maximum)

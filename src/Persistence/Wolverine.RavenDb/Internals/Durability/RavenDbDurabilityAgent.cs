@@ -33,6 +33,9 @@ public partial class RavenDbDurabilityAgent : IAgent
     private PersistenceMetrics _metrics = null!;
     private readonly DurabilityHealthSignals _health;
 
+    // GH-5587. Shared with every other store's durability agent in this application
+    private readonly RecoveryLanes _lanes;
+
     public RavenDbDurabilityAgent(IDocumentStore store, IWolverineRuntime runtime, RavenDbMessageStore parent)
     {
         _store = store;
@@ -44,6 +47,7 @@ public partial class RavenDbDurabilityAgent : IAgent
         Uri = new Uri($"{PersistenceConstants.AgentScheme}://ravendb/durability");
 
         _logger = runtime.LoggerFactory.CreateLogger<RavenDbDurabilityAgent>();
+        _lanes = DestinationRecovery.LanesFor(runtime) ?? new RecoveryLanes(_logger);
 
         _combined = CancellationTokenSource.CreateLinkedTokenSource(runtime.Cancellation, _cancellation.Token);
         _health = new DurabilityHealthSignals(_settings);
