@@ -33,7 +33,7 @@ public class NatsSubscriberConfiguration
     private static void applyJetStream(NatsEndpoint endpoint, string? streamName)
     {
         endpoint.UseJetStream = true;
-        endpoint.StreamName = streamName ?? endpoint.Subject.Replace(".", "_").ToUpper();
+        endpoint.StreamName = streamName ?? endpoint.Subject.Replace(".", "_").ToUpperInvariant();
     }
 
     /// <summary>
