@@ -124,6 +124,11 @@ public sealed partial class WolverineOptions : IPolicies
         Durability.CompletedSagaRetention = retention;
     }
 
+    void IPolicies.RecordSagaHistory()
+    {
+        Durability.RecordSagaHistory = true;
+    }
+
     void IPolicies.AllListeners(Action<ListenerConfiguration> configure)
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, _) =>

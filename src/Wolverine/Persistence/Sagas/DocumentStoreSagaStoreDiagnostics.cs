@@ -62,7 +62,11 @@ internal sealed partial class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiag
                 var descriptor = SagaDescriptorBuilder.Build(_runtime.Options.HandlerGraph, x, _storeName);
 
                 // GH-5415: an event-sourced saga's history is its stream
-                descriptor.SupportsHistory = x.CanBeCastTo<EventSourcedSaga>();
+                if (x.CanBeCastTo<EventSourcedSaga>())
+                {
+                    descriptor.SupportsHistory = true;
+                    descriptor.HistoryKind = SagaHistoryKind.EventStream;
+                }
                 return descriptor;
             })
             .ToArray();

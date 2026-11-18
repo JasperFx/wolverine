@@ -13,7 +13,10 @@ namespace Wolverine.Persistence.Sagas;
 /// <remarks>
 /// Every implementation lives inside Wolverine, so members may be added here as CritterWatch needs them. Check
 /// <c>SagaDescriptor.SupportsHistory</c> before calling: a saga type whose storage keeps no history is refused with
-/// <see cref="NotSupportedException" />. Phase 1 of GH-5415: nothing implements this yet.
+/// <see cref="NotSupportedException" />. GH-5665: a document saga that records its message history
+/// (<see cref="RecordSagaHistoryAttribute" />) is read here too, one handled message to an entry, from the message store
+/// rather than the saga's storage. It keeps no state, so <c>ReadSagaAtAsync</c> refuses it;
+/// <c>SagaDescriptor.HistoryKind</c> says which kind of history a saga has.
 /// </remarks>
 public interface ISagaHistoryDiagnostics
 {
@@ -42,8 +45,12 @@ public interface ISagaHistoryDiagnostics
         CancellationToken ct);
 }
 
-/// <summary>GH-5415. Which page of a saga's history to read: 1-based, with the page size clamped to <see cref="MaxPageSize" />.</summary>
-public sealed record SagaHistoryPageRequest(int Page = 1, int PageSize = 50)
+/// <summary>
+/// GH-5415. Which page of a saga's history to read: 1-based, with the page size clamped to <see cref="MaxPageSize" />.
+/// GH-5665: <paramref name="TenantId" /> names the tenant whose message store holds a document saga's message history;
+/// null reads every message store.
+/// </summary>
+public sealed record SagaHistoryPageRequest(int Page = 1, int PageSize = 50, string? TenantId = null)
 {
     /// <summary>The largest page a history read returns</summary>
     public const int MaxPageSize = 500;
@@ -52,6 +59,9 @@ public sealed record SagaHistoryPageRequest(int Page = 1, int PageSize = 50)
 /// <summary>
 /// GH-5415. One event of a saga's stream: its version in the stream, when it was recorded, the store's name for its
 /// event type, the .NET type when the store can say, and the event body as JSON.
+/// GH-5665: in a document saga's message history an entry is one handled message instead: <c>Version</c> is its position
+/// in the history (1 for the first), <c>EventTypeName</c> Wolverine's message type name, <c>DotNetTypeName</c> the
+/// message's .NET type, and <c>Data</c> the whole <see cref="SagaHistoryRecord" /> (handler, outcome, sent messages).
 /// </summary>
 public sealed record SagaHistoryEvent(
     long Version,

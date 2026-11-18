@@ -171,6 +171,14 @@ internal class SagaRetentionAgent : IAgent
                     _logger.LogInformation("Deleted {Count} completed sagas of type {SagaType} from {Store} that completed before {Cutoff}",
                         deleted, sagaType.SagaType.FullNameInCode(), _sweeper.RetentionStoreName, cutoff);
                 }
+
+                // GH-5665: the same cutoff deletes the message history of the sagas it deleted
+                var history = await SagaHistory.SweepAsync(_runtime, sagaType.SagaType, cutoff, token);
+                if (history > 0)
+                {
+                    _logger.LogInformation("Deleted {Count} saga history rows of completed sagas of type {SagaType} that completed before {Cutoff}",
+                        history, sagaType.SagaType.FullNameInCode(), cutoff);
+                }
             }
             catch (Exception e) when (!token.IsCancellationRequested)
             {

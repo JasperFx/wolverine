@@ -553,6 +553,23 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan CompletedSagaSweepInterval { get; set; } = 1.Hours();
 
     /// <summary>
+    ///     GH-5665. Record a message history for every saga kept as a document or a row, as if each carried
+    ///     <see cref="RecordSagaHistoryAttribute" />. Off by default. Set with <see cref="IPolicies.RecordSagaHistory" />.
+    /// </summary>
+    public bool RecordSagaHistory { get; set; }
+
+    /// <summary>
+    ///     GH-5665. Set while the handler graph is built when a saga type carries <see cref="RecordSagaHistoryAttribute" />
+    /// </summary>
+    internal bool SagaHistoryRequested { get; set; }
+
+    /// <summary>
+    ///     GH-5665. Whether the relational message stores create the <c>wolverine_saga_history</c> table: only when some
+    ///     saga records its history
+    /// </summary>
+    internal bool ProvisionsSagaHistory => RecordSagaHistory || SagaHistoryRequested;
+
+    /// <summary>
     ///     How long should successfully handled messages be kept to use in idempotency checking
     /// </summary>
     public TimeSpan KeepAfterMessageHandling { get; set; } = 5.Minutes();
