@@ -114,7 +114,8 @@ public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
         Justification = "ISagaStorage<,> closed over runtime saga types during Dynamic codegen; AOT consumers register saga types explicitly. See AOT guide.")]
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
-        if (entityType.CanBeCastTo<Saga>())
+        // GH-5415: an event-sourced saga is a stream, which the lightweight saga tables cannot keep
+        if (entityType.CanBeCastTo<Saga>() && !entityType.CanBeCastTo<EventSourcedSaga>())
         {
             var idType = SagaChain.DetermineSagaIdMember(entityType, entityType)?.GetRawMemberType();
             if (idType == null)

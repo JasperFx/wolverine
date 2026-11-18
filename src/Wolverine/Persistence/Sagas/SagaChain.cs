@@ -14,7 +14,7 @@ using Wolverine.Transports.Local;
 
 namespace Wolverine.Persistence.Sagas;
 
-public class SagaChain : HandlerChain
+public partial class SagaChain : HandlerChain
 {
     public const string Orchestrate = "Orchestrate";
     public const string Orchestrates = "Orchestrates";
@@ -261,6 +261,12 @@ public class SagaChain : HandlerChain
         }
 
         Handlers.Clear();
+
+        // GH-5415: an event-sourced saga is its own stream
+        if (IsEventSourced)
+        {
+            return determineEventSourcedFrames(rules, container, frameProvider);
+        }
 
         var list = new List<Frame>();
 

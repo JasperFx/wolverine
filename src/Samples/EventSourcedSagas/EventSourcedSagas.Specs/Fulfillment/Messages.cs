@@ -35,9 +35,7 @@ public record ShipmentConfirmed(string TrackingNumber);
 
 public record RefundIssued(decimal Amount);
 
-// The terminal events: the only places the saga completes
-public record OrderFulfillmentCompleted;
-
+// Cancelling ends the fulfillment, but completion itself is Wolverine's SagaCompleted event
 public record OrderFulfillmentCancelled(string Reason);
 
 // ---- messages the saga sends ------------------------------------------------------------------------------------------

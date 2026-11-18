@@ -357,13 +357,20 @@ public partial class WolverineScenario
                                 $"{nameOf(typeof(TSaga))} sagas are not retained, so there is nothing to sweep. Retain them with " +
                                 "opts.Policies.RetainCompletedSagas() or [RetainWhenCompleted].");
 
-            var sweeper = Services.GetServices<ISagaStoreDiagnostics>().OfType<ISagaRetentionSweeper>()
-                              .FirstOrDefault(x => x.SagaTypesForRetention().Contains(typeof(TSaga)))
-                          ?? throw new InvalidOperationException(
-                              $"No saga storage in this service sweeps {nameOf(typeof(TSaga))} sagas.");
+            // As the retention agents do: every storage that keeps the saga type sweeps it
+            var sweepers = Services.GetServices<ISagaStoreDiagnostics>().OfType<ISagaRetentionSweeper>()
+                .Where(x => x.SagaTypesForRetention().Contains(typeof(TSaga)))
+                .ToArray();
+            if (sweepers.Length == 0)
+            {
+                throw new InvalidOperationException($"No saga storage in this service sweeps {nameOf(typeof(TSaga))} sagas.");
+            }
 
-            await sweeper.DeleteCompletedSagasAsync(typeof(TSaga), DateTimeOffset.UtcNow.Add(later) - retention,
-                CancellationToken.None);
+            foreach (var sweeper in sweepers)
+            {
+                await sweeper.DeleteCompletedSagasAsync(typeof(TSaga), DateTimeOffset.UtcNow.Add(later) - retention,
+                    CancellationToken.None);
+            }
         })));
     }
 
@@ -387,6 +394,12 @@ public partial class WolverineScenario
             if (!acted)
             {
                 Verdicts.Fail($"Expected the {nameOf(typeof(TSaga))} saga's stream to be checked after an act, but no act has run.");
+                return;
+            }
+
+            if (LastAct.Error is { } failure)
+            {
+                Verdicts.Fail($"The act failed: {failure.GetType().Name}: {failure.Message}");
                 return;
             }
 

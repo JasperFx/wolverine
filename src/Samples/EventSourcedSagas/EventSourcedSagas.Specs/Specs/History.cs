@@ -32,7 +32,7 @@ public class reading_an_event_sourced_sagas_history(InlineFulfillmentServices se
 
         await WhenTheSagaHistoryIsRead<OrderFulfillment>(OrderFulfillmentId, page: 3, pageSize: 2);
 
-        ThenTheSagaHistoryIs(typeof(OrderFulfillmentCompleted));
+        ThenTheSagaHistoryIs(typeof(SagaCompleted));
         ThenTheSagaHistoryHasInAll(5);
     }
 

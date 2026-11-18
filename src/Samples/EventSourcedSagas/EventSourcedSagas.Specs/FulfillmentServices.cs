@@ -1,5 +1,6 @@
 using EventSourcedSagas.Fulfillment;
 using EventSourcedSagas.Mistakes;
+using EventSourcedSagas.Support;
 using IntegrationTests;
 using JasperFx.Core;
 using Wolverine.ErrorHandling;
@@ -13,7 +14,7 @@ using Wolverine.Runtime;
 namespace EventSourcedSagas.Specs;
 
 /// <summary>
-/// The "fulfillment" service: the OrderFulfillment saga (and the SupportTicket mistake) on Marten, with durable local
+/// The "fulfillment" service: the OrderFulfillment saga and the SupportTicket saga on Marten, with durable local
 /// queues so a failed message is dead-lettered where a specification can read it, and completed sagas retained for 30
 /// days (GH-5572).
 /// </summary>

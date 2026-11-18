@@ -7,8 +7,9 @@ namespace EventSourcedSagas.Fulfillment;
 //
 // - Start returns events and messages, never the saga: the starting state comes only from Apply(OrderFulfillmentStarted).
 // - Handle returns events (and messages) as an aggregate handler does. Wolverine appends the events to this saga's stream.
-// - The saga completes only in the Apply of a terminal event. Wolverine checks for completion before any Handle runs, so
-//   no handler carries a "has this already finished?" guard; a late message goes to NotFound.
+// - The saga completes when Wolverine's own SagaCompleted event is in its stream: a handler returns one, or calls
+//   MarkCompleted() and Wolverine appends it. Wolverine checks for completion before any Handle runs, so no handler
+//   carries a "has this already finished?" guard; a late message goes to NotFound.
 // - Compensate returns events and messages too. Wolverine records the compensation itself, as events of its own on this
 //   stream, and the EventSourcedSaga base type rebuilds Status and CompensationLog from them.
 #region sample_event_sourced_saga
@@ -56,13 +57,19 @@ public class OrderFulfillment : EventSourcedSaga
     public IEnumerable<object> Handle(CarrierConfirmedShipment shipment)
         => IsShipped ? [] : completingAfter(new ShipmentConfirmed(shipment.TrackingNumber), IsPaid && AreItemsReserved);
 
-    public OrderFulfillmentCancelled Handle(CancelOrderFulfillment command) => new(command.Reason);
+    // MarkCompleted() completes the saga too: Wolverine appends SagaCompleted after the business event
+    public OrderFulfillmentCancelled Handle(CancelOrderFulfillment command)
+    {
+        MarkCompleted();
+        return new OrderFulfillmentCancelled(command.Reason);
+    }
 
     public IEnumerable<object> Handle(PaymentTimeout timeout)
-        => IsPaid ? [] : [new OrderFulfillmentCancelled("Payment timed out")];
+        => IsPaid ? [] : [new OrderFulfillmentCancelled("Payment timed out"), new SagaCompleted()];
 
+    // The last step completes the fulfillment: its own event, then Wolverine's SagaCompleted
     private static IEnumerable<object> completingAfter(object step, bool everyOtherStepIsDone)
-        => everyOtherStepIsDone ? [step, new OrderFulfillmentCompleted()] : [step];
+        => everyOtherStepIsDone ? [step, new SagaCompleted()] : [step];
 
     // ---- after completion -----------------------------------------------------------------------------------------
 
@@ -100,12 +107,6 @@ public class OrderFulfillment : EventSourcedSaga
 
     public void Apply(RefundIssued e) => IsRefunded = true;
 
-    public void Apply(OrderFulfillmentCompleted e) => MarkCompleted();
-
-    public void Apply(OrderFulfillmentCancelled e)
-    {
-        CancellationReason = e.Reason;
-        MarkCompleted();
-    }
+    public void Apply(OrderFulfillmentCancelled e) => CancellationReason = e.Reason;
 }
 #endregion

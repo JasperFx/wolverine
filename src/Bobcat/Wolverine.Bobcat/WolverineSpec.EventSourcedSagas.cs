@@ -82,6 +82,18 @@ public abstract partial class WolverineSpec
     public void ThenTheServiceRefusedToStart(string reason, params object[] mentioning)
         => Scenario.ThenTheServiceRefusedToStart(reason, mentioning);
 
+    // ---- concurrency seams ---------------------------------------------------------------------------------------
+
+    /// <inheritdoc cref="WolverineScenario.WhileActingOn{TAggregate}" />
+    [global::Bobcat.EventModelRole(global::Bobcat.SliceRole.ArrangedEvent, nameof(concurrently))]
+    public void WhileActingOn<TAggregate>(object id, params object[] concurrently) where TAggregate : class
+        => Scenario.WhileActingOn<TAggregate>(id, concurrently);
+
+    /// <inheritdoc cref="WolverineScenario.WhileCompensatingAnotherMessageAppends{TSaga}" />
+    public void WhileCompensatingAnotherMessageAppends<TSaga>(object sagaId, object @event, bool onEveryAttempt = false)
+        where TSaga : EventSourcedSaga
+        => Scenario.WhileCompensatingAnotherMessageAppends<TSaga>(sagaId, @event, onEveryAttempt);
+
     // ---- dead letters -------------------------------------------------------------------------------------------
 
     /// <inheritdoc cref="WolverineScenario.ThenDeadLettered{T, TException}" />

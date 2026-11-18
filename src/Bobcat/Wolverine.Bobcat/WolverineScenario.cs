@@ -135,6 +135,7 @@ public partial class WolverineScenario : CritterStackScenario
 
     // GH-4940: the concurrent append the next act lands between its read and its write
     private object[]? _concurrently;
+    private (Type Aggregate, object Id)? _concurrentStream;
 
     /// <param name="host">The application under test.</param>
     /// <param name="storeName">Which event store to use, when the application has several. Null takes the only one.</param>
@@ -274,6 +275,29 @@ public partial class WolverineScenario : CritterStackScenario
         recordTouched(events.Select(PartialMatching.ExpectedType));
 
         root._concurrently = events.Select(x => Build(x, "a concurrent writer appends")).ToArray();
+        root._concurrentStream = null;
+    }
+
+    /// <summary>
+    /// GH-5415. <see cref="WhileActing" />, onto the <typeparamref name="TAggregate" /> stream with this identity rather
+    /// than a new one -- another message appending to (or starting) the very stream the act writes -- so the act's save
+    /// meets a concurrency conflict. Reads "while the act runs, a concurrent writer appends OrderFulfillmentStarted to
+    /// OrderFulfillment #OrderFulfillmentId".
+    /// </summary>
+    [EventModelRole(SliceRole.ArrangedEvent, nameof(concurrently))]
+    public void WhileActingOn<TAggregate>(object id, params object[] concurrently) where TAggregate : class
+    {
+        var events = flatten(concurrently);
+        if (events.Length == 0) throw new ArgumentException("Name the events a concurrent writer appends.", nameof(concurrently));
+
+        var (described, inline) = describe(events);
+        using var step = ScenarioRecorder.Step("Given",
+            $"while the act runs, a concurrent writer appends {described} to {nameOf(typeof(TAggregate))} {ScenarioValues.Format(id)}");
+        if (!inline) recordValues("event", events);
+        recordTouched(events.Select(PartialMatching.ExpectedType));
+
+        root._concurrently = events.Select(x => Build(x, "a concurrent writer appends")).ToArray();
+        root._concurrentStream = (typeof(TAggregate), id);
     }
 
     /// <summary>
@@ -721,13 +745,18 @@ public partial class WolverineScenario : CritterStackScenario
 
         // GH-4940: arm the concurrent writer for this act alone, by its flow and its correlation id
         var concurrent = _concurrently;
+        var concurrentStream = _concurrentStream;
         _concurrently = null;
+        _concurrentStream = null;
         IDisposable? armed = null;
         if (concurrent is not null)
         {
-            var store = await storeForAsync("a concurrent writer appends", null, concurrent);
-            armed = ConcurrentAppends.Arm(correlationId, token =>
-                EventStoreAuthoring.AppendAsync(store, null!, Guid.CreateVersion7(), concurrent, token));
+            var store = await storeForAsync("a concurrent writer appends", concurrentStream?.Aggregate, concurrent);
+            armed = concurrentStream is { } target
+                ? ConcurrentAppends.Arm(correlationId, token =>
+                    EventStoreAuthoring.AppendAsync(store, target.Aggregate, target.Id, concurrent, token))
+                : ConcurrentAppends.Arm(correlationId, token =>
+                    EventStoreAuthoring.AppendAsync(store, null!, Guid.CreateVersion7(), concurrent, token));
         }
 
         ITrackedSession? session = null;

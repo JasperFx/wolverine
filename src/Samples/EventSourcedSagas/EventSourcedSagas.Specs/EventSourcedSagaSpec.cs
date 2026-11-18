@@ -44,7 +44,7 @@ public abstract class EventSourcedSagaSpec : WolverineSpec, IAsyncLifetime
 
     protected static ShipmentConfirmed Shipped => new("1Z999AA10123456784");
 
-    protected static OrderFulfillmentCompleted Completed => new();
+    protected static Wolverine.SagaCompleted Completed => new();
 
     /// <summary>When the last event of the fulfillment's stream was recorded. A query, not a step.</summary>
     protected async Task<DateTimeOffset> TheTimeOfTheLastEvent()

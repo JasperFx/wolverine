@@ -1,5 +1,6 @@
 using Bobcat;
 using EventSourcedSagas.Fulfillment;
+using Wolverine;
 
 namespace EventSourcedSagas.Specs;
 
@@ -16,7 +17,7 @@ public class the_payment_timeout(InlineFulfillmentServices services) : EventSour
         await WhenReceived(new StartOrderFulfillment(OrderFulfillmentId, CustomerId, 100m));
         await WhenScheduledMessagesAreExecuted();
 
-        ThenEvents(new OrderFulfillmentCancelled("Payment timed out"));
+        ThenEvents(new OrderFulfillmentCancelled("Payment timed out"), new SagaCompleted());
         await ThenTheSagaIsCompleted<OrderFulfillment>(OrderFulfillmentId);
     }
 

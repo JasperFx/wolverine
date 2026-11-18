@@ -1,6 +1,7 @@
 using Bobcat;
 using EventSourcedSagas.Fulfillment;
-using EventSourcedSagas.Mistakes;
+using EventSourcedSagas.Support;
+using JasperFx.Events;
 using Wolverine;
 using Wolverine.Persistence.Sagas;
 
@@ -16,7 +17,7 @@ public class messages_for_a_completed_event_sourced_saga(InlineFulfillmentServic
     [BobcatSpec(typeof(CarrierConfirmedShipment), Lifecycle = Lifecycle.Acceptance)]
     public async Task a_late_shipment_goes_to_NotFound()
     {
-        await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), new OrderFulfillmentCancelled("Payment timed out"));
+        await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), new OrderFulfillmentCancelled("Payment timed out"), Completed);
 
         await WhenReceived(new CarrierConfirmedShipment(OrderFulfillmentId, "1Z999AA10123456784"));
 
@@ -28,7 +29,7 @@ public class messages_for_a_completed_event_sourced_saga(InlineFulfillmentServic
     [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
     public async Task a_late_payment_with_no_NotFound_is_dead_lettered_as_a_message_for_a_missing_saga()
     {
-        await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), new OrderFulfillmentCancelled("Payment timed out"));
+        await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), new OrderFulfillmentCancelled("Payment timed out"), Completed);
 
         await WhenReceived(new PaymentReceived(OrderFulfillmentId, 100m));
 
@@ -49,23 +50,33 @@ public class messages_for_a_completed_event_sourced_saga(InlineFulfillmentServic
     }
 }
 
-[BobcatFeature("An event-sourced saga completes only with an event")]
+[BobcatFeature("An event-sourced saga completes with a SagaCompleted event")]
 [Collection(nameof(FulfillmentCollection))]
 public class completing_an_event_sourced_saga(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
 {
     private Guid TicketId { get; } = Guid.NewGuid();
 
-    // SupportTicket.Handle(CloseTicketQuietly) calls MarkCompleted() and appends nothing, so nothing would record the
-    // completion: the next load of the stream would find the ticket open again
-    [BobcatSpec(typeof(CloseTicketQuietly), Lifecycle = Lifecycle.Acceptance)]
-    public async Task completing_without_appending_a_terminal_event_is_refused()
+    // SupportTicket.Handle(CloseTicket) only calls MarkCompleted(). The saga type is marked [ArchiveWhenCompleted]
+    [BobcatSpec(typeof(CloseTicket), Lifecycle = Lifecycle.Acceptance)]
+    public async Task MarkCompleted_with_no_events_appends_SagaCompleted_and_archives_the_stream()
     {
         await GivenEvents<SupportTicket>(TicketId, new TicketOpened("The parcel never arrived"));
 
-        await WhenReceived(new CloseTicketQuietly(TicketId));
+        await WhenReceived(new CloseTicket(TicketId));
+
+        ThenEvents(new SagaCompleted(), new Archived(ArchiveWhenCompletedAttribute.Reason));
+        await ThenTheSagaStreamIsArchived<SupportTicket>(TicketId);
+    }
+
+    // JasperFx.Events' Archived event counts as completion too, so a stream someone archived by hand is done
+    [BobcatSpec(typeof(CarrierConfirmedShipment), Lifecycle = Lifecycle.Acceptance)]
+    public async Task a_fulfillment_whose_stream_was_archived_by_hand_is_completed()
+    {
+        await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), new Archived("cancelled by support"));
+
+        await WhenReceived(new CarrierConfirmedShipment(OrderFulfillmentId, "1Z999AA10123456784"));
 
         ThenNoEvents();
-        ThenDeadLettered<CloseTicketQuietly, InvalidSagaException>(by: FulfillmentServices.ServiceName);
-        await ThenTheSagaIsStillOpen<SupportTicket>(TicketId);
+        ThenMessageSent(new ShipmentForClosedOrder(OrderFulfillmentId, "1Z999AA10123456784"));
     }
 }

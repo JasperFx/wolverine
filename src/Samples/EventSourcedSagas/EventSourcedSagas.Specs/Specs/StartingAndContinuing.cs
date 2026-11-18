@@ -39,6 +39,20 @@ public class starting_an_event_sourced_saga(InlineFulfillmentServices services) 
         await ThenSaga<OrderFulfillment>(OrderFulfillmentId, Specify<OrderFulfillment>().With(x => x.TotalAmount, 100m));
     }
 
+    // Another message starts the same stream between this start's load and its save. The store's own refusal is reported
+    // as the SagaConcurrencyException a duplicate start is
+    [BobcatSpec(typeof(StartOrderFulfillment), Lifecycle = Lifecycle.Acceptance)]
+    public async Task a_start_that_loses_the_race_to_another_start_is_refused_as_any_saga_start_is()
+    {
+        WhileActingOn<OrderFulfillment>(OrderFulfillmentId, Started());
+
+        await WhenReceived(new StartOrderFulfillment(OrderFulfillmentId, CustomerId, 250m));
+
+        ThenNoEvents();
+        ThenDeadLettered<StartOrderFulfillment, SagaConcurrencyException>(by: FulfillmentServices.ServiceName);
+        await ThenSaga<OrderFulfillment>(OrderFulfillmentId, Specify<OrderFulfillment>().With(x => x.TotalAmount, 100m));
+    }
+
     [BobcatSpec(typeof(OrderPlaced), Lifecycle = Lifecycle.Acceptance)]
     public async Task an_OrderPlaced_starts_a_fulfillment_that_has_not_started()
     {
@@ -106,13 +120,13 @@ public class continuing_an_event_sourced_saga(InlineFulfillmentServices services
     }
 
     [BobcatSpec(typeof(CarrierConfirmedShipment), Lifecycle = Lifecycle.Acceptance)]
-    public async Task the_last_step_appends_the_terminal_event_which_completes_the_fulfillment()
+    public async Task the_last_step_returns_SagaCompleted_which_completes_the_fulfillment()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid(), Reserved);
 
         await WhenReceived(new CarrierConfirmedShipment(OrderFulfillmentId, "1Z999AA10123456784"));
 
-        ThenEvents(new ShipmentConfirmed("1Z999AA10123456784"), new OrderFulfillmentCompleted());
+        ThenEvents(new ShipmentConfirmed("1Z999AA10123456784"), new SagaCompleted());
         await ThenTheSagaIsCompleted<OrderFulfillment>(OrderFulfillmentId);
 
         // Nothing is deleted on completion: the stream and the snapshot both stay
@@ -123,13 +137,13 @@ public class continuing_an_event_sourced_saga(InlineFulfillmentServices services
     }
 
     [BobcatSpec(typeof(CancelOrderFulfillment), Lifecycle = Lifecycle.Acceptance)]
-    public async Task a_cancellation_is_a_terminal_event_too()
+    public async Task MarkCompleted_completes_the_fulfillment_with_a_SagaCompleted_event()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started());
 
         await WhenReceived(new CancelOrderFulfillment(OrderFulfillmentId, "The customer changed their mind"));
 
-        ThenEvents(new OrderFulfillmentCancelled("The customer changed their mind"));
+        ThenEvents(new OrderFulfillmentCancelled("The customer changed their mind"), new SagaCompleted());
         await ThenTheSagaIsCompleted<OrderFulfillment>(OrderFulfillmentId);
         await ThenSaga<OrderFulfillment>(OrderFulfillmentId, Specify<OrderFulfillment>()
             .With(x => x.CancellationReason, "The customer changed their mind"));

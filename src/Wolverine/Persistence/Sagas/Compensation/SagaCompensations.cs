@@ -24,6 +24,10 @@ public static class SagaCompensations
     // Set on the envelope of the Fault<T> that marks a saga CompensationFailed, after the compensation gave up
     internal const string MarkFailedHeader = "wolverine.compensation.mark-failed";
 
+    // GH-5415: what the compensation that gave up threw, on that same envelope, for an event-sourced saga's
+    // SagaCompensationFailed event
+    internal const string FailureReasonHeader = "wolverine.compensation.failure";
+
     /// <summary>
     /// Compensate the failed <typeparamref name="TMessage" /> on <paramref name="saga" />: call the
     /// <c>Compensate</c> method that matches the failure best, record it on a <see cref="CompensatingSaga" />, and
@@ -253,7 +257,7 @@ internal sealed class CompensationTarget
     /// Record that compensation gave up: the saga's status and a failed log entry, saved once. If that fails too, the
     /// dead letter is the only record
     /// </summary>
-    public async Task TryMarkFailedAsync(Envelope faultEnvelope, CancellationToken cancellation)
+    public async Task TryMarkFailedAsync(Envelope faultEnvelope, CancellationToken cancellation, Exception? failure = null)
     {
         if (!Records) return;
 
@@ -267,6 +271,10 @@ internal sealed class CompensationTarget
             CompensatingException = faultEnvelope.CompensatingException
         };
         marker.Headers[SagaCompensations.MarkFailedHeader] = "true";
+        if (failure != null)
+        {
+            marker.Headers[SagaCompensations.FailureReasonHeader] = $"{failure.GetType().Name}: {failure.Message}";
+        }
 
         try
         {

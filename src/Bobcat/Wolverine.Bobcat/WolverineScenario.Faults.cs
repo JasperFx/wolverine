@@ -1,4 +1,5 @@
 using Bobcat;
+using Bobcat.CritterStack;
 using Bobcat.Engine;
 using Bobcat.Runtime;
 using Microsoft.Extensions.DependencyInjection;
@@ -379,6 +380,34 @@ public partial class WolverineScenario
 
             var current = await loadSagaAsync<TSaga>(sagaId, text);
             if (current != null) await updateSagaAsync(current, text);
+        };
+        root._afterAct.Add(() => hooks.BeforeSave = null);
+    }
+
+    /// <summary>
+    /// GH-5415. While the event-sourced <typeparamref name="TSaga" /> saga with this identity is compensated, another
+    /// message appends <paramref name="event" /> to its stream, after the compensation loaded it and before it saves, so
+    /// the compensation's save meets a concurrency conflict -- once, or on every attempt. Reads
+    /// "another message appends ItemsReserved to the OrderFulfillment saga #OrderFulfillmentId's stream while it is being
+    /// compensated, once".
+    /// </summary>
+    public void WhileCompensatingAnotherMessageAppends<TSaga>(object sagaId, object @event, bool onEveryAttempt = false)
+        where TSaga : EventSourcedSaga
+    {
+        var text = $"another message appends {nameOf(PartialMatching.ExpectedType(@event))} to the {nameOf(typeof(TSaga))} saga " +
+                   $"{ScenarioValues.Format(sagaId)}'s stream while it is being compensated" + (onEveryAttempt ? ", on every attempt" : ", once");
+        using var step = ScenarioRecorder.Step("Given", text);
+
+        var built = Build(@event, text);
+        var hooks = ((WolverineRuntime)sagaRuntime).CompensationHooks;
+        var id = sagaId.ToString();
+        var appended = 0;
+        hooks.BeforeSave = async saga =>
+        {
+            if (saga is not TSaga || sagaIdOf(saga).ToString() != id) return;
+            if (!onEveryAttempt && Interlocked.Increment(ref appended) > 1) return;
+
+            await EventStoreAuthoring.AppendAsync(await storeForAsync(text, typeof(TSaga)), typeof(TSaga), sagaId, [built]);
         };
         root._afterAct.Add(() => hooks.BeforeSave = null);
     }

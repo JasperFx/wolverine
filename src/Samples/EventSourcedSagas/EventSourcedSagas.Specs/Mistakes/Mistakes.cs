@@ -2,29 +2,7 @@ using Wolverine;
 
 namespace EventSourcedSagas.Mistakes;
 
-// GH-5415: event-sourced sagas Wolverine refuses. SupportTicket runs in the fulfillment service and is refused at run
-// time; the others are each started in a service of their own, which refuses to start.
-
-// ---- completing without a terminal event (refused at run time) ---------------------------------------------------------
-
-public record OpenTicket(Guid SupportTicketId, string Subject);
-
-public record CloseTicketQuietly(Guid SupportTicketId);
-
-public record TicketOpened(string Subject);
-
-public class SupportTicket : EventSourcedSaga
-{
-    public Guid Id { get; set; }
-    public string Subject { get; set; } = "";
-
-    public static TicketOpened Start(OpenTicket open) => new(open.Subject);
-
-    // The mistake: the ticket completes, but no event says so. The next load of the stream would find it open again
-    public void Handle(CloseTicketQuietly close) => MarkCompleted();
-
-    public void Apply(TicketOpened e) => Subject = e.Subject;
-}
+// GH-5415: event-sourced sagas Wolverine refuses at startup, and one it accepts, each started in a service of its own.
 
 // ---- identities an event-sourced saga cannot have (refused at startup) ---------------------------------------------------
 

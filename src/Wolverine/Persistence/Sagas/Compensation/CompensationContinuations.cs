@@ -83,7 +83,7 @@ internal sealed class CompensateSaga : IContinuation
                 envelope.MessageType, envelope.Id, _chain.SagaType.FullNameInCode(), sagaId,
                 DeadLetterQueueConstants.CompensationFailedTag);
 
-            await _target.TryMarkFailedAsync(faultEnvelope, cancellation).ConfigureAwait(false);
+            await _target.TryMarkFailedAsync(faultEnvelope, cancellation, e).ConfigureAwait(false);
             return DeadLetterQueueConstants.CompensationFailedTag;
         }
     }
@@ -153,7 +153,7 @@ internal sealed class CompensationGaveUp : IContinuation
                     ConversationId = envelope.Id,
                     Source = envelope.Source
                 };
-                await _target.TryMarkFailedAsync(marker, runtime.Cancellation).ConfigureAwait(false);
+                await _target.TryMarkFailedAsync(marker, runtime.Cancellation, _deadLetter.Exception).ConfigureAwait(false);
             }
         }
 

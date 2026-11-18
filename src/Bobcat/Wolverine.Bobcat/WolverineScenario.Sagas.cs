@@ -43,6 +43,12 @@ public partial class WolverineScenario
                     ?? throw new SpecCriticalException(
                         $"'{withArticle(label)}': a {nameOf(PartialMatching.ExpectedType(saga))} cannot be stored as {withArticle(label)}.");
 
+        if (built is EventSourcedSaga)
+        {
+            throw new SpecCriticalException(
+                $"'{withArticle(label)}': {nameOf(typeof(TSaga))} is an event-sourced saga, which is arranged with the events of its stream: use GivenEvents<{nameOf(typeof(TSaga))}>(id, ...).");
+        }
+
         var id = sagaIdOf(built);
         var values = withoutIdentity(
             saga is IPartialObject partial ? PartialObjects.DescribeValues(partial) : ScenarioValues.DescribeDocument(built), id);

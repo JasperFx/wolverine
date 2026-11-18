@@ -385,6 +385,7 @@ public sealed partial class WolverineOptions
         Policies.Add<SideEffectPolicy>();
         Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
+        Policies.Add<Persistence.Sagas.EventSourcedSagaPolicy>();
 
         // Phase-A pre-population of IChain.AncillaryStoreType for handlers carrying any ancillary-store
         // routing attribute ([Storage], [MartenStore], [PolecatStore], [FisherStore]) so the
