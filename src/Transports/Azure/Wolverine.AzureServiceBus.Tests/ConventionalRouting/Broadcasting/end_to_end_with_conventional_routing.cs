@@ -12,6 +12,14 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
     private IHost _receiver = null!;
     private IHost _sender = null!;
 
+    /// <summary>
+    /// The convention for the one message this test sends. Left unrestricted, the receiver provisions and purges a topic
+    /// and a subscription for every handled message type in this assembly, which was nearly all of this test's two
+    /// minutes. GH-3786 narrowed the other conventional routing classes the same way
+    /// </summary>
+    private static void onlyTheMessageUnderTest(AzureServiceBusTopicBroadcastingRoutingConvention convention)
+        => convention.IncludeTypes(t => t == typeof(Routed2Message));
+
     public async ValueTask InitializeAsync()
     {
         _sender = await WolverineHost.ForAsync(opts =>
@@ -22,6 +30,7 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
                 x.SubscriptionNameForListener(t => t.Name.ToLowerInvariant());
                 x.TopicNameForListener(t => t.Name.ToLowerInvariant());
                 x.TopicNameForSender(t => t.Name.ToLowerInvariant());
+                onlyTheMessageUnderTest(x);
             }).AutoProvision().AutoPurgeOnStartup();
             opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
@@ -41,6 +50,7 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
                     convention.SubscriptionNameForListener(t => t.Name.ToLowerInvariant());
                     convention.TopicNameForListener(t => t.Name.ToLowerInvariant());
                     convention.TopicNameForSender(t => t.Name.ToLowerInvariant());
+                    onlyTheMessageUnderTest(convention);
                 })
 
                 .AutoProvision()

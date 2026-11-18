@@ -103,10 +103,43 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     public override async ValueTask SetupAsync(ILogger logger)
     {
-        await Parent.WithManagementClientAsync(client => SetupAsync(client, logger).AsTask());
+        await setupInEveryNamespaceAsync(logger);
+    }
+
+    /// <summary>
+    /// Provisions the subscription in this namespace and every tenant's. True only when this call created it in every
+    /// one of them, so it is known to be empty
+    /// </summary>
+    private async Task<bool> setupInEveryNamespaceAsync(ILogger logger)
+    {
+        var namespaces = 0;
+        var created = 0;
+
+        await Parent.WithManagementClientAsync(async (client, transport) =>
+        {
+            namespaces++;
+            if (await SetupAsync(client, logger, transport.TargetsEmulator)) created++;
+        });
+
+        return namespaces > 0 && created == namespaces;
     }
 
     internal async ValueTask SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
+    {
+        await SetupAsync(client, logger, Parent.TargetsEmulator);
+    }
+
+    /// <summary>
+    /// Creates the subscription if it does not exist, or brings an existing one's rules in line with the configuration.
+    /// Answers whether this call created it.
+    /// </summary>
+    /// <param name="createFirst">
+    /// Create without checking for existence first, and take "already exists" (409) as the answer. Only for the
+    /// emulator, where an existence check for a subscription that is not there takes about a second, a create about
+    /// 0.25 seconds, and a create of one that already exists a few milliseconds. A real namespace keeps the existence
+    /// check first
+    /// </param>
+    internal async Task<bool> SetupAsync(ServiceBusAdministrationClient client, ILogger logger, bool createFirst)
     {
         try
         {
@@ -116,14 +149,20 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
                     $"The Azure Service Bus topic '{Topic.TopicName}' is marked as externally owned, so Wolverine will not create it, but it does not exist. Subscription '{SubscriptionName}' cannot be provisioned until the topic's owner creates it.");
             }
 
-            var exists = await client.SubscriptionExistsAsync(Topic.TopicName, SubscriptionName);
-            if (!exists)
+            if (createFirst || !(await client.SubscriptionExistsAsync(Topic.TopicName, SubscriptionName)).Value)
             {
                 Options.SubscriptionName = SubscriptionName;
                 Options.TopicName = Topic.TopicName;
 
-                await client.CreateSubscriptionAsync(Options, RuleOptions);
-                return;
+                try
+                {
+                    await client.CreateSubscriptionAsync(Options, RuleOptions);
+                    return true;
+                }
+                catch (ServiceBusException e) when (createFirst && e.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists)
+                {
+                    // It exists, so its rules are reconciled below exactly as when the existence check says so
+                }
             }
 
             // Adjust existing rules to match configuration
@@ -147,6 +186,8 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
                 // Unknown rule, delete it
                 await client.DeleteRuleAsync(Topic.TopicName, SubscriptionName, rule.Name);
             }
+
+            return false;
         }
         catch (Exception e)
         {
@@ -241,7 +282,18 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
             return;
         }
 
-        await Parent.WithManagementClientAsync(client => InitializeAsync(client, logger).AsTask());
+        var created = false;
+        if (Parent.AutoProvision)
+        {
+            created = await setupInEveryNamespaceAsync(logger);
+        }
+
+        // A subscription created a moment ago is empty, and purging an empty one still waits a second on the receive
+        // (two on a session subscription), so a subscription this startup created is not purged
+        if (Parent.AutoPurgeAllQueues && !created)
+        {
+            await PurgeAsync(logger);
+        }
 
         _hasInitialized = true;
     }

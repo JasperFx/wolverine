@@ -172,6 +172,12 @@ await host.StartAsync();
 `AutoProvision()`, `AutoPurgeOnStartup()`, conventional routing, queue and topic configuration -- chains off of it exactly as it
 would against a real namespace.
 
+One difference you might notice is speed. The emulator takes most of a second to tell you that a queue, topic or subscription
+does not exist, but answers a create for one that already exists right away. So against the emulator, `AutoProvision()` just
+creates each entity and treats "already exists" as the answer. Against a real namespace, Wolverine still checks first. And
+wherever it runs, `AutoPurgeOnStartup()` skips any queue or subscription that the same startup just created, because there is
+nothing in it to purge.
+
 ## Named Brokers and the Management Connection String
 
 There is no emulator-flavored overload of `AddNamedAzureServiceBusBroker()`. The named broker methods take only the *messaging*

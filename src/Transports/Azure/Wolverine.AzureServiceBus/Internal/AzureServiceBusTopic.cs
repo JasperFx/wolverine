@@ -84,26 +84,38 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
     public override ValueTask SetupAsync(ILogger logger)
     {
-        return new ValueTask(Parent.WithManagementClientAsync(c => SetupAsync(c, logger)));
+        return new ValueTask(Parent.WithManagementClientAsync((c, transport) => SetupAsync(c, logger, transport.TargetsEmulator)));
     }
 
-    internal async Task SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
+    internal Task SetupAsync(ServiceBusAdministrationClient client, ILogger logger)
+    {
+        return SetupAsync(client, logger, Parent.TargetsEmulator);
+    }
+
+    /// <param name="createFirst">
+    /// Create without checking for existence first, and take "already exists" (409) as the answer. Only for the
+    /// emulator, where an existence check for a topic that is not there takes about 0.7 seconds, a create about 0.25,
+    /// and a create of a topic that already exists a few milliseconds. A real namespace keeps the existence check first
+    /// </param>
+    internal async Task SetupAsync(ServiceBusAdministrationClient client, ILogger logger, bool createFirst)
     {
         if (IsExternallyOwned) return;
 
-        var exists = await client.TopicExistsAsync(TopicName, CancellationToken.None);
-        if (!exists)
-        {
-            Options.Name = TopicName;
+        if (!createFirst && (await client.TopicExistsAsync(TopicName, CancellationToken.None)).Value) return;
 
-            try
-            {
-                await client.CreateTopicAsync(Options);
-            }
-            catch (Exception e)
-            {
-                logger.LogError(e, "Error trying to initialize topic {Name}", TopicName);
-            }
+        Options.Name = TopicName;
+
+        try
+        {
+            await client.CreateTopicAsync(Options);
+        }
+        catch (ServiceBusException e) when (createFirst && e.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists)
+        {
+            // It exists, which is all the existence check would have said
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Error trying to initialize topic {Name}", TopicName);
         }
     }
 
@@ -114,19 +126,24 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
             return;
         }
 
-        await Parent.WithManagementClientAsync(client => InitializeAsync(client, logger).AsTask());
+        await Parent.WithManagementClientAsync((client, transport) => initializeAsync(client, logger, transport.TargetsEmulator));
 
         _hasInitialized = true;
     }
 
     internal ValueTask InitializeAsync(ServiceBusAdministrationClient client, ILogger logger)
     {
+        return new ValueTask(initializeAsync(client, logger, Parent.TargetsEmulator));
+    }
+
+    private Task initializeAsync(ServiceBusAdministrationClient client, ILogger logger, bool createFirst)
+    {
         if (Parent.AutoProvision && !IsExternallyOwned)
         {
-            return new ValueTask(SetupAsync(client, logger));
+            return SetupAsync(client, logger, createFirst);
         }
 
-        return ValueTask.CompletedTask;
+        return Task.CompletedTask;
     }
 
     public AzureServiceBusSubscription FindOrCreateSubscription(string subscriptionName)

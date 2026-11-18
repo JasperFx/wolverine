@@ -59,28 +59,55 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
 
     public override async ValueTask SetupAsync(ILogger logger)
     {
-        await Parent.WithManagementClientAsync(async client =>
+        await setupInEveryNamespaceAsync();
+    }
+
+    /// <summary>
+    /// Provisions the queue in this namespace and every tenant's. True only when this call created it in every one of
+    /// them, so it is known to be empty
+    /// </summary>
+    private async Task<bool> setupInEveryNamespaceAsync()
+    {
+        var namespaces = 0;
+        var created = 0;
+
+        await Parent.WithManagementClientAsync(async (client, transport) =>
+        {
+            namespaces++;
+            if (await SetupAsync(client, transport.TargetsEmulator)) created++;
+        });
+
+        return namespaces > 0 && created == namespaces;
+    }
+
+    /// <summary>
+    /// Creates the queue if it does not exist. Answers whether this call created it.
+    /// </summary>
+    /// <param name="createFirst">
+    /// Create without checking for existence first, and take "already exists" (409) as the answer. Only for the
+    /// emulator, where an existence check for a queue that is not there takes about 0.7 seconds, a create about 0.25,
+    /// and a create of a queue that already exists a few milliseconds. A real namespace keeps the existence check
+    /// first
+    /// </param>
+    internal async Task<bool> SetupAsync(ServiceBusAdministrationClient client, bool createFirst)
+    {
+        if (!createFirst)
         {
             var exists = await client.QueueExistsAsync(QueueName);
-            if (!exists.Value)
-            {
-                Options.Name = QueueName;
+            if (exists.Value) return false;
+        }
 
-                try
-                {
-                    await client.CreateQueueAsync(Options);
-                }
-                catch (ServiceBusException e)
-                {
-                    if (e.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists)
-                    {
-                        return;
-                    }
-                
-                    throw;
-                }
-            }
-        });
+        Options.Name = QueueName;
+
+        try
+        {
+            await client.CreateQueueAsync(Options);
+            return true;
+        }
+        catch (ServiceBusException e) when (e.Reason == ServiceBusFailureReason.MessagingEntityAlreadyExists)
+        {
+            return false;
+        }
     }
 
     public async ValueTask PurgeAsync(ILogger logger)
@@ -203,12 +230,15 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
             return;
         }
 
+        var created = false;
         if (Parent.AutoProvision)
         {
-            await SetupAsync(logger);
+            created = await setupInEveryNamespaceAsync();
         }
 
-        if (Parent.AutoPurgeAllQueues)
+        // A queue created a moment ago is empty, and purging an empty queue still waits a second on the receive (two
+        // on a session queue), so a queue this startup created is not purged
+        if (Parent.AutoPurgeAllQueues && !created)
         {
             await PurgeAsync(logger);
         }
