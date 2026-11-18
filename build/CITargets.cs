@@ -1142,14 +1142,17 @@ partial class Build
             // GH-5553 / GH-5554 / GH-5556: the saga fault and compensation specifications, Acceptance specs until built
             var sagaFaults = RootDirectory / "src" / "Samples" / "SagaFaults" / "SagaFaults.Specs" / "SagaFaults.Specs.csproj";
 
-            BuildTestProjects(tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager, sagaFaults);
+            // GH-5415: the event-sourced saga specifications, Acceptance specs until built
+            var eventSourcedSagas = RootDirectory / "src" / "Samples" / "EventSourcedSagas" / "EventSourcedSagas.Specs" / "EventSourcedSagas.Specs.csproj";
+
+            BuildTestProjects(tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager, sagaFaults, eventSourcedSagas);
 
             // The store-agnostic specs (GH-4892, GH-4920, GH-4921) run on Marten, Polecat AND Fisher, and
             // Polecat needs SQL Server. Without it every Polecat fixture fails to start, which surfaced as a
             // NullReferenceException in DisposeAsync rather than as the connection failure it was.
             StartDockerServices("postgresql", "sqlserver");
 
-            RunTestProjects([tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager, sagaFaults]);
+            RunTestProjects([tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager, sagaFaults, eventSourcedSagas]);
         });
 
     Target CIKafka => _ => _

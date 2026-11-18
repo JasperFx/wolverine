@@ -283,6 +283,10 @@
          like the other spec samples -->
     <Project Path="src/Samples/SagaFaults/SagaFaults.Specs/SagaFaults.Specs.csproj" />
   </Folder>
+  <Folder Name="/Samples/EventSourcedSagas/">
+    <!-- GH-5415: the event-sourced saga specifications, written first. net10.0-only, like the other spec samples -->
+    <Project Path="src/Samples/EventSourcedSagas/EventSourcedSagas.Specs/EventSourcedSagas.Specs.csproj" />
+  </Folder>
   <Folder Name="/Samples/PingPongWithGrpc/">
     <Project Path="src/Samples/PingPongWithGrpc/Messages/Messages.csproj" />
     <Project Path="src/Samples/PingPongWithGrpc/Pinger/Pinger.csproj" />

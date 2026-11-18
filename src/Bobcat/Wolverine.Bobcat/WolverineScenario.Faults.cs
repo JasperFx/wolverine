@@ -106,6 +106,26 @@ public partial class WolverineScenario
         });
     }
 
+    /// <summary>
+    /// GH-5415. A <typeparamref name="T" /> was dead-lettered while the act ran -- by <paramref name="by" /> when given --
+    /// because of a <typeparamref name="TException" /> or a subclass. Reads
+    /// "PaymentReceived is dead-lettered by fulfillment for UnknownSagaException".
+    /// </summary>
+    public void ThenDeadLettered<T, TException>(string? by = null) where TException : Exception
+    {
+        using var step = ScenarioRecorder.Step("Then", deadLetteredText<T>(by, null) + $" for {nameOf(typeof(TException))}");
+        var records = deadLettered<T>(by);
+        if (records.Count == 0) return;
+
+        var exceptions = records.Select(x => x.Exception).ToList();
+        var match = exceptions.FirstOrDefault(x => x is TException);
+        Verdicts.Check("exception", (match ?? exceptions.FirstOrDefault())?.GetType().Name ?? "(none recorded)",
+            nameOf(typeof(TException)));
+        messageFact(match is not null,
+            $"Expected the dead-lettered {nameOf(typeof(T))} to have failed with {nameOf(typeof(TException))}, but it failed with " +
+            $"{string.Join(", ", exceptions.Select(x => x is null ? "nothing recorded" : $"{x.GetType().Name}: {x.Message}"))}.");
+    }
+
     private static string deadLetteredText<T>(string? by, string? tagged)
         => $"{nameOf(typeof(T))} is dead-lettered" + (by is null ? "" : $" by {by}") +
            (tagged is null ? "" : $", tagged \"{tagged}\"");

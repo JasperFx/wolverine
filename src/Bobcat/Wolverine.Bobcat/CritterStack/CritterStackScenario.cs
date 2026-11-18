@@ -1591,11 +1591,11 @@ public class CritterStackScenario
     [EventModelRole(SliceRole.Aggregate, nameof(aggregate))]
     public async Task ThenStreamIsStarted(Type aggregate, object id)
     {
-        await inStep(ScenarioRecorder.Step("Then", $"a {nameOf(aggregate)} stream is started with id \"{id}\""), async () =>
+        await inStep(ScenarioRecorder.Step("Then", $"{articled(nameOf(aggregate))} stream is started with id \"{id}\""), async () =>
         {
             if (!actSucceeded()) return;
 
-            var events = await fetchAsync(await storeForAsync($"a {nameOf(aggregate)} stream is started", aggregate),
+            var events = await fetchAsync(await storeForAsync($"{articled(nameOf(aggregate))} stream is started", aggregate),
                 StrongTypedIds.StreamIdentity(id));
             fact(events.Count > 0,
                 $"Expected a {nameOf(aggregate)} stream with id {id}, but no stream exists there. The act appended its events somewhere else, or started no stream at all.");
@@ -1618,7 +1618,7 @@ public class CritterStackScenario
     private async Task streamIsStartedWithEvents(Type aggregate, object[] expected)
     {
         var paragraph = new Paragraph("Then");
-        var stream = await inStep<object?>(paragraph.Sentence($"a {nameOf(aggregate)} stream is started"), async () =>
+        var stream = await inStep<object?>(paragraph.Sentence($"{articled(nameOf(aggregate))} stream is started"), async () =>
         {
             if (!actSucceeded()) return null;
 
@@ -1645,7 +1645,7 @@ public class CritterStackScenario
     private Task<IEventStore> startedStreamStoreAsync(Type aggregate, object stream)
     {
         var known = LastAct.AllNewEvents.Where(x => isOn(x, stream)).Select(LastAct.StoreOf).FirstOrDefault(x => x is not null);
-        return known is not null && _pinned is null ? Task.FromResult(known) : storeForAsync($"a {nameOf(aggregate)} stream is started", aggregate);
+        return known is not null && _pinned is null ? Task.FromResult(known) : storeForAsync($"{articled(nameOf(aggregate))} stream is started", aggregate);
     }
 
     // The one stream of this type the act started, or null with the reason recorded as the step's failure
@@ -2784,6 +2784,10 @@ public class CritterStackScenario
 
     /// <summary>A type as a step reads it: <c>List&lt;Account&gt;</c>, never <c>List`1</c> (bobcat#618).</summary>
     protected static string nameOf(Type type) => ScenarioValues.TypeName(type);
+
+    // "an OrderFulfillment stream", "a Tab stream" (wolverine#5609 did the same for the saga steps)
+    private static string articled(string noun)
+        => (noun.Length > 0 && "AEIOUaeiou".Contains(noun[0]) ? "an " : "a ") + noun;
 
     /// <summary>Type names as a step reads them: <c>A, B</c>, or <c>nothing</c>.</summary>
     protected static string describeTypes(IReadOnlyList<Type> types)

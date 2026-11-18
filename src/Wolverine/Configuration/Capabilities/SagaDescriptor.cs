@@ -59,6 +59,13 @@ public class SagaDescriptor
     /// treat null as "unknown" rather than failing.
     /// </summary>
     public string? StorageProvider { get; set; }
+
+    /// <summary>
+    /// GH-5415. Whether this saga's storage keeps its history, so a monitoring tool can read its events and its state
+    /// at any step through <see cref="Persistence.Sagas.ISagaHistoryDiagnostics" />. True for an event-sourced saga on
+    /// Marten, Polecat or Fisher; false for a saga kept as a document or a row.
+    /// </summary>
+    public bool SupportsHistory { get; set; }
 }
 
 /// <summary>

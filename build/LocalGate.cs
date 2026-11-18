@@ -339,6 +339,10 @@ partial class Build
         {
             Postgres = ServerUse.OwnDatabase
         },
+        new("src/Samples/EventSourcedSagas/EventSourcedSagas.Specs/EventSourcedSagas.Specs.csproj", "CIBobcat")
+        {
+            Postgres = ServerUse.OwnDatabase
+        },
 
         // ─── CIExtensions ───
         new("src/Extensions/Wolverine.AI.Tests/Wolverine.AI.Tests.csproj", "CIExtensions"),
