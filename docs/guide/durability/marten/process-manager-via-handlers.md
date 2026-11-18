@@ -1,5 +1,11 @@
 # Process Manager via Handlers
 
+::: tip
+Wolverine 7.0 has [event-sourced sagas](/guide/durability/event-sourced-sagas): one class per process, with its state in
+its own event stream on Marten, Polecat or Fisher. They remove the friction listed in section 5 of this page, and are
+the place to start for a new event-sourced process. This recipe still works, and still shows how the pieces fit.
+:::
+
 You can build an event-sourced Process Manager with the Wolverine and Marten features that ship today. No new base class, no new package. This guide shows you how, with a worked sample you can clone.
 
 The pattern is complementary to Wolverine's [Saga](/guide/durability/sagas) support, not a replacement. Saga stays the right tool when you want a single class per process, a framework-managed lifecycle, and simple document-backed state. The pattern described here trades that for event-sourced state, a full audit trail, and handlers you can test as pure functions.
@@ -876,6 +882,11 @@ The per-step idempotency guard (`if (state.PaymentConfirmed) yield break;`) depe
 ### No first-class test helper for "wait for scheduled message to fire"
 
 `InvokeMessageAndWaitAsync` waits for the cascading work of a single dispatch. A delayed message held by the scheduler is not tracked by that call. The sample's timeout tests use a polling helper (`WaitForCondition` in the test project) which works fine but is extra code every sample project will reinvent. If you write several timeout tests, consider lifting the helper into a shared test utility.
+
+Wolverine 7.0's [event-sourced sagas](/guide/durability/event-sourced-sagas) remove most of these: one class per
+process, the same method shape for starting and continuing, completion through an event that Wolverine checks before
+every handler, an Inline snapshot registered for you (and Async refused), and `PlayScheduledMessagesAsync()` for
+timeouts.
 
 ## 6. When to Use Saga Instead
 

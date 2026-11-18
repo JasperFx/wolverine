@@ -49,23 +49,12 @@ public static class EventSourcedSagaSupport
             $"Saga of type {sagaType.FullNameInCode()} and id {sagaId} cannot be started because its event stream already exists.");
 
     /// <summary>
-    /// The store refused to start the saga's stream because another message started it in the meantime. Each store
-    /// throws its own <c>ExistingStreamIdCollisionException</c> (Marten's does not derive from JasperFx.Events'), so it is
-    /// recognised by name
+    /// The store refused to start the saga's stream because another message started it in the meantime: JasperFx.Events'
+    /// <see cref="ExistingStreamIdCollisionException" />, which Marten, Polecat and Fisher all throw, or an optimistic
+    /// concurrency failure on appending the first events of a stream FetchForWriting found empty
     /// </summary>
     public static bool IsStreamCollision(Exception e)
-    {
-        // Appending the first events of a stream that FetchForWriting found empty, when another message started it in
-        // the meantime, is a concurrency failure on some stores rather than a collision
-        if (e is JasperFx.ConcurrencyException and not SagaConcurrencyException) return true;
-
-        for (var type = e.GetType(); type != null && type != typeof(object); type = type.BaseType)
-        {
-            if (type.Name == "ExistingStreamIdCollisionException") return true;
-        }
-
-        return false;
-    }
+        => e is ExistingStreamIdCollisionException or JasperFx.ConcurrencyException and not SagaConcurrencyException;
 
     /// <summary>
     /// The <see cref="SagaConcurrencyException" /> a lost race to start the saga's stream is reported as

@@ -341,7 +341,8 @@ partial class Build
         },
         new("src/Samples/EventSourcedSagas/EventSourcedSagas.Specs/EventSourcedSagas.Specs.csproj", "CIBobcat")
         {
-            Postgres = ServerUse.OwnDatabase
+            // Marten on PostgreSQL, Polecat on SQL Server, Fisher on a SQLite file of its own
+            Postgres = ServerUse.OwnDatabase, SqlServer = ServerUse.OwnDatabase
         },
 
         // ─── CIExtensions ───

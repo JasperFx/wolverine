@@ -1142,7 +1142,7 @@ partial class Build
             // GH-5553 / GH-5554 / GH-5556: the saga fault and compensation specifications, Acceptance specs until built
             var sagaFaults = RootDirectory / "src" / "Samples" / "SagaFaults" / "SagaFaults.Specs" / "SagaFaults.Specs.csproj";
 
-            // GH-5415: the event-sourced saga specifications, Acceptance specs until built
+            // GH-5415: the event-sourced saga specifications, on Marten, Polecat and Fisher
             var eventSourcedSagas = RootDirectory / "src" / "Samples" / "EventSourcedSagas" / "EventSourcedSagas.Specs" / "EventSourcedSagas.Specs.csproj";
 
             BuildTestProjects(tests, httpTests, storeOnlyTests, specWriterTests, incidents, processManager, sagaFaults, eventSourcedSagas);

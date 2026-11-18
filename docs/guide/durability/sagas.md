@@ -22,6 +22,11 @@ in Wolverine consists of a couple parts:
 3. A saga persistence strategy registered in Wolverine that knows how to load and persist the saga state documents
 4. An identity for the saga state in order to save, load, or delete the current saga state
 
+::: tip
+To keep a saga's state as its own event stream in Marten, Polecat or Fisher, with its whole history and time travel,
+see [Event-Sourced Sagas](/guide/durability/event-sourced-sagas).
+:::
+
 ## Your First Saga
 
 *See the [OrderSagaSample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderSagaSample) project in GitHub for all the

@@ -334,6 +334,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Connection Budgets', link: '/guide/durability/connection-budgets'},
                         {text: 'Node Roles: HTTP, Messaging and Durability Nodes', link: '/guide/durability/node-roles'},
                         {text: 'Sagas', link: '/guide/durability/sagas'},
+                        {text: 'Event-Sourced Sagas', link: '/guide/durability/event-sourced-sagas'},
                         {text: 'Unit Testing Aggregate Handlers', link: '/guide/durability/unit-testing-aggregate-handlers'},
                         {text: 'Marten Integration', link: '/guide/durability/marten/',  collapsed: false, items: [
                                 {text: 'Transactional Middleware', link: '/guide/durability/marten/transactional-middleware'},

@@ -805,6 +805,14 @@ type has a new `public DateTimeOffset? CompletedAt { get; set; }`, and:
 If a saga type of yours already declares its own `CompletedAt`, it now hides the base property (compiler warning
 CS0108). Rename yours before retaining that saga type.
 
+### Event-sourced sagas
+
+New in 7.0 (GH-5415): derive a saga from `EventSourcedSaga` to keep its state as its own event stream in Marten,
+Polecat or Fisher. See [Event-Sourced Sagas](/guide/durability/event-sourced-sagas). Nothing changes for existing sagas,
+but the event stores now register four event types of Wolverine's own, under `wolverine_`-prefixed aliases
+(`wolverine_saga_completed`, `wolverine_saga_compensating`, `wolverine_saga_compensated`,
+`wolverine_saga_compensation_failed`), and the lightweight saga tables decline an event-sourced saga type.
+
 ### Obsolete in 7.0
 
 Wolverine.Marten, Wolverine.Polecat and Wolverine.Fisher each shipped their own copy of a few public types. 7.0 adds one
