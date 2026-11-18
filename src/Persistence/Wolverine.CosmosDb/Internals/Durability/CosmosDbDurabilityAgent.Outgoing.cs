@@ -1,5 +1,6 @@
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.Logging;
+using Wolverine.Persistence.Durability;
 
 namespace Wolverine.CosmosDb.Internals.Durability;
 
@@ -32,7 +33,11 @@ public partial class CosmosDbDurabilityAgent
 
             foreach (var destinationStr in destinations)
             {
-                await tryRecoverOutgoingMessagesToSenderAsync(new Uri(destinationStr));
+                // GH-5587. Each destination sends on its own lane, so one that is slow to accept sends holds up no
+                // other destination, and the next pass's incoming recovery does not wait on it either
+                var destination = new Uri(destinationStr);
+                _lanes.TryStart(RecoveryDirection.Outgoing, destination,
+                    () => tryRecoverOutgoingMessagesToSenderAsync(destination));
             }
         }
         catch (Exception e)
@@ -46,20 +51,8 @@ public partial class CosmosDbDurabilityAgent
         try
         {
             var sendingAgent = _runtime.Endpoints.GetOrBuildSendingAgent(sender);
-            if (sendingAgent.Latched) return;
-
-            var outgoing = await _parent.Outbox.LoadOutgoingAsync(sendingAgent.Destination);
-            var expiredMessages = outgoing.Where(x => x.IsExpired()).ToArray();
-            var good = outgoing.Where(x => !x.IsExpired()).ToArray();
-
-            await _parent.Outbox.DiscardAndReassignOutgoingAsync(expiredMessages, good,
-                _runtime.Options.Durability.AssignedNodeNumber);
-
-            foreach (var envelope in good) await sendingAgent.EnqueueOutgoingAsync(envelope);
-
-            _logger.LogInformation(
-                "Recovered {Count} messages from outbox for destination {Destination} while discarding {ExpiredCount} expired messages",
-                good.Length, sendingAgent.Destination, expiredMessages.Length);
+            await DestinationRecovery.RecoverOutgoingAsync(_parent, sendingAgent,
+                _runtime.Options.Durability.AssignedNodeNumber, _logger, _lanes, _combined.Token);
         }
         catch (Exception e)
         {

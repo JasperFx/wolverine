@@ -153,6 +153,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         // only starts when the first agent registers and dies with Cancellation
         BackPressureSweeper = new BackPressureSweeper(Logger, Cancellation);
 
+        RecoveryLanes = new RecoveryLanes(loggers.CreateLogger<RecoveryLanes>());
+
         Tracker = new WolverineTracker(Logger);
 
         _endpoints = new EndpointCollection(this);
@@ -231,6 +233,11 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
     internal ObjectPool<Envelope> EnvelopePool { get; }
 
     internal BackPressureSweeper BackPressureSweeper { get; }
+
+    /// <summary>
+    /// GH-5587. One durable recovery lane per destination, shared by every message store's durability agent
+    /// </summary>
+    internal RecoveryLanes RecoveryLanes { get; }
 
     public HandlerGraph Handlers { get; }
 

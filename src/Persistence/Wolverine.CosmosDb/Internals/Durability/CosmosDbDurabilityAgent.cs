@@ -31,6 +31,9 @@ public partial class CosmosDbDurabilityAgent : IAgent
     private PersistenceMetrics? _metrics;
     private readonly DurabilityHealthSignals _health;
 
+    // GH-5587. Shared with every other store's durability agent in this application
+    private readonly RecoveryLanes _lanes;
+
     public CosmosDbDurabilityAgent(Container container, IWolverineRuntime runtime,
         CosmosDbMessageStore parent)
     {
@@ -43,6 +46,7 @@ public partial class CosmosDbDurabilityAgent : IAgent
         Uri = new Uri($"{PersistenceConstants.AgentScheme}://cosmosdb/durability");
 
         _logger = runtime.LoggerFactory.CreateLogger<CosmosDbDurabilityAgent>();
+        _lanes = DestinationRecovery.LanesFor(runtime) ?? new RecoveryLanes(_logger);
 
         _combined = CancellationTokenSource.CreateLinkedTokenSource(runtime.Cancellation, _cancellation.Token);
         _health = new DurabilityHealthSignals(_settings);
