@@ -84,6 +84,10 @@ turned on in the event store; otherwise the wait runs to its timeout.
   also means you can use the same attribute when a projection is inline in tests and asynchronous in production.
 * Wolverine only waits for events the handler or endpoint actually committed through Wolverine's transactional
   middleware, like `[WriteAggregate]` or `AutoApplyTransactions()`. If nothing was appended, there's no wait and no token.
+* F# can't apply a generic attribute, so you can't write `[WaitForProjection<T>]` on an F# handler or endpoint. From F#,
+  apply it in a policy instead: an `IHandlerPolicy` for message handlers or an `IHttpPolicy` for HTTP endpoints that calls
+  `WaitForProjectionAttribute<T>().Modify(chain, rules, container)` on the chains you want. The generated F# code
+  works the same way.
 
 ## Testing with Bobcat
 
