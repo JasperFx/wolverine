@@ -1,0 +1,608 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+namespace Wolverine.SourceGeneration;
+
+internal static class WorkflowSplitter
+{
+    public static GenerationResult Generate(MethodDeclarationSyntax syntax, IMethodSymbol method, SemanticModel model,
+        CancellationToken token)
+    {
+        var analysis = new WorkflowAnalysis(syntax, method, model);
+        analysis.Analyze(token);
+
+        if (analysis.HasErrors) return new GenerationResult(null, null, analysis.Diagnostics.ToArray());
+
+        var source = new SagaEmitter(analysis).Emit();
+        return new GenerationResult(analysis.HintName, source, analysis.Diagnostics.ToArray());
+    }
+}
+
+/// <summary>
+/// GH-5660 SPIKE. Writes the saga. The method body is cut at each wait: the code before the first wait is the start
+/// step, and the code after each wait is the step that resumes it. An `if` with a wait inside it hands the code after
+/// it to a method of its own, so both branches can run it without copying it.
+/// </summary>
+internal sealed class SagaEmitter
+{
+    private readonly WorkflowAnalysis _analysis;
+    private readonly WorkflowRewriter _rewriter;
+    private readonly List<StepMethod> _methods = new();
+    private readonly string _ctx;
+    private readonly string _serviceParameters;
+    private readonly string _serviceArguments;
+    private readonly string _timeoutType;
+    private readonly string _failedType;
+    private readonly string _fileName;
+
+    public SagaEmitter(WorkflowAnalysis analysis)
+    {
+        _analysis = analysis;
+        _rewriter = new WorkflowRewriter(analysis);
+        _ctx = escape(analysis.Context.Name);
+        _serviceParameters = string.Concat(analysis.Services.Select(x => $", {analysis.TypeName(x.Type)} {escape(x.Name)}"));
+        _serviceArguments = string.Concat(analysis.Services.Select(x => $", {escape(x.Name)}"));
+
+        var stem = analysis.SagaName.EndsWith("Saga", StringComparison.Ordinal)
+            ? analysis.SagaName.Substring(0, analysis.SagaName.Length - 4)
+            : analysis.SagaName;
+        _timeoutType = stem + "Timeout";
+        _failedType = stem + "Failed";
+        _fileName = System.IO.Path.GetFileName(analysis.Syntax.SyntaxTree.FilePath);
+    }
+
+    public string Emit()
+    {
+        // The workflow, cut into steps. Done first: it decides which methods the saga has
+        var begin = new CodeWriter(2);
+        emitStatements(begin, _analysis.Body.Statements, 0, null);
+        _methods.Add(new StepMethod(-1, [$"// {_analysis.WorkflowName} from the top, up to its first wait"],
+            $"private async Task begin(WorkflowContext {_ctx}{_serviceParameters})", begin));
+
+        var w = new CodeWriter(0);
+        writeHeader(w);
+
+        w.Line("/// <summary>");
+        w.Line($"/// The durable workflow {_analysis.WorkflowName} (version {_analysis.WorkflowVersion}) as a saga, generated from");
+        w.Line($"/// {_analysis.WorkflowClass}.{_analysis.Method.Name}() in {_fileName}. Each await that waits for a message ended a step;");
+        w.Line("/// the saga stores the step it is waiting at, the triggering message and the locals that live across a step.");
+        w.Line("/// </summary>");
+        w.Line("[RetainWhenCompleted(Days = 7)]");
+        w.Open($"public partial class {_analysis.SagaName} : WorkflowSaga");
+
+        w.Line($"public const string WorkflowName = \"{_analysis.WorkflowName}\";");
+        w.Line($"public const int WorkflowVersion = {_analysis.WorkflowVersion};");
+        w.Line();
+
+        writeProperties(w);
+        writeStart(w);
+        writeMessageHandlers(w);
+        writeTimeoutHandler(w);
+        writeFailureHandling(w);
+
+        w.Line("// The workflow method, step by step");
+        foreach (var method in _methods.OrderBy(x => x.Position))
+        {
+            w.Line();
+            foreach (var comment in method.Comments) w.Line(comment);
+            w.Line(method.Signature);
+            w.Line("{");
+            w.Append(method.Body);
+            w.Line("}");
+        }
+
+        w.Close();
+
+        if (_analysis.Suspends.Any(x => x.ResumesOnTimeout))
+        {
+            w.Line();
+            w.Line($"/// <summary>Resumes {_analysis.SagaName} when a WaitForAsync times out or a DelayAsync is over</summary>");
+            w.Line($"public record {_timeoutType}(Guid Id, int Step, TimeSpan Delay) : TimeoutMessage(Delay);");
+        }
+
+        w.Line();
+        w.Line($"/// <summary>Tells {_analysis.SagaName} that its workflow failed for good</summary>");
+        w.Line($"public class {_failedType} : WorkflowFailed");
+        w.Line("{");
+        w.Line("}");
+
+        return w.ToString();
+    }
+
+    private void writeHeader(CodeWriter w)
+    {
+        w.Line("// <auto-generated/>");
+        w.Line("// GH-5660 SPIKE: generated by Wolverine.SourceGeneration from a [DurableWorkflow] method.");
+        w.Line("#nullable enable annotations");
+        w.Line("#nullable disable warnings");
+        w.Line("#pragma warning disable CS0105, CS0162, CS1998");
+        w.Line();
+
+        var root = (CompilationUnitSyntax)_analysis.Syntax.SyntaxTree.GetRoot();
+        var usings = new List<string>
+        {
+            "using System;", "using System.Threading.Tasks;", "using Wolverine;", "using Wolverine.ErrorHandling;",
+            "using Wolverine.Runtime.Handlers;", "using Wolverine.Workflows;"
+        };
+
+        foreach (var directive in root.Usings.Where(x => x.GlobalKeyword.RawKind == 0))
+        {
+            var text = directive.WithoutTrivia().NormalizeWhitespace().ToFullString();
+            if (!usings.Contains(text)) usings.Add(text);
+        }
+
+        foreach (var directive in usings) w.Line(directive);
+        w.Line();
+
+        if (_analysis.Namespace != null)
+        {
+            w.Line($"namespace {_analysis.Namespace};");
+            w.Line();
+        }
+
+        // Usings written inside the workflow's namespace declaration stay inside it
+        foreach (var ns in _analysis.Syntax.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().Reverse())
+        {
+            foreach (var directive in ns.Usings)
+            {
+                w.Line(directive.WithoutTrivia().NormalizeWhitespace().ToFullString());
+            }
+        }
+
+        if (_analysis.Syntax.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().Any(x => x.Usings.Any())) w.Line();
+    }
+
+    private void writeProperties(CodeWriter w)
+    {
+        var trigger = _analysis.Hoisted[_analysis.Trigger];
+        w.Line("// The triggering message");
+        w.Line($"public {_analysis.TypeName(trigger.Type)} {trigger.PropertyName} {{ get; set; }}");
+        w.Line();
+
+        var locals = _analysis.HoistedInOrder.Where(x => x != trigger).ToArray();
+        if (locals.Length == 0) return;
+
+        w.Line("// The locals that live across a step");
+        foreach (var local in locals)
+        {
+            w.Line($"public {_analysis.TypeName(local.Type)} {local.PropertyName} {{ get; set; }}");
+        }
+
+        w.Line();
+    }
+
+    private void writeStart(CodeWriter w)
+    {
+        var trigger = _analysis.Trigger;
+        var name = escape(trigger.Name);
+
+        w.Line($"// {_analysis.TypeName(trigger.Type)} starts the workflow and runs it up to its first wait");
+        w.Open($"public async Task Start({_analysis.TypeName(trigger.Type)} {name}, IMessageContext messageContext{_serviceParameters})");
+        w.Line(_analysis.IdMember != null
+            ? $"Id = {name}.{_analysis.IdMember};"
+            : "Id = WorkflowContext.IdFromEnvelope(messageContext);");
+        w.Line($"{_analysis.Hoisted[trigger].PropertyName} = {name};");
+        writeRun(w, $"await begin({_ctx}{_serviceArguments});");
+        w.Close();
+        w.Line();
+    }
+
+    private void writeMessageHandlers(CodeWriter w)
+    {
+        var byType = _analysis.Suspends
+            .Where(x => x.MessageType != null)
+            .GroupBy(x => _analysis.TypeName(x.MessageType!.WithNullableAnnotation(NullableAnnotation.NotAnnotated)))
+            .ToArray();
+
+        foreach (var group in byType)
+        {
+            var steps = string.Join(", ", group.Select(x => $"step {x.Step} ({describeWait(x)})"));
+            w.Line($"// Resumes the workflow at {steps}");
+            w.Open($"public async Task Handle({group.Key} message, IMessageContext messageContext{_serviceParameters})");
+            writeRun(w, null, () =>
+            {
+                w.Open("switch (Step)");
+                foreach (var suspend in group)
+                {
+                    w.Line($"case {suspend.Step}:");
+                    w.Indent();
+                    w.Line($"await resumeAtStep{suspend.Step}({resultArgument(suspend, "message")}{_ctx}{_serviceArguments});");
+                    w.Line("break;");
+                    w.Outdent();
+                }
+
+                w.Line("default:");
+                w.Indent();
+                w.Line("// Not what the workflow is waiting for now: a duplicate, or a message that came too late");
+                w.Line($"{_ctx}.Ignore(message);");
+                w.Line("break;");
+                w.Outdent();
+                w.Close();
+            });
+            w.Close();
+            w.Line();
+        }
+
+        foreach (var group in byType)
+        {
+            w.Line("// A message for a workflow that has finished, or never started");
+            w.Line($"public static void NotFound({group.Key} message, IMessageContext messageContext) => LogNotFound(messageContext, WorkflowName, message);");
+            w.Line();
+        }
+    }
+
+    private void writeTimeoutHandler(CodeWriter w)
+    {
+        var timed = _analysis.Suspends.Where(x => x.ResumesOnTimeout).ToArray();
+        if (timed.Length == 0) return;
+
+        w.Line("// A WaitForAsync timed out, or a DelayAsync is over");
+        w.Open($"public async Task Handle({_timeoutType} timeout, IMessageContext messageContext{_serviceParameters})");
+        writeRun(w, null, () =>
+        {
+            w.Line("// A timeout for a step the workflow has already left");
+            w.Open("if (timeout.Step != Step)");
+            w.Line($"{_ctx}.Ignore(timeout);");
+            w.Line("return;");
+            w.Close();
+            w.Line();
+            w.Open("switch (Step)");
+            foreach (var suspend in timed)
+            {
+                w.Line($"case {suspend.Step}:");
+                w.Indent();
+                w.Line(suspend.Kind == SuspendKind.Delay
+                    ? $"// {describeWait(suspend)} is over"
+                    : $"// {describeWait(suspend)} timed out");
+                w.Line($"await resumeAtStep{suspend.Step}({resultArgument(suspend, "null")}{_ctx}{_serviceArguments});");
+                w.Line("break;");
+                w.Outdent();
+            }
+
+            w.Close();
+        });
+        w.Close();
+        w.Line();
+    }
+
+    private void writeFailureHandling(CodeWriter w)
+    {
+        w.Line("// The workflow failed for good: send its undo messages, newest first, in this handler's transaction");
+        w.Line($"public Task Handle({_failedType} failed, IMessageContext messageContext) => CompensateAsync(failed, messageContext);");
+        w.Line();
+        w.Line("// ... or, when it failed in its first step, without a saga to update");
+        w.Line($"public static Task NotFound({_failedType} failed, IMessageContext messageContext) => CompensateWithoutStateAsync(failed, messageContext);");
+        w.Line();
+
+        w.Open("public static void Configure(HandlerChain chain)");
+        w.Open($"if (chain.MessageType == typeof({_failedType}))");
+        w.Line("// Sending the undo messages failed: retry, then dead-letter");
+        w.Line("chain.OnAnyException().RetryTimes(3);");
+        w.Line("return;");
+        w.Close();
+        w.Line();
+        w.Line("// Two messages for this workflow at once: the loser of the saga's version check runs again");
+        w.Line("chain.OnException<global::JasperFx.ConcurrencyException>()");
+        w.Line("    .RetryWithCooldown(TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(250));");
+        w.Line();
+        w.Line("// The workflow threw: retry the step twice, then dead-letter the message and send the undo messages");
+        w.Line("chain.OnAnyException().RetryTimes(2)");
+        w.Line($"    .Then.MoveToErrorQueue().And(WorkflowFailure.CompensateAsync<{_failedType}>, \"Compensate workflow {_analysis.WorkflowName}\");");
+        w.Close();
+        w.Line();
+    }
+
+    // Every handler runs its step the same way: a failure carries the undo messages registered so far past the rollback
+    private void writeRun(CodeWriter w, string? call, Action? body = null)
+    {
+        w.Line($"var {_ctx} = new WorkflowContext(this, messageContext);");
+        w.Open("try");
+        if (call != null) w.Line(call);
+        body?.Invoke();
+        w.Close();
+        w.Open("catch (Exception e)");
+        w.Line($"{_ctx}.RecordFailure(e);");
+        w.Line("throw;");
+        w.Close();
+    }
+
+    private static string resultArgument(SuspendPoint suspend, string value)
+    {
+        return suspend.DeclaredLocal != null || suspend.AssignedTo != null ? value + ", " : "";
+    }
+
+    private string describeWait(SuspendPoint suspend)
+    {
+        return suspend.Kind switch
+        {
+            SuspendKind.Invoke => $"InvokeAsync<{_analysis.TypeName(suspend.MessageType!)}>",
+            SuspendKind.WaitFor => $"WaitForAsync<{_analysis.TypeName(suspend.MessageType!)}>",
+            _ => "DelayAsync"
+        };
+    }
+
+    // Write statements[from..], then hand over to the continuation: a method that runs what comes after an if, or
+    // (null) the end of the workflow
+    private void emitStatements(CodeWriter w, IReadOnlyList<StatementSyntax> statements, int from, string? continuation)
+    {
+        for (var i = from; i < statements.Count; i++)
+        {
+            var statement = statements[i];
+
+            // Keep the blank lines the workflow had between its statements
+            if (i > from && hasBlankLineBefore(statement)) w.Line();
+
+            if (!_analysis.ContainsSuspend(statement))
+            {
+                writeStatement(w, _rewriter.Rewrite(statement));
+                continue;
+            }
+
+            writeLeadingComments(w, statement);
+
+            var suspend = _analysis.Suspends.FirstOrDefault(x => x.Statement == statement);
+            if (suspend != null)
+            {
+                writeSuspend(w, suspend);
+                addResumeMethod(suspend, statements, i + 1, continuation);
+                return;
+            }
+
+            // A statement with a wait somewhere inside it. What comes after it runs from both of its ends, so it moves
+            // to a method of its own
+            var rest = statements.Skip(i + 1).ToArray();
+            var next = rest.Length == 0 ? continuation : addJoin(statement, rest, continuation);
+
+            switch (statement)
+            {
+                case IfStatementSyntax ifStatement:
+                    writeIf(w, ifStatement, next);
+                    return;
+
+                case BlockSyntax block:
+                    w.Open("");
+                    emitStatements(w, block.Statements, 0, next);
+                    w.Close();
+                    return;
+
+                default:
+                    // The analysis refuses everything else around a wait
+                    throw new InvalidOperationException($"Can't split a workflow around a {statement.Kind()}");
+            }
+        }
+
+        writeContinuation(w, continuation);
+    }
+
+    private void writeIf(CodeWriter w, IfStatementSyntax ifStatement, string? next)
+    {
+        w.Line($"if ({_rewriter.Rewrite(ifStatement.Condition).NormalizeWhitespace().ToFullString()})");
+        w.Open("");
+        emitStatements(w, statementsOf(ifStatement.Statement), 0, next);
+        w.Close();
+        w.Line("else");
+        w.Open("");
+        if (ifStatement.Else != null)
+        {
+            emitStatements(w, statementsOf(ifStatement.Else.Statement), 0, next);
+        }
+        else
+        {
+            writeContinuation(w, next);
+        }
+
+        w.Close();
+    }
+
+    private static bool hasBlankLineBefore(StatementSyntax statement)
+    {
+        // The line break that ends the previous line is trailing trivia of the previous token, so a line break in the
+        // leading trivia is an empty line
+        foreach (var trivia in statement.GetLeadingTrivia())
+        {
+            if (trivia.IsKind(SyntaxKind.EndOfLineTrivia)) return true;
+            if (!trivia.IsKind(SyntaxKind.WhitespaceTrivia)) return false;
+        }
+
+        return false;
+    }
+
+    private static void writeLeadingComments(CodeWriter w, StatementSyntax statement)
+    {
+        foreach (var trivia in statement.GetLeadingTrivia())
+        {
+            if (trivia.IsKind(SyntaxKind.SingleLineCommentTrivia) || trivia.IsKind(SyntaxKind.MultiLineCommentTrivia))
+            {
+                w.Lines(trivia.ToFullString());
+            }
+        }
+    }
+
+    private static IReadOnlyList<StatementSyntax> statementsOf(StatementSyntax statement)
+    {
+        return statement is BlockSyntax block ? block.Statements : new[] { statement };
+    }
+
+    private void writeContinuation(CodeWriter w, string? continuation)
+    {
+        w.Line(continuation == null ? "CompleteWorkflow();" : $"await {continuation}({_ctx}{_serviceArguments});");
+    }
+
+    private string addJoin(StatementSyntax after, IReadOnlyList<StatementSyntax> rest, string? continuation)
+    {
+        var line = after.GetLocation().GetLineSpan().EndLinePosition.Line + 1;
+        var name = $"continueAfterLine{line}";
+
+        var body = new CodeWriter(2);
+        emitStatements(body, rest, 0, continuation);
+        _methods.Add(new StepMethod(after.Span.End,
+            [$"// The rest of the method after the {after.Kind().ToString().Replace("Statement", "").ToLowerInvariant()} that ends at line {line} of {_fileName}, whichever way it went"],
+            $"private async Task {name}(WorkflowContext {_ctx}{_serviceParameters})", body));
+
+        return name;
+    }
+
+    private void addResumeMethod(SuspendPoint suspend, IReadOnlyList<StatementSyntax> statements, int from,
+        string? continuation)
+    {
+        var body = new CodeWriter(2);
+        var parameter = "";
+
+        if (suspend.DeclaredLocal is { } local)
+        {
+            // The awaited type rather than the local's: `var x = await ctx.InvokeAsync<T>()` makes x a T?, but the reply
+            // is never null
+            var name = escape(local.Name);
+            var type = _analysis.Model.GetTypeInfo(suspend.Invocation.Parent!).Type ?? local.Type;
+            parameter = $"{_analysis.TypeName(type)} {name}, ";
+            if (_analysis.Hoisted.TryGetValue(local, out var hoisted))
+            {
+                body.Line($"{hoisted.PropertyName} = {name};");
+            }
+        }
+        else if (suspend.AssignedTo != null)
+        {
+            var type = _analysis.Model.GetTypeInfo(suspend.Invocation.Parent!).Type!;
+            parameter = $"{_analysis.TypeName(type)} result, ";
+            body.Line($"{_rewriter.Rewrite(suspend.AssignedTo).NormalizeWhitespace().ToFullString()} = result;");
+        }
+
+        emitStatements(body, statements, from, continuation);
+
+        var comments = new List<string> { $"// Step {suspend.Step} resumes after:" };
+        comments.AddRange(originalLines(suspend.Statement));
+        comments.Add(suspend.Kind switch
+        {
+            SuspendKind.Invoke => $"// with the {_analysis.TypeName(suspend.MessageType!)} reply",
+            SuspendKind.WaitFor => $"// with the {_analysis.TypeName(suspend.MessageType!)}, or null when the wait timed out",
+            _ => "// once the delay is over"
+        });
+
+        _methods.Add(new StepMethod(suspend.Statement.SpanStart, comments,
+            $"private async Task resumeAtStep{suspend.Step}({parameter}WorkflowContext {_ctx}{_serviceParameters})",
+            body));
+    }
+
+    private void writeSuspend(CodeWriter w, SuspendPoint suspend)
+    {
+        foreach (var line in originalLines(suspend.Statement)) w.Line(line);
+
+        var arguments = _analysis.ArgumentsOf(suspend);
+        string argument(string name) => _rewriter.Rewrite(arguments[name]).NormalizeWhitespace().ToFullString();
+
+        switch (suspend.Kind)
+        {
+            case SuspendKind.Invoke:
+                var options = arguments.ContainsKey("options") ? ", " + argument("options") : "";
+                w.Line($"await {_ctx}.SendAsync({argument("request")}{options});");
+                w.Line($"SuspendAt({suspend.Step}, \"{suspend.MessageType!.Name}\");");
+                break;
+
+            case SuspendKind.WaitFor:
+                w.Line($"await {_ctx}.ScheduleTimeoutAsync(new {_timeoutType}(Id, {suspend.Step}, {argument("timeout")}));");
+                w.Line($"SuspendAt({suspend.Step}, \"{suspend.MessageType!.Name}\");");
+                break;
+
+            case SuspendKind.Delay:
+                w.Line($"await {_ctx}.ScheduleTimeoutAsync(new {_timeoutType}(Id, {suspend.Step}, {argument("delay")}));");
+                w.Line($"SuspendAt({suspend.Step}, \"delay\");");
+                break;
+        }
+
+        w.Line("return;");
+    }
+
+    private static IEnumerable<string> originalLines(StatementSyntax statement)
+    {
+        return statement.WithoutTrivia().NormalizeWhitespace("    ", "\n").ToFullString()
+            .Split('\n').Select(x => "// " + x);
+    }
+
+    private static void writeStatement(CodeWriter w, StatementSyntax statement)
+    {
+        foreach (var flattened in WorkflowRewriter.Flatten(statement))
+        {
+            w.Lines(flattened.NormalizeWhitespace("    ", "\n").ToFullString());
+        }
+    }
+
+    private static string escape(string name)
+    {
+        return SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
+    }
+
+    private sealed class StepMethod
+    {
+        public StepMethod(int position, IReadOnlyList<string> comments, string signature, CodeWriter body)
+        {
+            Position = position;
+            Comments = comments;
+            Signature = signature;
+            Body = body;
+        }
+
+        public int Position { get; }
+        public IReadOnlyList<string> Comments { get; }
+        public string Signature { get; }
+        public CodeWriter Body { get; }
+    }
+}
+
+internal sealed class CodeWriter
+{
+    private readonly StringBuilder _builder = new();
+    private int _indent;
+
+    public CodeWriter(int indent)
+    {
+        _indent = indent;
+    }
+
+    public void Line(string text = "")
+    {
+        if (text.Length == 0)
+        {
+            _builder.Append('\n');
+            return;
+        }
+
+        _builder.Append(' ', _indent * 4).Append(text).Append('\n');
+    }
+
+    public void Lines(string text)
+    {
+        foreach (var line in text.Replace("\r\n", "\n").Split('\n'))
+        {
+            if (line.Trim().Length == 0) continue;
+            Line(line);
+        }
+    }
+
+    /// <summary>A header line (if any) and an opening brace</summary>
+    public void Open(string header)
+    {
+        if (header.Length > 0) Line(header);
+        Line("{");
+        _indent++;
+    }
+
+    public void Close()
+    {
+        _indent--;
+        Line("}");
+    }
+
+    public void Indent() => _indent++;
+
+    public void Outdent() => _indent--;
+
+    public void Append(CodeWriter other) => _builder.Append(other._builder);
+
+    public override string ToString() => _builder.ToString();
+}

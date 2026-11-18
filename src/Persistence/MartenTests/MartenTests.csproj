@@ -37,6 +37,22 @@
         <PackageReference Include="JasperFx.Events.SourceGenerator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
         <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
     </ItemGroup>
+    <!--
+      GH-5660 SPIKE. The durable workflow source generator runs over this project (Workflows/), and its output is written
+      to obj/ so it can be read. The generator unit tests drive it directly, so the built assembly is referenced by path
+      as well (a second ProjectReference to the same project is NU1504; see CoreTests and Wolverine.Analyzers).
+    -->
+    <PropertyGroup>
+        <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine.SourceGeneration\Wolverine.SourceGeneration.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+        <Reference Include="Wolverine.SourceGeneration">
+            <HintPath>..\..\Wolverine.SourceGeneration\bin\$(Configuration)\netstandard2.0\Wolverine.SourceGeneration.dll</HintPath>
+        </Reference>
+    </ItemGroup>
+
     <ItemGroup>
         <Compile Include="..\..\Servers.cs">
             <Link>Servers.cs</Link>

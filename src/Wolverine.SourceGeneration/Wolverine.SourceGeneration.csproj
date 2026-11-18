@@ -1,0 +1,31 @@
+<!--
+  GH-5660 SPIKE. The durable workflow source generator (#5405): turns a static [DurableWorkflow] method into a generated
+  Wolverine saga. Branch only; not packed, not public API.
+
+  Set up like Wolverine.Analyzers (GH-5403 / GH-5622): netstandard2.0 as a one-entry <TargetFrameworks>, built against
+  an old Roslyn so it loads in every compiler a consumer builds with, and carried in wolverine.slnx with
+  Build Project="false" so the pinned (-f net10.0) solution build doesn't make a second instance of it. A consuming
+  project references it with OutputItemType="Analyzer" ReferenceOutputAssembly="false".
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>GH-5660 spike: source generator that compiles a [DurableWorkflow] method into a Wolverine saga</Description>
+        <TargetFrameworks>netstandard2.0</TargetFrameworks>
+        <ImplicitUsings>false</ImplicitUsings>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <IsRoslynComponent>true</IsRoslynComponent>
+        <IsPackable>false</IsPackable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <!-- RS2008: no analyzer release tracking for a spike -->
+        <NoWarn>$(NoWarn);RS2008</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="4.8.0" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+</Project>

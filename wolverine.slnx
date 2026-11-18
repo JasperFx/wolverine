@@ -441,6 +441,11 @@
   <Project Path="src/Wolverine.Analyzers/Wolverine.Analyzers.csproj">
     <Build Project="false" />
   </Project>
+  <!-- GH-5660 SPIKE: the durable workflow source generator. netstandard2.0 like the analyzer, so the same reason
+       for Build Project="false"; MartenTests' reference builds it. -->
+  <Project Path="src/Wolverine.SourceGeneration/Wolverine.SourceGeneration.csproj">
+    <Build Project="false" />
+  </Project>
   <Project Path="src/Wolverine.HealthChecks/Wolverine.HealthChecks.csproj" />
   <Project Path="src/Wolverine.HealthChecks.Tests/Wolverine.HealthChecks.Tests.csproj" />
   <Project Path="src/Wolverine.ServiceDefaults/Wolverine.ServiceDefaults.csproj" />
