@@ -173,6 +173,7 @@ captured on `LastAct`, so a refusal can be asserted afterwards.
 | `WhenReceived(message, configureTracking?, options?)` | `message` arrives at the application through Wolverine, and the scenario waits for everything it caused to settle: cascades, forwarded events, local queues. `options` is Wolverine's `DeliveryOptions`, so `new DeliveryOptions { TenantId = "red" }` sends it for a tenant |
 | `WhenPublished(message, configureTracking?, options?)` | published to every subscriber, and the scenario waits for what it caused |
 | `WhenScheduledMessagesAreExecuted(timeout?)` | the messages the last act scheduled for later are executed now, and this is the new act. See [Scheduled messages](#scheduled-messages) |
+| `WhenTimePasses(duration, timeout?)` | `duration` passes on the spec's clock, and the scheduled messages that come due within it are executed in due order, as the new act. See [Letting time pass](#letting-time-pass) |
 | `WhenTracked(description, act, configureTracking?)` | any act that reaches the application from outside (an HTTP call, a client SDK, a hosted service poke) run inside the tracked session. What the act reaches sends or schedules is what the act caused. It cannot tell the act's events from its cascades' and never records a refusal: see [HTTP without WolverineFx.Bobcat.Http](#http-without-wolverinefx-bobcat-http) |
 | `WhenTracked(description, bus => …, configureTracking?)` | an act of your own, handed the tracked session's `IMessageBus`. What it sends, publishes or schedules through `bus` is the act's **own** message, exactly as `WhenReceived`'s message is: never counted as sent, and when only scheduled, caught by the [only-scheduled guard](#the-only-scheduled-guard) |
 | `WhenActing(description, services => …)` | any act at all, handed a fresh service scope. In a `WolverineScenario` it runs inside the tracked session too, so it waits for what it caused and carries the messages it sent. A message its own code sends through an `IMessageBus` or `IMessageContext` it resolves from `services` is its own message, as for the `bus` overload above |
@@ -222,6 +223,35 @@ Then steps after it judge the scheduled messages' handlers (a saga's timeout, a 
 what they caused. With no act before it, or an act that scheduled nothing, the step fails and stops the scenario,
 saying what the last act did instead. It stamps nothing on the Event Model: which messages are scheduled is only
 known at run time.
+
+#### Letting time pass {#letting-time-pass} <Badge type="tip" text="7.0" />
+
+`WhenScheduledMessagesAreExecuted` runs everything at once, so a saga that schedules an hour's deadline at the start
+and a poll every five minutes would have the deadline fire together with the first poll. `WhenTimePasses` moves the
+spec's clock forward instead, and executes only what comes due on the way:
+
+```csharp
+GivenTheTimeIs(new DateTimeOffset(2026, 3, 2, 9, 0, 0, TimeSpan.Zero));
+await WhenReceived(new WatchReport(id));                 // schedules PollReport (5 min) and ReportDeadline (1 hour)
+
+await WhenTimePasses(5.Minutes());                       // the new act: the first poll runs, and schedules the next
+ThenHandled<PollReport>();
+ThenNotHandled<ReportDeadline>();
+
+await WhenTimePasses(55.Minutes());                      // the polls due on the way, then the deadline at the hour
+ThenHandled<ReportDeadline>();
+await ThenNoSaga<ReportWatch>(id);
+```
+
+`WhenTimePasses(TimeSpan duration, TimeSpan? timeout = null)` executes, in due order, every scheduled message that
+comes due within `duration`: what earlier acts scheduled and what is scheduled while the time passes, such as the
+saga's next poll. Everything due later stays scheduled for the next `WhenTimePasses`, and time passing with nothing
+due is not a failure. It is Wolverine's `ITrackedSession.PlayScheduledMessagesAsync(advanceBy:)` underneath, see
+[Letting time pass](/guide/testing#letting-time-pass).
+
+The clock that moves is the ambient `BobcatClock`, the one `GivenTheTimeIs` freezes. An application that reads it
+through `services.ShareClock()` sees each message's due time while handling it. In `CritterStackSpec` the same
+step only moves the clock, since there is no bus. With no act before it, the step fails and stops the scenario.
 
 #### The only-scheduled guard {#the-only-scheduled-guard}
 

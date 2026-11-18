@@ -421,6 +421,64 @@ public partial class WolverineScenario : CritterStackScenario
         });
     }
 
+    /// <summary>
+    /// GH-5664. <paramref name="duration" /> passes: the scheduled messages that come due within it are executed, in due
+    /// order, through Wolverine's <see cref="ITrackedSession.PlayScheduledMessagesAsync(TimeSpan, TimeSpan?)" />, and
+    /// this is the new act. A message scheduled while the time passes, such as a saga's next poll, is executed too when
+    /// it comes due before the end; everything due later stays scheduled for the next <c>WhenTimePasses</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The clock that moves is the ambient <see cref="BobcatClock" />, the one an application that shares the spec's
+    /// clock reads (<c>services.ShareClock()</c>), so a handler sees the instant its message came due. A saga that
+    /// schedules a poll every five minutes and a deadline in an hour can be walked through step by step: the deadline
+    /// is executed once an hour has passed, not with the first poll. <see cref="WhenScheduledMessagesAreExecuted" />
+    /// still executes everything at once.
+    /// </para>
+    /// <para>
+    /// With no act before it, the step fails and stops the scenario. Time passing with nothing due is not a failure:
+    /// the act then did nothing, which a Then step can judge.
+    /// </para>
+    /// </remarks>
+    /// <param name="duration">How much time passes. Never negative.</param>
+    /// <param name="timeout">How long the act waits for everything it caused to settle. <see cref="Timeout" /> by default.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="duration" /> is negative: time only passes forward.</exception>
+    public Task WhenTimePasses(TimeSpan duration, TimeSpan? timeout = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(duration, TimeSpan.Zero);
+
+        // Synchronous on purpose: the clock is AsyncLocal, and one installed inside an async method never flows back to
+        // the spec, so the next step would not see the time that passed
+        var clock = BobcatClock.Controllable();
+        return root.passTimeAsync(duration, timeout ?? Timeout, clock);
+    }
+
+    private async Task passTimeAsync(TimeSpan duration, TimeSpan timeout, TimeProvider clock)
+    {
+        var previous = acted ? LastAct : null;
+
+        await inStep(ScenarioRecorder.Step("When", $"{formatDuration(duration)} passes"), async () =>
+        {
+            if (previous?.Session is not TrackedSession played)
+            {
+                throw new SpecCriticalException(
+                    "There is no act whose scheduled messages could come due: WhenTimePasses follows the When step that scheduled them.");
+            }
+
+            var due = played.pendingScheduled();
+            var end = played.Clock.GetUtcNow() + duration;
+            foreach (var type in due.Where(x => x.DueAt <= end).Select(x => x.Envelope.Message?.GetType()).OfType<Type>().Distinct())
+            {
+                recordTouched(type);
+            }
+
+            // Everything the window commits is the act's own: there is no one message to tell its work from a cascade's
+            _dispatched = null;
+            await executeAsync(_ => played.PlayScheduledMessagesAsync(duration, timeout, clock),
+                outcome => Task.FromResult(outcome with { CorrelationId = previous.CorrelationId ?? outcome.CorrelationId }));
+        });
+    }
+
     private static async Task<ITrackedSession> replayAsync(ActOutcome previous, ITrackedSession played, TimeSpan timeout)
     {
         try

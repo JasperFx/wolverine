@@ -24,6 +24,7 @@ internal partial class TrackedSession
         AssertNoExceptions = false;
         AlwaysTrackExternalTransports = parent.AlwaysTrackExternalTransports;
         CorrelationId = parent.CorrelationId;
+        _clock = parent.clock;
 
         Execution = c => func(_primaryLogger, c, _cancellation.Token);
     }
@@ -39,6 +40,9 @@ internal partial class TrackedSession
     public async Task ExecuteAndTrackAsync()
     {
         setActiveSession(this);
+
+        // GH-5664. Fix the session's clock before anything is recorded against it
+        _ = clock;
         
         foreach (var before in Befores)
         {

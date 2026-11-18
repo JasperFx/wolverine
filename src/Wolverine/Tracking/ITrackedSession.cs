@@ -184,6 +184,31 @@ public interface ITrackedSession
     /// <param name="timeout"></param>
     /// <returns></returns>
     Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan timeout);
+
+    /// <summary>
+    /// GH-5664. Let <paramref name="advanceBy" /> pass on the session's <see cref="Clock" />, and play only the messages
+    /// scheduled by the initial IHost that come due within that window, in due order. That includes a message scheduled
+    /// while the window plays, such as a saga's next poll, when it is due before the window ends. Everything due later
+    /// stays scheduled, and calling this again on the session it returns continues from where this one stopped.
+    /// </summary>
+    /// <remarks>
+    /// The clock is the application's own <see cref="TimeProvider" /> when the host registers one the session can move
+    /// (a public <c>Advance(TimeSpan)</c> method, as on <c>FakeTimeProvider</c>), or the clock given to
+    /// <see cref="TrackedSessionConfiguration.UseClock" />, so a saga reads the due time of the message it is handling.
+    /// Otherwise the session keeps a clock of its own, which the application does not read. Testing only: nothing in
+    /// the runtime reads the session's clock.
+    /// </remarks>
+    /// <param name="advanceBy">How much time passes. Call it by name, <c>PlayScheduledMessagesAsync(advanceBy: 1.Hours())</c>, since a single positional TimeSpan is the timeout of the overload that plays everything.</param>
+    /// <param name="timeout">How long the returned session waits for what the window caused. This session's timeout by default.</param>
+    /// <returns>A new session holding what the window played and caused</returns>
+    Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan advanceBy, TimeSpan? timeout = null)
+        => throw new NotSupportedException($"{GetType().FullName} cannot advance time");
+
+    /// <summary>
+    /// GH-5664. The session's virtual "now", which <see cref="PlayScheduledMessagesAsync(TimeSpan, TimeSpan?)" /> moves
+    /// forward. It is carried to the session that call returns.
+    /// </summary>
+    TimeProvider Clock => TimeProvider.System;
 }
 
 #endregion

@@ -2594,7 +2594,7 @@ public class CritterStackScenario
 
     // "3 days", "1 hour 30 minutes", "0.5 milliseconds": the words FriendlyTimeSpanParser reads back, to the
     // tick. Never negative; the clock steps refuse one before they get here
-    private static string formatDuration(TimeSpan duration)
+    internal static string formatDuration(TimeSpan duration)
     {
         if (duration == TimeSpan.Zero) return "0 seconds";
 

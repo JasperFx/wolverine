@@ -1711,6 +1711,11 @@ public async Task play_back_scheduled_timeout()
 
 The `PlayScheduledMessagesAsync()` method on `ITrackedSession` is the key here — it lets you "fast forward" scheduled messages in tests without waiting for real time to pass.
 
+When a saga schedules more than one timeout, such as a recurring poll under an overall deadline, play them as time
+passes instead of all at once: `PlayScheduledMessagesAsync(advanceBy: 1.Hours())` plays only what comes due within the
+hour, in due order, and keeps a virtual clock the saga can read through `TimeProvider`. See
+[Letting time pass](/guide/testing#letting-time-pass).
+
 ### Testing the NotFound Path
 
 Wolverine sagas support a static `NotFound()` method that handles messages when no matching saga state exists. This is a common pattern for handling race conditions or out-of-order message delivery:
@@ -1760,7 +1765,7 @@ var allMessages = tracked.Sent.AllMessages().ToArray();
 | Feature | NServiceBus | Rebus | Wolverine |
 |---------|-------------|-------|-----------|
 | **Testing API** | `SagaScenarioTestingLibrary` with virtual storage | `SagaFixture<T>` with in-memory storage | `TrackedSession` + real or in-memory persistence |
-| **Virtual time** | Built-in time advancement | Manual timeout delivery | `PlayScheduledMessagesAsync()` on `ITrackedSession` |
+| **Virtual time** | Built-in time advancement | Manual timeout delivery | `PlayScheduledMessagesAsync(advanceBy:)` on `ITrackedSession` |
 | **Message assertions** | Saga-specific assert methods | `fixture.AssertSagaData()` | `tracked.Sent.SingleMessage<T>()`, `tracked.Executed.MessagesOf<T>()` |
 | **State inspection** | Via virtual saga storage | Via `SagaFixture.Data` | Load state directly from persistence (in-memory, Marten, EF Core, etc.) |
 | **External messages** | Separate test transport | Separate fake transport | `DisableAllExternalWolverineTransports()` + `tracked.Sent` inspection |

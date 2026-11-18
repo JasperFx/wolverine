@@ -29,6 +29,20 @@ public class TrackedSessionConfiguration
     }
 
     /// <summary>
+    /// GH-5664. Use <paramref name="clock" /> as this session's virtual "now", which
+    /// <see cref="ITrackedSession.PlayScheduledMessagesAsync(TimeSpan, TimeSpan?)" /> moves forward. Give it the clock the
+    /// application reads, so a saga sees the due time of the message it is handling. Without this, the session uses the
+    /// host's registered <see cref="TimeProvider" /> when it can move it, or else a clock of its own.
+    /// </summary>
+    /// <param name="clock">A clock with a public <c>Advance(TimeSpan)</c> method, such as <c>FakeTimeProvider</c></param>
+    /// <exception cref="ArgumentException">The clock cannot be moved forward</exception>
+    public TrackedSessionConfiguration UseClock(TimeProvider clock)
+    {
+        Session.clock = TrackedClock.Use(clock);
+        return this;
+    }
+
+    /// <summary>
     ///     GH-4931. Run the tracked work under this correlation id, which every message it causes carries on,
     ///     and which an event store with correlation ids enabled records on every event they append — so a
     ///     test can find what its act caused even across an asynchronous boundary the session does not see,
