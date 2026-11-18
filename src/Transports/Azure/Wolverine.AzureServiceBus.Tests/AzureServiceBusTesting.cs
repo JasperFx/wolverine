@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx.Core;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
@@ -26,6 +27,11 @@ public static class AzureServiceBusTesting
                 _cleaned = true;
             }
         }
+
+        // A healthy emulator provisions a test host's entities in a few seconds. The two minute default only makes a host
+        // that cannot start (the emulator's 50 entity cap, a wiped namespace) take two minutes to fail, three times over
+        // with the gate's retries. The budget is checked between attempts, so a slow first attempt still finishes
+        options.BrokerInitializationTimeout = 30.Seconds();
 
         return options
             .UseAzureServiceBusEmulator(Servers.AzureServiceBusConnectionString,

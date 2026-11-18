@@ -226,6 +226,37 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     public string? ManagementConnectionString { get; set; }
 
     /// <summary>
+    /// True when the management client talks to the Azure Service Bus emulator, that is when it is built from a
+    /// connection string with <c>UseDevelopmentEmulator=true</c>. Provisioning creates entities first on the emulator
+    /// and only checks for existence first against a real namespace: see <see cref="AzureServiceBusQueue.SetupAsync(ServiceBusAdministrationClient, bool)" />
+    /// </summary>
+    internal bool TargetsEmulator
+    {
+        get
+        {
+            // The same precedence createServiceBusAdministrationClient() uses: a credential wins over any connection string
+            if (FullyQualifiedNamespace.IsNotEmpty() &&
+                (TokenCredential != null || NamedKeyCredential != null || SasCredential != null))
+            {
+                return false;
+            }
+
+            return IsEmulatorConnectionString(ManagementConnectionString ?? ConnectionString);
+        }
+    }
+
+    internal static bool IsEmulatorConnectionString(string? connectionString)
+    {
+        if (connectionString.IsEmpty()) return false;
+
+        return connectionString!.Split(';', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Split('=', 2))
+            .Any(pair => pair.Length == 2 &&
+                         pair[0].Trim().Equals("UseDevelopmentEmulator", StringComparison.OrdinalIgnoreCase) &&
+                         pair[1].Trim().Equals("true", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// The configured connection string with the <c>SharedAccessKey</c> value
     /// masked. Safe to render in diagnostic output.
     /// </summary>
@@ -255,9 +286,16 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         TransportType = ServiceBusTransportType.AmqpTcp
     };
 
-    public async Task WithManagementClientAsync(Func<ServiceBusAdministrationClient, Task> action)
+    public Task WithManagementClientAsync(Func<ServiceBusAdministrationClient, Task> action)
+        => WithManagementClientAsync((client, _) => action(client));
+
+    /// <summary>
+    /// The same as <see cref="WithManagementClientAsync(Func{ServiceBusAdministrationClient, Task})" />, but the action
+    /// also gets the transport of the namespace each client belongs to: this one, then each tenant's
+    /// </summary>
+    internal async Task WithManagementClientAsync(Func<ServiceBusAdministrationClient, AzureServiceBusTransport, Task> action)
     {
-        await action(_managementClient.Value);
+        await action(_managementClient.Value, this);
 
         foreach (var tenant in Tenants)
         {

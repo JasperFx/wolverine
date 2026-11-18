@@ -24,7 +24,10 @@ public class StrictTenancyColorHandler
 /// unknown tenant id is dead lettered
 /// </summary>
 // No [Collection] attribute: this suite is one collection per assembly (NoParallelization.cs), and a named collection
-// would run beside the classes that delete every object in the shared emulator
+// would run beside the classes that delete every object in the shared emulator.
+// Isolated: LocalGate runs this suite on two lanes, and the second lane uses asb-emulator-2 as its own namespace, so the
+// supervisor runs these tests alone, after the lanes, where nothing else is using either emulator
+[Trait("Isolated", "true")]
 public class strict_tenancy_5196 : IAsyncLifetime
 {
     public async ValueTask InitializeAsync()

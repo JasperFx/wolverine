@@ -133,6 +133,9 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
 
     public IListener? Listener { get; private set; }
 
+    /// <summary>Null unless the endpoint enforces back pressure. Test seam.</summary>
+    internal BackPressureAgent? BackPressure => _backPressureAgent;
+
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
@@ -344,6 +347,41 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
     /// </param>
     private async ValueTask StopAndDrainCoreAsync(bool latchBeforeDrain, bool drainCompanionQueue = false)
     {
+        // GH-4866. A back pressure resume must never run beside a stop. The stop drops _receiver before it drains,
+        // so for the length of the drain a too-busy listener reads TooBusy with a local count of 0, which is exactly
+        // what the sweep restarts on; and the stop does not hold _semaphore (PauseForInboxRecoveryAsync calls it
+        // with the semaphore held). Counted here, ResumeFromBackPressureAsync declines while any stop is under way,
+        // and a resume that was already starting the listener is waited out first, so the stop then finds the
+        // listener it built and stops that too.
+        Task? resuming;
+        lock (_backPressureGate)
+        {
+            _stopsInProgress++;
+            resuming = _backPressureResume;
+        }
+
+        try
+        {
+            if (resuming != null)
+            {
+#pragma warning disable VSTHRD003 // started by the resume, and waiting it out is the whole point
+                await resuming;
+#pragma warning restore VSTHRD003
+            }
+
+            await stopAndDrainAsync(latchBeforeDrain, drainCompanionQueue);
+        }
+        finally
+        {
+            lock (_backPressureGate)
+            {
+                _stopsInProgress--;
+            }
+        }
+    }
+
+    private async ValueTask stopAndDrainAsync(bool latchBeforeDrain, bool drainCompanionQueue)
+    {
         // GH-3590. Always tear the loop down first -- StartAsync() rebuilds it when this listener becomes
         // the active one again.
         stopInboxRecovery();
@@ -510,6 +548,65 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
         {
             await _circuitBreaker.ListenerResumedAsync(reason, _logger);
         }
+    }
+
+    // GH-4866. Guards _stopsInProgress and _backPressureResume, so a stop and a back pressure resume each see the
+    // other: see StopAndDrainCoreAsync and ResumeFromBackPressureAsync.
+    private readonly object _backPressureGate = new();
+    private int _stopsInProgress;
+    private Task? _backPressureResume;
+
+    /// <summary>
+    /// GH-4866. The back pressure sweep's way back in. Unlike <see cref="StartAsync" /> it only restarts a listener
+    /// that back pressure paused and that nothing has stopped since: the sweep decides from <see cref="Status" /> and
+    /// <see cref="QueueCount" /> before it calls this, and a stop can land in between, or already be draining with the
+    /// receiver dropped (a count of 0). Restarting then put the listener, and a global partition slot's companion
+    /// queue, back to work on a slot this node had just given up. Answers whether it restarted the listener.
+    /// </summary>
+    internal async ValueTask<bool> ResumeFromBackPressureAsync()
+    {
+        TaskCompletionSource? resuming = null;
+
+        // Same semaphore as StartAsync and MarkAsTooBusyAndStopReceivingAsync, so the TooBusy read below cannot
+        // interleave with either of them
+        await _semaphore.WaitAsync();
+        try
+        {
+            lock (_backPressureGate)
+            {
+                if (Status != ListeningStatus.TooBusy || _stopsInProgress > 0)
+                {
+                    return false;
+                }
+
+                resuming = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                _backPressureResume = resuming.Task;
+            }
+
+            await startListenerAsync();
+        }
+        finally
+        {
+            if (resuming != null)
+            {
+                lock (_backPressureGate)
+                {
+                    _backPressureResume = null;
+                }
+
+                resuming.SetResult();
+            }
+
+            _semaphore.Release();
+        }
+
+        // As in startAsync, outside the semaphore
+        if (Status == ListeningStatus.Accepting && _circuitBreaker != null)
+        {
+            await _circuitBreaker.ListenerResumedAsync(CircuitBreakerResetReason.ExplicitStart, _logger);
+        }
+
+        return true;
     }
 
     private async ValueTask startListenerAsync()

@@ -63,6 +63,8 @@ partial class Build
 
     static readonly HashSet<string> _startedFresh = new(StringComparer.OrdinalIgnoreCase);
 
+    static IDisposable _asbLockForTheRun;
+
     bool freshContainersDisabled =>
         NoFreshContainers ||
         Environment.GetEnvironmentVariable("WOLVERINE_NO_FRESH_CONTAINERS") is "1" or "true" or "True" or "TRUE";
@@ -79,7 +81,15 @@ partial class Build
         {
             var services = new List<string>();
             if (ExecutionPlan.Any(x => x.Name == nameof(TestAllPersistence))) services.Add("sqlserver");
-            if (ExecutionPlan.Any(x => x.Name == nameof(TestAllTransports))) services.Add("asb-emulator");
+            if (ExecutionPlan.Any(x => x.Name == nameof(TestAllTransports)))
+            {
+                services.Add("asb-emulator");
+
+                // Held until this build process exits, after TestAllTransports: one Azure Service Bus run on the box at
+                // a time (build/AzureServiceBusLock.cs)
+                _asbLockForTheRun ??= acquireAzureServiceBusLock();
+            }
+
             StartServicesFresh(services.ToArray());
         });
 
