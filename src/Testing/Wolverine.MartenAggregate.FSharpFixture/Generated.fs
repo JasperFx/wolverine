@@ -2,6 +2,7 @@
 
 namespace Internal.Generated.WolverineHandlers
 
+open Marten
 open System
 open System.Threading
 open System.Threading.Tasks
@@ -10,8 +11,9 @@ open Wolverine.Runtime
 open Wolverine.Runtime.Handlers
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
-type IncrementCounterHandler805386214(outboxedSessionFactory: Wolverine.Marten.Publishing.OutboxedSessionFactory) =
+type IncrementCounterHandler805386214(documentStore: Marten.IDocumentStore, outboxedSessionFactory: Wolverine.Marten.Publishing.OutboxedSessionFactory) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _documentStore = documentStore
     let _outboxedSessionFactory = outboxedSessionFactory
 
     override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
@@ -25,6 +27,8 @@ type IncrementCounterHandler805386214(outboxedSessionFactory: Wolverine.Marten.P
             // Application-specific Open Telemetry auditing
             if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
                 (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("counter.id", incrementCounter.CounterId) |> ignore
+            // [WaitForProjection]: wait for Counter to reach an incoming Wolverine-Consistency-Token
+            do! (Wolverine.Persistence.EventSourcing.ReadYourWrites.WaitForEnvelopeTokenAsync(_documentStore, [| typeof<WolverineMartenAggregateFSharpSample.Counter> |], 5000, context, cancellation) :> System.Threading.Tasks.Task)
             if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
                 (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenAggregateFSharpSample.IncrementHandler") |> ignore
                 (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenAggregateFSharpSample.IncrementHandler") |> ignore
@@ -46,5 +50,8 @@ type IncrementCounterHandler805386214(outboxedSessionFactory: Wolverine.Marten.P
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
             do! context.FlushOutgoingMessagesAsync()
 
+
+            // [WaitForProjection]: wait for Counter to process the events this session appended
+            do! (Wolverine.Persistence.EventSourcing.ReadYourWrites.WaitForAppendedEventsAsync(_documentStore, documentSession, [| typeof<WolverineMartenAggregateFSharpSample.Counter> |], 5000, context, cancellation) :> System.Threading.Tasks.Task)
         }
 

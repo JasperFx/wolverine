@@ -105,10 +105,12 @@ internal class OpenDocumentSessionFrame : AsyncFrame
     {
         _types = types;
         _sessionType = sessionType;
-        ReturnVariable = new Variable(sessionType, this);
+        _returnVariable = new SessionVariable(sessionType, this);
     }
 
-    public Variable ReturnVariable { get; }
+    private readonly SessionVariable _returnVariable;
+
+    public Variable ReturnVariable => _returnVariable;
 
     private string methodName => ReturnVariable.VariableType == _types.QuerySession
         ? QuerySessionMethod
@@ -179,6 +181,9 @@ internal class OpenDocumentSessionFrame : AsyncFrame
             {
                 yield return documentSession;
                 ReturnVariable.OverrideName($"(({_types.QuerySession}){documentSession.Usage})");
+
+                // GH-5401: F# has no C-style cast. A document session is a query session, so upcast it
+                _returnVariable.FSharpCast = $"({documentSession.FSharpUsage} :> {_types.QuerySession.FSharpName()})";
                 yield break;
             }
         }
@@ -210,6 +215,21 @@ internal class OpenDocumentSessionFrame : AsyncFrame
             _nativeFactory = chain.FindVariable(_types.NativeSessionFactory);
             yield return _nativeFactory;
         }
+    }
+
+    /// <summary>
+    ///     The session variable, which renders its own F# cast when it is only the chain's document session seen as a
+    ///     query session
+    /// </summary>
+    private sealed class SessionVariable : Variable
+    {
+        public SessionVariable(Type variableType, Frame creator) : base(variableType, creator)
+        {
+        }
+
+        public string? FSharpCast { get; set; }
+
+        public override string FSharpUsage => FSharpCast ?? base.FSharpUsage;
     }
 }
 

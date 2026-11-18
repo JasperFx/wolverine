@@ -666,15 +666,15 @@ partial class Build
     }
 
     /// <summary>
-    /// The F# compile-gate suites regenerate their fixtures' committed Generated.fs as they run, as they do
+    /// The F# compile-gate suites regenerate their fixtures' committed *Generated.fs as they run, as they do
     /// in fsharp.yml's throwaway checkout. Here the checkout is yours, so a fixture that was clean before
     /// the gate is put back after it; one you had already changed is left alone.
     /// </summary>
     static string[] cleanFSharpFixtures()
     {
         var fixtures = Directory.GetDirectories(RootDirectory / "src" / "Testing", "*.FSharpFixture")
-            .Select(d => Path.Combine(d, "Generated.fs"))
-            .Where(File.Exists)
+            // Generated.fs, and ReadYourWritesGenerated.fs beside it in the Http fixture (GH-5401)
+            .SelectMany(d => Directory.GetFiles(d, "*Generated.fs"))
             .Select(f => Path.GetRelativePath(RootDirectory, f).Replace('\\', '/'))
             .ToArray();
         if (fixtures.Length == 0) return [];

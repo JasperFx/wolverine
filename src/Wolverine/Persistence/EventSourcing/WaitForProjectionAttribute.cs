@@ -87,6 +87,11 @@ internal static class ProjectionWaitFrames
     {
         return $"new System.Type[]{{{types.Select(x => $"typeof({x.FullNameInCode()})").Join(", ")}}}";
     }
+
+    internal static string FSharpTypesArray(IEnumerable<Type> types)
+    {
+        return $"[| {types.Select(x => $"typeof<{x.FSharpName()}>").Join("; ")} |]";
+    }
 }
 
 /// <summary>
@@ -171,6 +176,33 @@ internal class WaitForAppendedEventsFrame : AsyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (_session != null)
+        {
+            writer.BlankLine();
+            writer.WriteComment(
+                $"[WaitForProjection]: wait for {Projections.Select(x => x.Name).Join(", ")} to process the events this session appended");
+            var call =
+                $"{typeof(ReadYourWrites).FSharpName()}.{nameof(ReadYourWrites.WaitForAppendedEventsAsync)}({_store!.FSharpUsage}, {_session.FSharpUsage}, {ProjectionWaitFrames.FSharpTypesArray(Projections)}, {TimeoutMs}, {_context!.FSharpUsage}, {_cancellation!.FSharpUsage})";
+
+            if (ResultWriter is { } resultWriter)
+            {
+                writer.Write($"let! projectionWait = {call}");
+                writer.Write(
+                    $"{resultWriter.HandlerType.FSharpName()}.{resultWriter.MethodName}({_resultTarget!.FSharpUsage}, projectionWait)");
+            }
+            else
+            {
+                // The result only matters to an HTTP response. A `do!` rather than `let! _ =`, which F# refuses as
+                // the last line of the task when this is the chain's last frame.
+                writer.Write($"do! ({call} :> System.Threading.Tasks.Task)");
+            }
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
 
 /// <summary>
@@ -241,5 +273,26 @@ internal class WaitForConsistencyTokenFrame : AsyncFrame
         }
 
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment(
+            $"[WaitForProjection]: wait for {Projections.Select(x => x.Name).Join(", ")} to reach an incoming {ReadYourWrites.ConsistencyTokenHeader}");
+
+        var types = ProjectionWaitFrames.FSharpTypesArray(Projections);
+        if (TokenSource is { } source)
+        {
+            writer.Write(
+                $"do! {source.HandlerType.FSharpName()}.{source.MethodName}({_tokenSource!.FSharpUsage}, {_store!.FSharpUsage}, {types}, {TimeoutMs}, {_context!.FSharpUsage}, {_cancellation!.FSharpUsage})");
+        }
+        else
+        {
+            // Nothing before the handler reads the result, so discard it as a plain Task
+            writer.Write(
+                $"do! ({typeof(ReadYourWrites).FSharpName()}.{nameof(ReadYourWrites.WaitForEnvelopeTokenAsync)}({_store!.FSharpUsage}, {types}, {TimeoutMs}, {_context!.FSharpUsage}, {_cancellation!.FSharpUsage}) :> System.Threading.Tasks.Task)");
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
     }
 }
