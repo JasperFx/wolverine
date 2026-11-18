@@ -81,7 +81,9 @@ the .NET 10 SDK, so `dotnet test` runs in the platform's own mode:
   `./build.sh CoreTests --framework net10.0` locally.
 - **Everything CI runs, on this box:** `./build.sh LocalGate` (GH-5125) builds once, runs every suite as a unit
   of one Bobcat gate (longest first, one track per Docker service), then the AOT, samples, command-line and
-  codegen gates. `./build.sh LocalGateSuites --gate-only <name>` runs a slice. The list is `build/LocalGate.cs`;
+  codegen gates. `./build.sh LocalGateSuites --gate-only <name>` runs a slice. The Azure Service Bus suite is
+  opt-in: a default run skips it, so add `--gate-with AzureServiceBus` when a change touches `src/Transports/Azure`
+  (or run it alone with `--gate-only AzureServiceBus`). The list is `build/LocalGate.cs`;
   a new test project must go in its table or its `NotGated` list, or `./build.sh ci` fails.
 - **Gating a Stoat plan on a suite:** run its target with `BOBCAT_RUN_TAG={plan}/{node}` set exactly as the
   plan gave it. Every supervised run publishes to the Bobcat monitor when one answers. The command per

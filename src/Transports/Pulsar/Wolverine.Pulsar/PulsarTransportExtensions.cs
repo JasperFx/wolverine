@@ -57,7 +57,9 @@ public static class PulsarTransportExtensions
 
     /// <summary>
     /// Direct Wolverine to connect to Pulsar using the named connection string from IConfiguration as the
-    /// client's service URL. This option is useful for Aspire integration between Wolverine and Aspire
+    /// client's service URL. This option is useful for Aspire integration between Wolverine and Aspire: the
+    /// WolverineFx.Aspire.Hosting.Pulsar package's <c>builder.AddPulsar("pulsar")</c> puts the broker's service URL
+    /// at <c>ConnectionStrings:pulsar</c> in every project that references it
     ///
     /// <para>
     /// The value is a Pulsar service URL such as <c>pulsar://localhost:6650</c> or
@@ -118,9 +120,9 @@ public static class PulsarTransportExtensions
         // GH-5126: the DotPulsar builder is only consumed when the transport initializes
         // (PulsarTransport.InitializeAsync -> Builder.Build()), which is after the named connection string
         // has been resolved and applied at the top of host startup. The extra configuration is applied after
-        // the service URL so it can still override anything. There is no Aspire hosting integration for
-        // Pulsar (official or CommunityToolkit) to name in the missing-connection message.
-        endpoints.ApplyNamedConnectionString("Pulsar", connectionStringName, null, value =>
+        // the service URL so it can still override anything. The missing-connection message names
+        // AddPulsar(), from Wolverine's own hosting integration, WolverineFx.Aspire.Hosting.Pulsar (GH-5603).
+        endpoints.ApplyNamedConnectionString("Pulsar", connectionStringName, "AddPulsar", value =>
         {
             transport.Builder.ServiceUrl(ParseServiceUrl(value));
             configure?.Invoke(transport.Builder);

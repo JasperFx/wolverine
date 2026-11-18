@@ -6,9 +6,10 @@ using Wolverine.RDBMS;
 namespace Wolverine.Postgresql.Schema;
 
 /// <summary>
-/// GH-5519. The schema delta of the PostgreSQL inbox table. Identical to Weasel's, except when a partitioned inbox goes
-/// back to an unpartitioned one: <see cref="DurabilitySettings.EnableInboxPartitioning" /> set to false, or
-/// <see cref="WolverineOptions.RestoreV6Defaults" /> called, after a Wolverine 7.0 start partitioned it.
+/// GH-5519. The schema delta of the PostgreSQL inbox table. Identical to Weasel's, except when the inbox is rebuilt to
+/// change its partitioning: an unpartitioned 6.x inbox partitioned on the first 7.0 start, or a partitioned inbox going
+/// back to an unpartitioned one (<see cref="DurabilitySettings.EnableInboxPartitioning" /> set to false, or
+/// <see cref="WolverineOptions.RestoreV6Defaults" /> called, after a Wolverine 7.0 start partitioned it).
 /// </summary>
 /// <remarks>
 /// <para>Weasel writes the primary key change before its rebuild, and PostgreSQL refuses to give a partitioned table a
@@ -16,9 +17,12 @@ namespace Wolverine.Postgresql.Schema;
 /// rebuild recreates the table with its primary key anyway, so this writes the rebuild alone.</para>
 ///
 /// <para>It runs in an explicit transaction that first takes <c>ACCESS EXCLUSIVE</c> on the inbox, so the copy aside
-/// sees every committed row and nothing reads or writes the inbox until the commit. (Going the other way the primary key
-/// change takes that lock, see the migration guide.) PostgreSQL refuses LOCK TABLE in the implicit transaction a
-/// pipelined script runs in, hence the explicit block.</para>
+/// sees every committed row and nothing reads or writes the inbox until the commit. PostgreSQL refuses LOCK TABLE in the
+/// implicit transaction a pipelined script runs in, hence the explicit block.</para>
+///
+/// <para>Partitioning an unpartitioned inbox is Weasel's own rebuild, wrapped in the same transaction and lock. Before
+/// Weasel 10.0.0-alpha.8 that rebuild started with the primary key change, whose ALTER TABLE took the lock; weasel#871
+/// dropped that step, and with it the lock, so a row another node committed while the copy aside ran was lost.</para>
 ///
 /// <para>A partitioned inbox can hold one message identity as both Incoming and Scheduled (and Handled), which the
 /// unpartitioned primary key cannot. The copy back keeps the row that supersedes the others, as the scheduled message
@@ -36,8 +40,23 @@ internal class IncomingEnvelopeTableDelta : TableDelta
     public bool UnpartitionsExistingTable =>
         Actual?.Partitioning != null && Expected.Partitioning == null && PartitionDelta == PartitionDelta.Rebuild;
 
+    /// <summary>
+    /// True when this delta partitions an existing, unpartitioned inbox
+    /// </summary>
+    public bool PartitionsExistingTable =>
+        Actual != null && Actual.Partitioning == null && Expected.Partitioning != null && PartitionDelta == PartitionDelta.Rebuild;
+
     public override void WriteUpdate(Migrator rules, TextWriter writer)
     {
+        if (PartitionsExistingTable)
+        {
+            writer.WriteLine("begin;");
+            writer.WriteLine($"lock table {Expected.Identifier} in access exclusive mode;");
+            base.WriteUpdate(rules, writer);
+            writer.WriteLine("commit;");
+            return;
+        }
+
         if (!UnpartitionsExistingTable)
         {
             base.WriteUpdate(rules, writer);

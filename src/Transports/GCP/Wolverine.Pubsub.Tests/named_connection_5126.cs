@@ -61,7 +61,8 @@ public class named_connection_5126
         });
 
         ex.Missing.Select(x => x.Name).ShouldBe(["gcp"]);
-        ex.Message.ShouldContain("builder.AddFlociGcp(\"gcp\")");
+        // GH-5605: names the AppHost call from WolverineFx.Aspire.Hosting.Pubsub
+        ex.Message.ShouldContain("builder.AddPubsubEmulator(\"gcp\")");
     }
 
     [Fact]
@@ -74,7 +75,8 @@ public class named_connection_5126
         });
 
         ex.Missing.Select(x => x.Name).ShouldBe(["gcp2"]);
-        ex.Message.ShouldContain("builder.AddFlociGcp(\"gcp2\")");
+        // GH-5605: names the AppHost call from WolverineFx.Aspire.Hosting.Pubsub
+        ex.Message.ShouldContain("builder.AddPubsubEmulator(\"gcp2\")");
     }
 
     [Theory]

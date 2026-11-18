@@ -196,12 +196,24 @@
     <Project Path="src/Samples/WebApiWithMarten/WebApiWithMarten.csproj" />
   </Folder>
   <Folder Name="/Samples/AspireWithKafka/">
-    <Project Path="src/Samples/AspireWithKafka/AppHost/AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithKafka/AppHost/AspireWithKafka.AppHost.csproj" />
     <Project Path="src/Samples/AspireWithKafka/Consumer/Consumer.csproj" />
     <Project Path="src/Samples/AspireWithKafka/Publisher/Publisher.csproj" />
   </Folder>
+  <Folder Name="/Samples/AspireWithLocalStack/">
+    <Project Path="src/Samples/AspireWithLocalStack/AppHost/AspireWithLocalStack.AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithLocalStack/Pinger/AspireWithLocalStack.Pinger.csproj" />
+  </Folder>
+  <Folder Name="/Samples/AspireWithPubsub/">
+    <Project Path="src/Samples/AspireWithPubsub/AppHost/AspireWithPubsub.AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithPubsub/Pinger/AspireWithPubsub.Pinger.csproj" />
+  </Folder>
+  <Folder Name="/Samples/AspireWithPulsar/">
+    <Project Path="src/Samples/AspireWithPulsar/AppHost/AspireWithPulsar.AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithPulsar/Pinger/AspireWithPulsar.Pinger.csproj" />
+  </Folder>
   <Folder Name="/Samples/AspireWithRabbitMq/">
-    <Project Path="src/Samples/AspireWithRabbitMq/AppHost/AppHost.csproj" />
+    <Project Path="src/Samples/AspireWithRabbitMq/AppHost/AspireWithRabbitMq.AppHost.csproj" />
     <Project Path="src/Samples/AspireWithRabbitMq/Pinger/Pinger.csproj" />
     <Project Path="src/Samples/AspireWithRabbitMq/Ponger/Ponger.csproj" />
   </Folder>
@@ -341,6 +353,7 @@
     <Project Path="src/Testing/OrderExtension/OrderExtension.csproj" />
     <Project Path="src/Testing/PolicyTests/PolicyTests.csproj" />
     <Project Path="src/Testing/SlowTests/SlowTests.csproj" />
+    <Project Path="src/Testing/Wolverine.Aspire.Hosting.Tests/Wolverine.Aspire.Hosting.Tests.csproj" />
     <Project Path="src/Testing/Wolverine.Behavioural.FSharpTests/Wolverine.Behavioural.FSharpTests.csproj" />
     <Project Path="src/Testing/Wolverine.ComplianceTests/Wolverine.ComplianceTests.csproj" />
     <Project Path="src/Testing/Wolverine.Core.FSharpTests/Wolverine.Core.FSharpTests.csproj" />
@@ -357,12 +370,14 @@
     <Project Path="src/Transports/AWS/Wolverine.AmazonSns/Wolverine.AmazonSns.csproj" />
     <Project Path="src/Transports/AWS/Wolverine.AmazonSqs.Tests/Wolverine.AmazonSqs.Tests.csproj" />
     <Project Path="src/Transports/AWS/Wolverine.AmazonSqs/Wolverine.AmazonSqs.csproj" />
+    <Project Path="src/Transports/AWS/Wolverine.Aspire.Hosting.LocalStack/Wolverine.Aspire.Hosting.LocalStack.csproj" />
   </Folder>
   <Folder Name="/Transports/Azure/">
     <Project Path="src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Wolverine.AzureServiceBus.Tests.csproj" />
     <Project Path="src/Transports/Azure/Wolverine.AzureServiceBus/Wolverine.AzureServiceBus.csproj" />
   </Folder>
   <Folder Name="/Transports/GCP/">
+    <Project Path="src/Transports/GCP/Wolverine.Aspire.Hosting.Pubsub/Wolverine.Aspire.Hosting.Pubsub.csproj" />
     <Project Path="src/Transports/GCP/Wolverine.Pubsub.Http/Wolverine.Pubsub.Http.csproj" />
     <Project Path="src/Transports/GCP/Wolverine.Pubsub.Tests/Wolverine.Pubsub.Tests.csproj" />
     <Project Path="src/Transports/GCP/Wolverine.Pubsub/Wolverine.Pubsub.csproj" />
@@ -383,6 +398,7 @@
     <Project Path="src/Transports/NATS/Wolverine.Nats/Wolverine.Nats.csproj" />
   </Folder>
   <Folder Name="/Transports/Pulsar/">
+    <Project Path="src/Transports/Pulsar/Wolverine.Aspire.Hosting.Pulsar/Wolverine.Aspire.Hosting.Pulsar.csproj" />
     <Project Path="src/Transports/Pulsar/Wolverine.Pulsar.Tests/Wolverine.Pulsar.Tests.csproj" />
     <Project Path="src/Transports/Pulsar/Wolverine.Pulsar/Wolverine.Pulsar.csproj" />
   </Folder>

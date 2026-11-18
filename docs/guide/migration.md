@@ -503,9 +503,9 @@ The other relational stores keep their unpartitioned inbox and only use the part
 `EnableInboxPartitioning = true` explicitly, as in 6.x.
 
 **An existing inbox is rebuilt on the first 7.0 start.** PostgreSQL cannot partition a table in place, so with
-`AutoCreate.CreateOrUpdate` the first 7.0 node to start changes the inbox's primary key, copies the table aside, drops
-it, creates it again partitioned and copies the rows back, in one transaction. Main database and every tenant database
-alike. The primary key change takes an `ACCESS EXCLUSIVE` lock first, so the copy sees every committed row and **every
+`AutoCreate.CreateOrUpdate` the first 7.0 node to start copies the table aside, drops it, creates it again partitioned
+and copies the rows back, in one transaction. Main database and every tenant database alike. The transaction takes an
+`ACCESS EXCLUSIVE` lock on the inbox first, so the copy sees every committed row and **every
 read and write of the inbox waits until the rebuild commits**. That takes as long as the copies take, so it grows with
 the number of rows, including the Handled rows kept for `KeepAfterMessageHandling`. As a guide, an inbox of 100,000
 rows with 500-byte bodies was rebuilt in well under a second on a laptop's PostgreSQL in Docker. Wolverine serializes its
@@ -742,8 +742,12 @@ What each store needs from you:
 |---|---|---|
 | Marten | none; the property is also mapped to Marten's own `mt_last_modified` column | loaded with their `mt_last_modified` value |
 | Lightweight saga tables (PostgreSQL, SQL Server, MySQL, SQLite, Oracle) | none; every table already had a `last_modified` column. It is now written with the property's value | PostgreSQL, SQL Server, MySQL and SQLite load the column into the property. Oracle reads `default(DateTimeOffset)` until the saga's next update |
-| EF Core | **yes**: the base-class property becomes a mapped column in your `DbContext`. Add an EF Core migration for it, or `modelBuilder.Entity<MySaga>().Ignore(x => x.LastModified)` to keep the old schema (the property is still set in memory) | the column's value from your migration's default (or `default(DateTimeOffset)`) until the saga's next update |
+| EF Core | **yes**: the base-class property becomes a mapped column in your `DbContext`. With `UseEntityFrameworkCoreWolverineManagedMigrations()`, Wolverine adds the column to the existing table at startup. With EF Core migrations, add a migration for it, or `modelBuilder.Entity<MySaga>().Ignore(x => x.LastModified)` to keep the old schema (the property is still set in memory) | `DateTimeOffset.MinValue`, the column's default, until the saga's next update |
 | Polecat, Fisher, RavenDb, CosmosDb, Redis, Azure Blob Storage, Amazon S3, in-memory | none; the value is saved with the rest of the saga | `default(DateTimeOffset)` until the saga's next update |
+
+On EF Core, Wolverine gives the mapped `LastModified` column a default of `DateTimeOffset.MinValue` (unless you
+configured a default yourself), so the column can be added to a table that already has rows (GH-5636). Your next EF
+Core migration picks that default up.
 
 On EF Core, a saga that is loaded and saved again is now always written: setting `LastModified` makes the entity
 `Modified`, which also increments `Version`. Before 7.0, a message that changed nothing on the saga left the row and

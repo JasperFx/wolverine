@@ -124,8 +124,9 @@ public static class ScaffoldNoticeCodes
     public const string ExistingAggregateKeepsIdentity = "existing-aggregate-keeps-identity";
 
     /// <summary>
-    ///     GH-5360. A slice decides against one stream and starts another (or works against several), and
-    ///     <c>Emits&lt;T&gt;()</c> does not say which stream each event belongs to, so no Apply methods were planned.
+    ///     GH-5360. A slice works against several streams, and for some of the events it emits neither a stream lane
+    ///     (<c>.Emits&lt;T&gt;().OnStream&lt;TAggregate&gt;()</c>) nor an existing Apply/Create method says which stream
+    ///     the event belongs to, so no Apply methods were planned for those events.
     /// </summary>
     public const string EmittedEventStreamAmbiguous = "emitted-event-stream-ambiguous";
 }
@@ -1253,6 +1254,25 @@ public static class SliceScaffolder
             return state;
         }
 
+        // GH-5360: the stream an emitted event goes to, of the slice's streams: its declared lane, or else the one
+        // stream whose existing class already applies (or creates from) it. Null when neither settles it.
+        private TypeDescriptor? streamLaneOf(EventModelSliceDescriptor slice, TypeDescriptor emitted,
+            IReadOnlyList<TypeDescriptor> streams)
+        {
+            if (slice.StreamFor(emitted) is { } lane)
+            {
+                return streams.FirstOrDefault(x => EventModelSliceDescriptor.SameType(x, lane)) ?? lane;
+            }
+
+            var applying = streams
+                .Where(stream => _options.ResolveType(stream) is { } existing &&
+                                 EventModelRoles.AppliedEventsOf(existing)
+                                     .Any(applied => EventModelSliceDescriptor.SameType(applied, emitted)))
+                .ToList();
+
+            return applying.Count == 1 ? applying[0] : null;
+        }
+
         [UnconditionalSuppressMessage("Trimming", "IL2075",
             Justification = "CLI scaffold path; never dispatch. The command type is the application's own, loaded to write code against it.")]
         [UnconditionalSuppressMessage("Trimming", "IL2070",
@@ -1282,9 +1302,11 @@ public static class SliceScaffolder
                 return;
             }
 
-            // The events this slice appends belong to the aggregates it works against. Emits<T>() carries no
-            // stream, so with more than one stream on the slice an event could belong to any of them: planning
-            // it as an Apply on all of them is a cross product, most of it wrong (GH-5360). Plan none, and say so.
+            // The events this slice appends belong to the aggregates it works against. With more than one stream on
+            // the slice, an event could belong to any of them, and planning it as an Apply on all of them is a cross
+            // product, most of it wrong (GH-5360). So each event goes to its declared stream lane,
+            // .Emits<T>().OnStream<TAggregate>() (jasperfx#1203), or else to the one aggregate whose class already
+            // applies it. An event neither settles gets no Apply at all, and a notice says so.
             var emitTargets = slice.AggregateTypes.ToList();
             if (slice.StartsStream is { } startedStream &&
                 !emitTargets.Any(x => EventModelSliceDescriptor.SameType(x, startedStream)))
@@ -1292,16 +1314,36 @@ public static class SliceScaffolder
                 emitTargets.Add(startedStream);
             }
 
-            // A slice that only decides against several streams keeps its Applies (GH-4895); it is the slice that
-            // also STARTS a stream of another type whose events cannot be told apart
-            if (emitTargets.Count > 1 && slice.StartsStream is not null && slice.AggregateTypes.Count > 0 &&
-                slice.EmittedEvents.Count > 0)
+            // A slice that only decides against several streams, and names no lane, keeps its Applies (GH-4895); it is
+            // the slice that also STARTS a stream of another type, or names lanes, whose events are told apart
+            var routeEachEvent = emitTargets.Count > 1 && slice.EmittedEvents.Count > 0 &&
+                                 (slice.EmittedEventStreams.Count > 0 ||
+                                  (slice.StartsStream is not null && slice.AggregateTypes.Count > 0));
+
+            if (routeEachEvent)
             {
-                Notices.Add(notice(ScaffoldNoticeCodes.EmittedEventStreamAmbiguous, ScaffoldNoticeKind.Warning, slice.Name,
-                    $"the slice emits {slice.EmittedEvents.Count} event(s) and works against {emitTargets.Count} emitTargets " +
-                    $"({string.Join(", ", emitTargets.Select(x => x.Name))}); Emits<T>() does not say which stream each event " +
-                    "belongs to, so no Apply methods were written for this slice. Add the Apply/Create methods to the " +
-                    "aggregate each event belongs to by hand."));
+                var unplaced = new List<TypeDescriptor>();
+                foreach (var emitted in slice.EmittedEvents)
+                {
+                    var target = streamLaneOf(slice, emitted, emitTargets);
+                    if (target is null)
+                    {
+                        unplaced.Add(emitted);
+                    }
+                    else
+                    {
+                        stateType(target, slice, isView: false).Events.Add(emitted);
+                    }
+                }
+
+                if (unplaced.Count > 0)
+                {
+                    Notices.Add(notice(ScaffoldNoticeCodes.EmittedEventStreamAmbiguous, ScaffoldNoticeKind.Warning, slice.Name,
+                        $"the slice works against {emitTargets.Count} streams ({string.Join(", ", emitTargets.Select(x => x.Name))}), " +
+                        $"and nothing says which one {string.Join(", ", unplaced.Select(x => x.Name))} belong(s) to, so no Apply " +
+                        "methods were written for those events. Name the stream with .Emits<T>().OnStream<TAggregate>(), " +
+                        "or add the Apply/Create methods to the aggregate each event belongs to by hand."));
+                }
             }
             else
             {

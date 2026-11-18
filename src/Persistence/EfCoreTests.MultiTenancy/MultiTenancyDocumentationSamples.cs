@@ -199,7 +199,7 @@ public class MyMessageHandler
         // Get an EF Core DbContext wrapped in a Wolverine IDbContextOutbox<ItemsDbContext>
         // for message sending wrapped in a transaction spanning the DbContext and Wolverine
         var outbox = await _factory.CreateForTenantAsync<ItemsDbContext>(tenantId.Value, cancellationToken);
-        var item = new Item { Name = command.Name, Id = CombGuidIdGeneration.NewGuid() };
+        var item = new Item { Name = command.Name, Id = SequentialGuid.NextPostgresOrder() };
 
         outbox.DbContext.Items.Add(item);
         
