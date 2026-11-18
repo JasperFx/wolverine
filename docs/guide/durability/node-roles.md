@@ -12,7 +12,7 @@ message store, and each node is told which *workloads* it takes on:
 | Workload | What the node does |
 |---|---|
 | `Messaging` | Starts your application listeners, runs the listener agents (exclusive, leader-pinned, dynamic and transport-supplied listeners), polls for scheduled messages and runs recurring schedules. Only a node with `Messaging` can be the leader |
-| `Durability` | May hold the durability agents (`wolverinedb://`): inbox and outbox recovery, scheduled messages in tenant databases, dead letter and handled envelope expiry, node record sweeps. Needs `Messaging` too |
+| `Durability` | May hold the durability agents (`wolverinedb://`): inbox and outbox recovery, scheduled messages in tenant databases, dead letter and handled envelope expiry, node record sweeps, and deleting [retained completed sagas](/guide/durability/sagas#keeping-completed-sagas). Needs `Messaging` too |
 | `Projections` | May hold the event subscription agents (`event-subscriptions://`), meaning your async projections and subscriptions when Wolverine manages their distribution |
 
 The default is `NodeWorkloads.All`, so nothing changes for anybody who doesn't set it. A node with

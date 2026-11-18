@@ -1007,6 +1007,9 @@ Upgrade every node to 7.0 before any node runs less than `All`. During a rolling
 listeners to an HTTP-only node, because its even spread doesn't look at capabilities. The HTTP-only node refuses to
 start them, so nothing runs where it shouldn't, but the leader keeps reassigning them until the leader is on 7.0.
 
+The sweep that deletes [retained completed sagas](/guide/durability/sagas#keeping-completed-sagas), also new in 7.0,
+runs only on a node with the `Durability` workload, like the rest of the storage housekeeping.
+
 ### Changed during 6.x without a flag
 
 These changed in 6.x minor releases, so `RestoreV6Defaults()` doesn't put them back. If you are coming from an early

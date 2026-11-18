@@ -616,6 +616,9 @@ one per saga store, so only one node in the cluster sweeps each store. It runs e
 `opts.Durability.CompletedSagaSweepInterval`. The agent needs Wolverine's node coordination, so it runs in the
 `Balanced` and `Solo` durability modes, but not with `MediatorOnly` or `Serverless`.
 
+In a cluster with [node workloads](/guide/durability/node-roles), the sweep only runs on a node with the `Durability`
+workload. If no node runs `Durability`, nothing deletes your retained sagas.
+
 The saga diagnostics on `IWolverineRuntime.SagaStorage` leave completed sagas out of `QuerySagasAsync()` and
 `ListSagaInstancesAsync()`, so you see the same instances you did before turning retention on. Pass
 `includeCompleted: true` to `QuerySagasAsync()` to see them too. `ReadSagaAsync()` reads a completed saga by its id
