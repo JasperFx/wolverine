@@ -123,6 +123,13 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
 
     public Type? RegistryType { get; private set; }
 
+    /// <summary>
+    ///     GH-5644. Assemble this file as <c>codegen write</c> does, rooting block included, without setting
+    ///     the process-wide <see cref="DynamicCodeBuilder.WithinCodegenCommand" />. Setting that flag in a test
+    ///     leaks into every other test running in the same process at the same time.
+    /// </summary>
+    internal bool AsCodegenCommand { get; init; }
+
     string ICodeFile.FileName => HttpEndpointRegistry.GeneratedTypeName;
 
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
@@ -145,7 +152,10 @@ internal class HttpEndpointRegistryCodeFile : ICodeFile
         //
         // Same WithinCodegenCommand guard as the handler registry: during Static *attach* the committed
         // file already carries the companion.
-        if (DynamicCodeBuilder.WithinCodegenCommand)
+        //
+        // No language branching either: `codegen write --language fsharp` sets the assembly's TargetLanguage
+        // before AssembleTypes, and AddAotRoots emits nothing for F# (GH-5644).
+        if (AsCodegenCommand || DynamicCodeBuilder.WithinCodegenCommand)
         {
             assembly.AddAotRoots(AotRootsTypeName, buildAotRoots(assembly.Namespace));
         }
