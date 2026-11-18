@@ -28,6 +28,21 @@ public static class HttpFSharpCodegenSample
 {
     public static string GenerateCode()
     {
+        return generate(CodegenLanguage.fsharp);
+    }
+
+    /// <summary>
+    ///     GH-5644. The same endpoints and registry rendered as C#, so a test can show the registry really was
+    ///     assembled as <c>codegen write</c> assembles it: the C# output carries the rooting block that the F#
+    ///     output leaves out.
+    /// </summary>
+    public static string GenerateCSharpCode()
+    {
+        return generate(CodegenLanguage.csharp);
+    }
+
+    private static string generate(CodegenLanguage language)
+    {
         // No-host container setup mirroring Wolverine.Http.Tests.initializing_endpoints_from_method_call.
         var registry = new ServiceCollection();
         registry.AddSingleton<JsonSerializerOptions>();
@@ -112,20 +127,35 @@ public static class HttpFSharpCodegenSample
         tenantDetection.IsRequestHeaderValue("x-tenant-id");
         ((IHttpPolicy)tenantDetection).Apply(chains, httpGraph.Rules, container);
 
+        // GH-5644. The target language goes on the assembly BEFORE anything is assembled into it, exactly as
+        // `codegen write --language fsharp` does it. AddAotRoots reads it to leave the C#-only Native AOT
+        // rooting block out of F#; an assembly left on the C# default and then rendered as F# carries a block
+        // that does not compile.
         var generatedAssembly = httpGraph.StartAssembly(httpGraph.Rules);
+        generatedAssembly.TargetLanguage = language;
+
         foreach (var chain in chains)
         {
             ((ICodeFile)chain).AssembleTypes(generatedAssembly);
         }
 
         // WriteEndpointTypesFrame.GenerateFSharpCode — emitted by HttpEndpointRegistryCodeFile as
-        // the body of GeneratedHttpEndpointRegistry.EndpointTypes().
+        // the body of GeneratedHttpEndpointRegistry.EndpointTypes(). Built the way HttpGraph.BuildFiles builds
+        // it, generated endpoint type names included, and assembled as `codegen write` assembles it. That is
+        // per instance (AsCodegenCommand) rather than through the process-wide
+        // DynamicCodeBuilder.WithinCodegenCommand, which would leak into the tests running beside this one.
         var allEndpointTypes = new[] { typeof(ThingEndpoints), typeof(AuthedEndpoints) };
-        var registryFile = new HttpEndpointRegistryCodeFile(allEndpointTypes);
+        var registryFile = new HttpEndpointRegistryCodeFile(allEndpointTypes,
+            generatedEndpointTypeNames: chains.Select(x => ((ICodeFile)x).FileName))
+        {
+            AsCodegenCommand = true
+        };
         ((ICodeFile)registryFile).AssembleTypes(generatedAssembly);
 
         var serviceVariableSource = new ServiceCollectionServerVariableSource(container);
-        return generatedAssembly.GenerateFSharpCode(serviceVariableSource);
+        return language == CodegenLanguage.fsharp
+            ? generatedAssembly.GenerateFSharpCode(serviceVariableSource)
+            : generatedAssembly.GenerateCode(serviceVariableSource);
     }
 
     // Codegen never opens a connection; the string only has to be well-formed for AddMarten bootstrap
@@ -142,9 +172,8 @@ public static class HttpFSharpCodegenSample
     public static string GenerateReadYourWritesCode()
     {
         // Deliberately NOT setting DynamicCodeBuilder.WithinCodegenCommand, as the Marten gates do. The flag is
-        // process-wide and HttpFSharpFrameTests runs this in parallel with the compile gate's GenerateCode(): while it
-        // is set, GenerateCode()'s endpoint registry also emits its Native AOT rooting block, and Generated.fs stops
-        // compiling. Nothing here needs it: the host is never started and the chains come straight from the HttpGraph.
+        // process-wide and HttpFSharpFrameTests runs this in parallel with the compile gate's GenerateCode(), and
+        // nothing here needs it: the host is never started and the chains come straight from the HttpGraph.
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -168,6 +197,8 @@ public static class HttpFSharpCodegenSample
         };
 
         var generatedAssembly = httpGraph.StartAssembly(httpGraph.Rules);
+        generatedAssembly.TargetLanguage = CodegenLanguage.fsharp;
+
         foreach (var chain in chains)
         {
             ((ICodeFile)chain).AssembleTypes(generatedAssembly);

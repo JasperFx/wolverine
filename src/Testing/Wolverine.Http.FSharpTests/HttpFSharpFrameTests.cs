@@ -59,6 +59,29 @@ public class HttpFSharpFrameTests
     }
 
     [Fact]
+    public void the_endpoint_registry_leaves_the_native_aot_rooting_block_out_of_fsharp()
+    {
+        // GH-5644. The sample assembles the registry as `codegen write --language fsharp` does, rooting block
+        // switched on. The block is C# only: the F# compiler ignores [ModuleInitializer], and the block's
+        // fully qualified sibling names do not resolve from inside their own namespace in F# (FS0039).
+        Code.ShouldContain("type GeneratedHttpEndpointRegistry()");
+        Code.ShouldNotContain("HttpAotRoots");
+        Code.ShouldNotContain("ModuleInitializer");
+    }
+
+    [Fact]
+    public void the_endpoint_registry_is_assembled_with_its_rooting_block_switched_on()
+    {
+        // GH-5644. Without this, the test above could pass only because the block was never asked for. The same
+        // endpoints and registry rendered as C# carry it, sibling registry and generated endpoints included.
+        var csharp = HttpFSharpCodegenSample.GenerateCSharpCode();
+
+        csharp.ShouldContain("class HttpAotRoots");
+        csharp.ShouldContain("typeof(global::Internal.Generated.WolverineHandlers.GeneratedHttpEndpointRegistry)");
+        csharp.ShouldContain("typeof(global::Internal.Generated.WolverineHandlers.GET_fsharp_hello)");
+    }
+
+    [Fact]
     public void write_endpoint_types_uses_runtime_type_resolution()
     {
         // typeof<> in F# cannot resolve F# module types (only class/record/DU types).

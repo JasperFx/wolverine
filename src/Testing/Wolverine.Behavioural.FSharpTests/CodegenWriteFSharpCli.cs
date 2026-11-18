@@ -82,6 +82,11 @@ public class CodegenWriteFSharpCli
             var registry = await File.ReadAllTextAsync(registryFile, TestContext.Current.CancellationToken);
             registry.ShouldContain("inherit Wolverine.Runtime.Handlers.HandlerRegistry()");
             registry.ShouldContain("typeof<WolverineBehaviouralFSharpApp.BehaviouralPingHandler>");
+
+            // GH-5644. The CLI sets the target language before assembling, so the registry's Native AOT rooting
+            // block (C# only, and not valid F# as rendered) is left out.
+            registry.ShouldNotContain("AotRoots");
+            registry.ShouldNotContain("ModuleInitializer");
         }
         finally
         {
