@@ -99,16 +99,20 @@ public class inbox_partitioning_migration_5519 : IAsyncLifetime
 
         var table = $"{schema}.{DatabaseConstants.IncomingTable}";
 
-        // Partitioning puts status in the primary key, which an unpartitioned inbox never has, so Weasel's script
-        // starts by changing the primary key. ALTER TABLE takes ACCESS EXCLUSIVE, and the rest of the script runs in
-        // the same transaction, so the copy aside sees every committed row and nothing can write until the commit.
-        var alterAt = script.IndexOf($"alter table {table} drop constraint", StringComparison.Ordinal);
+        // The rebuild runs in one explicit transaction that takes ACCESS EXCLUSIVE on the inbox first, so the copy aside
+        // sees every committed row and nothing can write until the commit. Weasel's own rebuild no longer changes the
+        // primary key first (weasel#871), so no ALTER TABLE takes the lock for it.
+        var lockAt = script.IndexOf($"lock table {table} in access exclusive mode;", StringComparison.Ordinal);
         var copyAt = script.IndexOf($"create table {table}_temp as select * from {table};", StringComparison.Ordinal);
         var copyBackAt = script.IndexOf($"from {table}_temp;", StringComparison.Ordinal);
+        var commitAt = script.IndexOf("commit;", copyBackAt, StringComparison.Ordinal);
 
-        alterAt.ShouldBeGreaterThanOrEqualTo(0);
-        copyAt.ShouldBeGreaterThan(alterAt);
+        var beginAt = script.IndexOf("begin;", StringComparison.Ordinal);
+        beginAt.ShouldBeGreaterThanOrEqualTo(0);
+        lockAt.ShouldBeGreaterThan(beginAt);
+        copyAt.ShouldBeGreaterThan(lockAt);
         copyBackAt.ShouldBeGreaterThan(copyAt);
+        commitAt.ShouldBeGreaterThan(copyBackAt);
 
         // The migrator sends the script as one command -- one transaction -- except where it is split around a
         // concurrent index build. Nothing may split the lock from the copy back, or the lock is released while the

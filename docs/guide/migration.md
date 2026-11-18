@@ -503,9 +503,9 @@ The other relational stores keep their unpartitioned inbox and only use the part
 `EnableInboxPartitioning = true` explicitly, as in 6.x.
 
 **An existing inbox is rebuilt on the first 7.0 start.** PostgreSQL cannot partition a table in place, so with
-`AutoCreate.CreateOrUpdate` the first 7.0 node to start changes the inbox's primary key, copies the table aside, drops
-it, creates it again partitioned and copies the rows back, in one transaction. Main database and every tenant database
-alike. The primary key change takes an `ACCESS EXCLUSIVE` lock first, so the copy sees every committed row and **every
+`AutoCreate.CreateOrUpdate` the first 7.0 node to start copies the table aside, drops it, creates it again partitioned
+and copies the rows back, in one transaction. Main database and every tenant database alike. The transaction takes an
+`ACCESS EXCLUSIVE` lock on the inbox first, so the copy sees every committed row and **every
 read and write of the inbox waits until the rebuild commits**. That takes as long as the copies take, so it grows with
 the number of rows, including the Handled rows kept for `KeepAfterMessageHandling`. As a guide, an inbox of 100,000
 rows with 500-byte bodies was rebuilt in well under a second on a laptop's PostgreSQL in Docker. Wolverine serializes its
