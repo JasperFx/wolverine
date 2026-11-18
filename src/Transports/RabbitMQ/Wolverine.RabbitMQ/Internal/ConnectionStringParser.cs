@@ -23,7 +23,7 @@ internal static class ConnectionStringParser
                         "Invalid connection string syntax. Use key1=value1;key2=value2 syntax");
                 }
 
-                Parse(parts[0].ToLower(), parts[1], factory);
+                Parse(parts[0].ToLowerInvariant(), parts[1], factory);
             }
         }
     }
