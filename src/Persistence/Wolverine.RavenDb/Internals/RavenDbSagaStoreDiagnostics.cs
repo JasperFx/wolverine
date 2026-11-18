@@ -135,7 +135,9 @@ internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISaga
         IAsyncDocumentSession session, Type sagaType, DocumentQueryOptions options, bool includeCompleted,
         int pageNumber, int pageSize, CancellationToken ct) where TSaga : class
     {
-        var source = SagaCompletionQueries.OpenOnly(session.Query<TSaga>(), includeCompleted);
+        // Completion updates must be indexed before applying the open-saga filter.
+        var source = SagaCompletionQueries.OpenOnly(
+            session.Query<TSaga>().Customize(x => x.WaitForNonStaleResults(NonStaleWait)), includeCompleted);
         var queryable = SagaQueryCriteria.Apply(options, source, "Id");
         try
         {
