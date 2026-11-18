@@ -71,6 +71,41 @@ type CreateNameHandler1923366998(loggerForMessage: Microsoft.Extensions.Logging.
         }
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type FaultHandler329991256(inMemorySagaPersistor: Wolverine.Persistence.Sagas.InMemorySagaPersistor) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _inMemorySagaPersistor = inMemorySagaPersistor
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        task {
+            // The actual message body
+            let faultOfReserveStock = context.Envelope.Message :?> Wolverine.Fault<Wolverine.Core.FSharpContracts.ReserveStock>
+
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "Wolverine.Core.FSharpContracts.StockSaga") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "Wolverine.Core.FSharpContracts.StockSaga") |> ignore
+            let sagaId = context.Envelope.SagaId
+            if System.String.IsNullOrEmpty(sagaId) then
+                raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope, typeof<Wolverine.Core.FSharpContracts.StockSaga>, null))
+            let stockSaga = _inMemorySagaPersistor.Load<Wolverine.Core.FSharpContracts.StockSaga>(sagaId)
+            if isNull (box stockSaga) then
+                raise (Wolverine.Persistence.Sagas.UnknownSagaException(typeof<Wolverine.Core.FSharpContracts.StockSaga>, sagaId))
+            else
+                context.SetSagaId(sagaId)
+                if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                    (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.id", sagaId.ToString()) |> ignore
+                    (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.StockSaga") |> ignore
+                // Compensate the failed message with the saga's best matching Compensate method
+                do! Wolverine.Persistence.Sagas.SagaCompensations.CompensateAsync<Wolverine.Core.FSharpContracts.StockSaga, Wolverine.Core.FSharpContracts.ReserveStock>(stockSaga, faultOfReserveStock, context)
+                // Delete the saga if completed, otherwise update it
+                if stockSaga.IsCompleted() then
+                    _inMemorySagaPersistor.Delete<Wolverine.Core.FSharpContracts.StockSaga>(sagaId)
+                else
+                    (stockSaga :> Wolverine.Saga).LastModified <- System.DateTimeOffset.UtcNow
+                    _inMemorySagaPersistor.Store<Wolverine.Core.FSharpContracts.StockSaga>(stockSaga)
+                // No unit of work
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GateHandler1696712162() =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
@@ -134,6 +169,45 @@ type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence
         System.Threading.Tasks.Task.CompletedTask
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type ReserveStockHandler1480957991(inMemorySagaPersistor: Wolverine.Persistence.Sagas.InMemorySagaPersistor) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _inMemorySagaPersistor = inMemorySagaPersistor
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        // The actual message body
+        let reserveStock = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.ReserveStock
+
+        // Application-specific Open Telemetry auditing
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("Id", reserveStock.Id) |> ignore
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "Wolverine.Core.FSharpContracts.StockSaga") |> ignore
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "Wolverine.Core.FSharpContracts.StockSaga") |> ignore
+        let sagaId = if isNull reserveStock.Id then context.Envelope.SagaId else reserveStock.Id
+        if System.String.IsNullOrEmpty(sagaId) then
+            raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope, typeof<Wolverine.Core.FSharpContracts.StockSaga>, "Id"))
+        let stockSaga = _inMemorySagaPersistor.Load<Wolverine.Core.FSharpContracts.StockSaga>(sagaId)
+        if isNull (box stockSaga) then
+            raise (Wolverine.Persistence.Sagas.UnknownSagaException(typeof<Wolverine.Core.FSharpContracts.StockSaga>, sagaId))
+        else
+            context.SetSagaId(sagaId)
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.id", sagaId.ToString()) |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.StockSaga") |> ignore
+            
+            // The actual message execution
+            stockSaga.Handle(reserveStock)
+
+            // Delete the saga if completed, otherwise update it
+            if stockSaga.IsCompleted() then
+                _inMemorySagaPersistor.Delete<Wolverine.Core.FSharpContracts.StockSaga>(sagaId)
+            else
+                (stockSaga :> Wolverine.Saga).LastModified <- System.DateTimeOffset.UtcNow
+                _inMemorySagaPersistor.Store<Wolverine.Core.FSharpContracts.StockSaga>(stockSaga)
+            // No unit of work
+        System.Threading.Tasks.Task.CompletedTask
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sagas.InMemorySagaPersistor) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _inMemorySagaPersistor = inMemorySagaPersistor
@@ -159,6 +233,35 @@ type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sa
         if not (outgoing1.IsCompleted()) then
             (outgoing1 :> Wolverine.Saga).LastModified <- System.DateTimeOffset.UtcNow
             _inMemorySagaPersistor.Store<Wolverine.Core.FSharpContracts.CountingSaga>(outgoing1)
+        // No unit of work
+        System.Threading.Tasks.Task.CompletedTask
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type StartStockHandler1629062343(inMemorySagaPersistor: Wolverine.Persistence.Sagas.InMemorySagaPersistor) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _inMemorySagaPersistor = inMemorySagaPersistor
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        // The actual message body
+        let startStock = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.StartStock
+
+        // Application-specific Open Telemetry auditing
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("Id", startStock.Id) |> ignore
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "Wolverine.Core.FSharpContracts.StockSaga") |> ignore
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "Wolverine.Core.FSharpContracts.StockSaga") |> ignore
+        
+        // The actual message execution
+        let outgoing1 = Wolverine.Core.FSharpContracts.StockSaga.Start(startStock)
+
+        context.SetSagaId(startStock.Id)
+        if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.id", startStock.Id.ToString()) |> ignore
+            (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.StockSaga") |> ignore
+        if not (outgoing1.IsCompleted()) then
+            (outgoing1 :> Wolverine.Saga).LastModified <- System.DateTimeOffset.UtcNow
+            _inMemorySagaPersistor.Store<Wolverine.Core.FSharpContracts.StockSaga>(outgoing1)
         // No unit of work
         System.Threading.Tasks.Task.CompletedTask
 

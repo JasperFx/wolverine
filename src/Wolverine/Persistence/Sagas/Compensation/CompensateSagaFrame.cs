@@ -41,4 +41,14 @@ internal class CompensateSagaFrame : AsyncFrame
             $"await {typeof(SagaCompensations).FullNameInCode()}.{nameof(SagaCompensations.CompensateAsync)}<{_saga.VariableType.FullNameInCode()}, {failedType.FullNameInCode()}>({_saga.Usage}, {_fault!.Usage}, {_context!.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
+
+    // `await ...` -> F# `do! ...` inside the task { } computation expression
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var failedType = SagaCompensations.FaultMessageType(_faultType)!;
+        writer.WriteLine("// Compensate the failed message with the saga's best matching Compensate method");
+        writer.WriteLine(
+            $"do! {typeof(SagaCompensations).FSharpName()}.{nameof(SagaCompensations.CompensateAsync)}<{_saga.VariableType.FSharpName()}, {failedType.FSharpName()}>({_saga.FSharpUsage}, {_fault!.FSharpUsage}, {_context!.FSharpUsage})");
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
