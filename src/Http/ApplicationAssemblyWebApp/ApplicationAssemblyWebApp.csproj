@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <!-- GH-5667: a deliberately ordinary web application for Wolverine.Http.Tests to host through Alba
+         (WebApplicationFactory) WITHOUT naming its application assembly anywhere. It has to live in its own
+         assembly, apart from the test project, because the bug was Wolverine scanning the test project
+         instead of the application. -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Marten" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
+    </ItemGroup>
+
+</Project>
