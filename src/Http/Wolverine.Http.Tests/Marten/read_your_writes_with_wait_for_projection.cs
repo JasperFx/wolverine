@@ -8,6 +8,7 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Shouldly;
+using Wolverine.Attributes;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 using Wolverine.Persistence.EventSourcing;
@@ -265,6 +266,19 @@ public class read_your_writes_when_the_projection_does_not_catch_up : IAsyncLife
     }
 }
 
+// [WaitForProjection<T>] needs a document store integrated with Wolverine, and says so when there is none
+public class wait_for_projection_without_an_integrated_store
+{
+    [Fact]
+    public void an_endpoint_refuses_to_build_with_a_clear_message()
+    {
+        var ex = Should.Throw<InvalidOperationException>(() => HttpChain.ChainFor(typeof(RywEndpoints), nameof(RywEndpoints.Post)));
+
+        ex.Message.ShouldContain("[WaitForProjection]");
+        ex.Message.ShouldContain("needs a document store integrated with Wolverine, and none is");
+    }
+}
+
 internal static class RywHosts
 {
     public static async Task<IAlbaHost> StartAsync(string schemaName, DaemonMode daemonMode)
@@ -300,9 +314,14 @@ internal static class RywHosts
 
         // No cleaning: every test uses new stream ids, and wiping the events under a running daemon would leave
         // its high water mark ahead of the restarted sequence
+        // RywEndpoints is [WolverineIgnore]d so that store-less hosts scanning this assembly skip it. An explicit
+        // include brings it back here, the same way IncludeType(typeof(RywHandlers)) does for the handlers.
         return await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
             opts.CustomizeHttpEndpointDiscovery(q =>
-                q.Excludes.WithCondition("Not a read-your-writes endpoint", type => type != typeof(RywEndpoints)))));
+            {
+                q.Excludes.WithCondition("Not a read-your-writes endpoint", type => type != typeof(RywEndpoints));
+                q.Includes.WithCondition("The read-your-writes endpoints", type => type == typeof(RywEndpoints));
+            })));
     }
 
     // A write that did not come through Wolverine, as another service or an earlier request would make it
@@ -340,6 +359,9 @@ public class RywInlinePointsView
     public void Apply(RywInlinePointsAdded e) => Total += e.Points;
 }
 
+// Hidden from discovery: [WaitForProjection<T>] refuses a chain with no document store integrated with Wolverine, and
+// other hosts in this assembly scan it without one. RywHosts names these types explicitly.
+[WolverineIgnore]
 public static class RywEndpoints
 {
     #region sample_wait_for_projection_on_an_http_endpoint
@@ -372,6 +394,7 @@ public record RywAddPointsMessage(Guid Id, int Points);
 
 public record RywReadPoints(Guid Id);
 
+[WolverineIgnore]
 public static class RywHandlers
 {
     #region sample_wait_for_projection_in_a_message_handler
