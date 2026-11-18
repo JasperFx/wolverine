@@ -4,6 +4,7 @@ using System.Reflection;
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Hosting;
 using Wolverine.Attributes;
 
 namespace Wolverine;
@@ -271,6 +272,87 @@ public sealed partial class WolverineOptions
         }
 
         HandlerGraph.Discovery.Assemblies.Fill(ApplicationAssembly);
+    }
+
+    /// <summary>
+    /// GH-5667. Adopts the assembly the host names through <see cref="IHostEnvironment.ApplicationName"/> when
+    /// nothing named the application assembly explicitly and JasperFx's answer is only a guess.
+    ///
+    /// <para>Under WebApplicationFactory (Alba) the entry assembly is the TEST project. When anything calls
+    /// AddJasperFx() before UseWolverine() -- AddMarten() in a typical web application -- JasperFx pins the
+    /// process-wide application assembly from its own resolution, which returns the entry assembly outright once
+    /// that references a JasperFx tool such as Marten. ReadJasperFxOptions then adopted the test project, handler
+    /// discovery found nothing, and every message failed with IndeterminateRoutesException. A pin left by an
+    /// earlier host in the same process did the same to a second WebApplicationFactory host.</para>
+    ///
+    /// <para>WebApplicationFactory sets ApplicationName to the application's assembly name, and ASP.NET Core finds
+    /// the application's MVC parts from the same value. It only counts here when it differs from the entry
+    /// assembly's name, which is its default everywhere else: a console host, <c>dotnet run</c> and the codegen
+    /// and describe commands all leave it alone, so the resolution they already had is unchanged.</para>
+    /// </summary>
+    internal void ReadHostEnvironment(IHostEnvironment? environment, JasperFxOptions jasperfx)
+    {
+        // Named explicitly on Wolverine, or through UseWolverine(assemblyName)
+        if (_applicationAssembly != null) return;
+
+        // Named explicitly on JasperFx, through CritterStackDefaults() or SetApplicationProject()
+        var entryAssembly = Assembly.GetEntryAssembly();
+        if (!IsGuessedApplicationAssembly(jasperfx.ApplicationAssembly, JasperFxOptions.RememberedApplicationAssembly,
+                entryAssembly))
+        {
+            return;
+        }
+
+        var named = AssemblyNamedByHost(environment?.ApplicationName, entryAssembly);
+        if (named != null)
+        {
+            ApplicationAssembly = named;
+        }
+    }
+
+    // GH-5667. Whether JasperFx's application assembly is a guess rather than an explicit choice. JasperFx doesn't
+    // record which it was, but a guess is always one of these: nothing yet, the process-wide pin (which the first
+    // host's guess set), the entry assembly (what JasperFx guesses when the entry assembly references a JasperFx
+    // tool), or a test runner. An explicit choice that happens to equal the pin is indistinguishable, and the host
+    // name only replaces it when the host names some other assembly.
+    internal static bool IsGuessedApplicationAssembly(Assembly? candidate, Assembly? pinned, Assembly? entry)
+    {
+        if (candidate == null) return true;
+        if (candidate == pinned || candidate == entry) return true;
+
+        return candidate.GetName().Name is { } name && IsTestRunnerAssembly(name);
+    }
+
+    // GH-5667. The assembly an IHostEnvironment.ApplicationName names, if the host named one deliberately: a name
+    // equal to the entry assembly's is just the default, and a name that loads no assembly (an application can set
+    // any display name it likes) is ignored. A test runner or generated assembly is never adopted, whatever its name.
+    internal static Assembly? AssemblyNamedByHost(string? applicationName, Assembly? entryAssembly)
+    {
+        if (applicationName.IsEmpty()) return null;
+
+        if (entryAssembly != null &&
+            string.Equals(entryAssembly.GetName().Name, applicationName, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        Assembly assembly;
+        try
+        {
+            assembly = Assembly.Load(new AssemblyName(applicationName));
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+
+        var name = assembly.GetName().Name;
+        if (name == null || IsTestRunnerAssembly(name) || IsNeverAnApplicationAssembly(assembly))
+        {
+            return null;
+        }
+
+        return assembly;
     }
 
     // GH-3521: the assembly this host's *own* registration call stack resolves to, captured in the
