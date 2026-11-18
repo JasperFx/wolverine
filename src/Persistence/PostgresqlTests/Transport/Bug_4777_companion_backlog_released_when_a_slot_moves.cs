@@ -58,6 +58,23 @@ public class Bug_4777_companion_backlog_released_when_a_slot_moves : IAsyncLifet
 
     public async ValueTask InitializeAsync()
     {
+        // Load-bearing, and not the same thing as AutoPurgeOnStartup -- that is configured on the TRANSPORT and
+        // purges the queue tables, leaving wolverine_incoming_envelopes untouched. Leftovers from an earlier test
+        // or run do not merely skew the counts here: GH-4776's companion recovery loop claims any dormant row at
+        // this address the moment the slot starts, so a previous backlog gets executed into
+        // SlowSlotHandler.Handled and every count in this fixture is wrong. losing_the_slot_... leaves exactly
+        // such a backlog behind on purpose.
+        //
+        // It has to happen BEFORE the host starts. This used to delete just after StartAsync, and on a busy box
+        // the recovery loop (100ms after start) won that race: it had already claimed the leftover rows into the
+        // companion queue's memory, where deleting the rows does not reach them, so they kept executing after
+        // the reset. a_back_pressure_latch_... then counted 21 handled for its 10 messages and timed out waiting
+        // for exactly 10.
+        //
+        // Deliberately a targeted delete rather than IMessageStoreAdmin.ClearAllAsync(), which also deletes the
+        // node record, listener and agent-restriction tables.
+        await deleteLeftoverInboxRowsAsync();
+
         SlowSlotHandler.Reset();
 
         _host = await Host.CreateDefaultBuilder()
@@ -85,26 +102,25 @@ public class Bug_4777_companion_backlog_released_when_a_slot_moves : IAsyncLifet
 
         _runtime = _host.GetRuntime();
         _store = _host.Services.GetRequiredService<IMessageStore>();
+    }
 
-        // Load-bearing, and not the same thing as AutoPurgeOnStartup -- that is configured on the TRANSPORT and
-        // purges the queue tables, leaving wolverine_incoming_envelopes untouched. Leftovers from an earlier run
-        // do not merely skew the counts here: GH-4776's companion recovery loop claims any dormant row at this
-        // address the moment the slot starts, so a previous run's backlog gets executed into
-        // SlowSlotHandler.Handled and every count in this fixture is wrong.
-        //
-        // Deliberately a targeted delete rather than IMessageStoreAdmin.ClearAllAsync(), which also deletes the
-        // node record, listener and agent-restriction tables. Doing that to a host that is already RUNNING pulls
-        // the agent bookkeeping out from under it, and the symptom is not a clean failure -- the slot listener
-        // simply stops making progress and the fixture hangs until its timeout.
+    private static async Task deleteLeftoverInboxRowsAsync()
+    {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
-        var delete = conn.CreateCommand();
-        delete.CommandText = "delete from slot4777.wolverine_incoming_envelopes";
+
+        // The schema does not exist yet on a fresh database
+        await using var delete = conn.CreateCommand();
+        delete.CommandText = """
+                             do $$
+                             begin
+                                 if to_regclass('slot4777.wolverine_incoming_envelopes') is not null then
+                                     delete from slot4777.wolverine_incoming_envelopes;
+                                 end if;
+                             end $$;
+                             """;
         await delete.ExecuteNonQueryAsync();
         await conn.CloseAsync();
-
-        // Cleared AFTER the delete, so anything a leftover row managed to run before it is not counted.
-        SlowSlotHandler.Reset();
     }
 
     public async ValueTask DisposeAsync()
