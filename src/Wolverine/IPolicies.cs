@@ -83,6 +83,16 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void RetainCompletedSagas(TimeSpan retention);
 
     /// <summary>
+    ///     GH-5674. What every saga does with a message that arrives after the saga is gone -- completed, timed out or
+    ///     never started -- when it has no <c>NotFound</c> method for the message. The default is
+    ///     <see cref="SagaMissingBehavior.Throw" />: <c>UnknownSagaException</c>, as before.
+    ///     <see cref="SagaMissingBehavior.Discard" /> logs the message at Information and drops it.
+    ///     <see cref="SagaMissingAttribute" /> on a saga type, or <see cref="DiscardIfSagaMissingAttribute" /> on a
+    ///     message type or a saga's <c>Handle()</c> method, wins over this.
+    /// </summary>
+    void WhenSagaIsMissing(SagaMissingBehavior behavior);
+
+    /// <summary>
     ///     Create a policy for all listening *non local* endpoints
     /// </summary>
     /// <param name="configure"></param>

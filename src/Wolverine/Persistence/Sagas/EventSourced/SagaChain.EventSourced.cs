@@ -100,6 +100,8 @@ public partial class SagaChain
                 foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction(this).Frames())) yield return frame;
             }
 
+            if (usesReplacingTimeouts) yield return new RecordSagaTimeoutsFrame(stream, true);
+
             yield return new AfterEventSourcedSagaHandlingFrame(stream, saga, archiveWhenCompleted);
             yield return new TranslateStreamCollisionFrame(frameProvider.CommitUnitOfWorkFrame(saga, container), SagaType,
                 sagaId);
@@ -115,7 +117,7 @@ public partial class SagaChain
         }
         else
         {
-            yield return new AssertSagaStateExistsFrame(saga, sagaId);
+            yield return whenTheSagaIsMissing(saga, sagaId);
         }
     }
 
@@ -151,7 +153,7 @@ public partial class SagaChain
         }
         else
         {
-            yield return new AssertSagaStateExistsFrame(saga, sagaId);
+            yield return whenTheSagaIsMissing(saga, sagaId);
         }
     }
 
@@ -167,18 +169,34 @@ public partial class SagaChain
 
         yield return new SetSagaIdFrame(sagaId, SagaType);
 
+        var body = new List<Frame>();
         foreach (var call in ExistingCalls)
         {
-            yield return call;
-            foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction(this).Frames())) yield return frame;
+            body.Add(call);
+            body.AddRange(call.Creates.SelectMany(x => x.ReturnAction(this).Frames()));
         }
 
         if (CompensateCalls.Length != 0)
         {
-            yield return new CompensateEventSourcedSagaFrame(stream, MessageType);
+            body.Add(new CompensateEventSourcedSagaFrame(stream, MessageType));
         }
 
-        yield return new AfterEventSourcedSagaHandlingFrame(stream, saga, archiveWhenCompleted);
-        yield return frameProvider.CommitUnitOfWorkFrame(saga, container);
+        // GH-5674: a SagaTimeoutScheduled event for each replacing timeout the handler scheduled
+        if (usesReplacingTimeouts) body.Add(new RecordSagaTimeoutsFrame(stream, true));
+
+        body.Add(new AfterEventSourcedSagaHandlingFrame(stream, saga, archiveWhenCompleted));
+        body.Add(frameProvider.CommitUnitOfWorkFrame(saga, container));
+
+        // GH-5674: a timeout a later one replaced is discarded before the saga's methods run
+        if (SagaTimeouts.Replaces(MessageType))
+        {
+            yield return new SupersededTimeoutGuardFrame(saga, body.ToArray());
+        }
+        else
+        {
+            foreach (var frame in body) yield return frame;
+        }
+
+        if (usesReplacingTimeouts) yield return new CancelSupersededTimeoutsFrame();
     }
 }

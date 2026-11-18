@@ -231,6 +231,7 @@ public partial class SagaChain : HandlerChain
         frameProvider.ApplyTransactionSupport(this, container);
 
         CompletedSagaRetention = determineRetention(frameProvider, container);
+        _options = container.Services.GetService(typeof(WolverineOptions)) as WolverineOptions;
 
         NotFoundCalls = findByNames(NotFound);
         IdNotProvidedCalls = findByNames(IdNotProvided);
@@ -287,6 +288,38 @@ public partial class SagaChain : HandlerChain
             .Concat(PostCommitPostprocessors) // GH-3975
             .ToList();
     }
+
+    private WolverineOptions? _options;
+
+    /// <summary>
+    /// GH-5674. What this chain does with its message when the saga is missing and there is no <c>NotFound</c> for it:
+    /// <see cref="DiscardIfSagaMissingAttribute" /> on the message type or on the saga's method for it, then
+    /// <see cref="SagaMissingAttribute" /> on the saga type, then <c>opts.Policies.WhenSagaIsMissing()</c>. A saga's
+    /// compensation chain always reports a missing saga, which is how a compensation with no saga is told apart
+    /// </summary>
+    internal SagaMissingBehavior DetermineSagaMissingBehavior(WolverineOptions? options)
+    {
+        if (CompensateCalls.Length != 0 || SagaCompensations.FaultMessageType(MessageType) != null)
+        {
+            return SagaMissingBehavior.Throw;
+        }
+
+        if (MessageType.HasAttribute<DiscardIfSagaMissingAttribute>() ||
+            SagaHandlerCalls().Any(x => x.Method.HasAttribute<DiscardIfSagaMissingAttribute>()))
+        {
+            return SagaMissingBehavior.Discard;
+        }
+
+        if (SagaType.TryGetAttribute<SagaMissingAttribute>(out var sagaLevel)) return sagaLevel.Behavior;
+
+        return options?.SagaMissingDefault ?? SagaMissingBehavior.Throw;
+    }
+
+    // GH-5674: no NotFound and no Start for the message, and no saga to hand it to
+    private Frame whenTheSagaIsMissing(Variable saga, Variable sagaId)
+        => DetermineSagaMissingBehavior(_options) == SagaMissingBehavior.Discard
+            ? new DiscardMessageForMissingSagaFrame(SagaType, sagaId)
+            : new AssertSagaStateExistsFrame(saga, sagaId);
 
     private TimeSpan? determineRetention(IPersistenceFrameProvider frameProvider, IServiceContainer container)
     {
@@ -417,9 +450,15 @@ public partial class SagaChain : HandlerChain
                 frames.Add(frame);
         }
 
+        // GH-5674: the latest id of each replacing timeout the new saga scheduled
+        if (usesReplacingTimeouts) frames.Add(new RecordSagaTimeoutsFrame(sagaVariable, false));
+
         var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container, retainsCompletedSagas);
         frames.Add(ifNotCompleted);
     }
+
+    // GH-5674: does this chain's saga handle a timeout that replaces earlier ones?
+    private bool usesReplacingTimeouts => SagaTimeouts.SagaUsesReplacingTimeouts(SagaType);
 
     /// <summary>
     /// GH-5572. What happens to a message for a retained saga that has already completed: the same as for a saga
@@ -456,7 +495,7 @@ public partial class SagaChain : HandlerChain
         }
         else
         {
-            yield return new AssertSagaStateExistsFrame(saga, sagaId);
+            yield return whenTheSagaIsMissing(saga, sagaId);
         }
     }
 
@@ -486,6 +525,8 @@ public partial class SagaChain : HandlerChain
                 }
             }
 
+            if (usesReplacingTimeouts) yield return new RecordSagaTimeoutsFrame(saga, false);
+
             var ifNotCompleted = buildFrameForConditionalInsert(saga, frameProvider, container, retainsCompletedSagas);
             yield return ifNotCompleted;
         }
@@ -500,7 +541,7 @@ public partial class SagaChain : HandlerChain
         }
         else
         {
-            yield return new AssertSagaStateExistsFrame(saga, sagaId);
+            yield return whenTheSagaIsMissing(saga, sagaId);
         }
     }
 
@@ -531,22 +572,39 @@ public partial class SagaChain : HandlerChain
             handlerFrames.Add(new CompensateSagaFrame(saga, MessageType));
         }
 
+        var body = new List<Frame>();
+
         // For ResequencerSaga<T>, wrap handler calls with ShouldProceed() guard
         if (messageVariable != null && IsResequencerGuarded)
         {
-            yield return new ShouldProceedGuardFrame(saga, messageVariable, handlerFrames.ToArray());
+            body.Add(new ShouldProceedGuardFrame(saga, messageVariable, handlerFrames.ToArray()));
         }
         else
         {
-            foreach (var frame in handlerFrames) yield return frame;
+            body.AddRange(handlerFrames);
         }
+
+        // GH-5674: the latest id of each replacing timeout the handler scheduled
+        if (usesReplacingTimeouts) body.Add(new RecordSagaTimeoutsFrame(saga, false));
 
         var update = frameProvider.DetermineUpdateFrame(saga, container);
         var delete = frameProvider.DetermineDeleteFrame(sagaId, saga, container);
 
-        yield return new SagaStoreOrDeleteFrame(saga, update, delete, retainsCompletedSagas);
+        body.Add(new SagaStoreOrDeleteFrame(saga, update, delete, retainsCompletedSagas));
 
-        yield return frameProvider.CommitUnitOfWorkFrame(saga, container);
+        body.Add(frameProvider.CommitUnitOfWorkFrame(saga, container));
+
+        // GH-5674: a timeout a later one replaced reaches neither the saga's methods nor its storage
+        if (SagaTimeouts.Replaces(MessageType))
+        {
+            yield return new SupersededTimeoutGuardFrame(saga, body.ToArray());
+        }
+        else
+        {
+            foreach (var frame in body) yield return frame;
+        }
+
+        if (usesReplacingTimeouts) yield return new CancelSupersededTimeoutsFrame();
     }
 
     private bool IsResequencerGuarded

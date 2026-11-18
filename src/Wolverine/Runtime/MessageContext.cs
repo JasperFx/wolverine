@@ -750,6 +750,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     /// </summary>
     internal object? ResolvedSagaId => _sagaId;
 
+    /// <summary>GH-5674. Replacing saga timeouts this handler scheduled, until the saga keeps their ids</summary>
+    internal List<SagaTimeoutScheduled>? ScheduledSagaTimeouts { get; set; }
+
+    /// <summary>GH-5674. Ids of saga timeouts superseded by this handler, deleted once the saga is saved</summary>
+    internal List<Guid>? SupersededSagaTimeouts { get; set; }
+
     private ISupportNativeScheduling? tryGetRescheduler(IChannelCallback? channel, Envelope e)
     {
         // TODO: is that ok, or should we modify Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time) in DurableReceiver and BufferedReceiver?
@@ -1420,6 +1426,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         Envelope = null;
         Transaction = null;
         _sagaId = null;
+        ScheduledSagaTimeouts = null;
+        SupersededSagaTimeouts = null;
         _rescheduled = false;
         _eagerIdempotencyStamped = false;
         Tracker = null;

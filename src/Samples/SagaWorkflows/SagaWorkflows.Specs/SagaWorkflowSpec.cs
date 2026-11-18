@@ -5,7 +5,9 @@ using SagaWorkflows.Providers;
 using Wolverine;
 using Wolverine.Bobcat;
 using Wolverine.Configuration.Capabilities;
+using Wolverine.Persistence.Durability.ScheduledMessageManagement;
 using Wolverine.Runtime;
+using Wolverine.Util;
 
 namespace SagaWorkflows.Specs;
 
@@ -51,6 +53,30 @@ public abstract class SagaWorkflowSpec : WolverineSpec, IAsyncLifetime
     [Then("account {account} holds {balance}")]
     public void ThenAccountHolds(string account, decimal balance)
         => SpecAssert.Check("balance", Bank.BalanceOf(account), balance);
+
+    // ---- the workflows service's schedule -----------------------------------------------------------------------------
+
+    /// <summary>
+    /// GH-5674. How many <paramref name="messageType" /> messages the saga <paramref name="sagaId" /> has waiting in the
+    /// workflows service's durable schedule.
+    /// </summary>
+    [Then("{count} {messageType} of saga {sagaId} waiting in the schedule")]
+    public async Task ThenWaitingInTheSchedule(Type messageType, object sagaId, int count)
+    {
+        var storage = _services.Workflows.Services.GetRequiredService<IWolverineRuntime>().Storage;
+        var results = await storage.ScheduledMessages.QueryAsync(new ScheduledMessageQuery
+        {
+            SagaId = sagaId.ToString(),
+            MessageType = messageType.ToMessageTypeName()
+        }, CancellationToken.None);
+
+        SpecAssert.Check("waiting", results.TotalCount, count);
+    }
+
+    /// <summary>The act sent exactly <paramref name="times" /> messages of <paramref name="messageType" />.</summary>
+    [Then("exactly {times} {messageType} sent")]
+    public void ThenSentExactly(Type messageType, int times)
+        => SpecAssert.Check("sent", TheMessagesSent.Count(messageType.IsInstanceOfType), times);
 
     // ---- what the workflows service says about its sagas --------------------------------------------------------------
 

@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SagaWorkflows.MoneyTransfer;
 using SagaWorkflows.MoneyTransfer.Fraud;
+using SagaWorkflows.OrderApproval;
+using SagaWorkflows.Subscriptions;
 using SagaWorkflows.Providers;
 using Wolverine;
 using Wolverine.ErrorHandling;
@@ -46,7 +48,9 @@ public abstract class WorkflowServices : IAsyncLifetime
                 useMarten(opts, $"{Schema}_providers");
 
                 opts.Services.AddSingleton<Bank>();
-                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(BankHandler));
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(BankHandler))
+                    .IncludeType(typeof(StorefrontHandler));
 
                 opts.ListenAtPort(ProvidersPort).UseDurableInbox();
                 opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
@@ -55,6 +59,7 @@ public abstract class WorkflowServices : IAsyncLifetime
                 opts.PublishMessage<MoneyDeposited>().ToPort(WorkflowsPort);
                 opts.PublishMessage<TransferRecorded>().ToPort(WorkflowsPort);
                 opts.PublishMessage<TransferScreened>().ToPort(WorkflowsPort);
+                opts.PublishMessage<PaymentProcessed>().ToPort(WorkflowsPort);
 
                 // Every failure is retried twice, so three attempts, then dead-lettered. A terminal failure is not retried
                 opts.OnException<Exception>().RetryTimes(2);
@@ -72,6 +77,9 @@ public abstract class WorkflowServices : IAsyncLifetime
                 opts.ListenAtPort(WorkflowsPort).UseDurableInbox();
                 opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 
+                // A saga's timeouts are kept in the durable store, where a superseded one can be deleted
+                opts.Policies.UseDurableLocalQueues();
+
                 // The bank's steps, one rule per message type
                 opts.PublishMessage<Withdraw>().ToPort(ProvidersPort);
                 opts.PublishMessage<Deposit>().ToPort(ProvidersPort);
@@ -80,6 +88,13 @@ public abstract class WorkflowServices : IAsyncLifetime
                 opts.PublishMessage<ReverseDeposit>().ToPort(ProvidersPort);
                 opts.PublishMessage<TransferCompleted>().ToPort(ProvidersPort);
                 opts.PublishMessage<TransferFailed>().ToPort(ProvidersPort);
+
+                // The storefront and the billing provider
+                opts.PublishMessage<RequestApproval>().ToPort(ProvidersPort);
+                opts.PublishMessage<ProcessPayment>().ToPort(ProvidersPort);
+                opts.PublishMessage<NotifyCustomer>().ToPort(ProvidersPort);
+                opts.PublishMessage<ChargeCustomer>().ToPort(ProvidersPort);
+                opts.PublishMessage<SubscriptionEnded>().ToPort(ProvidersPort);
 
                 // Fraud screening, by namespace: this rule names no message type
                 opts.Publish(x =>
@@ -138,7 +153,7 @@ public class DocumentSagaServices : WorkflowServices
     protected override string Schema => "saga_workflows";
 
     protected override void ConfigureWorkflows(WolverineOptions opts)
-        => opts.Discovery.IncludeType(typeof(Transfer));
+        => opts.Discovery.IncludeType(typeof(Transfer)).IncludeType(typeof(Order)).IncludeType(typeof(Subscription));
 }
 
 /// <summary>The same workflows as event-sourced sagas, on the same messages.</summary>
@@ -147,7 +162,7 @@ public class EventSourcedSagaServices : WorkflowServices
     protected override string Schema => "saga_workflows_es";
 
     protected override void ConfigureWorkflows(WolverineOptions opts)
-        => opts.Discovery.IncludeType(typeof(EventSourcedTransfer));
+        => opts.Discovery.IncludeType(typeof(EventSourcedTransfer)).IncludeType(typeof(EventSourcedSubscription));
 }
 
 [CollectionDefinition(nameof(DocumentSagaCollection))]

@@ -57,6 +57,15 @@ public abstract class EventSourcedSaga : CompensatingSaga
             e.Timestamp));
     }
 
+    /// <summary>
+    /// GH-5674. Wolverine's own event: the saga scheduled a timeout that replaces the earlier ones with the same key.
+    /// </summary>
+    public void Apply(SagaTimeoutScheduled e)
+    {
+        LatestTimeoutIds ??= new Dictionary<string, Guid>();
+        LatestTimeoutIds[e.Key] = e.TimeoutId;
+    }
+
     /// <summary>Wolverine's own event: a compensation failed after its retries.</summary>
     public void Apply(IEvent<SagaCompensationFailed> e)
     {
@@ -100,7 +109,8 @@ internal static class EventSourcedSagaEventNames
         (typeof(SagaCompleted), "wolverine_saga_completed"),
         (typeof(SagaCompensating), "wolverine_saga_compensating"),
         (typeof(SagaCompensated), "wolverine_saga_compensated"),
-        (typeof(SagaCompensationFailed), "wolverine_saga_compensation_failed")
+        (typeof(SagaCompensationFailed), "wolverine_saga_compensation_failed"),
+        (typeof(SagaTimeoutScheduled), "wolverine_saga_timeout_scheduled")
     ];
 
     public static string StepName(Type messageType) => messageType.ToMessageTypeName();
