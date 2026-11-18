@@ -5,7 +5,10 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.CodeGeneration.Services;
+using Marten;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Wolverine.Marten;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.FSharpContracts;
 using Wolverine.Http.Runtime;
@@ -123,6 +126,61 @@ public static class HttpFSharpCodegenSample
 
         var serviceVariableSource = new ServiceCollectionServerVariableSource(container);
         return generatedAssembly.GenerateFSharpCode(serviceVariableSource);
+    }
+
+    // Codegen never opens a connection; the string only has to be well-formed for AddMarten bootstrap
+    private const string MartenConnectionString =
+        "Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres";
+
+    /// <summary>
+    ///     GH-5401. Renders the <c>[WaitForProjection&lt;T&gt;]</c> endpoints in <see cref="ReadYourWritesEndpoints" />
+    ///     as F#. The attribute needs a document store integrated with Wolverine, which the no-host container above
+    ///     does not have, so these chains come from a host with Marten that is built but never started (no database,
+    ///     no Roslyn). Exercises both read-your-writes frames in their HTTP form: the request token read before the
+    ///     endpoint, and the wait after the commit that writes the response headers.
+    /// </summary>
+    public static string GenerateReadYourWritesCode()
+    {
+        // Deliberately NOT setting DynamicCodeBuilder.WithinCodegenCommand, as the Marten gates do. The flag is
+        // process-wide and HttpFSharpFrameTests runs this in parallel with the compile gate's GenerateCode(): while it
+        // is set, GenerateCode()'s endpoint registry also emits its Native AOT rooting block, and Generated.fs stops
+        // compiling. Nothing here needs it: the host is never started and the chains come straight from the HttpGraph.
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddMarten(m => m.Connection(MartenConnectionString)).IntegrateWithWolverine();
+                opts.Services.AddWolverineHttp();
+
+                opts.Discovery.DisableConventionalDiscovery();
+            })
+            .Build();
+
+        // Applies the Marten integration to the options without starting the host
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
+
+        var httpGraph = new HttpGraph(runtime.Options, host.Services.GetRequiredService<IServiceContainer>());
+
+        var chains = new[]
+        {
+            HttpChain.ChainFor(typeof(ReadYourWritesEndpoints), nameof(ReadYourWritesEndpoints.Post), httpGraph),
+            HttpChain.ChainFor(typeof(ReadYourWritesEndpoints), nameof(ReadYourWritesEndpoints.Get), httpGraph)
+        };
+
+        var generatedAssembly = httpGraph.StartAssembly(httpGraph.Rules);
+        foreach (var chain in chains)
+        {
+            ((ICodeFile)chain).AssembleTypes(generatedAssembly);
+        }
+
+        return generatedAssembly.GenerateFSharpCode(host.Services.GetService<IServiceVariableSource>());
+    }
+
+    public static string ReadYourWritesGeneratedFilePath([CallerFilePath] string thisFile = "")
+    {
+        var testProjectDir = Path.GetDirectoryName(thisFile)!;
+        var srcTestingDir = Path.GetDirectoryName(testProjectDir)!;
+        return Path.Combine(srcTestingDir, "Wolverine.Http.FSharpFixture", "ReadYourWritesGenerated.fs");
     }
 
     public static string DefaultGeneratedFilePath([CallerFilePath] string thisFile = "")

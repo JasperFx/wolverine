@@ -163,7 +163,8 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding, Wolverin
         OutboxedSessionFactory = typeof(Wolverine.Marten.Publishing.OutboxedSessionFactory),
         NativeSessionFactory = typeof(global::Marten.ISessionFactory),
         DocumentOperations = typeof(global::Marten.IDocumentOperations),
-        EventOperations = typeof(global::Marten.Events.IEventStoreOperations)
+        EventOperations = typeof(global::Marten.Events.IEventStoreOperations),
+        DocumentStore = typeof(global::Marten.IDocumentStore)
     };
 
     internal EventForwardingRouter EventRouter { get; } = new();

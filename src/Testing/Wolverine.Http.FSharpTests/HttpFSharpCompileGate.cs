@@ -28,6 +28,11 @@ public class HttpFSharpCompileGate
         File.Exists(generatedFile).ShouldBeTrue();
         _output.WriteLine(code);
 
+        // GH-5401: the Marten-backed [WaitForProjection<T>] endpoints, compiled in the same fixture build
+        var readYourWrites = HttpFSharpCodegenSample.GenerateReadYourWritesCode();
+        File.WriteAllText(HttpFSharpCodegenSample.ReadYourWritesGeneratedFilePath(), readYourWrites);
+        _output.WriteLine(readYourWrites);
+
         var fixtureProject = HttpFSharpCodegenSample.FixtureProjectPath();
         var (exitCode, output) = await RunDotnetAsync($"build \"{fixtureProject}\" -c Debug --nologo");
 

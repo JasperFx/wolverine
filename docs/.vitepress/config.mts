@@ -345,6 +345,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Event Forwarding to Wolverine', link: '/guide/durability/marten/event-forwarding'},
                                 {text: 'Event Subscriptions', link: '/guide/durability/marten/subscriptions'},
                                 {text: 'Subscription/Projection Distribution', link: '/guide/durability/marten/distribution'},
+                                {text: 'Read Your Writes', link: '/guide/durability/marten/read-your-writes'},
                                 {text: 'Sagas', link: '/guide/durability/marten/sagas'},
                                 {text: 'Process Manager via Handlers', link: '/guide/durability/marten/process-manager-via-handlers'},
                                 {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'},
