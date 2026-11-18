@@ -1,4 +1,5 @@
 using SagaFaults.Inventory;
+using JasperFx;
 using Wolverine;
 
 namespace SagaFaults.Orders.Compensation;
@@ -10,8 +11,10 @@ namespace SagaFaults.Orders.Compensation;
 // Each Compensate runs as a handler chain of its own, so error policies -- attributes on the method, or global ones --
 // apply to it as to any handler. There is no separate retry setting for compensation.
 // Any Saga may declare Compensate methods. The CompensatingSaga base type adds the saga's compensation status and log.
+// IRevisioned has Marten check the saga's version when it saves it, so another message saving the Order while it is
+// compensated is a concurrency conflict, retried like any other failure of the compensation.
 #region sample_saga_that_compensates
-public class Order : CompensatingSaga
+public class Order : CompensatingSaga, IRevisioned
 {
     public Guid Id { get; set; }
     public string Sku { get; set; } = "";

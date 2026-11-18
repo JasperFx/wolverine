@@ -660,7 +660,7 @@ They cover both kinds of failure: the saga's own handler failing, and a message 
 <!-- snippet: sample_saga_that_compensates -->
 <a id='snippet-sample_saga_that_compensates'></a>
 ```cs
-public class Order : CompensatingSaga
+public class Order : CompensatingSaga, IRevisioned
 {
     public Guid Id { get; set; }
     public string Sku { get; set; } = "";
@@ -706,7 +706,7 @@ public class Order : CompensatingSaga
     public static OrderAlreadyClosed NotFound(Fault<ReserveInventory> fault) => new(fault.Message.Sku);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaFaults/SagaFaults.Specs/Orders/CompensatingOrder.cs#L13-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_saga_that_compensates' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaFaults/SagaFaults.Specs/Orders/CompensatingOrder.cs#L16-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_saga_that_compensates' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A `Compensate` method takes the failed message first, then the exception, in one of three forms:
@@ -759,8 +759,9 @@ compensation state:
 - `CompensationLog`: one entry per compensation, with the failed message type, the type of the exception that was
   actually thrown, the outcome and the time
 
-Both are saved with the saga, so document stores and the lightweight saga tables need no schema change.
-`CompensatingSaga` implements `IRevisioned`, so Marten, Polecat and Fisher check its version when they save it.
+Both are saved with the saga, so document stores and the lightweight saga tables need no schema change. A concurrency
+conflict when the compensated saga is saved needs the storage to check the saga's version: the lightweight saga tables
+always do, and on Marten the saga implements `IRevisioned`, as the `Order` above does.
 
 With EF Core, map the two members with `MapCompensatingSaga()`. The log is stored as JSON in one text column:
 

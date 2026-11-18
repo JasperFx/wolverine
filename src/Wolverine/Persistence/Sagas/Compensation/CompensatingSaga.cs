@@ -1,5 +1,3 @@
-using JasperFx;
-
 // ReSharper disable once CheckNamespace
 namespace Wolverine;
 
@@ -10,11 +8,11 @@ namespace Wolverine;
 /// stores today.
 /// </summary>
 /// <remarks>
-/// It implements <see cref="IRevisioned" />, so Marten, Polecat and Fisher check its version when they save it, as the
-/// lightweight saga tables always do: a message that saves the saga while it is being compensated is then a
-/// concurrency conflict, retried under the compensation's error policies.
+/// A concurrency conflict saving the compensated saga -- another message saved it meanwhile -- is retried under the
+/// compensation's error policies. The lightweight saga tables always check the saga's version; on Marten, have the saga
+/// implement <c>JasperFx.IRevisioned</c> as well.
 /// </remarks>
-public abstract class CompensatingSaga : Saga, IRevisioned
+public abstract class CompensatingSaga : Saga
 {
     /// <summary>Where the saga is in its compensation, if anywhere. Set by Wolverine.</summary>
     public SagaStatus Status { get; set; } = SagaStatus.Active;
