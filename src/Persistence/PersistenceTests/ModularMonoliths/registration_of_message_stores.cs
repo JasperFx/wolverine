@@ -102,7 +102,7 @@ public class registration_of_message_stores : IAsyncLifetime
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
         });
 
-        var expected = new Uri("wolverinedb://postgresql/localhost/postgres/wolverine");
+        var expected = new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine");
         (await collection.FindAllAsync()).Single().Uri.ShouldBe(expected);
 
         (await collection.FindDatabasesAsync([expected])).Single().Uri.ShouldBe(expected);
@@ -138,7 +138,7 @@ public class registration_of_message_stores : IAsyncLifetime
         });
         
         // STILL only one expected message store here
-        var expected = new Uri("wolverinedb://postgresql/localhost/postgres/wolverine");
+        var expected = new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine");
         var services = await collection.FindAllAsync();
 
         services.Single().Uri.ShouldBe(expected);
@@ -176,7 +176,7 @@ public class registration_of_message_stores : IAsyncLifetime
         });
         
         // STILL only one expected message store here
-        var main = new Uri("wolverinedb://postgresql/localhost/postgres/wolverine");
+        var main = new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine");
         var first = new Uri("wolverinedb://postgresql/localhost/database1/wolverine");
         var second = new Uri("wolverinedb://postgresql/localhost/database2/wolverine");
         
@@ -213,7 +213,7 @@ public class registration_of_message_stores : IAsyncLifetime
             }).IntegrateWithWolverine(w => w.MainDatabaseConnectionString = Servers.PostgresConnectionString);
         });
         
-        var main = new Uri("wolverinedb://postgresql/localhost/postgres/wolverine");
+        var main = new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine");
         var db1 = new Uri("wolverinedb://postgresql/localhost/database1/wolverine");
         var db2 = new Uri("wolverinedb://postgresql/localhost/database2/wolverine");
         var db3 = new Uri("wolverinedb://postgresql/localhost/database3/wolverine");
@@ -260,7 +260,7 @@ public class registration_of_message_stores : IAsyncLifetime
         await _host.AddTenantDatabaseAsync("t2", connectionString2);
         
         
-        var main = new Uri("wolverinedb://postgresql/localhost/postgres/wolverine");
+        var main = new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine");
         var db1 = new Uri("wolverinedb://postgresql/localhost/database1/wolverine");
         var db2 = new Uri("wolverinedb://postgresql/localhost/database2/wolverine");
         var db3 = new Uri("wolverinedb://postgresql/localhost/database3/wolverine");
@@ -383,7 +383,7 @@ public class registration_of_message_stores : IAsyncLifetime
         
         collection.HasAnyAncillaryStores().ShouldBeTrue();
         var databases = await collection.FindAllAsync();
-        databases.Select(x => x.Uri).OrderBy(x => x.ToString()).ShouldBe([new Uri("wolverinedb://postgresql/localhost/database1/wolverine"), new Uri("wolverinedb://postgresql/localhost/postgres/main")]);
+        databases.Select(x => x.Uri).OrderBy(x => x.ToString()).ShouldBe([new Uri("wolverinedb://postgresql/localhost/database1/wolverine"), new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/main")]);
 
         var store = _host.Services.GetRequiredService<AncillaryMessageStore>();
         store.MarkerType.ShouldBe(typeof(SampleDbContext));
@@ -402,7 +402,7 @@ public class registration_of_message_stores : IAsyncLifetime
         
         collection.HasAnyAncillaryStores().ShouldBeTrue();
         var databases = await collection.FindAllAsync();
-        databases.Select(x => x.Uri).OrderBy(x => x.ToString()).ShouldBe([new Uri("wolverinedb://postgresql/localhost/postgres/main"), new Uri("wolverinedb://sqlserver/localhost/master/dbo")]);
+        databases.Select(x => x.Uri).OrderBy(x => x.ToString()).ShouldBe([new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/main"), new Uri("wolverinedb://sqlserver/localhost/master/dbo")]);
         
         var store = _host.Services.GetRequiredService<AncillaryMessageStore>();
         store.MarkerType.ShouldBe(typeof(SampleDbContext));

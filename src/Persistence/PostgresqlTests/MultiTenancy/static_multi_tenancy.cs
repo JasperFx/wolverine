@@ -46,7 +46,7 @@ public class static_multi_tenancy : MultiTenancyContext
         var store = theHost.Services.GetRequiredService<IMessageStore>()
             .ShouldBeOfType<MultiTenantedMessageStore>();
 
-        store.Main.Describe().DatabaseName.ShouldBe("postgres");
+        store.Main.Describe().DatabaseName.ShouldBe(Servers.PostgresDatabaseName);
 
         (await store.Source.FindAsync("red")).Describe().DatabaseName.ShouldBe("db1");
         (await store.Source.FindAsync("blue")).Describe().DatabaseName.ShouldBe("db2");
@@ -149,8 +149,8 @@ static_multi_tenancy2.wolverine_outgoing_envelopes
         var store = theHost.Services.GetRequiredService<IMessageStore>()
             .ShouldBeOfType<MultiTenantedMessageStore>();
 
-        var expected = @"
-wolverinedb://postgresql/localhost/postgres/static_multi_tenancy2
+        var expected = $@"
+wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/static_multi_tenancy2
 wolverinedb://postgresql/localhost/db1/static_multi_tenancy2
 wolverinedb://postgresql/localhost/db3/static_multi_tenancy2
 wolverinedb://postgresql/localhost/db2/static_multi_tenancy2
