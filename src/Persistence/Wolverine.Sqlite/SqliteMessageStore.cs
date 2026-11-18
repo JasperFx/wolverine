@@ -675,12 +675,29 @@ internal partial class SqliteMessageStore : MessageDatabase<SqliteConnection>, I
         return descriptor;
     }
 
+    // GH-5665: recorded_at is sortable UTC text, like the saga tables' timestamps
+    private const string SagaHistoryTimestampFormat = "yyyy-MM-dd HH:mm:ss.fffffff";
+
+    public override object SagaHistoryTimestamp(DateTimeOffset value)
+        => value.UtcDateTime.ToString(SagaHistoryTimestampFormat, System.Globalization.CultureInfo.InvariantCulture);
+
+    protected override DateTimeOffset readSagaHistoryTimestamp(System.Data.Common.DbDataReader reader, int ordinal)
+        => new(DateTime.SpecifyKind(DateTime.ParseExact(reader.GetString(ordinal), SagaHistoryTimestampFormat,
+            System.Globalization.CultureInfo.InvariantCulture), DateTimeKind.Utc));
+
     public override IEnumerable<ISchemaObject> AllObjects()
     {
         yield return new OutgoingEnvelopeTable(Durability, SchemaName);
         yield return new IncomingEnvelopeTable(Durability, SchemaName);
         yield return new DeadLettersTable(Durability, SchemaName);
         yield return new DeadLetterHistoryTable(SchemaName);
+
+        // GH-5665. Every store role, since a saga's history is written to the store its saga's transaction is in, but
+        // only once some saga records its history
+        if (Durability.ProvisionsSagaHistory)
+        {
+            yield return new SagaHistoryTable(SchemaName);
+        }
 
         // GH-4180. Every store role, not just Main -- see the PostgreSQL twin.
         // GH-4757: exactly one of the two, never both. The hash mode's key is a binary column, which

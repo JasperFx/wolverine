@@ -1095,6 +1095,13 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         yield return new DeadLettersTable(Durability, SchemaName);
         yield return new DeadLetterHistoryTable(SchemaName);
 
+        // GH-5665. Every store role, since a saga's history is written to the store its saga's transaction is in, but
+        // only once some saga records its history
+        if (Durability.ProvisionsSagaHistory)
+        {
+            yield return new SagaHistoryTable(SchemaName);
+        }
+
         // GH-4180. Every store role, not just Main: a handler chain with an AncillaryStoreType claims
         // its logical id in that store so the claim and the work land in one transaction.
         // GH-4757: exactly one of the two, never both. The hash mode's key is a binary column, which

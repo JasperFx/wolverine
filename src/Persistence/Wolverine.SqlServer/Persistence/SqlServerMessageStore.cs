@@ -278,6 +278,12 @@ public partial class SqlServerMessageStore : MessageDatabase<SqlConnection>, ICo
         return $"update top ({batchSize}) {table} set {owner} = 0 where {owner} in ({deadOwnerList});";
     }
 
+    // GH-5665
+    protected override void writeSagaHistoryPaging(DbCommandBuilder builder, int skip, int take)
+    {
+        builder.Append($" offset {skip} rows fetch next {take} rows only");
+    }
+
     protected override void writePagingAfter(DbCommandBuilder builder, int offset, int limit)
     {
         if (offset == 0) return;
@@ -819,6 +825,13 @@ group by o.name, ps.index_id, i.name";
         yield return new IncomingEnvelopeTable(Durability, SchemaName);
         yield return new DeadLettersTable(Durability, SchemaName);
         yield return new DeadLetterHistoryTable(SchemaName);
+
+        // GH-5665. Every store role, since a saga's history is written to the store its saga's transaction is in, but
+        // only once some saga records its history
+        if (Durability.ProvisionsSagaHistory)
+        {
+            yield return new SagaHistoryTable(SchemaName);
+        }
         yield return new EnvelopeIdTable(SchemaName);
         yield return new WolverineStoredProcedure("uspDeleteIncomingEnvelopes.sql", this);
         yield return new WolverineStoredProcedure("uspDeleteOutgoingEnvelopes.sql", this);
