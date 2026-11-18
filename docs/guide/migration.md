@@ -884,6 +884,20 @@ stack. Upgrade them together; mixing a Wolverine 7 package with Marten 9 or Weas
 The Marten, Polecat and Fisher majors have their own migration guides; read them alongside this one. The RabbitMQ,
 Azure Service Bus, SQS/SNS, GCP Pub/Sub, Pulsar, Redis and Cosmos DB client libraries are unchanged.
 
+#### Marten 10 changes you can hit through Wolverine
+
+- **Storing a loaded saga again.** Marten 10 checks the revision of a revisioned document passed to `Store()`: a
+  non-zero `Version` is the revision the document has to become, so it must be greater than the stored one, or
+  `SaveChangesAsync()` throws `ConcurrencyException`. Wolverine maps `Saga.Version` as the revision of every saga.
+  Wolverine's own saga handling already stores the next revision, but a handler that loads a saga itself and stores it
+  again (`MartenOps.Store(saga)`, `Storage.Store(saga)` or `session.Store(saga)`) now has to bump `Version` first, or set
+  it to 0 to skip the check.
+- **A Serializable session factory.** Marten 10 only opens a Serializable session that opens its own connection
+  asynchronously, and Wolverine opens a handler's session synchronously. A `SessionFactoryBase` whose `BuildOptions()`
+  asks for `IsolationLevel.Serializable` now fails when a handler's session is opened, with a `NotSupportedException`
+  that says so. Use a weaker isolation level there, or open the session in the handler with
+  `IDocumentStore.LightweightSerializableSessionAsync()` and enroll it in the outbox with `IMartenOutbox.Enroll()`.
+
 #### NATS transport runs on NATS.Net 3
 
 `WolverineFx.Nats` and `WolverineFx.ClaimCheck.Nats` move from NATS.Net 2.x to 3.x. No Wolverine NATS API changed
