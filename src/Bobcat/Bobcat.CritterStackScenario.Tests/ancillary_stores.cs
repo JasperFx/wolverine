@@ -38,7 +38,7 @@ public abstract class ancillary_stores<THost, TMarker>(THost host) where THost :
         });
 
         recording.GatheredFailures().ShouldBeNull();
-        recording.Steps[0].Text.ShouldBe("there is an InvoiceSummary");
+        recording.Steps[0].Text.ShouldBe("there is an InvoiceSummary with Id: #InvoiceSummary, Raised: 0, Paid: False");
         recording.Steps[1].Text.ShouldBe("there is an InvoiceSummary #InvoiceSummary");
     }
 
