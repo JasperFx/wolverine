@@ -282,7 +282,8 @@ public class queue_ordering_is_opt_in : PostgresqlContext
                     var persistence = opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, schema);
                     // Register the queue first to verify the transport option is read when the
                     // lazily constructed queue tables are materialized during startup.
-                    var listener = opts.ListenToPostgresqlQueue(queueName);
+                    // The running listener must never take the rows the test is going to pop itself
+                    var listener = opts.ListenToPostgresqlQueue(queueName).MaximumMessagesToReceive(0);
                     if (buffered) listener.BufferedInMemory();
                     listener.PollingInterval(1.Hours());
                     persistence.EnableMessageTransport(expression =>
@@ -303,7 +304,8 @@ public class queue_ordering_is_opt_in : PostgresqlContext
                 {
                     var expression = opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString,
                         schema, transportSchema: schema);
-                    opts.ListenToPostgresqlQueue(queueName).PollingInterval(1.Hours());
+                    // The running listener must never take the rows the test is going to pop itself
+                    opts.ListenToPostgresqlQueue(queueName).PollingInterval(1.Hours()).MaximumMessagesToReceive(0);
                     // The queue endpoint exists before the feature option is set; table construction is lazy
                     // and must use the final transport configuration.
                     if (deterministicOrdering)
@@ -321,7 +323,11 @@ public class queue_ordering_is_opt_in : PostgresqlContext
 
         var transport = host.GetRuntime().Options.Transports.GetOrCreate<PostgresqlTransport>();
         var queue = transport.Queues[queueName];
-        queue.MaximumMessagesToReceive = 0;
+
+        // Configured, not assigned here. Setting it after StartAsync raced the listener's first poll, which
+        // starts with the queue and reads the limit (20) before the assignment; on a busy box that poll's DELETE
+        // ran after the test's sends and took the rows, so "Expected 10 ready messages" timed out.
+        queue.MaximumMessagesToReceive.ShouldBe(0);
         return new StartedQueue(host, queue);
     }
 
