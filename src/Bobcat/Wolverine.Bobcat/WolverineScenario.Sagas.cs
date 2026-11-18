@@ -108,6 +108,41 @@ public partial class WolverineScenario
         });
     }
 
+    // ---- proposed vocabulary for GH-5556 (spec review of 2026-11-18): renders, then fails ------------------------
+
+    /// <summary>
+    /// GH-5556, PROPOSED, NOT BUILT YET. The <typeparamref name="TSaga" /> saga with this identity has
+    /// <paramref name="status" />, loaded through the saga's own persistence as <see cref="ThenSaga{TSaga}(object, object)" />
+    /// loads it. Reads "the Order saga #OrderId has status Compensated".
+    /// </summary>
+    public void ThenTheSagaStatusIs<TSaga>(object sagaId, SagaStatus status) where TSaga : Saga, ICompensatingSaga
+        => notBuilt("Then", $"the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} has status {status}",
+            "proposed Bobcat vocabulary: ICompensatingSaga.Status, loaded as ThenSaga loads the saga");
+
+    /// <summary>
+    /// GH-5556, PROPOSED, NOT BUILT YET. The <typeparamref name="TSaga" /> saga with this identity compensated its failed
+    /// <typeparamref name="TMessage" /> for a <typeparamref name="TException" /> or a subclass: its compensation log has
+    /// that entry, with the outcome <see cref="CompensationOutcome.Compensated" />. Reads
+    /// "the Order saga #OrderId compensates ReserveInventory for OutOfStockException".
+    /// </summary>
+    public void ThenTheSagaCompensated<TSaga, TMessage, TException>(object sagaId)
+        where TSaga : Saga, ICompensatingSaga where TException : Exception
+        => notBuilt("Then",
+            $"the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} compensates {nameOf(typeof(TMessage))} for {nameOf(typeof(TException))}",
+            "proposed Bobcat vocabulary: an ICompensatingSaga.CompensationLog entry for the message type and the exception type");
+
+    /// <summary>
+    /// GH-5556, PROPOSED, NOT BUILT YET. The <typeparamref name="TSaga" /> saga with this identity tried to compensate its
+    /// failed <typeparamref name="TMessage" /> for a <typeparamref name="TException" />, and that compensation failed: its
+    /// compensation log has that entry, with the outcome <see cref="CompensationOutcome.Failed" />. Reads
+    /// "the Order saga #OrderId fails to compensate PaymentReceived for PaymentAmountMismatchException".
+    /// </summary>
+    public void ThenTheSagaFailedToCompensate<TSaga, TMessage, TException>(object sagaId)
+        where TSaga : Saga, ICompensatingSaga where TException : Exception
+        => notBuilt("Then",
+            $"the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} fails to compensate {nameOf(typeof(TMessage))} for {nameOf(typeof(TException))}",
+            "proposed Bobcat vocabulary: an ICompensatingSaga.CompensationLog entry with the outcome Failed");
+
     private static async Task<T> inSagaStep<T>(IDisposable step, Func<Task<T>> body)
     {
         try

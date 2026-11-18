@@ -327,6 +327,35 @@ public partial class WolverineScenario
             $"while the {nameOf(typeof(TSaga))} saga {ScenarioValues.Format(sagaId)} is about to be compensated, another message completes it",
             "GH-5556: it needs a seam between the failure and compensation loading the saga");
 
+    // ---- proposed vocabulary for GH-5554 (spec review of 2026-11-18): renders, then fails ------------------------
+
+    /// <summary>
+    /// GH-5554, PROPOSED, NOT BUILT YET. A <typeparamref name="T" /> addressed to the service named <paramref name="to" />
+    /// is waiting in the durable outbox of the service named <paramref name="by" />: written, not sent yet. Reads
+    /// "a Fault&lt;ReserveInventory&gt; to orders waits in inventory's outbox".
+    /// </summary>
+    public void ThenWaitingInTheOutbox<T>(string by, string to)
+        => notBuilt("Then", $"{withArticle(nameOf(typeof(T)))} to {to} waits in {by}'s outbox",
+            "proposed Bobcat vocabulary: it reads the service's outgoing envelopes from its message store and matches " +
+            "their destination against the named service's listeners");
+
+    /// <summary>
+    /// GH-5554, PROPOSED, NOT BUILT YET. No <typeparamref name="T" /> is waiting in the durable outbox of the service
+    /// named <paramref name="by" />. Reads "no Fault&lt;ReserveInventory&gt; waits in inventory's outbox".
+    /// </summary>
+    public void ThenNothingWaitingInTheOutbox<T>(string by)
+        => notBuilt("Then", $"no {nameOf(typeof(T))} waits in {by}'s outbox",
+            "proposed Bobcat vocabulary: it reads the service's outgoing envelopes from its message store");
+
+    /// <summary>
+    /// GH-5554, PROPOSED, NOT BUILT YET. The <typeparamref name="T" /> is still in the durable inbox of the service named
+    /// <paramref name="by" />, neither handled nor dead-lettered, so it will be tried again. Reads
+    /// "ReserveInventory is still in inventory's inbox".
+    /// </summary>
+    public void ThenStillInTheInbox<T>(string by)
+        => notBuilt("Then", $"{nameOf(typeof(T))} is still in {by}'s inbox",
+            "proposed Bobcat vocabulary: it reads the service's incoming envelopes from its message store");
+
     // Renders the step and fails it, without stopping the specification, so the steps after it still render for review
     private static void notBuilt(string keyword, string text, string because)
     {

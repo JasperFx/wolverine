@@ -79,4 +79,29 @@ public abstract partial class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.WhileCompensatingTheSagaIsCompleted{TSaga}" />
     public void WhileCompensatingTheSagaIsCompleted<TSaga>(object sagaId) where TSaga : Saga
         => Scenario.WhileCompensatingTheSagaIsCompleted<TSaga>(sagaId);
+
+    // ---- proposed vocabulary (spec review of 2026-11-18): renders, then fails ---------------------------------
+
+    /// <inheritdoc cref="WolverineScenario.ThenWaitingInTheOutbox{T}" />
+    public void ThenWaitingInTheOutbox<T>(string by, string to) => Scenario.ThenWaitingInTheOutbox<T>(by, to);
+
+    /// <inheritdoc cref="WolverineScenario.ThenNothingWaitingInTheOutbox{T}" />
+    public void ThenNothingWaitingInTheOutbox<T>(string by) => Scenario.ThenNothingWaitingInTheOutbox<T>(by);
+
+    /// <inheritdoc cref="WolverineScenario.ThenStillInTheInbox{T}" />
+    public void ThenStillInTheInbox<T>(string by) => Scenario.ThenStillInTheInbox<T>(by);
+
+    /// <inheritdoc cref="WolverineScenario.ThenTheSagaStatusIs{TSaga}" />
+    public void ThenTheSagaStatusIs<TSaga>(object sagaId, SagaStatus status) where TSaga : Saga, ICompensatingSaga
+        => Scenario.ThenTheSagaStatusIs<TSaga>(sagaId, status);
+
+    /// <inheritdoc cref="WolverineScenario.ThenTheSagaCompensated{TSaga, TMessage, TException}" />
+    public void ThenTheSagaCompensated<TSaga, TMessage, TException>(object sagaId)
+        where TSaga : Saga, ICompensatingSaga where TException : Exception
+        => Scenario.ThenTheSagaCompensated<TSaga, TMessage, TException>(sagaId);
+
+    /// <inheritdoc cref="WolverineScenario.ThenTheSagaFailedToCompensate{TSaga, TMessage, TException}" />
+    public void ThenTheSagaFailedToCompensate<TSaga, TMessage, TException>(object sagaId)
+        where TSaga : Saga, ICompensatingSaga where TException : Exception
+        => Scenario.ThenTheSagaFailedToCompensate<TSaga, TMessage, TException>(sagaId);
 }

@@ -35,6 +35,12 @@ public abstract class SagaFaultsSpec : WolverineSpec, IAsyncLifetime
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
+    /// <summary>Chapter 2: an Order that has reserved its inventory and is waiting for a payment of <paramref name="amount" />.</summary>
+    protected object AnOrderAwaitingPayment(decimal amount) => Specify<Orders.Compensation.Order>()
+        .With(x => x.Id, OrderId)
+        .With(x => x.Amount, amount)
+        .With(x => x.InventoryReserved, true);
+
     // ---- the inventory service's state --------------------------------------------------------
 
     [Given("inventory has {available} of {sku} in stock")]
