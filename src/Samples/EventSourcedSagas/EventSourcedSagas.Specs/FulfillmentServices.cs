@@ -1,4 +1,6 @@
 using EventSourcedSagas.Fulfillment;
+using EventSourcedSagas.GiftCards;
+using EventSourcedSagas.Returns;
 using EventSourcedSagas.Mistakes;
 using EventSourcedSagas.Support;
 using IntegrationTests;
@@ -50,6 +52,15 @@ public abstract class FulfillmentServices : IAsyncLifetime
                     })
                     .IntegrateWithWolverine();
 
+                // An ancillary store, where the GiftCard saga lives
+                opts.Services.AddMartenStore<IGiftCardStore>(m =>
+                    {
+                        m.Connection(Servers.PostgresConnectionString);
+                        m.DatabaseSchemaName = $"{Schema}_giftcards";
+                        m.DisableNpgsqlLogging = true;
+                    })
+                    .IntegrateWithWolverine();
+
                 opts.Policies.AutoApplyTransactions();
                 opts.Policies.UseDurableLocalQueues();
                 opts.Policies.RetainCompletedSagas(Retention);
@@ -58,6 +69,8 @@ public abstract class FulfillmentServices : IAsyncLifetime
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(OrderFulfillment))
                     .IncludeType(typeof(SupportTicket))
+                    .IncludeType(typeof(ReturnRequest))
+                    .IncludeType(typeof(GiftCard))
                     .IncludeType(typeof(Payments));
 
                 // Retried twice, then dead-lettered (or compensated)
@@ -72,6 +85,7 @@ public abstract class FulfillmentServices : IAsyncLifetime
     public async Task ResetAsync()
     {
         await Host.ResetAllMartenDataAsync();
+        await Host.ResetAllMartenDataAsync<IGiftCardStore>();
         await Host.Services.GetRequiredService<IWolverineRuntime>().Storage.Admin.ClearAllAsync();
         Host.Services.GetRequiredService<PaymentLedger>().Available = true;
     }

@@ -13,7 +13,7 @@ namespace EventSourcedSagas.Specs;
 [Collection(nameof(FulfillmentCollection))]
 public class reading_an_event_sourced_sagas_history(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
 {
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task the_history_is_read_a_page_at_a_time()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid(), Reserved, Shipped, Completed);
@@ -25,7 +25,7 @@ public class reading_an_event_sourced_sagas_history(InlineFulfillmentServices se
         await ThenTheSagaSupportsHistory<OrderFulfillment>();
     }
 
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task the_last_page_of_the_history_holds_the_terminal_event()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid(), Reserved, Shipped, Completed);
@@ -36,7 +36,7 @@ public class reading_an_event_sourced_sagas_history(InlineFulfillmentServices se
         ThenTheSagaHistoryHasInAll(5);
     }
 
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task the_saga_is_read_as_it_was_at_a_version()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid(), Reserved, Shipped, Completed);
@@ -50,7 +50,7 @@ public class reading_an_event_sourced_sagas_history(InlineFulfillmentServices se
             .With(x => x.CompletedAt, (DateTimeOffset?)null));
     }
 
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task the_saga_is_read_as_it_was_at_a_point_in_time()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid());
@@ -65,7 +65,7 @@ public class reading_an_event_sourced_sagas_history(InlineFulfillmentServices se
     }
 
     // Wolverine's own compensation events are history like any other, so time travel shows the status at every step
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task the_status_at_each_step_comes_from_the_compensation_events()
     {
         var step = typeof(PaymentReceived).ToMessageTypeName();
@@ -83,7 +83,7 @@ public class reading_an_event_sourced_sagas_history(InlineFulfillmentServices se
             .With(x => x.IsRefunded, true));
     }
 
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task the_status_after_the_compensation_is_compensated()
     {
         var step = typeof(PaymentReceived).ToMessageTypeName();

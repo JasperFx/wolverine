@@ -17,7 +17,7 @@ namespace EventSourcedSagas.Specs;
 [Collection(nameof(FulfillmentCollection))]
 public class identity_and_registration(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
 {
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task an_int_id_is_refused()
     {
         await WhenAServiceStarts("with an event-sourced saga keyed by an int", aServiceWith(typeof(IntKeyedFulfillment)));
@@ -26,7 +26,7 @@ public class identity_and_registration(InlineFulfillmentServices services) : Eve
     }
 
     // Marten's default stream identity is AsGuid
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task a_string_id_on_a_store_keyed_by_Guid_is_refused()
     {
         await WhenAServiceStarts("with an event-sourced saga keyed by a string, on a store keyed by Guid",
@@ -36,7 +36,7 @@ public class identity_and_registration(InlineFulfillmentServices services) : Eve
             typeof(StringKeyedFulfillment), "String", "AsGuid");
     }
 
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task a_strong_typed_id_over_a_Guid_is_accepted()
     {
         await WhenAServiceStarts("with an event-sourced saga keyed by a strong-typed id over a Guid", aServiceWith(typeof(Parcel)));
@@ -45,7 +45,7 @@ public class identity_and_registration(InlineFulfillmentServices services) : Eve
     }
 
     // A saga that read a snapshot lagging its own stream would show stale state and get the completed check wrong
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task an_Async_snapshot_is_refused()
     {
         await WhenAServiceStarts("with OrderFulfillment registered as an Async snapshot",

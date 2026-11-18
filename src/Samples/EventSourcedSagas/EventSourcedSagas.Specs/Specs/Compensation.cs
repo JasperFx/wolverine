@@ -23,7 +23,7 @@ public class compensating_an_event_sourced_saga(InlineFulfillmentServices servic
     private Specified<SagaCompensationFailed> CompensationFailed<TException>() where TException : Exception
         => Specify<SagaCompensationFailed>().With(x => x.ExceptionType, typeof(TException).FullName!);
 
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_payment_the_ledger_cannot_record_is_retried_then_refunded()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started());
@@ -40,7 +40,7 @@ public class compensating_an_event_sourced_saga(InlineFulfillmentServices servic
     }
 
     // PaymentAmountMismatchException is marked [TerminalFailure]
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_wrong_payment_amount_is_refunded_at_once()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started());
@@ -55,7 +55,7 @@ public class compensating_an_event_sourced_saga(InlineFulfillmentServices servic
 
     // The Compensate for a wrong amount throws RefundAlreadyIssuedException when a refund was already issued. The events
     // it would have returned are not appended; Wolverine's own two are, in a transaction of their own
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_compensation_that_fails_is_recorded_as_compensation_failed()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), new RefundIssued(100m));
@@ -76,7 +76,7 @@ public class compensating_while_another_message_appends(InlineFulfillmentService
 {
     // The compensation loads the stream, then another message appends to it before the compensation saves: the save is a
     // concurrency conflict, and the compensation is retried under its own error policies
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_conflict_once_is_retried_and_the_compensation_succeeds()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started());
@@ -92,7 +92,7 @@ public class compensating_while_another_message_appends(InlineFulfillmentService
             .With(x => x.IsRefunded, true));
     }
 
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_conflict_on_every_attempt_leaves_the_saga_compensation_failed()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started());

@@ -12,7 +12,7 @@ namespace EventSourcedSagas.Specs;
 [Collection(nameof(FulfillmentCollection))]
 public class an_inline_snapshot(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
 {
-    [BobcatSpec(typeof(StartOrderFulfillment), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(StartOrderFulfillment))]
     public async Task the_snapshot_is_written_with_the_events_and_the_saga_explorer_can_search_it()
     {
         await WhenReceived(new StartOrderFulfillment(OrderFulfillmentId, CustomerId, 100m));
@@ -31,7 +31,7 @@ public class an_inline_snapshot(InlineFulfillmentServices services) : EventSourc
 [Collection(nameof(LiveFulfillmentCollection))]
 public class a_live_aggregation(LiveFulfillmentServices services) : EventSourcedSagaSpec(services)
 {
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_live_saga_still_works_and_the_saga_explorer_opens_it_but_cannot_search()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started());

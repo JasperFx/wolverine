@@ -11,7 +11,7 @@ namespace EventSourcedSagas.Specs;
 [Collection(nameof(FulfillmentCollection))]
 public class the_payment_timeout(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
 {
-    [BobcatSpec(typeof(PaymentTimeout), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentTimeout))]
     public async Task an_unpaid_fulfillment_is_cancelled_when_its_payment_times_out()
     {
         await WhenReceived(new StartOrderFulfillment(OrderFulfillmentId, CustomerId, 100m));
@@ -21,7 +21,7 @@ public class the_payment_timeout(InlineFulfillmentServices services) : EventSour
         await ThenTheSagaIsCompleted<OrderFulfillment>(OrderFulfillmentId);
     }
 
-    [BobcatSpec(typeof(PaymentTimeout), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentTimeout))]
     public async Task a_paid_fulfillment_ignores_its_payment_timeout()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid());
@@ -33,7 +33,7 @@ public class the_payment_timeout(InlineFulfillmentServices services) : EventSour
         await ThenTheSagaIsStillOpen<OrderFulfillment>(OrderFulfillmentId);
     }
 
-    [BobcatSpec(typeof(PaymentTimeout), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentTimeout))]
     public async Task a_timeout_for_a_completed_fulfillment_is_ignored()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid(), Reserved, Shipped, Completed);

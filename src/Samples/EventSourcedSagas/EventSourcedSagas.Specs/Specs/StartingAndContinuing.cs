@@ -10,7 +10,7 @@ namespace EventSourcedSagas.Specs;
 [Collection(nameof(FulfillmentCollection))]
 public class starting_an_event_sourced_saga(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
 {
-    [BobcatSpec(typeof(StartOrderFulfillment), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(StartOrderFulfillment))]
     public async Task starting_a_fulfillment_appends_its_first_event_and_schedules_the_payment_timeout()
     {
         await WhenReceived(new StartOrderFulfillment(OrderFulfillmentId, CustomerId, 100m));
@@ -27,7 +27,7 @@ public class starting_an_event_sourced_saga(InlineFulfillmentServices services) 
 
     // A saga start for an id that already exists is refused today, and an event-sourced one is no different. The store's
     // ExistingStreamIdCollisionException never reaches the application
-    [BobcatSpec(typeof(StartOrderFulfillment), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(StartOrderFulfillment))]
     public async Task a_second_start_for_the_same_fulfillment_is_refused_as_any_saga_start_is()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started());
@@ -41,7 +41,7 @@ public class starting_an_event_sourced_saga(InlineFulfillmentServices services) 
 
     // Another message starts the same stream between this start's load and its save. The store's own refusal is reported
     // as the SagaConcurrencyException a duplicate start is
-    [BobcatSpec(typeof(StartOrderFulfillment), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(StartOrderFulfillment))]
     public async Task a_start_that_loses_the_race_to_another_start_is_refused_as_any_saga_start_is()
     {
         WhileActingOn<OrderFulfillment>(OrderFulfillmentId, Started());
@@ -53,7 +53,7 @@ public class starting_an_event_sourced_saga(InlineFulfillmentServices services) 
         await ThenSaga<OrderFulfillment>(OrderFulfillmentId, Specify<OrderFulfillment>().With(x => x.TotalAmount, 100m));
     }
 
-    [BobcatSpec(typeof(OrderPlaced), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(OrderPlaced))]
     public async Task an_OrderPlaced_starts_a_fulfillment_that_has_not_started()
     {
         await WhenReceived(new OrderPlaced(OrderFulfillmentId, CustomerId, 100m));
@@ -61,7 +61,7 @@ public class starting_an_event_sourced_saga(InlineFulfillmentServices services) 
         await ThenStreamIsStartedWithEvents<OrderFulfillment>(new OrderFulfillmentStarted(OrderFulfillmentId, CustomerId, 100m));
     }
 
-    [BobcatSpec(typeof(OrderPlaced), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(OrderPlaced))]
     public async Task an_OrderPlaced_for_a_fulfillment_that_has_started_is_handled_like_any_other_message()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started());
@@ -80,7 +80,7 @@ public class starting_an_event_sourced_saga(InlineFulfillmentServices services) 
 [Collection(nameof(FulfillmentCollection))]
 public class continuing_an_event_sourced_saga(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
 {
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_payment_is_appended_to_the_fulfillments_own_stream()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started());
@@ -94,7 +94,7 @@ public class continuing_an_event_sourced_saga(InlineFulfillmentServices services
     }
 
     // The step's own guard holds because the snapshot is written in the same transaction as the events before it
-    [BobcatSpec(typeof(PaymentReceived), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(PaymentReceived))]
     public async Task a_payment_received_twice_is_confirmed_once()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid());
@@ -108,7 +108,7 @@ public class continuing_an_event_sourced_saga(InlineFulfillmentServices services
             .With(x => x.Version, 2));
     }
 
-    [BobcatSpec(typeof(WarehouseReservedItems), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(WarehouseReservedItems))]
     public async Task a_reply_with_no_id_finds_its_fulfillment_by_the_saga_id_header()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid());
@@ -119,7 +119,7 @@ public class continuing_an_event_sourced_saga(InlineFulfillmentServices services
         ThenEvents(new ItemsReserved(TheReservation));
     }
 
-    [BobcatSpec(typeof(CarrierConfirmedShipment), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(CarrierConfirmedShipment))]
     public async Task the_last_step_returns_SagaCompleted_which_completes_the_fulfillment()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid(), Reserved);
@@ -136,7 +136,7 @@ public class continuing_an_event_sourced_saga(InlineFulfillmentServices services
             .With(x => x.Version, 5));
     }
 
-    [BobcatSpec(typeof(CancelOrderFulfillment), Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec(typeof(CancelOrderFulfillment))]
     public async Task MarkCompleted_completes_the_fulfillment_with_a_SagaCompleted_event()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started());

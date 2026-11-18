@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <!-- GH-5415 (Wolverine 7.0): first-class event-sourced sagas, written as Bobcat specifications FIRST. One service,
-         "fulfillment", with the OrderFulfillment saga of the process-manager docs page rebuilt as an EventSourcedSaga on
-         Marten. The specifications are Acceptance specs until the feature is built: they run every time and report as
-         skipped while they fail. -->
+    <!-- GH-5415 (Wolverine 7.0): first-class event-sourced sagas, written as Bobcat specifications first. One service,
+         "fulfillment", with the OrderFulfillment saga of the process-manager docs page rebuilt as an EventSourcedSaga.
+         The two specifications of an Evolve() saga's own completion and compensation stay Acceptance specs until
+         JasperFx/jasperfx#1241 ships: they run every time and report as skipped while they fail. -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>

@@ -12,7 +12,7 @@ namespace EventSourcedSagas.Specs;
 [Collection(nameof(FulfillmentCollection))]
 public class retaining_a_completed_event_sourced_saga(InlineFulfillmentServices services) : EventSourcedSagaSpec(services)
 {
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task a_completed_fulfillment_is_archived_once_its_retention_period_has_passed()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid(), Reserved, Shipped, Completed);
@@ -23,7 +23,7 @@ public class retaining_a_completed_event_sourced_saga(InlineFulfillmentServices 
         await ThenNoSaga<OrderFulfillment>(OrderFulfillmentId);
     }
 
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task a_completed_fulfillment_is_kept_during_its_retention_period()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid(), Reserved, Shipped, Completed);
@@ -34,7 +34,7 @@ public class retaining_a_completed_event_sourced_saga(InlineFulfillmentServices 
         await ThenTheSagaIsCompleted<OrderFulfillment>(OrderFulfillmentId);
     }
 
-    [BobcatSpec(Lifecycle = Lifecycle.Acceptance)]
+    [BobcatSpec]
     public async Task an_open_fulfillment_is_never_archived()
     {
         await GivenEvents<OrderFulfillment>(OrderFulfillmentId, Started(), Paid());
