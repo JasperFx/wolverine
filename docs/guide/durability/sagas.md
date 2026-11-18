@@ -910,6 +910,113 @@ Turning retention off again leaves the sagas that were already kept in storage. 
 stops a later message from reaching them. To clear them out, either delete them by hand, or turn retention back on
 for a little while so the sweep deletes them.
 
+## Recording a Saga's Message History <Badge type="tip" text="7.0" />
+
+A saga kept as a document or a row only has its current state. To see how it got there, you can have Wolverine record
+a row for every message the saga handles: the message's type and id, when it was handled, the saga method that handled
+it, the outcome, and the messages the saga sent while it did. It never records the saga's state. Opt in for one saga
+type with an attribute:
+
+<!-- snippet: sample_record_saga_history_attribute -->
+<a id='snippet-sample_record_saga_history_attribute'></a>
+```cs
+// Record a row for every message this saga handles
+[RecordSagaHistory]
+public class HistorySaga : Saga
+{
+    public string Id { get; set; } = string.Empty;
+    public int Advances { get; set; }
+
+    public static (HistorySaga, HistorySagaTimeout) Start(StartHistorySaga command)
+        => (new HistorySaga { Id = command.Id }, new HistorySagaTimeout(command.Id));
+
+    public HistorySagaAdvanced Handle(AdvanceHistorySaga command)
+    {
+        Advances++;
+        return new HistorySagaAdvanced(Id);
+    }
+
+    public void Handle(FinishHistorySaga command) => MarkCompleted();
+
+    public void Handle(FailHistorySaga command) => throw new InvalidOperationException("You shall not pass");
+
+    public void Handle(HistorySagaTimeout timeout) => MarkCompleted();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/Sagas/SagaHistoryCompliance.cs#L28-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_record_saga_history_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+or for every saga in the application:
+
+<!-- snippet: sample_record_saga_history_for_every_saga -->
+<a id='snippet-sample_record_saga_history_for_every_saga'></a>
+```cs
+opts.Policies.RecordSagaHistory();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaFaults/SagaFaults.Specs/TwoServices.cs#L173-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_record_saga_history_for_every_saga' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+It's off by default, because every message the saga handles writes one more row.
+
+Each row has one of these outcomes:
+
+| Outcome | When |
+|---|---|
+| `Started` | The message started the saga |
+| `Continued` | The message was handled and the saga is still running |
+| `Completed` | The message completed the saga |
+| `Compensated` | The message was a `Fault<T>` that one of the saga's `Compensate` methods handled (see [compensating failed steps](#compensating-failed-steps)) |
+| `NotFound` | The message reached a retained saga that had already completed, and went to its `NotFound` method |
+
+A failed attempt is not recorded. The saga's dead letters carry its saga id, so a monitoring tool can put them on the
+same timeline.
+
+### Where the history is kept
+
+The rows go in a `wolverine_saga_history` table in Wolverine's message store, keyed by the saga type and the saga id.
+The table is only created once some saga records its history. It's written in the same transaction as the saga itself,
+through the same outbox enlistment Wolverine uses for the messages the saga sends, so a message whose handling fails or
+rolls back leaves no row behind.
+
+| Saga storage | How the history is written |
+|---|---|
+| Lightweight tables (PostgreSQL, SQL Server, MySQL, SQLite) | In the saga's own transaction, in the same database |
+| Marten, Polecat, Fisher | In the session that saves the saga, in that store's Wolverine message store |
+| EF Core | In the `DbContext`'s transaction, in the message store's database |
+| In memory, with a relational message store | Written on its own, as a best effort, before the saga is saved |
+| RavenDB, CosmosDB, Oracle | Not supported. Those message stores keep no saga history; a warning is logged once and nothing is recorded |
+
+Under database-per-tenant message storage, each tenant's history lands in that tenant's database, next to that tenant's
+sagas, and is read back from it.
+
+### How long the history is kept
+
+The history lives exactly as long as the saga:
+
+* A saga that is deleted when it completes takes its history with it, in the same transaction. Without retention you
+  see the history of running sagas only.
+* A saga kept by [`[RetainWhenCompleted]` or `RetainCompletedSagas()`](#keeping-completed-sagas) keeps its history,
+  including the `Completed` row and any late `NotFound` messages, until the same sweep that deletes the saga deletes
+  its history too.
+
+### Reading the history
+
+The history is read through `ISagaHistoryDiagnostics`, which is how CritterWatch reads the stream of an
+[event-sourced saga](/guide/durability/event-sourced-sagas), so both kinds of saga show up as one timeline:
+
+```cs
+var history = (ISagaHistoryDiagnostics)host.GetRuntime().SagaStorage;
+var page = await history.ReadSagaHistoryAsync(typeof(OrderSaga).FullName!, orderId,
+    new SagaHistoryPageRequest(Page: 1, PageSize: 50, TenantId: "acme"), cancellationToken);
+```
+
+Each entry is one handled message: `Version` is its position in the history, `EventTypeName` is Wolverine's name for
+the message type, and `Data` holds the whole row, outcome and sent messages included. Name the tenant to read from
+that tenant's database; without one, every message store is read. `SagaDescriptor.HistoryKind` is `MessageLog` for
+these sagas, and since the history holds no saga state, `ReadSagaAtAsync()` refuses them.
+
+An event-sourced saga needs none of this: its stream is its history, so `[RecordSagaHistory]` is ignored there.
+
 ## Last Modified Time <Badge type="tip" text="7.0" />
 
 Every `Saga` has a `LastModified` property, a `DateTimeOffset` in UTC. Wolverine sets it whenever it inserts or

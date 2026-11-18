@@ -340,7 +340,9 @@ Event-sourced saga storage implements `ISagaHistoryDiagnostics`, reached as
 * `ReadSagaAtAsync(sagaTypeName, id, version)` and `ReadSagaAtAsync(sagaTypeName, id, timestamp)` return the saga as it
   was at that point, using the store's own time travel.
 
-CritterWatch uses these for the saga timeline and the "state at step N" view.
+CritterWatch uses these for the saga timeline and the "state at step N" view. A saga kept as a document can record a
+message history that is read the same way, without the time travel; see
+[recording a saga's message history](/guide/durability/sagas#recording-a-saga-s-message-history).
 
 ## Testing
 

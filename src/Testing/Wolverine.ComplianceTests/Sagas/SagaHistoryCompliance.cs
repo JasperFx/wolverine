@@ -25,6 +25,8 @@ public record HistorySagaAdvanced(string Id);
 
 public record HistorySagaTimeout(string Id) : TimeoutMessage(1.Hours());
 
+#region sample_record_saga_history_attribute
+// Record a row for every message this saga handles
 [RecordSagaHistory]
 public class HistorySaga : Saga
 {
@@ -46,6 +48,7 @@ public class HistorySaga : Saga
 
     public void Handle(HistorySagaTimeout timeout) => MarkCompleted();
 }
+#endregion
 
 public static class HistorySagaAdvancedHandler
 {
