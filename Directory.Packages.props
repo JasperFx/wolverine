@@ -90,13 +90,13 @@
     <PackageVersion Include="JasperFx.RuntimeCompiler" Version="6.0.0" />
     <PackageVersion Include="JasperFx.SourceGenerator" Version="3.6.0" />
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="16.0.0" />
-    <PackageVersion Include="Marten" Version="10.0.0-alpha.2" />
+    <PackageVersion Include="Marten" Version="10.0.0-alpha.3" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
     <PackageVersion Include="Polecat" Version="6.0.0-alpha.5" />
     <PackageVersion Include="Fisher" Version="2.0.0-alpha.3" />
     <PackageVersion Include="Microsoft.Azure.Cosmos" Version="3.63.2" />
-    <PackageVersion Include="Marten.AspNetCore" Version="10.0.0-alpha.2" />
-    <PackageVersion Include="Marten.Newtonsoft" Version="10.0.0-alpha.2" />
+    <PackageVersion Include="Marten.AspNetCore" Version="10.0.0-alpha.3" />
+    <PackageVersion Include="Marten.Newtonsoft" Version="10.0.0-alpha.3" />
     <PackageVersion Include="MemoryPack" Version="1.21.3" />
     <PackageVersion Include="MessagePack" Version="3.1.12" />
     <PackageVersion Include="Meziantou.Extensions.Logging.Xunit" Version="1.0.15" />
