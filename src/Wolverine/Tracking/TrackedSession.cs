@@ -576,13 +576,24 @@ internal partial class TrackedSession : ITrackedSession
             bus.UserName = dispatched.UserName;
         }
 
+        // GH-5674: a saga timeout that replaces earlier ones is told apart by its headers, which the replay keeps
+        var options = Persistence.Sagas.SagaTimeouts.ReplayOptionsFor(dispatched);
+
         if (dispatched.Destination!.Scheme == TransportConstants.Local)
         {
-            await context.InvokeAsync(dispatched.Message!);
+            if (options == null)
+            {
+                await context.InvokeAsync(dispatched.Message!);
+            }
+            else
+            {
+                await context.InvokeAsync(dispatched.Message!, options);
+            }
+
             return true;
         }
 
-        await context.EndpointFor(dispatched.Destination).SendAsync(dispatched.Message);
+        await context.EndpointFor(dispatched.Destination).SendAsync(dispatched.Message, options);
         return false;
     }
 

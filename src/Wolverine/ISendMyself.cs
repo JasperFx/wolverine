@@ -19,8 +19,24 @@ public interface ISendMyself : IWolverineReturnType
 /// </summary>
 public abstract record TimeoutMessage(TimeSpan DelayTime) : ISendMyself
 {
+    /// <summary>
+    ///     GH-5674. Override to have this timeout replace the earlier timeouts a saga scheduled under the same key, such
+    ///     as <c>"billing"</c>: a superseded timeout that fires is discarded before the saga's <c>Handle</c> runs. Null,
+    ///     the default, replaces nothing unless the type is marked <see cref="ReplacesEarlierTimeoutsAttribute" />, which
+    ///     keys it by its message type. Protected, so it is never serialized with the message:
+    ///     <c>protected override string? TimeoutKey => "billing";</c>
+    /// </summary>
+    protected internal virtual string? TimeoutKey => null;
+
     public virtual ValueTask ApplyAsync(IMessageContext context)
     {
+        // GH-5674: a timeout that replaces earlier ones is stamped with its key and id
+        if (context is Runtime.MessageContext messageContext &&
+            Persistence.Sagas.SagaTimeouts.KeyFor(this) is { } key)
+        {
+            return Persistence.Sagas.SagaTimeouts.ScheduleAsync(this, key, messageContext);
+        }
+
         return context.ScheduleAsync(this, DelayTime);
     }
 }

@@ -78,7 +78,9 @@ internal static class SagaDescriptorBuilder
                 published)
             {
                 IsTimeout = chain.MessageType.CanBeCastTo<TimeoutMessage>(),
-                Methods = methods
+                Methods = methods,
+                DiscardedIfSagaMissing = chain.DetermineSagaMissingBehavior() == SagaMissingBehavior.Discard,
+                ReplacesEarlierTimeouts = SagaTimeouts.Replaces(chain.MessageType)
             });
         }
 
@@ -88,11 +90,28 @@ internal static class SagaDescriptorBuilder
             descriptor.Compensations.Add(new SagaCompensationDescriptor(
                 TypeDescriptor.For(method.FailedType),
                 TypeDescriptor.For(method.ExceptionType),
-                DescribeMethod(method.Method, SagaRole.Orchestrate, sagaType, eventSourced)));
+                DescribeMethod(method.Method, SagaRole.Orchestrate, sagaType, eventSourced))
+            {
+                Covers = CoveredBy(graph, sagaType, method)
+            });
         }
 
         return descriptor;
     }
+
+    /// <summary>
+    /// GH-5672. The concrete message types whose Fault&lt;T&gt; chain a Compensate method was filed under
+    /// </summary>
+    internal static TypeDescriptor[] CoveredBy(HandlerGraph graph, Type sagaType, CompensateMethod method)
+        => CollectSagaChains(graph)
+            .Where(c => c.SagaType == sagaType && SagaCompensations.FaultMessageType(c.MessageType) != null)
+            .Where(c => c.SagaHandlerCalls().Any(call => call.Method == method.Method))
+            .Select(c => SagaCompensations.FaultMessageType(c.MessageType)!)
+            .Where(x => !x.IsInterface && !x.IsAbstract && x != typeof(object))
+            .Distinct()
+            .OrderBy(x => x.FullNameInCode(), StringComparer.Ordinal)
+            .Select(TypeDescriptor.For)
+            .ToArray();
 
     /// <summary>
     /// GH-5670. The saga methods of one chain, starting methods first, then the ones for an existing saga, then
@@ -140,7 +159,7 @@ internal static class SagaDescriptorBuilder
 
         foreach (var type in returnedTypes(method.ReturnType))
         {
-            if (type == typeof(object) || type == typeof(OutgoingMessages) ||
+            if (type == typeof(object) || type.CanBeCastTo<OutgoingMessages>() ||
                 (type != typeof(string) && type.CanBeCastTo<IEnumerable<object>>()) ||
                 type == typeof(IAsyncEnumerable<object>))
             {

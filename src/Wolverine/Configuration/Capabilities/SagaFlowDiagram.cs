@@ -56,6 +56,8 @@ public static class SagaFlowDiagram
         private readonly List<string> _compensations = [];
         private readonly List<string> _edges = [];
         private bool _usesRunTime;
+        private bool _usesDropped;
+        private readonly HashSet<string> _replacing = new(StringComparer.Ordinal);
 
         public Drawing(SagaDescriptor saga)
         {
@@ -88,6 +90,16 @@ public static class SagaFlowDiagram
             foreach (var role in ordered)
             {
                 var incoming = messageId(role.MessageType);
+
+                // GH-5674: a message the saga drops when it is gone, unless a NotFound answers it
+                if (role.DiscardedIfSagaMissing && role.Methods.All(x => x.Role != SagaRole.NotFound))
+                {
+                    _usesDropped = true;
+                    _edges.Add($"{incoming} -.->|\"no saga, or completed\"| dropped");
+                }
+
+                if (role.ReplacesEarlierTimeouts) _replacing.Add(role.MessageType.FullName);
+
                 foreach (var method in methodsOf(role))
                 {
                     var id = uniqueId($"{method.Name}_{safe(role.MessageType.Name)}");
@@ -112,6 +124,13 @@ public static class SagaFlowDiagram
                     $"{id}[\"{label($"Compensate({displayName(compensation.FailedMessageType)}, {displayName(compensation.ExceptionType)})")}\"]");
                 _compensations.Add(id);
                 _edges.Add($"{failed} -.->|\"fails\"| {id}");
+
+                // GH-5672: a method for an interface or a base type compensates each concrete message it covers
+                foreach (var covered in compensation.Covers.Where(x => x.FullName != compensation.FailedMessageType.FullName))
+                {
+                    _edges.Add($"{messageId(covered)} -.->|\"fails\"| {id}");
+                }
+
                 drawOutput(id, compensation.Method, sagaBody);
             }
 
@@ -124,6 +143,8 @@ public static class SagaFlowDiagram
                 var name = label(displayNameOf(message.Key));
                 if (_scheduled.Contains(message.Key))
                 {
+                    // GH-5674: a timeout that replaces the earlier ones says so
+                    if (_replacing.Contains(message.Key)) name += "<br/>replaces earlier ones";
                     line($"{id}{{{{\"{name}\"}}}}");
                     _timeouts.Add(id);
                 }
@@ -137,6 +158,8 @@ public static class SagaFlowDiagram
             line($"subgraph {uniqueId("saga_" + safe(sagaName))}[\"{label(sagaName)}\"]");
             foreach (var node in sagaBody) line("    " + node);
             line("end");
+
+            if (_usesDropped) line("dropped[\"logged and dropped\"]");
 
             if (_usesRunTime)
             {
@@ -220,6 +243,7 @@ public static class SagaFlowDiagram
 
             entries.Add("Dashed: scheduled, a failure, or a message that finds no saga or a completed one");
             if (_saga.Messages.Any(x => x.IsTimeout)) entries.Add("A timeout that finds no saga, or a completed one, is dropped");
+            if (_replacing.Count > 0) entries.Add("A timeout that replaces earlier ones drops the superseded one");
             entries.Add("Messages a method sends through IMessageBus, rather than returns, are not shown");
 
             line("subgraph legend[\"Legend\"]");

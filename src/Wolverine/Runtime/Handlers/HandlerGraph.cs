@@ -795,8 +795,9 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2)).ToList();
 
-        // GH-5556: a saga's Compensate(T, ...) methods are its chain for Fault<T>
-        calls.AddRange(SagaCompensations.FindCalls(calls).ToArray());
+        // GH-5556: a saga's Compensate(T, ...) methods are its chain for Fault<T>. GH-5672: a Compensate for an
+        // interface or base type is filed under the fault of every concrete message type the application knows
+        calls.AddRange(SagaCompensations.FindCalls(calls, _messageTypes.Enumerate().Select(x => x.Value).ToArray()).ToArray());
 
         if (methods.Length == 0)
         {

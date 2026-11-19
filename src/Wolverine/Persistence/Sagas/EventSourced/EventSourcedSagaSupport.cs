@@ -85,12 +85,14 @@ public static class EventSourcedSagaSupport
         var messageType = fault.Message.GetType();
         var step = EventSourcedSagaEventNames.StepName(messageType);
 
+        var failedId = SagaCompensations.FailedMessageIdOf(envelope);
+
         if (envelope != null && envelope.HasHeaders && envelope.Headers.ContainsKey(SagaCompensations.MarkFailedHeader))
         {
             var reason = envelope.Headers.TryGetValue(SagaCompensations.FailureReasonHeader, out var failure) && failure != null
                 ? failure
                 : "The compensation failed after its retries";
-            stream.AppendOne(new SagaCompensating(step, thrownType));
+            stream.AppendOne(new SagaCompensating(step, thrownType) { FailedMessageId = failedId });
             stream.AppendOne(new SagaCompensationFailed(step, thrownType, reason));
             return;
         }
@@ -104,12 +106,23 @@ public static class EventSourcedSagaSupport
             return;
         }
 
+        saga.BeginHandling();
         var result = await method.InvokeAsync(saga, fault.Message, fault.Exception, live, context).ConfigureAwait(false);
         var (events, messages) = Split(result);
 
-        stream.AppendOne(new SagaCompensating(step, thrownType));
+        // GH-5673: a sequential unwind keeps the saga Compensating until its last undo message is confirmed
+        var sequence = result as UndoSequence;
+        var sequential = sequence is { IsEmpty: false };
+        stream.AppendOne(new SagaCompensating(step, thrownType)
+        {
+            FailedMessageId = failedId, Sequential = sequential, IncludePending = sequence?.IncludePending ?? true
+        });
+
+        // What the method did to the undo stack, as Wolverine's own events
+        foreach (var undo in saga.TakeUnsavedEvents()) stream.AppendOne(undo);
+
         if (events.Count != 0) stream.AppendMany(events);
-        stream.AppendOne(new SagaCompensated(step, thrownType));
+        if (!sequential) stream.AppendOne(new SagaCompensated(step, thrownType) { Undone = saga.TakeUndone() });
 
         foreach (var message in messages)
         {

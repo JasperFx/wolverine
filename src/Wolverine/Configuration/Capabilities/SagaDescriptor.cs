@@ -84,7 +84,8 @@ public class SagaDescriptor
 
     /// <summary>
     /// GH-5670. The saga's <c>Compensate</c> methods: which failed message and exception each one compensates, and the
-    /// undo messages (and, for an event-sourced saga, the events) it returns.
+    /// undo messages (and, for an event-sourced saga, the events) it returns. GH-5672: and the concrete message types it
+    /// covers (<see cref="SagaCompensationDescriptor.Covers" />).
     /// </summary>
     public List<SagaCompensationDescriptor> Compensations { get; set; } = new();
 }
@@ -147,7 +148,15 @@ public record SagaMethodDescriptor(
 public record SagaCompensationDescriptor(
     TypeDescriptor FailedMessageType,
     TypeDescriptor ExceptionType,
-    SagaMethodDescriptor Method);
+    SagaMethodDescriptor Method)
+{
+    /// <summary>
+    /// GH-5672. The concrete message types this method compensates. For a method whose failed message is an interface
+    /// or a base type, every concrete message type assignable to it that the application knows, plus those named with
+    /// <c>[Compensates]</c>; for any other, the failed message type itself.
+    /// </summary>
+    public TypeDescriptor[] Covers { get; init; } = [];
+}
 
 /// <summary>
 /// One incoming message's role inside a saga, plus the messages that
@@ -183,6 +192,19 @@ public record SagaMessageRole(
     /// A <c>NotFound</c> method beside a <c>Handle</c> is how the saga handles a message that arrives after it completed.
     /// </summary>
     public SagaMethodDescriptor[] Methods { get; init; } = [];
+
+    /// <summary>
+    /// GH-5674. When the saga is gone and it has no <c>NotFound</c> for this message, the message is logged and dropped
+    /// (<c>[DiscardIfSagaMissing]</c>, <c>[SagaMissing(Discard)]</c> or <c>opts.Policies.WhenSagaIsMissing()</c>)
+    /// rather than failing with <c>UnknownSagaException</c>.
+    /// </summary>
+    public bool DiscardedIfSagaMissing { get; init; }
+
+    /// <summary>
+    /// GH-5674. The message is a timeout that replaces the earlier ones the saga scheduled under the same key
+    /// (<c>[ReplacesEarlierTimeouts]</c> or <c>TimeoutMessage.TimeoutKey</c>): a superseded one is dropped.
+    /// </summary>
+    public bool ReplacesEarlierTimeouts { get; init; }
 }
 
 /// <summary>
