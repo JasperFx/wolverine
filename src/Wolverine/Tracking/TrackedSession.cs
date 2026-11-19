@@ -510,15 +510,27 @@ internal partial class TrackedSession : ITrackedSession
 
         if ((envelope.ScheduleDelay ?? inner?.ScheduleDelay) is { } delay)
         {
-            return now + delay;
+            return addWithoutOverflow(now, delay);
         }
 
         if ((envelope.ScheduledTime ?? inner?.ScheduledTime) is { } time)
         {
-            return clock.SharedWithApplication ? time : now + (time - DateTimeOffset.UtcNow);
+            if (clock.SharedWithApplication) return time;
+
+            // A time already in the past (DateTimeOffset.MinValue is a common "right away") is due now
+            var remaining = time - DateTimeOffset.UtcNow;
+            return remaining <= TimeSpan.Zero ? now : addWithoutOverflow(now, remaining);
         }
 
         return null;
+    }
+
+    // Schedules at the edges (DateTimeOffset.MinValue / MaxValue, TimeSpan.MaxValue) must never throw from the session's
+    // bookkeeping: an overdue message is due now, and a far-future one is due at the end of time
+    private static DateTimeOffset addWithoutOverflow(DateTimeOffset at, TimeSpan by)
+    {
+        if (by <= TimeSpan.Zero) return at;
+        return by >= DateTimeOffset.MaxValue - at ? DateTimeOffset.MaxValue : at + by;
     }
 
     internal async Task ReplayAll(IMessageContext context, EnvelopeRecord[] records)

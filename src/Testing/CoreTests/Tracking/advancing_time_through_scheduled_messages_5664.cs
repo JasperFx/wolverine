@@ -231,6 +231,21 @@ public class advancing_time_without_a_shared_clock_5664 : IAsyncLifetime
     }
 
     [Fact]
+    public async Task a_message_scheduled_at_the_minimum_time_is_due_now_and_never_breaks_the_session()
+    {
+        // DateTimeOffset.MinValue is a common way to say "right away"; working out its due time used to overflow
+        var session = await _host.ExecuteAndWaitAsync(c =>
+            c.SendAsync(new Reminder("right away"), new DeliveryOptions { ScheduledTime = DateTimeOffset.MinValue })
+                .AsTask());
+
+        // Overdue means due now, on the session's clock
+        var pending = ((TrackedSession)session).pendingScheduled()
+            .Single(x => x.Envelope.Message is Reminder { Text: "right away" });
+
+        pending.DueAt.ShouldBeLessThanOrEqualTo(session.Clock.GetUtcNow());
+    }
+
+    [Fact]
     public async Task the_application_clock_is_not_moved_when_it_cannot_be()
     {
         var session = await _host.ExecuteAndWaitAsync(c => c.ScheduleAsync(new Reminder("later"), 5.Minutes()).AsTask());
