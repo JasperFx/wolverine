@@ -159,7 +159,7 @@ internal static class SagaDescriptorBuilder
 
         foreach (var type in returnedTypes(method.ReturnType))
         {
-            if (type == typeof(object) || type == typeof(OutgoingMessages) ||
+            if (type == typeof(object) || type.CanBeCastTo<OutgoingMessages>() ||
                 (type != typeof(string) && type.CanBeCastTo<IEnumerable<object>>()) ||
                 type == typeof(IAsyncEnumerable<object>))
             {

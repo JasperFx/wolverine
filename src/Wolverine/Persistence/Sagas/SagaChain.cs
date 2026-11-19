@@ -331,6 +331,9 @@ public partial class SagaChain : HandlerChain
             return SagaMissingBehavior.Throw;
         }
 
+        // GH-5673: a reply about an undo message for a saga that has gone has nothing left to unwind
+        if (IsUndoReplyChain) return SagaMissingBehavior.Discard;
+
         if (MessageType.HasAttribute<DiscardIfSagaMissingAttribute>() ||
             SagaHandlerCalls().Any(x => x.Method.HasAttribute<DiscardIfSagaMissingAttribute>()))
         {
@@ -477,6 +480,9 @@ public partial class SagaChain : HandlerChain
                 frames.Add(frame);
         }
 
+        // GH-5673: the undo entries the new saga pushed are tied to the steps it sent
+        if (tracksUndoSteps) frames.Add(SagaUndoFrame.After(sagaVariable));
+
         // GH-5674: the latest id of each replacing timeout the new saga scheduled
         if (usesReplacingTimeouts) frames.Add(new RecordSagaTimeoutsFrame(sagaVariable, false));
         // GH-5665
@@ -485,6 +491,14 @@ public partial class SagaChain : HandlerChain
         var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container, retainsCompletedSagas);
         frames.Add(ifNotCompleted);
     }
+
+    // GH-5673: this chain is a compensating saga's sequential-unwind replies
+    internal bool IsUndoReplyChain => MessageType.IsGenericType && MessageType.GetGenericTypeDefinition() == typeof(UndoReply<>);
+
+    // GH-5673: the saga's handlers push undo messages and confirm them with their steps' replies. Not its compensation
+    // chains, nor its unwind's own replies
+    private bool tracksUndoSteps => SagaType.CanBeCastTo<CompensatingSaga>() && !IsUndoReplyChain &&
+                                    SagaCompensations.FaultMessageType(MessageType) == null;
 
     // GH-5674: does this chain's saga handle a timeout that replaces earlier ones?
     private bool usesReplacingTimeouts => SagaTimeouts.SagaUsesReplacingTimeouts(SagaType);
@@ -563,6 +577,7 @@ public partial class SagaChain : HandlerChain
                 }
             }
 
+            if (tracksUndoSteps) yield return SagaUndoFrame.After(saga);
             if (usesReplacingTimeouts) yield return new RecordSagaTimeoutsFrame(saga, false);
             // GH-5665
             if (recordHistory(saga, sagaId, StartingCalls, SagaHistoryStep.Start) is { } record) yield return record;
@@ -612,7 +627,16 @@ public partial class SagaChain : HandlerChain
             handlerFrames.Add(new CompensateSagaFrame(saga, MessageType));
         }
 
+        // GH-5673: a reply about an undo message of the saga's sequential unwind
+        if (IsUndoReplyChain)
+        {
+            handlerFrames.Add(new ContinueUnwindFrame(saga, MessageType, false));
+        }
+
         var body = new List<Frame>();
+
+        // GH-5673: a step's reply confirms the undo entries pushed before the step
+        if (tracksUndoSteps) body.Add(SagaUndoFrame.Before(saga));
 
         // For ResequencerSaga<T>, wrap handler calls with ShouldProceed() guard
         if (messageVariable != null && IsResequencerGuarded)
@@ -623,6 +647,9 @@ public partial class SagaChain : HandlerChain
         {
             body.AddRange(handlerFrames);
         }
+
+        // GH-5673: the undo entries the handler pushed are tied to the steps it sent
+        if (tracksUndoSteps) body.Add(SagaUndoFrame.After(saga));
 
         // GH-5674: the latest id of each replacing timeout the handler scheduled
         if (usesReplacingTimeouts) body.Add(new RecordSagaTimeoutsFrame(saga, false));

@@ -100,6 +100,7 @@ public partial class SagaChain
                 foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction(this).Frames())) yield return frame;
             }
 
+            if (tracksUndoSteps) yield return SagaUndoFrame.AfterEventSourced(stream);
             if (usesReplacingTimeouts) yield return new RecordSagaTimeoutsFrame(stream, true);
 
             yield return new AfterEventSourcedSagaHandlingFrame(stream, saga, archiveWhenCompleted);
@@ -170,6 +171,10 @@ public partial class SagaChain
         yield return new SetSagaIdFrame(sagaId, SagaType);
 
         var body = new List<Frame>();
+
+        // GH-5673: a step's reply confirms the undo entries pushed before the step
+        if (tracksUndoSteps) body.Add(SagaUndoFrame.Before(saga));
+
         foreach (var call in ExistingCalls)
         {
             body.Add(call);
@@ -180,6 +185,13 @@ public partial class SagaChain
         {
             body.Add(new CompensateEventSourcedSagaFrame(stream, MessageType));
         }
+
+        // GH-5673: a reply about an undo message of the saga's sequential unwind
+        if (IsUndoReplyChain) body.Add(new ContinueUnwindFrame(stream, MessageType, true));
+
+        // GH-5673: the undo entries the handler pushed are tied to the steps it sent, and Wolverine's own events for
+        // them are appended
+        if (tracksUndoSteps) body.Add(SagaUndoFrame.AfterEventSourced(stream));
 
         // GH-5674: a SagaTimeoutScheduled event for each replacing timeout the handler scheduled
         if (usesReplacingTimeouts) body.Add(new RecordSagaTimeoutsFrame(stream, true));

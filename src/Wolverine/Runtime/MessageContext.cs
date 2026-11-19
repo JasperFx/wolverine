@@ -11,6 +11,7 @@ using Wolverine.Runtime.WorkerQueues;
 using JasperFx;
 using JasperFx.MultiTenancy;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.RemoteInvocation;
@@ -1298,7 +1299,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         if (Envelope?.ReplyUri != null && message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
         {
-            await EndpointFor(Envelope.ReplyUri!).SendAsync(message, new DeliveryOptions { IsResponse = true }).ConfigureAwait(false);
+            var responseOptions = new DeliveryOptions { IsResponse = true };
+
+            // GH-5673: a business reply that confirms a saga's undo message goes back to that saga
+            if (Envelope.HasHeaders && Envelope.Headers.TryGetValue(SagaUndo.EntryHeader, out var undoEntry))
+            {
+                responseOptions.Headers[SagaUndo.EntryHeader] = undoEntry;
+            }
+
+            await EndpointFor(Envelope.ReplyUri!).SendAsync(message, responseOptions).ConfigureAwait(false);
 
             // If [AlwaysPublishResponse] was used, also publish as a cascading message
             if (Envelope.AlwaysPublishResponse)
@@ -1509,6 +1518,14 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             var ackEnvelope = Runtime.RoutingFor(typeof(Acknowledgement))
                 .RouteToDestination(ack, Envelope.ReplyUri, null);
             TrackEnvelopeCorrelation(ackEnvelope, Activity.Current);
+
+            // GH-5673: the acknowledgement of a saga's undo message confirms it, so it goes back to that saga
+            if (Envelope.HasHeaders && Envelope.Headers.TryGetValue(SagaUndo.EntryHeader, out var undoEntry))
+            {
+                ackEnvelope.Headers[SagaUndo.EntryHeader] = undoEntry;
+                ackEnvelope.SagaId = Envelope.SagaId;
+                ackEnvelope.IsResponse = true;
+            }
             using (_outstandingLock.EnterScope())
             {
                 _outstanding.Add(ackEnvelope);
@@ -1577,6 +1594,13 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             {
                 outbound.Headers[FaultHeaders.ReplyTo] = outbound.ReplyUri?.ToString() ?? FaultHeaders.ReplyToSender;
             }
+        }
+
+        // GH-5673: the replies to a saga's step carry back the undo entries the step confirms
+        if (Envelope is { HasHeaders: true } inbound && inbound.Headers.TryGetValue(SagaUndo.StepHeader, out var step) &&
+            !(outbound.HasHeaders && outbound.Headers.ContainsKey(SagaUndo.StepHeader)))
+        {
+            outbound.Headers[SagaUndo.StepHeader] = step;
         }
 
         if (ConversationId != Guid.Empty)

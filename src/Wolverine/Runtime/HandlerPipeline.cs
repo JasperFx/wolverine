@@ -407,7 +407,11 @@ public class HandlerPipeline : IHandlerPipeline
         if (envelope.Message == null)
         {
             var deserializationResult = await TryDeserializeEnvelope(envelope).ConfigureAwait(false);
-            if (deserializationResult is not NullContinuation)
+
+            // GH-5673: a reply about a saga's undo message needs no body of its own, and its type -- a business reply,
+            // the undo message's fault -- is often unknown here
+            if (deserializationResult is not NullContinuation &&
+                !(envelope.IsResponse && Persistence.Sagas.SagaUndo.TryConvertToUndoReply(envelope)))
             {
                 activity?.SetStatus(ActivityStatusCode.Error, "Serialization Failure");
                 return deserializationResult;
@@ -427,6 +431,9 @@ public class HandlerPipeline : IHandlerPipeline
             {
                 return MessageSucceededContinuation.Instance;
             }
+
+            // GH-5673: a reply about a saga's undo message carries its sequential unwind on
+            Persistence.Sagas.SagaUndo.TryConvertToUndoReply(envelope);
         }
 
         IExecutor executor;

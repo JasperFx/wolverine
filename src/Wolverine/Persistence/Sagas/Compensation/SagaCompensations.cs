@@ -47,9 +47,20 @@ public static class SagaCompensations
         // The failed message's own type, which may derive from the TMessage this chain is for
         var messageType = fault.Message.GetType();
 
+        var step = messageType.ToMessageTypeName();
+        var failedId = FailedMessageIdOf(envelope);
+
         if (envelope != null && envelope.HasHeaders && envelope.Headers.ContainsKey(MarkFailedHeader))
         {
-            record(saga, messageType, thrownType, CompensationOutcome.Failed, SagaStatus.CompensationFailed);
+            if (saga is CompensatingSaga failing)
+            {
+                var reason = envelope.Headers.TryGetValue(FailureReasonHeader, out var failure) && failure != null
+                    ? failure
+                    : "The compensation failed after its retries";
+                failing.Record(new SagaCompensating(step, thrownType) { FailedMessageId = failedId });
+                failing.Record(new SagaCompensationFailed(step, thrownType, reason));
+            }
+
             return;
         }
 
@@ -62,9 +73,25 @@ public static class SagaCompensations
             return;
         }
 
+        (saga as CompensatingSaga)?.BeginHandling();
         var result = await method.InvokeAsync(saga, fault.Message, fault.Exception, live, context).ConfigureAwait(false);
 
-        record(saga, messageType, thrownType, CompensationOutcome.Compensated, SagaStatus.Compensated);
+        if (saga is CompensatingSaga compensating)
+        {
+            // GH-5673: a sequential unwind keeps the saga Compensating until its last undo message is confirmed
+            if (result is UndoSequence { IsEmpty: false } sequence)
+            {
+                compensating.Record(new SagaCompensating(step, thrownType)
+                {
+                    FailedMessageId = failedId, Sequential = true, IncludePending = sequence.IncludePending
+                });
+            }
+            else
+            {
+                compensating.Record(new SagaCompensating(step, thrownType) { FailedMessageId = failedId });
+                compensating.Record(new SagaCompensated(step, thrownType) { Undone = compensating.TakeUndone() });
+            }
+        }
 
         if (result != null)
         {
@@ -78,15 +105,20 @@ public static class SagaCompensations
         }
     }
 
-    private static void record(Saga saga, Type messageType, string exceptionType, CompensationOutcome outcome,
-        SagaStatus status)
+    /// <summary>
+    /// GH-5673. The envelope id of the message whose failure a compensation answers: named on a fault sent back by
+    /// another service, or the conversation of the fault Wolverine built for the saga's own failed handler
+    /// </summary>
+    internal static Guid? FailedMessageIdOf(Envelope? envelope)
     {
-        if (saga is not CompensatingSaga compensating) return;
+        if (envelope == null) return null;
+        if (envelope.HasHeaders && envelope.Headers.TryGetValue(FaultHeaders.OriginalId, out var raw) &&
+            Guid.TryParse(raw, out var original))
+        {
+            return original;
+        }
 
-        compensating.Status = status;
-        compensating.CompensationLog ??= [];
-        compensating.CompensationLog.Add(new CompensationLogEntry(messageType.ToMessageTypeName(), exceptionType,
-            outcome, DateTimeOffset.UtcNow));
+        return envelope.ConversationId == Guid.Empty ? null : envelope.ConversationId;
     }
 
     /// <summary>
@@ -165,6 +197,13 @@ public static class SagaCompensations
 
         foreach (var sagaType in calls.Select(x => x.HandlerType).Where(x => x.CanBeCastTo<Saga>()).Distinct())
         {
+            // GH-5673: a compensating saga hears back about the undo messages of a sequential unwind through a chain
+            // of its own
+            if (sagaType.CanBeCastTo<CompensatingSaga>() && sagaType.IsConcrete())
+            {
+                yield return new HandlerCall(sagaType, ContinueUnwindingMethod, SagaUndo.ReplyTypeFor(sagaType));
+            }
+
             var methods = SagaCompensationMethods.For(sagaType);
             if (methods.Count == 0) continue;
 
@@ -209,6 +248,9 @@ public static class SagaCompensations
 
         return !handledBySaga.Contains(typeof(Fault<>).MakeGenericType(messageType));
     }
+
+    private static readonly MethodInfo ContinueUnwindingMethod =
+        typeof(CompensatingSaga).GetMethod(nameof(CompensatingSaga.ContinueUnwinding))!;
 
     private static readonly Type[] _notMessageTypes =
     [

@@ -6,6 +6,7 @@ namespace SagaWorkflows.MoneyTransfer;
 // GH-5672: the same money transfer as an event-sourced saga. Its steps go out in OutgoingMessages, which no signature
 // shows, but the workflows service routes them to the bank with PublishMessage<T>() rules, and that is enough for
 // Wolverine to know them: the Compensate for ITransferStep covers Withdraw, Deposit and RecordTransfer here too.
+// GH-5673: its undo stack is kept as Wolverine's own events on the saga's stream.
 
 public record TransferStarted(Guid TransferId, string FromAccount, string ToAccount, decimal Amount);
 
@@ -22,8 +23,6 @@ public class EventSourcedTransfer : EventSourcedSaga
     public string ToAccount { get; set; } = "";
     public decimal Amount { get; set; }
 
-    public bool Withdrawn { get; set; }
-    public bool Deposited { get; set; }
     public string? UndoneBecause { get; set; }
 
     public static (TransferStarted, OutgoingMessages) Start(TransferMoney command)
@@ -32,6 +31,7 @@ public class EventSourcedTransfer : EventSourcedSaga
 
     public async Task<(FundsWithdrawn, OutgoingMessages)> Handle(MoneyWithdrawn withdrawn, IMessageBus bus)
     {
+        PushUndo(new RefundWithdrawal(Id, FromAccount, Amount), "withdrawal");
         if (Amount < Transfer.ScreeningThreshold) return (new FundsWithdrawn(), [deposit()]);
 
         // Sent through the bus, and routed by a namespace rule: Wolverine cannot know this saga sends it
@@ -42,7 +42,10 @@ public class EventSourcedTransfer : EventSourcedSaga
     public OutgoingMessages Handle(TransferScreened screened) => [deposit()];
 
     public (FundsDeposited, OutgoingMessages) Handle(MoneyDeposited deposited)
-        => (new FundsDeposited(), [new RecordTransfer(Id, FromAccount, ToAccount, Amount)]);
+    {
+        PushUndo(new ReverseDeposit(Id, ToAccount, Amount), "deposit");
+        return (new FundsDeposited(), [new RecordTransfer(Id, FromAccount, ToAccount, Amount)]);
+    }
 
     public (SagaCompleted, OutgoingMessages) Handle(TransferRecorded recorded)
         => (new SagaCompleted(), [new TransferCompleted(Id)]);
@@ -56,14 +59,7 @@ public class EventSourcedTransfer : EventSourcedSaga
     private Deposit deposit() => new(Id, ToAccount, Amount);
 
     private (TransferUndone, OutgoingMessages) undo(string reason)
-    {
-        var messages = new OutgoingMessages();
-        if (Deposited) messages.Add(new ReverseDeposit(Id, ToAccount, Amount));
-        if (Withdrawn) messages.Add(new RefundWithdrawal(Id, FromAccount, Amount));
-        messages.Add(new TransferFailed(Id, reason));
-
-        return (new TransferUndone(reason), messages);
-    }
+        => (new TransferUndone(reason), [..UndoMessages(), new TransferFailed(Id, reason)]);
 
     public void Apply(TransferStarted e)
     {
@@ -73,9 +69,10 @@ public class EventSourcedTransfer : EventSourcedSaga
         Amount = e.Amount;
     }
 
-    public void Apply(FundsWithdrawn e) => Withdrawn = true;
+    // Kept as business facts; the undo stack, not these, decides what a failure undoes
+    public void Apply(FundsWithdrawn e) { }
 
-    public void Apply(FundsDeposited e) => Deposited = true;
+    public void Apply(FundsDeposited e) { }
 
     public void Apply(TransferUndone e) => UndoneBecause = e.Reason;
 }

@@ -7,6 +7,7 @@ using SagaWorkflows.MoneyTransfer;
 using SagaWorkflows.MoneyTransfer.Fraud;
 using SagaWorkflows.OrderApproval;
 using SagaWorkflows.Subscriptions;
+using SagaWorkflows.TripBooking;
 using SagaWorkflows.Providers;
 using Wolverine;
 using Wolverine.ErrorHandling;
@@ -48,9 +49,11 @@ public abstract class WorkflowServices : IAsyncLifetime
                 useMarten(opts, $"{Schema}_providers");
 
                 opts.Services.AddSingleton<Bank>();
+                opts.Services.AddSingleton<TravelProviders>();
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(BankHandler))
-                    .IncludeType(typeof(StorefrontHandler));
+                    .IncludeType(typeof(StorefrontHandler))
+                    .IncludeType(typeof(TravelProviderHandler));
 
                 opts.ListenAtPort(ProvidersPort).UseDurableInbox();
                 opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
@@ -60,6 +63,9 @@ public abstract class WorkflowServices : IAsyncLifetime
                 opts.PublishMessage<TransferRecorded>().ToPort(WorkflowsPort);
                 opts.PublishMessage<TransferScreened>().ToPort(WorkflowsPort);
                 opts.PublishMessage<PaymentProcessed>().ToPort(WorkflowsPort);
+                opts.PublishMessage<FlightBooked>().ToPort(WorkflowsPort);
+                opts.PublishMessage<CarBooked>().ToPort(WorkflowsPort);
+                opts.PublishMessage<HotelBooked>().ToPort(WorkflowsPort);
 
                 // Every failure is retried twice, so three attempts, then dead-lettered. A terminal failure is not retried
                 opts.OnException<Exception>().RetryTimes(2);
@@ -95,6 +101,15 @@ public abstract class WorkflowServices : IAsyncLifetime
                 opts.PublishMessage<NotifyCustomer>().ToPort(ProvidersPort);
                 opts.PublishMessage<ChargeCustomer>().ToPort(ProvidersPort);
                 opts.PublishMessage<SubscriptionEnded>().ToPort(ProvidersPort);
+
+                // The travel providers
+                opts.PublishMessage<BookFlight>().ToPort(ProvidersPort);
+                opts.PublishMessage<BookCar>().ToPort(ProvidersPort);
+                opts.PublishMessage<BookHotel>().ToPort(ProvidersPort);
+                opts.PublishMessage<CancelFlight>().ToPort(ProvidersPort);
+                opts.PublishMessage<CancelCar>().ToPort(ProvidersPort);
+                opts.PublishMessage<CancelHotel>().ToPort(ProvidersPort);
+                opts.PublishMessage<TripBooked>().ToPort(ProvidersPort);
 
                 // Fraud screening, by namespace: this rule names no message type
                 opts.Publish(x =>
@@ -136,6 +151,7 @@ public abstract class WorkflowServices : IAsyncLifetime
         await Providers.Services.GetRequiredService<IWolverineRuntime>().Storage.Admin.ClearAllAsync();
 
         Providers.Services.GetRequiredService<Bank>().Reset();
+        Providers.Services.GetRequiredService<TravelProviders>().Reset();
     }
 
     public async ValueTask DisposeAsync()
@@ -153,7 +169,8 @@ public class DocumentSagaServices : WorkflowServices
     protected override string Schema => "saga_workflows";
 
     protected override void ConfigureWorkflows(WolverineOptions opts)
-        => opts.Discovery.IncludeType(typeof(Transfer)).IncludeType(typeof(Order)).IncludeType(typeof(Subscription));
+        => opts.Discovery.IncludeType(typeof(Transfer)).IncludeType(typeof(Order)).IncludeType(typeof(Subscription))
+            .IncludeType(typeof(Trip));
 }
 
 /// <summary>The same workflows as event-sourced sagas, on the same messages.</summary>
@@ -162,7 +179,8 @@ public class EventSourcedSagaServices : WorkflowServices
     protected override string Schema => "saga_workflows_es";
 
     protected override void ConfigureWorkflows(WolverineOptions opts)
-        => opts.Discovery.IncludeType(typeof(EventSourcedTransfer)).IncludeType(typeof(EventSourcedSubscription));
+        => opts.Discovery.IncludeType(typeof(EventSourcedTransfer)).IncludeType(typeof(EventSourcedSubscription))
+            .IncludeType(typeof(EventSourcedTrip));
 }
 
 [CollectionDefinition(nameof(DocumentSagaCollection))]

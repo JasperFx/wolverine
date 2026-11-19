@@ -43,19 +43,10 @@ public abstract class EventSourcedSaga : CompensatingSaga
     }
 
     /// <summary>Wolverine's own event: a compensation began.</summary>
-    public void Apply(IEvent<SagaCompensating> e)
-    {
-        Status = SagaStatus.Compensating;
-    }
+    public void Apply(IEvent<SagaCompensating> e) => ApplyCompensationEvent(UndoStack, e.Data, e.Timestamp, this);
 
     /// <summary>Wolverine's own event: a compensation succeeded.</summary>
-    public void Apply(IEvent<SagaCompensated> e)
-    {
-        Status = SagaStatus.Compensated;
-        CompensationLog ??= [];
-        CompensationLog.Add(new CompensationLogEntry(e.Data.Step, e.Data.ExceptionType, CompensationOutcome.Compensated,
-            e.Timestamp));
-    }
+    public void Apply(IEvent<SagaCompensated> e) => ApplyCompensationEvent(UndoStack, e.Data, e.Timestamp, this);
 
     /// <summary>
     /// GH-5674. Wolverine's own event: the saga scheduled a timeout that replaces the earlier ones with the same key.
@@ -67,13 +58,22 @@ public abstract class EventSourcedSaga : CompensatingSaga
     }
 
     /// <summary>Wolverine's own event: a compensation failed after its retries.</summary>
-    public void Apply(IEvent<SagaCompensationFailed> e)
-    {
-        Status = SagaStatus.CompensationFailed;
-        CompensationLog ??= [];
-        CompensationLog.Add(new CompensationLogEntry(e.Data.Step, e.Data.ExceptionType, CompensationOutcome.Failed,
-            e.Timestamp));
-    }
+    public void Apply(IEvent<SagaCompensationFailed> e) => ApplyCompensationEvent(UndoStack, e.Data, e.Timestamp, this);
+
+    /// <summary>GH-5673. Wolverine's own event: an undo message was pushed onto the undo stack.</summary>
+    public void Apply(IEvent<SagaUndoPushed> e) => ApplyCompensationEvent(UndoStack, e.Data, e.Timestamp, this);
+
+    /// <summary>GH-5673. Wolverine's own event: the step behind a pending undo entry was confirmed.</summary>
+    public void Apply(IEvent<SagaUndoConfirmed> e) => ApplyCompensationEvent(UndoStack, e.Data, e.Timestamp, this);
+
+    /// <summary>GH-5673. Wolverine's own event: an undo message was sent.</summary>
+    public void Apply(IEvent<SagaUndoSent> e) => ApplyCompensationEvent(UndoStack, e.Data, e.Timestamp, this);
+
+    /// <summary>GH-5673. Wolverine's own event: an undo message of a sequential unwind was confirmed.</summary>
+    public void Apply(IEvent<SagaUndoCompleted> e) => ApplyCompensationEvent(UndoStack, e.Data, e.Timestamp, this);
+
+    /// <summary>GH-5673. Wolverine's own event: an undo message of a sequential unwind failed for good.</summary>
+    public void Apply(IEvent<SagaUndoFailed> e) => ApplyCompensationEvent(UndoStack, e.Data, e.Timestamp, this);
 }
 
 /// <summary>
@@ -110,7 +110,12 @@ internal static class EventSourcedSagaEventNames
         (typeof(SagaCompensating), "wolverine_saga_compensating"),
         (typeof(SagaCompensated), "wolverine_saga_compensated"),
         (typeof(SagaCompensationFailed), "wolverine_saga_compensation_failed"),
-        (typeof(SagaTimeoutScheduled), "wolverine_saga_timeout_scheduled")
+        (typeof(SagaTimeoutScheduled), "wolverine_saga_timeout_scheduled"),
+        (typeof(SagaUndoPushed), "wolverine_saga_undo_pushed"),
+        (typeof(SagaUndoConfirmed), "wolverine_saga_undo_confirmed"),
+        (typeof(SagaUndoSent), "wolverine_saga_undo_sent"),
+        (typeof(SagaUndoCompleted), "wolverine_saga_undo_completed"),
+        (typeof(SagaUndoFailed), "wolverine_saga_undo_failed")
     ];
 
     public static string StepName(Type messageType) => messageType.ToMessageTypeName();
