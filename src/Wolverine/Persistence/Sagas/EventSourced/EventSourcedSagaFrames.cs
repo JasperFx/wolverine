@@ -87,8 +87,18 @@ internal class EventSourcedSagaGuardFrame : Frame
 }
 
 /// <summary>After the saga's methods ran: <see cref="EventSourcedSagaSupport.AfterHandling{TSaga}" /></summary>
+[FSharpEmit(Skip = true, Reason = UnsupportedInFSharp)]
 internal class AfterEventSourcedSagaHandlingFrame : SyncFrame
 {
+    /// <summary>
+    /// Why the event-sourced saga frames have no F# emitter: event-sourced sagas are not supported in F# generated
+    /// code in 7.0 (a documented limitation), and <see cref="EventSourcedSagaGuardFrame" /> refuses F# before any of
+    /// these frames could be reached
+    /// </summary>
+    internal const string UnsupportedInFSharp =
+        "Event-sourced sagas are not supported in F# generated code yet (GH-5415, documented limitation); " +
+        "EventSourcedSagaGuardFrame refuses F# first, so this frame is unreachable from F#.";
+
     private readonly Variable _stream;
     private readonly Variable _saga;
     private readonly bool _archiveWhenCompleted;
@@ -112,6 +122,7 @@ internal class AfterEventSourcedSagaHandlingFrame : SyncFrame
 }
 
 /// <summary>A message that only starts the saga, for a saga that already exists</summary>
+[FSharpEmit(Skip = true, Reason = AfterEventSourcedSagaHandlingFrame.UnsupportedInFSharp)]
 internal class RefuseStartOfExistingSagaFrame : SyncFrame
 {
     private readonly Type _sagaType;
@@ -136,6 +147,7 @@ internal class RefuseStartOfExistingSagaFrame : SyncFrame
 /// The commit of a saga's new stream: a store's refusal to start a stream another message started first is reported
 /// as the <see cref="SagaConcurrencyException" /> a duplicate saga start is
 /// </summary>
+[FSharpEmit(Skip = true, Reason = AfterEventSourcedSagaHandlingFrame.UnsupportedInFSharp)]
 internal class TranslateStreamCollisionFrame : Frame
 {
     private readonly Frame _commit;
@@ -172,6 +184,7 @@ internal class TranslateStreamCollisionFrame : Frame
 }
 
 /// <summary>In an event-sourced saga's <c>Fault&lt;T&gt;</c> chain, compensate the failed message onto the stream</summary>
+[FSharpEmit(Skip = true, Reason = AfterEventSourcedSagaHandlingFrame.UnsupportedInFSharp)]
 internal class CompensateEventSourcedSagaFrame : AsyncFrame
 {
     private readonly Variable _stream;

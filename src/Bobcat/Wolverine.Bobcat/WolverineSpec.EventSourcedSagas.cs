@@ -25,6 +25,10 @@ public abstract partial class WolverineSpec
     /// <inheritdoc cref="WolverineScenario.ThenTheSagaHistoryHasInAll" />
     public void ThenTheSagaHistoryHasInAll(long count) => Scenario.ThenTheSagaHistoryHasInAll(count);
 
+    /// <inheritdoc cref="WolverineScenario.ThenTheSagaHistoryOutcomesAre" />
+    public void ThenTheSagaHistoryOutcomesAre(params Wolverine.Persistence.Sagas.SagaHistoryOutcome[] outcomes)
+        => Scenario.ThenTheSagaHistoryOutcomesAre(outcomes);
+
     /// <inheritdoc cref="WolverineScenario.ThenTheSagaWas" />
     public void ThenTheSagaWas(object expected) => Scenario.ThenTheSagaWas(expected);
 

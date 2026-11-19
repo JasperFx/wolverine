@@ -93,6 +93,14 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void WhenSagaIsMissing(SagaMissingBehavior behavior);
 
     /// <summary>
+    ///     GH-5665. Record a message history for every saga kept as a document or a row, as if each saga type carried
+    ///     <see cref="RecordSagaHistoryAttribute" />: one row per handled message, with its outcome and the messages the
+    ///     saga sent, kept in the message store and read through <c>ISagaHistoryDiagnostics</c>. Event-sourced sagas are
+    ///     left alone, since their stream is their history. Off by default, because it writes a row per message.
+    /// </summary>
+    void RecordSagaHistory();
+
+    /// <summary>
     ///     Create a policy for all listening *non local* endpoints
     /// </summary>
     /// <param name="configure"></param>

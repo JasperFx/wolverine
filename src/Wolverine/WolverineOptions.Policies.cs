@@ -132,6 +132,11 @@ public sealed partial class WolverineOptions : IPolicies
     /// <summary>GH-5674. Set by <c>opts.Policies.WhenSagaIsMissing()</c></summary>
     internal SagaMissingBehavior SagaMissingDefault { get; set; } = SagaMissingBehavior.Throw;
 
+    void IPolicies.RecordSagaHistory()
+    {
+        Durability.RecordSagaHistory = true;
+    }
+
     void IPolicies.AllListeners(Action<ListenerConfiguration> configure)
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, _) =>

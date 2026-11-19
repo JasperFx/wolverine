@@ -47,6 +47,24 @@ public class DatabaseConstants
     // GH-5556. Why Wolverine dead lettered the message (compensated, compensation-failed, ...). Nullable, so additive
     public const string Tag = "tag";
 
+    /// <summary>
+    /// GH-5665. One row per message a document saga that records its history (<c>[RecordSagaHistory]</c>) handled.
+    /// Created only when some saga records its history.
+    /// </summary>
+    public const string SagaHistoryTable = "wolverine_saga_history";
+
+    public const string SagaType = "saga_type";
+    public const string SagaHistoryTenantId = "tenant_id";
+    public const string MessageId = "message_id";
+    public const string Handler = "handler";
+    public const string Outcome = "outcome";
+    public const string CompletesSaga = "completes_saga";
+    public const string RecordedAt = "recorded_at";
+    public const string SentMessages = "sent_messages";
+
+    public const string SagaHistoryFields =
+        $"{Id}, {SagaType}, {SagaId}, {SagaHistoryTenantId}, {MessageId}, {MessageType}, {Handler}, {Outcome}, {CompletesSaga}, {RecordedAt}, {SentMessages}";
+
     public const string ControlQueueTableName = "wolverine_control_queue";
 
     public const string NodeTableName = "wolverine_nodes";

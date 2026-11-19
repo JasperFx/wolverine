@@ -470,7 +470,11 @@ public class ServiceCapabilities : OptionsDescription
         foreach (var sagaType in sagaTypes)
         {
             var storageProvider = resolveStorageProvider(sagaType, providers, container);
-            descriptors.Add(SagaDescriptorBuilder.Build(runtime.Options.HandlerGraph, sagaType, storageProvider));
+            var descriptor = SagaDescriptorBuilder.Build(runtime.Options.HandlerGraph, sagaType, storageProvider);
+
+            // GH-5665: a document saga that records its message history
+            SagaHistory.Describe(runtime, descriptor, sagaType);
+            descriptors.Add(descriptor);
         }
 
         return descriptors;

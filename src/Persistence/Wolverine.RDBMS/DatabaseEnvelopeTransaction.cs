@@ -1,10 +1,11 @@
 ﻿using System.Data.Common;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 
 namespace Wolverine.RDBMS;
 
-public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
+public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, ISagaHistoryTransaction, IDisposable
 {
     private readonly IMessageDatabase _database;
     private readonly DbTransaction _tx;
@@ -67,5 +68,24 @@ public class DatabaseEnvelopeTransaction : IEnvelopeTransaction, IDisposable
     public ValueTask RollbackAsync()
     {
         return new ValueTask(_tx.RollbackAsync());
+    }
+
+    // GH-5665: the saga's history row goes into the saga's own transaction
+
+    public async Task<bool> TryPersistSagaHistoryAsync(SagaHistoryRecord record, CancellationToken token)
+    {
+        if (_database is not ISagaHistoryDatabase history) return false;
+
+        await history.WriteSagaHistoryAsync(_tx, record, token);
+        return true;
+    }
+
+    public async Task<bool> TryDeleteSagaHistoryAsync(string sagaType, string sagaId, string? tenantId,
+        CancellationToken token)
+    {
+        if (_database is not ISagaHistoryDatabase history) return false;
+
+        await history.DeleteSagaHistoryAsync(_tx, sagaType, sagaId, tenantId, token);
+        return true;
     }
 }

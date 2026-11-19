@@ -85,7 +85,11 @@ public partial class WolverineScenario
         using var step = ScenarioRecorder.Step("Then", $"the history page holds {string.Join(", ", eventTypes.Select(nameOf))}");
         if (historyPage() is not { } page) return;
 
-        var actual = page.Events.Select(describeHistoryEvent).ToArray();
+        // GH-5665: an entry that is the expected type is named as the expected type is, which also covers a generic
+        // message such as Fault<T>, whose full name does not shorten
+        var actual = page.Events
+            .Select((e, i) => i < eventTypes.Length && isEventOf(e, eventTypes[i]) ? nameOf(eventTypes[i]) : describeHistoryEvent(e))
+            .ToArray();
         Verdicts.Check("events", string.Join(", ", actual), string.Join(", ", eventTypes.Select(nameOf)));
         Verdicts.Fact(actual.Length == eventTypes.Length &&
                       page.Events.Zip(eventTypes).All(x => isEventOf(x.First, x.Second)),
@@ -111,6 +115,27 @@ public partial class WolverineScenario
 
         Verdicts.Check("events in all", read.TotalCount, count);
         Verdicts.Check("more pages", read.HasMore ? "yes" : "no", more ? "yes" : "no");
+    }
+
+    /// <summary>
+    /// GH-5665. The entries of the page the last <see cref="WhenTheSagaHistoryIsRead{TSaga}" /> read have exactly these
+    /// outcomes, in this order. Only a document saga's message history (<see cref="RecordSagaHistoryAttribute" />)
+    /// records an outcome per entry. Reads "the history page's outcomes are Started, Compensated".
+    /// </summary>
+    public void ThenTheSagaHistoryOutcomesAre(params SagaHistoryOutcome[] outcomes)
+    {
+        using var step = ScenarioRecorder.Step("Then",
+            $"the history page's outcomes are {string.Join(", ", outcomes)}");
+        if (historyPage() is not { } page) return;
+
+        var actual = page.Events
+            .Select(x => x.Data.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                         x.Data.TryGetProperty(nameof(SagaHistoryRecord.Outcome), out var outcome)
+                ? outcome.GetString() ?? "none"
+                : "none")
+            .ToArray();
+
+        Verdicts.Check("outcomes", string.Join(", ", actual), string.Join(", ", outcomes));
     }
 
     /// <summary>

@@ -739,6 +739,13 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         // GH-5553: what each saga asks for the faults of, worked out once for the send path
         FaultReplies = SagaFaultReplies.Build(SagaChains());
 
+        // GH-5665: a saga that records its message history needs the history table in the message store, which is
+        // migrated after this
+        if (SagaChains().Any(x => SagaHistory.IsRecorded(x.SagaType, null)))
+        {
+            options.Durability.SagaHistoryRequested = true;
+        }
+
         // Pre-populate the per-message-type cascading-async-enumerable cache on
         // MessageContext so the reflective lazy-init in
         // MessageContext.ResolveTypedAsyncEnumerableCascader never fires at

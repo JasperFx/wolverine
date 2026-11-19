@@ -148,6 +148,23 @@ public partial class SagaChain : HandlerChain
     private bool retainsCompletedSagas => CompletedSagaRetention.HasValue;
 
     /// <summary>
+    /// GH-5665. Whether this chain records each message in its saga's history (<see cref="RecordSagaHistoryAttribute" />).
+    /// Known once the chain has generated its code.
+    /// </summary>
+    public bool RecordsHistory { get; private set; }
+
+    private Frame? recordHistory(Variable? saga, Variable? sagaId, IEnumerable<MethodCall> calls, SagaHistoryStep step)
+    {
+        if (!RecordsHistory) return null;
+
+        var methods = calls.Select(x => x.Method.Name).Distinct().ToArray();
+        var handler = $"{SagaType.Name}.{(methods.Length == 0 ? step.ToString() : string.Join("/", methods))}";
+
+        return new RecordSagaHistoryFrame(SagaType, saga, sagaId, DetermineSagaIdMember(SagaType, SagaType), handler,
+            step, retainsCompletedSagas);
+    }
+
+    /// <summary>
     /// GH-5331. Every saga handler method on this chain, whether or not the chain has compiled.
     /// DetermineFrames sorts the saga calls into StartingCalls / ExistingCalls / NotFoundCalls and then
     /// clears Handlers, so anything describing the saga after the first message was handled has to read
@@ -234,6 +251,11 @@ public partial class SagaChain : HandlerChain
 
         CompletedSagaRetention = determineRetention(frameProvider, container);
         _options ??= container.Services.GetService(typeof(WolverineOptions)) as WolverineOptions;
+
+        // GH-5665
+        RecordsHistory = !IsEventSourced &&
+                         SagaHistory.IsRecorded(SagaType,
+                             container.Services.GetService(typeof(WolverineOptions)) as WolverineOptions);
 
         NotFoundCalls = findByNames(NotFound);
         IdNotProvidedCalls = findByNames(IdNotProvided);
@@ -378,7 +400,7 @@ public partial class SagaChain : HandlerChain
         if (retainsCompletedSagas)
         {
             // GH-5572: a completed saga of a retained type is still in storage, but must never reach Handle
-            var completedFrames = DetermineRetainedSagaCompletedSteps(sagaId, saga).ToArray();
+            var completedFrames = DetermineRetainedSagaCompletedSteps(sagaId, saga, frameProvider, container).ToArray();
             frames.Add(new RetainedSagaGuardFrame(saga, startingFrames, completedFrames, existingFrames));
             return;
         }
@@ -418,7 +440,7 @@ public partial class SagaChain : HandlerChain
         // GH-5572: as in generateCodeForMaybeExisting, a retained completed saga never reaches Handle
         guard.WhenTheIdIsKnown(retainsCompletedSagas
             ? new RetainedSagaGuardFrame(guard.Saga, startingFrames,
-                DetermineRetainedSagaCompletedSteps(guard.SagaId, guard.Saga).ToArray(), existingFrames)
+                DetermineRetainedSagaCompletedSteps(guard.SagaId, guard.Saga, frameProvider, container).ToArray(), existingFrames)
             : new IfElseNullGuardFrame(guard.Saga, startingFrames, existingFrames));
 
         frames.Add(guard);
@@ -457,6 +479,8 @@ public partial class SagaChain : HandlerChain
 
         // GH-5674: the latest id of each replacing timeout the new saga scheduled
         if (usesReplacingTimeouts) frames.Add(new RecordSagaTimeoutsFrame(sagaVariable, false));
+        // GH-5665
+        if (recordHistory(sagaVariable, null, StartingCalls, SagaHistoryStep.Start) is { } record) frames.Add(record);
 
         var ifNotCompleted = buildFrameForConditionalInsert(sagaVariable, frameProvider, container, retainsCompletedSagas);
         frames.Add(ifNotCompleted);
@@ -469,7 +493,8 @@ public partial class SagaChain : HandlerChain
     /// GH-5572. What happens to a message for a retained saga that has already completed: the same as for a saga
     /// that does not exist, except that it never starts a new saga over the completed one, which keeps its id.
     /// </summary>
-    internal IEnumerable<Frame> DetermineRetainedSagaCompletedSteps(Variable sagaId, Variable saga)
+    internal IEnumerable<Frame> DetermineRetainedSagaCompletedSteps(Variable sagaId, Variable saga,
+        IPersistenceFrameProvider frameProvider, IServiceContainer container)
     {
         if (MessageType.CanBeCastTo<TimeoutMessage>())
         {
@@ -491,6 +516,14 @@ public partial class SagaChain : HandlerChain
                 call.TrySetArgument(sagaId);
                 yield return call;
                 foreach (var frame in call.Creates.SelectMany(x => x.ReturnAction(this).Frames())) yield return frame;
+            }
+
+            // GH-5665: the retained saga is still there, so the late message joins its history. Nothing else is saved on
+            // this branch, so the unit of work is committed for the row, as the other branches commit it with the saga
+            if (recordHistory(saga, sagaId, NotFoundCalls, SagaHistoryStep.NotFound) is { } record)
+            {
+                yield return record;
+                yield return frameProvider.CommitUnitOfWorkFrame(saga, container);
             }
         }
         else if (StartingCalls.Length != 0)
@@ -531,6 +564,8 @@ public partial class SagaChain : HandlerChain
             }
 
             if (usesReplacingTimeouts) yield return new RecordSagaTimeoutsFrame(saga, false);
+            // GH-5665
+            if (recordHistory(saga, sagaId, StartingCalls, SagaHistoryStep.Start) is { } record) yield return record;
 
             var ifNotCompleted = buildFrameForConditionalInsert(saga, frameProvider, container, retainsCompletedSagas);
             yield return ifNotCompleted;
@@ -591,6 +626,12 @@ public partial class SagaChain : HandlerChain
 
         // GH-5674: the latest id of each replacing timeout the handler scheduled
         if (usesReplacingTimeouts) body.Add(new RecordSagaTimeoutsFrame(saga, false));
+        // GH-5665: recorded before the saga is saved, so the row rides the saga's own transaction
+        var historyStep = CompensateCalls.Length != 0 ? SagaHistoryStep.Compensate : SagaHistoryStep.Continue;
+        if (recordHistory(saga, sagaId, ExistingCalls.Concat(CompensateCalls), historyStep) is { } record)
+        {
+            body.Add(record);
+        }
 
         var update = frameProvider.DetermineUpdateFrame(saga, container);
         var delete = frameProvider.DetermineDeleteFrame(sagaId, saga, container);

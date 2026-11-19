@@ -63,9 +63,18 @@ public class SagaDescriptor
     /// <summary>
     /// GH-5415. Whether this saga's storage keeps its history, so a monitoring tool can read its events and its state
     /// at any step through <see cref="Persistence.Sagas.ISagaHistoryDiagnostics" />. True for an event-sourced saga on
-    /// Marten, Polecat or Fisher; false for a saga kept as a document or a row.
+    /// Marten, Polecat or Fisher, and (GH-5665) for a saga kept as a document or a row that records its message history;
+    /// see <see cref="HistoryKind" /> for which.
     /// </summary>
     public bool SupportsHistory { get; set; }
+
+    /// <summary>
+    /// GH-5665. What this saga's history is, when it keeps one: the events of an event-sourced saga's stream, which
+    /// can also be read as the saga's state at any step, or the message log of a document saga that records one
+    /// (<see cref="RecordSagaHistoryAttribute" />), which holds no state. <see cref="SagaHistoryKind.None" /> when
+    /// <see cref="SupportsHistory" /> is false.
+    /// </summary>
+    public SagaHistoryKind HistoryKind { get; set; }
 
     /// <summary>
     /// GH-5670. Whether this is an <see cref="EventSourcedSaga" />, whose methods append events to the
@@ -79,6 +88,25 @@ public class SagaDescriptor
     /// covers (<see cref="SagaCompensationDescriptor.Covers" />).
     /// </summary>
     public List<SagaCompensationDescriptor> Compensations { get; set; } = new();
+}
+
+/// <summary>GH-5665. What a saga's history is made of, as <see cref="SagaDescriptor.HistoryKind" /> reports it</summary>
+public enum SagaHistoryKind
+{
+    /// <summary>The saga keeps no history</summary>
+    None,
+
+    /// <summary>
+    /// An event-sourced saga's stream: each entry is an event, and the saga's state at any version or point in time can
+    /// be read with <c>ISagaHistoryDiagnostics.ReadSagaAtAsync</c>
+    /// </summary>
+    EventStream,
+
+    /// <summary>
+    /// A document saga's message log (<see cref="RecordSagaHistoryAttribute" />): each entry is a handled message, its
+    /// outcome and the messages it sent, with no saga state, so <c>ReadSagaAtAsync</c> is refused
+    /// </summary>
+    MessageLog
 }
 
 /// <summary>
