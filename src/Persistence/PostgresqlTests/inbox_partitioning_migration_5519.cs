@@ -211,6 +211,65 @@ public class inbox_partitioning_migration_5519 : IAsyncLifetime
     }
 
     [Fact]
+    public async Task going_back_to_unpartitioned_commits_with_the_rest_of_the_migration_not_before_it()
+    {
+        // The migrator runs a migration with a partitioning rebuild in it as one transaction of its own, and the
+        // inbox going back to unpartitioned is one. A commit of Wolverine's own ended that transaction early, so a
+        // later statement that failed left the inbox rebuilt anyway. Since weasel#888 the delta asks
+        // PostgresqlMigrator.RunsInOneTransaction and writes no transaction of its own inside the migrator's
+        const string schema = "inbox_part_one_tx";
+        await dropSchemaAsync(schema);
+        await applyAsync(new IncomingEnvelopeTable(new DurabilitySettings(), schema));
+        (await isPartitionedAsync(schema)).ShouldBeTrue();
+
+        var id = Guid.NewGuid();
+        await insertRowAsync(schema, id, "Incoming");
+
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync(ct);
+
+        var unpartitioned = await SchemaMigration.DetermineAsync(conn, ct,
+            new IncomingEnvelopeTable(new DurabilitySettings { EnableInboxPartitioning = false }, schema));
+        var inbox = unpartitioned.Deltas.OfType<IncomingEnvelopeTableDelta>().Single();
+        inbox.UnpartitionsExistingTable.ShouldBeTrue();
+
+        // A later change in the same migration that fails
+        var migration = new SchemaMigration(new ISchemaObjectDelta[] { inbox, new FailingTableDelta(schema) });
+
+        await Should.ThrowAsync<Exception>(() =>
+            new PostgresqlMigrator().ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate, ct: ct));
+
+        // The rebuild rolled back with the rest of the migration
+        (await isPartitionedAsync(schema)).ShouldBeTrue();
+        (await rowExistsAsync(schema, id)).ShouldBeTrue();
+        (await tableExistsAsync(schema, DatabaseConstants.IncomingTable + "_temp")).ShouldBeFalse();
+    }
+
+    private class FailingTableDelta : TableDelta
+    {
+        public FailingTableDelta(string schema) : base(table(schema, true), table(schema, false))
+        {
+        }
+
+        private static Table table(string schema, bool withName)
+        {
+            var table = new Table($"{schema}.others");
+            table.AddColumn<long>("id").AsPrimaryKey();
+            if (withName)
+            {
+                table.AddColumn<string>("name");
+            }
+
+            return table;
+        }
+
+        public override void WriteUpdate(Migrator rules, TextWriter writer)
+        {
+            writer.WriteLine("select 1 / 0;");
+        }
+    }
+
+    [Fact]
     public async Task one_message_can_be_both_incoming_and_scheduled_in_the_partitioned_inbox()
     {
         // The documented trade-off of partitioning: status joins the primary key, so uniqueness only holds within a

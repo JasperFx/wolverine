@@ -253,10 +253,11 @@ an inherited `Apply` runs first, then your `Evolve`. You never forward them by h
 
 ::: warning
 That needs the JasperFx.Events source generator 3.8.0 or later
-([jasperfx#1241](https://github.com/JasperFx/jasperfx/issues/1241)). A store package may bundle an older copy of the
-generator (Marten 10.0.0-alpha.3 does), in which case an `Evolve()` saga never sees Wolverine's own events: it never
-reads as completed, and its compensation status stays `Active`. Reference the generator package directly, and its copy
-wins over the bundled one:
+([jasperfx#1241](https://github.com/JasperFx/jasperfx/issues/1241)), which Marten 10.0.0-alpha.5, Polecat 6.0.0-alpha.7
+and Fisher 2.0.0-alpha.4 bundle. An older store package bundles an older copy of the generator, and then an `Evolve()`
+saga never sees Wolverine's own events: it never reads as completed, and its compensation status stays `Active`. Only if
+you are on Marten older than 10.0.0-alpha.5, Polecat older than 6.0.0-alpha.7 or Fisher older than 2.0.0-alpha.4,
+reference the generator package directly, and its copy wins over the bundled one:
 
 ```xml
 <PackageReference Include="JasperFx.Events.SourceGenerator" Version="3.8.0"

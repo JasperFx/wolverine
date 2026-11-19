@@ -19,10 +19,6 @@
         <!-- The source generator: marker comments, and the spec manifest the bobcat tool lists from -->
         <PackageReference Include="Bobcat.Generators" />
         <PackageReference Include="Shouldly" />
-        <!-- The aggregate source generator at JasperFx's own version, which hands an event-sourced saga the Apply methods
-             of its base type (JasperFx/jasperfx#1241). Marten 10.0.0-alpha.3 bundles an older copy -->
-        <PackageReference Include="JasperFx.Events.SourceGenerator"
-                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
         <PackageReference Include="xunit.v3" />
         <!-- IDE discovery (Rider, Visual Studio): Bobcat warns BOBCAT033 without these -->
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
