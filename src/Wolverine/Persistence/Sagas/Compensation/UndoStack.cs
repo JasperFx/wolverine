@@ -107,6 +107,9 @@ namespace Wolverine
 
         /// <summary>The undo messages confirmed so far, oldest first</summary>
         public List<UndoneStep> Undone { get; set; } = [];
+
+        /// <summary>The saga completes once the last undo message is confirmed</summary>
+        public bool CompleteWhenDone { get; set; }
     }
 
     /// <summary>
@@ -115,12 +118,15 @@ namespace Wolverine
     /// </summary>
     public sealed class UndoSequence : OutgoingMessages
     {
-        internal UndoSequence(bool includePending)
+        internal UndoSequence(bool includePending, bool completeWhenDone)
         {
             IncludePending = includePending;
+            CompleteWhenDone = completeWhenDone;
         }
 
         internal bool IncludePending { get; }
+
+        internal bool CompleteWhenDone { get; }
 
         /// <summary>The stack had nothing to undo, so the unwind is already over</summary>
         public bool IsEmpty => Count == 0;

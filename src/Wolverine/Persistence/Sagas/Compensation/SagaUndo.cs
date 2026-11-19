@@ -250,6 +250,8 @@ public static class SagaUndo
         if (next != null) return next;
 
         saga.Record(new SagaCompensated(step, exceptionType) { Undone = undone });
+        if (unwind?.CompleteWhenDone == true) saga.CompleteAfterUnwind();
+
         return null;
     }
 }

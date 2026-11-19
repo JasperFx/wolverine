@@ -760,7 +760,7 @@ the saga compensates right away. This works for any handler, not only sagas: see
 Any `Saga` can declare `Compensate` methods. Derive from `CompensatingSaga` instead of `Saga` to also keep the saga's
 compensation state:
 
-- `Status`: `Active`, `Compensated` or `CompensationFailed`
+- `Status`: `Active`, `Compensating` (during a sequential unwind), `Compensated` or `CompensationFailed`
 - `CompensationLog`: one entry per compensation, with the failed message type, the type of the exception that was
   actually thrown, the outcome and the time
 
@@ -797,6 +797,97 @@ public class CompensatedSagaDbContext : DbContext
 
 Compensation runs when a message is processed from a queue. A failure of `InvokeAsync()` is thrown to the caller and is
 not compensated.
+
+### The undo stack <Badge type="tip" text="7.0" />
+
+A `CompensatingSaga` also keeps an undo stack, so a saga doesn't have to track what it has done in flags of its own.
+`PushUndo()` records the message that undoes a step, tagged with an optional step name, and a `Compensate` method
+decides how much of the stack a failure unwinds:
+
+- `UndoMessages()` sends every undo message on the stack, newest first, together
+- `UndoMessagesSince("car")` and `UndoMessages(entry => ...)` unwind part of it
+- `UndoSequentially()` sends the newest undo message, waits for it to be confirmed, then sends the next. The saga is
+  `Compensating` while it unwinds, then `Compensated` when the stack is empty. An undo message that fails for good
+  leaves the saga `CompensationFailed` with the rest of the stack still there
+
+Nothing unwinds by itself: a failure no `Compensate` method matches leaves the stack alone. The catch-all is one line,
+`public OutgoingMessages Compensate(object failed, ExceptionInfo ex) => UndoMessages();`. Here is Restate's trip
+booking example as a saga:
+
+<!-- snippet: sample_undo_stack_trip -->
+<a id='snippet-sample_undo_stack_trip'></a>
+```cs
+public class Trip : CompensatingSaga, IRevisioned
+{
+    public Guid Id { get; set; }
+    public string CustomerId { get; set; } = "";
+
+    public static (Trip, BookFlight) Start(BookTrip command)
+    {
+        var trip = new Trip { Id = command.TripId, CustomerId = command.CustomerId };
+        trip.PushUndo(new CancelFlight(trip.Id, trip.CustomerId), "flight", confirmedBy: typeof(FlightCancelled));
+        return (trip, new BookFlight(trip.Id, trip.CustomerId));
+    }
+
+    public BookCar Handle(FlightBooked booked)
+    {
+        PushUndo(new CancelCar(Id, CustomerId), "car", confirmedBy: typeof(CarCancelled));
+        return new BookCar(Id, CustomerId);
+    }
+
+    public BookHotel Handle(CarBooked booked)
+    {
+        PushUndo(new CancelHotel(Id, CustomerId), "hotel");
+        return new BookHotel(Id, CustomerId);
+    }
+
+    public TripBooked Handle(HotelBooked booked)
+    {
+        MarkCompleted();
+        return new TripBooked(Id);
+    }
+
+    // A refusal, wherever the provider runs: cancel everything, newest first, each one confirmed before the next
+    public UndoSequence Compensate(object failed, RemoteFailure<BookingRefusedException> refused) => UndoSequentially();
+
+    // No cars at all: the trip can't happen. Cancel everything one at a time as above, then close the trip
+    public UndoSequence Compensate(BookCar failed, RemoteFailure<NoCarsException> noCars)
+        => UndoSequentially(completeWhenDone: true);
+
+    // No rooms: give the car back too, all at once, but keep the flight
+    public OutgoingMessages Compensate(BookHotel failed, RemoteFailure<NoRoomsException> noRooms) => UndoMessagesSince("car");
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaWorkflows/SagaWorkflows.Specs/TripBooking/Trip.cs#L11-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_undo_stack_trip' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+**Push before the step.** An undo pushed in a handler that also sends a message is *pending*: that message is its step,
+and the step's reply confirms it. Wolverine ties the reply to the step for you. An unwind includes pending entries by
+default (pass `includePending: false` to skip them), so a step whose outcome is unknown, say a booking that failed but
+may have gone through on the provider's side, is undone too. Keep undo messages idempotent.
+
+**Pushing after the step.** Wolverine can't tell an undo pushed *after* a step from one pushed *before* the next step
+when the same handler sends that next step. Such an undo counts as pending until the next step replies. That only
+matters if an unwind skips pending entries; call `ConfirmUndo("withdrawal")` in the same handler to mark it confirmed
+straight away. An undo pushed in a handler that sends nothing is confirmed at once, and `ConfirmUndo(step)` also covers
+any reply Wolverine can't tie to its step.
+
+**Confirming a sequential unwind.** Each undo message is sent asking for Wolverine's acknowledgement, which its handler
+sends once it succeeds. Push it with `confirmedBy: typeof(FlightCancelled)` to have the handler's own reply confirm it
+instead. Either way, no `Handle(FlightCancelled)` method is needed. By default the saga stays open after the unwind;
+`UndoSequentially(completeWhenDone: true)` completes it once the last undo message is confirmed (an event-sourced saga
+gets a `SagaCompleted` event). Don't call `MarkCompleted()` while the saga unwinds: the confirmations would find no saga
+and the unwind would stop.
+
+**How undo messages are kept.** The stack is saved with the saga's state. Each undo message is stored as
+System.Text.Json and its .NET type name, and read back the same way when it is sent, so an undo message must round trip
+through System.Text.Json. An event-sourced saga keeps its stack as Wolverine's own events on its stream
+(`wolverine_saga_undo_pushed`, `wolverine_saga_undo_sent` and so on), and its `Start` returns `PushedUndo(...)` among its
+events, since there is no saga yet to call `PushUndo()` on. With EF Core, `MapCompensatingSaga()` maps the stack as JSON
+too.
+
+Each entry of the compensation log also records the failed message's envelope id and the undo messages the compensation
+sent, with their step tags.
 
 ## Marking a Saga as Complete
 

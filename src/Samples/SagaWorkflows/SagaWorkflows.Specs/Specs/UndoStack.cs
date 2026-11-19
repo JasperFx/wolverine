@@ -36,6 +36,20 @@ public class unwinding_a_trip(DocumentSagaServices services) : SagaWorkflowSpec(
         await ThenTheUndoStackHolds<Trip>(_tripId);
     }
 
+    // UndoSequentially(completeWhenDone: true): once the last cancellation is confirmed, the trip completes. By default
+    // (above) it stays open, Compensated
+    [BobcatSpec(typeof(BookTrip))]
+    public async Task no_cars_cancels_every_booking_and_then_closes_the_trip()
+    {
+        NoCarsFor(_customer);
+
+        await WhenReceived(new BookTrip(_tripId, _customer));
+
+        ThenUndoneOneAtATime(typeof(CancelCar), typeof(CancelFlight));
+        ThenNoBooking(_customer, Booking.Flight);
+        await ThenNoSaga<Trip>(_tripId);
+    }
+
     [BobcatSpec(typeof(BookTrip))]
     public async Task a_refused_flight_only_cancels_the_flight()
     {
@@ -113,6 +127,29 @@ public class unwinding_an_event_sourced_trip(EventSourcedSagaServices services) 
         await ThenTheSagaStatusIs<EventSourcedTrip>(_tripId, SagaStatus.Compensated);
         await ThenTheLastCompensationUndid<EventSourcedTrip>(_tripId, "hotel", "car", "flight");
         await ThenTheUndoStackHolds<EventSourcedTrip>(_tripId);
+    }
+
+    // The event-sourced trip completes with Wolverine's SagaCompleted event, after the last cancellation's events
+    [BobcatSpec(typeof(BookTrip))]
+    public async Task no_cars_cancels_every_booking_and_then_closes_the_trip()
+    {
+        NoCarsFor(_customer);
+
+        await WhenReceived(new BookTrip(_tripId, _customer));
+
+        ThenUndoneOneAtATime(typeof(CancelCar), typeof(CancelFlight));
+        await ThenTheSagaIsCompleted<EventSourcedTrip>(_tripId);
+        await ThenTheSagaStatusIs<EventSourcedTrip>(_tripId, SagaStatus.Compensated);
+    }
+
+    [BobcatSpec(typeof(BookTrip))]
+    public async Task a_refused_hotel_leaves_the_trip_open_by_default()
+    {
+        ProviderRefuses(Booking.Hotel, _customer);
+
+        await WhenReceived(new BookTrip(_tripId, _customer));
+
+        await ThenTheSagaIsStillOpen<EventSourcedTrip>(_tripId);
     }
 
     [BobcatSpec(typeof(BookTrip))]

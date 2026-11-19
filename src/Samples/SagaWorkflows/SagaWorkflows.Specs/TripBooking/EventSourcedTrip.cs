@@ -36,6 +36,10 @@ public class EventSourcedTrip : EventSourcedSaga
     [Compensates(typeof(BookFlight), typeof(BookCar), typeof(BookHotel))]
     public UndoSequence Compensate(object failed, RemoteFailure<BookingRefusedException> refused) => UndoSequentially();
 
+    // No cars at all: cancel everything, then Wolverine appends SagaCompleted to close the trip
+    public UndoSequence Compensate(BookCar failed, RemoteFailure<NoCarsException> noCars)
+        => UndoSequentially(completeWhenDone: true);
+
     public void Apply(TripStarted e)
     {
         Id = e.TripId;

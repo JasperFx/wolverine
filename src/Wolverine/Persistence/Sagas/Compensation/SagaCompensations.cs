@@ -83,13 +83,17 @@ public static class SagaCompensations
             {
                 compensating.Record(new SagaCompensating(step, thrownType)
                 {
-                    FailedMessageId = failedId, Sequential = true, IncludePending = sequence.IncludePending
+                    FailedMessageId = failedId, Sequential = true, IncludePending = sequence.IncludePending,
+                    CompleteWhenDone = sequence.CompleteWhenDone
                 });
             }
             else
             {
                 compensating.Record(new SagaCompensating(step, thrownType) { FailedMessageId = failedId });
                 compensating.Record(new SagaCompensated(step, thrownType) { Undone = compensating.TakeUndone() });
+
+                // A sequential unwind with nothing to undo is over already
+                if (result is UndoSequence { CompleteWhenDone: true }) compensating.CompleteAfterUnwind();
             }
         }
 

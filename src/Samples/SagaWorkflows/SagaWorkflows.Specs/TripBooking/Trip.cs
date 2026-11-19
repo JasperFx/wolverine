@@ -42,6 +42,10 @@ public class Trip : CompensatingSaga, IRevisioned
     // A refusal, wherever the provider runs: cancel everything, newest first, each one confirmed before the next
     public UndoSequence Compensate(object failed, RemoteFailure<BookingRefusedException> refused) => UndoSequentially();
 
+    // No cars at all: the trip can't happen. Cancel everything one at a time as above, then close the trip
+    public UndoSequence Compensate(BookCar failed, RemoteFailure<NoCarsException> noCars)
+        => UndoSequentially(completeWhenDone: true);
+
     // No rooms: give the car back too, all at once, but keep the flight
     public OutgoingMessages Compensate(BookHotel failed, RemoteFailure<NoRoomsException> noRooms) => UndoMessagesSince("car");
 }

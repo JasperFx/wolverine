@@ -115,14 +115,21 @@ public static class EventSourcedSagaSupport
         var sequential = sequence is { IsEmpty: false };
         stream.AppendOne(new SagaCompensating(step, thrownType)
         {
-            FailedMessageId = failedId, Sequential = sequential, IncludePending = sequence?.IncludePending ?? true
+            FailedMessageId = failedId, Sequential = sequential, IncludePending = sequence?.IncludePending ?? true,
+            CompleteWhenDone = sequence?.CompleteWhenDone ?? false
         });
 
         // What the method did to the undo stack, as Wolverine's own events
         foreach (var undo in saga.TakeUnsavedEvents()) stream.AppendOne(undo);
 
         if (events.Count != 0) stream.AppendMany(events);
-        if (!sequential) stream.AppendOne(new SagaCompensated(step, thrownType) { Undone = saga.TakeUndone() });
+        if (!sequential)
+        {
+            stream.AppendOne(new SagaCompensated(step, thrownType) { Undone = saga.TakeUndone() });
+
+            // A sequential unwind with nothing to undo is over already
+            if (sequence is { CompleteWhenDone: true }) stream.AppendOne(new SagaCompleted());
+        }
 
         foreach (var message in messages)
         {

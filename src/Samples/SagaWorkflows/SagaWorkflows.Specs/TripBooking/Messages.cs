@@ -43,6 +43,10 @@ public class BookingRefusedException(string message) : Exception(message);
 [TerminalFailure]
 public class NoRoomsException(string message) : BookingRefusedException(message);
 
+// No car anywhere for the trip's dates: the trip can't happen at all
+[TerminalFailure]
+public class NoCarsException(string message) : BookingRefusedException(message);
+
 // A provider refused to cancel a booking
 [TerminalFailure]
 public class CancellationRefusedException(string message) : Exception(message);

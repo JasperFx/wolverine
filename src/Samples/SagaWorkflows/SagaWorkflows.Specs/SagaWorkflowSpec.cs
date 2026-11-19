@@ -54,6 +54,9 @@ public abstract class SagaWorkflowSpec : WolverineSpec, IAsyncLifetime
     [Given("the {booking} provider refuses {customer}")]
     public void ProviderRefuses(Booking booking, string customer) => Travel.Refusals.Add((booking, customer));
 
+    [Given("there are no cars for {customer}")]
+    public void NoCarsFor(string customer) => Travel.NoCars.Add(customer);
+
     [Given("the hotel has no rooms for {customer}")]
     public void HotelIsFull(string customer) => Travel.FullHotels.Add(customer);
 

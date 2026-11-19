@@ -57,9 +57,13 @@ public abstract class CompensatingSaga : Saga
     /// <summary>
     /// GH-5673. Push <paramref name="undoMessage" /> onto the undo stack. Pushed in a handler that also sends a message,
     /// it is pending until that step's reply confirms it (or <see cref="ConfirmUndo" /> does); pushed in a handler that
-    /// sends nothing, it is confirmed at once.
+    /// sends nothing, it is confirmed at once. An undo pushed after its step, in a handler that sends the next step, is
+    /// therefore pending until that next step replies: call <see cref="ConfirmUndo" /> in the same handler to confirm it.
     /// </summary>
-    /// <param name="undoMessage">The message that undoes the step. Kept as JSON with the saga's state</param>
+    /// <param name="undoMessage">
+    /// The message that undoes the step. Kept with the saga's state as System.Text.Json plus its .NET type name, so it
+    /// must round trip through System.Text.Json
+    /// </param>
     /// <param name="step">An optional label, for <see cref="ConfirmUndo" />, <see cref="UndoMessagesSince" /> and the log</param>
     /// <param name="confirmedBy">
     /// In a sequential unwind, a business reply the undo message's handler returns, such as <c>FlightCancelled</c>, that
@@ -122,9 +126,15 @@ public abstract class CompensatingSaga : Saga
     /// empty. An undo message that fails for good leaves the saga <see cref="SagaStatus.CompensationFailed" /> with the
     /// rest of the stack in place. Return it from a <c>Compensate</c> method.
     /// </summary>
-    protected UndoSequence UndoSequentially(bool includePending = true)
+    /// <param name="includePending">Undo the steps never confirmed as well: their outcome is unknown</param>
+    /// <param name="completeWhenDone">
+    /// Complete the saga once the last undo message is confirmed (an event-sourced saga gets a
+    /// <see cref="SagaCompleted" /> event). By default the saga stays open, <see cref="SagaStatus.Compensated" />. Don't
+    /// complete it yourself while it unwinds: the confirmations would find no saga, and the unwind would stop
+    /// </param>
+    protected UndoSequence UndoSequentially(bool includePending = true, bool completeWhenDone = false)
     {
-        var sequence = new UndoSequence(includePending);
+        var sequence = new UndoSequence(includePending, completeWhenDone);
         if (NextSequentialUndo(includePending) is { } first) sequence.Add(first);
         return sequence;
     }
@@ -176,6 +186,22 @@ public abstract class CompensatingSaga : Saga
         _undone = null;
         _undoMessages = null;
         _confirmed = null;
+    }
+
+    /// <summary>
+    /// GH-5673. A sequential unwind asked to complete the saga when it ended: completed now, or for an event-sourced
+    /// saga, a <see cref="SagaCompleted" /> event for its stream
+    /// </summary>
+    internal void CompleteAfterUnwind()
+    {
+        if (recordsEvents)
+        {
+            (_unsaved ??= []).Add(new SagaCompleted());
+        }
+        else
+        {
+            MarkCompleted();
+        }
     }
 
     /// <summary>The entries pushed during this handler</summary>
@@ -278,7 +304,8 @@ public abstract class CompensatingSaga : Saga
                     Step = compensating.Step,
                     ExceptionType = compensating.ExceptionType,
                     FailedMessageId = compensating.FailedMessageId,
-                    IncludePending = compensating.IncludePending
+                    IncludePending = compensating.IncludePending,
+                    CompleteWhenDone = compensating.CompleteWhenDone
                 };
                 break;
 

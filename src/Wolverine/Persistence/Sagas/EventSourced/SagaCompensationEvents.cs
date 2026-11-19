@@ -22,6 +22,9 @@ public sealed record SagaCompensating(string Step, string ExceptionType)
 
     /// <summary>GH-5673. A sequential unwind undoes entries whose step was never confirmed too</summary>
     public bool IncludePending { get; init; } = true;
+
+    /// <summary>GH-5673. The saga completes once the sequential unwind's last undo message is confirmed</summary>
+    public bool CompleteWhenDone { get; init; }
 }
 
 /// <summary>GH-5415. The compensation of <paramref name="Step" /> for <paramref name="ExceptionType" /> succeeded.</summary>

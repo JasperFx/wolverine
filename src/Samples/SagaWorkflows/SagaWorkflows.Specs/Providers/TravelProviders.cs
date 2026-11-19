@@ -16,6 +16,7 @@ public class TravelProviders
     public ConcurrentDictionary<(Booking, string), bool> Reservations { get; } = new();
     public ConcurrentBag<(Booking, string)> Refusals { get; } = [];
     public ConcurrentBag<string> FullHotels { get; } = [];
+    public ConcurrentBag<string> NoCars { get; } = [];
     public ConcurrentBag<(Booking, string)> CancellationRefusals { get; } = [];
 
     public void Reset()
@@ -23,6 +24,7 @@ public class TravelProviders
         Reservations.Clear();
         Refusals.Clear();
         FullHotels.Clear();
+        NoCars.Clear();
         CancellationRefusals.Clear();
     }
 
@@ -31,6 +33,11 @@ public class TravelProviders
         if (booking == Booking.Hotel && FullHotels.Contains(customer))
         {
             throw new NoRoomsException($"No rooms for {customer}");
+        }
+
+        if (booking == Booking.Car && NoCars.Contains(customer))
+        {
+            throw new NoCarsException($"No cars for {customer}");
         }
 
         if (Refusals.Contains((booking, customer)))
