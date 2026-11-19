@@ -248,7 +248,10 @@ public partial class WolverineScenario
                 var events = await streamOfAsync(sagaId, text, typeof(TSaga));
                 if (events.LastOrDefault() is { } terminal)
                 {
-                    Verdicts.Fact(completedAt == terminal.Timestamp,
+                    // Compared at the store's precision. The snapshot takes CompletedAt from the event in memory, which
+                    // on Linux carries 100ns ticks, while PostgreSQL keeps microseconds; so the same instant can read
+                    // back up to a microsecond apart (it passed on macOS, whose clock only resolves microseconds).
+                    Verdicts.Fact((completedAt - terminal.Timestamp).Duration() < TimeSpan.FromMicroseconds(1),
                         $"Expected the {nameOf(typeof(TSaga))} saga to have completed when its terminal " +
                         $"{nameOf(terminal.EventType)} was recorded ({terminal.Timestamp:O}), but CompletedAt is {completedAt:O}.");
                 }
