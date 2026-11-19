@@ -305,6 +305,9 @@ internal class FisherOverrides<T> : IConfigureFisher<T> where T : IDocumentStore
 {
     public void Configure(IServiceProvider services, StoreOptions options)
     {
+        // GH-5415: Wolverine's own saga events, and an Inline snapshot of every event-sourced saga this store keeps
+        Persistence.Sagas.FisherEventSourcedSagas.Configure(services, options, typeof(T));
+
         // Fisher's DocumentMapping automatically detects IRevisioned types
         // and enables numeric revisions.
 

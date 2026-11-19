@@ -60,6 +60,15 @@ public abstract class Saga
     /// to a <c>Handle</c> method again.
     /// </summary>
     public DateTimeOffset? CompletedAt { get; set; }
+
+    /// <summary>
+    /// GH-5674. The id of the latest timeout this saga scheduled under each key, for timeouts that replace earlier ones
+    /// (<see cref="ReplacesEarlierTimeoutsAttribute" /> or <see cref="TimeoutMessage.TimeoutKey" />). Wolverine sets it;
+    /// an earlier timeout whose id is not the latest is discarded when it fires. Null for a saga that never scheduled
+    /// one. Not mapped by EF Core unless the saga's entity mapping maps it.
+    /// </summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public Dictionary<string, Guid>? LatestTimeoutIds { get; set; }
 }
 
 #endregion

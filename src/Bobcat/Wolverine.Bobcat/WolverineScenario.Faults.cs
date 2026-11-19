@@ -1,4 +1,5 @@
 using Bobcat;
+using Bobcat.CritterStack;
 using Bobcat.Engine;
 using Bobcat.Runtime;
 using Microsoft.Extensions.DependencyInjection;
@@ -104,6 +105,26 @@ public partial class WolverineScenario
                 $"Expected the dead-lettered {nameOf(typeof(T))} to be tagged \"{tagged}\", but it was tagged " +
                 $"{string.Join(", ", tags.Distinct().Select(x => x is null ? "nothing" : $"\"{x}\""))}.");
         });
+    }
+
+    /// <summary>
+    /// GH-5415. A <typeparamref name="T" /> was dead-lettered while the act ran -- by <paramref name="by" /> when given --
+    /// because of a <typeparamref name="TException" /> or a subclass. Reads
+    /// "PaymentReceived is dead-lettered by fulfillment for UnknownSagaException".
+    /// </summary>
+    public void ThenDeadLettered<T, TException>(string? by = null) where TException : Exception
+    {
+        using var step = ScenarioRecorder.Step("Then", deadLetteredText<T>(by, null) + $" for {nameOf(typeof(TException))}");
+        var records = deadLettered<T>(by);
+        if (records.Count == 0) return;
+
+        var exceptions = records.Select(x => x.Exception).ToList();
+        var match = exceptions.FirstOrDefault(x => x is TException);
+        Verdicts.Check("exception", (match ?? exceptions.FirstOrDefault())?.GetType().Name ?? "(none recorded)",
+            nameOf(typeof(TException)));
+        messageFact(match is not null,
+            $"Expected the dead-lettered {nameOf(typeof(T))} to have failed with {nameOf(typeof(TException))}, but it failed with " +
+            $"{string.Join(", ", exceptions.Select(x => x is null ? "nothing recorded" : $"{x.GetType().Name}: {x.Message}"))}.");
     }
 
     private static string deadLetteredText<T>(string? by, string? tagged)
@@ -359,6 +380,34 @@ public partial class WolverineScenario
 
             var current = await loadSagaAsync<TSaga>(sagaId, text);
             if (current != null) await updateSagaAsync(current, text);
+        };
+        root._afterAct.Add(() => hooks.BeforeSave = null);
+    }
+
+    /// <summary>
+    /// GH-5415. While the event-sourced <typeparamref name="TSaga" /> saga with this identity is compensated, another
+    /// message appends <paramref name="event" /> to its stream, after the compensation loaded it and before it saves, so
+    /// the compensation's save meets a concurrency conflict -- once, or on every attempt. Reads
+    /// "another message appends ItemsReserved to the OrderFulfillment saga #OrderFulfillmentId's stream while it is being
+    /// compensated, once".
+    /// </summary>
+    public void WhileCompensatingAnotherMessageAppends<TSaga>(object sagaId, object @event, bool onEveryAttempt = false)
+        where TSaga : EventSourcedSaga
+    {
+        var text = $"another message appends {nameOf(PartialMatching.ExpectedType(@event))} to the {nameOf(typeof(TSaga))} saga " +
+                   $"{ScenarioValues.Format(sagaId)}'s stream while it is being compensated" + (onEveryAttempt ? ", on every attempt" : ", once");
+        using var step = ScenarioRecorder.Step("Given", text);
+
+        var built = Build(@event, text);
+        var hooks = ((WolverineRuntime)sagaRuntime).CompensationHooks;
+        var id = sagaId.ToString();
+        var appended = 0;
+        hooks.BeforeSave = async saga =>
+        {
+            if (saga is not TSaga || sagaIdOf(saga).ToString() != id) return;
+            if (!onEveryAttempt && Interlocked.Increment(ref appended) > 1) return;
+
+            await EventStoreAuthoring.AppendAsync(await storeForAsync(text, typeof(TSaga)), typeof(TSaga), sagaId, [built]);
         };
         root._afterAct.Add(() => hooks.BeforeSave = null);
     }

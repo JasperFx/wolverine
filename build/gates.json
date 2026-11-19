@@ -640,6 +640,30 @@
       "tracks": []
     },
     {
+      "name": "EventSourcedSagas.Specs",
+      "path": "src/Samples/EventSourcedSagas/EventSourcedSagas.Specs/EventSourcedSagas.Specs.csproj",
+      "ciTargets": "CIBobcat",
+      "workers": 1,
+      "postgres": "OwnDatabase",
+      "sqlServer": "OwnDatabase",
+      "services": [
+        "postgresql",
+        "sqlserver"
+      ],
+      "tracks": []
+    },
+    {
+      "name": "SagaWorkflows.Specs",
+      "path": "src/Samples/SagaWorkflows/SagaWorkflows.Specs/SagaWorkflows.Specs.csproj",
+      "ciTargets": "CIBobcat",
+      "workers": 1,
+      "postgres": "OwnDatabase",
+      "services": [
+        "postgresql"
+      ],
+      "tracks": []
+    },
+    {
       "name": "Wolverine.AI.Tests",
       "path": "src/Extensions/Wolverine.AI.Tests/Wolverine.AI.Tests.csproj",
       "ciTargets": "CIExtensions",

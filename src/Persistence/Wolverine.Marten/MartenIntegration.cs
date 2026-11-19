@@ -315,8 +315,18 @@ internal class MartenOverrides : IConfigureMarten
             .SingleTenanted()
             .DoNotPartition();
 
+        // GH-5415: Wolverine's own saga events, and an Inline snapshot of every event-sourced saga this store keeps
+        Persistence.Sagas.MartenEventSourcedSagas.Configure(services, options, StoreType);
+
         options.Policies.ForAllDocuments(mapping =>
         {
+            // GH-5415: an event-sourced saga's document is a snapshot its projection writes, versioned by its stream
+            if (mapping.DocumentType.CanBeCastTo<EventSourcedSaga>())
+            {
+                mapping.Metadata.LastModified.Member = typeof(Saga).GetProperty(nameof(Saga.LastModified))!;
+                return;
+            }
+
             if (mapping.DocumentType.CanBeCastTo<Saga>())
             {
                 mapping.UseNumericRevisions = true;

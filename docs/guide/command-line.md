@@ -318,6 +318,19 @@ start it, so no database or message-broker connections are opened.
 * `check-env` runs JasperFx [environment checks](https://shared-libs.jasperfx.net/cli/environment-checks.html), and every stateful resource
   contributes one, so it confirms the database and the brokers are reachable and provisioned before the application takes traffic
 
+## Drawing Saga Flows <Badge type="tip" text="7.0" />
+
+`saga-flow` draws each saga's flow as a Mermaid diagram, in Markdown that pastes into a README:
+
+```bash
+dotnet run -- saga-flow
+dotnet run -- saga-flow OrderSaga --file docs/order-saga.md
+dotnet run -- saga-flow OrderSaga --mermaid-only
+```
+
+`describe` prints the same diagrams in its "Saga Flows" section. See
+[Drawing a Saga's Flow](/guide/durability/sagas#drawing-a-sagas-flow) for what the diagram shows.
+
 ## Exporting the Event Model
 
 ::: tip

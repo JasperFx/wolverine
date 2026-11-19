@@ -1,4 +1,5 @@
 using Weasel.Core;
+using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
 using Weasel.Postgresql.Tables.Partitioning;
 using Wolverine.RDBMS;
@@ -18,7 +19,10 @@ namespace Wolverine.Postgresql.Schema;
 ///
 /// <para>It runs in an explicit transaction that first takes <c>ACCESS EXCLUSIVE</c> on the inbox, so the copy aside
 /// sees every committed row and nothing reads or writes the inbox until the commit. PostgreSQL refuses LOCK TABLE in the
-/// implicit transaction a pipelined script runs in, hence the explicit block.</para>
+/// implicit transaction a pipelined script runs in, hence the explicit block. When the migrator already runs the script as
+/// one transaction (a migration with a partitioning rebuild in it, or a transactional script), it writes no begin or
+/// commit of its own (<see cref="PostgresqlMigrator.RunsInOneTransaction" />, weasel#888): its <c>commit;</c> would end
+/// the migrator's transaction early and leave the rest of the command outside it.</para>
 ///
 /// <para>Partitioning an unpartitioned inbox is Weasel's own rebuild, unchanged. Since Weasel 10.0.0-alpha.10
 /// (weasel#882) that rebuild takes the same <c>ACCESS EXCLUSIVE</c> lock before its copy aside, inside the transaction
@@ -57,7 +61,12 @@ internal class IncomingEnvelopeTableDelta : TableDelta
         var columns = string.Join(", ", Expected.Columns.Select(x => x.Name)
             .Where(name => Actual!.Columns.Any(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase))));
 
-        writer.WriteLine("begin;");
+        var ownTransaction = !PostgresqlMigrator.RunsInOneTransaction(writer);
+        if (ownTransaction)
+        {
+            writer.WriteLine("begin;");
+        }
+
         writer.WriteLine($"lock table {table} in access exclusive mode;");
         writer.WriteLine($"create table {temp} as select * from {table};");
         writer.WriteLine($"drop table {table} cascade;");
@@ -67,6 +76,10 @@ internal class IncomingEnvelopeTableDelta : TableDelta
                          $"when '{EnvelopeStatus.Handled}' then 0 when '{EnvelopeStatus.Incoming}' then 1 else 2 end " +
                          "on conflict do nothing;");
         writer.WriteLine($"drop table {temp} cascade;");
-        writer.WriteLine("commit;");
+
+        if (ownTransaction)
+        {
+            writer.WriteLine("commit;");
+        }
     }
 }

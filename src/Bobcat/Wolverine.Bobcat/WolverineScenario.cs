@@ -135,6 +135,7 @@ public partial class WolverineScenario : CritterStackScenario
 
     // GH-4940: the concurrent append the next act lands between its read and its write
     private object[]? _concurrently;
+    private (Type Aggregate, object Id)? _concurrentStream;
 
     /// <param name="host">The application under test.</param>
     /// <param name="storeName">Which event store to use, when the application has several. Null takes the only one.</param>
@@ -274,6 +275,29 @@ public partial class WolverineScenario : CritterStackScenario
         recordTouched(events.Select(PartialMatching.ExpectedType));
 
         root._concurrently = events.Select(x => Build(x, "a concurrent writer appends")).ToArray();
+        root._concurrentStream = null;
+    }
+
+    /// <summary>
+    /// GH-5415. <see cref="WhileActing" />, onto the <typeparamref name="TAggregate" /> stream with this identity rather
+    /// than a new one -- another message appending to (or starting) the very stream the act writes -- so the act's save
+    /// meets a concurrency conflict. Reads "while the act runs, a concurrent writer appends OrderFulfillmentStarted to
+    /// OrderFulfillment #OrderFulfillmentId".
+    /// </summary>
+    [EventModelRole(SliceRole.ArrangedEvent, nameof(concurrently))]
+    public void WhileActingOn<TAggregate>(object id, params object[] concurrently) where TAggregate : class
+    {
+        var events = flatten(concurrently);
+        if (events.Length == 0) throw new ArgumentException("Name the events a concurrent writer appends.", nameof(concurrently));
+
+        var (described, inline) = describe(events);
+        using var step = ScenarioRecorder.Step("Given",
+            $"while the act runs, a concurrent writer appends {described} to {nameOf(typeof(TAggregate))} {ScenarioValues.Format(id)}");
+        if (!inline) recordValues("event", events);
+        recordTouched(events.Select(PartialMatching.ExpectedType));
+
+        root._concurrently = events.Select(x => Build(x, "a concurrent writer appends")).ToArray();
+        root._concurrentStream = (typeof(TAggregate), id);
     }
 
     /// <summary>
@@ -393,6 +417,64 @@ public partial class WolverineScenario : CritterStackScenario
             // Everything the replay commits is the act's own: there is no one message to tell its work from a cascade's
             _dispatched = null;
             await executeAsync(_ => replayAsync(previous, played, timeout),
+                outcome => Task.FromResult(outcome with { CorrelationId = previous.CorrelationId ?? outcome.CorrelationId }));
+        });
+    }
+
+    /// <summary>
+    /// GH-5664. <paramref name="duration" /> passes: the scheduled messages that come due within it are executed, in due
+    /// order, through Wolverine's <see cref="ITrackedSession.PlayScheduledMessagesAsync(TimeSpan, TimeSpan?)" />, and
+    /// this is the new act. A message scheduled while the time passes, such as a saga's next poll, is executed too when
+    /// it comes due before the end; everything due later stays scheduled for the next <c>WhenTimePasses</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The clock that moves is the ambient <see cref="BobcatClock" />, the one an application that shares the spec's
+    /// clock reads (<c>services.ShareClock()</c>), so a handler sees the instant its message came due. A saga that
+    /// schedules a poll every five minutes and a deadline in an hour can be walked through step by step: the deadline
+    /// is executed once an hour has passed, not with the first poll. <see cref="WhenScheduledMessagesAreExecuted" />
+    /// still executes everything at once.
+    /// </para>
+    /// <para>
+    /// With no act before it, the step fails and stops the scenario. Time passing with nothing due is not a failure:
+    /// the act then did nothing, which a Then step can judge.
+    /// </para>
+    /// </remarks>
+    /// <param name="duration">How much time passes. Never negative.</param>
+    /// <param name="timeout">How long the act waits for everything it caused to settle. <see cref="Timeout" /> by default.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="duration" /> is negative: time only passes forward.</exception>
+    public Task WhenTimePasses(TimeSpan duration, TimeSpan? timeout = null)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(duration, TimeSpan.Zero);
+
+        // Synchronous on purpose: the clock is AsyncLocal, and one installed inside an async method never flows back to
+        // the spec, so the next step would not see the time that passed
+        var clock = BobcatClock.Controllable();
+        return root.passTimeAsync(duration, timeout ?? Timeout, clock);
+    }
+
+    private async Task passTimeAsync(TimeSpan duration, TimeSpan timeout, TimeProvider clock)
+    {
+        var previous = acted ? LastAct : null;
+
+        await inStep(ScenarioRecorder.Step("When", $"{formatDuration(duration)} passes"), async () =>
+        {
+            if (previous?.Session is not TrackedSession played)
+            {
+                throw new SpecCriticalException(
+                    "There is no act whose scheduled messages could come due: WhenTimePasses follows the When step that scheduled them.");
+            }
+
+            var due = played.pendingScheduled();
+            var end = played.Clock.GetUtcNow() + duration;
+            foreach (var type in due.Where(x => x.DueAt <= end).Select(x => x.Envelope.Message?.GetType()).OfType<Type>().Distinct())
+            {
+                recordTouched(type);
+            }
+
+            // Everything the window commits is the act's own: there is no one message to tell its work from a cascade's
+            _dispatched = null;
+            await executeAsync(_ => played.PlayScheduledMessagesAsync(duration, timeout, clock),
                 outcome => Task.FromResult(outcome with { CorrelationId = previous.CorrelationId ?? outcome.CorrelationId }));
         });
     }
@@ -721,13 +803,18 @@ public partial class WolverineScenario : CritterStackScenario
 
         // GH-4940: arm the concurrent writer for this act alone, by its flow and its correlation id
         var concurrent = _concurrently;
+        var concurrentStream = _concurrentStream;
         _concurrently = null;
+        _concurrentStream = null;
         IDisposable? armed = null;
         if (concurrent is not null)
         {
-            var store = await storeForAsync("a concurrent writer appends", null, concurrent);
-            armed = ConcurrentAppends.Arm(correlationId, token =>
-                EventStoreAuthoring.AppendAsync(store, null!, Guid.CreateVersion7(), concurrent, token));
+            var store = await storeForAsync("a concurrent writer appends", concurrentStream?.Aggregate, concurrent);
+            armed = concurrentStream is { } target
+                ? ConcurrentAppends.Arm(correlationId, token =>
+                    EventStoreAuthoring.AppendAsync(store, target.Aggregate, target.Id, concurrent, token))
+                : ConcurrentAppends.Arm(correlationId, token =>
+                    EventStoreAuthoring.AppendAsync(store, null!, Guid.CreateVersion7(), concurrent, token));
         }
 
         ITrackedSession? session = null;

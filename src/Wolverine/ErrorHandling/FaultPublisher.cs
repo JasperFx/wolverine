@@ -114,7 +114,16 @@ internal sealed class FaultPublisher : IFaultPublisher
 
             if (replyTo is not null)
             {
-                await lifecycle.EndpointFor(replyTo).SendAsync(faultMessage, faultOptions(original, shape));
+                var replyOptions = faultOptions(original, shape);
+
+                // GH-5673: the fault of a saga's undo message stops its sequential unwind
+                if (original.HasHeaders && original.Headers.TryGetValue(Persistence.Sagas.SagaUndo.EntryHeader, out var undoEntry))
+                {
+                    replyOptions.Headers[Persistence.Sagas.SagaUndo.EntryHeader] = undoEntry;
+                    replyOptions.IsResponse = true;
+                }
+
+                await lifecycle.EndpointFor(replyTo).SendAsync(faultMessage, replyOptions);
                 activity?.AddEvent(new ActivityEvent(WolverineTracing.FaultPublished));
             }
         }

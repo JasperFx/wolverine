@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- GH-5672 / GH-5673 / GH-5674 (Wolverine 7.0): the saga features the sagas vs durable workflows evaluation asked for
+         (CritterStackSamples PR #31), written as Bobcat specifications first. The workflow samples of that evaluation
+         (money transfer, trip booking, order approval and subscription billing) rebuilt as document sagas and as
+         event-sourced sagas. Two services in one test process over TCP: "workflows", where the sagas live, and
+         "providers", the bank, the travel providers and the rest of the outside world. -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <IsAotCompatible>false</IsAotCompatible>
+        <NoWarn>$(NoWarn);NU1202;NETSDK1005</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Bobcat.Xunit" />
+        <!-- The source generator: marker comments, and the spec manifest the bobcat tool lists from -->
+        <PackageReference Include="Bobcat.Generators" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit.v3" />
+        <!-- IDE discovery (Rider, Visual Studio): Bobcat warns BOBCAT033 without these -->
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\Bobcat\Wolverine.Bobcat\Wolverine.Bobcat.csproj" />
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
+    </ItemGroup>
+
+</Project>

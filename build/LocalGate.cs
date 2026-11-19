@@ -339,6 +339,15 @@ partial class Build
         {
             Postgres = ServerUse.OwnDatabase
         },
+        new("src/Samples/EventSourcedSagas/EventSourcedSagas.Specs/EventSourcedSagas.Specs.csproj", "CIBobcat")
+        {
+            // Marten on PostgreSQL, Polecat on SQL Server, Fisher on a SQLite file of its own
+            Postgres = ServerUse.OwnDatabase, SqlServer = ServerUse.OwnDatabase
+        },
+        new("src/Samples/SagaWorkflows/SagaWorkflows.Specs/SagaWorkflows.Specs.csproj", "CIBobcat")
+        {
+            Postgres = ServerUse.OwnDatabase
+        },
 
         // ─── CIExtensions ───
         new("src/Extensions/Wolverine.AI.Tests/Wolverine.AI.Tests.csproj", "CIExtensions"),

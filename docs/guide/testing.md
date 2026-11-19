@@ -1016,6 +1016,120 @@ replayed.Executed.SingleMessage<ScheduledMessage>().Text.ShouldBe("Broncos");
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/SlowTests/tracked_session_mechanics.cs#L97-L127' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_scheduled_delivery_to_external_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Letting time pass {#letting-time-pass} <Badge type="tip" text="7.0" />
+
+`PlayScheduledMessagesAsync(timeout)` plays **everything** that was scheduled, all at once. That doesn't work for a saga
+that schedules an overall deadline at the start and a poll every few minutes, because the deadline would fire together
+with the first poll. For that, let time pass instead:
+
+```cs
+session = await session.PlayScheduledMessagesAsync(advanceBy: 1.Hours());
+```
+
+That plays only the scheduled messages that come due within the hour, in the order they come due. A message
+scheduled *while* the window plays, such as the saga's next poll, is played too when it comes due before the hour is
+up. Everything due later stays scheduled, and calling `PlayScheduledMessagesAsync(advanceBy:)` again on the session it
+returned continues from where the last call stopped. Pass `advanceBy:` by name, since a single positional `TimeSpan`
+is the timeout of the overload that plays everything. An optional second argument is the new session's timeout.
+
+The tracked session keeps a virtual "now" as a `TimeProvider`, exposed as `ITrackedSession.Clock`. Each message is
+played at the instant it came due, so if the application reads the same clock, a saga sees the time its timeout was
+meant to fire. The session uses:
+
+1. the clock you give it with `TrackActivity().UseClock(clock)`, or
+2. the host's registered `TimeProvider`, when the session can move it, or
+3. a clock of its own, frozen at the instant the first session started. The application doesn't read that one, but
+   the windows and the order still work.
+
+A clock the session can move is one with a public `Advance(TimeSpan)` method, such as `FakeTimeProvider` from
+`Microsoft.Extensions.TimeProvider.Testing`. Delays (`TimeoutMessage`, `DelayedFor()`, `ScheduleAsync(message, delay)`)
+always count from the virtual "now" at the moment they were scheduled. An absolute time (`ScheduledAt()`) is read as a
+time on the session's clock when the application shares it, and otherwise as a time on the real clock. This is
+testing support only: nothing in Wolverine's runtime reads the session's clock.
+
+Here's a saga that polls every five minutes under an overall deadline of an hour:
+
+<!-- snippet: sample_polling_saga_with_a_deadline -->
+<a id='snippet-sample_polling_saga_with_a_deadline'></a>
+```cs
+public record WatchExportJob(Guid Id, int ReadyAfterPolls);
+
+// The recurring poll and the overall deadline are both saga timeouts
+public record PollExportJob(Guid Id) : TimeoutMessage(5.Minutes());
+
+public record ExportJobDeadline(Guid Id) : TimeoutMessage(1.Hours());
+
+public record ExportJobFinished(Guid Id, int Polls, DateTimeOffset At);
+
+public record ExportJobGaveUp(Guid Id, int Polls, DateTimeOffset At);
+
+public class ExportWatchSaga : Saga
+{
+    public Guid Id { get; set; }
+    public int ReadyAfterPolls { get; set; }
+    public int Polls { get; set; }
+    public DateTimeOffset? LastPolledAt { get; set; }
+
+    public static (ExportWatchSaga, PollExportJob, ExportJobDeadline) Start(WatchExportJob command)
+        => (new ExportWatchSaga { Id = command.Id, ReadyAfterPolls = command.ReadyAfterPolls },
+            new PollExportJob(command.Id),
+            new ExportJobDeadline(command.Id));
+
+    // The application reads time through TimeProvider, so a test can share its clock with the tracked session
+    public object Handle(PollExportJob poll, TimeProvider time)
+    {
+        Polls++;
+        LastPolledAt = time.GetUtcNow();
+
+        if (Polls >= ReadyAfterPolls)
+        {
+            MarkCompleted();
+            return new ExportJobFinished(Id, Polls, time.GetUtcNow());
+        }
+
+        return new PollExportJob(Id);
+    }
+
+    public ExportJobGaveUp Handle(ExportJobDeadline deadline, TimeProvider time)
+    {
+        MarkCompleted();
+        return new ExportJobGaveUp(Id, Polls, time.GetUtcNow());
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Tracking/advancing_time_through_scheduled_messages_5664.cs#L272-L319' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_polling_saga_with_a_deadline' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And a test that walks it through the hour, with the host's `TimeProvider` registered as a clock the session can move:
+
+<!-- snippet: sample_advancing_time_through_scheduled_messages -->
+<a id='snippet-sample_advancing_time_through_scheduled_messages'></a>
+```cs
+// The host registers a TimeProvider the session can move (FakeTimeProvider, or anything with a public
+// Advance(TimeSpan)), so the saga reads the same "now" the session advances
+var session = await _host.InvokeMessageAndWaitAsync(new WatchExportJob(id, ReadyAfterPolls: 100));
+
+session = await session.PlayScheduledMessagesAsync(advanceBy: 30.Minutes());
+session.Executed.MessagesOf<ExportJobGaveUp>().ShouldBeEmpty();
+session.Executed.MessagesOf<PollExportJob>().Count().ShouldBe(6);
+
+session = await session.PlayScheduledMessagesAsync(advanceBy: 29.Minutes());
+session.Executed.MessagesOf<ExportJobGaveUp>().ShouldBeEmpty();
+(await loadSaga(id))!.Polls.ShouldBe(11);
+
+session = await session.PlayScheduledMessagesAsync(advanceBy: 1.Minutes());
+
+// The deadline was scheduled at the start, so it plays before the poll due at the same instant, and that
+// poll then finds no saga and is dropped like any timeout for a completed saga
+var gaveUp = session.Executed.SingleMessage<ExportJobGaveUp>();
+gaveUp.Polls.ShouldBe(11);
+gaveUp.At.ShouldBe(_start.Add(1.Hours()));
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Tracking/advancing_time_through_scheduled_messages_5664.cs#L129-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advancing_time_through_scheduled_messages' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With [WolverineFx.Bobcat](/guide/testing-with-bobcat#letting-time-pass), the same step is `await WhenTimePasses(1.Hours());`.
+
 ## Extension Methods for Outgoing Messages
 
 Your Wolverine message handlers will often have some need to publish, send, or schedule other messages as part of their work. At the unit 

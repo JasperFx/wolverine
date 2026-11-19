@@ -3,6 +3,7 @@ using Npgsql;
 using Wolverine.RDBMS;
 using Wolverine.Marten.Persistence.Operations;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS.MultiTenancy;
 using Wolverine.Runtime;
@@ -11,7 +12,7 @@ using Wolverine.RDBMS.Outbox;
 
 namespace Wolverine.Marten;
 
-internal class MartenEnvelopeTransaction : IEnvelopeTransaction
+internal class MartenEnvelopeTransaction : IEnvelopeTransaction, ISagaHistoryTransaction
 {
     private readonly MessageContext _context;
 
@@ -56,6 +57,21 @@ internal class MartenEnvelopeTransaction : IEnvelopeTransaction
     public ValueTask RollbackAsync()
     {
         return ValueTask.CompletedTask;
+    }
+
+    // GH-5665: the saga's history row is queued in the session that saves the saga
+
+    public Task<bool> TryPersistSagaHistoryAsync(SagaHistoryRecord record, CancellationToken token)
+    {
+        Session.QueueOperation(new StoreSagaHistory(Store, record));
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> TryDeleteSagaHistoryAsync(string sagaType, string sagaId, string? tenantId,
+        CancellationToken token)
+    {
+        Session.QueueOperation(new StoreSagaHistory(Store, sagaType, sagaId, tenantId));
+        return Task.FromResult(true);
     }
     
     public async Task<bool> TryMakeEagerIdempotencyCheckAsync(Envelope envelope, DurabilitySettings settings,

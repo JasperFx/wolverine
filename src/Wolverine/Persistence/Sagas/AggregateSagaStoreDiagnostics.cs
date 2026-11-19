@@ -1,6 +1,8 @@
 using JasperFx.Descriptors;
 using JasperFx.Documents;
+using JasperFx.Core.Reflection;
 using Wolverine.Configuration.Capabilities;
+using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Sagas;
 
@@ -26,15 +28,18 @@ namespace Wolverine.Persistence.Sagas;
 /// at runtime, so any duplication here points at a duplicate
 /// <c>IPersistenceFrameProvider</c> registration upstream.
 /// </remarks>
-internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics, IDisposable
+internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics, ISagaHistoryDiagnostics, IDisposable
 {
     private readonly IReadOnlyList<ISagaStoreDiagnostics> _children;
     private readonly SemaphoreSlim _routeLock = new(1, 1);
     private Dictionary<string, ISagaStoreDiagnostics>? _routes;
 
-    public AggregateSagaStoreDiagnostics(IEnumerable<ISagaStoreDiagnostics> children)
+    private readonly IWolverineRuntime? _runtime;
+
+    public AggregateSagaStoreDiagnostics(IEnumerable<ISagaStoreDiagnostics> children, IWolverineRuntime? runtime = null)
     {
         _children = children.Where(c => c is not AggregateSagaStoreDiagnostics).ToArray();
+        _runtime = runtime;
     }
 
     public async Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)
@@ -48,7 +53,35 @@ internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, ISa
             all.AddRange(descriptors);
         }
 
+        // GH-5665: a document saga that records its message history keeps it in the message store, whatever its storage
+        if (_runtime != null)
+        {
+            foreach (var descriptor in all)
+            {
+                if (descriptor.SupportsHistory) continue;
+                if (messageHistorySagaType(descriptor.StateType.FullName) is { } sagaType)
+                {
+                    SagaHistory.Describe(_runtime, descriptor, sagaType);
+                }
+            }
+        }
+
         return all;
+    }
+
+    /// <summary>
+    /// GH-5665. The saga type named <paramref name="sagaTypeName" /> (full name or short name), when it keeps a message
+    /// history in the message store
+    /// </summary>
+    private Type? messageHistorySagaType(string sagaTypeName)
+    {
+        if (_runtime == null) return null;
+
+        var sagaType = _runtime.Options.HandlerGraph.SagaChains()
+            .Select(x => x.SagaType)
+            .FirstOrDefault(x => x.FullName == sagaTypeName || x.Name == sagaTypeName);
+
+        return sagaType != null && SagaHistory.KeepsMessageHistory(_runtime, sagaType) ? sagaType : null;
     }
 
     public async Task<SagaInstanceState?> ReadSagaAsync(string sagaTypeName, object identity, CancellationToken ct)
@@ -130,6 +163,59 @@ internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, ISa
 
         return await idleFor(child, sagaTypeName).QuerySagasByLastModifiedAsync(sagaTypeName, range, options, ct)
             .ConfigureAwait(false);
+    }
+
+    // GH-5415: history reads route to the storage that owns the saga type, if it keeps history
+
+    // GH-5665: a document saga's message history is read from the message store, whichever storage keeps the saga
+
+    public async Task<SagaHistoryPage> ReadSagaHistoryAsync(string sagaTypeName, object identity,
+        SagaHistoryPageRequest page, CancellationToken ct)
+    {
+        if (messageHistorySagaType(sagaTypeName) is { } sagaType)
+        {
+            return await SagaHistory.ReadPageAsync(_runtime!, sagaType, identity, page, ct).ConfigureAwait(false);
+        }
+
+        return await (await historyFor(sagaTypeName, ct).ConfigureAwait(false))
+            .ReadSagaHistoryAsync(sagaTypeName, identity, page, ct).ConfigureAwait(false);
+    }
+
+    public async Task<SagaInstanceState?> ReadSagaAtAsync(string sagaTypeName, object identity, long version,
+        CancellationToken ct)
+    {
+        refuseMessageLog(sagaTypeName);
+        return await (await historyFor(sagaTypeName, ct).ConfigureAwait(false))
+            .ReadSagaAtAsync(sagaTypeName, identity, version, ct).ConfigureAwait(false);
+    }
+
+    public async Task<SagaInstanceState?> ReadSagaAtAsync(string sagaTypeName, object identity, DateTimeOffset timestamp,
+        CancellationToken ct)
+    {
+        refuseMessageLog(sagaTypeName);
+        return await (await historyFor(sagaTypeName, ct).ConfigureAwait(false))
+            .ReadSagaAtAsync(sagaTypeName, identity, timestamp, ct).ConfigureAwait(false);
+    }
+
+    private void refuseMessageLog(string sagaTypeName)
+    {
+        if (messageHistorySagaType(sagaTypeName) is { } sagaType)
+        {
+            throw new NotSupportedException(
+                $"{sagaType.FullNameInCode()} records a message history, which holds no saga state, so it cannot be read as it was at a version or a point in time. Only an event-sourced saga's history can.");
+        }
+    }
+
+    private async Task<ISagaHistoryDiagnostics> historyFor(string sagaTypeName, CancellationToken ct)
+    {
+        var routes = await ensureRoutesAsync(ct).ConfigureAwait(false);
+        if (!routes.TryGetValue(sagaTypeName, out var child))
+        {
+            throw new NotSupportedException($"No saga storage in this service keeps sagas of type {sagaTypeName}.");
+        }
+
+        return child as ISagaHistoryDiagnostics ?? throw new NotSupportedException(
+            $"Saga type {sagaTypeName} is stored by {child.GetType().FullName}, which keeps no saga history ({nameof(ISagaHistoryDiagnostics)}).");
     }
 
     private static ISagaIdleDiagnostics idleFor(ISagaStoreDiagnostics child, string sagaTypeName)

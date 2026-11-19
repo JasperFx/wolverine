@@ -191,3 +191,36 @@ public class StockSaga : Saga
         return new StockReleased(Id!);
     }
 }
+
+// -----------------------------------------------------------------------------
+// GH-5665: a saga that records its message history gets a RecordSagaHistoryFrame
+// in its start, continue and retained-NotFound branches, which must render as F#.
+// -----------------------------------------------------------------------------
+
+/// <summary>Starts a <see cref="HistoryRecordingSaga" />.</summary>
+public record StartHistoryRecording(string Id);
+
+/// <summary>Handled by <see cref="HistoryRecordingSaga" />, and by its NotFound once it completed.</summary>
+public record ContinueHistoryRecording(string Id);
+
+/// <summary>A minimal retained saga that records its message history over the in-memory store.</summary>
+[RecordSagaHistory]
+[RetainWhenCompleted(Days = 1)]
+public class HistoryRecordingSaga : Saga
+{
+    public string? Id { get; set; }
+
+    public static HistoryRecordingSaga Start(StartHistoryRecording command)
+    {
+        return new HistoryRecordingSaga { Id = command.Id };
+    }
+
+    public void Handle(ContinueHistoryRecording command)
+    {
+        MarkCompleted();
+    }
+
+    public static void NotFound(ContinueHistoryRecording command)
+    {
+    }
+}

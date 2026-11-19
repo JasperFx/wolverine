@@ -40,6 +40,7 @@ list.
 | Wolverine metric instrument names | dashed (`wolverine-messages-sent`) | dotted (`wolverine.messages.sent`) *(BREAKING for dashboards and alerts)* | Rename the series in dashboards, alerts and recording rules; see [the full table](#opentelemetry-meter-and-metric-names-breaking) |
 | `WolverineOptions.ServiceName` default | the entry assembly name | `OTEL_SERVICE_NAME` when set, then the entry assembly name | None, unless a service relied on the assembly name while `OTEL_SERVICE_NAME` was set to something else: set `opts.ServiceName` explicitly |
 | `Saga.CompletedAt`, `[RetainWhenCompleted]`, `opts.Policies.RetainCompletedSagas()` | not there | completed sagas can be kept for a retention period; off by default. New nullable `completed_at` column on every lightweight saga table *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga CompletedAt](#saga-completedat-and-retaining-completed-sagas) |
+| `[RecordSagaHistory]`, `opts.Policies.RecordSagaHistory()` | not there | document sagas can record a row per handled message, read through `ISagaHistoryDiagnostics`; off by default. New `wolverine_saga_history` table in the relational message stores, created only when some saga records its history | None. See [recording a saga's message history](/guide/durability/sagas#recording-a-saga-s-message-history) |
 | `Saga.LastModified` | not there | new `DateTimeOffset` property on the base `Saga`, set to UTC now by every saga store on insert and update *(schema change for EF Core sagas)* | EF Core: add a migration for the new column or `Ignore()` it. Nothing else; see [saga LastModified](#saga-lastmodified-is-set-by-every-saga-store) |
 | Roslyn analyzers | none | **`WolverineFx.Analyzers`**, a dependency of `WolverineFx`: rules `WOLV0001`-`WOLV0004`, all warnings, on by default | Fix what they report, or lower a rule's severity in `.editorconfig` (`dotnet_diagnostic.WOLV0004.severity = none`). Builds that treat warnings as errors fail on them; see [Wolverine's analyzers](#wolverine-s-analyzers-are-on-by-default) |
 | Code generation in the `Production` profile (Wolverine hosts) | `TypeLoadMode.Dynamic`: compiled at runtime | `TypeLoadMode.Static` with `AssertAllPreGeneratedTypesExist`: pre-generated code is required *(BREAKING for applications that deploy without `codegen write`)* | Run `dotnet run -- codegen write` in the build, or call `RestoreV6Defaults()`. See [deploying 7.0 to production](#deploying-7-0-to-production) |
@@ -804,6 +805,14 @@ type has a new `public DateTimeOffset? CompletedAt { get; set; }`, and:
 
 If a saga type of yours already declares its own `CompletedAt`, it now hides the base property (compiler warning
 CS0108). Rename yours before retaining that saga type.
+
+### Event-sourced sagas
+
+New in 7.0 (GH-5415): derive a saga from `EventSourcedSaga` to keep its state as its own event stream in Marten,
+Polecat or Fisher. See [Event-Sourced Sagas](/guide/durability/event-sourced-sagas). Nothing changes for existing sagas.
+An event store that keeps an event-sourced saga registers four event types of Wolverine's own, under
+`wolverine_`-prefixed aliases (`wolverine_saga_completed`, `wolverine_saga_compensating`, `wolverine_saga_compensated`,
+`wolverine_saga_compensation_failed`); a store with no event-sourced sagas is left exactly as it was.
 
 ### Obsolete in 7.0
 

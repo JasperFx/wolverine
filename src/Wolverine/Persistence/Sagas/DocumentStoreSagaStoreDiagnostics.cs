@@ -29,7 +29,7 @@ namespace Wolverine.Persistence.Sagas;
 ///     catch-all document stores — so a host that also runs EF Core sagas does not see them listed twice.
 ///     </para>
 /// </remarks>
-internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics, ISagaRetentionSweeper
+internal sealed partial class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaIdleDiagnostics, ISagaRetentionSweeper
 {
     private readonly IWolverineRuntime _runtime;
     private readonly IDocumentSessionFactory _sessions;
@@ -57,7 +57,18 @@ internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics,
     public Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)
     {
         var descriptors = sagaIndex().Values.Select(x => x.SagaType).Distinct()
-            .Select(x => SagaDescriptorBuilder.Build(_runtime.Options.HandlerGraph, x, _storeName))
+            .Select(x =>
+            {
+                var descriptor = SagaDescriptorBuilder.Build(_runtime.Options.HandlerGraph, x, _storeName);
+
+                // GH-5415: an event-sourced saga's history is its stream
+                if (x.CanBeCastTo<EventSourcedSaga>())
+                {
+                    descriptor.SupportsHistory = true;
+                    descriptor.HistoryKind = SagaHistoryKind.EventStream;
+                }
+                return descriptor;
+            })
             .ToArray();
 
         return Task.FromResult<IReadOnlyList<SagaDescriptor>>(descriptors);
@@ -83,6 +94,13 @@ internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics,
             .Invoke(null, [session, coercedId, ct])!;
 
         var saga = await task.ConfigureAwait(false);
+
+        // GH-5415: an event-sourced saga the application keeps Live has no snapshot to load, so aggregate its stream
+        if (saga is null && entry.SagaType.CanBeCastTo<EventSourcedSaga>())
+        {
+            saga = await aggregateAsync(entry.SagaType, identity, 0, null, ct).ConfigureAwait(false);
+        }
+
         return saga is null ? null : buildInstance(entry.SagaType, identity, saga);
     }
 
@@ -103,7 +121,7 @@ internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics,
     }
 
     public SagaQueryCapabilities GetQueryCapabilities(string sagaTypeName)
-        => sagaIndex().ContainsKey(sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var owned) && !isLiveEventSourced(owned.SagaType)
             ? DocumentQueryCriteria.IsAvailable
                 ? SagaQueryCapabilities.Full
                 : SagaQueryCapabilities.PagingOnly(
@@ -217,6 +235,12 @@ internal sealed class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiagnostics,
     public async Task<long> DeleteCompletedSagasAsync(Type sagaType, DateTimeOffset completedBefore, CancellationToken ct)
     {
         if (!sagaType.CanBeCastTo<Saga>() || !sagaIndex().ContainsKey(sagaType.FullName!)) return 0;
+
+        // GH-5415: an event-sourced saga's stream is archived, never deleted, and its snapshot removed
+        if (sagaType.CanBeCastTo<EventSourcedSaga>())
+        {
+            return await archiveCompletedAsync(sagaType, completedBefore, ct).ConfigureAwait(false);
+        }
 
         var task = (Task<long>)typeof(DocumentStoreSagaStoreDiagnostics)
             .GetMethod(nameof(deleteCompletedAsync), BindingFlags.Static | BindingFlags.NonPublic)!

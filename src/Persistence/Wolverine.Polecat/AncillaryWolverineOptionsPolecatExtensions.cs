@@ -335,6 +335,9 @@ internal class PolecatOverrides<T> : IConfigurePolecat<T> where T : IDocumentSto
 {
     public void Configure(IServiceProvider services, StoreOptions options)
     {
+        // GH-5415: Wolverine's own saga events, and an Inline snapshot of every event-sourced saga this store keeps
+        Persistence.Sagas.PolecatEventSourcedSagas.Configure(services, options, typeof(T));
+
         // Polecat's DocumentMapping automatically detects IRevisioned types
         // and enables numeric revisions.
 

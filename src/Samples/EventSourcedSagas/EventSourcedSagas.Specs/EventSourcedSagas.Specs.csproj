@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- GH-5415 (Wolverine 7.0): first-class event-sourced sagas, written as Bobcat specifications first. One service,
+         "fulfillment", with the OrderFulfillment saga of the process-manager docs page rebuilt as an EventSourcedSaga,
+         on Marten, Polecat and Fisher. -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <IsAotCompatible>false</IsAotCompatible>
+        <NoWarn>$(NoWarn);NU1202;NETSDK1005</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Bobcat.Xunit" />
+        <!-- The source generator: marker comments, and the spec manifest the bobcat tool lists from -->
+        <PackageReference Include="Bobcat.Generators" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit.v3" />
+        <!-- IDE discovery (Rider, Visual Studio): Bobcat warns BOBCAT033 without these -->
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\Bobcat\Wolverine.Bobcat\Wolverine.Bobcat.csproj" />
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Polecat\Wolverine.Polecat.csproj" />
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Fisher\Wolverine.Fisher.csproj" />
+        <ProjectReference Include="..\..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\..\..\Servers.cs">
+            <Link>Servers.cs</Link>
+        </Compile>
+    </ItemGroup>
+
+</Project>
