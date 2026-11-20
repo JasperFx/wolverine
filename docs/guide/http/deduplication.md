@@ -183,7 +183,8 @@ with `[Deduplicated]` on the same endpoint.
 
 ### Scope
 
-The scope is required, and decides whose requests share a key:
+The scope is required, on the attribute or from [`DeduplicateWithResponse()`](#applying-it-to-every-endpoint), and
+decides whose requests share a key:
 
 | Flag | The key is unique within |
 |---|---|
@@ -244,7 +245,7 @@ public static Created<DeduplicatedSecret> PostSecretResult(DeduplicatedOrder req
         new DeduplicatedSecret(created.Id, Guid.NewGuid().ToString()));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response.cs#L900-L910' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_with_response_without_storing_the_body' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response.cs#L1020-L1030' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_with_response_without_storing_the_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The body is never serialized or written. The claim still stores the status and `Location`, so a repeat
@@ -253,6 +254,80 @@ shown again.
 
 This fits an endpoint that answers with a `Location`, such as `Created`. One that sets no `Location`
 answers a repeat with the bare status and the [replay header](#marking-a-replay), and nothing else.
+
+### Applying it to every endpoint <Badge type="tip" text="7.0" />
+
+An API that takes an `Idempotency-Key` on every POST doesn't need the attribute on each endpoint. Call
+`DeduplicateWithResponse()` when you map the endpoints instead:
+
+<!-- snippet: sample_deduplicate_with_response_on_every_post -->
+<a id='snippet-sample_deduplicate_with_response_on_every_post'></a>
+```cs
+// Every POST endpoint that returns a resource is deduplicated on its
+// Idempotency-Key header, as if it had
+// [DeduplicatedWithResponse(DeduplicationScope.User | DeduplicationScope.Endpoint)]
+opts.DeduplicateWithResponse(DeduplicationScope.User | DeduplicationScope.Endpoint);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response_from_options.cs#L52-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicate_with_response_on_every_post' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+That covers every POST endpoint. Pass a filter over the `HttpChain` to choose others, and set the rest of
+the attribute's options — `Source` and `Key`, `Required`, `Window`, `ClaimInTransaction` and `StoreBody` — in
+the last argument:
+
+<!-- snippet: sample_deduplicate_with_response_with_a_filter -->
+<a id='snippet-sample_deduplicate_with_response_with_a_filter'></a>
+```cs
+// The PUT endpoints too, with a key that is optional and a one hour window
+opts.DeduplicateWithResponse(DeduplicationScope.User,
+    chain => chain.HttpMethods.Contains("PUT"),
+    x =>
+    {
+        x.Required = false;
+        x.Window = 1.Hours();
+    });
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response_from_options.cs#L61-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicate_with_response_with_a_filter' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The scope is required here, as it is on the attribute.
+
+An endpoint with its own `[DeduplicatedWithResponse]` keeps every setting it makes, and takes only the ones it
+leaves unset from `DeduplicateWithResponse()`. `Source` and `Key` count as one setting. Leave the scope off the
+attribute to change one setting and inherit the rest, the scope included:
+
+<!-- snippet: sample_deduplicated_with_response_inheriting_the_scope -->
+<a id='snippet-sample_deduplicated_with_response_inheriting_the_scope'></a>
+```cs
+// The scope, key and window come from DeduplicateWithResponse()
+[DeduplicatedWithResponse(StoreBody = false)]
+[WolverinePost("/dedup-options/inheriting")]
+public static DeduplicatedOrderCreated Post(DeduplicatedOrder request) => new(Guid.NewGuid());
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response_from_options.cs#L400-L407' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_deduplicated_with_response_inheriting_the_scope' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+An attribute with no scope that no `DeduplicateWithResponse()` call covers is refused at startup. When more
+than one call matches an endpoint, the first one fills in its settings.
+
+An endpoint the attribute would refuse is skipped instead of failing startup: one that returns no resource,
+one with `[Deduplicated]`, and one whose response is written as text, as a bare status code or by its own
+`WriteResponse` method rather than as JSON. A custom `IResourceWriterPolicy` isn't seen here, so an endpoint
+it writes is still refused when it's compiled. Leave that one out with the filter.
+
+To leave out any other endpoint, mark it, or its class, with `[DisableDeduplicatedWithResponse]`. It gets no
+refusal codes in its OpenAPI metadata either:
+
+<!-- snippet: sample_disable_deduplicated_with_response -->
+<a id='snippet-sample_disable_deduplicated_with_response'></a>
+```cs
+// Left out of DeduplicateWithResponse()
+[DisableDeduplicatedWithResponse]
+[WolverinePost("/dedup-options/opted-out")]
+public static DeduplicatedOrderCreated PostOptedOut(DeduplicatedOrder request) => new(Guid.NewGuid());
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/deduplicated_with_response_from_options.cs#L378-L385' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_deduplicated_with_response' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ### Marking a replay
 

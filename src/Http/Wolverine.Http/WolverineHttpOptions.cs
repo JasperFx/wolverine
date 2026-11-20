@@ -252,6 +252,49 @@ public class WolverineHttpOptions
     private string _deduplicatedReplayHeaderName = DeduplicatedWithResponseRequirement.DefaultReplayHeaderName;
 
     /// <summary>
+    ///     GH-5617. Apply <c>[DeduplicatedWithResponse]</c> to every endpoint <paramref name="filter" /> matches, by
+    ///     default every POST endpoint, instead of putting the attribute on each one.
+    ///     <para>
+    ///         An endpoint with its own <c>[DeduplicatedWithResponse]</c> keeps every setting it makes, and takes only
+    ///         the ones it leaves unset from here: <c>[DeduplicatedWithResponse(StoreBody = false)]</c> takes the scope,
+    ///         key and window from this call. An endpoint the attribute would refuse, such as one that returns no
+    ///         resource, one with <c>[Deduplicated]</c>, or one whose response is not written as JSON, is skipped
+    ///         instead of failing startup. Mark an endpoint, or its class, with
+    ///         <see cref="DisableDeduplicatedWithResponseAttribute" /> to leave it out.
+    ///     </para>
+    ///     <para>
+    ///         When more than one call matches an endpoint, the first one called fills in its settings.
+    ///     </para>
+    /// </summary>
+    /// <param name="scope">
+    ///     Who a key belongs to, as on the attribute. Required: a stored response is replayed to anyone presenting the
+    ///     same key and request.
+    /// </param>
+    /// <param name="filter">Which endpoints to cover. Defaults to the POST endpoints.</param>
+    /// <param name="configure">The rest of the attribute's settings: the key, Required, Window, StoreBody and so on.</param>
+    public void DeduplicateWithResponse(DeduplicationScope scope, Func<HttpChain, bool>? filter = null,
+        Action<DeduplicatedWithResponseDefaults>? configure = null)
+    {
+        if (scope == DeduplicationScope.None)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scope),
+                "A stored response is replayed to anyone who presents the same key and request. Use DeduplicationScope.User, or Tenant | User. See GH-5617");
+        }
+
+        var defaults = new DeduplicatedWithResponseDefaults();
+        configure?.Invoke(defaults);
+
+        if (defaults.Window <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(configure),
+                $"{nameof(DeduplicatedWithResponseDefaults.Window)} must be positive, or null for the host-wide window. See GH-5617");
+        }
+
+        Policies.Add(new DeduplicateWithResponsePolicy(filter ?? DeduplicateWithResponsePolicy.IsPost,
+            defaults.ToRequirement(scope)));
+    }
+
+    /// <summary>
     ///     Apply DataAnnotations Validation middleware to all Wolverine HTTP endpoints
     /// </summary>
     /// <param name="httpOptions"></param>

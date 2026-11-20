@@ -28,15 +28,39 @@ public partial class HttpChain
         DeduplicationScope.Tenant | DeduplicationScope.User | DeduplicationScope.Endpoint;
 
     /// <summary>
-    /// Refuses a defect in the endpoint's own declaration, which every host that discovers it shares, and
-    /// registers the refusal codes before the metadata is built.
+    /// Refuses a defect in the endpoint's own declaration, which every host that discovers it shares. Called from
+    /// the constructor, once the attributes have been applied.
     /// </summary>
     private void validateDeduplicatedWithResponse()
     {
         if (DeduplicatedWithResponse is not { } requirement) return;
 
+        // GH-5617. [DeduplicatedWithResponse] with no scope takes it from WolverineHttpOptions.DeduplicateWithResponse(),
+        // which runs later as a policy. Validated in FinalizeDeduplicatedWithResponse() instead
+        if (requirement.InheritsScope) return;
+
         assertDeduplicatedWithResponseIsValid(requirement);
         _validatedDeduplicatedWithResponse = requirement;
+    }
+
+    private DeduplicatedWithResponseRequirement? _validatedDeduplicatedWithResponse;
+    private bool _producesMissingKey;
+    private bool _producesRefusals;
+
+    /// <summary>
+    /// After the policies, before the endpoint is built: validate a requirement a policy set or completed, at
+    /// startup like one from the attribute, and register the refusal codes. A policy may change whether a key is
+    /// required, so the codes wait until here.
+    /// </summary>
+    internal void FinalizeDeduplicatedWithResponse()
+    {
+        if (DeduplicatedWithResponse is not { } requirement) return;
+
+        if (!ReferenceEquals(requirement, _validatedDeduplicatedWithResponse))
+        {
+            assertDeduplicatedWithResponseIsValid(requirement);
+            _validatedDeduplicatedWithResponse = requirement;
+        }
 
         if (requirement.Required && !_producesMissingKey)
         {
@@ -52,24 +76,37 @@ public partial class HttpChain
         }
     }
 
-    private DeduplicatedWithResponseRequirement? _validatedDeduplicatedWithResponse;
-    private bool _producesMissingKey;
-    private bool _producesRefusals;
-
     /// <summary>
-    /// After the policies, before the endpoint is built: validate and describe a requirement a policy set, at
-    /// startup like one from the attribute.
+    /// GH-5617. Whether <c>[DeduplicatedWithResponse]</c> could apply to this endpoint as it is shaped: it returns a
+    /// resource written as JSON or a replayable <see cref="IResult" />, and has no <c>[Deduplicated]</c>.
+    /// <see cref="WolverineHttpOptions.DeduplicateWithResponse" /> skips the endpoints where it could not, rather than
+    /// failing startup. A custom <see cref="Resources.IResourceWriterPolicy" /> is not seen here, and is still refused
+    /// when the endpoint is compiled.
     /// </summary>
-    internal void FinalizeDeduplicatedWithResponse()
+    internal bool CanDeduplicateWithResponse()
     {
-        if (!ReferenceEquals(DeduplicatedWithResponse, _validatedDeduplicatedWithResponse))
-        {
-            validateDeduplicatedWithResponse();
-        }
+        if (Deduplication != null || !HasResourceType()) return false;
+
+        if (typeof(IResult).IsAssignableFrom(ResourceType)) return HttpHandler.CanReplayResultOf(ResourceType!);
+
+        // Written as text, as a bare status code, or by the handler's own WriteResponse methods, never as JSON
+        if (ResourceType == typeof(string) || ResourceType == typeof(int)) return false;
+        return ContentNegotiation.ContentNegotiationWriterPolicy.DiscoverWriteMethods(Method.HandlerType).Count == 0;
     }
+
+    /// <summary>GH-5617. Marked <see cref="DisableDeduplicatedWithResponseAttribute" />, on the method or its class.</summary>
+    internal bool OptsOutOfDeduplicatedWithResponse()
+        => Method.Method.HasAttribute<DisableDeduplicatedWithResponseAttribute>() ||
+           Method.HandlerType.HasAttribute<DisableDeduplicatedWithResponseAttribute>();
 
     private void assertDeduplicatedWithResponseIsValid(DeduplicatedWithResponseRequirement requirement)
     {
+        if (requirement.InheritsScope)
+        {
+            throw new InvalidOperationException(
+                $"[DeduplicatedWithResponse] on {Description} needs a {nameof(DeduplicationScope)}: it names none, and no WolverineHttpOptions.DeduplicateWithResponse() call covers this endpoint to give it one. Pass a scope to the attribute, or widen that call's filter. See GH-5617");
+        }
+
         if (requirement.Scope == DeduplicationScope.None)
         {
             throw new InvalidOperationException(

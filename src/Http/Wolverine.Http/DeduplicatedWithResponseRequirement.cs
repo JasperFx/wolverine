@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Wolverine.Attributes;
 using Wolverine.Persistence;
 
@@ -9,20 +10,72 @@ namespace Wolverine.Http;
 /// </summary>
 public sealed class DeduplicatedWithResponseRequirement
 {
+    public DeduplicatedWithResponseRequirement()
+    {
+    }
+
+    /// <summary>
+    /// GH-5617. A requirement whose scope may be left to <see cref="WolverineHttpOptions.DeduplicateWithResponse" />:
+    /// <c>[DeduplicatedWithResponse]</c> with no scope.
+    /// </summary>
+    [SetsRequiredMembers]
+    internal DeduplicatedWithResponseRequirement(DeduplicationScope? scope)
+    {
+        _scope = scope;
+    }
+
     /// <summary>Who a key belongs to. Must not be <see cref="DeduplicationScope.None" />.</summary>
-    public required DeduplicationScope Scope { get; init; }
+    public required DeduplicationScope Scope
+    {
+        get => _scope ?? DeduplicationScope.None;
+        init => _scope = value;
+    }
+
+    private readonly DeduplicationScope? _scope;
+
+    /// <summary>
+    /// GH-5617. No scope was given, so it comes from <see cref="WolverineHttpOptions.DeduplicateWithResponse" />.
+    /// Validated once the policies have run, not when the chain is built.
+    /// </summary>
+    internal bool InheritsScope => _scope == null;
 
     /// <summary>
     /// Where the key comes from. <see cref="ValueSource.Anything" /> means the
     /// <see cref="DeduplicationRequirement.DefaultHeaderName" /> request header, or the header named <see cref="Key" />.
     /// </summary>
-    public ValueSource Source { get; init; } = ValueSource.Anything;
+    public ValueSource Source
+    {
+        get => _source ?? ValueSource.Anything;
+        init => _source = value;
+    }
+
+    private readonly ValueSource? _source;
+
+    /// <summary>Whether <see cref="Source" /> was chosen here. See <see cref="InheritFrom" />.</summary>
+    internal ValueSource? ExplicitSource
+    {
+        get => _source;
+        init => _source = value;
+    }
 
     /// <summary>The header, member, route or query key holding the key.</summary>
     public string? Key { get; init; }
 
     /// <summary>Must a key be present? Default is <see langword="true" />, as for <c>[Deduplicated]</c>.</summary>
-    public bool Required { get; init; } = true;
+    public bool Required
+    {
+        get => _required ?? true;
+        init => _required = value;
+    }
+
+    private readonly bool? _required;
+
+    /// <summary>Whether <see cref="Required" /> was chosen here. See <see cref="InheritFrom" />.</summary>
+    internal bool? ExplicitRequired
+    {
+        get => _required;
+        init => _required = value;
+    }
 
     /// <summary>Claim lifetime, or null for <see cref="DurabilitySettings.DeduplicationWindow" />.</summary>
     public TimeSpan? Window { get; init; }
@@ -69,7 +122,42 @@ public sealed class DeduplicatedWithResponseRequirement
     /// serialized or written, and a repeat is answered with the first response's status and <c>Location</c> and no
     /// body.
     /// </summary>
-    public bool StoreBody { get; init; } = true;
+    public bool StoreBody
+    {
+        get => _storeBody ?? true;
+        init => _storeBody = value;
+    }
+
+    private readonly bool? _storeBody;
+
+    /// <summary>Whether <see cref="StoreBody" /> was chosen here. See <see cref="InheritFrom" />.</summary>
+    internal bool? ExplicitStoreBody
+    {
+        get => _storeBody;
+        init => _storeBody = value;
+    }
+
+    /// <summary>
+    /// GH-5617. This endpoint's own settings, with everything it left unset taken from <paramref name="defaults" />,
+    /// the requirement a <see cref="WolverineHttpOptions.DeduplicateWithResponse" /> policy would give it. The
+    /// attributes run when the chain is built and the policies after, so this is the <c>??=</c> that keeps an
+    /// endpoint's own choices. <see cref="Source" /> and <see cref="Key" /> are one setting: an endpoint that names
+    /// either keeps both.
+    /// </summary>
+    internal DeduplicatedWithResponseRequirement InheritFrom(DeduplicatedWithResponseRequirement defaults)
+    {
+        var ownKey = _source.HasValue || Key != null;
+
+        return new DeduplicatedWithResponseRequirement(_scope ?? defaults._scope)
+        {
+            ExplicitSource = ownKey ? _source : defaults._source,
+            Key = ownKey ? Key : defaults.Key,
+            ExplicitRequired = _required ?? defaults._required,
+            Window = Window ?? defaults.Window,
+            ExplicitClaimInTransaction = _claimInTransaction ?? defaults._claimInTransaction,
+            ExplicitStoreBody = _storeBody ?? defaults._storeBody
+        };
+    }
 
     /// <summary>
     /// The header that marks a replayed response unless
