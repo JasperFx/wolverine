@@ -38,6 +38,13 @@ internal class TransactionalFrame : Frame
             _store = chain.FindVariable(typeof(IDocumentStore));
             yield return _store;
         }
+        else if (Session.Creator is BuildAsyncDocumentSession opened)
+        {
+            // GH-5678. Something ahead of this frame, typically middleware, asked for the session first, so it was
+            // opened by the session source rather than here. It is still the session this chain saves, so it is
+            // enlisted in the outbox where it is opened, before that middleware runs
+            opened.EnlistInOutbox(_chain is SagaChain);
+        }
 
         // Inside of messaging. Not sure how this is gonna work for HTTP yet
         _context = chain.TryFindVariable(typeof(IMessageContext), VariableSource.NotServices);
