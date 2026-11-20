@@ -316,9 +316,16 @@ public sealed partial class WolverineOptions : IPolicies
 
     void IPolicies.MessageFailureLogLevel(LogLevel logLevel)
     {
+        MessageFailureLogLevel = logLevel;
         var policy = new LambdaHandlerPolicy(c => c.FailureLogLevel = logLevel);
         Policies.Add(policy);
     }
+
+    /// <summary>
+    /// GH-5661. The level given to <see cref="IPolicies.MessageFailureLogLevel"/>, if any. A requeue whose handler
+    /// chain cannot be determined logs at this level, or at Error without one
+    /// </summary>
+    internal LogLevel? MessageFailureLogLevel { get; private set; }
 
     /// <summary>
     /// Logger level for Wolverine to use for log messages marking the execution stop and finish for all
