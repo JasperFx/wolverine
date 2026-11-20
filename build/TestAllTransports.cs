@@ -20,7 +20,9 @@ partial class Build
             isolateTransportDatabases();
 
             var transportsDir = RootDirectory / "src" / "Transports";
-            RunAllTestsProjects(transportsDir);
+            // GH-5545: this run started the Azure Service Bus emulators fresh, so it may recreate them when a suite
+            // degrades on them
+            RunAllTestsProjects(transportsDir, heal: ["asb"]);
         });
 
     /// <summary>

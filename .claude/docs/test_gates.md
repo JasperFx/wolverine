@@ -115,7 +115,7 @@ code and commit.
 | Suite | Command | Docker services |
 |---|---|---|
 | CoreTests | `./build.sh CoreTests --framework net10.0` | none |
-| PostgresqlTests (with PersistenceTests) | `./build.sh CIPostgresql --framework net10.0` and `./build.sh CIPersistence --framework net10.0` (two shards of PostgresqlTests; both make the whole suite) | postgresql, sqlserver, rabbitmq |
+| PostgresqlTests (with PersistenceTests) | `./build.sh CIPostgresql --framework net10.0`, `./build.sh CIPostgresqlFeatures --framework net10.0` and `./build.sh CIPersistence --framework net10.0` (three shards of PostgresqlTests; all three make the whole suite) | postgresql, sqlserver, rabbitmq |
 | MartenTests | `./build.sh CIMartenDistribution --framework net10.0`, `./build.sh CIMartenTenancy --framework net10.0` and `./build.sh CIMarten --framework net10.0` (three shards of one project; all three make the whole suite) | postgresql |
 | EfCoreTests (with EfCoreTests.MultiTenancy) | `./build.sh CIEfCore --framework net10.0` and `./build.sh CIEfCoreMultiTenancy --framework net10.0` | postgresql, sqlserver, rabbitmq |
 | SqlServerTests | `./build.sh CISqlServer --framework net10.0` | sqlserver |
@@ -130,7 +130,7 @@ own projects.
 |---|---|---|---|
 | `CoreTests` | CoreTests | none | full-solution compile first |
 | `CIMessageRouting` | MessageRoutingTests | rabbitmq | `./build.sh ci` runs this after CoreTests |
-| `CIPostgresql` / `CIPersistence` | PostgresqlTests shards (+ PersistenceTests (net10.0) in `CIPersistence`) | postgresql (+ sqlserver, rabbitmq in `CIPersistence`) | |
+| `CIPostgresql` / `CIPostgresqlFeatures` / `CIPersistence` | PostgresqlTests shards (+ PersistenceTests (net10.0) in `CIPersistence`) | postgresql (+ sqlserver, rabbitmq in `CIPersistence`) | |
 | `CISqlServer` | SqlServerTests | sqlserver | 4 workers, one database per lane (`wolverine_w0..`) |
 | `CIMySql` | MySqlTests | mysql | |
 | `CIOracle` | OracleTests | oracle | the slowest image to become ready |
@@ -199,8 +199,8 @@ test (`StartServicesFresh` in `build/FreshContainers.cs`).
 
 Nothing else starts anything fresh: not `DockerUp` (plenty of targets that do not own these services
 depend on it), not the other CI targets that merely use SQL Server, and never a plain `dotnet test`.
-It happens once per service per build, at the start, never mid-run. And it is skipped, with a warning
-and the service reused as it is, when:
+It happens once per service per build, at the start (a degraded service can also be recreated mid-run,
+see the next section). And it is skipped, with a warning and the service reused as it is, when:
 
 - **`--no-fresh-containers`** is passed, or `WOLVERINE_NO_FRESH_CONTAINERS=1` is set: for a developer
   who wants to keep their data.
@@ -218,6 +218,61 @@ also records when the service was last started fresh, which is what the 10 minut
 
 Recreating SQL Server drops every database on it, `wolverine_w0..N-1` lanes included; the runs that
 use them create them after the fresh start, as they always have.
+
+### Recreating a degraded service mid-run (GH-5545)
+
+A run that started SQL Server or the ASB emulator fresh can also recreate it in the middle of the run,
+when the run degrades on it, and carry on. This is for a service that still answers but crawls: SQL
+Server spinning in RESOURCE MONITOR under Docker VM memory pressure, or the emulator's SQL backend full
+of state. Neither fails a test, so a stall threshold never sees it.
+
+Two signals have to agree:
+
+1. **Bobcat's** (JasperFx/bobcat#824, Bobcat.Supervisor 1.1.0): the last 5 completed tests with a known
+   duration each ran more than 10x it, or a test stalled (5 minutes). Bobcat then pauses the run: it
+   kills the workers so nothing is mid-test.
+2. **The service's own probe**, every 15 seconds while the run goes (`build/ServiceHeal.cs`): the last 3
+   probes all unhealthy. SQL Server: a new connection plus a query on `sys.dm_exec_requests` slower than
+   3 seconds, failing, or finding requests waiting 5 seconds or more on `RESOURCE_SEMAPHORE_QUERY_COMPILE`
+   or `RESOURCE_SEMAPHORE`. The emulator: its management api (5300, and 5301 when the second pair runs)
+   slower than 5 seconds, failing, or answering 503.
+
+Slow tests on a service whose probes are healthy recreate nothing: the run resumes. After 2 of those the
+run stops pausing and only reports, so a run that is slow for some other reason is not paused every 5
+tests.
+
+When both agree, the run recreates the service (`--force-recreate --renew-anon-volumes`, readiness
+probes), creates again what the recreate dropped (SqlServerTests' `wolverine_w0..N-1` lanes, or a gate
+suite's own database), and resumes. Every recreate is logged with `!!!! GH-5545: RECREATING ...` and the
+evidence, and shows in the run's report under "Tracks healed" with the pace before and after.
+
+The rules:
+
+- **Only a run that started the service fresh itself.** Not with `--no-fresh-containers` or
+  `WOLVERINE_NO_FRESH_CONTAINERS=1`, not a container another run started fresh a few minutes earlier,
+  not one that was in use when the run started, and never another project's container.
+- **Never under someone else.** The same guards as a fresh start, checked again under the same file
+  lock: another client's SQL Server session or a running `Wolverine.AzureServiceBus.Tests` process
+  stops it (after up to 30 seconds for the run's own killed workers to go). Then the run is **aborted**
+  rather than left to crawl: its results are not worth having.
+- **At most twice per service per run.** A third degradation aborts the run, naming the service.
+
+| Target | May recreate mid-run |
+|--------|----------------------|
+| `CISqlServer`, `CISqlServerTransport`, `CIPolecat*`, `TestAllPersistence` | `sqlserver` |
+| `CIAzureServiceBus*`, `TestAllTransports` | the ASB containers |
+| `LocalGate` / `LocalGateSuites` | the ASB containers, through the `asb-emulator` track. SQL Server only when no two units use it at once: one SQL Server suite (`--gate-only SqlServerTests`), or every SQL Server suite on the `sqlserver` track. In a full gate most SQL Server suites have a database of their own and hold no track, so they run side by side and SQL Server is only reported |
+
+The tests in flight when Bobcat paused the run are retried alone on fresh workers, the rest resume in
+their lanes. **This is not a retry of failed tests.** Nothing here looks at a test's verdict, and a test
+that fails after the recreate is a failure like any other. The retry budget is untouched and none of
+these attempts can make a test read as flaky. The point is that results from a degraded service say
+nothing about the code, so the run throws away the part of the run that was against it and runs it
+again against a healthy one.
+
+Bobcat needs known durations to read the signal. CI targets get CI's from `previous-durations/`;
+LocalGate keeps its own in `.bobcat/test-durations/`, written by every unit that ran clean (no abort,
+no degradation, no recreate), so the first gate run on a box can only detect a stall.
 
 ## Running suites side by side
 

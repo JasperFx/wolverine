@@ -159,6 +159,8 @@ partial class Build
     [
         // ─── dotnet.yml (`./build.sh ci`) ───
         new("src/Testing/CoreTests/CoreTests.csproj", "CoreTests"),
+        // GH-5545: the build's own decisions (build/ServiceHeal.cs)
+        new("src/Testing/BuildTests/BuildTests.csproj", "CoreTests"),
         new("src/Testing/MessageRoutingTests/MessageRoutingTests.csproj", "CIMessageRouting") { Services = ["rabbitmq"] },
 
         // ─── Persistence ───
@@ -166,7 +168,7 @@ partial class Build
         {
             Postgres = ServerUse.Shared, SqlServer = ServerUse.Shared, Services = ["rabbitmq"], Frameworks = ["net10.0"]
         },
-        new("src/Persistence/PostgresqlTests/PostgresqlTests.csproj", "CIPersistence") { Postgres = ServerUse.Shared },
+        new("src/Persistence/PostgresqlTests/PostgresqlTests.csproj", "CIPersistence, CIPostgresql, CIPostgresqlFeatures") { Postgres = ServerUse.Shared, Services = ["rabbitmq"] },
         new("src/Persistence/MartenTests/MartenTests.csproj", "CIMarten, CIMartenDistribution, CIMartenTenancy")
         {
             Postgres = ServerUse.Shared
@@ -458,21 +460,45 @@ partial class Build
             };
             if (GateWorkers is { } budget) gate.WorkerBudget = budget;
 
-            foreach (var track in suites.SelectMany(s => s.Tracks()).Distinct(StringComparer.OrdinalIgnoreCase))
+            // GH-5545: SQL Server can be recreated mid-gate only when no two units use it at once. See gateHealsSqlServer.
+            var healSqlServer = gateHealsSqlServer(suites.Select(s => (s.Name, s.SqlServer)).ToArray(), out var whyNotSqlServer);
+            if (!healSqlServer && whyNotSqlServer is not null)
+                Log.Information("GH-5545: SQL Server is not recreated mid-gate if it degrades: {Reason}", whyNotSqlServer);
+
+            string[] tracksOf(GateSuite suite)
+            {
+                var tracks = suite.Tracks().ToList();
+
+                // The one suite on SQL Server holds its track, so the heal is the track's
+                if (healSqlServer && suite.SqlServer != ServerUse.None && !tracks.Contains("sqlserver")) tracks.Add("sqlserver");
+                return tracks.ToArray();
+            }
+
+            foreach (var track in suites.SelectMany(tracksOf).Distinct(StringComparer.OrdinalIgnoreCase))
                 gate.Tracks.Add(new Track(track));
 
             foreach (var suite in suites)
             {
+                var tracks = tracksOf(suite);
                 var project = gate.Project(RootDirectory / suite.Path, suite.Workers)
                     .Targeting(suite.Frameworks ?? gateFrameworksOf(suite))
-                    .Supervise((unit, supervisor) => configureSupervisor(supervisor, suite.Name, unit.Framework, null,
-                        message => Log.Information("  [{Unit}] {Message}", unit.Name, message)))
+                    .Supervise((unit, supervisor) =>
+                    {
+                        configureSupervisor(supervisor, suite.Name, unit.Framework, null,
+                            message => Log.Information("  [{Unit}] {Message}", unit.Name, message));
+
+                        // GH-5545: Bobcat's degradation signal reads each test against its known duration, and a box
+                        // has none unless it fetched CI's. The gate's own last clean run is the next best thing.
+                        supervisor.KnownTestDurations ??= gateKnownDurations(suite.Name, unit.Framework);
+
+                        // The gate wired its heal for a unit on a healable track; check the service's probes first.
+                        confirmBeforeHealing(supervisor, unit.Name, healedServicesOf(gate, tracks));
+                    })
                     // Provisioned when the unit starts rather than before the gate: a database is the
                     // unit's alone, and recreating it is only safe once the unit is the one running.
                     .LaunchingWith(unit => workerFactoryFor(unit.Executable, gateConnectionStrings(suite, unit),
                         suite.Environment.Count > 0 ? suite.Environment : null));
 
-                var tracks = suite.Tracks().ToArray();
                 if (tracks.Length > 0) project.On(tracks);
             }
 
@@ -498,12 +524,18 @@ partial class Build
             if (fresh.Length > 0) StartServicesFresh(fresh);
             if (rest.Length > 0) AwaitDockerServices(rest);
 
+            // GH-5545: the tracks of a service this gate started fresh may recreate it when a unit degrades on it
+            healGateTracks(gate, suites, healSqlServer);
+
             var cleanBefore = cleanFSharpFixtures();
             var results = await gate.Run();
             restoreFSharpFixtures(cleanBefore);
 
             foreach (var unit in results.Units.Where(u => u.Results is not null))
+            {
                 recordLedger(unit.Unit.Project.Name, unit.Unit.Framework, unit.Results, GateLedgerJob);
+                recordGateDurations(unit.Unit.Project.Name, unit.Unit.Framework, unit.Results);
+            }
 
             clock.Stop();
             Console.WriteLine();
@@ -592,8 +624,7 @@ partial class Build
     WorkerConnectionStrings gateConnectionStrings(GateSuite suite, GateUnit unit)
     {
         var connectionStrings = new WorkerConnectionStrings();
-        var database = "wolverine_gate_" + new string(suite.Name.ToLowerInvariant()
-            .Select(c => char.IsAsciiLetterOrDigit(c) ? c : '_').ToArray());
+        var database = gateDatabaseName(suite);
 
         if (suite.Postgres == ServerUse.OwnDatabase)
         {
@@ -627,6 +658,10 @@ partial class Build
 
         return connectionStrings.Names.Count > 0 ? connectionStrings : null;
     }
+
+    static string gateDatabaseName(GateSuite suite)
+        => "wolverine_gate_" + new string(suite.Name.ToLowerInvariant()
+            .Select(c => char.IsAsciiLetterOrDigit(c) ? c : '_').ToArray());
 
     /// <summary>
     /// The Azure Service Bus emulator pair for a lane: asb-emulator (5673, management 5300) for lane 0, which is also

@@ -50,17 +50,7 @@ partial class Build
     {
         try
         {
-            var durations = new SortedDictionary<string, long>(StringComparer.Ordinal);
-            foreach (var test in results.Tests)
-            {
-                var measured = test.Attempts
-                    .OrderBy(a => a.AttemptNumber)
-                    .Select(a => a.Outcome.Duration)
-                    .FirstOrDefault(d => d is not null);
-
-                if (measured is { } duration) durations[test.Uid] = (long)duration.TotalMilliseconds;
-            }
-
+            var durations = firstAttemptDurations(results);
             if (durations.Count == 0) return;
 
             LedgerDirectory.CreateDirectory();
@@ -110,4 +100,78 @@ partial class Build
             return null;
         }
     }
+
+    static SortedDictionary<string, long> firstAttemptDurations(SupervisorResults results)
+    {
+        var durations = new SortedDictionary<string, long>(StringComparer.Ordinal);
+        foreach (var test in results.Tests)
+        {
+            var measured = test.Attempts
+                .OrderBy(a => a.AttemptNumber)
+                .Select(a => a.Outcome.Duration)
+                .FirstOrDefault(d => d is not null);
+
+            if (measured is { } duration) durations[test.Uid] = (long)duration.TotalMilliseconds;
+        }
+
+        return durations;
+    }
+
+    // ─── LocalGate's own baseline (GH-5545) ────────────────────────────
+    //
+    // Bobcat reads a degraded run off tests running 10x their known duration, and a gate on a developer machine has
+    // no known durations unless someone fetched CI's into previous-durations/. So the gate keeps its own: every unit
+    // that ran clean through (no abort, no degradation, no heal, not cut short) folds its first-attempt durations
+    // into .bobcat/test-durations/, and the next gate run reads them. A degraded run never writes, so a slow run can
+    // never become the baseline the next one is measured against. .bobcat/ is gitignored.
+
+    static AbsolutePath GateTestDurationsDirectory => RootDirectory / ".bobcat" / "test-durations";
+
+    static AbsolutePath gateDurationsFile(string projectName, string framework)
+        => GateTestDurationsDirectory / fileNameSafe($"{projectName}.{framework}.durations.json");
+
+    static void recordGateDurations(string projectName, string framework, SupervisorResults results)
+    {
+        if (results.IsPartial || results.AbortReason is not null || results.Degradations.Count > 0 || results.TrackHeals.Count > 0)
+            return;
+
+        try
+        {
+            var file = gateDurationsFile(projectName, framework);
+            var durations = File.Exists(file)
+                ? JsonSerializer.Deserialize<SortedDictionary<string, long>>(File.ReadAllText(file)) ?? new()
+                : new SortedDictionary<string, long>(StringComparer.Ordinal);
+
+            // Merged, so a --gate-only run or a shard does not forget the tests it did not run
+            foreach (var (uid, ms) in firstAttemptDurations(results)) durations[uid] = ms;
+            if (durations.Count == 0) return;
+
+            GateTestDurationsDirectory.CreateDirectory();
+            File.WriteAllText(file, JsonSerializer.Serialize(durations, LedgerJson));
+        }
+        catch (Exception e)
+        {
+            Log.Warning(e, "Could not write the gate's test durations for {Project}", projectName);
+        }
+    }
+
+    static IReadOnlyDictionary<string, TimeSpan> gateKnownDurations(string projectName, string framework)
+    {
+        try
+        {
+            var file = gateDurationsFile(projectName, framework);
+            if (!File.Exists(file)) return null;
+
+            var raw = JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(file));
+            if (raw is null || raw.Count == 0) return null;
+
+            return raw.ToDictionary(pair => pair.Key, pair => TimeSpan.FromMilliseconds(pair.Value), StringComparer.Ordinal);
+        }
+        catch (Exception e)
+        {
+            Log.Warning(e, "Could not read the gate's test durations for {Project}", projectName);
+            return null;
+        }
+    }
 }
+
