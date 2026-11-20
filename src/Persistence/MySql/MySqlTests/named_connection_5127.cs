@@ -77,7 +77,7 @@ public class named_connection_5127
         var store = host.GetRuntime().Storage.ShouldBeAssignableTo<IMessageDatabase>()!;
         new MySqlConnectionStringBuilder(store.Settings.ConnectionString!).Database
             .ShouldBe(new MySqlConnectionStringBuilder(Servers.MySqlConnectionString).Database);
-        store.SchemaName.ShouldBe("named5127");
+        store.SchemaName.ShouldBe(Servers.DatabaseName("named5127"));
 
         // Really talks to the database
         (await host.GetRuntime().Storage.Admin.FetchCountsAsync()).ShouldNotBeNull();

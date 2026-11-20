@@ -195,9 +195,9 @@ other way around. Without it, one line's schema left in a shared database broke 
 - **Samples** with their own connection string (IncidentService, ProcessManagerViaHandlers,
   PolecatIncidentService) get it from `TestDatabase.cs` in their test project, which points the sample at
   `Servers` unless the environment already names a database.
-- Not covered: Oracle (a schema is a user there, and the suite logs in as the container's `wolverine` user)
-  and MySqlTests' `Bug_5215_reserved_word_schema_name`, whose `order` and `user` schemas are the point of the
-  test.
+- Not covered: Oracle (a schema is a user there, and the suite logs in as the container's `wolverine` user).
+  MySqlTests' `Bug_5215_reserved_word_schema_name` keeps its `order` and `user` schemas, since the reserved
+  word is the point of the test, and drops them before it starts instead.
 
 To clean up after 6.x runs, drop the `wolverine6_%` databases.
 

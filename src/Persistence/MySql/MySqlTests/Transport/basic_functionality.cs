@@ -78,10 +78,10 @@ public class basic_functionality : IAsyncLifetime
 
         var tables = new List<string>();
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"
+        cmd.CommandText = $@"
 SELECT table_name
 FROM information_schema.tables
-WHERE table_schema = 'wolverine_transports'
+WHERE table_schema = '{Servers.DatabaseName("wolverine_transports")}'
 AND table_name LIKE 'wolverine_queue_%'";
         await using var reader = await cmd.ExecuteReaderAsync(TestContext.Current.CancellationToken);
         while (await reader.ReadAsync(TestContext.Current.CancellationToken))

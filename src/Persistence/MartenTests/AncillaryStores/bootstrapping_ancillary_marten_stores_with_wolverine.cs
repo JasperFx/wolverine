@@ -216,9 +216,9 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
         var agents = await theFamily.AllKnownAgentsAsync();
 
         agents.ShouldContain(new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine"));
-        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant3/wolverine"));
-        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant2/wolverine"));
-        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant1/wolverine"));
+        agents.ShouldContain(new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("tenant3")}/wolverine"));
+        agents.ShouldContain(new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("tenant2")}/wolverine"));
+        agents.ShouldContain(new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("tenant1")}/wolverine"));
     }
 
     // "default" resolves to the configured database inside the test body rather than in the
@@ -229,9 +229,9 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     // reporting a result" for an identity it never had.
     [Theory]
     [InlineData("default")]
-    [InlineData("wolverinedb://postgresql/localhost/tenant2/wolverine")]
-    [InlineData("wolverinedb://postgresql/localhost/tenant1/wolverine")]
-    [InlineData("wolverinedb://postgresql/localhost/tenant3/wolverine")]
+    [InlineData($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("tenant2")}/wolverine")]
+    [InlineData($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("tenant1")}/wolverine")]
+    [InlineData($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("tenant3")}/wolverine")]
     public async Task build_each_agent_smoke_test(string uriString)
     {
         var uri = uriString == "default"

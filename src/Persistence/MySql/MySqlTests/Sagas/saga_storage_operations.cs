@@ -139,7 +139,7 @@ public class saga_storage_operations
 
         // Clean up the table
         await using var cleanCmd = conn.CreateCommand();
-        cleanCmd.CommandText = "DELETE FROM lightweight_sagas.mysqllightweightsaga_saga";
+        cleanCmd.CommandText = $"DELETE FROM {Servers.DatabaseName("lightweight_sagas")}.mysqllightweightsaga_saga";
         await cleanCmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
 
         var db = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);

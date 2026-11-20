@@ -35,7 +35,11 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
     private string _idColumnName => "id";
     private string _bodyColumnName => "body";
     private string _timestampColumnName => "timestamp";
-    private string _externalSchemaName => "ext";
+    /// <summary>The schema the external tables live in.</summary>
+    protected virtual string externalSchemaName => "ext";
+
+    /// <summary>The schema of Wolverine's own message storage.</summary>
+    protected virtual string messageStorageSchemaName => "wolverine";
 
 
     protected abstract void configurePersistence(WolverineOptions opts, string connectionString, string schemaName);
@@ -43,7 +47,7 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        await dropSchemaAsync(connectionString, [_externalSchemaName], TestContext.Current.CancellationToken);
+        await dropSchemaAsync(connectionString, [externalSchemaName], TestContext.Current.CancellationToken);
     }
 
 
@@ -63,7 +67,7 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
                 opts.Durability.ScheduledJobPollingTime = 1.Seconds();
                 opts.Discovery.IncludeType(typeof(ExternalTableTransportComplianceHandler));
                 opts.Discovery.IncludeType(typeof(ExternalTableBlowsUpHandler));
-                configurePersistence(opts, connectionString, "wolverine");
+                configurePersistence(opts, connectionString, messageStorageSchemaName);
                 if (table != null)
                 {
                     opts.ListenForMessagesFromExternalDatabaseTable(table.TableName.Schema,
@@ -89,7 +93,7 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
     [Fact]
     public async Task can_create_basic_table()
     {
-        var definition = new ExternalMessageTable(new DbObjectName(_externalSchemaName, "incoming1"))
+        var definition = new ExternalMessageTable(new DbObjectName(externalSchemaName, "incoming1"))
         {
             MessageType = typeof(Message1)
         };
@@ -104,7 +108,7 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
     [Fact]
     public async Task can_create_basic_table_with_message_type()
     {
-        var definition = new ExternalMessageTable(new DbObjectName(_externalSchemaName, "incoming1"))
+        var definition = new ExternalMessageTable(new DbObjectName(externalSchemaName, "incoming1"))
         {
             MessageType = typeof(Message1),
             MessageTypeColumnName = "message_type"
@@ -120,7 +124,7 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
     [Fact]
     public async Task can_create_basic_table_customized_in_every_way()
     {
-        var definition = new ExternalMessageTable(new DbObjectName(_externalSchemaName, "incoming1"))
+        var definition = new ExternalMessageTable(new DbObjectName(externalSchemaName, "incoming1"))
         {
             MessageType = typeof(Message1),
             IdColumnName = "pk",
@@ -167,31 +171,31 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
     [Fact]
     public async Task end_to_end_default_message_type()
     {
-        var table = new ExternalMessageTable(new DbObjectName(_externalSchemaName, "incoming1"))
+        var table = new ExternalMessageTable(new DbObjectName(externalSchemaName, "incoming1"))
         {
             MessageType = typeof(Message1)
         };
 
-        await TestMessageSend(table, new Message1(), $"{_externalSchemaName}.incoming1", TestContext.Current.CancellationToken);
+        await TestMessageSend(table, new Message1(), $"{externalSchemaName}.incoming1", TestContext.Current.CancellationToken);
     }
 
 
     [Fact]
     public async Task end_to_end_default_variable_message_types()
     {
-        var table = new ExternalMessageTable(new DbObjectName(_externalSchemaName, "incoming2"))
+        var table = new ExternalMessageTable(new DbObjectName(externalSchemaName, "incoming2"))
         {
             MessageTypeColumnName = "message_type",
         };
 
-        await TestMessageSend(table, new Message2(), $"{_externalSchemaName}.incoming2", TestContext.Current.CancellationToken);
+        await TestMessageSend(table, new Message2(), $"{externalSchemaName}.incoming2", TestContext.Current.CancellationToken);
     }
 
 
     [Fact]
     public async Task end_to_end_default_variable_message_types_customize_table_in_every_possible_way()
     {
-        var table = new ExternalMessageTable(new DbObjectName(_externalSchemaName, "incoming3"))
+        var table = new ExternalMessageTable(new DbObjectName(externalSchemaName, "incoming3"))
         {
             IdColumnName = "pk",
             TimestampColumnName = "added",
@@ -199,7 +203,7 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
             MessageTypeColumnName = "message_kind",
         };
 
-        await TestMessageSend(table, new Message3(), $"{_externalSchemaName}.incoming3", TestContext.Current.CancellationToken);
+        await TestMessageSend(table, new Message3(), $"{externalSchemaName}.incoming3", TestContext.Current.CancellationToken);
     }
 
 
@@ -263,7 +267,7 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
     {
         var token = TestContext.Current.CancellationToken;
 
-        var table = new ExternalMessageTable(new DbObjectName(_externalSchemaName, "incoming4"))
+        var table = new ExternalMessageTable(new DbObjectName(externalSchemaName, "incoming4"))
         {
             IdColumnName = "pk",
             TimestampColumnName = "added",
@@ -277,7 +281,7 @@ public abstract class ExternalTableTransportCompliance : IAsyncLifetime
         // deliberately discarded -- on this pass the handler always throws, so it never completes.
         _ = ExternalTableBlowsUpHandler.WaiterForCall(true);
 
-        await host.SendMessageThroughExternalTable($"{_externalSchemaName}.incoming4",
+        await host.SendMessageThroughExternalTable($"{externalSchemaName}.incoming4",
             new ExternalTableBlowsUpMessage(), token);
 
         var storage = host.GetRuntime().Storage;

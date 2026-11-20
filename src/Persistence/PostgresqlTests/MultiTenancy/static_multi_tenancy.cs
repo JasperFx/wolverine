@@ -137,9 +137,9 @@ static_multi_tenancy2.wolverine_outgoing_envelopes
 
         var expected = $@"
 wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/static_multi_tenancy2
-wolverinedb://postgresql/localhost/db1/static_multi_tenancy2
-wolverinedb://postgresql/localhost/db3/static_multi_tenancy2
-wolverinedb://postgresql/localhost/db2/static_multi_tenancy2
+wolverinedb://postgresql/localhost/{Servers.DatabaseName("db1")}/static_multi_tenancy2
+wolverinedb://postgresql/localhost/{Servers.DatabaseName("db3")}/static_multi_tenancy2
+wolverinedb://postgresql/localhost/{Servers.DatabaseName("db2")}/static_multi_tenancy2
 ".ReadLines().Where(x => x.IsNotEmpty()).Select(x => new Uri(x)).OrderBy(x => x.ToString()).ToArray();
         
 

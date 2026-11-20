@@ -103,7 +103,7 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
 
         await using var session = factory.OpenSession(context);
         
-        context.Storage.Uri.ShouldBe(new Uri("wolverinedb://postgresql/localhost/players/wolverine"));
+        context.Storage.Uri.ShouldBe(new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("players")}/wolverine"));
 
         var builder = new NpgsqlConnectionStringBuilder(session.Connection.ConnectionString);
         builder.Database.ShouldBe(Servers.DatabaseName("players"));
@@ -115,9 +115,9 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
         var uris = await theStores.AllKnownAgentsAsync();
         uris.OrderBy(x => x.ToString()).ShouldBe([.. new[]
         {
-            new Uri("wolverinedb://postgresql/localhost/players/wolverine"),
+            new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("players")}/wolverine"),
             new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine"),
-            new Uri("wolverinedb://postgresql/localhost/things/wolverine")
+            new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("things")}/wolverine")
         }.OrderBy(x => x.ToString())]);
     }
 }

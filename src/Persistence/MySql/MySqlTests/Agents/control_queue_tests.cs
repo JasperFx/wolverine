@@ -68,10 +68,10 @@ public class control_queue_tests : MySqlContext, IAsyncLifetime
         await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"
+        cmd.CommandText = $@"
             SELECT table_name
             FROM information_schema.tables
-            WHERE table_schema = 'mysqlcontrol'
+            WHERE table_schema = '{Servers.DatabaseName("mysqlcontrol")}'
             AND table_name LIKE 'wolverine%'";
 
         var tables = new List<string>();

@@ -28,7 +28,7 @@ public class inbox_stale_time_compliance : InboxStaleTimeCompliance
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
-            "UPDATE inbox_stale.wolverine_incoming_envelopes SET `timestamp` = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL @secs SECOND) WHERE id = @id";
+            $"UPDATE {Servers.DatabaseName("inbox_stale")}.wolverine_incoming_envelopes SET `timestamp` = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL @secs SECOND) WHERE id = @id";
         cmd.Parameters.AddWithValue("@secs", (int)age.TotalSeconds);
         cmd.Parameters.AddWithValue("@id", envelope.Id);
         await cmd.ExecuteNonQueryAsync();
