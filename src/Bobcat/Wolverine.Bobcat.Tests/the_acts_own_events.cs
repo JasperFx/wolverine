@@ -125,6 +125,11 @@ public sealed class PolecatTabHost : TabHost
             m.ConnectionString = Servers.SqlServerConnectionString;
             m.DatabaseSchemaName = "bobcat_the_acts_own_events";
 
+            // GH-5676: AfterStartAsync applies the whole schema. Left on, the first save checks the event store's
+            // schema against SQL Server's catalog again, inside the act, and in the database every Polecat fixture
+            // shares that catalog read can be the deadlock victim of another fixture's schema DDL
+            m.AutoCreateSchemaObjects = AutoCreate.None;
+
             // On by default since Polecat 6; correlation_ids_off needs a store without them
             m.Events.EnableCorrelationId = false;
         }).IntegrateWithWolverine();
