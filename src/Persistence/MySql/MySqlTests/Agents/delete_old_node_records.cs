@@ -21,7 +21,7 @@ namespace MySqlTests.Agents;
 [Collection("mysql")]
 public class delete_old_node_records : IAsyncLifetime
 {
-    private const string SchemaName = "node_record_retention";
+    private static readonly string SchemaName = Servers.DatabaseName("node_record_retention");
     private MySqlMessageStore _store = null!;
 
     public async ValueTask InitializeAsync()

@@ -23,7 +23,7 @@ public class end_to_end_from_scratch : IAsyncLifetime
                 options.Durability.Mode = DurabilityMode.Solo;
                 options.DefaultExecutionTimeout = TimeSpan.FromSeconds(90);
 
-                options.UseMySqlPersistenceAndTransport(connectionString, schema: "api", transportSchema: "integration")
+                options.UseMySqlPersistenceAndTransport(connectionString, schema: Servers.DatabaseName("api"), transportSchema: Servers.DatabaseName("integration"))
                     .AutoProvision()
                     .AutoPurgeOnStartup(); //May not want this in a real environment, but useful while developing
                 options.PublishAllMessages().ToMySqlQueue("ui");
@@ -37,7 +37,7 @@ public class end_to_end_from_scratch : IAsyncLifetime
                 options.Durability.Mode = DurabilityMode.Solo;
                 options.DefaultExecutionTimeout = TimeSpan.FromSeconds(90);
 
-                options.UseMySqlPersistenceAndTransport(connectionString, "ui", transportSchema: "integration")
+                options.UseMySqlPersistenceAndTransport(connectionString, Servers.DatabaseName("ui"), transportSchema: Servers.DatabaseName("integration"))
                     .AutoProvision();
                 options.PublishAllMessages().ToMySqlQueue("api");
                 options.ListenToMySqlQueue("ui");

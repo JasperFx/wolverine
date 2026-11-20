@@ -19,7 +19,7 @@ public class saga_storage_operations
         var settings = new DatabaseSettings
         {
             ConnectionString = Servers.MySqlConnectionString,
-            SchemaName = "lightweight_sagas",
+            SchemaName = Servers.DatabaseName("lightweight_sagas"),
         };
 
         var definition = new SagaTableDefinition(typeof(MySqlLightweightSaga), null);

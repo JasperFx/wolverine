@@ -29,4 +29,9 @@
            test project in the repo. -->
       <ProjectReference Include="..\..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <!-- GH-5635: the 6.x test database, for TestDatabase.cs -->
+        <Compile Include="..\..\..\Servers.cs" Link="Servers.cs" />
+    </ItemGroup>
 </Project>

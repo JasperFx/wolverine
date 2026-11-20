@@ -23,7 +23,7 @@ namespace MySqlTests.Transport;
 [Collection("mysql")]
 public class Bug_5087_listener_shutdown
 {
-    private const string SchemaName = "wolverine_gh5087";
+    private static readonly string SchemaName = Servers.DatabaseName("wolverine_gh5087");
     private const string QueueName = "bug_5087";
 
     private static CancellationToken ct => TestContext.Current.CancellationToken;

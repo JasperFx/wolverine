@@ -21,7 +21,7 @@ namespace MySqlTests.Transport;
 [Collection("mysql")]
 public class Bug_5413_a_backlog_drains_without_waiting_a_polling_interval_per_batch
 {
-    private const string Schema = "wolverine_gh5413";
+    private static readonly string Schema = Servers.DatabaseName("wolverine_gh5413");
 
     [Fact]
     public async Task a_backlog_drains_without_waiting_for_the_polling_interval()

@@ -20,7 +20,7 @@ public class deadletter_admin_compliance : DeadLetterAdminCompliance
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "dlq5");
+                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("dlq5"));
                 opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();
 

@@ -23,7 +23,7 @@ public class Bug_message_store_disposes_data_source_it_does_not_own
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
-                opts.PersistMessagesWithMySql(dataSource, "ds_ownership");
+                opts.PersistMessagesWithMySql(dataSource, Servers.DatabaseName("ds_ownership"));
             }).StartAsync(TestContext.Current.CancellationToken);
 
         await host.StopAsync(TestContext.Current.CancellationToken);

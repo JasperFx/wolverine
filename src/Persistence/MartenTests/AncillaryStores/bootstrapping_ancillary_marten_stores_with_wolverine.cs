@@ -115,6 +115,8 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
 
         var exists = await conn.DatabaseExists(databaseName);

@@ -24,7 +24,7 @@ namespace MySqlTests;
 [Collection("mysql")]
 public class serverless_with_outbox_5016 : IAsyncLifetime
 {
-    private const string SchemaName = "serverless_outbox";
+    private static readonly string SchemaName = Servers.DatabaseName("serverless_outbox");
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 

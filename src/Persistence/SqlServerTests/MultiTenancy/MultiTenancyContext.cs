@@ -46,6 +46,8 @@ public abstract class MultiTenancyContext : SqlServerContext, IAsyncLifetime
 
     private async Task<string> CreateDatabaseIfNotExists(SqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         var builder = new SqlConnectionStringBuilder(Servers.SqlServerConnectionString);
 
         var exists = await DatabaseExistsAsync(conn, databaseName);

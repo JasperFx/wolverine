@@ -24,7 +24,7 @@ namespace MySqlTests.MultiTenancy;
 [Collection("mysql")]
 public class queue_tables_are_per_tenant_database : MySqlMultiTenancyContext
 {
-    private const string SchemaName = "queue_per_tenant";
+    private static readonly string SchemaName = Servers.DatabaseName("queue_per_tenant");
     private const string QueueName = "pertenant";
 
     protected override void configureWolverine(WolverineOptions opts)

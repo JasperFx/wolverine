@@ -25,7 +25,7 @@ namespace MySqlTests.Agents;
 [Collection("mysql")]
 public class Bug_4246_widening_an_existing_database : IAsyncLifetime
 {
-    private const string SchemaName = "node_record_widening";
+    private static readonly string SchemaName = Servers.DatabaseName("node_record_widening");
 
     public async ValueTask InitializeAsync()
     {

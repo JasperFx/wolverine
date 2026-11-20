@@ -522,6 +522,11 @@ partial class Build
             var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT 1";
             cmd.ExecuteNonQuery();
+
+            // The 6.x default catalog (GH-5635), as for Postgres in WaitForDatabaseToBeReady
+            var create = conn.CreateCommand();
+            create.CommandText = $"if DB_ID('{TestDatabase}') is null begin CREATE DATABASE {TestDatabase} end";
+            create.ExecuteNonQuery();
             return null;
         });
     }
@@ -536,6 +541,11 @@ partial class Build
             var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT 1";
             cmd.ExecuteNonQuery();
+
+            // The 6.x default database (GH-5635), as for Postgres in WaitForDatabaseToBeReady
+            var create = conn.CreateCommand();
+            create.CommandText = $"CREATE DATABASE IF NOT EXISTS {TestDatabase}";
+            create.ExecuteNonQuery();
             return null;
         });
     }

@@ -48,9 +48,9 @@ public class static_multi_tenancy : MultiTenancyContext
 
         store.Main.Describe().DatabaseName.ShouldBe(Servers.PostgresDatabaseName);
 
-        (await store.Source.FindAsync("red")).Describe().DatabaseName.ShouldBe("db1");
-        (await store.Source.FindAsync("blue")).Describe().DatabaseName.ShouldBe("db2");
-        (await store.Source.FindAsync("green")).Describe().DatabaseName.ShouldBe("db3");
+        (await store.Source.FindAsync("red")).Describe().DatabaseName.ShouldBe(Servers.DatabaseName("db1"));
+        (await store.Source.FindAsync("blue")).Describe().DatabaseName.ShouldBe(Servers.DatabaseName("db2"));
+        (await store.Source.FindAsync("green")).Describe().DatabaseName.ShouldBe(Servers.DatabaseName("db3"));
     }
 
     [Fact]

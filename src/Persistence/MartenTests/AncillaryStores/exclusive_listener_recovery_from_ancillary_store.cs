@@ -77,6 +77,8 @@ public class exclusive_listener_recovery_from_ancillary_store : IAsyncLifetime
 
     private static async Task<string> createDatabaseIfNotExistsAsync(NpgsqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         if (!await conn.DatabaseExists(databaseName))
         {
             await new DatabaseSpecification().BuildDatabase(conn, databaseName);

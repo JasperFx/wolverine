@@ -18,7 +18,7 @@ public class node_persistence : NodePersistenceCompliance
         await using var conn = new MySqlConnection(Servers.MySqlConnectionString);
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DROP DATABASE IF EXISTS `nodes`";
+        cmd.CommandText = $"DROP DATABASE IF EXISTS `{Servers.DatabaseName("nodes")}`";
         await cmd.ExecuteNonQueryAsync();
         await conn.CloseAsync();
 
@@ -26,7 +26,7 @@ public class node_persistence : NodePersistenceCompliance
         var settings = new DatabaseSettings
         {
             ConnectionString = Servers.MySqlConnectionString,
-            SchemaName = "nodes",
+            SchemaName = Servers.DatabaseName("nodes"),
             Role = MessageStoreRole.Main
         };
 

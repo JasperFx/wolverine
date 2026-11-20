@@ -16,7 +16,7 @@ public class inbox_stale_time_compliance : InboxStaleTimeCompliance
         return await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "inbox_stale");
+                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("inbox_stale"));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.InboxStaleTime = 1.Hours();
             }).StartAsync();

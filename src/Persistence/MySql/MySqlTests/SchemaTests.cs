@@ -19,7 +19,7 @@ public class SchemaTests
         var dataSource = MySqlDataSourceFactory.Create(Servers.MySqlConnectionString);
         var settings = new DatabaseSettings
         {
-            SchemaName = "receiver",
+            SchemaName = Servers.DatabaseName("receiver"),
             CommandQueuesEnabled = true,
             Role = MessageStoreRole.Main
         };
@@ -53,7 +53,7 @@ public class SchemaTests
         var dataSource = MySqlDataSourceFactory.Create(Servers.MySqlConnectionString);
         var settings = new DatabaseSettings
         {
-            SchemaName = "receiver",
+            SchemaName = Servers.DatabaseName("receiver"),
             CommandQueuesEnabled = true,
             Role = MessageStoreRole.Main
         };
@@ -81,7 +81,7 @@ public class SchemaTests
         var dataSource = MySqlDataSourceFactory.Create(Servers.MySqlConnectionString);
         var settings = new DatabaseSettings
         {
-            SchemaName = "receiver",
+            SchemaName = Servers.DatabaseName("receiver"),
             CommandQueuesEnabled = true,
             Role = MessageStoreRole.Main
         };
@@ -94,7 +94,7 @@ public class SchemaTests
         // First, ensure database exists and drop all existing tables
         await using var setupConn = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var setupCmd = setupConn.CreateCommand();
-        setupCmd.CommandText = "CREATE DATABASE IF NOT EXISTS `receiver`";
+        setupCmd.CommandText = $"CREATE DATABASE IF NOT EXISTS `{Servers.DatabaseName("receiver")}`";
         await setupCmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
 
         // Drop existing tables
@@ -165,7 +165,7 @@ public class SchemaTests
         var dataSource = MySqlDataSourceFactory.Create(Servers.MySqlConnectionString);
         var settings = new DatabaseSettings
         {
-            SchemaName = "receiver",
+            SchemaName = Servers.DatabaseName("receiver"),
             CommandQueuesEnabled = true,
             Role = MessageStoreRole.Main
         };

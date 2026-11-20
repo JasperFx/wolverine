@@ -40,7 +40,7 @@ public class durability_projection_affinity_real_stores : IAsyncLifetime
         await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         var connectionStrings = new List<string>();
-        foreach (var database in _databases)
+        foreach (var database in _databases.Select(Servers.DatabaseName))
         {
             var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
             if (!await conn.DatabaseExists(database))

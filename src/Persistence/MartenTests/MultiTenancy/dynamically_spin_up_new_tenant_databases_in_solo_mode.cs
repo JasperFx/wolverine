@@ -71,6 +71,8 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
 
         var exists = await conn.DatabaseExists(databaseName);

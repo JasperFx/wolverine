@@ -27,7 +27,7 @@ namespace MySqlTests;
 [Collection("mysql")]
 public class durability_pass_steps_5028 : IAsyncLifetime
 {
-    private const string SchemaName = "durability_pass_steps";
+    private static readonly string SchemaName = Servers.DatabaseName("durability_pass_steps");
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 

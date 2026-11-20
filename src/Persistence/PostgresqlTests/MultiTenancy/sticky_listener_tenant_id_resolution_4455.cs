@@ -35,7 +35,7 @@ public class sticky_listener_tenant_id_resolution_4455 : PostgresqlContext, IAsy
     private IHost _host = null!;
 
     private string MainSchema => $"sticky4455_{theSuffix}";
-    private string TenantDatabase(string tenant) => $"w4455_{tenant}_{theSuffix}";
+    private string TenantDatabase(string tenant) => Servers.DatabaseName($"w4455_{tenant}_{theSuffix}");
 
     private static string ConnectionStringFor(string database)
     {
@@ -72,7 +72,7 @@ public class sticky_listener_tenant_id_resolution_4455 : PostgresqlContext, IAsy
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
 
-                opts.PersistMessagesWithPostgresql(ConnectionStringFor("postgres"), MainSchema)
+                opts.PersistMessagesWithPostgresql(ConnectionStringFor(Servers.PostgresDatabaseName), MainSchema)
                     .EnableMessageTransport(transport => transport.TransportSchemaName(MainSchema))
                     .RegisterTenants(theTenantSource);
 

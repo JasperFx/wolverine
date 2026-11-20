@@ -30,4 +30,9 @@
       <ProjectReference Include="..\IncidentService\IncidentService.csproj" />
       <ProjectReference Include="..\..\..\Bobcat\Wolverine.Bobcat.Http\Wolverine.Bobcat.Http.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <!-- GH-5635: the 6.x test database, for TestDatabase.cs -->
+        <Compile Include="..\..\..\Servers.cs" Link="Servers.cs" />
+    </ItemGroup>
 </Project>

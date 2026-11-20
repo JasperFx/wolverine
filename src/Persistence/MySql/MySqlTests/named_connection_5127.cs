@@ -42,7 +42,7 @@ public class named_connection_5127
         var ex = await Should.ThrowAsync<MissingNamedConnectionStringsException>(async () =>
         {
             using var host = await hostWith(opts =>
-                opts.PersistMessagesWithMySqlUsingNamedConnection("wolverinedb", "named5127")).StartAsync(TestContext.Current.CancellationToken);
+                opts.PersistMessagesWithMySqlUsingNamedConnection("wolverinedb", Servers.DatabaseName("named5127"))).StartAsync(TestContext.Current.CancellationToken);
         });
 
         ex.Missing.Single().Name.ShouldBe("wolverinedb");
@@ -67,7 +67,7 @@ public class named_connection_5127
                 opts.Durability.Mode = DurabilityMode.Solo;
 
                 // Resolve the "wolverinedb" connection string from IConfiguration
-                opts.PersistMessagesWithMySqlUsingNamedConnection("wolverinedb", "named5127");
+                opts.PersistMessagesWithMySqlUsingNamedConnection("wolverinedb", Servers.DatabaseName("named5127"));
             })
             .UseResourceSetupOnStartup()
             .StartAsync(TestContext.Current.CancellationToken);
@@ -100,7 +100,7 @@ public class named_connection_5127
                        // e.g. registered by Aspire's builder.AddMySqlDataSource("wolverinedb")
                        opts.Services.AddSingleton(dataSource);
 
-                       opts.PersistMessagesWithMySqlUsingDataSourceFromContainer(schemaName: "named5127");
+                       opts.PersistMessagesWithMySqlUsingDataSourceFromContainer(schemaName: Servers.DatabaseName("named5127"));
 
                        #endregion
                    })
@@ -134,7 +134,7 @@ public class named_connection_5127
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
 
-                opts.PersistMessagesWithMySqlUsingNamedConnection("wolverinedb", "named5127")
+                opts.PersistMessagesWithMySqlUsingNamedConnection("wolverinedb", Servers.DatabaseName("named5127"))
                     .RegisterStaticTenantsUsingNamedConnections(tenants =>
                     {
                         // tenant id, then the name of its connection string
@@ -158,7 +158,7 @@ public class named_connection_5127
         var ex = await Should.ThrowAsync<MissingNamedConnectionStringsException>(async () =>
         {
             using var host = await hostWith(opts =>
-                    opts.PersistMessagesWithMySqlUsingNamedConnection("wolverinedb", "named5127")
+                    opts.PersistMessagesWithMySqlUsingNamedConnection("wolverinedb", Servers.DatabaseName("named5127"))
                         .RegisterStaticTenantsUsingNamedConnections(t => t.Register("tenant1", "tenant1db")),
                 ("wolverinedb", Servers.MySqlConnectionString)).StartAsync(TestContext.Current.CancellationToken);
         });

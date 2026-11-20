@@ -43,13 +43,14 @@ public class recurring_table_is_main_database_only_in_a_modular_monolith : IAsyn
             await conn.OpenAsync();
 
             var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
-            var exists = await conn.DatabaseExists("database1");
+            var database = Servers.DatabaseName("database1");
+            var exists = await conn.DatabaseExists(database);
             if (!exists)
             {
-                await new DatabaseSpecification().BuildDatabase(conn, "database1");
+                await new DatabaseSpecification().BuildDatabase(conn, database);
             }
 
-            builder.Database = "database1";
+            builder.Database = database;
             _ancillaryConnectionString = builder.ConnectionString;
         }
 

@@ -56,7 +56,7 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgr
 
         var blue = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
         var builder = new NpgsqlConnectionStringBuilder(blue.Database.GetConnectionString());
-        builder.Database.ShouldBe("db2");
+        builder.Database.ShouldBe(Servers.DatabaseName("db2"));
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgr
 
         var blue = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
         var builder = new NpgsqlConnectionStringBuilder(blue.Database.GetConnectionString());
-        builder.Database.ShouldBe("db1");
+        builder.Database.ShouldBe(Servers.DatabaseName("db1"));
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgr
 
         var blue = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
         var builder = new NpgsqlConnectionStringBuilder(blue.Database.GetConnectionString());
-        builder.Database.ShouldBe("db3");
+        builder.Database.ShouldBe(Servers.DatabaseName("db3"));
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_postgr
 
         var blueOutbox = await factory.CreateForTenantAsync<ItemsDbContext>("blue", CancellationToken.None);
         var builder = new NpgsqlConnectionStringBuilder(blueOutbox.DbContext.Database.GetConnectionString());
-        builder.Database.ShouldBe("db2");
+        builder.Database.ShouldBe(Servers.DatabaseName("db2"));
     }
 
 }

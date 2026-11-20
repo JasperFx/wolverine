@@ -56,25 +56,25 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         if (engine == DatabaseEngine.SqlServer)
         {
             var builder = new SqlConnectionStringBuilder(Servers.SqlServerConnectionString);
-            builder.InitialCatalog = "db1";
+            builder.InitialCatalog = Servers.DatabaseName("db1");
             tenant1ConnectionString = builder.ConnectionString;
 
-            builder.InitialCatalog = "db2";
+            builder.InitialCatalog = Servers.DatabaseName("db2");
             tenant2ConnectionString = builder.ConnectionString;
 
-            builder.InitialCatalog = "db3";
+            builder.InitialCatalog = Servers.DatabaseName("db3");
             tenant3ConnectionString = builder.ConnectionString;
         }
         else
         {
             var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
-            builder.Database = "db1";
+            builder.Database = Servers.DatabaseName("db1");
             tenant1ConnectionString = builder.ConnectionString;
 
-            builder.Database = "db2";
+            builder.Database = Servers.DatabaseName("db2");
             tenant2ConnectionString = builder.ConnectionString;
 
-            builder.Database = "db3";
+            builder.Database = Servers.DatabaseName("db3");
             tenant3ConnectionString = builder.ConnectionString;
         }
         

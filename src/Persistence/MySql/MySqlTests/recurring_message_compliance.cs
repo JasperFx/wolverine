@@ -10,6 +10,6 @@ public class recurring_message_compliance : RecurringMessageCompliance
 {
     protected override void configurePersistence(WolverineOptions opts)
     {
-        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "recurring_compliance");
+        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("recurring_compliance"));
     }
 }

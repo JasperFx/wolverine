@@ -27,7 +27,7 @@ namespace MySqlTests;
 [Collection("mysql")]
 public class Bug_5428_handled_cleanup_locks_live_inbox_rows : IAsyncLifetime
 {
-    private const string SchemaName = "bug_5428";
+    private static readonly string SchemaName = Servers.DatabaseName("bug_5428");
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 

@@ -10,7 +10,7 @@ namespace MySqlTests.Transport;
 [Collection("mysql")]
 public class clear_all_wolverine_storage : ClearAllWolverineStorageCompliance
 {
-    private const string SchemaName = "clear_all_storage";
+    private static readonly string SchemaName = Servers.DatabaseName("clear_all_storage");
 
     protected override async Task beforeHostAsync()
     {

@@ -29,7 +29,7 @@ namespace MySqlTests.MultiTenancy;
 [Collection("mysql")]
 public class tenants_registered_by_data_source : MySqlMultiTenancyContext
 {
-    private const string SchemaName = "tenant_by_datasource";
+    private static readonly string SchemaName = Servers.DatabaseName("tenant_by_datasource");
     private const string QueueName = "bysource4455";
 
     private const string QueueTableName = $"wolverine_queue_{QueueName}";

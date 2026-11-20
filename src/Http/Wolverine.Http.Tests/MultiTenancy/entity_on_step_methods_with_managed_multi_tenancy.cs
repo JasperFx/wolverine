@@ -18,7 +18,7 @@ namespace Wolverine.Http.Tests.MultiTenancy;
 // so reading through the main database shows up as a 404 or a missing row.
 public class entity_on_step_methods_with_managed_multi_tenancy : IAsyncLifetime
 {
-    private const string TenantDatabase = "step_entity_red";
+    private static readonly string TenantDatabase = Servers.DatabaseName("step_entity_red");
 
     private static readonly Type[] EndpointTypes =
     [

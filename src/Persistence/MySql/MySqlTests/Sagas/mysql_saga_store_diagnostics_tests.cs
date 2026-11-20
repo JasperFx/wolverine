@@ -29,7 +29,7 @@ public class mysql_saga_store_diagnostics_tests : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<MySqlDiagSaga>();
-                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "saga_diag_mysql");
+                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("saga_diag_mysql"));
                 opts.PublishAllMessages().Locally();
             })
             .StartAsync();

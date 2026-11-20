@@ -20,7 +20,7 @@ namespace MySqlTests;
 [Collection("mysql")]
 public class Bug_3983_repeated_envelope_storage_migration
 {
-    private const string SchemaName = "bug_3983";
+    private static readonly string SchemaName = Servers.DatabaseName("bug_3983");
 
     private static MySqlMessageStore buildStore()
     {

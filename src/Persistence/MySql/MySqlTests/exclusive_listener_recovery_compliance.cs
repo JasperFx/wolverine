@@ -12,6 +12,6 @@ public class exclusive_listener_recovery_compliance : ExclusiveListenerRecoveryC
 {
     protected override void ConfigureStorage(WolverineOptions options)
     {
-        options.PersistMessagesWithMySql(Servers.MySqlConnectionString, "exclusive_recovery");
+        options.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("exclusive_recovery"));
     }
 }

@@ -30,7 +30,7 @@ public class scheduled_messages_across_durability_modes : PostgresqlContext, IAs
     private readonly string theSuffix = Guid.NewGuid().ToString("N")[..8];
 
     private string MainSchema => $"modes_{theSuffix}";
-    private string TenantDatabase => $"w3376_modes_{theSuffix}";
+    private string TenantDatabase => Servers.DatabaseName($"w3376_modes_{theSuffix}");
 
     public scheduled_messages_across_durability_modes(ITestOutputHelper output)
     {

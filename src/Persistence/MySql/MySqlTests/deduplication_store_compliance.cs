@@ -10,7 +10,7 @@ public class deduplication_store_compliance : DeduplicationStoreCompliance
 {
     protected override void configurePersistence(WolverineOptions opts)
     {
-        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "dedup_compliance");
+        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("dedup_compliance"));
     }
 
     protected override string deduplicationTableName => "dedup_compliance.wolverine_deduplication";

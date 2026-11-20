@@ -47,6 +47,8 @@ public abstract class MySqlMultiTenancyContext : IAsyncLifetime
 
     private async Task<string> CreateDatabaseIfNotExists(MySqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         var builder = new MySqlConnectionStringBuilder(Servers.MySqlConnectionString);
 
         // Check if database exists

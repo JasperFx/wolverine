@@ -69,6 +69,8 @@ public class primary_store_database_per_tenant : IAsyncLifetime
 
     private static async Task<string> CreateDatabaseIfNotExists(SqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         var builder = new SqlConnectionStringBuilder(Servers.SqlServerConnectionString);
 
         await using (var check = conn.CreateCommand())

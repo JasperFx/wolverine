@@ -16,7 +16,7 @@ namespace MySqlTests.MultiTenancy;
 [Collection("mysql")]
 public class queue_ordering_in_tenant_databases : MySqlMultiTenancyContext
 {
-    private const string SchemaName = "queue_order_tenants";
+    private static readonly string SchemaName = Servers.DatabaseName("queue_order_tenants");
     private const string QueueName = "orderedtenant";
 
     protected override void configureWolverine(WolverineOptions opts)
