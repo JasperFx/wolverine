@@ -150,7 +150,25 @@ public class custom_container_name
 
     private static string uniqueContainerName() => $"wolverine_{Guid.NewGuid():N}";
 
+    // TEMPORARY GH-5676 diagnostics: name the step that got the emulator's 500
+    private static async Task<TResult> step<TResult>(string name, Func<Task<TResult>> action)
+    {
+        try
+        {
+            return await action();
+        }
+        catch (CosmosException e)
+        {
+            throw new InvalidOperationException($"[GH-5676 step: {name}] {e.StatusCode} {e.Message}", e);
+        }
+    }
+
     private Task<IHost> buildHostAsync(string containerName, DurabilityMode mode, string serviceName = "CustomContainer")
+    {
+        return step("start host", () => buildHostInnerAsync(containerName, mode, serviceName));
+    }
+
+    private Task<IHost> buildHostInnerAsync(string containerName, DurabilityMode mode, string serviceName)
     {
         return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -209,9 +227,9 @@ public class custom_container_name
     {
         try
         {
-            await database().GetContainer(containerName).DeleteContainerAsync();
+            await step("drop container", () => database().GetContainer(containerName).DeleteContainerAsync());
         }
-        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        catch (InvalidOperationException e) when (e.InnerException is CosmosException { StatusCode: HttpStatusCode.NotFound })
         {
         }
     }
