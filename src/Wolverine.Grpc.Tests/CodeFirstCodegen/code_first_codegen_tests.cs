@@ -134,8 +134,12 @@ public class code_first_codegen_integration_tests : IClassFixture<CodeFirstCodeg
     {
         var client = _fixture.CreateClient<ICodeFirstTestService>();
 
+        // GH-5676. The server ends the call at the poison value while the client may still be writing the 3. With
+        // protobuf-net.Grpc's defaults that write throws its IncompleteSendRpcException instead of the server's
+        // status, depending on which side wins. A client that expects the server to stop it early asks for the
+        // server's status with IgnoreStreamTermination
         var ex = await Should.ThrowAsync<RpcException>(() =>
-            client.SumStream(Numbers(1, SumStreamHandler.PoisonValue, 3)));
+            client.SumStream(Numbers(1, SumStreamHandler.PoisonValue, 3), StopsAtTheServersStatus));
 
         ex.StatusCode.ShouldBe(StatusCode.FailedPrecondition);
     }
@@ -192,9 +196,14 @@ public class code_first_codegen_integration_tests : IClassFixture<CodeFirstCodeg
         // The bus throws NotSupportedException when no handler accepts
         // IAsyncEnumerable<CodeFirstOrphanNumber>; the default exception mapping surfaces
         // that as Unimplemented.
-        var ex = await Should.ThrowAsync<RpcException>(() => client.Collect(one()));
+        // GH-5676. The server answers Unimplemented without reading the stream, so the client's write can
+        // race the end of the call. See mid_drain_handler_fault_surfaces_as_failed_precondition
+        var ex = await Should.ThrowAsync<RpcException>(() => client.Collect(one(), StopsAtTheServersStatus));
         ex.StatusCode.ShouldBe(StatusCode.Unimplemented);
     }
+
+    // A client-streaming call the server may end before the client has sent everything
+    private static CallContext StopsAtTheServersStatus => new(flags: CallContextFlags.IgnoreStreamTermination);
 
     [Fact]
     public void client_streaming_codegen_forwards_the_stream_without_an_adapter()

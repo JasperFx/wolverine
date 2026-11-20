@@ -28,6 +28,8 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
         OutboundAddress = new Uri("kafka://topic/" + receiverTopic);
 
+        // GH-5676: see KafkaComplianceTopics.CreateAsync
+        await KafkaComplianceTopics.CreateAsync(receiverTopic, senderTopic);
 
         await ReceiverIs(opts =>
         {
@@ -79,6 +81,9 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
         OutboundAddress = new Uri("kafka://topic/" + receiverTopic);
 
+        // GH-5676: see KafkaComplianceTopics.CreateAsync
+        await KafkaComplianceTopics.CreateAsync(receiverTopic, senderTopic);
+
         await SenderIs(opts =>
         {
             opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
@@ -113,6 +118,27 @@ public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineCom
 internal static class KafkaComplianceTopics
 {
     public static string Unique(string prefix) => $"{prefix}.{Guid.NewGuid():N}";
+
+    /// <summary>
+    /// GH-5676. Create a fixture's topics before either host starts. Kafka 4's consumer group protocol (KIP-848)
+    /// assigns partitions in heartbeat responses, and the group coordinator picks up a new topic's metadata a moment
+    /// after the topic is created. A listener that subscribed in that moment -- the topic created by its own host's
+    /// resource setup, the subscription made about 60ms later -- was answered with no partitions and only got its
+    /// partition on the next heartbeat, five seconds (the broker's group.consumer.heartbeat.interval.ms) later. That
+    /// is the whole of can_send_and_wait's reply timeout (DefaultRemoteInvocationTimeout, 5s), so the request/reply
+    /// failed with only "Sent" in its activity. The fixtures with fixed topic names never hit this: their topics
+    /// already exist after the first run
+    /// </summary>
+    public static async Task CreateAsync(params string[] topics)
+    {
+        using var admin = new Confluent.Kafka.AdminClientBuilder(
+            new Confluent.Kafka.AdminClientConfig { BootstrapServers = KafkaContainerFixture.ConnectionString }).Build();
+
+        await admin.CreateTopicsAsync(topics.Select(x => new Confluent.Kafka.Admin.TopicSpecification
+        {
+            Name = x, NumPartitions = 1, ReplicationFactor = 1
+        }));
+    }
 
     public static async Task DeleteAsync(params string[] topics)
     {

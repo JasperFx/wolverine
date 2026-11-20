@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Bobcat.Supervisor;
 using Nuke.Common.IO;
 using Serilog;
@@ -259,6 +260,12 @@ partial class Build
         var flattened = string.Join(" ", reason.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
             .Select(x => x.Trim())
             .Where(x => x.Length > 0));
+
+        // GH-5676. A TrackedSession timeout is mostly an activity table: a 140-character rule of dashes and columns
+        // padded with spaces. Kept as is, the rule and the header used up the whole limit, so a ledger never showed
+        // which events the session did see, and that is the part that says where a message stopped
+        flattened = Regex.Replace(flattened, "-{3,}", "--");
+        flattened = Regex.Replace(flattened, " {2,}", " ");
 
         const int limit = 400;
         return flattened.Length <= limit ? flattened : flattened[..limit] + "…";

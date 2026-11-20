@@ -51,11 +51,17 @@ public static class NativeAckWorkTracking
     public static Task GateFor(string service) =>
         Blocks.TryGetValue(service, out var tcs) ? tcs.Task : Task.CompletedTask;
 
+    /// <remarks>
+    /// GH-5676. A host a test disposes while its handlers are parked leaves those handlers waiting in this process.
+    /// Releasing them here let them finish and record into <see cref="Handled" /> after it was cleared, so the NEXT
+    /// test found another test's work in the bag, e.g. "(redelivered-host, 301)" in a test that never started a
+    /// redelivered-host. A parked handler of a dead node is cancelled instead, so it never records anything. The
+    /// cancelled gate stays in place, so a handler of that node that only reaches it later is turned away too.
+    /// </remarks>
     public static void Reset()
     {
+        foreach (var tcs in Blocks.Values) tcs.TrySetCanceled();
         Handled.Clear();
-        foreach (var tcs in Blocks.Values) tcs.TrySetResult();
-        Blocks.Clear();
     }
 
     public static int CountOf(int number) => Handled.Count(x => x.Number == number);
