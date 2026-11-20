@@ -750,9 +750,10 @@ partial class Build
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            LaunchDockerServices("postgresql");
+            // Bugs.Bug_1942_replay_dlq_to_buffered_or_inline replays dead letters to a RabbitMQ listener.
+            LaunchDockerServices("postgresql", "rabbitmq");
             BuildTestProjects(PostgresqlTests);
-            AwaitDockerServices("postgresql");
+            AwaitDockerServices("postgresql", "rabbitmq");
 
             RunTestProject(PostgresqlTests, testFilter: includeNamespaces(PostgresqlFeaturesShard));
         });

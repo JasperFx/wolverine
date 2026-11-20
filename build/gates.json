@@ -51,10 +51,12 @@
       "workers": 1,
       "postgres": "Shared",
       "services": [
-        "postgresql"
+        "postgresql",
+        "rabbitmq"
       ],
       "tracks": [
-        "postgresql"
+        "postgresql",
+        "rabbitmq"
       ]
     },
     {
