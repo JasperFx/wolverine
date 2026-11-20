@@ -274,13 +274,13 @@ public static class SagaCompensations
     ];
 
     // The message types a saga's own methods return, as far as their signatures say. An event-sourced saga's returns
-    // are its events, so it sends nothing anyone can see this way. GH-5701: a message a method returns as it completes
-    // the saga, such as TripBooked, is what the saga sends when it is finished, not a step that can be compensated
+    // are its events, so it sends nothing anyone can see this way. GH-5701: a message returned by a method marked
+    // [CompletesSaga], such as TripBooked, is what the saga sends when it is finished, not a step that can be compensated
     internal static HashSet<Type> SentBy(IEnumerable<HandlerCall> calls, Type sagaType)
     {
         if (sagaType.CanBeCastTo<EventSourcedSaga>()) return [];
 
-        return calls.Where(x => !SagaCompletion.CompletesTheSaga(x.Method)).SelectMany(returnedTypes).ToHashSet();
+        return calls.Where(x => !x.Method.HasAttribute<CompletesSagaAttribute>()).SelectMany(returnedTypes).ToHashSet();
     }
 
     private static IEnumerable<Type> returnedTypes(HandlerCall call)

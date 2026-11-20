@@ -30,11 +30,17 @@ dotnet add package WolverineFx
 `dotnet new webapi` writes a `Properties/launchSettings.json` that runs the application in the `Development`
 environment, where Wolverine compiles its generated code at runtime. A plain `dotnet run` with no launch settings, or
 `dotnet MyApp.dll`, runs in `Production`, and since 7.0 Wolverine expects pre-generated code there and fails at startup
-with a `MissingPreBuiltTypesException` without it. To compile at runtime in `Production` too, add this line and a
-reference to `WolverineFx.RuntimeCompilation`:
+with a `MissingPreBuiltTypesException` without it. To compile at runtime in `Production` too, add this line:
 
 ```cs
 builder.Services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic);
+```
+
+Setting `Dynamic` needs the `WolverineFx.RuntimeCompilation` package referenced, because that's where the runtime
+compiler lives:
+
+```bash
+dotnet add package WolverineFx.RuntimeCompilation
 ```
 
 See [deploying 7.0 to production](/guide/migration#deploying-7-0-to-production) for pre-generating the code instead.

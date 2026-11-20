@@ -15,8 +15,8 @@ namespace Wolverine;
 /// rest. Each type it names must be assignable to the method's failed-message parameter.
 /// </para>
 /// <para>
-/// A <c>Compensate(object failed, ...)</c> catch-all covers only the messages the saga's own methods return, plus
-/// those named here.
+/// A <c>Compensate(object failed, ...)</c> catch-all covers only the messages the saga's own methods return, less those
+/// returned by a method marked <see cref="CompletesSagaAttribute" />, plus those named here.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]

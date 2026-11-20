@@ -62,8 +62,8 @@ internal sealed class SagaCompensationCoverage
 
                 if (method.CoversAFamily)
                 {
-                    // A catch-all covers what this saga visibly sends, less what it sends as it completes. Anything else
-                    // covers every message type the application knows that is assignable to it
+                    // A catch-all covers what this saga visibly sends, less what its [CompletesSaga] methods return.
+                    // Anything else covers every message type the application knows that is assignable to it
                     var candidates = method.FailedType == typeof(object)
                         ? sends
                         : known ??= SagaCompensations.KnownMessageTypes(calls, registered);

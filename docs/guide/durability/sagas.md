@@ -811,11 +811,15 @@ decides how much of the stack a failure unwinds:
   leaves the saga `CompensationFailed` with the rest of the stack still there
 
 Nothing unwinds by itself: a failure no `Compensate` method matches leaves the stack alone. The catch-all is one line,
-`public OutgoingMessages Compensate(object failed, ExceptionInfo ex) => UndoMessages();`. A catch-all covers the steps
-the saga sends, as its methods' signatures show them, but not a message a method sends as it completes the saga with
-`MarkCompleted()`, like the trip's `TripBooked` below: that's what the saga says when it is finished, not a step that
-can fail and be compensated. Name a message with `[Compensates]` to cover it anyway. Here is Restate's trip booking
-example as a saga:
+`public OutgoingMessages Compensate(object failed, ExceptionInfo ex) => UndoMessages();`. A catch-all covers every
+message the saga's methods return, as their signatures show them.
+
+**`[CompletesSaga]`.** Put `[CompletesSaga]` on the method that finishes the saga, like the trip's
+`Handle(HotelBooked)` below, and a catch-all leaves out what that method returns. The trip's `TripBooked` is what the
+saga says when it's done, not a step that can fail and be compensated. The attribute doesn't complete the saga for
+you, so the method still calls `MarkCompleted()`. Wolverine doesn't guess which method completes the saga: without the
+attribute, the catch-all covers that method's messages like any other's. `[Compensates]` still names a message to
+cover either way. Here is Restate's trip booking example as a saga:
 
 <!-- snippet: sample_undo_stack_trip -->
 <a id='snippet-sample_undo_stack_trip'></a>
@@ -844,6 +848,8 @@ public class Trip : CompensatingSaga, IRevisioned
         return new BookHotel(Id, CustomerId);
     }
 
+    // TripBooked is what the trip says when it's finished, so the catch-all below doesn't cover it
+    [CompletesSaga]
     public TripBooked Handle(HotelBooked booked)
     {
         MarkCompleted();
@@ -861,7 +867,7 @@ public class Trip : CompensatingSaga, IRevisioned
     public OutgoingMessages Compensate(BookHotel failed, RemoteFailure<NoRoomsException> noRooms) => UndoMessagesSince("car");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaWorkflows/SagaWorkflows.Specs/TripBooking/Trip.cs#L11-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_undo_stack_trip' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaWorkflows/SagaWorkflows.Specs/TripBooking/Trip.cs#L11-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_undo_stack_trip' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 **Push before the step.** An undo pushed in a handler that also sends a message is *pending*: that message is its step,

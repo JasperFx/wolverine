@@ -1029,8 +1029,10 @@ session = await session.PlayScheduledMessagesAsync(advanceBy: 1.Hours());
 ::: tip A played message goes through its queue in 7.0
 A played message for a local queue goes through that queue as if its time had come: the endpoint's retries,
 dead-lettering and a saga's `Compensate` methods all apply, and the session waits for them instead of throwing the
-first exception at your test. So "time passes, the poll fails, the saga compensates" is something you can test. To run
-local messages inline as Wolverine 6.x did, pass `playInline: true` to either overload.
+first exception at your test. So "time passes, the poll fails, the saga compensates" is something you can test. The
+message runs in your test's own async flow rather than on the queue's worker, though, so the queue's ordering and
+parallelism settings don't apply to it. To run local messages inline as Wolverine 6.x did, pass `playInline: true` to
+either overload.
 :::
 
 That plays only the scheduled messages that come due within the hour, in the order they come due. A message

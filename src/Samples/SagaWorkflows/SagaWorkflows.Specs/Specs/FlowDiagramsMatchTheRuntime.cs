@@ -11,7 +11,7 @@ namespace SagaWorkflows.Specs;
 // GH-5701: a saga's flow diagram draws a "fails" edge from each message a Compensate method covers. The runtime builds
 // a Fault<T> chain for each message it compensates. Both read the same answer, so for every sample saga the drawn
 // failure edges are exactly the concrete Fault<T> chains the runtime has for that saga. The trip's catch-all, for one,
-// leaves out TripBooked: the trip sends it as it completes, so it is not a step that can be compensated
+// leaves out TripBooked: the trip returns it from its [CompletesSaga] method, so it is not a step that can be compensated
 public static class FlowDiagramChecks
 {
     public static async Task EveryFailureEdgeIsAFaultChainAsync(IHost host)

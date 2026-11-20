@@ -264,6 +264,10 @@ ThenMessageSent(new ExportPollingGaveUp(id, "The export service is down"));
 await ThenNoSaga<ExportPolling>(id);
 ```
 
+A played message goes through its local queue's pipeline, with its retries, dead-lettering and compensation, but it
+runs in the spec's own async flow, so the queue's ordering and parallelism settings don't apply to it. Pass
+`playInline: true` to keep the old inline behaviour.
+
 The clock that moves is the ambient `BobcatClock`, the one `GivenTheTimeIs` freezes. An application that reads it
 through `services.ShareClock()` sees each message's due time while handling it. In `CritterStackSpec` the same
 step only moves the clock, since there is no bus. With no act before it, the step fails and stops the scenario.

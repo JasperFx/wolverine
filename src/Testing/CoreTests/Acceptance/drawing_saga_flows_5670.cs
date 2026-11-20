@@ -204,8 +204,8 @@ public class drawing_saga_flows_5670 : IAsyncLifetime
         SagaFlowDiagram.ToMermaid(saga).ShouldBe(InterfaceCompensationFlow);
     }
 
-    // GH-5701: a catch-all Compensate(object, ...) covers the steps the saga sends, but not the message it sends as it
-    // completes: GiftOrderShipped can't fail and be compensated
+    // GH-5701: a catch-all Compensate(object, ...) covers the steps the saga sends, but not the message its
+    // [CompletesSaga] method returns: GiftOrderShipped can't fail and be compensated
     [Fact]
     public void a_catch_all_compensate_method()
     {
@@ -696,6 +696,7 @@ public class GiftOrder : CompensatingSaga
     public ShipGift Handle(GiftWrapped wrapped) => new(Id);
 
     // Sent as the saga completes: what it says when it is finished, not a step
+    [CompletesSaga]
     public GiftOrderShipped Handle(GiftShipped shipped)
     {
         MarkCompleted();
