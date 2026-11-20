@@ -33,6 +33,9 @@ internal class TracingExecutor : IExecutor
     // GH-5311. Tracking.RecordExceptionsOnSpans
     private readonly bool _recordExceptions;
 
+    // GH-5661. Stamped on each envelope this executor runs, so a requeue or reschedule logs at this handler's level
+    private readonly LogLevel _failureLogLevel;
+
     private readonly Action<ILogger, string, string, Guid, Exception?> _executionStarted;
     private readonly Action<ILogger, string, string, Guid, long, Exception?> _executionFinished;
     private readonly Action<ILogger, string, Guid, string, Exception?> _messageSucceeded;
@@ -63,7 +66,8 @@ internal class TracingExecutor : IExecutor
             LoggerMessage.Define<string, Guid, string>(handler.SuccessLogLevel, MessageSucceededEventId,
                 "Successfully processed message {Name}#{envelope} from {ReplyUri}");
 
-        _messageFailed = LoggerMessage.Define<string, Guid, string>(handler.FailureLogLevel, MessageFailedEventId,
+        _failureLogLevel = handler.FailureLogLevel;
+        _messageFailed = LoggerMessage.Define<string, Guid, string>(_failureLogLevel, MessageFailedEventId,
             "Failed to process message {Name}#{envelope} from {ReplyUri}");
 
         _executionStarted = LoggerMessage.Define<string, string, Guid>(handler.ProcessingLogLevel,
@@ -167,6 +171,7 @@ internal class TracingExecutor : IExecutor
         _executionStarted(_logger, envelope!.CorrelationId!, _messageTypeName, envelope.Id, null);
 
         envelope.Attempts++;
+        envelope.HandlerFailureLogLevel = _failureLogLevel;
 
         // GH-4322: same single-CTS shape as Executor.ExecuteAsync — see the comment there.
         using var cts = cancellation.CanBeCanceled

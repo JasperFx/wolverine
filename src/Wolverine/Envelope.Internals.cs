@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
@@ -407,6 +408,14 @@ public partial class Envelope
     internal Exception? CompensatingException { get; set; }
 
     /// <summary>
+    /// GH-5661. The FailureLogLevel of the handler executing this envelope, stamped by the executor before the
+    /// handler runs, so a requeue or reschedule logs at the level of the handler that actually failed. Asking the
+    /// handler graph for "the" handler of the message type instead throws for a message type handled by more
+    /// than one handler type (separated mode). Never serialized
+    /// </summary>
+    internal LogLevel? HandlerFailureLogLevel { get; set; }
+
+    /// <summary>
     /// GH-5554. The durable faults to write in the same transaction as this envelope's dead-letter move, while it is
     /// being moved. Never serialized
     /// </summary>
@@ -706,6 +715,7 @@ public partial class Envelope
         // Public / internal settable properties — runtime-only (Envelope.Internals.cs)
         WasPersistedInInbox = false;
         CompensatingException = null;
+        HandlerFailureLogLevel = null;
         DeadLetterFaults = null;
         LeftInInboxForRecovery = false;
         WasTrackedAsReceived = false;
