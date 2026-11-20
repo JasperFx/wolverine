@@ -176,7 +176,7 @@ partial class Build
         {
             Postgres = ServerUse.Shared, SqlServer = ServerUse.Shared, Services = ["rabbitmq"]
         },
-        new("src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj", "CIEfCore")
+        new("src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj", "CIEfCoreMultiTenancy")
         {
             Postgres = ServerUse.Shared, SqlServer = ServerUse.Shared, Services = ["rabbitmq"]
         },

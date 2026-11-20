@@ -55,10 +55,10 @@ public class ReturnRequest : EventSourcedSaga
                 OrderFulfillmentId = requested.OrderFulfillmentId;
                 Amount = requested.Amount;
                 break;
-            case ReturnedItemsReceived _:
+            case ReturnedItemsReceived:
                 ItemsReceived = true;
                 break;
-            case ReturnRefunded _:
+            case ReturnRefunded:
                 IsRefunded = true;
                 break;
             case ReturnRefundAbandoned abandoned:

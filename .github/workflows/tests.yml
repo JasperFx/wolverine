@@ -66,6 +66,8 @@ jobs:
           - CIAzureServiceBusRouting
           - CICosmosDb
           - CIEfCore
+          # EfCoreTests.MultiTenancy, split off CIEfCore to keep both under the 20 minute cap (#3350).
+          - CIEfCoreMultiTenancy
           # Fisher is an embedded SQLite file - no container, no service dependency.
           - CIFisher
           - CIGrpc
