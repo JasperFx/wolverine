@@ -110,8 +110,9 @@ public static class EventSourcedSagaSupport
         var result = await method.InvokeAsync(saga, fault.Message, fault.Exception, live, context).ConfigureAwait(false);
         var (events, messages) = Split(result);
 
-        // GH-5673: a sequential unwind keeps the saga Compensating until its last undo message is confirmed
-        var sequence = result as UndoSequence;
+        // GH-5673: a sequential unwind keeps the saga Compensating until its last undo message is confirmed. GH-5698: the
+        // undo sequence may come in a tuple with the method's events
+        var sequence = UndoSequence.FoundIn(result);
         var sequential = sequence is { IsEmpty: false };
         stream.AppendOne(new SagaCompensating(step, thrownType)
         {

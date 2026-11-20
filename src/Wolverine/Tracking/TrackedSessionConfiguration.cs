@@ -30,7 +30,7 @@ public class TrackedSessionConfiguration
 
     /// <summary>
     /// GH-5664. Use <paramref name="clock" /> as this session's virtual "now", which
-    /// <see cref="ITrackedSession.PlayScheduledMessagesAsync(TimeSpan, TimeSpan?)" /> moves forward. Give it the clock the
+    /// <see cref="ITrackedSession.PlayScheduledMessagesAsync(TimeSpan, TimeSpan?, bool)" /> moves forward. Give it the clock the
     /// application reads, so a saga sees the due time of the message it is handling. Without this, the session uses the
     /// host's registered <see cref="TimeProvider" /> when it can move it, or else a clock of its own.
     /// </summary>

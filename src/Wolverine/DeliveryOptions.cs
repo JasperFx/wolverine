@@ -114,16 +114,19 @@ public class DeliveryOptions
             envelope.DeliverBy = DeliverBy;
         }
 
+        // GH-5676: a time already in the past (DateTimeOffset.MinValue is a common "right away") or a delay of zero is
+        // sent right away, so the envelope is not marked Scheduled. Marked anyway, it was sent right away and still
+        // recorded as scheduled, and a tracked session's playback could run it a second time
         if (ScheduledTime.HasValue)
         {
             envelope.ScheduledTime = ScheduledTime;
-            envelope.Status = EnvelopeStatus.Scheduled;
+            if (ScheduledTime.Value > DateTimeOffset.UtcNow) envelope.Status = EnvelopeStatus.Scheduled;
         }
 
         if (ScheduleDelay.HasValue)
         {
             envelope.ScheduleDelay = ScheduleDelay;
-            envelope.Status = EnvelopeStatus.Scheduled;
+            if (ScheduleDelay.Value > TimeSpan.Zero) envelope.Status = EnvelopeStatus.Scheduled;
         }
 
         if (AckRequested.HasValue)

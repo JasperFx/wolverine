@@ -1026,6 +1026,13 @@ with the first poll. For that, let time pass instead:
 session = await session.PlayScheduledMessagesAsync(advanceBy: 1.Hours());
 ```
 
+::: tip A played message goes through its queue in 7.0
+A played message for a local queue goes through that queue as if its time had come: the endpoint's retries,
+dead-lettering and a saga's `Compensate` methods all apply, and the session waits for them instead of throwing the
+first exception at your test. So "time passes, the poll fails, the saga compensates" is something you can test. To run
+local messages inline as Wolverine 6.x did, pass `playInline: true` to either overload.
+:::
+
 That plays only the scheduled messages that come due within the hour, in the order they come due. A message
 scheduled *while* the window plays, such as the saga's next poll, is played too when it comes due before the hour is
 up. Everything due later stays scheduled, and calling `PlayScheduledMessagesAsync(advanceBy:)` again on the session it
@@ -1097,7 +1104,7 @@ public class ExportWatchSaga : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Tracking/advancing_time_through_scheduled_messages_5664.cs#L272-L319' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_polling_saga_with_a_deadline' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Tracking/advancing_time_through_scheduled_messages_5664.cs#L298-L345' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_polling_saga_with_a_deadline' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And a test that walks it through the hour, with the host's `TimeProvider` registered as a clock the session can move:

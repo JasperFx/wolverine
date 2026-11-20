@@ -91,8 +91,10 @@ public static class SagaFlowDiagram
             {
                 var incoming = messageId(role.MessageType);
 
-                // GH-5674: a message the saga drops when it is gone, unless a NotFound answers it
-                if (role.DiscardedIfSagaMissing && role.Methods.All(x => x.Role != SagaRole.NotFound))
+                // GH-5674: a message the saga drops when it is gone, unless a NotFound answers it. GH-5701: never one that
+                // starts the saga, which can't find it missing
+                if (role.DiscardedIfSagaMissing && role.Role is not (SagaRole.Start or SagaRole.StartOrHandle) &&
+                    role.Methods.All(x => x.Role != SagaRole.NotFound))
                 {
                     _usesDropped = true;
                     _edges.Add($"{incoming} -.->|\"no saga, or completed\"| dropped");
@@ -118,15 +120,16 @@ public static class SagaFlowDiagram
             foreach (var compensation in _saga.Compensations)
             {
                 index++;
-                var failed = messageId(compensation.FailedMessageType);
                 var id = uniqueId($"Compensate_{safe(compensation.FailedMessageType.Name)}_{index}");
                 sagaBody.Add(
                     $"{id}[\"{label($"Compensate({displayName(compensation.FailedMessageType)}, {displayName(compensation.ExceptionType)})")}\"]");
                 _compensations.Add(id);
-                _edges.Add($"{failed} -.->|\"fails\"| {id}");
 
-                // GH-5672: a method for an interface or a base type compensates each concrete message it covers
-                foreach (var covered in compensation.Covers.Where(x => x.FullName != compensation.FailedMessageType.FullName))
+                // GH-5672 / GH-5701: a failure edge from each concrete message the method covers, the same types the
+                // runtime builds its Fault<T> chains for. No node for an interface, a base type or object. A descriptor
+                // from a service older than GH-5672 has no Covers: draw the failed message type itself
+                var failed = compensation.Covers.Length > 0 ? compensation.Covers : [compensation.FailedMessageType];
+                foreach (var covered in failed)
                 {
                     _edges.Add($"{messageId(covered)} -.->|\"fails\"| {id}");
                 }

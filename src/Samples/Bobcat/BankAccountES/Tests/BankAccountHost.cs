@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using Alba;
 using Bobcat.CritterStack;
 
@@ -15,7 +16,7 @@ public class BankAccountHost : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        Host = await AlbaHost.For<Program>();
+        Host = await AlbaHost.For<Program>(x => x.UseEnvironment(Environments.Production));
 
         // Not load-bearing for correctness: every spec mints its own ids, so no run can collide
         // with the last one. It is here so the event store does not grow without bound across runs.

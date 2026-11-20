@@ -95,8 +95,7 @@ public partial class HandlerGraph
                 "No pre-generated Wolverine types could be found in any assembly this application is using. Run 'dotnet run -- codegen write' as part of the build and compile its output into the application assembly, or run in TypeLoadMode.Auto.");
         }
 
-        message.AppendLine();
-        message.AppendLine(MissingPreBuiltTypesException.HowToFix);
+        // GH-5703: the exception ends the message with MissingPreBuiltTypesException.HowToFix
         message.AppendLine();
         message.Append("See https://wolverinefx.net/guide/codegen.html");
 

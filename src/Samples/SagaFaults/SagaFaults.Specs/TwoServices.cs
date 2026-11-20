@@ -51,7 +51,25 @@ public abstract class TwoServices : IAsyncLifetime
             })
             .StartAsync();
 
-        Orders = await Host.CreateDefaultBuilder()
+        Orders = await startOrdersAsync();
+
+        await ResetAsync();
+    }
+
+    /// <summary>
+    /// GH-5699: a real restart of the orders service. Its host is stopped and disposed, and a new one is built and started
+    /// against the same database and port, so whatever the old one left in its inbox and outbox is all the new one has.
+    /// </summary>
+    public async Task RestartOrdersAsync()
+    {
+        await Orders.StopAsync();
+        Orders.Dispose();
+
+        Orders = await startOrdersAsync();
+    }
+
+    private Task<IHost> startOrdersAsync()
+        => Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.ServiceName = OrdersName;
@@ -84,9 +102,6 @@ public abstract class TwoServices : IAsyncLifetime
                 ConfigureOrders(opts);
             })
             .StartAsync();
-
-        await ResetAsync();
-    }
 
     /// <summary>Every specification starts from empty stores and a working ledger.</summary>
     public async Task ResetAsync()
@@ -152,6 +167,25 @@ public class DurableFaultEventServices : FaultHandlingServices
     }
 }
 
+/// <summary>
+/// GH-5699: the chapter 1 saga again, with every local queue in orders backed by the durable inbox. The saga and the
+/// step that fails, ChargeCard, are in the same service, so the Fault&lt;ChargeCard&gt; goes to a durable local queue:
+/// it is written to the inbox, not the outbox, in the dead letter's transaction.
+/// </summary>
+public class DurableLocalFaultServices : FaultHandlingServices
+{
+    protected override string Schema => "saga_durable_local_faults";
+
+    protected override void ConfigureOrders(WolverineOptions opts)
+    {
+        base.ConfigureOrders(opts);
+        opts.Policies.UseDurableLocalQueues();
+
+        // A restart recovers the inbox on the durability agent's next pass: look every second rather than every five
+        opts.Durability.ScheduledJobPollingTime = 1.Seconds();
+    }
+}
+
 /// <summary>Chapter 2 (GH-5556): the Order saga that compensates.</summary>
 public class CompensationServices : TwoServices
 {
@@ -187,6 +221,9 @@ public class DurableFaultCollection : ICollectionFixture<DurableFaultServices>;
 
 [CollectionDefinition(nameof(DurableFaultEventCollection))]
 public class DurableFaultEventCollection : ICollectionFixture<DurableFaultEventServices>;
+
+[CollectionDefinition(nameof(DurableLocalFaultCollection))]
+public class DurableLocalFaultCollection : ICollectionFixture<DurableLocalFaultServices>;
 
 [CollectionDefinition(nameof(CompensationCollection))]
 public class CompensationCollection : ICollectionFixture<CompensationServices>;

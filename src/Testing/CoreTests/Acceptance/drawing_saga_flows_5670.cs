@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using JasperFx.Core;
 using JasperFx.Descriptors;
 using JasperFx.Resources;
@@ -5,6 +6,7 @@ using Spectre.Console;
 using Wolverine;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Configuration.Capabilities;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -28,7 +30,10 @@ public class drawing_saga_flows_5670 : IAsyncLifetime
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<ReportExport>()
                     .IncludeType<FreightBooking>()
-                    .IncludeType<ParcelDelivery>();
+                    .IncludeType<ParcelDelivery>()
+                    .IncludeType<CourierRun>()
+                    .IncludeType<WarehousePick>()
+                    .IncludeType<GiftOrder>();
             }).StartAsync();
 
         _capabilities = await ServiceCapabilities.ReadFrom(_host.GetRuntime(), null, CancellationToken.None);
@@ -175,6 +180,187 @@ public class drawing_saga_flows_5670 : IAsyncLifetime
 
         SagaFlowDiagram.ToMermaid(saga).ShouldBe(OlderServiceFlow);
     }
+
+    // GH-5701: with [SagaMissing(Discard)] on the saga, only a message for an existing saga is "logged and dropped". The
+    // start message creates the saga, so it can't find it missing
+    [Fact]
+    public void a_saga_that_discards_messages_for_a_missing_saga()
+    {
+        var saga = sagaOf<CourierRun>();
+        saga.Messages.Single(x => x.MessageType.Name == nameof(StartCourierRun)).DiscardedIfSagaMissing.ShouldBeFalse();
+        saga.Messages.Single(x => x.MessageType.Name == nameof(CourierArrived)).DiscardedIfSagaMissing.ShouldBeTrue();
+
+        SagaFlowDiagram.ToMermaid(saga).ShouldBe(DiscardingSagaFlow);
+    }
+
+    // GH-5701: a Compensate for an interface draws a failure edge from each concrete step it covers, and no node for the
+    // interface itself
+    [Fact]
+    public void a_compensate_method_for_an_interface()
+    {
+        var saga = sagaOf<WarehousePick>();
+        saga.Compensations.Single().Covers.Select(x => x.Name).ShouldBe([nameof(PackPickedItems), nameof(PickItems)]);
+
+        SagaFlowDiagram.ToMermaid(saga).ShouldBe(InterfaceCompensationFlow);
+    }
+
+    // GH-5701: a catch-all Compensate(object, ...) covers the steps the saga sends, but not the message it sends as it
+    // completes: GiftOrderShipped can't fail and be compensated
+    [Fact]
+    public void a_catch_all_compensate_method()
+    {
+        var saga = sagaOf<GiftOrder>();
+        saga.Compensations.Single().Covers.Select(x => x.Name).ShouldBe([nameof(ShipGift), nameof(WrapGift)]);
+
+        SagaFlowDiagram.ToMermaid(saga).ShouldBe(CatchAllCompensationFlow);
+    }
+
+    // GH-5701: the diagram and the runtime read what a Compensate method covers from the same place, so the failure
+    // edges into each Compensate node are exactly the concrete Fault<T> chains filed under that method
+    [Fact]
+    public void each_compensate_methods_failure_edges_are_its_fault_chains()
+    {
+        var graph = _host.GetRuntime().Handlers;
+        var sagas = _capabilities.Sagas.Where(x => x.Compensations.Count > 0).ToArray();
+        sagas.Length.ShouldBeGreaterThanOrEqualTo(4);
+
+        foreach (var saga in sagas)
+        {
+            var sagaType = graph.SagaChains().First(x => x.SagaType.FullName == saga.StateType.FullName).SagaType;
+            var mermaid = SagaFlowDiagram.ToMermaid(saga);
+            var names = Regex.Matches(mermaid, "^\\s*(msg_\\w+)\\(\\[\"(.+?)\"\\]\\)", RegexOptions.Multiline)
+                .ToDictionary(x => x.Groups[1].Value, x => x.Groups[2].Value);
+
+            for (var i = 0; i < saga.Compensations.Count; i++)
+            {
+                var compensation = saga.Compensations[i];
+                var method = SagaCompensationMethods.For(sagaType).Select(x => x)
+                    .Single(x => x.FailedType.FullName == compensation.FailedMessageType.FullName &&
+                                 x.ExceptionType.FullName == compensation.ExceptionType.FullName);
+
+                var faultChains = graph.SagaChains()
+                    .Where(x => x.SagaType == sagaType && x.SagaHandlerCalls().Any(call => call.Method == method.Method))
+                    .Select(x => SagaCompensations.FaultMessageType(x.MessageType))
+                    .OfType<Type>()
+                    .Where(x => !x.IsInterface && !x.IsAbstract && x != typeof(object))
+                    .Select(x => x.Name)
+                    .Order(StringComparer.Ordinal)
+                    .ToArray();
+
+                var node = $"Compensate_{compensation.FailedMessageType.Name}_{i + 1}";
+                var drawn = Regex.Matches(mermaid, $"^\\s*(msg_\\w+) -\\.->\\|\"fails\"\\| {node}$", RegexOptions.Multiline)
+                    .Select(x => names[x.Groups[1].Value])
+                    .Order(StringComparer.Ordinal)
+                    .ToArray();
+
+                drawn.ShouldBe(faultChains, $"{saga.StateType.Name}.{node}");
+            }
+        }
+    }
+
+    private const string DiscardingSagaFlow = """
+        flowchart TD
+            %% The flow of CourierRun, drawn by Wolverine from its saga metadata
+            msg_StartCourierRun(["StartCourierRun"])
+            msg_CourierArrived(["CourierArrived"])
+            msg_CourierDispatched(["CourierDispatched"])
+            subgraph saga_CourierRun["CourierRun"]
+                Start_StartCourierRun["Start(StartCourierRun)"]
+                Handle_CourierArrived["Handle(CourierArrived)"]
+            end
+            dropped["logged and dropped"]
+            msg_StartCourierRun --> Start_StartCourierRun
+            Start_StartCourierRun --> msg_CourierDispatched
+            msg_CourierArrived -.->|"no saga, or completed"| dropped
+            msg_CourierArrived --> Handle_CourierArrived
+            subgraph legend["Legend"]
+                legend_text["Rounded: a message<br/>Hexagon: a message scheduled for later, such as a timeout<br/>Rectangle: a method of the saga<br/>Dashed: scheduled, a failure, or a message that finds no saga or a completed one<br/>Messages a method sends through IMessageBus, rather than returns, are not shown"]
+            end
+            classDef message fill:#e8f1fb,stroke:#3b78c2,color:#10243e
+            classDef timeout fill:#fff4dd,stroke:#c98a00,color:#3d2a00
+            classDef event fill:#ffe2c6,stroke:#d9731a,color:#3d1f00
+            classDef method fill:#f4f4f4,stroke:#6b6b6b,color:#1c1c1c
+            classDef compensate fill:#fde8e8,stroke:#c53030,color:#3d0d0d
+            classDef legend fill:#ffffff,stroke:#b0b0b0,color:#333333
+            class msg_StartCourierRun,msg_CourierArrived,msg_CourierDispatched message
+            class Start_StartCourierRun,Handle_CourierArrived method
+            class legend_text legend
+        """ + "\n";
+
+    private const string InterfaceCompensationFlow = """
+        flowchart TD
+            %% The flow of WarehousePick, drawn by Wolverine from its saga metadata
+            msg_StartWarehousePick(["StartWarehousePick"])
+            msg_ItemsPicked(["ItemsPicked"])
+            msg_PickItems(["PickItems"])
+            msg_PackPickedItems(["PackPickedItems"])
+            msg_ReturnItemsToShelf(["ReturnItemsToShelf"])
+            subgraph saga_WarehousePick["WarehousePick"]
+                Start_StartWarehousePick["Start(StartWarehousePick)"]
+                Handle_ItemsPicked["Handle(ItemsPicked)"]
+                Compensate_IWarehouseStep_1["Compensate(IWarehouseStep, Exception)"]
+            end
+            msg_StartWarehousePick --> Start_StartWarehousePick
+            Start_StartWarehousePick --> msg_PickItems
+            msg_ItemsPicked --> Handle_ItemsPicked
+            Handle_ItemsPicked --> msg_PackPickedItems
+            msg_PackPickedItems -.->|"fails"| Compensate_IWarehouseStep_1
+            msg_PickItems -.->|"fails"| Compensate_IWarehouseStep_1
+            Compensate_IWarehouseStep_1 --> msg_ReturnItemsToShelf
+            subgraph legend["Legend"]
+                legend_text["Rounded: a message<br/>Hexagon: a message scheduled for later, such as a timeout<br/>Rectangle: a method of the saga<br/>Dashed: scheduled, a failure, or a message that finds no saga or a completed one<br/>Messages a method sends through IMessageBus, rather than returns, are not shown"]
+            end
+            classDef message fill:#e8f1fb,stroke:#3b78c2,color:#10243e
+            classDef timeout fill:#fff4dd,stroke:#c98a00,color:#3d2a00
+            classDef event fill:#ffe2c6,stroke:#d9731a,color:#3d1f00
+            classDef method fill:#f4f4f4,stroke:#6b6b6b,color:#1c1c1c
+            classDef compensate fill:#fde8e8,stroke:#c53030,color:#3d0d0d
+            classDef legend fill:#ffffff,stroke:#b0b0b0,color:#333333
+            class msg_StartWarehousePick,msg_ItemsPicked,msg_PickItems,msg_PackPickedItems,msg_ReturnItemsToShelf message
+            class Start_StartWarehousePick,Handle_ItemsPicked method
+            class Compensate_IWarehouseStep_1 compensate
+            class legend_text legend
+        """ + "\n";
+
+    private const string CatchAllCompensationFlow = """
+        flowchart TD
+            %% The flow of GiftOrder, drawn by Wolverine from its saga metadata
+            msg_OrderGift(["OrderGift"])
+            msg_GiftShipped(["GiftShipped"])
+            msg_GiftWrapped(["GiftWrapped"])
+            msg_WrapGift(["WrapGift"])
+            msg_GiftOrderShipped(["GiftOrderShipped"])
+            msg_ShipGift(["ShipGift"])
+            msg_CancelGiftOrder(["CancelGiftOrder"])
+            subgraph saga_GiftOrder["GiftOrder"]
+                Start_OrderGift["Start(OrderGift)"]
+                Handle_GiftShipped["Handle(GiftShipped)"]
+                Handle_GiftWrapped["Handle(GiftWrapped)"]
+                Compensate_Object_1["Compensate(Object, Exception)"]
+            end
+            msg_OrderGift --> Start_OrderGift
+            Start_OrderGift --> msg_WrapGift
+            msg_GiftShipped --> Handle_GiftShipped
+            Handle_GiftShipped --> msg_GiftOrderShipped
+            msg_GiftWrapped --> Handle_GiftWrapped
+            Handle_GiftWrapped --> msg_ShipGift
+            msg_ShipGift -.->|"fails"| Compensate_Object_1
+            msg_WrapGift -.->|"fails"| Compensate_Object_1
+            Compensate_Object_1 --> msg_CancelGiftOrder
+            subgraph legend["Legend"]
+                legend_text["Rounded: a message<br/>Hexagon: a message scheduled for later, such as a timeout<br/>Rectangle: a method of the saga<br/>Dashed: scheduled, a failure, or a message that finds no saga or a completed one<br/>Messages a method sends through IMessageBus, rather than returns, are not shown"]
+            end
+            classDef message fill:#e8f1fb,stroke:#3b78c2,color:#10243e
+            classDef timeout fill:#fff4dd,stroke:#c98a00,color:#3d2a00
+            classDef event fill:#ffe2c6,stroke:#d9731a,color:#3d1f00
+            classDef method fill:#f4f4f4,stroke:#6b6b6b,color:#1c1c1c
+            classDef compensate fill:#fde8e8,stroke:#c53030,color:#3d0d0d
+            classDef legend fill:#ffffff,stroke:#b0b0b0,color:#333333
+            class msg_OrderGift,msg_GiftShipped,msg_GiftWrapped,msg_WrapGift,msg_GiftOrderShipped,msg_ShipGift,msg_CancelGiftOrder message
+            class Start_OrderGift,Handle_GiftShipped,Handle_GiftWrapped method
+            class Compensate_Object_1 compensate
+            class legend_text legend
+        """ + "\n";
 
     private const string OlderServiceFlow = """
         flowchart TD
@@ -434,6 +620,89 @@ public class FreightBooking : CompensatingSaga
     public ReleaseFreightSpace Compensate(ReserveFreightSpace failed, FreightSpaceUnavailable e) => new(Id);
 
     public RefundFreightCard Compensate(ChargeFreightCard failed, ExceptionInfo e) => new(Id);
+}
+
+// ---- GH-5701: a saga that discards a message for a missing saga --------------------------------------------------------
+
+public record StartCourierRun(Guid CourierRunId);
+
+public record CourierDispatched(Guid CourierRunId);
+
+public record CourierArrived(Guid CourierRunId);
+
+[SagaMissing(SagaMissingBehavior.Discard)]
+public class CourierRun : Saga
+{
+    public Guid Id { get; set; }
+
+    public static (CourierRun, CourierDispatched) Start(StartCourierRun command)
+        => (new CourierRun { Id = command.CourierRunId }, new CourierDispatched(command.CourierRunId));
+
+    public void Handle(CourierArrived arrived) => MarkCompleted();
+}
+
+// ---- GH-5701: a Compensate method for an interface ---------------------------------------------------------------------
+
+public interface IWarehouseStep
+{
+    Guid WarehousePickId { get; }
+}
+
+public record StartWarehousePick(Guid WarehousePickId);
+
+public record PickItems(Guid WarehousePickId) : IWarehouseStep;
+
+public record ItemsPicked(Guid WarehousePickId);
+
+public record PackPickedItems(Guid WarehousePickId) : IWarehouseStep;
+
+public record ReturnItemsToShelf(Guid WarehousePickId);
+
+public class WarehousePick : CompensatingSaga
+{
+    public Guid Id { get; set; }
+
+    public static (WarehousePick, PickItems) Start(StartWarehousePick command)
+        => (new WarehousePick { Id = command.WarehousePickId }, new PickItems(command.WarehousePickId));
+
+    public PackPickedItems Handle(ItemsPicked picked) => new(Id);
+
+    public ReturnItemsToShelf Compensate(IWarehouseStep failed, ExceptionInfo e) => new(Id);
+}
+
+// ---- GH-5701: a catch-all Compensate method ----------------------------------------------------------------------------
+
+public record OrderGift(Guid GiftOrderId);
+
+public record WrapGift(Guid GiftOrderId);
+
+public record GiftWrapped(Guid GiftOrderId);
+
+public record ShipGift(Guid GiftOrderId);
+
+public record GiftShipped(Guid GiftOrderId);
+
+public record GiftOrderShipped(Guid GiftOrderId);
+
+public record CancelGiftOrder(Guid GiftOrderId);
+
+public class GiftOrder : CompensatingSaga
+{
+    public Guid Id { get; set; }
+
+    public static (GiftOrder, WrapGift) Start(OrderGift command)
+        => (new GiftOrder { Id = command.GiftOrderId }, new WrapGift(command.GiftOrderId));
+
+    public ShipGift Handle(GiftWrapped wrapped) => new(Id);
+
+    // Sent as the saga completes: what it says when it is finished, not a step
+    public GiftOrderShipped Handle(GiftShipped shipped)
+    {
+        MarkCompleted();
+        return new GiftOrderShipped(Id);
+    }
+
+    public CancelGiftOrder Compensate(object failed, ExceptionInfo e) => new(Id);
 }
 
 // ---- an event-sourced saga -------------------------------------------------------------------------------------------

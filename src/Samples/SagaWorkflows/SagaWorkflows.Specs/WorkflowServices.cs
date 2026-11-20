@@ -110,6 +110,7 @@ public abstract class WorkflowServices : IAsyncLifetime
                 opts.PublishMessage<CancelCar>().ToPort(ProvidersPort);
                 opts.PublishMessage<CancelHotel>().ToPort(ProvidersPort);
                 opts.PublishMessage<TripBooked>().ToPort(ProvidersPort);
+                opts.PublishMessage<NotifyTraveller>().ToPort(ProvidersPort);
 
                 // Fraud screening, by namespace: this rule names no message type
                 opts.Publish(x =>
@@ -182,6 +183,30 @@ public class EventSourcedSagaServices : WorkflowServices
         => opts.Discovery.IncludeType(typeof(EventSourcedTransfer)).IncludeType(typeof(EventSourcedSubscription))
             .IncludeType(typeof(EventSourcedTrip));
 }
+
+/// <summary>GH-5698: the trips whose Compensate methods return the undo sequence in a tuple, as a document saga.</summary>
+public class DocumentTripThatSaysWhyServices : WorkflowServices
+{
+    protected override string Schema => "saga_workflows_tuple";
+
+    protected override void ConfigureWorkflows(WolverineOptions opts)
+        => opts.Discovery.IncludeType(typeof(TripThatSaysWhy));
+}
+
+/// <summary>GH-5698: the same, as an event-sourced saga.</summary>
+public class EventSourcedTripThatSaysWhyServices : WorkflowServices
+{
+    protected override string Schema => "saga_workflows_tuple_es";
+
+    protected override void ConfigureWorkflows(WolverineOptions opts)
+        => opts.Discovery.IncludeType(typeof(EventSourcedTripThatSaysWhy));
+}
+
+[CollectionDefinition(nameof(DocumentTripThatSaysWhyCollection))]
+public class DocumentTripThatSaysWhyCollection : ICollectionFixture<DocumentTripThatSaysWhyServices>;
+
+[CollectionDefinition(nameof(EventSourcedTripThatSaysWhyCollection))]
+public class EventSourcedTripThatSaysWhyCollection : ICollectionFixture<EventSourcedTripThatSaysWhyServices>;
 
 [CollectionDefinition(nameof(DocumentSagaCollection))]
 public class DocumentSagaCollection : ICollectionFixture<DocumentSagaServices>;

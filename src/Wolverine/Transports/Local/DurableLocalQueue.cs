@@ -12,7 +12,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Transports.Local;
 
-internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
+internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue, IPlaysScheduledMessages
 {
     private readonly IMessageInbox _inbox;
     private readonly ILogger _logger;
@@ -518,6 +518,19 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     }
 
     /// <summary>
+    /// GH-5699. An envelope sent to this queue by its address -- <c>EndpointFor(...).SendAsync()</c>, or a
+    /// <see cref="Fault{T}" /> going to the reply address a saga asked for -- never went through the local message route
+    /// that marks a local envelope <see cref="EnvelopeStatus.Incoming" />. Written to the inbox as it is, its row would
+    /// stay <see cref="EnvelopeStatus.Outgoing" /> with no owner, and recovery would never pick it up after a crash.
+    /// </summary>
+    internal void PrepareForInbox(Envelope envelope)
+    {
+        if (envelope.Status != EnvelopeStatus.Outgoing) return;
+
+        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, _settings);
+    }
+
+    /// <summary>
     /// GH-5586. Called as an envelope bound here joins a transaction. If the queue is full (or latched), its inbox row
     /// is written for any node and the flush after the commit leaves it for recovery, so the publisher never waits for
     /// room in the queue.
@@ -572,6 +585,19 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         // GH-4662: awaited rather than posted to a RetryBlock, so a store that stays down fails the
         // publish instead of discarding the envelope behind the caller's back.
         return new ValueTask(storeAndEnqueueAsync(envelope));
+    }
+
+    /// <inheritdoc />
+    public Task PlayNowAsync(Envelope envelope)
+    {
+        writeMessageData(envelope);
+        _messageLogger.Sent(envelope);
+        envelope.PrepareForIncomingPersistence(DateTimeOffset.UtcNow, _settings);
+
+        var receiver = _receiver ?? throw new InvalidOperationException(
+            $"The durable local queue {Uri} is paused, so it cannot play {envelope.MessageType}");
+
+        return receiver.Pipeline.InvokeAsync(envelope, receiver);
     }
 
     public bool SupportsNativeScheduledSend => true;

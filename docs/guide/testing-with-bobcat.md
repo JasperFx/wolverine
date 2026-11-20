@@ -215,8 +215,10 @@ await WhenScheduledMessagesAreExecuted();                // the new act: the tim
 ThenMessageSent<EscalateLateShipment>();
 ```
 
-`WhenScheduledMessagesAreExecuted(TimeSpan? timeout = null)` executes every message the last act scheduled, a local
-one inline and any other sent to its destination, and becomes the new act: `LastAct` is what the replay did, so the
+`WhenScheduledMessagesAreExecuted(TimeSpan? timeout = null, bool playInline = false)` executes every message the last
+act scheduled, and becomes the new act. A local message goes through its queue as if its time had come, with the
+endpoint's retries, dead-lettering and a saga's compensation, and any other message is sent to its destination. Pass
+`playInline: true` to run a local message inline instead, where its first failure fails the act. The new act: `LastAct` is what the replay did, so the
 Then steps after it judge the scheduled messages' handlers (a saga's timeout, a `DelayedFor` reminder, a
 `TimeoutMessage` sent with `WhenReceived`). `timeout` is how long it waits for everything the replay caused to settle,
 `Timeout` by default. The replay keeps the scheduled messages' correlation id, so `ThenEventuallyCaused` still finds
@@ -243,11 +245,24 @@ ThenHandled<ReportDeadline>();
 await ThenNoSaga<ReportWatch>(id);
 ```
 
-`WhenTimePasses(TimeSpan duration, TimeSpan? timeout = null)` executes, in due order, every scheduled message that
+`WhenTimePasses(TimeSpan duration, TimeSpan? timeout = null, bool playInline = false)` executes, in due order, every scheduled message that
 comes due within `duration`: what earlier acts scheduled and what is scheduled while the time passes, such as the
 saga's next poll. Everything due later stays scheduled for the next `WhenTimePasses`, and time passing with nothing
 due is not a failure. It is Wolverine's `ITrackedSession.PlayScheduledMessagesAsync(advanceBy:)` underneath, see
 [Letting time pass](/guide/testing#letting-time-pass).
+
+A message that fails is handled the way the endpoint handles any failure, so a spec can show a saga compensating
+when time passes and its poll fails:
+
+```csharp
+await WhenReceived(new StartExportPolling(id));
+
+TheExportServiceIsDown();
+await WhenTimePasses(5.Minutes());                       // the poll fails three times, then the saga compensates
+
+ThenMessageSent(new ExportPollingGaveUp(id, "The export service is down"));
+await ThenNoSaga<ExportPolling>(id);
+```
 
 The clock that moves is the ambient `BobcatClock`, the one `GivenTheTimeIs` freezes. An application that reads it
 through `services.ShareClock()` sees each message's due time while handling it. In `CritterStackSpec` the same

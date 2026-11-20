@@ -106,6 +106,16 @@ public abstract class SagaWorkflowSpec : WolverineSpec, IAsyncLifetime
             string.Join(", ", steps));
     }
 
+    /// <summary>GH-5698. The event-sourced saga's own stream holds <paramref name="expected" />, appended at any point</summary>
+    [Then("the stream of saga {sagaId} holds {expected}")]
+    public async Task ThenTheSagaStreamHolds(Guid sagaId, object expected)
+    {
+        await using var session = _services.Workflows.Services.GetRequiredService<IDocumentStore>().QuerySession();
+        var events = await session.Events.FetchStreamAsync(sagaId);
+        SpecAssert.Fact(events.Any(x => Equals(x.Data, expected)),
+            $"Expected the saga's stream to hold {expected}, but it holds {string.Join(", ", events.Select(x => x.Data.GetType().Name))}");
+    }
+
     /// <summary>
     /// The undo messages were handled in this order, and each one was sent only after the one before it was handled: a
     /// sequential unwind, not a batch

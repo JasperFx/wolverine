@@ -758,6 +758,12 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         Wolverine.Runtime.Serialization.IntrinsicSerializer.Instance.Prepopulate(allMessageTypes);
     }
 
+    /// <summary>
+    /// GH-5701. What each saga <c>Compensate</c> method covers: the same answer the <c>Fault&lt;T&gt;</c> chains were
+    /// built from
+    /// </summary>
+    internal SagaCompensationCoverage CompensationCoverage { get; private set; } = SagaCompensationCoverage.Empty;
+
     private void compileWithRuntimeScanning(WolverineOptions options, ILogger logger)
     {
         (Type, MethodInfo)[] methods;
@@ -797,7 +803,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         // GH-5556: a saga's Compensate(T, ...) methods are its chain for Fault<T>. GH-5672: a Compensate for an
         // interface or base type is filed under the fault of every concrete message type the application knows
-        calls.AddRange(SagaCompensations.FindCalls(calls, _messageTypes.Enumerate().Select(x => x.Value).ToArray()).ToArray());
+        calls.AddRange(SagaCompensations.FindCalls(calls, _messageTypes.Enumerate().Select(x => x.Value).ToArray(),
+            out var coverage));
+
+        // GH-5701: the saga descriptions and flow diagrams read what each Compensate method covers from here
+        CompensationCoverage = coverage;
 
         if (methods.Length == 0)
         {

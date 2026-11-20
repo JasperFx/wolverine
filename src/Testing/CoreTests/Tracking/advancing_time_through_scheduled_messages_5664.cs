@@ -231,18 +231,29 @@ public class advancing_time_without_a_shared_clock_5664 : IAsyncLifetime
     }
 
     [Fact]
-    public async Task a_message_scheduled_at_the_minimum_time_is_due_now_and_never_breaks_the_session()
+    public async Task a_message_scheduled_at_the_minimum_time_is_sent_right_away_and_never_played_again()
     {
-        // DateTimeOffset.MinValue is a common way to say "right away"; working out its due time used to overflow
+        // DateTimeOffset.MinValue is a common way to say "right away"; working out its due time used to overflow.
+        // GH-5676: it is sent right away, so it is not recorded as scheduled, and playback can't run it a second time
         var session = await _host.ExecuteAndWaitAsync(c =>
             c.SendAsync(new Reminder("right away"), new DeliveryOptions { ScheduledTime = DateTimeOffset.MinValue })
                 .AsTask());
 
-        // Overdue means due now, on the session's clock
-        var pending = ((TrackedSession)session).pendingScheduled()
-            .Single(x => x.Envelope.Message is Reminder { Text: "right away" });
+        session.Executed.SingleMessage<Reminder>().Text.ShouldBe("right away");
+        session.Scheduled.MessagesOf<Reminder>().ShouldBeEmpty();
+        ((TrackedSession)session).pendingScheduled().ShouldBeEmpty();
 
-        pending.DueAt.ShouldBeLessThanOrEqualTo(session.Clock.GetUtcNow());
+        session = await session.PlayScheduledMessagesAsync(advanceBy: 1.Minutes());
+        session.Executed.MessagesOf<Reminder>().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task a_delay_of_zero_is_sent_right_away_too()
+    {
+        var session = await _host.ExecuteAndWaitAsync(c => c.ScheduleAsync(new Reminder("no delay"), TimeSpan.Zero).AsTask());
+
+        session.Executed.SingleMessage<Reminder>().Text.ShouldBe("no delay");
+        ((TrackedSession)session).pendingScheduled().ShouldBeEmpty();
     }
 
     [Fact]

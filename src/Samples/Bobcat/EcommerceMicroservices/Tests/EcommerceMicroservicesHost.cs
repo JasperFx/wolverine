@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using Alba;
 
 namespace EcommerceMicroservices.Tests;
@@ -11,7 +12,7 @@ public class EcommerceMicroservicesHost : IAsyncLifetime
 {
     public IAlbaHost Host { get; private set; } = null!;
 
-    public async ValueTask InitializeAsync() => Host = await AlbaHost.For<Program>();
+    public async ValueTask InitializeAsync() => Host = await AlbaHost.For<Program>(x => x.UseEnvironment(Environments.Production));
 
     public async ValueTask DisposeAsync()
     {

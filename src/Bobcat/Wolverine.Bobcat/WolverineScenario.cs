@@ -376,9 +376,11 @@ public partial class WolverineScenario : CritterStackScenario
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Every message the last act scheduled is executed, a local one inline and any other sent to its destination.
-    /// The replay keeps the scheduled messages' correlation id, so <see cref="ThenEventuallyCaused(object[])" /> still
-    /// finds what they caused.
+    /// Every message the last act scheduled is executed. GH-5700: it is delivered to its queue as if its time had come,
+    /// a local queue included, so the endpoint's retries, dead-lettering and a saga's <c>Compensate</c> methods apply,
+    /// and the act waits for all of it. Pass <c>playInline: true</c> to run a local message inline instead, as before
+    /// 7.0, where its first failure fails the act. The replay keeps the scheduled messages' correlation id, so
+    /// <see cref="ThenEventuallyCaused(object[])" /> still finds what they caused.
     /// </para>
     /// <para>
     /// With no act before it, or an act that scheduled nothing, the step fails and stops the scenario, saying what
@@ -387,9 +389,11 @@ public partial class WolverineScenario : CritterStackScenario
     /// </para>
     /// </remarks>
     /// <param name="timeout">How long the replay waits for everything it caused to settle. <see cref="Timeout" /> by default.</param>
-    public Task WhenScheduledMessagesAreExecuted(TimeSpan? timeout = null) => root.playScheduledAsync(timeout ?? Timeout);
+    /// <param name="playInline">Run a message for a local queue inline: only inline retries, no dead-lettering or compensation.</param>
+    public Task WhenScheduledMessagesAreExecuted(TimeSpan? timeout = null, bool playInline = false)
+        => root.playScheduledAsync(timeout ?? Timeout, playInline);
 
-    private async Task playScheduledAsync(TimeSpan timeout)
+    private async Task playScheduledAsync(TimeSpan timeout, bool playInline)
     {
         var previous = acted ? LastAct : null;
         var scheduled = previous?.Session is { } session ? scheduledIn(session).ToList() : [];
@@ -416,14 +420,14 @@ public partial class WolverineScenario : CritterStackScenario
 
             // Everything the replay commits is the act's own: there is no one message to tell its work from a cascade's
             _dispatched = null;
-            await executeAsync(_ => replayAsync(previous, played, timeout),
+            await executeAsync(_ => replayAsync(previous, played, timeout, playInline),
                 outcome => Task.FromResult(outcome with { CorrelationId = previous.CorrelationId ?? outcome.CorrelationId }));
         });
     }
 
     /// <summary>
     /// GH-5664. <paramref name="duration" /> passes: the scheduled messages that come due within it are executed, in due
-    /// order, through Wolverine's <see cref="ITrackedSession.PlayScheduledMessagesAsync(TimeSpan, TimeSpan?)" />, and
+    /// order, through Wolverine's <see cref="ITrackedSession.PlayScheduledMessagesAsync(TimeSpan, TimeSpan?, bool)" />, and
     /// this is the new act. A message scheduled while the time passes, such as a saga's next poll, is executed too when
     /// it comes due before the end; everything due later stays scheduled for the next <c>WhenTimePasses</c>.
     /// </summary>
@@ -436,24 +440,31 @@ public partial class WolverineScenario : CritterStackScenario
     /// still executes everything at once.
     /// </para>
     /// <para>
+    /// GH-5700. A due message is delivered to its queue as if its time had come, a local queue included, so the
+    /// endpoint's retries, dead-lettering and a saga's <c>Compensate</c> methods apply: "time passes, the poll fails,
+    /// the saga compensates" is a spec. Pass <c>playInline: true</c> to run a local message inline instead, where its
+    /// first failure fails the act.
+    /// </para>
+    /// <para>
     /// With no act before it, the step fails and stops the scenario. Time passing with nothing due is not a failure:
     /// the act then did nothing, which a Then step can judge.
     /// </para>
     /// </remarks>
     /// <param name="duration">How much time passes. Never negative.</param>
     /// <param name="timeout">How long the act waits for everything it caused to settle. <see cref="Timeout" /> by default.</param>
+    /// <param name="playInline">Run a message for a local queue inline: only inline retries, no dead-lettering or compensation.</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="duration" /> is negative: time only passes forward.</exception>
-    public Task WhenTimePasses(TimeSpan duration, TimeSpan? timeout = null)
+    public Task WhenTimePasses(TimeSpan duration, TimeSpan? timeout = null, bool playInline = false)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(duration, TimeSpan.Zero);
 
         // Synchronous on purpose: the clock is AsyncLocal, and one installed inside an async method never flows back to
         // the spec, so the next step would not see the time that passed
         var clock = BobcatClock.Controllable();
-        return root.passTimeAsync(duration, timeout ?? Timeout, clock);
+        return root.passTimeAsync(duration, timeout ?? Timeout, clock, playInline);
     }
 
-    private async Task passTimeAsync(TimeSpan duration, TimeSpan timeout, TimeProvider clock)
+    private async Task passTimeAsync(TimeSpan duration, TimeSpan timeout, TimeProvider clock, bool playInline)
     {
         var previous = acted ? LastAct : null;
 
@@ -474,16 +485,17 @@ public partial class WolverineScenario : CritterStackScenario
 
             // Everything the window commits is the act's own: there is no one message to tell its work from a cascade's
             _dispatched = null;
-            await executeAsync(_ => played.PlayScheduledMessagesAsync(duration, timeout, clock),
+            await executeAsync(_ => played.PlayScheduledMessagesAsync(duration, timeout, clock, playInline),
                 outcome => Task.FromResult(outcome with { CorrelationId = previous.CorrelationId ?? outcome.CorrelationId }));
         });
     }
 
-    private static async Task<ITrackedSession> replayAsync(ActOutcome previous, ITrackedSession played, TimeSpan timeout)
+    private static async Task<ITrackedSession> replayAsync(ActOutcome previous, ITrackedSession played, TimeSpan timeout,
+        bool playInline)
     {
         try
         {
-            return await played.PlayScheduledMessagesAsync(timeout);
+            return await played.PlayScheduledMessagesAsync(timeout, playInline);
         }
         catch (Exception e) when (e.Message.Contains("No scheduled messages recorded", StringComparison.Ordinal))
         {

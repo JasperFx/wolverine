@@ -9,8 +9,20 @@ namespace Wolverine.Runtime.Handlers;
 /// </summary>
 public class MissingPreBuiltTypesException : Exception
 {
-    public MissingPreBuiltTypesException(string message) : base(message)
+    /// <summary>
+    ///     GH-5703: <paramref name="message" /> names the missing types. The exception always ends it with
+    ///     <see cref="HowToFix" />, so every place that throws it says what to do
+    /// </summary>
+    public MissingPreBuiltTypesException(string message) : base(endWithHowToFix(message))
     {
+    }
+
+    private static string endWithHowToFix(string message)
+    {
+        var trimmed = message.TrimEnd();
+        if (trimmed.EndsWith(HowToFix, StringComparison.Ordinal)) return trimmed;
+
+        return trimmed + Environment.NewLine + Environment.NewLine + HowToFix;
     }
 
     /// <summary>
