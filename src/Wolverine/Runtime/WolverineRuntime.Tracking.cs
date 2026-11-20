@@ -321,11 +321,40 @@ public sealed partial class WolverineRuntime : IMessageTracker
     {
         Logger.LogInformation("Requeue for message {Id} of message type {MessageType}", envelope.Id, envelope.MessageType);
         ActiveSession?.Record(MessageEventType.Requeued, envelope, _serviceName, _uniqueNodeId);
-        var level = envelope.Message is { } message ? Handlers.HandlerFor(message.GetType())?.FailureLogLevel ?? LogLevel.Error : LogLevel.Error;
-        if (level != LogLevel.None)
+        var level = requeueLogLevelFor(envelope);
+        if (level is >= LogLevel.Trace and <= LogLevel.Critical)
         {
             _rescheduled[(int)level](Logger, envelope, null);
         }
+    }
+
+    // GH-5661. Requeued runs on every requeue, scheduled retry and DeferAsync, so finding the level must never throw.
+    // HandlerGraph.HandlerFor(Type) throws for a message type handled by more than one handler type (separated mode)
+    private LogLevel requeueLogLevelFor(Envelope envelope)
+    {
+        // The level of the handler that actually ran this envelope, stamped by its executor
+        if (envelope.HandlerFailureLogLevel is { } stamped) return stamped;
+
+        // Not executed here (a batch member, a message with no handler): the chains of the message type, when
+        // they agree on one level. A separated handler type is a sticky chain under the message type's chain
+        if (envelope.Message is { } message && Handlers.ChainFor(message.GetType()) is { } chain)
+        {
+            LogLevel? level = chain.HasDefaultNonStickyHandlers() ? chain.FailureLogLevel : null;
+            var agree = true;
+            foreach (var sticky in chain.ByEndpoint)
+            {
+                level ??= sticky.FailureLogLevel;
+                if (sticky.FailureLogLevel != level)
+                {
+                    agree = false;
+                    break;
+                }
+            }
+
+            if (agree && level.HasValue) return level.Value;
+        }
+
+        return Options.MessageFailureLogLevel ?? LogLevel.Error;
     }
 
     public void LogException(Exception ex, object? correlationId = null,

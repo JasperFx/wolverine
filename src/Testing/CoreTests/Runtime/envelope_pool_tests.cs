@@ -3,6 +3,7 @@ using JasperFx.Resources;
 using NSubstitute;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
@@ -90,6 +91,7 @@ public class envelope_pool_tests
         envelope.AckAttempts = 2;
         envelope.WireTap = Substitute.For<IWireTap>();
         envelope.Store = Substitute.For<IMessageStore>();
+        envelope.HandlerFailureLogLevel = LogLevel.Warning;
 
         // Also stamp the Headers dictionary so Reset's _headers = null path
         // is exercised.
