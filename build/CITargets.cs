@@ -682,8 +682,36 @@ partial class Build
     //
     // CIPersistence is deliberately the larger of the two only because PersistenceTests cannot be split
     // out without a third runner; it is still roughly half of what the single job used to carry.
+    //
+    // It outgrew the cap again with the 7.0 work (sagas, deduplication, recurring timers, failure groups,
+    // tenancy): by 2026-11-20 green runs took 13-15m, ten of the last 37 took 17.5-19.7m, and #5688's
+    // first run was cancelled at the cap on a runner ~1.4x slower across the board, 8 tests short. So a
+    // third runner, CIPostgresqlFeatures, takes the Agents, Bugs, Durability, MultiTenancy and Sagas
+    // namespaces plus the four deduplication classes in the root namespace. Measured from the green
+    // rerun of that job (2026-11-20, job 136430545824), seconds of test time:
+    //
+    //   CIPostgresql           unchanged                                              ~7-10m job
+    //   CIPostgresqlFeatures   Agents 52, Bugs 54, Durability 28, MultiTenancy 55,
+    //                          Sagas 53, deduplication classes 87                      ~329s
+    //   CIPersistence          PersistenceTests 126 + the rest of the root namespace 224 ~350s
+    //
+    // CIPersistence still excludes BOTH lists, so a newly added PostgresqlTests class or namespace
+    // still runs somewhere.
 
     AbsolutePath PostgresqlTests => RootDirectory / "src" / "Persistence" / "PostgresqlTests" / "PostgresqlTests.csproj";
+
+    static readonly string[] PostgresqlFeaturesShard =
+    [
+        "PostgresqlTests.Agents",                                              // 52.3s
+        "PostgresqlTests.Bugs",                                                // 54.1s
+        "PostgresqlTests.Durability",                                          // 27.5s
+        "PostgresqlTests.MultiTenancy",                                        // 55.1s
+        "PostgresqlTests.Sagas",                                               // 53.1s
+        "PostgresqlTests.deduplication_store_compliance",                      // 29.1s / 44 tests
+        "PostgresqlTests.an_identity_the_inbox_already_handled_is_a_duplicate", // 27.8s / 22 tests
+        "PostgresqlTests.logical_message_deduplication",                       // 19.0s / 15 tests
+        "PostgresqlTests.replayable_deduplication_store_compliance"            // 10.7s / 14 tests
+    ];
 
     static readonly string[] PostgresqlShard =
     [
@@ -695,7 +723,8 @@ partial class Build
     ];
 
     /// <summary>
-    /// PersistenceTests, plus every PostgresqlTests test not claimed by <see cref="CIPostgresql"/>.
+    /// PersistenceTests, plus every PostgresqlTests test not claimed by <see cref="CIPostgresql"/> or
+    /// <see cref="CIPostgresqlFeatures"/>.
     /// </summary>
     Target CIPersistence => _ => _
         .ProceedAfterFailure()
@@ -709,7 +738,24 @@ partial class Build
             StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 
             RunTestProject(persistenceTests, frameworkOverride: "net10.0");
-            RunTestProject(PostgresqlTests, testFilter: excludeNamespaces(PostgresqlShard));
+            RunTestProject(PostgresqlTests,
+                testFilter: excludeNamespaces([.. PostgresqlShard, .. PostgresqlFeaturesShard]));
+        });
+
+    /// <summary>
+    /// PostgresqlTests shard: the agent, bug regression, durability, multi-tenancy and saga namespaces,
+    /// and the deduplication classes.
+    /// </summary>
+    Target CIPostgresqlFeatures => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            // Bugs.Bug_1942_replay_dlq_to_buffered_or_inline replays dead letters to a RabbitMQ listener.
+            LaunchDockerServices("postgresql", "rabbitmq");
+            BuildTestProjects(PostgresqlTests);
+            AwaitDockerServices("postgresql", "rabbitmq");
+
+            RunTestProject(PostgresqlTests, testFilter: includeNamespaces(PostgresqlFeaturesShard));
         });
 
     /// <summary>
