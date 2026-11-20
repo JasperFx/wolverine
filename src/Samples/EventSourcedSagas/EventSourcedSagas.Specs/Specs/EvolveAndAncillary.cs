@@ -10,6 +10,8 @@ namespace EventSourcedSagas.Specs;
 
 // Wolverine's own events reach the EventSourcedSaga base type's Apply methods beside the saga's own Evolve: an inherited
 // Apply runs first, then Evolve (JasperFx/jasperfx#1241, JasperFx 3.8.0)
+// ReturnRequest's Evolve() uses bare case labels (`case ReturnedItemsReceived:`), so
+// receiving_the_items_continues_the_return also proves the JasperFx.Events 3.9.0 generator reads them.
 // "An event-sourced saga written with Evolve()": run on Marten, Polecat and Fisher by the classes in StoreParity.cs
 public abstract class an_event_sourced_saga_written_with_evolve(FulfillmentServices services) : EventSourcedSagaSpec(services)
 {

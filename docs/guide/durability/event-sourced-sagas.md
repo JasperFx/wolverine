@@ -232,10 +232,10 @@ public class ReturnRequest : EventSourcedSaga
                 OrderFulfillmentId = requested.OrderFulfillmentId;
                 Amount = requested.Amount;
                 break;
-            case ReturnedItemsReceived _:
+            case ReturnedItemsReceived:
                 ItemsReceived = true;
                 break;
-            case ReturnRefunded _:
+            case ReturnRefunded:
                 IsRefunded = true;
                 break;
             case ReturnRefundAbandoned abandoned:
@@ -265,9 +265,11 @@ reference the generator package directly, and its copy wins over the bundled one
 ```
 :::
 
-Use type patterns with a variable or a discard in `Evolve` (`case ReturnedItemsReceived _:`): the JasperFx.Events
-source generator reads the event types an `Evolve` handles from its `case` labels, and does not recognise a bare
-`case ReturnedItemsReceived:`.
+The generator reads the event types an `Evolve` handles from its `case` labels. A bare type pattern
+(`case ReturnedItemsReceived:`) needs the generator 3.9.0 or later
+([jasperfx#1243](https://github.com/JasperFx/jasperfx/issues/1243)). Marten 10.0.0-alpha.6, Polecat 6.0.0-alpha.8 and
+Fisher 2.0.0-alpha.6 still bundle 3.8.0, so on those either reference the 3.9.0 generator directly as above, or write
+`case ReturnedItemsReceived _:`. With 3.8.0 a bare label compiles, but the saga never sees that event.
 
 ## Snapshots
 

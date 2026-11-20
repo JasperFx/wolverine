@@ -117,7 +117,7 @@ code and commit.
 | CoreTests | `./build.sh CoreTests --framework net10.0` | none |
 | PostgresqlTests (with PersistenceTests) | `./build.sh CIPostgresql --framework net10.0` and `./build.sh CIPersistence --framework net10.0` (two shards of PostgresqlTests; both make the whole suite) | postgresql, sqlserver, rabbitmq |
 | MartenTests | `./build.sh CIMartenDistribution --framework net10.0`, `./build.sh CIMartenTenancy --framework net10.0` and `./build.sh CIMarten --framework net10.0` (three shards of one project; all three make the whole suite) | postgresql |
-| EfCoreTests | `./build.sh CIEfCore --framework net10.0` | postgresql, sqlserver, rabbitmq |
+| EfCoreTests (with EfCoreTests.MultiTenancy) | `./build.sh CIEfCore --framework net10.0` and `./build.sh CIEfCoreMultiTenancy --framework net10.0` | postgresql, sqlserver, rabbitmq |
 | SqlServerTests | `./build.sh CISqlServer --framework net10.0` | sqlserver |
 
 `CoreTests` is the one target that compiles the **whole solution** first (`Compile`, after
@@ -136,7 +136,7 @@ own projects.
 | `CIOracle` | OracleTests | oracle | the slowest image to become ready |
 | `CISqlite` | SqliteTests | none | |
 | `CIFisher` | FisherTests, InMemoryTests | none | |
-| `CIEfCore` | EfCoreTests (+ EfCoreTests.MultiTenancy on net10.0) | postgresql, sqlserver, rabbitmq | |
+| `CIEfCore` / `CIEfCoreMultiTenancy` | EfCoreTests; EfCoreTests.MultiTenancy (net10.0, own job) | postgresql, sqlserver, rabbitmq | |
 | `CIMartenDistribution` / `CIMartenTenancy` / `CIMarten` | MartenTests shards (+ MartenSubscriptionTests in `CIMarten`) | postgresql | |
 | `CIPolecat` / `CIPolecatWorkflow` / `CIPolecatSagas` | PolecatTests shards (+ PolecatIncidentService.Tests in `CIPolecat`) | sqlserver | net10.0 |
 | `CICosmosDb` | CosmosDbTests, CosmosDbTests.LeaderElection | none from compose | starts its own emulator through Testcontainers (Docker required, dynamic ports) |

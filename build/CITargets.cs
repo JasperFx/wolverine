@@ -1030,20 +1030,15 @@ partial class Build
                                             "EfCoreTests.MultiTenancy.csproj";
 
     /// <param name="framework">
-    /// Which target framework the two EF suites run on, or null to inherit <c>--framework</c>.
+    /// Which target framework the EF suites run on, or null to inherit <c>--framework</c>.
     /// EfCoreTests multi-targets net10.0;net11.0, but <c>Directory.Packages.props</c> holds EF Core on 10.x
     /// for both until Npgsql.EntityFrameworkCore.PostgreSQL 11 ships GA (GH-5134), so there is no separate
     /// EF Core 11 lane yet; CI passes <c>--framework net10.0</c> globally (tests.yml). See GH-4635.
+    /// EfCoreTests.MultiTenancy is net10.0-only: its MultiTenancyCompliance base hosts through Alba,
+    /// and Alba 9 has no net11.0 target.
     /// </param>
-    void runEfCoreSuites(string framework)
+    void runEfCoreProjects(string framework, params AbsolutePath[] suites)
     {
-        // EfCoreTests.MultiTenancy is net10.0-only: its MultiTenancyCompliance base hosts through Alba,
-        // and Alba 9 has no net11.0 target, so it runs only when the chosen framework is net10.0.
-        var chosen = framework ?? Framework;
-        AbsolutePath[] suites = declaredFrameworks(EfCoreMultiTenancyTests).Contains(chosen)
-            ? [EfCoreTests, EfCoreMultiTenancyTests]
-            : [EfCoreTests];
-
         BuildTestProjectsWithFramework(framework, suites);
         // RabbitMQ is required by Bug_2588_ef_core_durable_outbox_with_conventional_routing,
         // which exercises EF Core + RabbitMQ conventional routing + durable outbox policy.
@@ -1053,9 +1048,22 @@ partial class Build
         RunTestProjects(suites.Select(x => (string)x).ToArray(), frameworkOverride: framework);
     }
 
+    /// <summary>
+    /// EfCoreTests. EfCoreTests.MultiTenancy runs in <see cref="CIEfCoreMultiTenancy" />: the pair ran right up
+    /// against the 20 minute job cap in one job (EfCoreTests about 12 minutes, EfCoreTests.MultiTenancy about 8,
+    /// plus build and container start) and was cancelled by it. See #3350.
+    /// </summary>
     Target CIEfCore => _ => _
         .ProceedAfterFailure()
-        .Executes(() => runEfCoreSuites(null));
+        .Executes(() => runEfCoreProjects(null, EfCoreTests));
+
+    /// <summary>
+    /// EfCoreTests.MultiTenancy on net10.0 (it has no net11.0 target), as its own matrix job so neither EF Core
+    /// job comes near the 20 minute cap. See <see cref="CIEfCore" />.
+    /// </summary>
+    Target CIEfCoreMultiTenancy => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runEfCoreProjects("net10.0", EfCoreMultiTenancyTests));
 
     // ─── Transport CI Targets ──────────────────────────────────────────
 
