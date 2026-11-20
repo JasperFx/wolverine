@@ -12,6 +12,14 @@
       "tracks": []
     },
     {
+      "name": "BuildTests",
+      "path": "src/Testing/BuildTests/BuildTests.csproj",
+      "ciTargets": "CoreTests",
+      "workers": 1,
+      "services": [],
+      "tracks": []
+    },
+    {
       "name": "MessageRoutingTests",
       "path": "src/Testing/MessageRoutingTests/MessageRoutingTests.csproj",
       "ciTargets": "CIMessageRouting",

@@ -66,8 +66,9 @@
     <PackageVersion Include="HtmlTags" Version="9.0.0" />
     <!-- Drives test-host executables as supervised worker processes from the Nuke build
          (build/SupervisedTests.cs): class-partitioned parallel workers, per-lane environments,
-         and honest retry reporting. Referenced ONLY by the build project. -->
-    <PackageVersion Include="Bobcat.Supervisor" Version="1.0.0" />
+         and honest retry reporting. Referenced ONLY by the build project. 1.1.0 for Track.Heal and
+         Supervisor.OnDegraded (JasperFx/bobcat#824), which GH-5545 wires. -->
+    <PackageVersion Include="Bobcat.Supervisor" Version="1.1.0" />
     <!-- Bobcat itself, for the leadership-election compliance specifications in Wolverine.ComplianceTests and
          for WolverineFx.Bobcat / WolverineFx.Bobcat.Http, their tests and the samples that dogfood them (GH-4833).
          Everything that takes Bobcat is on one version; the 0.60.4 hold for WolverineFx.Bobcat ended with
