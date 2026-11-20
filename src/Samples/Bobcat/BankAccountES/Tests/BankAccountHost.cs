@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Alba;
 using Bobcat.CritterStack;

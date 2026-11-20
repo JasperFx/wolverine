@@ -34,7 +34,7 @@ with a `MissingPreBuiltTypesException` without it. To compile at runtime in `Pro
 reference to `WolverineFx.RuntimeCompilation`:
 
 ```cs
-builder.Services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Auto);
+builder.Services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic);
 ```
 
 See [deploying 7.0 to production](/guide/migration#deploying-7-0-to-production) for pre-generating the code instead.
