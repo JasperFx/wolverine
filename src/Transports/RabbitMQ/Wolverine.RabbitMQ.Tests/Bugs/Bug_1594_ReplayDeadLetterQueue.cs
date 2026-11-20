@@ -91,7 +91,18 @@ public class Bug_1594_ReplayDeadLetterQueue
 
         // Log state after replay
         var afterReplay = await messageStore.DeadLetters.QueryAsync(deadLetterQuery, CancellationToken.None);
+
+        // GH-5676. The replayed row is marked Handled by the receiver's channel callback, and a BufferedInMemory
+        // receiver runs that callback from its own completion block, separately from the handler. So the tracked
+        // session can finish before the row is updated. Wait for that update, then assert on it as before.
         var afterIncoming = await messageStore.Admin.AllIncomingAsync();
+        var settling = Stopwatch.StartNew();
+        while (afterIncoming.Any(env => env.Status == EnvelopeStatus.Incoming && env.Id == deadLetterId) &&
+               settling.Elapsed < TimeSpan.FromSeconds(10))
+        {
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            afterIncoming = await messageStore.Admin.AllIncomingAsync();
+        }
         foreach (var env in afterIncoming)
         {
             _output.WriteLine($"[INCOMING] Id: {env.Id}, Status: {env.Status}, OwnerId: {env.OwnerId}, ScheduledTime: {env.ScheduledTime}, Attempts: {env.Attempts}, ReceivedAt: {env.Destination}");
