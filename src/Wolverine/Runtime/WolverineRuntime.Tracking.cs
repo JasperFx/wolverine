@@ -28,7 +28,10 @@ public sealed partial class WolverineRuntime : IMessageTracker
     // emitted entry no longer pays for Envelope.ToString()'s string concatenation (and a structured log
     // provider no longer captures the whole Envelope as a property value)
     private static readonly Action<ILogger, string, Guid, Exception?> _movedToErrorQueue;
-    private static readonly Action<ILogger, string, Guid, Exception?> _rescheduled;
+    // A requeue or reschedule is the retry of a failed attempt, so it logs at the chain's FailureLogLevel (GH-5043) like
+    // the failed attempt itself: one template per level
+    private static readonly Action<ILogger, string, Guid, Exception?>[] _rescheduled =
+        new Action<ILogger, string, Guid, Exception?>[(int)LogLevel.Critical + 1];
     private static readonly Action<ILogger, string?, string, Guid, string, Exception?> _noHandler;
     private static readonly Action<ILogger, string, Guid, Exception?> _noRoutes;
     private static readonly Action<ILogger, string, string, Guid, string, string, Exception?> _received;
@@ -56,8 +59,11 @@ public sealed partial class WolverineRuntime : IMessageTracker
         _noRoutes = LoggerMessage.Define<string, Guid>(LogLevel.Information, NoRoutesEventId,
             "No routes can be determined for {Name}#{Id}");
 
-        _rescheduled = LoggerMessage.Define<string, Guid>(LogLevel.Error, RescheduledEventId,
-            "Envelope {Name}#{Id} was rescheduled to queue");
+        for (var level = LogLevel.Trace; level <= LogLevel.Critical; level++)
+        {
+            _rescheduled[(int)level] = LoggerMessage.Define<string, Guid>(level, RescheduledEventId,
+                "Envelope {Name}#{Id} was rescheduled to queue");
+        }
 
         _movedToErrorQueue = LoggerMessage.Define<string, Guid>(LogLevel.Error, MovedToErrorQueueId,
             "Envelope {Name}#{Id} was moved to the error queue");
@@ -366,7 +372,43 @@ public sealed partial class WolverineRuntime : IMessageTracker
     {
         Logger.LogInformation("Requeue for message {Id} of message type {MessageType}", envelope.Id, envelope.MessageType);
         ActiveSession?.Record(MessageEventType.Requeued, envelope, _serviceName, _uniqueNodeId);
-        _rescheduled(Logger, envelope.GetMessageTypeName(), envelope.Id, null);
+        var level = requeueLogLevelFor(envelope);
+        if (level is >= LogLevel.Trace and <= LogLevel.Critical)
+        {
+            _rescheduled[(int)level](Logger, envelope.GetMessageTypeName(), envelope.Id, null);
+        }
+    }
+
+    // GH-5661. Requeued runs on every requeue, scheduled retry and DeferAsync, so finding the level must never throw.
+    // HandlerGraph.HandlerFor(Type) throws for a message type handled by more than one handler type (separated mode)
+    private LogLevel requeueLogLevelFor(Envelope envelope)
+    {
+        // The level of the handler that actually ran this envelope, stamped by its executor
+        if (envelope.HandlerFailureLogLevel is { } stamped) return stamped;
+
+        // Not executed here (a batch member, a message with no handler): the chains of the message type, when
+        // they agree on one level
+        if (envelope.Message is { } message)
+        {
+            var chains = Handlers.ChainsFor(message.GetType());
+            if (chains.Count > 0)
+            {
+                var level = chains[0].FailureLogLevel;
+                var agree = true;
+                for (var i = 1; i < chains.Count; i++)
+                {
+                    if (chains[i].FailureLogLevel != level)
+                    {
+                        agree = false;
+                        break;
+                    }
+                }
+
+                if (agree) return level;
+            }
+        }
+
+        return Options.MessageFailureLogLevel ?? LogLevel.Error;
     }
 
     public void LogException(Exception ex, object? correlationId = null,
