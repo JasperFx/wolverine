@@ -28,49 +28,44 @@ public class transactional_frame_code_generation
     [Fact]
     public void enlist_in_outbox_call_does_not_include_cancellation_token()
     {
-        DynamicCodeBuilder.WithinCodegenCommand = true;
-        try
-        {
-            using var host = Host.CreateDefaultBuilder()
-                .UseWolverine(opts =>
-                {
-                    opts.Services.AddSingleton(_ => new CosmosClient(DummyConnectionString));
-                    opts.UseCosmosDbPersistence("wolverine_codegen_test");
-                    opts.Policies.AutoApplyTransactions();
+        // GH-5676. Not DynamicCodeBuilder.WithinCodegenCommand: it is process-wide, and any host another test
+        // started while it was set came up in MediatorOnly mode. Building the host without starting it is
+        // enough to compile the chain
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddSingleton(_ => new CosmosClient(DummyConnectionString));
+                opts.UseCosmosDbPersistence("wolverine_codegen_test");
+                opts.Policies.AutoApplyTransactions();
 
-                    opts.Discovery.DisableConventionalDiscovery();
-                    opts.Discovery.IncludeType<TransactionalFrameCodegenTestHandler>();
-                })
-                .Build();
+                opts.Discovery.DisableConventionalDiscovery();
+                opts.Discovery.IncludeType<TransactionalFrameCodegenTestHandler>();
+            })
+            .Build();
 
-            // Force HandlerGraph.Compile() without starting the host.
-            _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
+        // Force HandlerGraph.Compile() without starting the host.
+        _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
 
-            var handlerGraph = host.Services.GetRequiredService<HandlerGraph>();
-            var serviceVariableSource = host.Services.GetService<IServiceVariableSource>();
-            var generatedAssembly = handlerGraph.StartAssembly(handlerGraph.Rules);
+        var handlerGraph = host.Services.GetRequiredService<HandlerGraph>();
+        var serviceVariableSource = host.Services.GetService<IServiceVariableSource>();
+        var generatedAssembly = handlerGraph.StartAssembly(handlerGraph.Rules);
 
-            var chain = handlerGraph.ChainFor(typeof(TransactionalFrameCodegenTestMessage));
-            chain.ShouldNotBeNull();
+        var chain = handlerGraph.ChainFor(typeof(TransactionalFrameCodegenTestMessage));
+        chain.ShouldNotBeNull();
 
-            // TransactionalFrame should be present in middleware: the handler depends on
-            // Container, so CosmosDbPersistenceFrameProvider.CanApply returns true.
-            chain.Middleware.ShouldContain(f => f.GetType().Name == "TransactionalFrame");
+        // TransactionalFrame should be present in middleware: the handler depends on
+        // Container, so CosmosDbPersistenceFrameProvider.CanApply returns true.
+        chain.Middleware.ShouldContain(f => f.GetType().Name == "TransactionalFrame");
 
-            ((ICodeFile)chain).AssembleTypes(generatedAssembly);
-            var code = generatedAssembly.GenerateCode(serviceVariableSource);
+        ((ICodeFile)chain).AssembleTypes(generatedAssembly);
+        var code = generatedAssembly.GenerateCode(serviceVariableSource);
 
-            // TransactionalFrame.GenerateCode emits EnlistInOutbox with exactly two args:
-            // Container and MessageContext.  It must NOT forward the method-level
-            // cancellation token — CosmosDbEnvelopeTransaction doesn't accept one, and
-            // declaring the variable in FindVariables without using it was a latent bug.
-            code.ShouldContain(
-                "EnlistInOutbox(new Wolverine.CosmosDb.Internals.CosmosDbEnvelopeTransaction(_container, context));");
-        }
-        finally
-        {
-            DynamicCodeBuilder.WithinCodegenCommand = false;
-        }
+        // TransactionalFrame.GenerateCode emits EnlistInOutbox with exactly two args:
+        // Container and MessageContext.  It must NOT forward the method-level
+        // cancellation token — CosmosDbEnvelopeTransaction doesn't accept one, and
+        // declaring the variable in FindVariables without using it was a latent bug.
+        code.ShouldContain(
+            "EnlistInOutbox(new Wolverine.CosmosDb.Internals.CosmosDbEnvelopeTransaction(_container, context));");
     }
 }
 
