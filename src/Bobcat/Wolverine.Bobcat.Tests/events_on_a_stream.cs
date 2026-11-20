@@ -114,6 +114,11 @@ public sealed class PolecatTwoStreamHost : TwoStreamHost
         {
             m.ConnectionString = Servers.SqlServerConnectionString;
             m.DatabaseSchemaName = "bobcat_events_on_a_stream";
+
+            // GH-5676: AfterStartAsync applies the whole schema. Left on, the first save checks the event store's
+            // schema against SQL Server's catalog again, inside the act, and in the database every Polecat fixture
+            // shares that catalog read can be the deadlock victim of another fixture's schema DDL
+            m.AutoCreateSchemaObjects = AutoCreate.None;
         }).IntegrateWithWolverine();
 
     protected override Task AfterStartAsync()
