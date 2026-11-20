@@ -33,10 +33,10 @@ public class configuring_saga_table_storage
         await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         // Check that the saga tables exist
-        var redTable = new Table(new DbObjectName("color_sagas", "red"));
+        var redTable = new Table(new DbObjectName(Servers.DatabaseName("color_sagas"), "red"));
         (await redTable.ExistsInDatabaseAsync(conn, TestContext.Current.CancellationToken)).ShouldBeTrue();
 
-        var blueTable = new Table(new DbObjectName("color_sagas", "blue"));
+        var blueTable = new Table(new DbObjectName(Servers.DatabaseName("color_sagas"), "blue"));
         (await blueTable.ExistsInDatabaseAsync(conn, TestContext.Current.CancellationToken)).ShouldBeTrue();
 
         await conn.CloseAsync();

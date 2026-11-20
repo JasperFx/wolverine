@@ -1,3 +1,4 @@
+using IntegrationTests;
 using JasperFx.Core;
 using Marten;
 using MartenTests.Distribution.Support;
@@ -60,7 +61,7 @@ public class basic_agent_mechanics_versioned_composition(ITestOutputHelper outpu
     {
         var uris = await GetAgentUrisAsync(host);
         var expectedUris = tenants.Select(tenant =>
-            $"event-subscriptions://marten/main/localhost.{tenant}/trips/all/v2");
+            $"event-subscriptions://marten/main/localhost.{Servers.DatabaseName(tenant)}/trips/all/v2");
         uris.ShouldBe(expectedUris, ignoreOrder: true);
     }
 

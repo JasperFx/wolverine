@@ -1,3 +1,4 @@
+using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Events.Projections;
 using Marten;
@@ -40,10 +41,10 @@ public class find_agent_uri_per_tenant_database(ITestOutputHelper output) : Mult
             .OfType<EventSubscriptionAgentFamily>().Single();
 
         (await family.FindAgentUriAsync("Trip:All", "tenant1", TestContext.Current.CancellationToken))!.AbsoluteUri
-            .ShouldBe("event-subscriptions://marten/main/localhost.tenant1/trip/all");
+            .ShouldBe($"event-subscriptions://marten/main/localhost.{Servers.DatabaseName("tenant1")}/trip/all");
 
         (await family.FindAgentUriAsync("Day:All", "tenant2", TestContext.Current.CancellationToken))!.AbsoluteUri
-            .ShouldBe("event-subscriptions://marten/main/localhost.tenant2/day/all");
+            .ShouldBe($"event-subscriptions://marten/main/localhost.{Servers.DatabaseName("tenant2")}/day/all");
 
         // An unknown tenant still resolves to nothing
         (await family.FindAgentUriAsync("Trip:All", "tenant-nope", TestContext.Current.CancellationToken)).ShouldBeNull();
