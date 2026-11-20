@@ -342,6 +342,7 @@
   </Folder>
   <Folder Name="/Testing/">
     <Project Path="src/Testing/BackPressureTests/BackPressureTests.csproj" />
+    <Project Path="src/Testing/BuildTests/BuildTests.csproj" />
     <Project Path="src/Testing/ConsoleApp/ConsoleApp.csproj" />
     <Project Path="src/Testing/CoreTests/CoreTests.csproj" />
     <Project Path="src/Testing/Wolverine.AI.AotSmoke/Wolverine.AI.AotSmoke.csproj" />

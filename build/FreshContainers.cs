@@ -17,9 +17,10 @@ using Serilog;
 //
 // When: ONLY at the start of a run that owns the service (StartServicesFresh's callers: the CISqlServer /
 // CIPolecat / CIAzureServiceBus shard runners, TestAllPersistence / TestAllTransports via FreshContainers,
-// and LocalGateSuites). Never mid-run, and never from DockerUp or a plain `dotnet test`: every worktree and
-// every Stoat worker on the box shares the wolverine-* containers, and recreating SQL Server under someone
-// else's running SqlServerTests fails them.
+// and LocalGateSuites). Never from DockerUp or a plain `dotnet test`: every worktree and every Stoat worker on
+// the box shares the wolverine-* containers, and recreating SQL Server under someone else's running
+// SqlServerTests fails them. Mid-run only when the run degrades on a service it started fresh itself, under
+// the same guards (GH-5545, build/ServiceHeal.cs).
 //
 // Safety, in order:
 //   1. --no-fresh-containers (or WOLVERINE_NO_FRESH_CONTAINERS=1) turns it off: the services are started
@@ -143,14 +144,33 @@ partial class Build
         var list = string.Join(" ", recreate);
         Log.Information("Starting {Services} fresh: recreating the containers with new volumes (GH-5532)", list);
 
+        recreateContainers(recreate, freshLock);
+
+        // GH-5545: only a run that started the service fresh itself may recreate it again mid-run. Reusing a service
+        // another run started fresh a few minutes ago does not count: that run may still be using it.
+        HealPolicy.Own(name, "started fresh by this run");
+
+        Log.Information("{Services} started fresh and answering", list);
+        return true;
+    }
+
+    void recreateContainers(string[] recreate, FreshLock freshLock)
+    {
+        var list = string.Join(" ", recreate);
+
         // This process's own pooled connections point at the container about to go away.
         Microsoft.Data.SqlClient.SqlConnection.ClearAllPools();
         ComposeUp(composeArgs("up -d --force-recreate --renew-anon-volumes " + list), list);
         AwaitDockerServices(recreate);
 
         freshLock.MarkFresh();
-        Log.Information("{Services} started fresh and answering", list);
-        return true;
+    }
+
+    /// <summary>The containers a fresh start or a heal of <paramref name="name"/> (sqlserver or asb) recreates.</summary>
+    static string[] containersOf(string name)
+    {
+        var fresh = FreshServices.Single(f => f.Lock == name);
+        return fresh.Recreate.Concat(fresh.IfRunning.Where(composeProjectHas)).ToArray();
     }
 
     /// <summary>Null when the services may be recreated, otherwise why not.</summary>

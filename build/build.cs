@@ -107,7 +107,8 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            RunTestProject(Solution.Testing.CoreTests);
+            // BuildTests: the build's own decisions, such as when a run may recreate a degraded service (GH-5545)
+            RunTestProjects([Solution.Testing.CoreTests, Solution.Testing.BuildTests]);
         });
    
     Target PolicyTests => _ => _

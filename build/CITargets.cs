@@ -863,7 +863,8 @@ partial class Build
 
         // The sibling databases the multi-tenancy and NSB dedicated-db suites create are lane-scoped via
         // LaneDatabases.Name, so lanes cannot collide on them.
-        RunTestProject(SqlServerTests, testFilter: testFilter, workers: 4, sqlServerDatabasePerLane: true);
+        // GH-5545: and it may recreate SQL Server mid-run (lane databases included) when the run degrades on it.
+        RunTestProject(SqlServerTests, testFilter: testFilter, workers: 4, sqlServerDatabasePerLane: true, heal: ["sqlserver"]);
     }
 
     /// <summary>
@@ -1896,7 +1897,8 @@ partial class Build
         using var asbLock = acquireAzureServiceBusLock();
         StartServicesFresh("asb-emulator", "asb-emulator-2", "postgresql");
 
-        RunTestProject(tests, testFilter: testFilter);
+        // GH-5545: and it may recreate the emulators mid-run when the run degrades on them.
+        RunTestProject(tests, testFilter: testFilter, heal: ["asb"]);
     }
 
     /// <summary>
@@ -1979,7 +1981,7 @@ partial class Build
         // PolecatTests owns SQL Server for the run, so it starts it fresh (GH-5532).
         StartServicesFresh("sqlserver");
 
-        RunTestProject(PolecatTests, frameworkOverride: "net10.0", testFilter: testFilter);
+        RunTestProject(PolecatTests, frameworkOverride: "net10.0", testFilter: testFilter, heal: ["sqlserver"]);
     }
 
     /// <summary>
