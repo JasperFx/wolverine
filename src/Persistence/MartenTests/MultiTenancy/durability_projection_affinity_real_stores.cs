@@ -137,7 +137,7 @@ public class durability_projection_affinity_real_stores : IAsyncLifetime
 
         for (var i = 0; i < _databases.Length; i++)
         {
-            var database = _databases[i];
+            var database = Servers.DatabaseName(_databases[i]);
             var projectionOwners = _projectionAgents
                 .Where(uri => EventSubscriptionAgentFamily.DatabaseIdOf(uri)?.Name == database)
                 .Select(uri => grid.AgentFor(uri).AssignedNode)
