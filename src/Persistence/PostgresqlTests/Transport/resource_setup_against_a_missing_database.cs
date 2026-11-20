@@ -15,7 +15,7 @@ namespace PostgresqlTests.Transport;
 
 public class resource_setup_against_a_missing_database : PostgresqlContext, IAsyncLifetime
 {
-    private const string DatabaseName = "wolverine_fresh_provisioning";
+    private static readonly string DatabaseName = Servers.DatabaseName("fresh_provisioning");
     private string _connectionString = null!;
 
     public async ValueTask InitializeAsync()

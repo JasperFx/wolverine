@@ -29,7 +29,7 @@ public class message_store_role_registration
     {
         var options = new WolverineOptions();
         var persistence = (MySqlBackedPersistence)options.PersistMessagesWithMySql(
-            Servers.MySqlConnectionString, "wolverine", MessageStoreRole.Ancillary);
+            Servers.MySqlConnectionString, Servers.DatabaseName("wolverine"), MessageStoreRole.Ancillary);
 
         persistence.BuildMessageStore(buildRuntime())
             .Role.ShouldBe(MessageStoreRole.Ancillary);
@@ -40,7 +40,7 @@ public class message_store_role_registration
     {
         var options = new WolverineOptions();
         var persistence = (MySqlBackedPersistence)options
-            .PersistMessagesWithMySql(Servers.MySqlConnectionString, "wolverine", MessageStoreRole.Ancillary)
+            .PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("wolverine"), MessageStoreRole.Ancillary)
             .RegisterStaticTenants(tenants => tenants.Register("one", Servers.MySqlConnectionString));
 
         var store = persistence.BuildMessageStore(buildRuntime()).ShouldBeOfType<MultiTenantedMessageStore>();
@@ -55,7 +55,7 @@ public class message_store_role_registration
     {
         var options = new WolverineOptions();
         var persistence = (MySqlBackedPersistence)options
-            .PersistMessagesWithMySql(Servers.MySqlConnectionString, "wolverine")
+            .PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("wolverine"))
             .RegisterStaticTenants(tenants => tenants.Register("one", Servers.MySqlConnectionString));
 
         var store = persistence.BuildMessageStore(buildRuntime()).ShouldBeOfType<MultiTenantedMessageStore>();

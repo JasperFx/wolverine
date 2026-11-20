@@ -18,7 +18,7 @@ namespace MySqlTests.Sagas;
 [Collection("mysql")]
 public class saga_with_custom_table_name_5298
 {
-    private const string SchemaName = "saga_5298";
+    private static readonly string SchemaName = Servers.DatabaseName("saga_5298");
 
     [Fact]
     public async Task saga_state_is_written_to_the_registered_table()

@@ -44,6 +44,8 @@ public class push_receiver_inbox_claim_tenanted_5049 : IAsyncLifetime
 
     private static async Task<string> databaseAsync(string name)
     {
+        name = Servers.DatabaseName(name);
+
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
             await conn.OpenAsync(Token);

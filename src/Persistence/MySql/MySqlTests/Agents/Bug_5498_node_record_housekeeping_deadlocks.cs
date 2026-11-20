@@ -23,7 +23,7 @@ namespace MySqlTests.Agents;
 [Collection("mysql")]
 public class Bug_5498_node_record_housekeeping_deadlocks : IAsyncLifetime
 {
-    private const string SchemaName = "node_record_deadlocks";
+    private static readonly string SchemaName = Servers.DatabaseName("node_record_deadlocks");
     private MySqlMessageStore _store = null!;
 
     public async ValueTask InitializeAsync()

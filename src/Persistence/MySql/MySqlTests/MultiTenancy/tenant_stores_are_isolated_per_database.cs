@@ -28,7 +28,7 @@ namespace MySqlTests.MultiTenancy;
 [Collection("mysql")]
 public class tenant_stores_are_isolated_per_database : MySqlMultiTenancyContext
 {
-    private const string SchemaName = "tenant_store_isolation";
+    private static readonly string SchemaName = Servers.DatabaseName("tenant_store_isolation");
 
     protected override void configureWolverine(WolverineOptions opts)
     {
@@ -92,6 +92,7 @@ public class tenant_stores_are_isolated_per_database : MySqlMultiTenancyContext
         await storeForAsync(tenantId);
 
         var connectionString = connectionStringFor(expectedDatabase);
+        expectedDatabase = Servers.DatabaseName(expectedDatabase);
 
         foreach (var table in new[] { DatabaseConstants.IncomingTable, DatabaseConstants.OutgoingTable })
         {
@@ -109,8 +110,8 @@ public class tenant_stores_are_isolated_per_database : MySqlMultiTenancyContext
         var red = (IMessageDatabase)await storeForAsync("red");
         var blue = (IMessageDatabase)await storeForAsync("blue");
 
-        red.SchemaName.ShouldBe("tenant_db1");
-        blue.SchemaName.ShouldBe("tenant_db2");
+        red.SchemaName.ShouldBe(Servers.DatabaseName("tenant_db1"));
+        blue.SchemaName.ShouldBe(Servers.DatabaseName("tenant_db2"));
 
         red.SchemaName.ShouldNotBe(blue.SchemaName);
         red.SchemaName.ShouldNotBe(SchemaName);

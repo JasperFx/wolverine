@@ -22,7 +22,7 @@ public class MySqlMessageStore_with_IdAndDestination_Identity : MessageStoreComp
 {
     // A MySQL schema IS a database (GH-3815), so this is a wholly separate database from the
     // default-identity suite's "receiver" -- the two key shapes never share DDL.
-    private const string SchemaName = "receiver2";
+    private static readonly string SchemaName = Servers.DatabaseName("receiver2");
 
     public override async Task<IHost> BuildCleanHost()
     {

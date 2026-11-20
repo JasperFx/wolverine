@@ -114,7 +114,7 @@ partial class Build
             using (var connection = new NpgsqlConnection($"{BobcatSamplesPostgres};Database=postgres"))
             {
                 connection.Open();
-                foreach (var (_, database) in RunnableBobcatSamples)
+                foreach (var database in RunnableBobcatSamples.Select(x => TestDatabasePrefix + x.Database))
                 {
                     using var exists = new NpgsqlCommand("select 1 from pg_database where datname = @name", connection);
                     exists.Parameters.AddWithValue("name", database);
@@ -126,8 +126,10 @@ partial class Build
             }
 
             var failed = new List<string>();
-            foreach (var (sample, database) in RunnableBobcatSamples)
+            foreach (var (sample, name) in RunnableBobcatSamples)
             {
+                // GH-5635: the 6.x samples get their own databases, apart from main's
+                var database = TestDatabasePrefix + name;
                 Log.Information("Running the {Sample} specs", sample);
                 var passed = tryRunSample(() => DotNetTest(s => s
                     .SetProcessAdditionalArguments("--project", BobcatSamplesDirectory / sample / "Tests")

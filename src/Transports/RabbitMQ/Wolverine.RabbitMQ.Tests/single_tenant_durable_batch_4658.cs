@@ -47,7 +47,7 @@ public class single_tenant_durable_batch_4658 : IAsyncLifetime
     private WolverineRuntime _runtime = null!;
 
     private string MainSchema => $"mt4658_{theSuffix}";
-    private string TenantDatabase => $"w4658_red_{theSuffix}";
+    private string TenantDatabase => Servers.DatabaseName($"w4658_red_{theSuffix}");
 
     private static string ConnectionStringFor(string database)
     {

@@ -2,6 +2,7 @@ using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Resources;
+using MySqlConnector;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine;
@@ -23,7 +24,7 @@ public class static_multi_tenancy : MySqlMultiTenancyContext
 
     protected override void configureWolverine(WolverineOptions opts)
     {
-        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "static_multi_tenancy")
+        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("static_multi_tenancy"))
             .RegisterStaticTenants(tenants =>
             {
                 tenants.Register("red", tenant1ConnectionString);
@@ -43,11 +44,11 @@ public class static_multi_tenancy : MySqlMultiTenancyContext
         var store = theHost.Services.GetRequiredService<IMessageStore>()
             .ShouldBeOfType<MultiTenantedMessageStore>();
 
-        store.Main.Describe().DatabaseName.ShouldBe("wolverine");
+        store.Main.Describe().DatabaseName.ShouldBe(new MySqlConnectionStringBuilder(Servers.MySqlConnectionString).Database);
 
-        (await store.Source.FindAsync("red")).Describe().DatabaseName.ShouldBe("tenant_db1");
-        (await store.Source.FindAsync("blue")).Describe().DatabaseName.ShouldBe("tenant_db2");
-        (await store.Source.FindAsync("green")).Describe().DatabaseName.ShouldBe("tenant_db3");
+        (await store.Source.FindAsync("red")).Describe().DatabaseName.ShouldBe(Servers.DatabaseName("tenant_db1"));
+        (await store.Source.FindAsync("blue")).Describe().DatabaseName.ShouldBe(Servers.DatabaseName("tenant_db2"));
+        (await store.Source.FindAsync("green")).Describe().DatabaseName.ShouldBe(Servers.DatabaseName("tenant_db3"));
     }
 
     [Fact]

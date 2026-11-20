@@ -36,7 +36,7 @@ public class multi_node_tenant_database_connections : PostgresqlContext, IAsyncL
     private readonly string[] theTenants = ["red", "blue", "green"];
 
     private string MainSchema => $"mt3376_{theSuffix}";
-    private string TenantDatabase(string tenant) => $"w3376_{tenant}_{theSuffix}";
+    private string TenantDatabase(string tenant) => Servers.DatabaseName($"w3376_{tenant}_{theSuffix}");
 
     public multi_node_tenant_database_connections(ITestOutputHelper output)
     {
@@ -87,7 +87,7 @@ public class multi_node_tenant_database_connections : PostgresqlContext, IAsyncL
                 opts.Durability.ScheduledJobFirstExecution = 500.Milliseconds();
 
                 opts.PersistMessagesWithPostgresql(
-                        ConnectionStringFor("postgres", nodeName), MainSchema)
+                        ConnectionStringFor(Servers.PostgresDatabaseName, nodeName), MainSchema)
                     .RegisterStaticTenants(tenants =>
                     {
                         foreach (var tenant in theTenants)

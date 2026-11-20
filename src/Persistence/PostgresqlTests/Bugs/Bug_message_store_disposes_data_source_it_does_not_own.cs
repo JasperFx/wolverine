@@ -91,6 +91,8 @@ public class Bug_message_store_disposes_data_source_it_does_not_own : Postgresql
 
     private static async Task<string> createDatabaseIfNotExists(string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
             await conn.OpenAsync();

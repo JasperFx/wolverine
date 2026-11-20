@@ -35,7 +35,7 @@ public class exclusive_listener_recovery_across_tenant_databases : PostgresqlCon
     private IHost _host = null!;
 
     private string MainSchema => $"ex3590_{theSuffix}";
-    private string TenantDatabase(string tenant) => $"w3590_{tenant}_{theSuffix}";
+    private string TenantDatabase(string tenant) => Servers.DatabaseName($"w3590_{tenant}_{theSuffix}");
 
     private static string ConnectionStringFor(string database)
     {
@@ -69,7 +69,7 @@ public class exclusive_listener_recovery_across_tenant_databases : PostgresqlCon
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
 
-                opts.PersistMessagesWithPostgresql(ConnectionStringFor("postgres"), MainSchema)
+                opts.PersistMessagesWithPostgresql(ConnectionStringFor(Servers.PostgresDatabaseName), MainSchema)
                     .RegisterStaticTenants(tenants =>
                     {
                         foreach (var tenant in theTenants)

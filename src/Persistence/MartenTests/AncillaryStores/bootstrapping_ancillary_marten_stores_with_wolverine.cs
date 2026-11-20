@@ -115,6 +115,8 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
 
         var exists = await conn.DatabaseExists(databaseName);
@@ -214,9 +216,9 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
         var agents = await theFamily.AllKnownAgentsAsync();
 
         agents.ShouldContain(new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine"));
-        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant3/wolverine"));
-        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant2/wolverine"));
-        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant1/wolverine"));
+        agents.ShouldContain(new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("tenant3")}/wolverine"));
+        agents.ShouldContain(new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("tenant2")}/wolverine"));
+        agents.ShouldContain(new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("tenant1")}/wolverine"));
     }
 
     // "default" resolves to the configured database inside the test body rather than in the
@@ -227,14 +229,14 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     // reporting a result" for an identity it never had.
     [Theory]
     [InlineData("default")]
-    [InlineData("wolverinedb://postgresql/localhost/tenant2/wolverine")]
-    [InlineData("wolverinedb://postgresql/localhost/tenant1/wolverine")]
-    [InlineData("wolverinedb://postgresql/localhost/tenant3/wolverine")]
-    public async Task build_each_agent_smoke_test(string uriString)
+    [InlineData("tenant2")]
+    [InlineData("tenant1")]
+    [InlineData("tenant3")]
+    public async Task build_each_agent_smoke_test(string database)
     {
-        var uri = uriString == "default"
+        var uri = database == "default"
             ? new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine")
-            : uriString.ToUri();
+            : new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName(database)}/wolverine");
         var agent = await theFamily.BuildAgentAsync(uri, theHost.GetRuntime());
         agent.ShouldNotBeNull();
 

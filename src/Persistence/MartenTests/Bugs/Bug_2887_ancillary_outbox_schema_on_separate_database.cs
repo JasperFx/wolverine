@@ -39,7 +39,7 @@ namespace MartenTests.Bugs;
 /// </summary>
 public class Bug_2887_ancillary_outbox_schema_on_separate_database : IAsyncLifetime
 {
-    private const string RefsDatabase = "bug2887_refs";
+    private static readonly string RefsDatabase = Servers.DatabaseName("bug2887_refs");
     private IHost _host = null!;
     private string _refsConnectionString = null!;
 

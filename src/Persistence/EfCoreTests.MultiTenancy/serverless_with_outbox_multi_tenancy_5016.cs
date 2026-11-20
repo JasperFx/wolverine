@@ -178,13 +178,13 @@ public class serverless_with_outbox_multi_tenancy_5016_on_postgresql : serverles
         opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, schemaName)
             .RegisterStaticTenants(tenants =>
             {
-                builder.Database = "db1";
+                builder.Database = Servers.DatabaseName("db1");
                 tenants.Register("red", builder.ConnectionString);
 
-                builder.Database = "db2";
+                builder.Database = Servers.DatabaseName("db2");
                 tenants.Register("blue", builder.ConnectionString);
 
-                builder.Database = "db3";
+                builder.Database = Servers.DatabaseName("db3");
                 tenants.Register("green", builder.ConnectionString);
             });
 
@@ -210,13 +210,13 @@ public class serverless_with_outbox_multi_tenancy_5016_on_postgresql_master_tabl
         opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, schemaName)
             .UseMasterTableTenancy(tenants =>
             {
-                builder.Database = "db1";
+                builder.Database = Servers.DatabaseName("db1");
                 tenants.Register("red", builder.ConnectionString);
 
-                builder.Database = "db2";
+                builder.Database = Servers.DatabaseName("db2");
                 tenants.Register("blue", builder.ConnectionString);
 
-                builder.Database = "db3";
+                builder.Database = Servers.DatabaseName("db3");
                 tenants.Register("green", builder.ConnectionString);
             });
 
@@ -241,13 +241,13 @@ public class serverless_with_outbox_multi_tenancy_5016_on_sqlserver : serverless
         opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, schemaName)
             .RegisterStaticTenants(tenants =>
             {
-                builder.InitialCatalog = "db1";
+                builder.InitialCatalog = Servers.DatabaseName("db1");
                 tenants.Register("red", builder.ConnectionString);
 
-                builder.InitialCatalog = "db2";
+                builder.InitialCatalog = Servers.DatabaseName("db2");
                 tenants.Register("blue", builder.ConnectionString);
 
-                builder.InitialCatalog = "db3";
+                builder.InitialCatalog = Servers.DatabaseName("db3");
                 tenants.Register("green", builder.ConnectionString);
             });
 

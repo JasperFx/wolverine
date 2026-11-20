@@ -23,7 +23,7 @@ namespace MySqlTests.Transport;
 [Collection("mysql")]
 public class Bug_5107_outbox_row_survives_the_queue_insert : IAsyncLifetime
 {
-    private const string SchemaName = "wolverine_gh5107";
+    private static readonly string SchemaName = Servers.DatabaseName("wolverine_gh5107");
     private const string QueueName = "gh5107";
 
     private IHost _host = null!;

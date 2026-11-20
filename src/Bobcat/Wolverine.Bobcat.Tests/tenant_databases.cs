@@ -78,6 +78,8 @@ public sealed class MartenDatabasePerTenantActsHost : DatabasePerTenantHost
 
     private static async Task<string> databaseFor(NpgsqlConnection conn, string name)
     {
+        name = Servers.DatabaseName(name);
+
         if (!await conn.DatabaseExists(name))
         {
             await new DatabaseSpecification().BuildDatabase(conn, name);
@@ -128,6 +130,8 @@ public sealed class PolecatDatabasePerTenantActsHost : DatabasePerTenantHost
 
     private static async Task<string> databaseFor(SqlConnection conn, string name)
     {
+        name = Servers.DatabaseName(name);
+
         await using (var check = conn.CreateCommand())
         {
             check.CommandText = "SELECT DB_ID(@name)";

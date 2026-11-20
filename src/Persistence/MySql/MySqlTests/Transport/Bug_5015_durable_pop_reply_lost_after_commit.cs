@@ -26,7 +26,7 @@ namespace MySqlTests.Transport;
 [Collection("mysql")]
 public class Bug_5015_durable_pop_reply_lost_after_commit : IAsyncLifetime
 {
-    private const string DatabaseName = "wolverine_gh5015";
+    private static readonly string DatabaseName = Servers.DatabaseName("wolverine_gh5015");
     private const int NodeNumber = 21;
 
     // MySqlConnector commits with a COM_QUERY packet: a 4 byte header, the 0x03 command, two query attribute

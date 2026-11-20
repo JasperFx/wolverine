@@ -54,7 +54,7 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_sqlser
 
         var blue = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
         var builder = new SqlConnectionStringBuilder(blue.Database.GetConnectionString());
-        builder.InitialCatalog.ShouldBe("db2");
+        builder.InitialCatalog.ShouldBe(Servers.DatabaseName("db2"));
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_sqlser
 
         var blue = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
         var builder = new SqlConnectionStringBuilder(blue.Database.GetConnectionString());
-        builder.InitialCatalog.ShouldBe("db1");
+        builder.InitialCatalog.ShouldBe(Servers.DatabaseName("db1"));
     }
 
     [Fact]
@@ -76,7 +76,7 @@ public class multi_tenancy_with_static_tenants_and_connection_strings_for_sqlser
 
         var blue = await theBuilder.BuildAndEnrollAsync(messageContext, CancellationToken.None);
         var builder = new SqlConnectionStringBuilder(blue.Database.GetConnectionString());
-        builder.InitialCatalog.ShouldBe("db3");
+        builder.InitialCatalog.ShouldBe(Servers.DatabaseName("db3"));
     }
 
 

@@ -20,7 +20,7 @@ namespace MySqlTests.Transport;
 /// </summary>
 public class outbox_to_queue_move_is_atomic : IAsyncLifetime
 {
-    private const string SchemaName = "wolverine_outboxmove";
+    private static readonly string SchemaName = Servers.DatabaseName("wolverine_outboxmove");
     private const string QueueName = "outboxmove";
 
     private IHost _host = null!;

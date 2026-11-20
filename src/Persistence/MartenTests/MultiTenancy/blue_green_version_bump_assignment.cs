@@ -202,6 +202,8 @@ public class blue_green_version_bump_assignment : IAsyncLifetime
 
     private static async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
 
         if (!await conn.DatabaseExists(databaseName))

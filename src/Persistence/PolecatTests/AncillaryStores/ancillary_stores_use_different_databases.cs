@@ -91,6 +91,8 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
 
     private static async Task<string> CreateDatabaseIfNotExists(SqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         var builder = new SqlConnectionStringBuilder(Servers.SqlServerConnectionString);
 
         await using (var check = conn.CreateCommand())

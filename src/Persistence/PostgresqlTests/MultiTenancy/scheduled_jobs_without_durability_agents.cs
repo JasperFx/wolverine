@@ -25,7 +25,7 @@ public class scheduled_jobs_without_durability_agents : PostgresqlContext, IAsyn
     private IHost theHost = null!;
 
     private string MainSchema => $"noagent_{theSuffix}";
-    private string TenantDatabase => $"w3376_noagent_{theSuffix}";
+    private string TenantDatabase => Servers.DatabaseName($"w3376_noagent_{theSuffix}");
 
     public scheduled_jobs_without_durability_agents(ITestOutputHelper output)
     {

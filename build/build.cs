@@ -40,6 +40,21 @@ partial class Build : NukeBuild
     readonly Solution Solution;
     
     [Parameter]readonly string Framework;
+
+    /// <summary>
+    /// GH-5635: every database the 6.x suites create or assume by a fixed name starts with this, so a 6.x run
+    /// never opens a database a 7.x (main) run made on the same servers. Kept in step with
+    /// <c>Servers.DatabasePrefix</c> in src/Servers.cs, which the build does not compile.
+    /// </summary>
+    const string TestDatabasePrefix = "wolverine6_";
+
+    /// <summary>The database a suite uses when nothing hands it one: <c>Servers.DefaultDatabase</c>.</summary>
+    const string TestDatabase = TestDatabasePrefix + "testing";
+
+    /// <summary>
+    /// The admin connection the build provisions databases through. The suites never use this database
+    /// themselves; their default is <see cref="TestDatabase"/>.
+    /// </summary>
     [Parameter] readonly string PostgresConnectionString ="Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres";
 
     [Parameter] readonly string SqlServerConnectionString =
@@ -518,8 +533,26 @@ partial class Build : NukeBuild
             cmd.CommandText = "select 1";
             cmd.ExecuteNonQuery();
 
+            // Servers.cs creates it on first use too, but a native AOT image can't reach the driver through
+            // reflection, and CI's service container only ever makes `postgres`.
+            ensurePostgresDatabase(conn, TestDatabase);
+
             return null;
         });
+    }
+
+    /// <summary>Creates <paramref name="database"/> through an open admin connection unless it exists.</summary>
+    static void ensurePostgresDatabase(Npgsql.NpgsqlConnection conn, string database)
+    {
+        using var check = conn.CreateCommand();
+        check.CommandText = "select 1 from pg_database where datname = @name";
+        check.Parameters.AddWithValue("name", database);
+        if (check.ExecuteScalar() != null) return;
+
+        Log.Information("Creating database {Database}", database);
+        using var create = conn.CreateCommand();
+        create.CommandText = $"CREATE DATABASE {database}";
+        create.ExecuteNonQuery();
     }
 
     private Dictionary<string, string[]> ReferencedProjects = new()

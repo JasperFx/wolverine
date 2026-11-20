@@ -134,6 +134,8 @@ public class Bug_2669_ancillary_marten_store_local_message_from_main_store : IAs
 
     private static async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
 
         var exists = await conn.DatabaseExists(databaseName);

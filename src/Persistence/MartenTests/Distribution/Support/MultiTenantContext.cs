@@ -56,8 +56,9 @@ public abstract class MultiTenantContext(ITestOutputHelper output) : IAsyncLifet
         _hosts.Clear();
     }
 
-    private async Task CreateDatabaseIfNotExists(string databaseName)
+    private async Task CreateDatabaseIfNotExists(string tenantId)
     {
+        var databaseName = Servers.DatabaseName(tenantId);
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -67,7 +68,7 @@ public abstract class MultiTenantContext(ITestOutputHelper output) : IAsyncLifet
 
         builder.Database = databaseName;
 
-        _tenantConnectionStrings.TryAdd(databaseName, builder.ConnectionString);
+        _tenantConnectionStrings.TryAdd(tenantId, builder.ConnectionString);
     }
 
     private static async Task DropSchemasAsync(params string[] names)

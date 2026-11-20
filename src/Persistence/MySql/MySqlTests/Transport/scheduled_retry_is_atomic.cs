@@ -19,7 +19,7 @@ namespace MySqlTests.Transport;
 /// </summary>
 public class scheduled_retry_is_atomic : IAsyncLifetime
 {
-    private const string SchemaName = "wolverine_schedretry";
+    private static readonly string SchemaName = Servers.DatabaseName("wolverine_schedretry");
     private const string QueueName = "schedretry";
 
     private IHost _host = null!;

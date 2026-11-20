@@ -19,7 +19,7 @@ public class SchemaTests
         var dataSource = MySqlDataSourceFactory.Create(Servers.MySqlConnectionString);
         var settings = new DatabaseSettings
         {
-            SchemaName = "receiver",
+            SchemaName = Servers.DatabaseName("receiver"),
             CommandQueuesEnabled = true,
             Role = MessageStoreRole.Main
         };
@@ -53,7 +53,7 @@ public class SchemaTests
         var dataSource = MySqlDataSourceFactory.Create(Servers.MySqlConnectionString);
         var settings = new DatabaseSettings
         {
-            SchemaName = "receiver",
+            SchemaName = Servers.DatabaseName("receiver"),
             CommandQueuesEnabled = true,
             Role = MessageStoreRole.Main
         };
@@ -81,7 +81,7 @@ public class SchemaTests
         var dataSource = MySqlDataSourceFactory.Create(Servers.MySqlConnectionString);
         var settings = new DatabaseSettings
         {
-            SchemaName = "receiver",
+            SchemaName = Servers.DatabaseName("receiver"),
             CommandQueuesEnabled = true,
             Role = MessageStoreRole.Main
         };
@@ -94,20 +94,20 @@ public class SchemaTests
         // First, ensure database exists and drop all existing tables
         await using var setupConn = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var setupCmd = setupConn.CreateCommand();
-        setupCmd.CommandText = "CREATE DATABASE IF NOT EXISTS `receiver`";
+        setupCmd.CommandText = $"CREATE DATABASE IF NOT EXISTS `{Servers.DatabaseName("receiver")}`";
         await setupCmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
 
         // Drop existing tables
-        setupCmd.CommandText = @"
+        setupCmd.CommandText = $@"
             SET FOREIGN_KEY_CHECKS = 0;
-            DROP TABLE IF EXISTS receiver.wolverine_node_assignments;
-            DROP TABLE IF EXISTS receiver.wolverine_control_queue;
-            DROP TABLE IF EXISTS receiver.wolverine_node_records;
-            DROP TABLE IF EXISTS receiver.wolverine_nodes;
-            DROP TABLE IF EXISTS receiver.wolverine_agent_restrictions;
-            DROP TABLE IF EXISTS receiver.wolverine_incoming_envelopes;
-            DROP TABLE IF EXISTS receiver.wolverine_outgoing_envelopes;
-            DROP TABLE IF EXISTS receiver.wolverine_dead_letters;
+            DROP TABLE IF EXISTS {Servers.DatabaseName("receiver")}.wolverine_node_assignments;
+            DROP TABLE IF EXISTS {Servers.DatabaseName("receiver")}.wolverine_control_queue;
+            DROP TABLE IF EXISTS {Servers.DatabaseName("receiver")}.wolverine_node_records;
+            DROP TABLE IF EXISTS {Servers.DatabaseName("receiver")}.wolverine_nodes;
+            DROP TABLE IF EXISTS {Servers.DatabaseName("receiver")}.wolverine_agent_restrictions;
+            DROP TABLE IF EXISTS {Servers.DatabaseName("receiver")}.wolverine_incoming_envelopes;
+            DROP TABLE IF EXISTS {Servers.DatabaseName("receiver")}.wolverine_outgoing_envelopes;
+            DROP TABLE IF EXISTS {Servers.DatabaseName("receiver")}.wolverine_dead_letters;
             SET FOREIGN_KEY_CHECKS = 1;";
         await setupCmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         await setupConn.CloseAsync();
@@ -150,7 +150,7 @@ public class SchemaTests
         // Show what tables exist now
         await using var checkConn = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var checkCmd = checkConn.CreateCommand();
-        checkCmd.CommandText = "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'receiver'";
+        checkCmd.CommandText = $"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '{Servers.DatabaseName("receiver")}'";
         await using var reader = await checkCmd.ExecuteReaderAsync(TestContext.Current.CancellationToken);
         Console.WriteLine("\nTables that exist:");
         while (await reader.ReadAsync(TestContext.Current.CancellationToken))
@@ -165,7 +165,7 @@ public class SchemaTests
         var dataSource = MySqlDataSourceFactory.Create(Servers.MySqlConnectionString);
         var settings = new DatabaseSettings
         {
-            SchemaName = "receiver",
+            SchemaName = Servers.DatabaseName("receiver"),
             CommandQueuesEnabled = true,
             Role = MessageStoreRole.Main
         };
@@ -195,7 +195,7 @@ public class SchemaTests
         // Verify tables exist in the receiver database
         await using var conn = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'receiver'";
+        cmd.CommandText = $"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '{Servers.DatabaseName("receiver")}'";
         await using var reader = await cmd.ExecuteReaderAsync(TestContext.Current.CancellationToken);
         Console.WriteLine("\nTables after migration in receiver database:");
         while (await reader.ReadAsync(TestContext.Current.CancellationToken))
@@ -219,7 +219,7 @@ public class SchemaTests
 
         await using var conn2 = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var cmd2 = conn2.CreateCommand();
-        cmd2.CommandText = "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'receiver'";
+        cmd2.CommandText = $"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '{Servers.DatabaseName("receiver")}'";
         await using var reader2 = await cmd2.ExecuteReaderAsync(TestContext.Current.CancellationToken);
         var actualTables = new List<string>();
         while (await reader2.ReadAsync(TestContext.Current.CancellationToken))

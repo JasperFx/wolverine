@@ -83,6 +83,8 @@ public class logical_deduplication_with_a_database_per_tenant : IAsyncLifetime
 
     private static async Task<string> databaseFor(NpgsqlConnection conn, string name)
     {
+        name = Servers.DatabaseName(name);
+
         if (!await conn.DatabaseExists(name))
         {
             await new DatabaseSpecification().BuildDatabase(conn, name);

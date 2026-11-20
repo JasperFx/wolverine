@@ -12,6 +12,6 @@ public class destination_recovery_isolation_5587 : DestinationRecoveryIsolationC
 {
     protected override void ConfigureStorage(WolverineOptions opts)
     {
-        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "destination_isolation");
+        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("destination_isolation"));
     }
 }

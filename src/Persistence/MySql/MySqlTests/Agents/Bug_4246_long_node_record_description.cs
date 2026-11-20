@@ -26,7 +26,7 @@ namespace MySqlTests.Agents;
 [Collection("mysql")]
 public class Bug_4246_long_node_record_description : IAsyncLifetime
 {
-    private const string SchemaName = "node_record_description";
+    private static readonly string SchemaName = Servers.DatabaseName("node_record_description");
     private MySqlMessageStore _store = null!;
 
     public async ValueTask InitializeAsync()

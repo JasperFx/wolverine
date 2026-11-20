@@ -40,7 +40,7 @@ public class basic_functionality : IAsyncLifetime
         try
         {
             await using var dropCmd = conn.CreateCommand();
-            dropCmd.CommandText = "DROP DATABASE IF EXISTS wolverine_transports; CREATE DATABASE wolverine_transports;";
+            dropCmd.CommandText = $"DROP DATABASE IF EXISTS {Servers.DatabaseName("wolverine_transports")}; CREATE DATABASE {Servers.DatabaseName("wolverine_transports")};";
             await dropCmd.ExecuteNonQueryAsync();
         }
         finally
@@ -51,8 +51,8 @@ public class basic_functionality : IAsyncLifetime
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseMySqlPersistenceAndTransport(Servers.MySqlConnectionString, schema: "wolverine_transports",
-                    transportSchema: "wolverine_transports");
+                opts.UseMySqlPersistenceAndTransport(Servers.MySqlConnectionString, schema: Servers.DatabaseName("wolverine_transports"),
+                    transportSchema: Servers.DatabaseName("wolverine_transports"));
                 opts.ListenToMySqlQueue("one");
             }).StartAsync();
 
@@ -78,10 +78,10 @@ public class basic_functionality : IAsyncLifetime
 
         var tables = new List<string>();
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"
+        cmd.CommandText = $@"
 SELECT table_name
 FROM information_schema.tables
-WHERE table_schema = 'wolverine_transports'
+WHERE table_schema = '{Servers.DatabaseName("wolverine_transports")}'
 AND table_name LIKE 'wolverine_queue_%'";
         await using var reader = await cmd.ExecuteReaderAsync(TestContext.Current.CancellationToken);
         while (await reader.ReadAsync(TestContext.Current.CancellationToken))

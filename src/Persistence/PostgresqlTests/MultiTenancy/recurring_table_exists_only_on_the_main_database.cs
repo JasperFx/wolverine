@@ -112,6 +112,8 @@ public class recurring_table_exists_only_on_the_main_database : PostgresqlContex
 
     private static async Task<string> createDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
 
         var exists = await conn.DatabaseExists(databaseName);

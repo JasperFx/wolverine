@@ -328,7 +328,7 @@ public class queue_ordering_is_opt_in
 
     private static async Task<string> newSchemaAsync()
     {
-        var schema = $"queue_order_{Guid.NewGuid():N}"[..40];
+        var schema = Servers.DatabaseName($"queue_order_{Guid.NewGuid():N}"[..40]);
         await executeAsync($"CREATE DATABASE IF NOT EXISTS {schema}");
         return schema;
     }

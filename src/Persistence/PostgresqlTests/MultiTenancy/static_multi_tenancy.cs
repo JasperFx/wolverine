@@ -48,9 +48,9 @@ public class static_multi_tenancy : MultiTenancyContext
 
         store.Main.Describe().DatabaseName.ShouldBe(Servers.PostgresDatabaseName);
 
-        (await store.Source.FindAsync("red")).Describe().DatabaseName.ShouldBe("db1");
-        (await store.Source.FindAsync("blue")).Describe().DatabaseName.ShouldBe("db2");
-        (await store.Source.FindAsync("green")).Describe().DatabaseName.ShouldBe("db3");
+        (await store.Source.FindAsync("red")).Describe().DatabaseName.ShouldBe(Servers.DatabaseName("db1"));
+        (await store.Source.FindAsync("blue")).Describe().DatabaseName.ShouldBe(Servers.DatabaseName("db2"));
+        (await store.Source.FindAsync("green")).Describe().DatabaseName.ShouldBe(Servers.DatabaseName("db3"));
     }
 
     [Fact]
@@ -137,9 +137,9 @@ static_multi_tenancy2.wolverine_outgoing_envelopes
 
         var expected = $@"
 wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/static_multi_tenancy2
-wolverinedb://postgresql/localhost/db1/static_multi_tenancy2
-wolverinedb://postgresql/localhost/db3/static_multi_tenancy2
-wolverinedb://postgresql/localhost/db2/static_multi_tenancy2
+wolverinedb://postgresql/localhost/{Servers.DatabaseName("db1")}/static_multi_tenancy2
+wolverinedb://postgresql/localhost/{Servers.DatabaseName("db3")}/static_multi_tenancy2
+wolverinedb://postgresql/localhost/{Servers.DatabaseName("db2")}/static_multi_tenancy2
 ".ReadLines().Where(x => x.IsNotEmpty()).Select(x => new Uri(x)).OrderBy(x => x.ToString()).ToArray();
         
 

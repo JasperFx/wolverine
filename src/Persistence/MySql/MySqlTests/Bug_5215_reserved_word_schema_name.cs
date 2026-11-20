@@ -24,6 +24,15 @@ public class Bug_5215_reserved_word_schema_name
     [InlineData("user")]
     public async Task message_storage_works_in_a_schema_named_after_a_reserved_word(string schemaName)
     {
+        // The reserved word is the point here, so this schema can't carry the 6.x prefix (GH-5635) and is shared
+        // with whatever else ran on this server. Start from nothing so another line's tables don't decide the run.
+        await using (var conn = new MySqlConnection(Servers.MySqlConnectionString))
+        {
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
+            await conn.CreateCommand($"DROP DATABASE IF EXISTS `{schemaName}`")
+                .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

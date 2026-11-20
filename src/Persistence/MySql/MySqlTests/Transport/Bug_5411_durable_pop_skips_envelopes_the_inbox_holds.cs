@@ -26,6 +26,8 @@ public class Bug_5411_durable_pop_skips_envelopes_the_inbox_holds
 
     private static async Task<IHost> startAsync(string database, MessageIdentity identity)
     {
+        database = Servers.DatabaseName(database);
+
         await using (var conn = new MySqlConnection(Servers.MySqlConnectionString))
         {
             await conn.OpenAsync();

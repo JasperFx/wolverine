@@ -80,6 +80,8 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
     {
+        databaseName = Servers.DatabaseName(databaseName);
+
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
 
         var exists = await conn.DatabaseExists(databaseName);
@@ -101,10 +103,10 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
 
         await using var session = factory.OpenSession(context);
         
-        context.Storage.Uri.ShouldBe(new Uri("wolverinedb://postgresql/localhost/players/wolverine"));
+        context.Storage.Uri.ShouldBe(new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("players")}/wolverine"));
 
         var builder = new NpgsqlConnectionStringBuilder(session.Connection.ConnectionString);
-        builder.Database.ShouldBe("players");
+        builder.Database.ShouldBe(Servers.DatabaseName("players"));
     }
 
     [Fact]
@@ -113,9 +115,9 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
         var uris = await theStores.AllKnownAgentsAsync();
         uris.OrderBy(x => x.ToString()).ShouldBe([.. new[]
         {
-            new Uri("wolverinedb://postgresql/localhost/players/wolverine"),
+            new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("players")}/wolverine"),
             new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine"),
-            new Uri("wolverinedb://postgresql/localhost/things/wolverine")
+            new Uri($"wolverinedb://postgresql/localhost/{Servers.DatabaseName("things")}/wolverine")
         }.OrderBy(x => x.ToString())]);
     }
 }

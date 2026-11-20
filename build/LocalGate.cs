@@ -47,13 +47,13 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 // the server itself, so:
 //
 //   - Postgres and SQL Server: a suite that only ever touches the database its connection string
-//     names gets a database of its own (wolverine_gate_<suite>, recreated per run, handed to every
+//     names gets a database of its own (wolverine6_gate_<suite>, recreated per run, handed to every
 //     worker as ConnectionStrings__postgres / ConnectionStrings__sqlserver, which src/Servers.cs
 //     reads first) and holds no track at all. A suite that also creates databases BESIDE it under
 //     fixed names (tenant1-4, db1-3, players, things, ...) runs exactly as CI runs it, against the
 //     default database, and holds the `postgresql` / `sqlserver` track: those names are server-wide,
 //     and MartenTests, PostgresqlTests, PersistenceTests and the EF suites share several of them.
-//     SqlServerTests keeps its own four lanes (wolverine_w0..3, LaneDatabases-scoped siblings).
+//     SqlServerTests keeps its own four lanes (wolverine6_w0..3, LaneDatabases-scoped siblings).
 //   - Brokers and emulators (rabbitmq, kafka, localstack, the ASB emulator, pulsar, gcp-pubsub,
 //     nats, mysql, oracle, azurite, fake-gcs-server) are one track each: queue, topic and bucket
 //     names are hard-coded across their suites.
@@ -93,7 +93,7 @@ partial class Build
         /// <summary>The default database, as CI runs it, holding the server's track.</summary>
         Shared,
 
-        /// <summary>SqlServerTests: its own wolverine_w0..N-1 lanes, as CISqlServer runs it.</summary>
+        /// <summary>SqlServerTests: its own wolverine6_w0..N-1 lanes, as CISqlServer runs it.</summary>
         Lanes
     }
 
@@ -526,7 +526,7 @@ partial class Build
     WorkerConnectionStrings gateConnectionStrings(GateSuite suite, GateUnit unit)
     {
         var connectionStrings = new WorkerConnectionStrings();
-        var database = "wolverine_gate_" + new string(suite.Name.ToLowerInvariant()
+        var database = TestDatabasePrefix + "gate_" + new string(suite.Name.ToLowerInvariant()
             .Select(c => char.IsAsciiLetterOrDigit(c) ? c : '_').ToArray());
 
         if (suite.Postgres == ServerUse.OwnDatabase)

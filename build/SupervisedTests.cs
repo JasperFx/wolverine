@@ -84,12 +84,12 @@ partial class Build
     /// workers buy nothing but containers.
     /// </param>
     /// <param name="postgresDatabasePerLane">
-    /// Provisions one Postgres database per worker (wolverine_w0..N-1 on the docker-compose
+    /// Provisions one Postgres database per worker (wolverine6_w0..N-1 on the docker-compose
     /// server) and points each lane at its own via ConnectionStrings__postgres. Required before raising
     /// <paramref name="workers"/> on any Postgres-backed suite.
     /// </param>
     /// <param name="sqlServerDatabasePerLane">
-    /// Same isolation story for SQL Server: one database per worker (wolverine_w0..N-1 on the
+    /// Same isolation story for SQL Server: one database per worker (wolverine6_w0..N-1 on the
     /// docker-compose server, port 1434), each lane pointed at its own via ConnectionStrings__sqlserver.
     /// One server, many databases — a fleet of SQL Server CONTAINERS is far past what a 4-vCPU/16GB
     /// hosted runner can carry (see the worker-clamp note in runSupervised).
@@ -445,7 +445,7 @@ partial class Build
     /// needs its own database, so the factory takes its default path.
     /// </summary>
     /// <remarks>
-    /// One database per worker lane, wolverine_w0..N-1, provisioned on the docker-compose servers up
+    /// One database per worker lane, wolverine6_w0..N-1, provisioned on the docker-compose servers up
     /// front. Schema names are hard-coded throughout the suites, so two processes sharing one
     /// database collide however the tests are partitioned: isolation has to be the database.
     /// Discovery and isolated/recycled workers all report lane 0, so the databases provisioned
@@ -473,7 +473,7 @@ partial class Build
     }
 
     static string sqlServerLaneConnectionString(int lane)
-        => $"Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;MultipleActiveResultSets=True;Initial Catalog=wolverine_w{lane};Encrypt=False";
+        => $"Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;MultipleActiveResultSets=True;Initial Catalog={TestDatabasePrefix}w{lane};Encrypt=False";
 
     void ensureSqlServerLaneDatabases(int workers)
     {
@@ -482,7 +482,7 @@ partial class Build
 
         for (var lane = 0; lane < workers; lane++)
         {
-            var database = $"wolverine_w{lane}";
+            var database = $"{TestDatabasePrefix}w{lane}";
 
             using var create = conn.CreateCommand();
             // Identifier, not a value — cannot be parameterized. The name is generated above,
@@ -493,7 +493,7 @@ partial class Build
     }
 
     static string postgresLaneConnectionString(int lane)
-        => $"Host=localhost;Port=5433;Database=wolverine_w{lane};Username=postgres;password=postgres";
+        => $"Host=localhost;Port=5433;Database={TestDatabasePrefix}w{lane};Username=postgres;password=postgres";
 
     void ensurePostgresLaneDatabases(int workers)
     {
@@ -504,7 +504,7 @@ partial class Build
 
         for (var lane = 0; lane < workers; lane++)
         {
-            var database = $"wolverine_w{lane}";
+            var database = $"{TestDatabasePrefix}w{lane}";
 
             using var check = conn.CreateCommand();
             check.CommandText = "select 1 from pg_database where datname = @name";

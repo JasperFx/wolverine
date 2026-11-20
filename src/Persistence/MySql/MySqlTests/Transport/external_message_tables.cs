@@ -19,6 +19,10 @@ public class external_message_tables : ExternalTableTransportCompliance
     protected override string timestampColumnType => "DATETIME";
     protected override string messageTypeColumnType => "VARCHAR(255)";
 
+    // A MySQL schema is a database, shared by everything on the server, so these carry the 6.x prefix (GH-5635)
+    protected override string externalSchemaName => Servers.DatabaseName("ext");
+    protected override string messageStorageSchemaName => Servers.DatabaseName("wolverine");
+
     protected override void configurePersistence(WolverineOptions opts, string connectionString, string schemaName) => 
         opts.UseMySqlPersistenceAndTransport(connectionString, schemaName);
 

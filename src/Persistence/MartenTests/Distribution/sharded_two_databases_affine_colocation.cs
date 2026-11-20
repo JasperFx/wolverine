@@ -33,8 +33,8 @@ public class sharded_two_databases_affine_colocation(ITestOutputHelper output) :
     // Unique names per run: managed partitions/databases from one run otherwise break the next run's
     // resource-setup DDL reconciliation.
     private readonly string theSuffix = Guid.NewGuid().ToString("N")[..8];
-    private string ShardDatabase1 => $"w3281_aff1_{theSuffix}";
-    private string ShardDatabase2 => $"w3281_aff2_{theSuffix}";
+    private string ShardDatabase1 => Servers.DatabaseName($"w3281_aff1_{theSuffix}");
+    private string ShardDatabase2 => Servers.DatabaseName($"w3281_aff2_{theSuffix}");
     private string MasterSchema => $"csp_affine_{theSuffix}";
 
     private void ConfigureShardedStore(StoreOptions m)

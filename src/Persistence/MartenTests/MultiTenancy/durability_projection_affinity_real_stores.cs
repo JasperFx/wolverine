@@ -40,7 +40,7 @@ public class durability_projection_affinity_real_stores : IAsyncLifetime
         await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         var connectionStrings = new List<string>();
-        foreach (var database in _databases)
+        foreach (var database in _databases.Select(Servers.DatabaseName))
         {
             var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
             if (!await conn.DatabaseExists(database))
@@ -137,7 +137,7 @@ public class durability_projection_affinity_real_stores : IAsyncLifetime
 
         for (var i = 0; i < _databases.Length; i++)
         {
-            var database = _databases[i];
+            var database = Servers.DatabaseName(_databases[i]);
             var projectionOwners = _projectionAgents
                 .Where(uri => EventSubscriptionAgentFamily.DatabaseIdOf(uri)?.Name == database)
                 .Select(uri => grid.AgentFor(uri).AssignedNode)

@@ -1,3 +1,4 @@
+using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Descriptors;
 using JasperFx.Events.Projections;
@@ -60,7 +61,7 @@ public class running_daemons_under_managed_distribution(ITestOutputHelper output
                 daemon.IsRunning.ShouldBeTrue("the node runs agents for the database, so its high water loop runs");
             }
 
-            foreach (var other in tenants.Except(databases))
+            foreach (var other in tenants.Select(Servers.DatabaseName).Except(databases))
             {
                 await Should.ThrowAsync<DaemonNotRunningOnThisNodeException>(
                     async () => await coordinator.DaemonForDatabase(other));
@@ -97,7 +98,7 @@ public class running_daemons_under_managed_distribution(ITestOutputHelper output
 
         (await coordinator.AllDaemonsAsync()).ShouldBeEmpty();
         await Should.ThrowAsync<DaemonNotRunningOnThisNodeException>(
-            async () => await coordinator.DaemonForDatabase("tenant1"));
+            async () => await coordinator.DaemonForDatabase(Servers.DatabaseName("tenant1")));
     }
 
     private static string[] databasesRunOn(IHost host)

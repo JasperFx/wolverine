@@ -1,3 +1,4 @@
+using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Events.Projections;
 using Marten;
@@ -62,9 +63,9 @@ public class basic_agent_mechanics_multiple_tenants(ITestOutputHelper output)
         var uris = await GetAgentUrisAsync(host);
         var expectedUris = tenants.SelectMany(tenant => new[]
         {
-            $"event-subscriptions://marten/main/localhost.{tenant}/trip/all",
-            $"event-subscriptions://marten/main/localhost.{tenant}/day/all",
-            $"event-subscriptions://marten/main/localhost.{tenant}/distance/all"
+            $"event-subscriptions://marten/main/localhost.{Servers.DatabaseName(tenant)}/trip/all",
+            $"event-subscriptions://marten/main/localhost.{Servers.DatabaseName(tenant)}/day/all",
+            $"event-subscriptions://marten/main/localhost.{Servers.DatabaseName(tenant)}/distance/all"
         });
         uris.ShouldBe(expectedUris, ignoreOrder: true);
     }

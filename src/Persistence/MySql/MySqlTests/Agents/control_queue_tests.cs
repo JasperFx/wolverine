@@ -37,14 +37,14 @@ public class control_queue_tests : MySqlContext, IAsyncLifetime
         await using var conn = new MySqlConnection(Servers.MySqlConnectionString);
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DROP DATABASE IF EXISTS `mysqlcontrol`";
+        cmd.CommandText = $"DROP DATABASE IF EXISTS `{Servers.DatabaseName("mysqlcontrol")}`";
         await cmd.ExecuteNonQueryAsync();
         await conn.CloseAsync();
 
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "mysqlcontrol");
+                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("mysqlcontrol"));
                 opts.ServiceName = "Sender";
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
@@ -52,7 +52,7 @@ public class control_queue_tests : MySqlContext, IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "mysqlcontrol");
+                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("mysqlcontrol"));
                 opts.ServiceName = "Receiver";
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
@@ -68,10 +68,10 @@ public class control_queue_tests : MySqlContext, IAsyncLifetime
         await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         await using var cmd = conn.CreateCommand();
-        cmd.CommandText = @"
+        cmd.CommandText = $@"
             SELECT table_name
             FROM information_schema.tables
-            WHERE table_schema = 'mysqlcontrol'
+            WHERE table_schema = '{Servers.DatabaseName("mysqlcontrol")}'
             AND table_name LIKE 'wolverine%'";
 
         var tables = new List<string>();

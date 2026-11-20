@@ -205,6 +205,10 @@ centralized and CI-portable — e.g. Wolverine's own docker-compose Postgres run
 **5433** (`docker compose up -d postgresql`), distinct from Marten's `5432`, and only
 `Servers` knows that.
 
+On this 6.x branch every database a test creates or names (a tenant database, an ancillary store's database,
+a MySQL schema) goes through `Servers.DatabaseName("db1")`, which adds the `wolverine6_` prefix, so the 6.x
+and 7.x suites never share a database on one box (GH-5635, `.claude/docs/test_gates.md`).
+
 ## Configuration Organization
 
 WolverineOptions uses partial classes to organize concerns:

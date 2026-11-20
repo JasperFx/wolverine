@@ -21,7 +21,7 @@ public class node_load_advertisement
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private const string SchemaName = "node_load_4593";
+    private static readonly string SchemaName = Servers.DatabaseName("node_load_4593");
 
     private static async Task<MySqlMessageStore> buildStoreAsync(bool capacityAware)
     {

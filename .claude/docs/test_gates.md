@@ -65,7 +65,7 @@ How the suites share the box (the tracks; a track is held by one unit at a time)
 
 | Resource | Rule |
 |---|---|
-| Postgres, SQL Server | A suite that only uses the database its connection string names gets its own, `wolverine_gate_<project>`, recreated per run and handed over as `ConnectionStrings__postgres` / `ConnectionStrings__sqlserver`; it holds no track. A suite that also creates sibling databases under fixed names (MartenTests, PostgresqlTests, PersistenceTests, the EF suites, PolecatTests) runs against the default database, as in CI, and holds the `postgresql` / `sqlserver` track. SqlServerTests keeps its four `wolverine_w*` lanes. |
+| Postgres, SQL Server | A suite that only uses the database its connection string names gets its own, `wolverine6_gate_<project>`, recreated per run and handed over as `ConnectionStrings__postgres` / `ConnectionStrings__sqlserver`; it holds no track. A suite that also creates sibling databases under fixed names (MartenTests, PostgresqlTests, PersistenceTests, the EF suites, PolecatTests) runs against the default database, as in CI, and holds the `postgresql` / `sqlserver` track. SqlServerTests keeps its four `wolverine6_w*` lanes. See [6.x and 7.x on one box](#6x-and-7x-on-one-box-gh-5635). |
 | Each broker and emulator | One track per compose service: rabbitmq, kafka, localstack, asb-emulator, pulsar, gcp-pubsub, nats, mysql, oracle, azurite, fake-gcs-server. |
 | Fixed ports, heavy emulators | `mqtt-broker-ports` (both MQTT suites host a broker on 1883/1884), `cosmos-emulator` (each Cosmos suite starts one through Testcontainers), `ravendb`. |
 | Nothing | CoreTests, SQLite, Fisher, gRPC, the extension and F# suites: the worker budget only. |
@@ -127,7 +127,7 @@ own projects.
 | `CoreTests` | CoreTests | none | full-solution compile first |
 | `CIMessageRouting` | MessageRoutingTests | rabbitmq | `./build.sh ci` runs this after CoreTests |
 | `CIPostgresql` / `CIPersistence` | PostgresqlTests shards (+ PersistenceTests (net9.0) in `CIPersistence`) | postgresql (+ sqlserver, rabbitmq in `CIPersistence`) | |
-| `CISqlServer` | SqlServerTests | sqlserver | 4 workers, one database per lane (`wolverine_w0..`) |
+| `CISqlServer` | SqlServerTests | sqlserver | 4 workers, one database per lane (`wolverine6_w0..`) |
 | `CIMySql` | MySqlTests | mysql | |
 | `CIOracle` | OracleTests | oracle | the slowest image to become ready |
 | `CISqlite` | SqliteTests | none | |
@@ -175,6 +175,32 @@ worktree's stack was running. Now every worktree on the box shares whichever sta
 Bringing a stack down is the box owner's call, not a gate's: `docker compose down` in one worktree
 stops only that worktree's containers, but other worktrees may be using them.
 
+## 6.x and 7.x on one box (GH-5635)
+
+The `6.0` branch and `main` use the same docker-compose servers. Every database the 6.x suites create or
+assume by a fixed name starts with `wolverine6_`, so a 6.x run never opens a database a 7.x run made, and the
+other way around. Without it, one line's schema left in a shared database broke the other line's next run.
+
+- **The default database** is `wolverine6_testing` on Postgres, SQL Server and MySQL
+  (`Servers.DefaultDatabase` in `src/Servers.cs`), instead of `postgres`, `master` and `wolverine`. Servers.cs
+  creates it the first time a test asks for a connection string, and the build's readiness probes create it
+  too (`WaitForDatabaseToBeReady`, `WaitForSqlServerToBeReady`, `WaitForMySqlToBeReady`), for the AOT smoke
+  and anything else that can't.
+- **Lanes and gate databases:** `wolverine6_w0..N-1` and `wolverine6_gate_<project>` (`TestDatabasePrefix`
+  in `build/build.cs`). The Bobcat sample specs use `wolverine6_<sample database>`.
+- **Sibling databases** (tenant databases, ancillary stores, MySQL schemas) go through
+  `Servers.DatabaseName("db1")`, which gives `wolverine6_db1`. SqlServerTests' `LaneDatabases.Name` already
+  derives them from the lane's catalog. A test that names a database must do the same: a bare literal is
+  shared with main.
+- **Samples** with their own connection string (IncidentService, ProcessManagerViaHandlers,
+  PolecatIncidentService) get it from `TestDatabase.cs` in their test project, which points the sample at
+  `Servers` unless the environment already names a database.
+- Not covered: Oracle (a schema is a user there, and the suite logs in as the container's `wolverine` user).
+  MySqlTests' `Bug_5215_reserved_word_schema_name` keeps its `order` and `user` schemas, since the reserved
+  word is the point of the test, and drops them before it starts instead.
+
+To clean up after 6.x runs, drop the `wolverine6_%` databases.
+
 ## Running suites side by side
 
 For Stoat's resource declarations (JasperFx/stoat#101):
@@ -187,7 +213,7 @@ For Stoat's resource declarations (JasperFx/stoat#101):
   and fixtures drop and recreate them. Two suites that share a service collide, even from different
   worktrees, because they share the one container. Two suites whose service sets are disjoint can run
   at the same time.
-- **The per-lane databases are shared too.** `CISqlServer` runs four workers against `wolverine_w0..3`
+- **The per-lane databases are shared too.** `CISqlServer` runs four workers against `wolverine6_w0..3`
   on SQL Server (the Postgres equivalent, `postgresDatabasePerLane`, is not used by any target today),
   so two runs that use lanes collide on those names.
 - **Suites with no service** (`CoreTests`, `CISqlite`, `CIFisher`, `CIRavenDb`, `CIGrpc`,

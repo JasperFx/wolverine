@@ -10,6 +10,6 @@ public class replayable_deduplication_store_compliance : ReplayableDeduplication
 {
     protected override void configurePersistence(WolverineOptions opts)
     {
-        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "dedup_responses");
+        opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("dedup_responses"));
     }
 }

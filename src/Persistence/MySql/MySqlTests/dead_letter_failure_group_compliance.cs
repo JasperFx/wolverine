@@ -14,7 +14,7 @@ public class dead_letter_failure_group_compliance : RelationalDeadLetterFailureG
         return await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "dlq_groups");
+                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("dlq_groups"));
                 opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();
     }

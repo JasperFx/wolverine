@@ -42,7 +42,7 @@ public class tenanted_queue_inbox_recovery_4296 : PostgresqlContext, IAsyncLifet
     private IHost _host = null!;
 
     private string MainSchema => $"tq4296_{theSuffix}";
-    private string TenantDatabase(string tenant) => $"w4296_{tenant}_{theSuffix}";
+    private string TenantDatabase(string tenant) => Servers.DatabaseName($"w4296_{tenant}_{theSuffix}");
 
     private static string ConnectionStringFor(string database)
     {
@@ -76,7 +76,7 @@ public class tenanted_queue_inbox_recovery_4296 : PostgresqlContext, IAsyncLifet
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
 
-                opts.PersistMessagesWithPostgresql(ConnectionStringFor("postgres"), MainSchema)
+                opts.PersistMessagesWithPostgresql(ConnectionStringFor(Servers.PostgresDatabaseName), MainSchema)
                     .EnableMessageTransport(transport => transport.TransportSchemaName(MainSchema))
                     .RegisterStaticTenants(tenants =>
                     {

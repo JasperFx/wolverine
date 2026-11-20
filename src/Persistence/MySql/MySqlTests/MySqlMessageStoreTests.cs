@@ -25,7 +25,7 @@ public class MySqlMessageStoreTests : MessageStoreCompliance
         var dataSource = MySqlDataSourceFactory.Create(Servers.MySqlConnectionString);
         var settings = new DatabaseSettings
         {
-            SchemaName = "receiver",
+            SchemaName = Servers.DatabaseName("receiver"),
             CommandQueuesEnabled = true,
             Role = MessageStoreRole.Main
         };
@@ -39,7 +39,7 @@ public class MySqlMessageStoreTests : MessageStoreCompliance
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "receiver");
+                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("receiver"));
                 opts.ListenAtPort(2345).UseDurableInbox();
                 opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();

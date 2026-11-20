@@ -25,7 +25,7 @@ public class configuring_saga_table_storage
             {
                 opts.AddSagaType<MySqlRedSaga>("red");
                 opts.AddSagaType<MySqlBlueSaga>("blue");
-                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "color_sagas");
+                opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, Servers.DatabaseName("color_sagas"));
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -33,10 +33,10 @@ public class configuring_saga_table_storage
         await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         // Check that the saga tables exist
-        var redTable = new Table(new DbObjectName("color_sagas", "red"));
+        var redTable = new Table(new DbObjectName(Servers.DatabaseName("color_sagas"), "red"));
         (await redTable.ExistsInDatabaseAsync(conn, TestContext.Current.CancellationToken)).ShouldBeTrue();
 
-        var blueTable = new Table(new DbObjectName("color_sagas", "blue"));
+        var blueTable = new Table(new DbObjectName(Servers.DatabaseName("color_sagas"), "blue"));
         (await blueTable.ExistsInDatabaseAsync(conn, TestContext.Current.CancellationToken)).ShouldBeTrue();
 
         await conn.CloseAsync();
@@ -50,7 +50,7 @@ public class configuring_saga_table_storage
 
         // Drop and recreate the schema
         await using var dropCmd = conn.CreateCommand();
-        dropCmd.CommandText = "DROP DATABASE IF EXISTS color_sagas; CREATE DATABASE color_sagas;";
+        dropCmd.CommandText = $"DROP DATABASE IF EXISTS {Servers.DatabaseName("color_sagas")}; CREATE DATABASE {Servers.DatabaseName("color_sagas")};";
         await dropCmd.ExecuteNonQueryAsync();
 
         await conn.CloseAsync();
