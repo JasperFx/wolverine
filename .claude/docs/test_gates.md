@@ -132,7 +132,7 @@ own projects.
 | `CIOracle` | OracleTests | oracle | the slowest image to become ready |
 | `CISqlite` | SqliteTests | none | |
 | `CIFisher` | FisherTests, InMemoryTests | none | |
-| `CIEfCore` / `CIEfCoreNet10` | EfCoreTests (+ EfCoreTests.MultiTenancy on net10.0) | postgresql, sqlserver, rabbitmq | |
+| `CIEfCore` / `CIEfCoreNet10` / `CIEfCoreMultiTenancyNet10` | EfCoreTests (net9.0, net10.0); EfCoreTests.MultiTenancy (net10.0, own job) | postgresql, sqlserver, rabbitmq | |
 | `CIMartenDistribution` / `CIMartenTenancy` / `CIMarten` | MartenTests shards (+ MartenSubscriptionTests in `CIMarten`) | postgresql | |
 | `CIPolecat` / `CIPolecatWorkflow` / `CIPolecatSagas` | PolecatTests shards (+ PolecatIncidentService.Tests in `CIPolecat`) | sqlserver | net10.0 |
 | `CICosmosDb` | CosmosDbTests, CosmosDbTests.LeaderElection | none from compose | starts its own emulator through Testcontainers (Docker required, dynamic ports) |

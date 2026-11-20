@@ -1026,6 +1026,11 @@ partial class Build
             ? [EfCoreTests, EfCoreMultiTenancyTests]
             : [EfCoreTests];
 
+        runEfCoreProjects(framework, suites);
+    }
+
+    void runEfCoreProjects(string framework, params AbsolutePath[] suites)
+    {
         BuildTestProjectsWithFramework(framework, suites);
         // RabbitMQ is required by Bug_2588_ef_core_durable_outbox_with_conventional_routing,
         // which exercises EF Core + RabbitMQ conventional routing + durable outbox policy.
@@ -1046,9 +1051,22 @@ partial class Build
     /// prevent. As its own job the EF 10 run costs wall clock only against the other 34 jobs already
     /// running in parallel.
     /// </summary>
+    /// <remarks>
+    ///     Split in two because the pair ran right up against the 20 minute cap (EfCoreTests about 12 minutes,
+    ///     EfCoreTests.MultiTenancy about 8, plus build and container start): the multi-tenancy half is
+    ///     <see cref="CIEfCoreMultiTenancyNet10" />. See #3350.
+    /// </remarks>
     Target CIEfCoreNet10 => _ => _
         .ProceedAfterFailure()
-        .Executes(() => runEfCoreSuites("net10.0"));
+        .Executes(() => runEfCoreProjects("net10.0", EfCoreTests));
+
+    /// <summary>
+    /// EfCoreTests.MultiTenancy on net10.0 (it has no net9.0 target), as its own matrix job so neither EF Core 10
+    /// job comes near the 20 minute cap. See <see cref="CIEfCoreNet10" />.
+    /// </summary>
+    Target CIEfCoreMultiTenancyNet10 => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runEfCoreProjects("net10.0", EfCoreMultiTenancyTests));
 
     // ─── Transport CI Targets ──────────────────────────────────────────
 

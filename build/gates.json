@@ -102,7 +102,7 @@
     {
       "name": "EfCoreTests.MultiTenancy",
       "path": "src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj",
-      "ciTargets": "CIEfCoreNet10",
+      "ciTargets": "CIEfCoreMultiTenancyNet10",
       "workers": 1,
       "postgres": "Shared",
       "sqlServer": "Shared",
