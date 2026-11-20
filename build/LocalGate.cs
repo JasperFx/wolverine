@@ -166,7 +166,7 @@ partial class Build
         {
             Postgres = ServerUse.Shared, SqlServer = ServerUse.Shared, Services = ["rabbitmq"], Frameworks = ["net10.0"]
         },
-        new("src/Persistence/PostgresqlTests/PostgresqlTests.csproj", "CIPersistence") { Postgres = ServerUse.Shared },
+        new("src/Persistence/PostgresqlTests/PostgresqlTests.csproj", "CIPersistence, CIPostgresql, CIPostgresqlFeatures") { Postgres = ServerUse.Shared },
         new("src/Persistence/MartenTests/MartenTests.csproj", "CIMarten, CIMartenDistribution, CIMartenTenancy")
         {
             Postgres = ServerUse.Shared

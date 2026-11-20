@@ -47,7 +47,7 @@
     {
       "name": "PostgresqlTests",
       "path": "src/Persistence/PostgresqlTests/PostgresqlTests.csproj",
-      "ciTargets": "CIPersistence",
+      "ciTargets": "CIPersistence, CIPostgresql, CIPostgresqlFeatures",
       "workers": 1,
       "postgres": "Shared",
       "services": [
