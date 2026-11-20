@@ -24,7 +24,7 @@ public class PartitionedMessageTopologyWithSubjects : PartitionedMessageTopology
         // EndpointMode.Durable" at configuration time. Stream naming matches
         // NatsListenerConfiguration.UseJetStream()'s default.
         endpoint.UseJetStream = true;
-        endpoint.StreamName ??= name.Replace(".", "_").ToUpper();
+        endpoint.StreamName ??= name.Replace(".", "_").ToUpperInvariant();
 
         transport.Configuration.EnableJetStream = true;
 

@@ -184,7 +184,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     public override async ValueTask<bool> CheckAsync()
     {
-        var exchangeName = Name.ToLower();
+        var exchangeName = Name.ToLowerInvariant();
         try
         {
             await _parent.WithAdminChannelAsync(channel => channel.ExchangeDeclarePassiveAsync(exchangeName));

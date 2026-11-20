@@ -16,6 +16,11 @@ public class determining_valid_response_types
     [InlineData(typeof(IEnumerable<object>), false)]
     [InlineData(typeof(object[]), false)]
     [InlineData(typeof(SpecialReturnType), false)]
+    // GH-5684. A collection of side effects is executed, not written out as the response body
+    [InlineData(typeof(IEnumerable<IMartenOp>), false)]
+    [InlineData(typeof(List<IMartenOp>), false)]
+    [InlineData(typeof(IMartenOp[]), false)]
+    [InlineData(typeof(List<ItemCreated>), true)]
     public void is_valid_response_type(Type type, bool canBeResponse)
     {
         HttpChain.IsValidResponseType(type).ShouldBe(canBeResponse);

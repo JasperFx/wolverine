@@ -128,6 +128,14 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
             // Adjust existing rules to match configuration
             var rules = await client.GetRulesAsync(Topic.TopicName, SubscriptionName).ToListAsync();
+
+            // GH-5682. The configured rule is created when it is missing, before any other rule is deleted below, so
+            // the subscription is never left without a rule and receiving nothing
+            if (rules.All(x => x.Name != RuleOptions.Name))
+            {
+                await client.CreateRuleAsync(Topic.TopicName, SubscriptionName, RuleOptions);
+            }
+
             foreach (var rule in rules)
             {
                 if (rule.Name == RuleOptions.Name)

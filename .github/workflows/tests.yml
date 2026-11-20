@@ -68,6 +68,8 @@ jobs:
           # EF 10 half, as its own job rather than a second framework inside CIEfCore -- the matrix is
           # runner-MINUTE bound and the 20 minute per-job cap is there to stop a lane doubling its work.
           - CIEfCoreNet10
+          # EfCoreTests.MultiTenancy on net10.0, split off CIEfCoreNet10 to keep both under the 20 minute cap (#3350).
+          - CIEfCoreMultiTenancyNet10
           # Fisher is an embedded SQLite file - no container, no service dependency.
           - CIFisher
           - CIGrpc

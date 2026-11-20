@@ -108,6 +108,15 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
 
         if (chain.RequestType == null && parameter.ParameterType.IsConcrete())
         {
+            // GH-5679: a value an earlier middleware frame already creates -- say the state a Before method hands to
+            // its After and Finally -- belongs to the server and is never the request body. This only comes up when
+            // middleware is installed while the endpoint's own parameters are still being matched, as a custom
+            // IParameterStrategy can do, because the chain has not settled whether it has a request body yet
+            if (chain.Middleware.Any(frame => frame.Creates.Any(x => x.VariableType == parameter.ParameterType)))
+            {
+                return false;
+            }
+
             // GH-3863: a concrete type registered with the application container is a service
             // dependency, not an inferred JSON body. Keep [FromBody] as the explicit override for
             // applications that intentionally register a request body type as a service.

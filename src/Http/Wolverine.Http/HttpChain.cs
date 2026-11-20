@@ -47,6 +47,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             return false;
         }
 
+        // GH-5684. A collection of side effects (IEnumerable<IMartenOp>, List<IPolecatOp>, ...) is executed by its
+        // return action like a single side effect is, never written out as the response body
+        if (type.CanBeCastTo<IEnumerable<ISideEffect>>())
+        {
+            return false;
+        }
+
         if (type.CanBeCastTo<IAsyncEnumerable<object>>())
         {
             return false;
