@@ -1,5 +1,6 @@
 using System.Data.Common;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
@@ -19,7 +20,12 @@ public abstract partial class MessageDatabase<T>
         await using var conn = CreateConnection();
         await conn.OpenAsync(token);
 
-        if (await TryAttainLockAsync(externalTable.AdvisoryLock, conn, token))
+        if (!await TryAttainLockAsync(externalTable.AdvisoryLock, conn, token))
+        {
+            return;
+        }
+
+        try
         {
             await using var command = buildFetchSql(conn, externalTable.TableName, externalTable.Columns().ToArray(),
                 externalTable.MessageBatchSize);
@@ -28,7 +34,7 @@ public abstract partial class MessageDatabase<T>
             var envelopes = await externalTable.ReadAllAsync(reader, token);
 
             await reader.CloseAsync();
-            
+
             if (envelopes.Any())
             {
                 // Important to make every envelope as being owned by the
@@ -37,7 +43,7 @@ public abstract partial class MessageDatabase<T>
                 {
                     envelope.Status = EnvelopeStatus.Incoming;
                     envelope.OwnerId = runtime.DurabilitySettings.AssignedNodeNumber;
-                    
+
                     // Fix for GH-1225
                     envelope.Source = externalTable.TableName.QualifiedName;
                 }
@@ -52,8 +58,28 @@ public abstract partial class MessageDatabase<T>
                 await receiver.ReceivedAsync(listener, envelopes);
             }
         }
+        finally
+        {
+            // GH-5676. The lock is session scoped, and closing the connection does not end the session: it goes
+            // back to the pool still holding the lock until the pool resets or prunes it. Every other poller of
+            // this table -- another node, or the next host in the same process -- was locked out until then
+            await releasePollingLockAsync(externalTable.AdvisoryLock, conn);
+        }
 
         await conn.CloseAsync();
+    }
+
+    private async Task releasePollingLockAsync(int lockId, T conn)
+    {
+        try
+        {
+            await ReleaseLockAsync(lockId, conn, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            // Not thrown over whatever failed in the poll itself. The pool's reset releases it eventually
+            Logger.LogError(e, "Unable to release the external table polling lock {LockId}", lockId);
+        }
     }
 
 
