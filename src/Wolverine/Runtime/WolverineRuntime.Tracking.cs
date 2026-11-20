@@ -89,10 +89,13 @@ public sealed partial class WolverineRuntime : IMessageTracker
     internal void RecordAppendedEventsOutsideAMessage(IReadOnlyList<StreamAction> streams,
         JasperFx.Events.EventStoreIdentity? store, string? tenantId)
     {
-        if (streams.Count == 0 || ActiveSession is null) return;
+        // GH-5683. Read once: a tracked session on a shared host can end on another thread between a check and a
+        // second read, and this runs inside the application's own SaveChangesAsync()
+        var session = ActiveSession;
+        if (streams.Count == 0 || session is null) return;
         if (Tracking.ConcurrentAppends.InsideConcurrentAppend.Value) return;
 
-        ActiveSession.RecordAppendedEvents(new AppendedEvents(null, _serviceName, streams)
+        session.RecordAppendedEvents(new AppendedEvents(null, _serviceName, streams)
         {
             Store = store,
             TenantId = tenantId
