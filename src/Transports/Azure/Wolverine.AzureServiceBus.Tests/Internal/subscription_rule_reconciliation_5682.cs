@@ -42,7 +42,7 @@ public class subscription_rule_reconciliation_5682
     {
         theExistingRulesAre();
 
-        (await theSubscription.SetupAsync(theClient, NullLogger.Instance, createFirst: false)).ShouldBeFalse();
+        await theSubscription.SetupAsync(theClient, NullLogger.Instance);
 
         await theClient.Received(1).CreateRuleAsync("my-topic", "my-sub",
             Arg.Is<CreateRuleOptions>(x => x.Name == "my-rule" && x.Filter.Equals(new CorrelationRuleFilter { Subject = "my.event" })),
@@ -54,7 +54,7 @@ public class subscription_rule_reconciliation_5682
     {
         theExistingRulesAre(ServiceBusModelFactory.RuleProperties("$Default", new TrueRuleFilter()));
 
-        await theSubscription.SetupAsync(theClient, NullLogger.Instance, createFirst: false);
+        await theSubscription.SetupAsync(theClient, NullLogger.Instance);
 
         await theClient.Received(1).CreateRuleAsync("my-topic", "my-sub",
             Arg.Is<CreateRuleOptions>(x => x.Name == "my-rule"), Arg.Any<CancellationToken>());
@@ -66,7 +66,7 @@ public class subscription_rule_reconciliation_5682
     {
         theExistingRulesAre(ServiceBusModelFactory.RuleProperties("my-rule", new CorrelationRuleFilter { Subject = "my.event" }));
 
-        await theSubscription.SetupAsync(theClient, NullLogger.Instance, createFirst: false);
+        await theSubscription.SetupAsync(theClient, NullLogger.Instance);
 
         await theClient.DidNotReceive().CreateRuleAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CreateRuleOptions>(),
             Arg.Any<CancellationToken>());
