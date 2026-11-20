@@ -42,7 +42,7 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
         // to the first message, both landed inside its tracked session's timeout, and the first test of a cold
         // process against a just started database ran out of it
         await _host.DocumentStore().Storage.ApplyAllConfiguredChangesToDatabaseAsync();
-        _host.CompileAllHandlers();
+        _host.CompileHandlersFor<SoftDeletedOrderSaga>();
     }
 
     public async ValueTask DisposeAsync()

@@ -29,7 +29,7 @@ public class SagaTestHarness<T> : IDisposable
         _host = await SagaHost.BuildHostAsync<T>();
 
         // GH-5676. Code generation is setup, not the saga behaviour these specs time with a tracked session
-        _host.CompileAllHandlers();
+        _host.CompileHandlersFor<T>();
     }
 
     protected async Task<string> codeFor<TMessage>()
