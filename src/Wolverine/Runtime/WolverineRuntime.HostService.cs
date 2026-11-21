@@ -431,6 +431,9 @@ public partial class WolverineRuntime
             _hasStarted = true;
             _fullyStarted.TrySetResult();
 
+            // GH-5723: created after everything the startup built, so the container disposes it before any of them
+            _container.Services.GetService(typeof(StopWolverineBeforeItsServicesAreDisposed));
+
             // Freeze fault-publishing policy so per-type overrides cannot be silently
             // mutated from runtime code after host startup completes. All bootstrap
             // callbacks (UseWolverine + per-type PublishFault calls) have run by now.
