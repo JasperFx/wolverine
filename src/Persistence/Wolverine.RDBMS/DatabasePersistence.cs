@@ -327,7 +327,18 @@ public static class DatabasePersistence
                 return BuildUnreadableDeadLetterEnvelope(id, messageType, receivedAt);
             }
 
-            return EnvelopeSerializer.Deserialize(await reader.GetFieldValueAsync<byte[]>(2, cancellation));
+            var body = await reader.GetFieldValueAsync<byte[]>(2, cancellation);
+
+            // GH-5719. A zero-length body is Wolverine's own "could not serialize this dead letter" marker, written
+            // by ConfigureDeadLetterCommands when EnvelopeSerializer refused the envelope (no Message and no Data).
+            // That failure was already logged once, on the write. Reading the row back is expected, not a second
+            // failure, so it gets the placeholder quietly instead of an Error on every read of the queue.
+            if (body.Length == 0)
+            {
+                return BuildUnreadableDeadLetterEnvelope(id, messageType, receivedAt);
+            }
+
+            return EnvelopeSerializer.Deserialize(body);
         }
         catch (Exception e)
         {
@@ -383,7 +394,10 @@ public static class DatabasePersistence
         }
         catch (WolverineSerializationException e)
         {
-            wolverineDatabase.Logger.LogError(e, "Error trying to serialize a dead letter envelope");
+            // GH-5719. The dead letter is still recorded, just without a body, and reads back as a placeholder
+            wolverineDatabase.Logger.LogError(e,
+                "Error trying to serialize dead letter envelope {Id} of message type {MessageType}. The dead letter is still recorded, with an empty body",
+                envelope.Id, envelope.MessageType);
         }
 
         var id = builder.AddParameter(envelope.Id);
