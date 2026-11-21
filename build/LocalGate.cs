@@ -24,6 +24,9 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 //   ./build.sh LocalGateSuites --gate-only Marten     only the suites whose project name contains "Marten"
 //   ./build.sh LocalGate --gate-with AzureServiceBus  every suite plus the opt-in suites named (see OptIn below)
 //   ./build.sh LocalGate --framework all              every framework a suite declares (every framework, net10.0 AND net11.0)
+//   ./build.sh LocalGate --affected                   only what the change since the merge base with origin/main can
+//                                                     reach, per dotnet-affected (build/AffectedGate.cs); --affected-from <ref>
+//   ./build.sh LocalGatePlan --affected               what that would run, without running it
 //
 // Release, as in CI, unless --configuration says otherwise. The framework is .nuke/parameters.json's
 // net10.0, as in CI; a suite that does not target it runs on its newest.
@@ -133,6 +136,17 @@ partial class Build
         /// gated suite as far as VerifyLocalGateCoverage is concerned, so it never goes in NotGated.
         /// </summary>
         public bool OptIn { get; init; }
+
+        /// <summary>
+        /// Under --affected (build/AffectedGate.cs), the paths whose change brings this opt-in suite into the run.
+        /// </summary>
+        public string[] JoinsWhenChanged { get; init; } = [];
+
+        /// <summary>
+        /// Under --affected, project directories (path prefixes) the suite builds by shelling out rather than by
+        /// ProjectReference, so the project graph cannot see them: the suite runs when one of them is affected.
+        /// </summary>
+        public string[] Watches { get; init; } = [];
 
         public IEnumerable<string> ComposeServices()
         {
@@ -264,8 +278,10 @@ partial class Build
                 ["azureservicebus-management"] = lane => azureServiceBusEmulatorForLane(lane, management: true)
             },
             // Jeremy 2026-11-17: opt-in. The emulators are slow and contended, so the suite runs only when a change
-            // touches src/Transports/Azure: --gate-with AzureServiceBus, or --gate-only AzureServiceBus alone
-            OptIn = true
+            // touches src/Transports/Azure: --gate-with AzureServiceBus, or --gate-only AzureServiceBus alone, and
+            // --affected brings it in on its own for exactly that change
+            OptIn = true,
+            JoinsWhenChanged = ["src/Transports/Azure/"]
         },
         new("src/Transports/Kafka/Wolverine.Kafka.Tests/Wolverine.Kafka.Tests.csproj", "CIKafka")
         {
@@ -360,13 +376,22 @@ partial class Build
         new("src/Extensions/Wolverine.Protobuf.Tests/Wolverine.Protobuf.Tests.csproj", "CIExtensions"),
 
         // ─── fsharp.yml: `dotnet test` in that workflow, supervised here. No services in CI. ───
-        new("src/Testing/Wolverine.Core.FSharpTests/Wolverine.Core.FSharpTests.csproj", "fsharp.yml"),
-        new("src/Testing/Wolverine.Http.FSharpTests/Wolverine.Http.FSharpTests.csproj", "fsharp.yml"),
-        new("src/Testing/Wolverine.EfCore.FSharpTests/Wolverine.EfCore.FSharpTests.csproj", "fsharp.yml"),
-        new("src/Testing/Wolverine.Marten.FSharpTests/Wolverine.Marten.FSharpTests.csproj", "fsharp.yml"),
-        new("src/Testing/Wolverine.MartenAggregate.FSharpTests/Wolverine.MartenAggregate.FSharpTests.csproj", "fsharp.yml"),
-        new("src/Testing/Wolverine.Cosmos.FSharpTests/Wolverine.Cosmos.FSharpTests.csproj", "fsharp.yml"),
-        new("src/Testing/Wolverine.Behavioural.FSharpTests/Wolverine.Behavioural.FSharpTests.csproj", "fsharp.yml"),
+        // Each shells `dotnet build` on its sibling fixture (or app), which no ProjectReference names, so it watches
+        // every project beside it with the same prefix: the paths fsharp.yml filters on.
+        new("src/Testing/Wolverine.Core.FSharpTests/Wolverine.Core.FSharpTests.csproj", "fsharp.yml")
+            { Watches = ["src/Testing/Wolverine.Core.FSharp"] },
+        new("src/Testing/Wolverine.Http.FSharpTests/Wolverine.Http.FSharpTests.csproj", "fsharp.yml")
+            { Watches = ["src/Testing/Wolverine.Http.FSharp"] },
+        new("src/Testing/Wolverine.EfCore.FSharpTests/Wolverine.EfCore.FSharpTests.csproj", "fsharp.yml")
+            { Watches = ["src/Testing/Wolverine.EfCore.FSharp"] },
+        new("src/Testing/Wolverine.Marten.FSharpTests/Wolverine.Marten.FSharpTests.csproj", "fsharp.yml")
+            { Watches = ["src/Testing/Wolverine.Marten.FSharp"] },
+        new("src/Testing/Wolverine.MartenAggregate.FSharpTests/Wolverine.MartenAggregate.FSharpTests.csproj", "fsharp.yml")
+            { Watches = ["src/Testing/Wolverine.MartenAggregate.FSharp"] },
+        new("src/Testing/Wolverine.Cosmos.FSharpTests/Wolverine.Cosmos.FSharpTests.csproj", "fsharp.yml")
+            { Watches = ["src/Testing/Wolverine.Cosmos.FSharp"] },
+        new("src/Testing/Wolverine.Behavioural.FSharpTests/Wolverine.Behavioural.FSharpTests.csproj", "fsharp.yml")
+            { Watches = ["src/Testing/Wolverine.Behavioural.FSharp"] },
     ];
 
     /// <summary>
@@ -402,14 +427,18 @@ partial class Build
     /// order, as the ordinary targets they are. CICodegenTest wipes ConsoleApp's generated tree and
     /// CICodegenDrift regenerates every committed tree, so drift goes last and leaves the tree as the
     /// source says it should be.
+    /// <para>
+    /// Inputs are the project directories (path prefixes) each one builds: under --affected an extra runs only
+    /// when the change reaches one of them (build/AffectedGate.cs).
+    /// </para>
     /// </summary>
-    static readonly (string Target, string Workflow)[] GateExtras =
+    static readonly (string Target, string Workflow, string[] Inputs)[] GateExtras =
     [
-        ("CICommandLineSmoke", "command-line.yml"),
-        ("CIAotSmoke", "tests.yml"),
-        ("BobcatSamples", "bobcat-samples.yml"),
-        ("CICodegenTest", "command-line.yml"),
-        ("CICodegenDrift", "command-line.yml"),
+        ("CICommandLineSmoke", "command-line.yml", ["src/Samples/Quickstart/"]),
+        ("CIAotSmoke", "tests.yml", ["src/Testing/Wolverine.AotSmoke", "src/Testing/Wolverine.AI.AotSmoke/"]),
+        ("BobcatSamples", "bobcat-samples.yml", ["src/Samples/Bobcat/"]),
+        ("CICodegenTest", "command-line.yml", ["src/Testing/ConsoleApp/"]),
+        ("CICodegenDrift", "command-line.yml", CodegenDriftProjects.Select(x => x + "/").ToArray()),
     ];
 
     /// <summary>
@@ -432,30 +461,15 @@ partial class Build
             var clock = Stopwatch.StartNew();
             verifyLocalGateCoverage();
 
-            static bool named(GateSuite suite, string[] names) =>
-                names is { Length: > 0 } && names.Any(x => suite.Name.Contains(x, StringComparison.OrdinalIgnoreCase));
-
-            // --gate-only picks by name, opt-in suites included. Otherwise every suite runs except the opt-in
-            // ones, unless --gate-with names them.
-            var suites = GateSuites
-                .Where(s => GateOnly is { Length: > 0 } ? named(s, GateOnly) : !s.OptIn || named(s, GateWith))
-                .ToArray();
-            if (suites.Length == 0)
-                throw new InvalidOperationException($"--gate-only {string.Join(" ", GateOnly)} matched no suite.");
-
-            if (GateWith is { Length: > 0 } && !GateSuites.Any(s => s.OptIn && named(s, GateWith)))
-                throw new InvalidOperationException($"--gate-with {string.Join(" ", GateWith)} matched no opt-in suite.");
-
-            foreach (var skipped in GateSuites.Where(s => s.OptIn).Except(suites))
-                Log.Information("Skipped {Suite}: an opt-in suite. Add --gate-with {Suite} to run it with the gate.",
-                    skipped.Name, skipped.Name);
+            var suites = selectGateSuites();
+            if (suites.Length == 0) return;
 
             var gate = new GateDeclaration
             {
                 Frameworks = FrameworkSelection.Parse(Framework),
                 Configuration = Configuration,
                 SkipBuild = true, // built below, overlapped with the containers' start
-                DurationsPath = GateOnly is { Length: > 0 } ? null : RootDirectory / ".bobcat" / "gate-durations.json",
+                DurationsPath = GateOnly is { Length: > 0 } || Affected ? null : RootDirectory / ".bobcat" / "gate-durations.json",
                 Log = message => Log.Information("{Message}", message)
             };
             if (GateWorkers is { } budget) gate.WorkerBudget = budget;
@@ -546,6 +560,62 @@ partial class Build
             if (results.ExitCode != 0)
                 throw new InvalidOperationException(
                     $"LocalGateSuites is red: exit code {results.ExitCode}. The report above names every unit.");
+        });
+
+    /// <summary>
+    /// The suites this run of the gate covers: --gate-only and --gate-with, then --affected. Empty only when
+    /// --affected finds that no suite is reachable.
+    /// </summary>
+    GateSuite[] selectGateSuites()
+    {
+        static bool named(GateSuite suite, string[] names) =>
+            names is { Length: > 0 } && names.Any(x => suite.Name.Contains(x, StringComparison.OrdinalIgnoreCase));
+
+        // --gate-only picks by name, opt-in suites included. Otherwise every suite runs except the opt-in
+        // ones, unless --gate-with names them.
+        var suites = GateSuites
+            .Where(s => GateOnly is { Length: > 0 } ? named(s, GateOnly) : !s.OptIn || named(s, GateWith))
+            .ToArray();
+        if (suites.Length == 0)
+            throw new InvalidOperationException($"--gate-only {string.Join(" ", GateOnly)} matched no suite.");
+
+        if (GateWith is { Length: > 0 } && !GateSuites.Any(s => s.OptIn && named(s, GateWith)))
+            throw new InvalidOperationException($"--gate-with {string.Join(" ", GateWith)} matched no opt-in suite.");
+
+        // --affected narrows whatever the options above chose to what the change can reach (build/AffectedGate.cs)
+        if (Affected)
+        {
+            suites = selectAffectedSuites(suites);
+            if (suites.Length == 0)
+            {
+                Log.Information("--affected: no suite is affected, so no suite runs");
+                return [];
+            }
+        }
+
+        foreach (var skipped in GateSuites.Where(s => s.OptIn).Except(suites))
+            Log.Information("Skipped {Suite}: an opt-in suite. Add --gate-with {Suite} to run it with the gate.",
+                skipped.Name, skipped.Name);
+
+        return suites;
+    }
+
+    /// <summary>
+    /// What LocalGate would run with the same options, without building or running anything: the suites, then
+    /// the extras. Meant for --affected, to see what a change reaches before paying for it.
+    /// </summary>
+    Target LocalGatePlan => _ => _
+        .Description("Prints the suites and extras LocalGate would run with the same options (--affected, --gate-only, --gate-with), running nothing")
+        .Executes(() =>
+        {
+            var suites = selectGateSuites();
+            var extras = GateExtras.Where(x => gateExtraSelected(x.Target)).ToArray();
+
+            Console.WriteLine();
+            Console.WriteLine($"LocalGate would run {suites.Length} of {GateSuites.Length} suite(s):");
+            foreach (var suite in suites) Console.WriteLine($"  {suite.Name,-50} {suite.CITargets}");
+            Console.WriteLine($"and {extras.Length} of {GateExtras.Length} extra(s):");
+            foreach (var extra in extras) Console.WriteLine($"  {extra.Target,-50} {extra.Workflow}");
         });
 
     Target VerifyLocalGateCoverage => _ => _
@@ -802,13 +872,15 @@ partial class Build
                 ciTargets = s.CITargets,
                 workers = s.Workers,
                 optIn = s.OptIn ? true : (bool?)null,
+                joinsWhenChanged = s.JoinsWhenChanged.Length > 0 ? s.JoinsWhenChanged : null,
+                watches = s.Watches.Length > 0 ? s.Watches : null,
                 frameworks = s.Frameworks,
                 postgres = s.Postgres == ServerUse.None ? null : s.Postgres.ToString(),
                 sqlServer = s.SqlServer == ServerUse.None ? null : s.SqlServer.ToString(),
                 services = s.ComposeServices().ToArray(),
                 tracks = s.Tracks().ToArray()
             }),
-            extras = GateExtras.Select(x => new { target = x.Target, workflow = x.Workflow }),
+            extras = GateExtras.Select(x => new { target = x.Target, workflow = x.Workflow, inputs = x.Inputs }),
             notGated = NotGated.OrderBy(x => x.Key, StringComparer.Ordinal).ToDictionary(x => x.Key, x => x.Value)
         };
 

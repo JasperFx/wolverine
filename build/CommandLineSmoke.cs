@@ -22,6 +22,7 @@ partial class Build
     Target CICommandLineSmoke => _ => _
         .Description("The describe-handlers and event-model smoke tests from command-line.yml. GH-5125.")
         .ProceedAfterFailure()
+        .OnlyWhenDynamic(() => gateExtraSelected(nameof(CICommandLineSmoke)))
         .Executes(() =>
         {
             var framework = string.IsNullOrEmpty(Framework) ? "net10.0" : Framework;

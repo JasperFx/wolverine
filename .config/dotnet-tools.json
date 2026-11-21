@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "isRoot": true,
+  "tools": {
+    "dotnet-affected": {
+      "version": "7.0.1",
+      "commands": [
+        "dotnet-affected"
+      ],
+      "rollForward": false
+    }
+  }
+}
