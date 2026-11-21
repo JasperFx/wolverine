@@ -11,6 +11,23 @@ Buffered and Durable endpoints (the default is buffered) pull messages in batche
 **single** batched insert, which makes durable ASB endpoints comparatively cheap per message.
 Message *settlement* (complete) is one service call per message.
 
+### Waiting longer between empty receives <Badge type="tip" text="7.0" />
+
+When a buffered, durable or session listener's receive comes back empty, it waits 250 milliseconds
+before receiving again, on top of `MaximumWaitTime`. For a quiet queue or subscription that can
+live with picking messages up later, raise that wait to make fewer receive calls:
+
+```cs
+opts.ListenToAzureServiceBusQueue("quiet")
+    .MaximumWaitTime(30.Seconds())
+
+    // Wait 5 minutes after an empty receive before receiving again
+    .IdleDelay(5.Minutes());
+```
+
+Inline endpoints run on the Service Bus processor, which does its own receiving, so the idle delay
+does not apply to them.
+
 ### Prefetch <Badge type="tip" text="6.21" />
 
 `PrefetchCount` lets the Service Bus client stream messages ahead of your receive calls and is

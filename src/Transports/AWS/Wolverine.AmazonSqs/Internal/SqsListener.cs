@@ -140,7 +140,9 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         // catch -> log -> exponential-backoff -> continue policy, the idle delay when a poll returns nothing, the
         // heartbeat, and safe teardown. The listener just provides one poll-and-process iteration and reports the
         // loop's health through IReportReceiveLoopHealth.
-        _loop = new BackgroundReceiveLoop(_queue.Uri, logger, pollOnceAsync, runtime.Cancellation)
+        // GH-5737: the delay after an empty receive is the endpoint's IdleDelay, 250ms unless configured.
+        _loop = new BackgroundReceiveLoop(_queue.Uri, logger, pollOnceAsync, runtime.Cancellation,
+            IdleDelays.For(_queue))
         {
             // GH-4215: a wiped broker -- LocalStack or an emulator restarting empty, an operator or IaC
             // teardown -- used to kill this listener permanently. The queue was declared by AutoProvision at

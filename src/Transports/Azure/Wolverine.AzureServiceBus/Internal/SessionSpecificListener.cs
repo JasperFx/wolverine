@@ -134,8 +134,8 @@ internal class AzureServiceBusSessionListener : IListener
 
                 if (count == 0)
                 {
-                    // TODO -- make this configurable
-                    await backOffAsync(250.Milliseconds(), token);
+                    // GH-5737: the endpoint's IdleDelay, 250ms unless configured
+                    await backOffAsync(IdleDelays.For(_endpoint), token);
                 }
             }
             catch (Exception) when (token.IsCancellationRequested)
