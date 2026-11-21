@@ -354,7 +354,8 @@ public partial class SagaChain : HandlerChain
     /// GH-5674. What this chain does with its message when the saga is missing and there is no <c>NotFound</c> for it:
     /// <see cref="DiscardIfSagaMissingAttribute" /> on the message type or on the saga's method for it, then
     /// <see cref="SagaMissingAttribute" /> on the saga type, then <c>opts.Policies.WhenSagaIsMissing()</c>. A saga's
-    /// compensation chain always reports a missing saga, which is how a compensation with no saga is told apart
+    /// compensation chain (its <c>Fault&lt;T&gt;</c> chain) reports a missing saga, so the fault is dead lettered
+    /// tagged <c>compensation-saga-missing</c>, unless the saga itself says <c>[SagaMissing(Discard)]</c> (GH-5709)
     /// </summary>
     internal SagaMissingBehavior DetermineSagaMissingBehavior() => DetermineSagaMissingBehavior(_options);
 
@@ -363,7 +364,11 @@ public partial class SagaChain : HandlerChain
     {
         if (CompensateCalls.Length != 0 || SagaCompensations.FaultMessageType(MessageType) != null)
         {
-            return SagaMissingBehavior.Throw;
+            // GH-5709: only the saga's own [SagaMissing] covers its faults. [DiscardIfSagaMissing] and the global
+            // policy are about the saga's ordinary messages
+            return SagaType.TryGetAttribute<SagaMissingAttribute>(out var forFaults)
+                ? forFaults.Behavior
+                : SagaMissingBehavior.Throw;
         }
 
         // GH-5673: a reply about an undo message for a saga that has gone has nothing left to unwind

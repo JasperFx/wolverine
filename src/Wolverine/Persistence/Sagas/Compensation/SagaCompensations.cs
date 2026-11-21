@@ -158,6 +158,10 @@ public static class SagaCompensations
             {
                 var target = new CompensationTarget(chain.SagaType, failedType, runtime);
                 rules.InsteadOfErrorQueue = (moveToErrorQueue, _) => new CompensationGaveUp(moveToErrorQueue, target);
+
+                // GH-5709: a fault whose saga is gone is dead lettered (tagged compensation-saga-missing) on its first
+                // attempt. Retrying cannot bring the saga back
+                rules.ChainTerminalFailure = e => e is UnknownSagaException;
             }
 
             return;

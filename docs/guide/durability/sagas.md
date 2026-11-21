@@ -735,7 +735,7 @@ tagged with how the compensation went:
 |---|---|
 | `compensated` | the compensation succeeded |
 | `compensation-failed` | the compensation failed after its own retries |
-| `compensation-saga-missing` | the saga was gone (completed or deleted) before it could be compensated |
+| `compensation-saga-missing` | the saga was gone (completed or deleted) before it could be compensated, or a fault arrived for a saga that was gone |
 
 The tag is in `DeadLetterEnvelope.Tag`, and `DeadLetterEnvelopeQuery.Tag` filters on it. A failure that no
 `Compensate` method matches is retried and dead lettered as before, with no tag.
@@ -744,7 +744,14 @@ The tag is in `DeadLetterEnvelope.Tag`, and `DeadLetterEnvelopeQuery.Tag` filter
 `ReserveInventory` the saga sends, as a `Handle(Fault<ReserveInventory>)` would (see
 [Hearing About Failed Steps](#hearing-about-failed-steps)). When the fault arrives, the saga is loaded, the matching
 `Compensate` runs, and the saga is saved. A saga can't have both `Handle(Fault<T>)` and `Compensate(T, ...)` for the same
-`T`. `NotFound(Fault<T>)` still handles a fault for a saga that is gone.
+`T`.
+
+A fault can arrive after the saga is gone, for example when the message that failed was sent by the method that
+completed the saga. Nothing is compensated then. If the saga has a `NotFound(Fault<T>)` method, that handles the fault.
+Otherwise the fault is dead lettered, tagged `compensation-saga-missing`, on its first attempt: the retry policies are
+skipped, because retrying can't bring the saga back. The dead letter keeps the record that a step failed after the saga
+finished. If you'd rather drop those faults, put `[SagaMissing(SagaMissingBehavior.Discard)]` on the saga. That
+attribute covers the saga's faults as well as its other messages, and each discarded fault is logged at Information.
 
 **Retries.** A compensation is a handler chain of its own, the saga's chain for `Fault<T>`, so the global error policies,
 and error handling attributes like `[RetryNow]` on the `Compensate` methods, apply to it. A concurrency conflict when the compensated saga is saved is retried the same
