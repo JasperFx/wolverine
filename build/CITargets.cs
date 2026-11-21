@@ -228,6 +228,8 @@ partial class Build
             WaitForPubsubEmulatorToBeReady();
         if (services.Contains("pulsar"))
             WaitForPulsarToBeReady();
+        if (services.Contains("nats"))
+            WaitForNatsToBeReady();
     }
 
     /// <summary>
@@ -484,6 +486,28 @@ partial class Build
             return response.IsSuccessStatusCode
                 ? null
                 : $"admin api answered {(int)response.StatusCode} {response.StatusCode}";
+        });
+    }
+
+    /// <summary>
+    /// GH-5736. The compose <c>nats</c> service had no gate at all, so a suite could start against a
+    /// broker whose port was not yet served -- the shape of the RabbitMQ flake fixed in #5730. The
+    /// service runs with <c>-m 8222</c>, and the monitoring server's <c>/healthz</c> is the broker's own
+    /// readiness answer: it reports an error, not 200, until the server -- JetStream included, which
+    /// the claim check object store needs -- will serve. A TCP connect to 4222 would succeed on
+    /// Docker's port proxy before the broker is listening inside the container.
+    /// </summary>
+    void WaitForNatsToBeReady()
+    {
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+
+        awaitService("NATS", "nats", TimeSpan.FromMinutes(1), () =>
+        {
+            var response = http.GetAsync("http://localhost:8222/healthz").GetAwaiter().GetResult();
+
+            return response.IsSuccessStatusCode
+                ? null
+                : $"/healthz answered {(int)response.StatusCode} {response.StatusCode}";
         });
     }
 
