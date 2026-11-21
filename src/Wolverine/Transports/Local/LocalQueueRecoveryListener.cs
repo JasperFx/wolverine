@@ -13,7 +13,7 @@ namespace Wolverine.Transports.Local;
 /// row stays in <c>wolverine_incoming</c> forever and gets reprocessed on every host
 /// restart. See https://github.com/JasperFx/wolverine/issues/1942.
 /// </summary>
-internal sealed class LocalQueueRecoveryListener : IListener
+internal sealed class LocalQueueRecoveryListener : IRecoveredEnvelopeListener
 {
     private readonly IWolverineRuntime _runtime;
 

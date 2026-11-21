@@ -88,7 +88,11 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             _deadLetterSender = dlq;
 
             _moveToErrors = new RetryBlock<Envelope>(
-                async (envelope, _) => { await _deadLetterSender!.SendAsync(envelope).ConfigureAwait(false); }, _logger,
+                async (envelope, _) =>
+                {
+                    await _deadLetterSender!.SendAsync(envelope).ConfigureAwait(false);
+                    await completeRecoveredDeadLetterAsync(envelope).ConfigureAwait(false);
+                }, _logger,
                 _settings.Cancellation);
         }
     }
@@ -281,12 +285,15 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
     {
-        // When the durability agent recovers a persisted envelope and dispatches it to a
-        // non-durable local queue (DLQ replay per GH-1942, or scheduled-message firing),
-        // BufferedLocalQueue.EnqueueDirectlyAsync attaches a LocalQueueRecoveryListener so
-        // that successful pipeline completion marks the inbox row Handled. Without this,
-        // the row sits in wolverine_incoming forever.
-        if (envelope.Listener is LocalQueueRecoveryListener recovery)
+        // When the durability agent recovers a persisted envelope and dispatches it to this
+        // non-durable queue (DLQ replay per GH-1942, or scheduled-message firing), the envelope
+        // carries a recovery listener: a LocalQueueRecoveryListener from BufferedLocalQueue, or
+        // the RetryOnInlineChannelCallback ListeningAgent hands a broker endpoint's receiver.
+        // Successful pipeline completion marks the inbox row Handled through it. Without this,
+        // the row sits in wolverine_incoming forever. GH-5676: it happens here, inside the
+        // pipeline's completion, so a tracked session sees the message succeed only after the
+        // row is marked.
+        if (envelope.Listener is IRecoveredEnvelopeListener recovery)
         {
             return recovery.CompleteAsync(envelope);
         }
@@ -452,6 +459,10 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             throw new OperationCanceledException();
         }
 
+        // GH-5676. Envelopes recovered from the message store have no broker delivery to settle on arrival. Their
+        // completion is the inbox row, and IChannelCallback.CompleteAsync marks it once the handler succeeds
+        var recovered = listener is IRecoveredEnvelopeListener;
+
         foreach (var envelope in messages)
         {
             envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
@@ -466,6 +477,8 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             if (!envelope.IsExpired() && !isDuplicate(envelope))
             {
                 await EnqueueAsync(envelope).ConfigureAwait(false);
+
+                if (recovered) continue;
             }
 
             await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
@@ -576,6 +589,27 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     }
 
     public bool NativeDeadLetterQueueEnabled => _deadLetterSender != null;
+
+    /// <summary>
+    /// GH-5676. A recovered envelope moved to the native dead letter queue still has its inbox row, and nothing else
+    /// completes it on that path. Mark it once the dead letter queue has the envelope. A failure here is logged and not
+    /// rethrown, so the retry block never sends the dead letter twice
+    /// </summary>
+    private async Task completeRecoveredDeadLetterAsync(Envelope envelope)
+    {
+        if (envelope.Listener is not IRecoveredEnvelopeListener recovery) return;
+
+        try
+        {
+            await recovery.CompleteAsync(envelope).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e,
+                "Error completing recovered envelope {EnvelopeId} ({MessageType}) after moving it to the dead letter queue for {Uri}",
+                envelope.Id, envelope.MessageType, Uri);
+        }
+    }
 
     Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
     {

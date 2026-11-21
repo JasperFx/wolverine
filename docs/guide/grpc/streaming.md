@@ -165,6 +165,19 @@ Tenant id detection **is** woven (proto-first always; code-first when the method
 lets the generated body await detection before the stream is drained.
 :::
 
+::: tip A handler that fails before the stream ends
+If the handler throws, or there is no handler at all, the server ends the call while the client may
+still be sending. A protobuf-net.Grpc client then throws `IncompleteSendRpcException` from its write
+instead of the `RpcException` carrying the server's status, depending on which side gets there
+first. Pass `CallContextFlags.IgnoreStreamTermination` when the client should see the server's
+status:
+
+```csharp
+var context = new CallContext(flags: CallContextFlags.IgnoreStreamTermination);
+var ack = await client.ReportLocations(pings, context);
+```
+:::
+
 ## Bidirectional streaming
 
 Wolverine supports bidirectional streaming for both **proto-first** (generated wrapper) and

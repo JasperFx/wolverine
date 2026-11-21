@@ -246,6 +246,9 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
 
         if (actual is BufferedReceiver)
         {
+            // GH-5676. The callback marks each inbox row Handled when the envelope's handler completes. The buffered
+            // receiver recognizes it as an IRecoveredEnvelopeListener and does not complete these envelopes on arrival
+            // the way it completes a broker delivery
             // Agent is latched if listener is null
             await _receiver!.ReceivedAsync(new RetryOnInlineChannelCallback(Listener!, _runtime), envelopes.ToArray());
         }
@@ -1171,7 +1174,7 @@ internal class InboxHealthRestarter : IDisposable
     }
 }
 
-internal class RetryOnInlineChannelCallback : IListener
+internal class RetryOnInlineChannelCallback : IRecoveredEnvelopeListener
 {
     private readonly IListener _inner;
     private readonly IWolverineRuntime _runtime;
