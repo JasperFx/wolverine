@@ -251,14 +251,21 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
 
     /***** NEW TESTS END HERE **********************************************/
 
+    /// <summary>
+    ///     Node 1 takes the leadership before the others join. Nothing makes the first node to start the leader of a
+    ///     cluster that is already four nodes when the first health check runs: each node's first check comes
+    ///     <c>FirstHealthCheckExecution</c> after its own start, so node 1's head start is only the tens of
+    ///     milliseconds between its start and node 2's, and whichever node's compare-and-set lands first holds the
+    ///     lease from then on (GH-5736).
+    /// </summary>
     [BobcatSpec]
     public async Task singular_agent_is_only_running_on_one()
     {
-        await the.ANodeStarts();
-        await the.ANodeStarts();
-        await the.ANodeStarts();
-
         await the.NodeBecomesTheLeader(_first);
+
+        await the.ANodeStarts();
+        await the.ANodeStarts();
+        await the.ANodeStarts();
 
         await the.NodeStops(_first);
 
