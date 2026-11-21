@@ -19,7 +19,6 @@ public partial class CosmosDbDurabilityAgent : IAgent
     private readonly Container _container;
     private readonly IWolverineRuntime _runtime;
     private readonly CosmosDbMessageStore _parent;
-    private readonly ILocalQueue _localQueue;
     private readonly DurabilitySettings _settings;
     private readonly ILogger<CosmosDbDurabilityAgent> _logger;
 
@@ -40,7 +39,6 @@ public partial class CosmosDbDurabilityAgent : IAgent
         _container = container;
         _runtime = runtime;
         _parent = parent;
-        _localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(TransportConstants.Scheduled);
         _settings = runtime.DurabilitySettings;
 
         Uri = new Uri($"{PersistenceConstants.AgentScheme}://cosmosdb/durability");
