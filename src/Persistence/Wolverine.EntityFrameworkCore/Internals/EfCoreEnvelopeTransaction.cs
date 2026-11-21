@@ -33,7 +33,23 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction, ISagaHistoryTrans
     {
         _messaging = messaging;
         _scrapers = scrapers.ToArray();
-        if (!messaging.TryFindMessageDatabase(out _database!))
+
+        // GH-5731 / GH-5732: the database is the one this DbContext is connected to. A DbContext enrolled in an
+        // ancillary store names that store itself; MessageContext.Storage cannot be trusted here, because the
+        // generated handler code may build this transaction before it applies the ancillary store to the context.
+        // Resolved from Storage, a handler's DbContext on database B carried the MAIN store's database, so the
+        // ownership check below thought the inbox row was here, marked it on B's connection (zero rows), and the
+        // Handled status it flipped made DurableReceiver skip the mark that would have found it
+        //
+        // And a DbContext that is NOT enrolled in an ancillary store belongs to the main store, whatever the context
+        // says: MessageContext.ReadEnvelope points Storage at the store holding the incoming envelope's row, which for
+        // a message published from an ancillary store's transaction is that ancillary store, not this DbContext's
+        var stores = messaging.Runtime.Stores;
+        var storage = stores != null && stores.HasAncillaryStoreFor(dbContext.GetType())
+            ? stores.FindAncillaryStore(dbContext.GetType())
+            : messaging.Runtime.Storage;
+
+        if (!messaging.TryFindMessageDatabase(storage, out _database!))
         {
             throw new InvalidOperationException(
                 "This Wolverine application is not using Database backed message persistence. Please configure the message persistence");
@@ -56,6 +72,8 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction, ISagaHistoryTrans
 
     public async Task PersistOutgoingAsync(Envelope envelope)
     {
+        stampTheStoreHoldingTheRow(envelope);
+
         if (DbContext.IsWolverineEnabled())
         {
             DbContext.Add(new OutgoingMessage(envelope) { OwnerId = outgoingOwnerId });
@@ -83,6 +101,8 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction, ISagaHistoryTrans
             return;
         }
 
+        foreach (var envelope in envelopes) stampTheStoreHoldingTheRow(envelope);
+
         if (DbContext.IsWolverineEnabled())
         {
             DbContext.AddRange(envelopes.Select(e => new OutgoingMessage(e) { OwnerId = outgoingOwnerId }));
@@ -103,8 +123,25 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction, ISagaHistoryTrans
         }
     }
 
+    /// <summary>
+    ///     GH-5731. Every row this transaction writes goes into this DbContext's database, so that is where the
+    ///     envelope has to say it lives: the receiver marks an inbox row handled, and the sending agent deletes an
+    ///     outbox row, in <see cref="Envelope.Store" />. The publishing context stamped its own store, which is not
+    ///     this one when the DbContext is enrolled in an ancillary store the context was never pointed at, when the
+    ///     context was pointed at the store of the message it is handling, or for another tenant database.
+    /// </summary>
+    private void stampTheStoreHoldingTheRow(Envelope envelope)
+    {
+        if (!envelope.InboxRowIsIn(_database, _messaging.Runtime.Storage))
+        {
+            envelope.Store = _database;
+        }
+    }
+
     public async Task PersistIncomingAsync(Envelope envelope)
     {
+        stampTheStoreHoldingTheRow(envelope);
+
         if (DbContext.IsWolverineEnabled())
         {
             // For a Wolverine-mapped DbContext the envelope is just tracked and flushed by
