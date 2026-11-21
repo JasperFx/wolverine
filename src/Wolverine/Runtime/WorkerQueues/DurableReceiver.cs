@@ -1222,8 +1222,34 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
-        envelope.Failure = exception;
+        // An interceptor may redact the message in place or replace it and clear Data, so remember what runs again if
+        // nothing is dead lettered. Data is the original serialized body whenever the envelope came from the inbox
+        var originalMessage = envelope.Message;
+        var originalData = envelope.SerializedDataIfAny;
+
+        Exception? persisted;
+        try
+        {
+            persisted = await interceptDeadLetterAsync(envelope, exception).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            // Never write the unscrubbed envelope instead: hand it back exactly as a failed write would
+            restoreAfterInterception(envelope, originalMessage, originalData);
+            envelope.Failure = exception;
+            await handBackAfterFailedDeadLetterAsync(envelope, e).ConfigureAwait(false);
+            return;
+        }
+
+        // Stamped from the original exception, so the failure group still reflects where the failure happened: a
+        // replacement from an interceptor usually has no stack trace
         DeadLetterQueueConstants.StampFailureMetadata(envelope, exception, _runtime.DurabilitySettings.DeadLetterFingerprinter);
+        if (!ReferenceEquals(persisted, exception))
+        {
+            DeadLetterQueueConstants.StampInterceptedException(envelope, persisted);
+        }
+
+        envelope.Failure = persisted;
 
         // GH-5105. This used to post the write to a background RetryBlock and return, so the caller completed the
         // envelope -- marking the inbox row, the only copy, handled -- and reported it as dead lettered before
@@ -1236,8 +1262,37 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             return;
         }
 
-        // Nothing was dead lettered, so hand the row back to be executed again rather than leaving it Incoming
-        // and owned by this live node, which nothing reclaims until the node restarts (GH-4664)
+        // Rescheduling rewrites the inbox row's body from the envelope, which must be the message that failed, not
+        // the redacted copy an interceptor made for dead-letter storage
+        restoreAfterInterception(envelope, originalMessage, originalData);
+        await handBackAfterFailedDeadLetterAsync(envelope, failure).ConfigureAwait(false);
+    }
+
+    private static void restoreAfterInterception(Envelope envelope, object? message, byte[]? data)
+    {
+        if (data != null)
+        {
+            // The original serialized body is what runs again
+            envelope.Message = message;
+            envelope.Data = data;
+            return;
+        }
+
+        // No serialized body yet (a batch member built in memory, say). The failed write may have serialized one since,
+        // which is the original unless an interceptor replaced the message: only then is it thrown away
+        if (!ReferenceEquals(envelope.Message, message))
+        {
+            envelope.Message = message;
+            envelope.Data = null;
+        }
+    }
+
+    /// <summary>
+    ///     Nothing was dead lettered, so hand the row back to be executed again rather than leaving it Incoming and
+    ///     owned by this live node, which nothing reclaims until the node restarts (GH-4664)
+    /// </summary>
+    private async Task handBackAfterFailedDeadLetterAsync(Envelope envelope, Exception failure)
+    {
         envelope.OwnerId = TransportConstants.AnyNode;
         envelope.ScheduledTime = DateTimeOffset.UtcNow.Add(DeadLetterRedeliveryDelay);
         envelope.Status = EnvelopeStatus.Scheduled;
@@ -1259,7 +1314,18 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     /// </summary>
     private async Task deadLetterOnReceiptAsync(Envelope envelope)
     {
-        var failure = await tryWriteDeadLetterAsync(envelope).ConfigureAwait(false);
+        Exception? failure;
+        try
+        {
+            envelope.Failure = await interceptDeadLetterAsync(envelope, envelope.Failure).ConfigureAwait(false);
+            failure = await tryWriteDeadLetterAsync(envelope).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            // An interceptor that throws: the broker delivery goes back to be delivered again, unscrubbed nowhere
+            failure = e;
+        }
+
         if (failure == null)
         {
             await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
@@ -1274,6 +1340,15 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
         }
+    }
+
+    // The inbox's own dead-letter storage takes the place of a dead letter queue here, so the interceptors run as
+    // they do for any other envelope written to it. A dead-letter sender hands the envelope to a broker instead
+    private ValueTask<Exception?> interceptDeadLetterAsync(Envelope envelope, Exception? exception)
+    {
+        return _deadLetterSender == null
+            ? DeadLetterInterception.InterceptAsync(_runtime, envelope, exception)
+            : ValueTask.FromResult(exception);
     }
 
     /// <returns>Null if the dead-letter write was made, or the last failure if it could not be</returns>
