@@ -17,15 +17,21 @@ namespace CosmosDbTests;
 public class PromotedMessageCatcher
 {
     public readonly TaskCompletionSource<Envelope> Source = new();
+
+    // How long the handler keeps working after it has signalled, and how many times it ran
+    public TimeSpan WorkTime { get; set; } = TimeSpan.Zero;
+    public int Executions;
 }
 
 public record PromotedMessage(int Id);
 
 public class PromotedMessageHandler
 {
-    public static void Handle(PromotedMessage message, Envelope envelope, PromotedMessageCatcher catcher)
+    public static async Task Handle(PromotedMessage message, Envelope envelope, PromotedMessageCatcher catcher)
     {
+        Interlocked.Increment(ref catcher.Executions);
         catcher.Source.TrySetResult(envelope);
+        if (catcher.WorkTime > TimeSpan.Zero) await Task.Delay(catcher.WorkTime);
     }
 }
 
@@ -172,18 +178,87 @@ public class scheduled_promotion_semantics : IAsyncLifetime
         promoted.Store.ShouldBe(expected,
             "Promoted envelopes must be stamped with the store they came from so downstream " +
             "mark-as-handled / inbox writes route back to the correct store. See GH-2576.");
+
+        // GH-5713: stopped, the way an application shuts down, rather than only disposed while the message finishes
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     /// <summary>
-    /// GH-4711, and the premise the issue could not settle from source. <c>CosmosDbDurabilityAgent</c>
-    /// enqueues EVERY promoted envelope onto this node's own local queue rather than routing by
-    /// <c>Destination</c> the way every relational store's poller does, which looks like it should mis-route a
-    /// scheduled message addressed to an external endpoint.
-    ///
-    /// <para>It does not, because no such row ever reaches the poller. A delayed message bound for an external
-    /// endpoint parks as a <c>ScheduledEnvelope</c> WRAPPER addressed to this node's own
-    /// <c>local://durable/</c> -- so enqueuing it locally is precisely what has to happen, and
-    /// <c>ScheduledSendEnvelopeHandler</c> then unwraps it and sends it on. Asserted here rather than reasoned
+    /// GH-5713. A scheduled message for a durable local queue is promoted onto that queue, the one its inbox document
+    /// belongs to, and is finished there: the document is marked Handled and the host stops without waiting on it.
+    /// Promoted onto local://scheduled instead, it ran on a queue that did not own its document. The drain of
+    /// local://scheduled waited its full 30 seconds on it, and meanwhile the durability agent recovered the same
+    /// document for local://promoted/ every polling interval
+    /// </summary>
+    [Fact]
+    public async Task a_promoted_envelope_is_finished_on_its_own_queue()
+    {
+        // The handler is still working when the host stops
+        var catcher = new PromotedMessageCatcher { WorkTime = 3.Seconds() };
+
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+                opts.Durability.ScheduledJobFirstExecution = 100.Milliseconds();
+                opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
+
+                opts.Services.AddSingleton(catcher);
+
+                opts.UseCosmosDbPersistence(AppFixture.DatabaseName);
+                opts.Services.AddSingleton(_fixture.Client);
+
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<PromotedMessageHandler>();
+                opts.Publish(x => x.Message<PromotedMessage>().ToLocalQueue("promoted").UseDurableInbox());
+
+                opts.Transports.NodeControlEndpoint =
+                    opts.Transports.GetOrCreateEndpoint(new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}"));
+            }).StartAsync(TestContext.Current.CancellationToken);
+
+        await host.Services.GetRequiredService<IMessageContext>()
+            .ScheduleAsync(new PromotedMessage(3), 1.Seconds());
+
+        var completed = await Task.WhenAny(catcher.Source.Task,
+            Task.Delay(60.Seconds(), TestContext.Current.CancellationToken));
+        (completed == catcher.Source.Task).ShouldBeTrue("The scheduled message was never promoted and handled");
+
+        var promoted = await catcher.Source.Task;
+
+        // Stop while the handler is still working, the way an application shuts down. The queue running the message
+        // is the one that owns its document, so the drain holds the document until the work is done instead of
+        // handing it back to any node, and the durability agent never recovers it again
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopping = host.StopAsync(TestContext.Current.CancellationToken);
+
+        var releasedWhileRunning = false;
+        while (!stopping.IsCompleted)
+        {
+            var current = await rowFor(promoted);
+            if (current?.Status == EnvelopeStatus.Incoming && current.OwnerId == TransportConstants.AnyNode)
+            {
+                releasedWhileRunning = true;
+            }
+
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        await stopping;
+        host.Dispose();
+        stopwatch.Elapsed.ShouldBeLessThan(10.Seconds());
+
+        releasedWhileRunning.ShouldBeFalse("The document was handed back for recovery while its message was still running");
+
+        var row = await rowFor(promoted);
+        row.ShouldNotBeNull();
+        row.Status.ShouldBe(EnvelopeStatus.Handled);
+        catcher.Executions.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// GH-4711. Where a delayed message bound for an external endpoint parks. Not under that endpoint's address: it
+    /// parks as a <c>ScheduledEnvelope</c> WRAPPER addressed to this node's own <c>local://durable/</c>, so the
+    /// durability agent's promotion (routed by <c>Destination</c> since GH-5713) hands it to <c>local://durable/</c>,
+    /// and <c>ScheduledSendEnvelopeHandler</c> then unwraps it and sends it on. Asserted here rather than reasoned
     /// about, and asserted on the SHAPE so that a future change which parked a genuinely remote address here
     /// would make this fail instead of passing silently.</para>
     ///
@@ -223,9 +298,10 @@ public class scheduled_promotion_semantics : IAsyncLifetime
         row.MessageType.ShouldBe(TransportConstants.ScheduledEnvelope);
         row.Destination.ShouldBe(new Uri("local://durable/"));
 
-        // The crux of GH-4711: nothing is parked under the external address, so a poller that enqueues
-        // everything locally is not mis-routing anything.
+        // Nothing is parked under the external address
         row.Destination.ShouldNotBe(new Uri($"tcp://localhost:{port}"));
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     /// <summary>
@@ -276,6 +352,9 @@ public class scheduled_promotion_semantics : IAsyncLifetime
 
         (completed == catcher.Source.Task).ShouldBeTrue(
             "The promoted scheduled send never reached the listening node");
+
+        await promoter.StopAsync(TestContext.Current.CancellationToken);
+        await receiver.StopAsync(TestContext.Current.CancellationToken);
     }
 }
 

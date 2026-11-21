@@ -60,59 +60,41 @@ public class custom_container_name
     public async Task the_configured_container_is_created_on_startup()
     {
         var containerName = uniqueContainerName();
+        using var host = await buildHostAsync(containerName, DurabilityMode.Solo);
 
-        try
-        {
-            using var host = await buildHostAsync(containerName, DurabilityMode.Solo);
+        var properties = await database().GetContainer(containerName)
+            .ReadContainerAsync(cancellationToken: TestContext.Current.CancellationToken);
+        properties.Resource.PartitionKeyPath.ShouldBe(DocumentTypes.PartitionKeyPath);
 
-            var properties = await database().GetContainer(containerName)
-                .ReadContainerAsync(cancellationToken: TestContext.Current.CancellationToken);
-            properties.Resource.PartitionKeyPath.ShouldBe(DocumentTypes.PartitionKeyPath);
-        }
-        finally
-        {
-            await dropAsync(containerName);
-        }
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
     public async Task sagas_are_kept_in_the_configured_container_and_not_the_default_one()
     {
         var containerName = uniqueContainerName();
+        using var host = await buildHostAsync(containerName, DurabilityMode.Solo);
 
-        try
-        {
-            using var host = await buildHostAsync(containerName, DurabilityMode.Solo);
+        var id = Guid.NewGuid().ToString();
+        await host.MessageBus().InvokeAsync(new StartPartitioned(id), TestContext.Current.CancellationToken);
 
-            var id = Guid.NewGuid().ToString();
-            await host.MessageBus().InvokeAsync(new StartPartitioned(id), TestContext.Current.CancellationToken);
+        (await existsAsync(database().GetContainer(containerName), id)).ShouldBeTrue();
+        (await existsAsync(_fixture.Container, id)).ShouldBeFalse();
 
-            (await existsAsync(database().GetContainer(containerName), id)).ShouldBeTrue();
-            (await existsAsync(_fixture.Container, id)).ShouldBeFalse();
-        }
-        finally
-        {
-            await dropAsync(containerName);
-        }
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
     public async Task the_store_describes_itself_by_its_container()
     {
         var containerName = uniqueContainerName();
+        using var host = await buildHostAsync(containerName, DurabilityMode.Solo);
 
-        try
-        {
-            using var host = await buildHostAsync(containerName, DurabilityMode.Solo);
+        var descriptor = host.Services.GetRequiredService<IMessageStore>().As<CosmosDbMessageStore>().Describe();
+        descriptor.DatabaseName.ShouldBe(AppFixture.DatabaseName);
+        descriptor.SchemaOrNamespace.ShouldBe(containerName);
 
-            var descriptor = host.Services.GetRequiredService<IMessageStore>().As<CosmosDbMessageStore>().Describe();
-            descriptor.DatabaseName.ShouldBe(AppFixture.DatabaseName);
-            descriptor.SchemaOrNamespace.ShouldBe(containerName);
-        }
-        finally
-        {
-            await dropAsync(containerName);
-        }
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     /// <summary>
@@ -125,22 +107,17 @@ public class custom_container_name
         var first = uniqueContainerName();
         var second = uniqueContainerName();
 
-        try
-        {
-            using var firstHost = await buildHostAsync(first, DurabilityMode.Balanced, "FirstService");
-            using var secondHost = await buildHostAsync(second, DurabilityMode.Balanced, "SecondService");
+        using var firstHost = await buildHostAsync(first, DurabilityMode.Balanced, "FirstService");
+        using var secondHost = await buildHostAsync(second, DurabilityMode.Balanced, "SecondService");
 
-            var firstNodes = await waitForNodesAsync(first);
-            var secondNodes = await waitForNodesAsync(second);
+        var firstNodes = await waitForNodesAsync(first);
+        var secondNodes = await waitForNodesAsync(second);
 
-            firstNodes.ShouldBe([nodeIdOf(firstHost)]);
-            secondNodes.ShouldBe([nodeIdOf(secondHost)]);
-        }
-        finally
-        {
-            await dropAsync(first);
-            await dropAsync(second);
-        }
+        firstNodes.ShouldBe([nodeIdOf(firstHost)]);
+        secondNodes.ShouldBe([nodeIdOf(secondHost)]);
+
+        await secondHost.StopAsync(TestContext.Current.CancellationToken);
+        await firstHost.StopAsync(TestContext.Current.CancellationToken);
     }
 
     private Database database() => _fixture.Client.GetDatabase(AppFixture.DatabaseName);
@@ -148,6 +125,9 @@ public class custom_container_name
     private static Guid nodeIdOf(IHost host) =>
         host.Services.GetRequiredService<IWolverineRuntime>().Options.UniqueNodeId;
 
+    // A container of the test's own, never dropped. GH-5713: once the suite has written enough, the emulator answers a
+    // container delete with a 500 (PostgresError 58P01) for the rest of the run, so dropping it made these tests fail
+    // on their cleanup. The emulator is thrown away after the run, containers and all
     private static string uniqueContainerName() => $"wolverine_{Guid.NewGuid():N}";
 
     private Task<IHost> buildHostAsync(string containerName, DurabilityMode mode, string serviceName = "CustomContainer")
@@ -205,14 +185,4 @@ public class custom_container_name
         }
     }
 
-    private async Task dropAsync(string containerName)
-    {
-        try
-        {
-            await database().GetContainer(containerName).DeleteContainerAsync();
-        }
-        catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
-        {
-        }
-    }
 }
