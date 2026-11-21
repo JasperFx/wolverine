@@ -128,7 +128,7 @@ public class exclusive_listener_recovery_from_ancillary_store : IAsyncLifetime
 
         succeeded.ShouldBeTrue(
             $"Expected all {expected.Length} dormant messages in the ancillary store to be recovered by the " +
-            $"exclusive listener, but only saw {tracking.Count}");
+            $"exclusive listener, but only saw {tracking.CountOf(expected)}");
 
         // And they were completed against the ancillary store rather than leaking into the main one
         var stillIncoming = await waitForAsync(

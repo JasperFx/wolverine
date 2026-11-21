@@ -141,7 +141,9 @@ public class kafka_listener_consume_loop
             return ValueTask.CompletedTask;
         });
 
-        var produced = DateTimeOffset.UtcNow;
+        // Kafka stamps a record to the millisecond, and the retry delay runs from that stamp. A sub-millisecond
+        // produce time would expect the record up to a millisecond later than the listener rightly delivers it
+        var produced = DateTimeOffset.FromUnixTimeMilliseconds(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 
         // The record comes back once the partition is resumed
         theConsumer.Partitions.When(x => x.Resume(Arg.Any<TopicPartition[]>()))
