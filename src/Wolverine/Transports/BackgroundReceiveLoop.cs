@@ -55,7 +55,7 @@ public sealed class BackgroundReceiveLoop : IAsyncDisposable, IReportReceiveLoop
         _uri = uri ?? throw new ArgumentNullException(nameof(uri));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _iteration = iteration ?? throw new ArgumentNullException(nameof(iteration));
-        _idleDelay = idleDelay ?? 250.Milliseconds();
+        _idleDelay = idleDelay ?? IdleDelays.Default;
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(parentToken);
     }
 

@@ -34,7 +34,7 @@ public interface IAzureServiceBusListeningEndpoint
     public int PrefetchCount { get; set; }
 }
 
-public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>, IBrokerEndpoint, IAzureServiceBusListeningEndpoint
+public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>, IBrokerEndpoint, IAzureServiceBusListeningEndpoint, ISupportIdleDelay
 {
     private int? _prefetchCount;
 
@@ -59,6 +59,13 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
     ///     with an empty list of messages. Default is 5 seconds.
     /// </summary>
     public TimeSpan MaximumWaitTime { get; set; } = 5.Seconds();
+
+    /// <summary>
+    ///     GH-5737. How long a buffered, durable or session listener waits after a receive comes back empty before
+    ///     it polls again, on top of <see cref="MaximumWaitTime" />. Null keeps the default of 250 milliseconds.
+    ///     Inline listeners run on the Azure Service Bus processor, which does its own polling, and ignore this.
+    /// </summary>
+    public TimeSpan? IdleDelay { get; set; }
 
     /// <summary>
     ///     The number of messages that the underlying Azure Service Bus receiver eagerly buffers

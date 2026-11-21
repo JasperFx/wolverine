@@ -503,6 +503,47 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 
+    /// <summary>
+    /// GH-5737. How long a polling listener waits after a receive comes back empty before it polls the broker
+    /// again. The default is 250 milliseconds. Raise it on a quiet queue that can live with picking messages up
+    /// later, to cut the number of empty -- and on most cloud brokers, billable -- receive requests. The delay
+    /// comes on top of the long-poll wait the receive itself already does.
+    ///
+    /// <para>
+    /// Only endpoints whose listener polls support this (see <see cref="ISupportIdleDelay" />): Amazon SQS
+    /// queues and Azure Service Bus queues and subscriptions today. Any other endpoint throws
+    /// <see cref="NotSupportedException" /> rather than silently ignoring the setting.
+    /// </para>
+    /// </summary>
+    /// <param name="delay">Zero or more, up to <see cref="IdleDelays.Maximum" /></param>
+    public TSelf IdleDelay(TimeSpan delay)
+    {
+        IdleDelays.AssertValid(delay);
+
+        if (_endpoint != null && _endpoint is not ISupportIdleDelay)
+        {
+            throw idleDelayNotSupported(_endpoint);
+        }
+
+        add(e =>
+        {
+            if (e is not ISupportIdleDelay polling)
+            {
+                throw idleDelayNotSupported(e);
+            }
+
+            polling.IdleDelay = delay;
+        });
+
+        return this.As<TSelf>();
+    }
+
+    private static NotSupportedException idleDelayNotSupported(Endpoint endpoint)
+    {
+        return new NotSupportedException(
+            $"The endpoint {endpoint.Uri} does not support {nameof(IdleDelay)}(). Only endpoints whose listener polls the broker for messages wait between empty receives, and this one's listener does not poll.");
+    }
+
     public TSelf UseForReplies()
     {
         add(e => e.IsUsedForReplies = true);

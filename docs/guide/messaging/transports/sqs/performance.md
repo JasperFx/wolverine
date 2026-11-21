@@ -40,6 +40,25 @@ longer than the window. Batches are also flushed when a listener stops, so a pau
 does not leave settled messages to reappear at their visibility timeout.
 :::
 
+### Waiting longer between empty receives on a quiet queue <Badge type="tip" text="6.65" />
+
+After a receive comes back empty, the listener waits 250 milliseconds before it polls again, and that
+wait comes on top of the long poll. On a queue that only sees a handful of messages a day, that is
+still thousands of empty -- and billable -- `ReceiveMessage` calls. If the queue can live with
+picking messages up later, raise the idle delay:
+
+```cs
+opts.ListenToSqsQueue("mail")
+    .ConfigureListener(l => l.WaitTimeSeconds = 20)
+
+    // Wait 5 minutes after an empty receive before polling again
+    .IdleDelay(5.Minutes());
+```
+
+A message that arrives during the idle delay waits for the next poll, so the delay is also the
+worst case added latency on that queue. `IdleDelay()` is the same option for every Wolverine
+listener that polls its broker, Azure Service Bus included.
+
 ## Visibility timeout: size it against your processing window
 
 Wolverine sets each received message's visibility timeout at receive (default **120 seconds**)
