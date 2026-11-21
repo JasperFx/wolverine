@@ -142,8 +142,9 @@ public abstract class DestinationRecoveryIsolationCompliance : IAsyncLifetime
 
         // Every stuck listener gets its message once they can run
         Gates.OpenAll();
-        await waitForAsync(() => Gates.HandledStuck == StuckDestinationCount,
+        await waitForAsync(() => Gates.HandledStuck >= StuckDestinationCount,
             "every stuck listener should run its message once its handler is released");
+        Gates.HandledStuck.ShouldBe(StuckDestinationCount, "no stuck listener should run its message more than once");
     }
 
     [Fact]
@@ -225,6 +226,13 @@ public abstract class DestinationRecoveryIsolationCompliance : IAsyncLifetime
         };
 
         envelope.Data = serializer.Write(envelope);
+
+        // Only the stuck messages this scenario stores are held at their gates and counted
+        if (message is StuckRecoveryMessage stuck)
+        {
+            Gates.ExpectStuck(stuck.Id);
+        }
+
         await Store.Inbox.StoreIncomingAsync(envelope);
 
         return message switch
@@ -277,7 +285,10 @@ public class RecoveryIsolationGates
 {
     private readonly ConcurrentDictionary<Uri, DestinationGate> _gates = new();
     private readonly ConcurrentDictionary<Guid, TaskCompletionSource> _delivered = new();
+    private readonly ConcurrentDictionary<Guid, byte> _expectedStuck = new();
+    private readonly object _opening = new();
     private int _handledStuck;
+    private bool _opened;
 
     public DestinationGate For(Uri destination)
     {
@@ -291,18 +302,49 @@ public class RecoveryIsolationGates
 
     public int HandledStuck => Volatile.Read(ref _handledStuck);
 
-    public void OpenAll()
+    /// <summary>
+    /// GH-5736. A stuck message this scenario stored. Only these are held at their gates and counted: the durability
+    /// agent starts recovering as soon as the host starts, before the scenario has reset storage, so it can hand the
+    /// stuck listeners messages an earlier scenario left behind. Each one held a listener's gate ahead of the message
+    /// the scenario stored for it, and ran as a second stuck message once the gates opened
+    /// </summary>
+    public void ExpectStuck(Guid messageId)
     {
-        foreach (var gate in _gates.Values) gate.Open();
-        _opened = true;
+        _expectedStuck.TryAdd(messageId, 0);
     }
 
-    private volatile bool _opened;
-
-    public async Task RunStuckAsync(Uri destination)
+    public void OpenAll()
     {
-        var gate = For(destination);
-        if (_opened) gate.Open();
+        // GH-5736. Under the same lock that a stuck message takes its gate under, so a gate created while the gates
+        // are being opened is either among the ones opened here or created after the flag is set, and opens itself
+        lock (_opening)
+        {
+            _opened = true;
+            foreach (var gate in _gates.Values) gate.Open();
+        }
+    }
+
+    public Task RunStuckAsync(Uri destination)
+    {
+        return passAsync(destination);
+    }
+
+    /// <summary>
+    /// Run a stuck message: wait at its destination's gate, unless it is not one this scenario stored
+    /// </summary>
+    public Task RunStuckAsync(Uri destination, Guid messageId)
+    {
+        return _expectedStuck.ContainsKey(messageId) ? passAsync(destination) : Task.CompletedTask;
+    }
+
+    private async Task passAsync(Uri destination)
+    {
+        DestinationGate gate;
+        lock (_opening)
+        {
+            gate = For(destination);
+            if (_opened) gate.Open();
+        }
 
         await gate.PassAsync();
         Interlocked.Increment(ref _handledStuck);
@@ -322,7 +364,7 @@ public class StuckRecoveryMessageHandler
 {
     public static Task Handle(StuckRecoveryMessage message, Envelope envelope, RecoveryIsolationGates gates)
     {
-        return gates.RunStuckAsync(envelope.Destination!);
+        return gates.RunStuckAsync(envelope.Destination!, message.Id);
     }
 }
 

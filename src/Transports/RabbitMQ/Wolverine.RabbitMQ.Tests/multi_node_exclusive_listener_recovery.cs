@@ -29,7 +29,11 @@ namespace Wolverine.RabbitMQ.Tests;
 ///
 /// So: real Balanced hosts, real leader election, real Rabbit MQ listeners, one shared PostgreSQL store.
 /// </summary>
-[Collection("multi-node-exclusive-recovery")]
+// GH-5736. No [Collection] here. NoParallelization.cs puts every class in this assembly into ONE collection so
+// nothing runs beside anything else, and a named collection opts a class back OUT of that: it ran in parallel with
+// the rest of the suite. These hosts provision the shared default dead letter queue (exchange and queue
+// "wolverine-dead-letter-queue"), and the DLQ tests that run TeardownResources() delete it, so a host starting
+// while another test tore it down failed resource setup with "NOT_FOUND - no exchange 'wolverine-dead-letter-queue'".
 public class multi_node_exclusive_listener_recovery : IAsyncLifetime
 {
     private const string SchemaName = "multinode_listeners";

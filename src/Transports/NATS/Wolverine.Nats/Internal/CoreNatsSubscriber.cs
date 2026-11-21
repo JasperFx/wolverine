@@ -185,6 +185,35 @@ internal class CoreNatsSubscriber : INatsSubscriber
 
             _consumerTasks.Add(consumerTask);
         }
+
+        await waitUntilTheServerHasTheSubscriptionsAsync(patterns, cancellation);
+    }
+
+    /// <summary>
+    /// GH-5736. Core NATS delivers a message only to the subscriptions the server holds when it is published, and
+    /// a SUB is never acknowledged: <c>SubscribeCoreAsync</c> returns once the SUB is handed to the connection, not
+    /// once the server has processed it. Until then a message published over any other connection is dropped
+    /// without a trace, so this listener would report itself started while still deaf. The server handles one
+    /// connection's commands in order, so its PONG to a PING written after the SUBs means it holds all of them.
+    /// </summary>
+    private async Task waitUntilTheServerHasTheSubscriptionsAsync(List<string> patterns,
+        CancellationToken cancellation)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        timeout.CancelAfter(_connection.Opts.RequestTimeout);
+
+        try
+        {
+            await _connection.PingAsync(timeout.Token);
+        }
+        catch (Exception e) when (!cancellation.IsCancellationRequested)
+        {
+            // The subscriptions stay registered with the client, which sends them again as soon as it is
+            // connected, so the listener still starts; it just cannot promise it is receiving yet
+            _logger.LogWarning(e,
+                "The NATS server did not confirm the subscription(s) to {Patterns} within {Timeout}; messages published before it does are not delivered to this listener",
+                string.Join(", ", patterns), _connection.Opts.RequestTimeout);
+        }
     }
 
     /// <summary>
