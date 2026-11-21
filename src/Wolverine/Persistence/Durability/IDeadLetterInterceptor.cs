@@ -37,6 +37,15 @@ namespace Wolverine.Persistence.Durability;
 /// On a durable endpoint the replacement's type and message are also what the dead letter's
 /// exception headers carry. Its failure group is still computed from the original exception.
 /// </para>
+/// <para>
+/// Not invoked for an envelope whose <see cref="Envelope.Message"/> is null, such as one that could not be
+/// deserialized: there is no message to redact, and its raw body is stored as it arrived.
+/// </para>
+/// <para>
+/// On a durable endpoint, an interceptor that throws is treated like a dead-letter write that failed: nothing
+/// is dead lettered, the envelope is scheduled to be executed again, and the original body is what runs again.
+/// The unscrubbed envelope is never written to dead-letter storage.
+/// </para>
 /// </remarks>
 public interface IDeadLetterInterceptor
 {
@@ -57,6 +66,11 @@ internal static class DeadLetterInterception
     internal static async ValueTask<Exception?> InterceptAsync(IWolverineRuntime runtime, Envelope envelope,
         Exception? exception)
     {
+        // An envelope that never got as far as a message -- it could not be unwrapped or deserialized, or carries no
+        // message type -- has nothing an interceptor can redact or re-serialize, and interceptors written against the
+        // handler's message should not have to guard against a null one
+        if (envelope.Message == null) return exception;
+
         foreach (var interceptor in runtime.Services.GetServices<IDeadLetterInterceptor>())
         {
             exception = await interceptor.BeforeStoreAsync(envelope, exception, runtime.Cancellation)
