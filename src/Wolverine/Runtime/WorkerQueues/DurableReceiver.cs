@@ -414,6 +414,21 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         }
     }
 
+    /// <summary>
+    /// GH-5731. An envelope handed to <see cref="Enqueue" /> or <see cref="EnqueueAsync" /> already has its inbox row:
+    /// the outbox transaction that published it wrote one, recovery or the scheduled-jobs poller claimed one. When
+    /// the envelope says which store that row is in, that is where it stays, whichever store the handler's own
+    /// transaction runs against. Stamping the handler's ancillary store over it (the receiver's rule for a row it is
+    /// about to write itself) sent the mark-handled to a database without the row, so the row stayed Incoming in the
+    /// publisher's database and was replayed on every restart. Only an envelope that does not say -- GH-2576 -- still
+    /// gets the handler's store.
+    /// </summary>
+    private void assignAncillaryStoreToWrittenRowIfNeeded(Envelope envelope)
+    {
+        if (envelope.Store != null) return;
+        assignAncillaryStoreIfNeeded(envelope);
+    }
+
     private void assignAncillaryStoreIfNeeded(IReadOnlyList<Envelope> envelopes)
     {
         if (_runtime.Stores == null) return;
@@ -691,7 +706,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // example via the scheduled-jobs poller's EnqueueDirectlyAsync. Make
         // sure the ancillary-store routing is applied here too so the
         // mark-as-handled SQL goes to the correct store. See GH-2576.
-        assignAncillaryStoreIfNeeded(envelope);
+        assignAncillaryStoreToWrittenRowIfNeeded(envelope);
 
         // A batch retry coming due
         if (envelope.Batch != null) _pendingBatchRetries.TryRemove(envelope.Id, out _);
@@ -737,7 +752,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // runtime.EnqueueDirectlyAsync, which lands here without ever passing
         // through the assignAncillaryStoreIfNeeded calls in receiveOneAsync /
         // ProcessReceivedMessagesAsync. See GH-2576.
-        assignAncillaryStoreIfNeeded(envelope);
+        assignAncillaryStoreToWrittenRowIfNeeded(envelope);
 
         Interlocked.Increment(ref _posting);
         if (_draining)
