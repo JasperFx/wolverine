@@ -373,8 +373,10 @@ internal static class DbContextUsageFactory
             {
                 Name = index.GetDatabaseName() ?? "",
                 IsUnique = index.IsUnique,
+                // GH-5728: EF Core 11 lets an index include complex properties, so its properties are
+                // IPropertyBase there, and only a plain property has a column name
                 Columns = index.Properties
-                    .Select(p => p.GetColumnName() ?? p.Name)
+                    .Select(p => (p as IReadOnlyProperty)?.GetColumnName() ?? p.Name)
                     .ToList()
             });
         }
