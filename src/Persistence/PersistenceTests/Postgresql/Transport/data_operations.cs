@@ -246,13 +246,15 @@ public class data_operations : IAsyncLifetime
             await theQueue.SendAsync(envelope, CancellationToken.None);
         }
 
-        var popped = await theQueue.TryPopDurablyAsync(5, new DurabilitySettings{AssignedNodeNumber = 21}, NullLogger.Instance, CancellationToken.None);
+        // GH-5707: pop as this host's own node. The host's orphan sweep resets rows owned by any node missing from
+        // wolverine_nodes to owner 0 every 5 seconds, so a made-up owner like 21 could lose these rows before the assertion
+        var popped = await theQueue.TryPopDurablyAsync(5, _host.GetRuntime().DurabilitySettings, NullLogger.Instance, CancellationToken.None);
         popped.Count.ShouldBe(5);
 
         (await theQueue.CountAsync()).ShouldBe(15);
 
         var incoming = await theMessageStore.Admin.AllIncomingAsync();
         incoming.Count.ShouldBe(5);
-        incoming.All(x => x.OwnerId == 21).ShouldBeTrue();
+        incoming.All(x => x.OwnerId == _host.GetRuntime().DurabilitySettings.AssignedNodeNumber).ShouldBeTrue();
     }
 }
