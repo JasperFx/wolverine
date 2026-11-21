@@ -28,8 +28,6 @@ public class after_commit_runs_after_the_commit
 {
     private static string generateCode()
     {
-        DynamicCodeBuilder.WithinCodegenCommand = true;
-
         using var store = new DocumentStore
         {
             Urls = ["http://localhost:8080"],
@@ -37,38 +35,34 @@ public class after_commit_runs_after_the_commit
         };
         store.Initialize();
 
-        try
-        {
-            using var host = Host.CreateDefaultBuilder()
-                .UseWolverine(opts =>
-                {
-                    opts.Services.AddSingleton<IDocumentStore>(store);
-                    opts.UseRavenDbPersistence();
-                    opts.Durability.Mode = DurabilityMode.Solo;
+        // GH-5676. Not DynamicCodeBuilder.WithinCodegenCommand: it is process-wide, and any host another test
+        // started while it was set came up in MediatorOnly mode. Building the host without starting it is
+        // enough to compile the chain
+        using var host = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddSingleton<IDocumentStore>(store);
+                opts.UseRavenDbPersistence();
+                opts.Durability.Mode = DurabilityMode.Solo;
 
-                    opts.Policies.AutoApplyTransactions();
-                    opts.Discovery.DisableConventionalDiscovery()
-                        .IncludeType(typeof(RavenAfterCommitHandler));
-                })
-                .Build();
+                opts.Policies.AutoApplyTransactions();
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(RavenAfterCommitHandler));
+            })
+            .Build();
 
-            // Force HandlerGraph.Compile() without starting the host
-            _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
+        // Force HandlerGraph.Compile() without starting the host
+        _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
 
-            var handlerGraph = host.Services.GetRequiredService<HandlerGraph>();
-            var serviceVariableSource = host.Services.GetService<IServiceVariableSource>();
-            var generatedAssembly = handlerGraph.StartAssembly(handlerGraph.Rules);
+        var handlerGraph = host.Services.GetRequiredService<HandlerGraph>();
+        var serviceVariableSource = host.Services.GetService<IServiceVariableSource>();
+        var generatedAssembly = handlerGraph.StartAssembly(handlerGraph.Rules);
 
-            var chain = handlerGraph.ChainFor(typeof(RavenAfterCommitMessage));
-            chain.ShouldNotBeNull();
+        var chain = handlerGraph.ChainFor(typeof(RavenAfterCommitMessage));
+        chain.ShouldNotBeNull();
 
-            ((ICodeFile)chain).AssembleTypes(generatedAssembly);
-            return generatedAssembly.GenerateCode(serviceVariableSource);
-        }
-        finally
-        {
-            DynamicCodeBuilder.WithinCodegenCommand = false;
-        }
+        ((ICodeFile)chain).AssembleTypes(generatedAssembly);
+        return generatedAssembly.GenerateCode(serviceVariableSource);
     }
 
     [Fact]

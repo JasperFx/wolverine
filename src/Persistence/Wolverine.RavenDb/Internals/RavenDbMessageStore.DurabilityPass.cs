@@ -328,9 +328,13 @@ public partial class RavenDbMessageStore : IMessageStoreWithDurabilityPass, ISta
                 {
                     if (_cancellation.IsCancellationRequested) return;
 
+                    // GH-5676. Not cancelled by the release. A renewal already sent can still be applied by the
+                    // server after the client stops waiting, and the release then deletes with an index the lock no
+                    // longer has, which leaves the lock held for another full TTL. Letting it finish keeps _index
+                    // current, and DisposeAsync waits for this loop before it deletes
                     var result = await _parent._store.Operations.SendAsync(
                         new PutCompareExchangeValueOperation<DistributedLock>(_lockId,
-                            _parent.newDurabilityPassLock(), _index), token: _cancellation.Token);
+                            _parent.newDurabilityPassLock(), _index), token: CancellationToken.None);
 
                     if (!result.Successful)
                     {

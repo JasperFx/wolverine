@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 
@@ -36,6 +37,12 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
 
                 opts.Policies.AutoApplyTransactions();
             }).StartAsync();
+
+        // GH-5676. The saga's table and the handlers' code are setup, not what the tracked sessions below time. Left
+        // to the first message, both landed inside its tracked session's timeout, and the first test of a cold
+        // process against a just started database ran out of it
+        await _host.DocumentStore().Storage.ApplyAllConfiguredChangesToDatabaseAsync();
+        _host.CompileHandlersFor<SoftDeletedOrderSaga>();
     }
 
     public async ValueTask DisposeAsync()

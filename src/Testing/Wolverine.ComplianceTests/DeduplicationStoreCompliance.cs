@@ -478,11 +478,13 @@ public abstract class DeduplicationStoreCompliance : IAsyncLifetime
         (await storedIdsAsync(after, deduplicationTableName))
             .ShouldBe(["pre-switch-1", "pre-switch-2"], ignoreOrder: true);
 
-        // And the new table works.
+        // And the new table works. A fresh id, because the hashed table is deliberately not rebuilt here, so
+        // a claim an earlier run against the same database made is still live for an hour
         var hashed = storeFor(after);
-        (await hashed.TryClaimAsync("post-switch", anHourFromNow, TestContext.Current.CancellationToken))
+        var postSwitch = $"post-switch-{Guid.NewGuid():N}";
+        (await hashed.TryClaimAsync(postSwitch, anHourFromNow, TestContext.Current.CancellationToken))
             .ShouldBeTrue();
-        (await hashed.TryClaimAsync("post-switch", anHourFromNow, TestContext.Current.CancellationToken))
+        (await hashed.TryClaimAsync(postSwitch, anHourFromNow, TestContext.Current.CancellationToken))
             .ShouldBeFalse();
     }
 
@@ -506,10 +508,12 @@ public abstract class DeduplicationStoreCompliance : IAsyncLifetime
 
         (await storedIdsAsync(after, hashedDeduplicationTableName)).ShouldBe(["hashed-claim"]);
 
+        // A fresh id for the same reason as above: the string table is not rebuilt here
         var strings = storeFor(after);
-        (await strings.TryClaimAsync("string-claim", anHourFromNow, TestContext.Current.CancellationToken))
+        var stringClaim = $"string-claim-{Guid.NewGuid():N}";
+        (await strings.TryClaimAsync(stringClaim, anHourFromNow, TestContext.Current.CancellationToken))
             .ShouldBeTrue();
-        (await strings.TryClaimAsync("string-claim", anHourFromNow, TestContext.Current.CancellationToken))
+        (await strings.TryClaimAsync(stringClaim, anHourFromNow, TestContext.Current.CancellationToken))
             .ShouldBeFalse();
     }
 

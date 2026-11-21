@@ -18,10 +18,10 @@ internal partial class OracleMessageStore
         ExternalMessageTable externalTable, IReceiver receiver, CancellationToken token)
     {
         // Mirrors MessageDatabase<T>.PollForMessagesFromExternalTablesAsync. The
-        // advisory lock serializes pollers across nodes; unlike the shared base
-        // (where closing the poll connection releases the lock), OracleAdvisoryLock
-        // holds its own dedicated connection, so the lock must be released explicitly
-        // after each poll or other nodes could never take over.
+        // advisory lock serializes pollers across nodes, and it is released
+        // explicitly after each poll or other nodes could never take over: here
+        // because OracleAdvisoryLock holds its own dedicated connection, and in the
+        // shared base because a pooled connection keeps its session lock (GH-5676).
         if (!await AdvisoryLock.TryAttainLockAsync(externalTable.AdvisoryLock, token))
         {
             return;

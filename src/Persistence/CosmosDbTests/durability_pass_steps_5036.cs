@@ -246,6 +246,28 @@ public class durability_pass_steps_5036 : IAsyncLifetime
         next.ShouldNotBeNull();
         await next.DisposeAsync();
     }
+
+    /// <summary>
+    ///     GH-5676. Releasing the lock cancelled a renewal that was already on its way to the server. The server
+    ///     still applied that renewal, but the holder never saw its new ETag, so the release was refused as a
+    ///     precondition failure and the lock stayed held for another full TTL. A short TTL keeps a renewal in
+    ///     flight much of the time, so many releases in a row are bound to land on one
+    /// </summary>
+    [Fact]
+    public async Task the_pass_lock_is_released_even_when_a_renewal_is_in_flight()
+    {
+        theStore.DurabilityPassLockTtl = 400.Milliseconds();
+
+        for (var i = 0; i < 40; i++)
+        {
+            var held = await theStore.TryAcquireDurabilityPassLockAsync(Token);
+            held.ShouldNotBeNull($"the lock was still held at attempt {i}, so the previous release did not let it go");
+
+            // Somewhere around the first renewal, 100ms in, a different spot each time
+            await Task.Delay(TimeSpan.FromMilliseconds(80 + i % 7 * 5), Token);
+            await held.DisposeAsync();
+        }
+    }
 }
 
 public record CosmosDurabilityPassMessage(Guid Id);

@@ -414,8 +414,12 @@ public partial class CosmosDbMessageStore : IMessageStoreWithDurabilityPass, ISt
                 {
                     if (_cancellation.IsCancellationRequested) return;
 
+                    // GH-5676. Not cancelled by the release. A renewal already sent can still be applied by the
+                    // server after the client stops waiting, and the release then deletes with an ETag the lock no
+                    // longer has, which leaves the lock held for another full TTL. Letting it finish keeps _etag
+                    // current, and DisposeAsync waits for this loop before it deletes
                     var renewed = await _parent._container.ReplaceItemAsync(_parent.newDurabilityPassLock(), _lockId,
-                        Partition, new ItemRequestOptions { IfMatchEtag = _etag }, _cancellation.Token);
+                        Partition, new ItemRequestOptions { IfMatchEtag = _etag }, CancellationToken.None);
                     _etag = renewed.ETag;
                 }
                 catch (CosmosException e) when (e.StatusCode is HttpStatusCode.NotFound
