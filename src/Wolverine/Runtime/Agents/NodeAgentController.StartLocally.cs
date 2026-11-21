@@ -19,6 +19,11 @@ public partial class NodeAgentController
             await _runtime.Storage.Nodes.ClearAllAsync(_cancellation.Token);
             await _runtime.Storage.Admin.ReleaseAllOwnershipAsync();
 
+            // GH-5733: every store, not just the main one. A process that crashed left its envelopes owned by node 1
+            // in its ancillary stores (and their tenant databases) too, and this process is node 1 again, so no
+            // recovery path would ever see them as anyone else's
+            if (_runtime.Stores != null) await _runtime.Stores.ReleaseAllOwnershipOfAncillaryStoresAsync();
+
             var current = WolverineNode.For(_runtime.Options);
 
             _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeNumber = 1;
