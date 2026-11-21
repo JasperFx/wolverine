@@ -22,6 +22,9 @@
     <PackageReference Include="Nuke.Common" />
     <PackageReference Include="NuGet.Packaging" />
     <PackageReference Include="Oracle.ManagedDataAccess.Core" />
+    <!-- Used only by WaitForRabbitMqToBeReady's AMQP handshake probe (GH-5676). Docker's port proxy
+         accepts a TCP connect long before the broker will answer the handshake. -->
+    <PackageReference Include="RabbitMQ.Client" />
     <PackageReference Include="System.Security.Cryptography.Xml" />
   </ItemGroup>
 

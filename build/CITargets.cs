@@ -222,6 +222,8 @@ partial class Build
             WaitForAzureServiceBusEmulatorToBeReady("asb-emulator-2", 5674, 5301);
         if (services.Contains("kafka"))
             WaitForKafkaToBeReady();
+        if (services.Contains("rabbitmq"))
+            WaitForRabbitMqToBeReady();
         if (services.Contains("gcp-pubsub"))
             WaitForPubsubEmulatorToBeReady();
         if (services.Contains("pulsar"))
@@ -526,6 +528,50 @@ partial class Build
             // A broker mid-startup can answer with an empty cluster view, which is still not a
             // broker that will accept a topic creation.
             return metadata.Brokers.Count == 0 ? "metadata returned no brokers" : null;
+        });
+    }
+
+    /// <summary>
+    /// GH-5676. RabbitMQ had no readiness gate at all: every target that needs it started the
+    /// container and went straight to the tests. A RabbitMQ container takes several seconds to boot,
+    /// and Docker's port proxy accepts connections on 5672 as soon as the container exists, so the
+    /// first test class to start a host got "connection.start was never received" out of
+    /// <c>ResourceSetupHostService</c>, failed every test in the class, and was then rerun alone in a
+    /// fresh process -- by which time the broker was up. CICircuitBreaking reported that as a flaky
+    /// <c>buffered_not_parallelized</c> (the class the lane balancer happens to schedule first), not
+    /// as a broker that was not up yet.
+    ///
+    /// <para>Like the Kafka gate, this asks the broker a real question rather than checking the
+    /// socket: the AMQP handshake only completes once the broker will serve, and opening a channel is
+    /// the first thing resource setup does with the connection.</para>
+    /// </summary>
+    void WaitForRabbitMqToBeReady()
+    {
+        var factory = new RabbitMQ.Client.ConnectionFactory
+        {
+            HostName = "localhost",
+            Port = 5672,
+            RequestedConnectionTimeout = TimeSpan.FromSeconds(5),
+
+            // A probe connection that reconnects on its own would blur awaitService's attempt and
+            // budget accounting, exactly as librdkafka's internal retries would for Kafka.
+            AutomaticRecoveryEnabled = false
+        };
+
+        awaitService("RabbitMQ", "rabbitmq", TimeSpan.FromMinutes(2), () =>
+        {
+            try
+            {
+                using var connection = factory.CreateConnectionAsync().GetAwaiter().GetResult();
+                using var channel = connection.CreateChannelAsync().GetAwaiter().GetResult();
+                return null;
+            }
+            catch (RabbitMQ.Client.Exceptions.BrokerUnreachableException e)
+            {
+                // "None of the specified endpoints were reachable" says nothing; the inner exception
+                // says why (refused, or the handshake was never answered).
+                return $"{e.Message}: {e.InnerException?.Message}";
+            }
         });
     }
 
