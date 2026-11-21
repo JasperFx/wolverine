@@ -1225,7 +1225,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // An interceptor may redact the message in place or replace it and clear Data, so remember what runs again if
         // nothing is dead lettered. Data is the original serialized body whenever the envelope came from the inbox
         var originalMessage = envelope.Message;
-        var originalData = envelope.Data;
+        var originalData = envelope.SerializedDataIfAny;
 
         Exception? persisted;
         try
@@ -1270,8 +1270,21 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     private static void restoreAfterInterception(Envelope envelope, object? message, byte[]? data)
     {
-        envelope.Message = message;
-        envelope.Data = data;
+        if (data != null)
+        {
+            // The original serialized body is what runs again
+            envelope.Message = message;
+            envelope.Data = data;
+            return;
+        }
+
+        // No serialized body yet (a batch member built in memory, say). The failed write may have serialized one since,
+        // which is the original unless an interceptor replaced the message: only then is it thrown away
+        if (!ReferenceEquals(envelope.Message, message))
+        {
+            envelope.Message = message;
+            envelope.Data = null;
+        }
     }
 
     /// <summary>
