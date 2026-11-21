@@ -1,4 +1,5 @@
 using System.Globalization;
+using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 
 namespace Wolverine.Transports;
@@ -45,6 +46,25 @@ public static class DeadLetterQueueConstants
         }
 
         DeadLetterFingerprinting.Apply(fingerprinter, envelope, exception);
+    }
+
+    /// <summary>
+    /// Replaces the exception headers with the exception an <see cref="IDeadLetterInterceptor"/> chose to persist,
+    /// honouring <see cref="IDeadLetterExceptionInfo"/>, and leaves every other failure header as stamped
+    /// </summary>
+    internal static void StampInterceptedException(Envelope envelope, Exception? exception)
+    {
+        if (exception == null)
+        {
+            envelope.Headers.Remove(ExceptionTypeHeader);
+            envelope.Headers.Remove(ExceptionMessageHeader);
+            envelope.Headers.Remove(ExceptionStackHeader);
+            return;
+        }
+
+        envelope.Headers[ExceptionTypeHeader] = exception.DeadLetterExceptionType() ?? "Unknown";
+        envelope.Headers[ExceptionMessageHeader] = exception.DeadLetterExceptionMessage();
+        envelope.Headers[ExceptionStackHeader] = TruncateStackTrace(exception.StackTrace);
     }
 
     /// <summary>
