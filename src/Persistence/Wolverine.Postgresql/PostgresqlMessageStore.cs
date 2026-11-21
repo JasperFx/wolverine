@@ -1013,6 +1013,32 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         return raw is int max && max > 0 ? max : null;
     }
 
+    /// <summary>
+    ///     Reports a connection string option that Npgsql no longer exposes as a property. Npgsql 11 dropped
+    ///     Multiplexing and WriteCoalescingBufferThresholdBytes, but the keyword stays readable through the
+    ///     connection string dictionary on the driver versions that still know it, so the entry keeps showing up
+    ///     there and is simply absent where the option no longer exists.
+    /// </summary>
+    private static void addLegacyOption(DatabaseDescriptor descriptor, DbConnectionStringBuilder builder,
+        string keyword, string name)
+    {
+        if (!builder.TryGetValue(keyword, out var raw))
+        {
+            return;
+        }
+
+        var value = new OptionsValue
+        {
+            Subject = typeof(NpgsqlConnectionStringBuilder).FullNameInCode() + "." + name,
+            Name = name,
+            RawValue = raw,
+            Value = raw?.ToString() ?? string.Empty,
+            Type = PropertyType.Text
+        };
+        value.WriteValue(raw);
+        descriptor.Properties.Add(value);
+    }
+
     public override DatabaseDescriptor Describe()
     {
         var builder = new NpgsqlConnectionStringBuilder(DataSource?.ConnectionString ?? Settings.ConnectionString);
@@ -1075,8 +1101,8 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.NoResetOnClose));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Options!));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ArrayNullabilityMode));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Multiplexing));
-        descriptor.Properties.Add(OptionsValue.Read(builder, x => x.WriteCoalescingBufferThresholdBytes));
+        addLegacyOption(descriptor, builder, "multiplexing", "Multiplexing");
+        addLegacyOption(descriptor, builder, "writecoalescingbufferthresholdbytes", "WriteCoalescingBufferThresholdBytes");
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.LoadTableComposites));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ServerCompatibilityMode));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.TrustServerCertificate));

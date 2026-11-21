@@ -25,7 +25,11 @@ internal sealed class PostgresqlQueueNotificationManager
         {
             if (!_listeners.TryGetValue(dataSource, out listener!))
             {
-                if (new NpgsqlConnectionStringBuilder(dataSource.ConnectionString).Multiplexing)
+                // Read through the connection string dictionary rather than the property: Npgsql 11 removed
+                // Multiplexing, and a driver that has no multiplexing cannot produce a multiplexed data source,
+                // so the keyword being absent leaves the guard correctly satisfied.
+                var options = new NpgsqlConnectionStringBuilder(dataSource.ConnectionString);
+                if (options.TryGetValue("multiplexing", out var multiplexing) && multiplexing is true)
                 {
                     throw new InvalidOperationException(
                         "PostgreSQL queue notifications require a non-multiplexed NpgsqlDataSource because LISTEN needs a dedicated session. Set Multiplexing=false or disable queue notifications.");
