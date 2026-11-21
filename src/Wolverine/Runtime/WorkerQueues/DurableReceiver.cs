@@ -1222,8 +1222,17 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
-        envelope.Failure = exception;
+        var persisted = await interceptDeadLetterAsync(envelope, exception).ConfigureAwait(false);
+
+        // Stamped from the original exception, so the failure group still reflects where the failure happened: a
+        // replacement from an interceptor usually has no stack trace
         DeadLetterQueueConstants.StampFailureMetadata(envelope, exception, _runtime.DurabilitySettings.DeadLetterFingerprinter);
+        if (!ReferenceEquals(persisted, exception))
+        {
+            DeadLetterQueueConstants.StampInterceptedException(envelope, persisted);
+        }
+
+        envelope.Failure = persisted;
 
         // GH-5105. This used to post the write to a background RetryBlock and return, so the caller completed the
         // envelope -- marking the inbox row, the only copy, handled -- and reported it as dead lettered before
@@ -1259,6 +1268,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     /// </summary>
     private async Task deadLetterOnReceiptAsync(Envelope envelope)
     {
+        envelope.Failure = await interceptDeadLetterAsync(envelope, envelope.Failure).ConfigureAwait(false);
+
         var failure = await tryWriteDeadLetterAsync(envelope).ConfigureAwait(false);
         if (failure == null)
         {
@@ -1274,6 +1285,15 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
         }
+    }
+
+    // The inbox's own dead-letter storage takes the place of a dead letter queue here, so the interceptors run as
+    // they do for any other envelope written to it. A dead-letter sender hands the envelope to a broker instead
+    private ValueTask<Exception?> interceptDeadLetterAsync(Envelope envelope, Exception? exception)
+    {
+        return _deadLetterSender == null
+            ? DeadLetterInterception.InterceptAsync(_runtime, envelope, exception)
+            : ValueTask.FromResult(exception);
     }
 
     /// <returns>Null if the dead-letter write was made, or the last failure if it could not be</returns>

@@ -1,11 +1,15 @@
+using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Runtime;
+
 namespace Wolverine.Persistence.Durability;
 
 /// <summary>
 /// Hook invoked for each envelope immediately before it is written to Wolverine's durable
-/// (database-backed) dead-letter storage. Implementations may mutate the envelope in place - for
-/// example re-serialize a redacted or encrypted body by editing <see cref="Envelope.Message"/> and
-/// setting <see cref="Envelope.Data"/> to <c>null</c> so the store re-serializes it - and/or return
-/// a replacement exception whose type and message are persisted in place of the original.
+/// (database-backed) dead-letter storage, from a buffered or a durable endpoint. Implementations may
+/// mutate the envelope in place - for example re-serialize a redacted or encrypted body by editing
+/// <see cref="Envelope.Message"/> and setting <see cref="Envelope.Data"/> to <c>null</c> so the store
+/// re-serializes it - and/or return a replacement exception whose type and message are persisted in
+/// place of the original.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,6 +33,10 @@ namespace Wolverine.Persistence.Durability;
 /// Not invoked for broker-native dead-lettering, where the original payload bytes are handled by the
 /// broker rather than persisted by Wolverine.
 /// </para>
+/// <para>
+/// On a durable endpoint the replacement's type and message are also what the dead letter's
+/// exception headers carry. Its failure group is still computed from the original exception.
+/// </para>
 /// </remarks>
 public interface IDeadLetterInterceptor
 {
@@ -37,4 +45,24 @@ public interface IDeadLetterInterceptor
     /// <param name="cancellation">The runtime cancellation token.</param>
     /// <returns>The exception to persist; return <paramref name="exception"/> to leave it unchanged.</returns>
     ValueTask<Exception?> BeforeStoreAsync(Envelope envelope, Exception? exception, CancellationToken cancellation);
+}
+
+internal static class DeadLetterInterception
+{
+    /// <summary>
+    /// Runs every registered <see cref="IDeadLetterInterceptor"/> in registration order, each receiving the exception
+    /// returned by the previous one
+    /// </summary>
+    /// <returns>The exception to persist with the dead letter</returns>
+    internal static async ValueTask<Exception?> InterceptAsync(IWolverineRuntime runtime, Envelope envelope,
+        Exception? exception)
+    {
+        foreach (var interceptor in runtime.Services.GetServices<IDeadLetterInterceptor>())
+        {
+            exception = await interceptor.BeforeStoreAsync(envelope, exception, runtime.Cancellation)
+                .ConfigureAwait(false);
+        }
+
+        return exception;
+    }
 }

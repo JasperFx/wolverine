@@ -4,7 +4,6 @@ using System.Reflection;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Logging;
 using Wolverine.Runtime.WorkerQueues;
@@ -914,15 +913,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     // (e.g. redact/encrypt the body) and/or replace the exception that gets persisted, before a
     // failed envelope is written to durable dead-letter storage. Interceptors run in registration
     // order, each receiving the exception returned by the previous one. No-op when none are registered.
-    private async ValueTask<Exception?> interceptDeadLetterAsync(Envelope envelope, Exception? exception)
+    private ValueTask<Exception?> interceptDeadLetterAsync(Envelope envelope, Exception? exception)
     {
-        foreach (var interceptor in Runtime.Services.GetServices<IDeadLetterInterceptor>())
-        {
-            exception = await interceptor.BeforeStoreAsync(envelope, exception, Runtime.Cancellation)
-                .ConfigureAwait(false);
-        }
-
-        return exception;
+        return DeadLetterInterception.InterceptAsync(Runtime, envelope, exception);
     }
 
     public Task RetryExecutionNowAsync()
