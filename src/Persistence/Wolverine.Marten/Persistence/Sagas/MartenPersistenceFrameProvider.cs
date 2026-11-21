@@ -63,7 +63,7 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
     /// </remarks>
     public Type DetermineSagaIdType(Type sagaType, IChain chain, IServiceContainer container)
     {
-        return idTypeFrom(sagaType, resolveStore(chain, container));
+        return idTypeFrom(sagaType, ResolveStore(chain, container));
     }
 
     private static Type idTypeFrom(Type sagaType, IDocumentStore store)
@@ -77,7 +77,7 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
     /// that is not registered in this container, falls through to the default store — which is exactly the
     /// behaviour that existed before the chain was available here.
     /// </summary>
-    private static IDocumentStore resolveStore(IChain chain, IServiceContainer container)
+    internal static IDocumentStore ResolveStore(IChain chain, IServiceContainer container)
     {
         if (chain.DetermineAncillaryStoreType() is { } storeType && storeType.CanBeCastTo<IDocumentStore>()
                                                                  && container.Services.GetService(storeType) is
@@ -117,7 +117,7 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
         if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any()) return false;
         if (chain.Postprocessors.OfType<DocumentSessionSaveChanges>().FirstOrDefault() is not { } commit) return false;
 
-        if (resolveStore(chain, container).As<DocumentStore>().Tenancy.Cardinality !=
+        if (ResolveStore(chain, container).As<DocumentStore>().Tenancy.Cardinality !=
             JasperFx.Descriptors.DatabaseCardinality.Single)
         {
             return false;
@@ -159,7 +159,7 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
         if (!chain.Middleware.OfType<CreateDocumentSessionFrame>().Any()) return false;
         if (chain.Postprocessors.OfType<DocumentSessionSaveChanges>().FirstOrDefault() is not { } commit) return false;
 
-        var store = resolveStore(chain, container).As<DocumentStore>();
+        var store = ResolveStore(chain, container).As<DocumentStore>();
         if (store.Tenancy.Cardinality != JasperFx.Descriptors.DatabaseCardinality.Single) return false;
 
         var marker = chain.DetermineAncillaryStoreType();

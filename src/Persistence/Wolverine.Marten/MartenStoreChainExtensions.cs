@@ -1,5 +1,7 @@
+using JasperFx.CodeGeneration.Frames;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
+using Wolverine.Marten.Persistence.Sagas;
 
 namespace Wolverine.Marten;
 
@@ -18,5 +20,24 @@ public static class MartenStoreChainExtensions
     {
         chain.AncillaryStoreType = storeType;
         chain.Middleware.Insert(0, new AncillaryOutboxFactoryFrame(storeType));
+    }
+
+    /// <summary>
+    /// <see cref="IChain.UseForResponse" />, except the response is produced before the chain commits its Marten
+    /// session instead of after it. For an <see cref="IResponseAware" /> whose response reads this transaction's work.
+    /// </summary>
+    public static void UseForResponseBeforeCommit(this IChain chain, MethodCall frame)
+    {
+        var existing = new HashSet<Frame>(chain.Postprocessors, ReferenceEqualityComparer.Instance);
+        chain.UseForResponse(frame);
+
+        // A commit added later by a policy, as for a returned IMartenOp, is appended after the response
+        if (!chain.Postprocessors.OfType<DocumentSessionSaveChanges>().Any()) return;
+
+        var added = chain.Postprocessors.Where(x => !existing.Contains(x)).ToArray();
+        chain.Postprocessors.RemoveAll(x => !existing.Contains(x));
+
+        var commit = chain.Postprocessors.FindIndex(x => x is DocumentSessionSaveChanges);
+        chain.Postprocessors.InsertRange(commit, added);
     }
 }
