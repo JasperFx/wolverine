@@ -122,7 +122,7 @@ public class exclusive_listener_recovery_across_tenant_databases : PostgresqlCon
 
         succeeded.ShouldBeTrue(
             $"Expected all {expected.Count} dormant messages across {theTenants.Length} tenant databases to be " +
-            $"recovered by the exclusive listener, but only saw {tracking.Count}");
+            $"recovered by the exclusive listener, but only saw {tracking.CountOf(expected)}");
     }
 
     private static async Task<Guid[]> seedAsync(IMessageStore store, IWolverineRuntime runtime, Uri destination,

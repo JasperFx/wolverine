@@ -83,7 +83,7 @@ public class partitioned_local_queue_inbox_recovery : IAsyncLifetime
 
         succeeded.ShouldBeTrue(
             $"Expected the durability agent to recover all {seeded.Length} dormant inbox rows for the " +
-            $"partitioned local queue {queue.Uri}, but only saw {tracking.Count}");
+            $"partitioned local queue {queue.Uri}, but only saw {tracking.CountOf(expected)}");
 
         (await store.LoadPageOfGloballyOwnedIncomingAsync(queue.Uri, 100)).ShouldBeEmpty();
     }

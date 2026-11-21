@@ -258,7 +258,7 @@ public abstract class ExclusiveListenerRecoveryCompliance : IAsyncLifetime
 
         succeeded.ShouldBeTrue(
             $"Expected the {endpointName} listener to recover and handle all {seeded.Length} dormant inbox " +
-            $"messages, but only saw {tracking.Count}");
+            $"messages, but only saw {tracking.CountOf(expected)}");
     }
 
     #endregion
@@ -292,19 +292,20 @@ public abstract class ExclusiveListenerRecoveryCompliance : IAsyncLifetime
         stillDormant.Count.ShouldBe(seeded.Length,
             "The durability agent must never claim inbox rows for a listener that only runs on one node");
 
-        tracking.Count.ShouldBe(0,
+        var expected = seeded.Select(x => x.Id).ToArray();
+
+        tracking.CountOf(expected).ShouldBe(0,
             "Nothing should have been recovered on a node that is not hosting the exclusive listener");
 
         // ... and the moment the listener does activate here, they are recovered
         await runtime.Endpoints.StartListenerAsync(runtime.Endpoints.EndpointFor(destination)!,
             CancellationToken.None);
 
-        var expected = seeded.Select(x => x.Id).ToArray();
         var succeeded = await waitForAsync(() => expected.All(tracking.Contains), 30.Seconds());
 
         succeeded.ShouldBeTrue(
             $"Expected all {seeded.Length} dormant messages to be recovered once the exclusive listener started " +
-            $"on this node, but only saw {tracking.Count}");
+            $"on this node, but only saw {tracking.CountOf(expected)}");
     }
 
     [Fact]
@@ -383,28 +384,37 @@ public class RecoveredMessageHandler
 }
 
 /// <summary>
-/// Static handler state is process wide and these suites run serially per assembly, so the tracking session
-/// is scoped and disposed rather than reset ad hoc.
+/// Static handler state is process wide, and test classes that share it can run at the same time: an assembly with
+/// <c>CollectionPerAssembly</c> still runs a named <c>[Collection]</c> beside its default one (PostgresqlTests runs
+/// "marten" that way). So every open tracking session sees every recovered message, and a test asks only about
+/// the ids it seeded. With a single "current" session, the test that opened its session second took every
+/// message, and the other test timed out having seen none of its own (GH-5676).
 /// </summary>
 public static class RecoveredMessages
 {
     private static readonly object _locker = new();
-    private static RecoveredMessageTracking? _current;
+    private static readonly List<RecoveredMessageTracking> _sessions = new();
 
     public static RecoveredMessageTracking Track()
     {
+        var tracking = new RecoveredMessageTracking();
+
         lock (_locker)
         {
-            _current = new RecoveredMessageTracking();
-            return _current;
+            _sessions.Add(tracking);
         }
+
+        return tracking;
     }
 
     internal static void Record(RecoveredMessage message)
     {
         lock (_locker)
         {
-            _current?.Record(message);
+            foreach (var session in _sessions)
+            {
+                session.Record(message);
+            }
         }
     }
 
@@ -412,14 +422,15 @@ public static class RecoveredMessages
     {
         lock (_locker)
         {
-            if (ReferenceEquals(_current, tracking))
-            {
-                _current = null;
-            }
+            _sessions.Remove(tracking);
         }
     }
 }
 
+/// <summary>
+/// One test's view of the recovered messages. Another test can be recovering its own messages at the same time,
+/// so ask about the ids you seeded rather than how many messages arrived in all.
+/// </summary>
 public class RecoveredMessageTracking : IDisposable
 {
     private readonly object _locker = new();
@@ -433,23 +444,20 @@ public class RecoveredMessageTracking : IDisposable
         }
     }
 
-    public int Count
-    {
-        get
-        {
-            lock (_locker)
-            {
-                return _received.Count;
-            }
-        }
-    }
-
     public bool Contains(Guid id)
     {
         lock (_locker)
         {
             return _received.Any(x => x.Id == id);
         }
+    }
+
+    /// <summary>
+    /// How many of these ids have been recovered so far.
+    /// </summary>
+    public int CountOf(IEnumerable<Guid> ids)
+    {
+        return ids.Count(Contains);
     }
 
     public void Dispose()
