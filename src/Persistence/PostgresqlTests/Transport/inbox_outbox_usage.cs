@@ -27,8 +27,12 @@ public class inbox_outbox_usage : IAsyncLifetime
 
                 opts.PublishMessage<PostgresqlPing>().ToPostgresqlQueue("ping");
                 opts.PublishMessage<PostgresqlPong>().ToPostgresqlQueue("pong");
-                opts.ListenToPostgresqlQueue("pong");
-                opts.ListenToPostgresqlQueue("ping");
+                // GH-5736. An idle queue listener polls at DurabilitySettings.ScheduledJobPollingTime, 5 seconds by
+                // default, and nothing wakes it sooner here. The cascaded pong lands just after the listener's first
+                // poll at startup, so only the second poll picked it up, about 5 seconds later: the tracked session
+                // took 4.9-5.0 seconds against its 5 second timeout
+                opts.ListenToPostgresqlQueue("pong").PollingInterval(250.Milliseconds());
+                opts.ListenToPostgresqlQueue("ping").PollingInterval(250.Milliseconds());
 
                 opts.Policies.DisableConventionalLocalRouting();
             }).StartAsync();
