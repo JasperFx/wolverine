@@ -444,6 +444,21 @@ public class RecoveredMessageTracking : IDisposable
         }
     }
 
+    /// <summary>
+    /// Every recovered message this session has seen, including those of another test recovering at the same time.
+    /// Use <see cref="CountOf" /> to ask about the ids you seeded
+    /// </summary>
+    public int Count
+    {
+        get
+        {
+            lock (_locker)
+            {
+                return _received.Count;
+            }
+        }
+    }
+
     public bool Contains(Guid id)
     {
         lock (_locker)
