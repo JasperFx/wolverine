@@ -12,7 +12,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoint
+public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoint, ISupportIdleDelay
 {
     /// <summary>
     ///     Hard Amazon SQS limit for the per-message DelaySeconds parameter (15 minutes). Scheduled
@@ -156,6 +156,13 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     ///     with an empty list of messages. Default is 5.
     /// </summary>
     public int WaitTimeSeconds { get; set; } = 5;
+
+    /// <summary>
+    ///     GH-5737. How long the listener waits after a receive comes back empty before it polls again, on top of
+    ///     <see cref="WaitTimeSeconds" />. Null keeps the default of 250 milliseconds. Raise it on a quiet queue to cut
+    ///     the number of empty, billable receive requests.
+    /// </summary>
+    public TimeSpan? IdleDelay { get; set; }
 
     /// <summary>
     ///     Hard Amazon SQS limit on the number of messages a single <c>ReceiveMessage</c> can return.
@@ -799,6 +806,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         sibling.EnableFairQueueMessageGroups = EnableFairQueueMessageGroups;
         sibling.VisibilityTimeout = VisibilityTimeout;
         sibling.WaitTimeSeconds = WaitTimeSeconds;
+        sibling.IdleDelay = IdleDelay;
         // GH-4050: deliberately the RESOLVED value, not the explicit override. This runs from BuildListenerAsync,
         // so the parent's mode and lane counts are already final -- but MaxDegreeOfParallelism and
         // GroupShardingSlotNumber are not among the properties copied onto a sibling, so letting the sibling
