@@ -1,3 +1,4 @@
+using NSubstitute;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.ComplianceTests.ErrorHandling;
@@ -80,5 +81,47 @@ internal sealed class RecordingDeadLetterInterceptor : IDeadLetterInterceptor
         ReceivedEnvelope = envelope;
         ReceivedException = exception;
         return new ValueTask<Exception?>(_replaceWith ?? exception);
+    }
+}
+
+public class dead_letter_interception_without_a_message
+{
+    [Fact]
+    public async Task interceptors_are_skipped_when_the_envelope_has_no_message()
+    {
+        // An envelope that could not be deserialized (or unwrapped) has a raw body and no message. There is nothing
+        // to redact, and interceptors written against the handler's message should never see a null one
+        var interceptor = new RecordingDeadLetterInterceptor(replaceWith: new RedactedException());
+
+        var runtime = Substitute.For<Wolverine.Runtime.IWolverineRuntime>();
+        runtime.Services.Returns(new ServiceCollection()
+            .AddSingleton<IDeadLetterInterceptor>(interceptor)
+            .BuildServiceProvider());
+
+        var original = new InvalidOperationException("could not deserialize");
+        var envelope = new Envelope { Data = [1, 2, 3], MessageType = "unknown" };
+
+        var persisted = await DeadLetterInterception.InterceptAsync(runtime, envelope, original);
+
+        interceptor.Invoked.ShouldBeFalse();
+        persisted.ShouldBeSameAs(original);
+    }
+
+    [Fact]
+    public async Task interceptors_run_when_the_envelope_has_a_message()
+    {
+        var interceptor = new RecordingDeadLetterInterceptor(replaceWith: new RedactedException());
+
+        var runtime = Substitute.For<Wolverine.Runtime.IWolverineRuntime>();
+        runtime.Services.Returns(new ServiceCollection()
+            .AddSingleton<IDeadLetterInterceptor>(interceptor)
+            .BuildServiceProvider());
+
+        var envelope = new Envelope(new ErrorCausingMessage());
+
+        var persisted = await DeadLetterInterception.InterceptAsync(runtime, envelope, new DivideByZeroException());
+
+        interceptor.Invoked.ShouldBeTrue();
+        persisted.ShouldBeOfType<RedactedException>();
     }
 }

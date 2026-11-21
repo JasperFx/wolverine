@@ -193,6 +193,71 @@ group per exception type, keyed as `unfingerprinted:<exception type>` with a tit
 failure fingerprinting. That key works as a `FailureGroup` filter like any other. Nothing needs to be backfilled.
 :::
 
+## Scrubbing Dead Letters Before They're Stored
+
+Let's say that your messages carry something you'd rather not leave sitting in a database table, like a card number or
+some kind of personal information, and the exceptions your handlers throw are prone to repeating that data in their
+messages. Dead letter storage keeps both the message body and the exception text, so you'll want a chance to clean
+both up before a dead letter is written. That's what `IDeadLetterInterceptor` is for. Register one or more in your
+application's container, and Wolverine calls each of them right before an envelope is written to its database backed
+dead letter storage:
+
+<!-- snippet: sample_redacting_dead_letter_interceptor -->
+<a id='snippet-sample_redacting_dead_letter_interceptor'></a>
+```cs
+public class CardNumberRedactingInterceptor : IDeadLetterInterceptor
+{
+    public ValueTask<Exception?> BeforeStoreAsync(Envelope envelope, Exception? exception,
+        CancellationToken cancellation)
+    {
+        if (envelope.Message is CardPayment payment)
+        {
+            // Replace the message and clear the serialized body, so dead-letter storage
+            // serializes the redacted copy instead of the original
+            envelope.Message = payment with { CardNumber = "****" };
+            envelope.Data = null;
+        }
+
+        // Persist the exception type, but not the message that has the card number in it
+        return new ValueTask<Exception?>(new RedactedFailure(exception));
+    }
+}
+
+public class RedactedFailure(Exception? original) : Exception("redacted"), IDeadLetterExceptionInfo
+{
+    public string ExceptionType { get; } = original?.GetType().FullName ?? "Unknown";
+    public string ExceptionMessage => "redacted";
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/dead_letter_interceptor_sad_paths.cs#L40-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_redacting_dead_letter_interceptor' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+An interceptor can change the envelope in place, which is how you redact the message body: replace or edit
+`Envelope.Message` and set `Envelope.Data` to `null` so the store serializes your redacted copy. It can also return a
+different exception to persist in place of the original. If several interceptors are registered, they run in
+registration order and each one receives the exception returned by the one before it. Returning `null` stores no
+exception text at all.
+
+A couple things to know about how this behaves:
+
+* Interceptors run for both buffered and durable endpoints. On a durable endpoint, the exception type and message you
+  return are also what end up in the dead letter's `exception-type` and `exception-message` headers, and the
+  `exception-stack` header comes from your replacement too
+* The failure group is still computed from the *original* exception, so redacting the exception text doesn't scramble
+  your [failure groups](#failure-groups)
+* Interceptors are **not** called for an envelope that has no message, like one that couldn't be deserialized or
+  unwrapped in the first place. There's nothing to redact there, and you shouldn't have to guard against a `null`
+  message in every interceptor. That envelope's raw body is stored as it arrived
+* Interceptors are not called for broker native dead lettering, where Wolverine hands the original payload to the
+  broker rather than persisting it
+
+::: warning
+On a durable endpoint, an interceptor that throws is treated just like a dead letter write that failed. Nothing is
+dead lettered, the unscrubbed envelope is never written to dead letter storage, and the message is scheduled to be
+executed again with its original body. The same thing happens if the dead letter write itself fails after your
+interceptor already ran -- the message that runs again is always the original, not your redacted copy.
+:::
+
 ## Managing Dead Letters Programmatically
 
 Everything below is available through the `IDeadLetters` service of any message store, which you can get from
