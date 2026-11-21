@@ -66,6 +66,8 @@ partial class Build
     Target CompileBobcatSamples => _ => _
         // So one red step under LocalGate (GH-5125) does not skip the gates after it.
         .ProceedAfterFailure()
+        // --affected (build/AffectedGate.cs): only when the change reaches a Bobcat sample
+        .OnlyWhenDynamic(() => gateExtraSelected(nameof(BobcatSamples)))
         .Executes(() =>
         {
             var regressions = new List<string>();
@@ -103,6 +105,8 @@ partial class Build
     Target TestBobcatSamples => _ => _
         // So one red step under LocalGate (GH-5125) does not skip the gates after it.
         .ProceedAfterFailure()
+        // --affected (build/AffectedGate.cs): only when the change reaches a Bobcat sample
+        .OnlyWhenDynamic(() => gateExtraSelected(nameof(BobcatSamples)))
         .DependsOn(CompileBobcatSamples)
         .Executes(() =>
         {
@@ -145,6 +149,8 @@ partial class Build
     Target TestBobcatSamplesOnFisher => _ => _
         // So one red step under LocalGate (GH-5125) does not skip the gates after it.
         .ProceedAfterFailure()
+        // --affected (build/AffectedGate.cs): only when the change reaches a Bobcat sample
+        .OnlyWhenDynamic(() => gateExtraSelected(nameof(BobcatSamples)))
         .DependsOn(CompileBobcatSamples)
         .After(TestBobcatSamples)
         .Executes(() =>
