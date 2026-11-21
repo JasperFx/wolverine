@@ -244,6 +244,14 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
     public ShardFailure? Failure => _innerAgent?.Failure;
 
     /// <summary>
+    /// GH-5716: how many identities this shard holds parked. Marten 10, Polecat 6 and Fisher 2 park a failing
+    /// identity by default and keep the rest of the shard running. Read through to the live inner agent, like
+    /// <see cref="Status" /> and <see cref="Failure" />. Zero before the shard has started, or for a shard that
+    /// does not park
+    /// </summary>
+    public int ParkedCount => _innerAgent?.ParkedCount ?? 0;
+
+    /// <summary>
     /// The failure categories that will fail again on the exact same event no matter how many times the
     /// shard is restarted, so an automated restart is pure churn: it burns the daemon's start path, resets
     /// the operator's view of the failure, and re-pauses on the same sequence.
@@ -293,6 +301,13 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
                $"{failure.RootExceptionType}: {failure.Message}";
     }
 
+    // GH-5716: the shard paused rather than park another identity, because it is at its parking cap or one batch
+    // would have parked so many identities that the projection itself is the problem. A restart alone will not help
+    private static string describeParkedLimit(Uri uri, AgentStatus status, ShardFailure failure, int parked)
+        => $"Projection {uri} is {status} at its parking limit with {parked} {(parked == 1 ? "identity" : "identities")} parked: {failure.Message}. " +
+           "Replay or discard the parked identities, raise MaxParkedIdentitiesPerShard, or fix the projection, then " +
+           "restart the shard";
+
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
@@ -300,6 +315,12 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
         if (status is AgentStatus.Paused or AgentStatus.Stopped)
         {
             var failure = Failure;
+            if (failure?.Category == ShardFailureCategory.ParkedLimitReached)
+            {
+                return Task.FromResult(
+                    HealthCheckResult.Unhealthy(describeParkedLimit(Uri, status, failure, ParkedCount)));
+            }
+
             if (failure != null)
             {
                 return Task.FromResult(HealthCheckResult.Unhealthy(describeFailure(Uri, status, failure)));
@@ -424,6 +445,14 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
 
             return Task.FromResult(HealthCheckResult.Degraded(
                 $"Projection {Uri} stalled at sequence {currentSequence} (high water mark: {highWaterMark})"));
+        }
+
+        // GH-5716: the shard keeps up, but some identities are parked and their read models are not being updated
+        var parked = ParkedCount;
+        if (parked > 0)
+        {
+            return Task.FromResult(HealthCheckResult.Degraded(
+                $"Projection {Uri} has {parked} parked {(parked == 1 ? "identity" : "identities")}. Replay or discard them with the 'projections parked' command or CritterWatch"));
         }
 
         return Task.FromResult(HealthCheckResult.Healthy());

@@ -34,14 +34,6 @@
         <ProjectReference Include="..\..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
     </ItemGroup>
 
-    <!-- ReturnRequest's Evolve() uses bare case labels (`case ReturnedItemsReceived:`), which the JasperFx.Events source
-         generator reads from 3.9.0 on. Marten 10.0.0-alpha.6, Polecat 6.0.0-alpha.8 and Fisher 2.0.0-alpha.6 still bundle
-         the 3.8.0 generator; a direct reference wins over the bundled copies. Drop this once the stores bundle 3.9.0. -->
-    <ItemGroup>
-        <PackageReference Include="JasperFx.Events.SourceGenerator"
-                          OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
-    </ItemGroup>
-
     <ItemGroup>
         <Compile Include="..\..\..\Servers.cs">
             <Link>Servers.cs</Link>
