@@ -49,8 +49,10 @@ public class data_operations : IAsyncLifetime
                     // This would only be applicable in testing
                     .AutoPurgeOnStartup();
 
-                // Whatever you're doing to local queues today probably changes to this:
-                opts.ListenToSqlServerQueue("one");
+                // Not listened to. Every test here works the queue's tables directly and then counts rows, and a
+                // listener on "one" polls that same queue in the background: a poll landing between a test's sends
+                // and its own pop took messages first ("popped.Count should be 5 but was 4"). The publishing rule
+                // is what declares the queue
                 opts.PublishMessage<Message1>().ToSqlServerQueue("one");
 
                 // I added this to cover the inbox/outbox
