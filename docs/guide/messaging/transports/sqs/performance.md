@@ -40,7 +40,7 @@ longer than the window. Batches are also flushed when a listener stops, so a pau
 does not leave settled messages to reappear at their visibility timeout.
 :::
 
-### Waiting longer between empty receives on a quiet queue <Badge type="tip" text="7.0" />
+### Waiting longer between empty receives on a quiet queue <Badge type="tip" text="6.65" />
 
 After a receive comes back empty, the listener waits 250 milliseconds before it polls again, and that
 wait comes on top of the long poll. On a queue that only sees a handful of messages a day, that is

@@ -11,7 +11,7 @@ Buffered and Durable endpoints (the default is buffered) pull messages in batche
 **single** batched insert, which makes durable ASB endpoints comparatively cheap per message.
 Message *settlement* (complete) is one service call per message.
 
-### Waiting longer between empty receives <Badge type="tip" text="7.0" />
+### Waiting longer between empty receives <Badge type="tip" text="6.65" />
 
 When a buffered, durable or session listener's receive comes back empty, it waits 250 milliseconds
 before receiving again, on top of `MaximumWaitTime`. For a quiet queue or subscription that can
