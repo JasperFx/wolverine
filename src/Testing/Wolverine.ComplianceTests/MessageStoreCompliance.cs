@@ -2177,6 +2177,15 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     protected static Uri UnlistenedInboxDestination() => new($"stub://gh5073-{Guid.NewGuid():N}/");
 
     /// <summary>
+    /// GH-5711. The node number the competing claims below claim as: this host's own. The host's durability agent
+    /// sweeps rows owned by any node missing from the node table back to AnyNode every few seconds. A made-up owner
+    /// like 45_001 is never in that table, so a sweep landing mid-test undid one pass's claims and the other pass
+    /// claimed the same rows again, which looked exactly like a double claim. The host's own node is live (and
+    /// keeps its number when it re-registers after ClearAllAsync), so the sweep leaves its rows alone.
+    /// </summary>
+    protected int LiveNodeNumber() => theHost.Services.GetRequiredService<DurabilitySettings>().AssignedNodeNumber;
+
+    /// <summary>
     /// GH-5073. Two recovery commands can load the same orphan before either claims it. Only the store that
     /// atomically changes owner_id from AnyNode may return the envelope for enqueueing.
     /// </summary>
@@ -2204,9 +2213,10 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
             secondCandidates.Select(x => x.Id).ShouldContain(envelope.Id);
         }
 
+        var owner = LiveNodeNumber();
         var claims = await Task.WhenAll(
-            thePersistence.TryClaimIncomingAsync(45_001, firstCandidates),
-            thePersistence.TryClaimIncomingAsync(45_002, secondCandidates));
+            thePersistence.TryClaimIncomingAsync(owner, firstCandidates),
+            thePersistence.TryClaimIncomingAsync(owner, secondCandidates));
 
         var claimed = claims.SelectMany(x => x).ToArray();
         claimed.Length.ShouldBe(envelopes.Length,
@@ -2215,7 +2225,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
 
         foreach (var envelope in claimed)
         {
-            envelope.OwnerId.ShouldBeOneOf(45_001, 45_002);
+            envelope.OwnerId.ShouldBe(owner);
         }
 
         var remaining = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(destination, 10);
@@ -2262,9 +2272,10 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         }
 
         var runtime = Substitute.For<IWolverineRuntime>();
+        var owner = LiveNodeNumber();
         await Task.WhenAll(
-            commandFor(45_001).ExecuteAsync(runtime, CancellationToken.None),
-            commandFor(45_002).ExecuteAsync(runtime, CancellationToken.None));
+            commandFor(owner).ExecuteAsync(runtime, CancellationToken.None),
+            commandFor(owner).ExecuteAsync(runtime, CancellationToken.None));
 
         enqueued.OrderBy(x => x).ShouldBe(envelopes.Select(x => x.Id).OrderBy(x => x),
             "each recovered inbox row should be enqueued exactly once");
@@ -2292,6 +2303,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
 
         await thePersistence.Inbox.StoreIncomingAsync(envelopes);
 
+        var owner = LiveNodeNumber();
         for (var round = 0; round < 10; round++)
         {
             await thePersistence.ReassignIncomingAsync(TransportConstants.AnyNode, envelopes);
@@ -2301,8 +2313,8 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
                 .Reverse().ToArray();
 
             var claims = await Task.WhenAll(
-                thePersistence.TryClaimIncomingAsync(45_001, forwards),
-                thePersistence.TryClaimIncomingAsync(45_002, backwards));
+                thePersistence.TryClaimIncomingAsync(owner, forwards),
+                thePersistence.TryClaimIncomingAsync(owner, backwards));
 
             claims.SelectMany(x => x).Select(x => x.Id).OrderBy(x => x)
                 .ShouldBe(envelopes.Select(x => x.Id).OrderBy(x => x),
