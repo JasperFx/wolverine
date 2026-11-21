@@ -99,4 +99,6 @@ public static class TravelProviderHandler
         => providers.Cancel(Booking.Hotel, command.CustomerId);
 
     public static void Handle(TripBooked booked) { }
+
+    public static void Handle(NotifyTraveller notice) { }
 }

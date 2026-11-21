@@ -40,6 +40,9 @@ public class Bug_4156_static_mode_endpoint_types
         // And name the ROUTES, not just the generated type names. An operator reading a failed deploy knows
         // which routes they have and does not know what codegen called them.
         ex.Message.ShouldContain("validate2/customer");
+
+        // GH-5703: and end with what to do about it
+        ex.Message.ShouldEndWith(MissingPreBuiltTypesException.HowToFix);
     }
 
     [Fact]

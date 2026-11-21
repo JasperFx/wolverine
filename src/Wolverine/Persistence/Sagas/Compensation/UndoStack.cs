@@ -130,6 +130,28 @@ namespace Wolverine
 
         /// <summary>The stack had nothing to undo, so the unwind is already over</summary>
         public bool IsEmpty => Count == 0;
+
+        /// <summary>
+        /// GH-5698. The undo sequence a <c>Compensate</c> method returned: on its own, or as one member of a tuple such as
+        /// <c>(TripCompensationStarted, UndoSequence)</c>. A tuple carries the rest as it would without one
+        /// </summary>
+        internal static UndoSequence? FoundIn(object? result)
+        {
+            switch (result)
+            {
+                case UndoSequence sequence:
+                    return sequence;
+                case System.Runtime.CompilerServices.ITuple tuple:
+                    for (var i = 0; i < tuple.Length; i++)
+                    {
+                        if (FoundIn(tuple[i]) is { } inner) return inner;
+                    }
+
+                    return null;
+                default:
+                    return null;
+            }
+        }
     }
 
     // ---- Wolverine's own events for an event-sourced saga's undo stack ---------------------------------------------

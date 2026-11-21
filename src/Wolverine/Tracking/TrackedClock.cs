@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Wolverine.Tracking;
 
 /// <summary>
-/// GH-5664. The virtual "now" of a tracked session, which <see cref="ITrackedSession.PlayScheduledMessagesAsync(TimeSpan, TimeSpan?)" />
+/// GH-5664. The virtual "now" of a tracked session, which <see cref="ITrackedSession.PlayScheduledMessagesAsync(TimeSpan, TimeSpan?, bool)" />
 /// moves forward. It is either a clock the application reads too (the host's registered <see cref="TimeProvider" />, or
 /// one given to <see cref="TrackedSessionConfiguration.UseClock" />), so a saga and the session agree on the time, or a
 /// clock of the session's own, frozen at the instant the first session started.

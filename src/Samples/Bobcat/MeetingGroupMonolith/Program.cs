@@ -1,3 +1,5 @@
+using JasperFx;
+using JasperFx.CodeGeneration;
 using JasperFx.Events.Projections;
 using Marten;
 using Marten.Events.Projections;
@@ -10,6 +12,11 @@ using Wolverine.Http.FluentValidation;
 using Wolverine.Marten;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// GH-5703: a plain `dotnet run` of this sample has no launch settings, so it runs in Production, where Wolverine 7.0
+// expects pre-generated code. A sample compiles its generated code at runtime in every environment instead. Dynamic
+// rather than Auto, which would write the generated code into the project
+builder.Services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic);
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

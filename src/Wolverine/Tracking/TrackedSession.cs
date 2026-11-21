@@ -390,7 +390,9 @@ internal partial class TrackedSession : ITrackedSession
         throw new Exception(description);
     }
 
-    public Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan timeout)
+    public Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan timeout) => PlayScheduledMessagesAsync(timeout, false);
+
+    public Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan timeout, bool playInline)
     {
         var serviceName = _primaryHost.GetRuntime().Options.ServiceName;
         var recordsInOrder = _envelopes.SelectMany(x => x.Records).Where(x => x.MessageEventType == MessageEventType.Scheduled || x.Envelope!.Status == EnvelopeStatus.Scheduled || x.WasScheduled).ToArray();
@@ -410,7 +412,7 @@ internal partial class TrackedSession : ITrackedSession
         replayed._otherHosts.AddRange(_otherHosts);
         replayed.clock = clock;
         
-        return trackedSessionConfiguration.ExecuteAndWaitAsync(c => ReplayAll(c, records));
+        return trackedSessionConfiguration.ExecuteAndWaitAsync(c => ReplayAll(c, records, playInline));
     }
 
     // GH-5664. Scheduled envelopes an earlier window left for later, carried from session to session, and the ones
@@ -420,15 +422,17 @@ internal partial class TrackedSession : ITrackedSession
 
     internal sealed record PendingScheduledMessage(Envelope Envelope, DateTimeOffset DueAt, long Sequence);
 
-    public Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan advanceBy, TimeSpan? timeout = null)
-        => PlayScheduledMessagesAsync(advanceBy, timeout ?? Timeout, null);
+    public Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan advanceBy, TimeSpan? timeout = null,
+        bool playInline = false)
+        => PlayScheduledMessagesAsync(advanceBy, timeout ?? Timeout, null, playInline);
 
     /// <summary>
     /// GH-5664. As the public overload, with <paramref name="clock" /> taking over as the session's clock: Bobcat passes
     /// its ambient clock, so the time a spec moves is the time the application reads. What is still scheduled keeps
     /// how long it has left to wait.
     /// </summary>
-    internal async Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan advanceBy, TimeSpan timeout, TimeProvider? clock)
+    internal async Task<ITrackedSession> PlayScheduledMessagesAsync(TimeSpan advanceBy, TimeSpan timeout, TimeProvider? clock,
+        bool playInline = false)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(advanceBy, TimeSpan.Zero);
 
@@ -455,10 +459,10 @@ internal partial class TrackedSession : ITrackedSession
         replayed.clock = current;
         replayed._carried = pending;
 
-        return await configuration.ExecuteAndWaitAsync(c => replayed.playWindowAsync(c, windowEnd));
+        return await configuration.ExecuteAndWaitAsync(c => replayed.playWindowAsync(c, windowEnd, playInline));
     }
 
-    private async Task playWindowAsync(IMessageContext context, DateTimeOffset windowEnd)
+    private async Task playWindowAsync(IMessageContext context, DateTimeOffset windowEnd, bool playInline)
     {
         while (pendingScheduled().FirstOrDefault(x => x.DueAt <= windowEnd) is { } next)
         {
@@ -466,11 +470,11 @@ internal partial class TrackedSession : ITrackedSession
 
             // The handler runs at the instant its message was due
             clock.AdvanceTo(next.DueAt);
-            var local = await replayAsync(context, next.Envelope);
+            var inline = await replayAsync(context, next.Envelope, playInline);
 
-            // A message sent to another endpoint is handled elsewhere, so let that settle before looking for what it
-            // scheduled within the window
-            if (!local) await waitForInFlightWorkAsync();
+            // A message delivered to a queue, local or not, is handled there, so let that settle -- its retries,
+            // dead-lettering and compensation included -- before looking for what it scheduled within the window
+            if (!inline) await waitForInFlightWorkAsync();
         }
 
         clock.AdvanceTo(windowEnd);
@@ -533,13 +537,13 @@ internal partial class TrackedSession : ITrackedSession
         return by >= DateTimeOffset.MaxValue - at ? DateTimeOffset.MaxValue : at + by;
     }
 
-    internal async Task ReplayAll(IMessageContext context, EnvelopeRecord[] records)
+    internal async Task ReplayAll(IMessageContext context, EnvelopeRecord[] records, bool playInline = false)
     {
         var envelopes = records.Select(x => x.Envelope!).Distinct().ToArray();
 
         foreach (var capturedEnvelope in envelopes)
         {
-            await replayAsync(context, capturedEnvelope);
+            await replayAsync(context, capturedEnvelope, playInline);
         }
     }
 
@@ -553,8 +557,8 @@ internal partial class TrackedSession : ITrackedSession
         }
     }
 
-    // True when the message was handled inline, false when it was sent to another endpoint
-    private async Task<bool> replayAsync(IMessageContext context, Envelope capturedEnvelope)
+    // True when the message was handled inline, false when it was delivered to its queue
+    private async Task<bool> replayAsync(IMessageContext context, Envelope capturedEnvelope, bool playInline)
     {
         var bus = context as MessageBus;
         // Captured records for scheduled sends to non-native-scheduling
@@ -591,7 +595,7 @@ internal partial class TrackedSession : ITrackedSession
         // GH-5674: a saga timeout that replaces earlier ones is told apart by its headers, which the replay keeps
         var options = Persistence.Sagas.SagaTimeouts.ReplayOptionsFor(dispatched);
 
-        if (dispatched.Destination!.Scheme == TransportConstants.Local)
+        if (playInline && dispatched.Destination!.Scheme == TransportConstants.Local)
         {
             if (options == null)
             {
@@ -600,6 +604,44 @@ internal partial class TrackedSession : ITrackedSession
             else
             {
                 await context.InvokeAsync(dispatched.Message!, options);
+            }
+
+            return true;
+        }
+
+        // GH-5700: delivered to its queue as if its time had come, so the endpoint's retries, dead-lettering and a
+        // saga's compensation apply to it as they would in production. It keeps the saga it was scheduled for
+        if (dispatched.SagaId.IsNotEmpty())
+        {
+            options ??= new DeliveryOptions();
+            options.SagaId = dispatched.SagaId;
+        }
+
+        if (dispatched.Destination!.Scheme == TransportConstants.Local && bus != null)
+        {
+            // A local queue runs it through its own pipeline in this async flow, so a test clock the session moved is
+            // the time the handler reads, whatever thread the queue's worker is on
+            var routed = new List<Envelope>();
+            bus.CapturedOutgoing = routed;
+            try
+            {
+                await context.EndpointFor(dispatched.Destination).SendAsync(dispatched.Message, options);
+            }
+            finally
+            {
+                bus.CapturedOutgoing = null;
+            }
+
+            foreach (var envelope in routed)
+            {
+                if (envelope.Sender is IPlaysScheduledMessages queue)
+                {
+                    await queue.PlayNowAsync(envelope);
+                }
+                else
+                {
+                    await envelope.StoreAndForwardAsync();
+                }
             }
 
             return true;

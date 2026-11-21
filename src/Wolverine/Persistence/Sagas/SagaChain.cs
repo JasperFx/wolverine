@@ -86,6 +86,9 @@ public partial class SagaChain : HandlerChain
         // generates its code
         SagaRetention.AssertCompletedAtIsNotHidden(SagaType, options);
 
+        // GH-5702. The same for Saga.Version, which the saga stores check for optimistic concurrency
+        AssertVersionIsNotHidden(SagaType);
+
         _options = options;
     }
 
@@ -97,12 +100,44 @@ public partial class SagaChain : HandlerChain
         SagaType = saga.HandlerType;
         SagaMethodInfo = saga.Method;
 
+        AssertVersionIsNotHidden(SagaType);
+
         SagaIdMember = DetermineSagaIdMember(MessageType, SagaType, [saga.Method]);
 
         // Automatically audit the saga id
         if (SagaIdMember != null && AuditedMembers.All(x => x.Member != SagaIdMember))
         {
             AuditedMembers.Add(new AuditedMember(SagaIdMember, SagaIdMember.Name, SagaIdMember.Name));
+        }
+    }
+
+    /// <summary>
+    /// GH-5702. Refuse a saga type that declares its own <c>Version</c>. It hides <see cref="Saga.Version" />, the
+    /// revision the saga stores read and bump for their optimistic concurrency check, so the check would quietly stop
+    /// working.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Saga types come from handler discovery, which roots them. A trimmed member could not hide Version anyway.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Walks the saga type's base classes up to Saga. Saga types come from handler discovery, which roots them.")]
+    internal static void AssertVersionIsNotHidden(Type sagaType)
+    {
+        for (var type = sagaType; type != null && type != typeof(Saga); type = type.BaseType)
+        {
+            var hides = type.GetMember(nameof(Saga.Version), MemberTypes.Property | MemberTypes.Field,
+                    BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic |
+                    BindingFlags.DeclaredOnly)
+                .Length > 0;
+
+            if (hides)
+            {
+                throw new InvalidSagaException(
+                    $"Saga type {sagaType.FullNameInCode()} declares its own {nameof(Saga.Version)}" +
+                    (type == sagaType ? "" : $" (on {type.FullNameInCode()})") +
+                    $", which hides {nameof(Saga)}.{nameof(Saga.Version)}, the revision Wolverine's saga storage uses to check for concurrent updates. " +
+                    $"Remove it: {nameof(Saga)}.{nameof(Saga.Version)} already does that job, and a saga that implements JasperFx.IRevisioned needs nothing of its own. " +
+                    "Or, if it meant something else, rename it.");
+            }
         }
     }
 

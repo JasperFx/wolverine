@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
 using Alba;
 
 namespace BookingMonolith.Tests;
@@ -11,7 +13,7 @@ public class BookingMonolithHost : IAsyncLifetime
 {
     public IAlbaHost Host { get; private set; } = null!;
 
-    public async ValueTask InitializeAsync() => Host = await AlbaHost.For<Program>();
+    public async ValueTask InitializeAsync() => Host = await AlbaHost.For<Program>(x => x.UseEnvironment(Environments.Production));
 
     public async ValueTask DisposeAsync()
     {

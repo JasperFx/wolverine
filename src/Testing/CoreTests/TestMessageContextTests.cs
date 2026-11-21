@@ -32,12 +32,22 @@ public class TestMessageContextTests
     public async Task schedule_by_execution_time()
     {
         var message = new Message2();
-        var time = new DateTimeOffset(DateTime.Today);
+        var time = new DateTimeOffset(DateTime.Today.AddDays(1));
 
         await theContext.ScheduleAsync(message, time);
 
         theSpy.ScheduledMessages().FindForMessageType<Message2>()
             .ScheduledTime.ShouldBe(time);
+    }
+
+    // GH-5676: a time already in the past is sent right away, so it is not a scheduled message
+    [Fact]
+    public async Task a_time_in_the_past_is_not_scheduled()
+    {
+        await theContext.ScheduleAsync(new Message2(), new DateTimeOffset(DateTime.Today.AddDays(-1)));
+
+        theSpy.ScheduledMessages().ShouldBeEmpty();
+        theSpy.AllOutgoing.ShouldHaveMessageOfType<Message2>();
     }
 
     [Fact]

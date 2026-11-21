@@ -33,6 +33,8 @@ public class Trip : CompensatingSaga, IRevisioned
         return new BookHotel(Id, CustomerId);
     }
 
+    // TripBooked is what the trip says when it's finished, so the catch-all below doesn't cover it
+    [CompletesSaga]
     public TripBooked Handle(HotelBooked booked)
     {
         MarkCompleted();

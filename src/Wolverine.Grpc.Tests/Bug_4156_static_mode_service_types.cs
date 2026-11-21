@@ -31,6 +31,9 @@ public class Bug_4156_static_mode_service_types
         // Name the assembly that was searched, because "the types are missing" and "the types are in the
         // other assembly" call for different fixes.
         ex.Message.ShouldContain(typeof(Bug_4156_static_mode_service_types).Assembly.GetName().Name!);
+
+        // GH-5703: and end with what to do about it
+        ex.Message.ShouldEndWith(MissingPreBuiltTypesException.HowToFix);
     }
 
     [Fact]

@@ -79,7 +79,9 @@ internal static class SagaDescriptorBuilder
             {
                 IsTimeout = chain.MessageType.CanBeCastTo<TimeoutMessage>(),
                 Methods = methods,
-                DiscardedIfSagaMissing = chain.DetermineSagaMissingBehavior() == SagaMissingBehavior.Discard,
+                // GH-5701: a message that starts the saga never finds it missing, whatever [SagaMissing] says
+                DiscardedIfSagaMissing = role is not (SagaRole.Start or SagaRole.StartOrHandle) &&
+                                         chain.DetermineSagaMissingBehavior() == SagaMissingBehavior.Discard,
                 ReplacesEarlierTimeouts = SagaTimeouts.Replaces(chain.MessageType)
             });
         }
@@ -100,16 +102,12 @@ internal static class SagaDescriptorBuilder
     }
 
     /// <summary>
-    /// GH-5672. The concrete message types whose Fault&lt;T&gt; chain a Compensate method was filed under
+    /// GH-5672. The concrete message types a Compensate method compensates. GH-5701: read from the same coverage the
+    /// runtime built the method's Fault&lt;T&gt; chains from, so the saga's description and flow diagram show exactly
+    /// those chains: no node for an interface, a base type or <c>object</c>, and nothing a catch-all leaves out
     /// </summary>
     internal static TypeDescriptor[] CoveredBy(HandlerGraph graph, Type sagaType, CompensateMethod method)
-        => CollectSagaChains(graph)
-            .Where(c => c.SagaType == sagaType && SagaCompensations.FaultMessageType(c.MessageType) != null)
-            .Where(c => c.SagaHandlerCalls().Any(call => call.Method == method.Method))
-            .Select(c => SagaCompensations.FaultMessageType(c.MessageType)!)
-            .Where(x => !x.IsInterface && !x.IsAbstract && x != typeof(object))
-            .Distinct()
-            .OrderBy(x => x.FullNameInCode(), StringComparer.Ordinal)
+        => graph.CompensationCoverage.ConcreteTypesFor(method)
             .Select(TypeDescriptor.For)
             .ToArray();
 

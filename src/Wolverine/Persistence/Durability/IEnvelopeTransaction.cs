@@ -45,9 +45,12 @@ public static class EnvelopeTransactionExtensions
             // GH-5586. A full local queue leaves the envelope in the inbox for recovery rather than making the flush
             // after the commit wait for room. Not when the message context is its own transaction: nothing is written
             // until its flush, which stores and forwards and makes the same choice there.
-            if (transaction is not MessageContext && envelope.Sender is DurableLocalQueue queue)
+            if (envelope.Sender is DurableLocalQueue queue)
             {
-                queue.ChooseInboxOwner(envelope);
+                // GH-5699: an inbox row is Incoming (or Scheduled) and owned by this node, however the envelope was sent
+                queue.PrepareForInbox(envelope);
+
+                if (transaction is not MessageContext) queue.ChooseInboxOwner(envelope);
             }
 
             return transaction.PersistIncomingAsync(envelope);

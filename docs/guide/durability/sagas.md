@@ -573,7 +573,7 @@ public class UnmatchedSaga : Saga
     public static SagaWasGone NotFound(SagaCheck check) => new();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Persistence/Sagas/saga_faults_and_IdNotProvided_5553.cs#L211-L232' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_saga_IdNotProvided' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Persistence/Sagas/saga_faults_and_IdNotProvided_5553.cs#L324-L345' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_saga_IdNotProvided' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A message type without an `IdNotProvided` method behaves exactly as it did before.
@@ -811,8 +811,15 @@ decides how much of the stack a failure unwinds:
   leaves the saga `CompensationFailed` with the rest of the stack still there
 
 Nothing unwinds by itself: a failure no `Compensate` method matches leaves the stack alone. The catch-all is one line,
-`public OutgoingMessages Compensate(object failed, ExceptionInfo ex) => UndoMessages();`. Here is Restate's trip
-booking example as a saga:
+`public OutgoingMessages Compensate(object failed, ExceptionInfo ex) => UndoMessages();`. A catch-all covers every
+message the saga's methods return, as their signatures show them.
+
+**`[CompletesSaga]`.** Put `[CompletesSaga]` on the method that finishes the saga, like the trip's
+`Handle(HotelBooked)` below, and a catch-all leaves out what that method returns. The trip's `TripBooked` is what the
+saga says when it's done, not a step that can fail and be compensated. The attribute doesn't complete the saga for
+you, so the method still calls `MarkCompleted()`. Wolverine doesn't guess which method completes the saga: without the
+attribute, the catch-all covers that method's messages like any other's. `[Compensates]` still names a message to
+cover either way. Here is Restate's trip booking example as a saga:
 
 <!-- snippet: sample_undo_stack_trip -->
 <a id='snippet-sample_undo_stack_trip'></a>
@@ -841,6 +848,8 @@ public class Trip : CompensatingSaga, IRevisioned
         return new BookHotel(Id, CustomerId);
     }
 
+    // TripBooked is what the trip says when it's finished, so the catch-all below doesn't cover it
+    [CompletesSaga]
     public TripBooked Handle(HotelBooked booked)
     {
         MarkCompleted();
@@ -858,7 +867,7 @@ public class Trip : CompensatingSaga, IRevisioned
     public OutgoingMessages Compensate(BookHotel failed, RemoteFailure<NoRoomsException> noRooms) => UndoMessagesSince("car");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaWorkflows/SagaWorkflows.Specs/TripBooking/Trip.cs#L11-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_undo_stack_trip' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaWorkflows/SagaWorkflows.Specs/TripBooking/Trip.cs#L11-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_undo_stack_trip' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 **Push before the step.** An undo pushed in a handler that also sends a message is *pending*: that message is its step,
@@ -878,6 +887,62 @@ instead. Either way, no `Handle(FlightCancelled)` method is needed. By default t
 `UndoSequentially(completeWhenDone: true)` completes it once the last undo message is confirmed (an event-sourced saga
 gets a `SagaCompleted` event). Don't call `MarkCompleted()` while the saga unwinds: the confirmations would find no saga
 and the unwind would stop.
+
+**Saying why.** A `Compensate` method can return the undo sequence in a tuple with whatever else it has to say: an
+event for an event-sourced saga's stream, a message to send, or both. The unwind is exactly the same as returning the
+undo sequence alone:
+
+<!-- snippet: sample_compensate_returns_an_event_with_the_undo_sequence -->
+<a id='snippet-sample_compensate_returns_an_event_with_the_undo_sequence'></a>
+```cs
+public class EventSourcedTripThatSaysWhy : EventSourcedSaga
+{
+    public Guid Id { get; set; }
+    public string CustomerId { get; set; } = "";
+
+    public static (TripStarted, SagaUndoPushed, OutgoingMessages) Start(BookTrip command)
+        => (new TripStarted(command.TripId, command.CustomerId),
+            PushedUndo(new CancelFlight(command.TripId, command.CustomerId), "flight", confirmedBy: typeof(FlightCancelled)),
+            [new BookFlight(command.TripId, command.CustomerId)]);
+
+    public OutgoingMessages Handle(FlightBooked booked)
+    {
+        PushUndo(new CancelCar(Id, CustomerId), "car", confirmedBy: typeof(CarCancelled));
+        return [new BookCar(Id, CustomerId)];
+    }
+
+    public OutgoingMessages Handle(CarBooked booked)
+    {
+        PushUndo(new CancelHotel(Id, CustomerId), "hotel");
+        return [new BookHotel(Id, CustomerId)];
+    }
+
+    public (SagaCompleted, OutgoingMessages) Handle(HotelBooked booked) => (new SagaCompleted(), [new TripBooked(Id)]);
+
+    // A refusal: the event, then the unwind. The trip stays open, Compensated
+    [Compensates(typeof(BookFlight), typeof(BookCar), typeof(BookHotel))]
+    public (TripUnwindStarted, UndoSequence) Compensate(object failed, RemoteFailure<BookingRefusedException> refused)
+        => (new TripUnwindStarted("A provider refused a booking"), UndoSequentially());
+
+    // No cars: the unwind first this time, and the trip closes once the last cancellation is confirmed
+    public (UndoSequence, TripUnwindStarted) Compensate(BookCar failed, RemoteFailure<NoCarsException> noCars)
+        => (UndoSequentially(completeWhenDone: true), new TripUnwindStarted("No cars"));
+
+    // No rooms: the event, the unwind, and a message for the traveller
+    public (TripUnwindStarted, UndoSequence, OutgoingMessages) Compensate(BookHotel failed,
+        RemoteFailure<NoRoomsException> noRooms)
+        => (new TripUnwindStarted("No rooms"), UndoSequentially(completeWhenDone: true),
+            [new NotifyTraveller(Id, "No rooms")]);
+
+    public void Apply(TripStarted e)
+    {
+        Id = e.TripId;
+        CustomerId = e.CustomerId;
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaWorkflows/SagaWorkflows.Specs/TripBooking/TripsThatSayWhy.cs#L17-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_compensate_returns_an_event_with_the_undo_sequence' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 **How undo messages are kept.** The stack is saved with the saga's state. Each undo message is stored as
 System.Text.Json and its .NET type name, and read back the same way when it is sent, so an undo message must round trip
@@ -1044,7 +1109,7 @@ or for every saga in the application:
 ```cs
 opts.Policies.RecordSagaHistory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaFaults/SagaFaults.Specs/TwoServices.cs#L173-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_record_saga_history_for_every_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaFaults/SagaFaults.Specs/TwoServices.cs#L207-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_record_saga_history_for_every_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 It's off by default, because every message the saga handles writes one more row.
@@ -1284,7 +1349,7 @@ public class ReportExport : Saga
     public static ReportExportAlreadyClosed NotFound(CancelReportExport command) => new(command.ReportExportId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/drawing_saga_flows_5670.cs#L365-L401' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_saga_for_the_flow_diagram' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/drawing_saga_flows_5670.cs#L551-L587' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_saga_for_the_flow_diagram' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `saga-flow ReportExport` draws:
@@ -1798,11 +1863,13 @@ between load and save:
 public class QuoteCollection : Saga, IRevisioned
 {
     public Guid Id { get; set; }
-    public int Version { get; set; }
 
     // ... handlers as before
 }
 ```
+
+`IRevisioned.Version` is `Saga.Version`, so there is nothing to declare. Don't declare a `Version` of your own on a
+saga: it would hide `Saga.Version`, the revision the check reads, so Wolverine refuses a saga type that does at startup.
 
 Pair this with a retry policy on the handler chain to automatically retry on conflict:
 
@@ -1861,7 +1928,6 @@ In practice, you may want both:
 public class QuoteCollection : Saga, IRevisioned
 {
     public Guid Id { get; set; }
-    public int Version { get; set; }
 
     // Optimistic concurrency retry as a safety net
     public static void Configure(HandlerChain chain)

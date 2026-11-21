@@ -1,3 +1,4 @@
+using JasperFx.CodeGeneration;
 using Marten;
 using JasperFx;
 using ProjectManagement.Api;
@@ -6,6 +7,11 @@ using Wolverine.Http;
 using Wolverine.Marten;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// GH-5703: a plain `dotnet run` of this sample has no launch settings, so it runs in Production, where Wolverine 7.0
+// expects pre-generated code. A sample compiles its generated code at runtime in every environment instead. Dynamic
+// rather than Auto, which would write the generated code into the project
+builder.Services.CritterStackDefaults(x => x.Production.GeneratedCodeMode = TypeLoadMode.Dynamic);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

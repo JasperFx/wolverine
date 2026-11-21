@@ -78,8 +78,10 @@ public static class SagaCompensations
 
         if (saga is CompensatingSaga compensating)
         {
-            // GH-5673: a sequential unwind keeps the saga Compensating until its last undo message is confirmed
-            if (result is UndoSequence { IsEmpty: false } sequence)
+            // GH-5673: a sequential unwind keeps the saga Compensating until its last undo message is confirmed. GH-5698:
+            // the undo sequence may come in a tuple with the method's other messages
+            var undoSequence = UndoSequence.FoundIn(result);
+            if (undoSequence is { IsEmpty: false } sequence)
             {
                 compensating.Record(new SagaCompensating(step, thrownType)
                 {
@@ -93,14 +95,11 @@ public static class SagaCompensations
                 compensating.Record(new SagaCompensated(step, thrownType) { Undone = compensating.TakeUndone() });
 
                 // A sequential unwind with nothing to undo is over already
-                if (result is UndoSequence { CompleteWhenDone: true }) compensating.CompleteAfterUnwind();
+                if (undoSequence is { CompleteWhenDone: true }) compensating.CompleteAfterUnwind();
             }
         }
 
-        if (result != null)
-        {
-            await context.EnqueueCascadingAsync(result).ConfigureAwait(false);
-        }
+        await cascadeAsync(context, result).ConfigureAwait(false);
 
         // Test seam for "another message saves the saga while it is being compensated"
         if ((context.Runtime as WolverineRuntime)?.CompensationHooks.BeforeSave is { } beforeSave)
@@ -108,6 +107,23 @@ public static class SagaCompensations
             await beforeSave(saga).ConfigureAwait(false);
         }
     }
+
+    // GH-5698. The method runs by reflection, not through generated code, so a returned tuple is taken apart here the way
+    // a handler's generated code takes it apart: each member is sent on its own
+    private static async Task cascadeAsync(MessageContext context, object? result)
+    {
+        if (result is System.Runtime.CompilerServices.ITuple tuple && isValueTuple(result.GetType()))
+        {
+            for (var i = 0; i < tuple.Length; i++) await cascadeAsync(context, tuple[i]).ConfigureAwait(false);
+            return;
+        }
+
+        if (result != null) await context.EnqueueCascadingAsync(result).ConfigureAwait(false);
+    }
+
+    private static bool isValueTuple(Type type)
+        => type.IsValueType && type.IsGenericType &&
+           type.FullName?.StartsWith("System.ValueTuple`", StringComparison.Ordinal) == true;
 
     /// <summary>
     /// GH-5673. The envelope id of the message whose failure a compensation answers: named on a fault sent back by
@@ -192,57 +208,52 @@ public static class SagaCompensations
     /// <inheritdoc cref="FindCalls(IEnumerable{HandlerCall})" />
     /// <param name="discovered">Every handler method discovery found</param>
     /// <param name="registered">The message types the handler graph knows besides: routed with <c>PublishMessage&lt;T&gt;()</c> or registered</param>
+    internal static IEnumerable<HandlerCall> FindCalls(IEnumerable<HandlerCall> discovered, IEnumerable<Type> registered)
+        => FindCalls(discovered, registered, out _);
+
+    /// <inheritdoc cref="FindCalls(IEnumerable{HandlerCall})" />
+    /// <param name="discovered">Every handler method discovery found</param>
+    /// <param name="registered">The message types the handler graph knows besides: routed with <c>PublishMessage&lt;T&gt;()</c> or registered</param>
+    /// <param name="coverage">
+    /// GH-5701. What each <c>Compensate</c> method covers, which the saga's description and flow diagram read, so they
+    /// show exactly the <c>Fault&lt;T&gt;</c> chains built here
+    /// </param>
     [UnconditionalSuppressMessage("AOT", "IL3050",
         Justification = "Fault<T> closed over the saga's own message types at bootstrap; AOT apps pre-generate handlers.")]
-    internal static IEnumerable<HandlerCall> FindCalls(IEnumerable<HandlerCall> discovered, IEnumerable<Type> registered)
+    internal static IReadOnlyList<HandlerCall> FindCalls(IEnumerable<HandlerCall> discovered, IEnumerable<Type> registered,
+        out SagaCompensationCoverage coverage)
     {
         var calls = discovered.ToArray();
-        HashSet<Type>? known = null;
+        coverage = SagaCompensationCoverage.For(calls, registered);
 
+        var found = new List<HandlerCall>();
         foreach (var sagaType in calls.Select(x => x.HandlerType).Where(x => x.CanBeCastTo<Saga>()).Distinct())
         {
             // GH-5673: a compensating saga hears back about the undo messages of a sequential unwind through a chain
             // of its own
             if (sagaType.CanBeCastTo<CompensatingSaga>() && sagaType.IsConcrete())
             {
-                yield return new HandlerCall(sagaType, ContinueUnwindingMethod, SagaUndo.ReplyTypeFor(sagaType));
+                found.Add(new HandlerCall(sagaType, ContinueUnwindingMethod, SagaUndo.ReplyTypeFor(sagaType)));
             }
 
-            var methods = SagaCompensationMethods.For(sagaType);
-            if (methods.Count == 0) continue;
-
-            var own = calls.Where(x => x.HandlerType == sagaType).ToArray();
-            var handled = own.Select(x => x.MessageType).ToHashSet();
-            var sends = sentBy(own, sagaType);
-
-            foreach (var method in methods)
+            foreach (var method in SagaCompensationMethods.For(sagaType))
             {
-                var covered = new List<Type> { method.FailedType };
-                covered.AddRange(method.NamedTypes);
+                // The method's own failed message type, and every concrete message type it covers
+                var faulted = new List<Type> { method.FailedType };
+                faulted.AddRange(coverage.CoveredBy(method));
 
-                if (method.CoversAFamily)
+                foreach (var messageType in faulted.Distinct())
                 {
-                    // A catch-all covers what this saga visibly sends. Anything else covers every message type the
-                    // application knows that is assignable to it
-                    var candidates = method.FailedType == typeof(object)
-                        ? sends
-                        : known ??= knownMessageTypes(calls, registered);
-
-                    covered.AddRange(candidates.Where(method.Covers));
-                }
-
-                foreach (var messageType in covered.Distinct())
-                {
-                    if (messageType != method.FailedType && !isCompensable(messageType, handled)) continue;
-
-                    yield return new HandlerCall(sagaType, method.Method, typeof(Fault<>).MakeGenericType(messageType));
+                    found.Add(new HandlerCall(sagaType, method.Method, typeof(Fault<>).MakeGenericType(messageType)));
                 }
             }
         }
+
+        return found;
     }
 
     // A concrete message class the saga does not handle itself, and whose fault it does not already handle by hand
-    private static bool isCompensable(Type messageType, HashSet<Type> handledBySaga)
+    internal static bool IsCompensable(Type messageType, HashSet<Type> handledBySaga)
     {
         if (messageType.IsValueType || messageType.IsAbstract || messageType.IsInterface || messageType == typeof(string)) return false;
         if (messageType.IsGenericTypeDefinition || FaultMessageType(messageType) != null) return false;
@@ -263,12 +274,13 @@ public static class SagaCompensations
     ];
 
     // The message types a saga's own methods return, as far as their signatures say. An event-sourced saga's returns
-    // are its events, so it sends nothing anyone can see this way
-    private static HashSet<Type> sentBy(IEnumerable<HandlerCall> calls, Type sagaType)
+    // are its events, so it sends nothing anyone can see this way. GH-5701: a message returned by a method marked
+    // [CompletesSaga], such as TripBooked, is what the saga sends when it is finished, not a step that can be compensated
+    internal static HashSet<Type> SentBy(IEnumerable<HandlerCall> calls, Type sagaType)
     {
         if (sagaType.CanBeCastTo<EventSourcedSaga>()) return [];
 
-        return calls.SelectMany(returnedTypes).ToHashSet();
+        return calls.Where(x => !x.Method.HasAttribute<CompletesSagaAttribute>()).SelectMany(returnedTypes).ToHashSet();
     }
 
     private static IEnumerable<Type> returnedTypes(HandlerCall call)
@@ -285,7 +297,7 @@ public static class SagaCompensations
 
     // GH-5672: every message type the application knows of. The messages its handlers handle, those its handlers
     // (other than event-sourced sagas, whose returns are events) return, and those the handler graph knows besides
-    private static HashSet<Type> knownMessageTypes(IReadOnlyList<HandlerCall> calls, IEnumerable<Type> registered)
+    internal static HashSet<Type> KnownMessageTypes(IReadOnlyList<HandlerCall> calls, IEnumerable<Type> registered)
     {
         var known = new HashSet<Type>();
         foreach (var call in calls)
