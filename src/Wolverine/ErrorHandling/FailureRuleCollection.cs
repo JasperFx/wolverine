@@ -65,12 +65,21 @@ public class FailureRuleCollection : IEnumerable<FailureRule>
     /// </summary>
     internal Func<MoveToErrorQueue, Envelope, IContinuation>? InsteadOfErrorQueue { get; set; }
 
+    /// <summary>
+    /// GH-5709. Failures that are terminal for this one chain, on top of <see cref="TerminalFailures" />: a saga's
+    /// compensation chain treats a missing saga this way, because retrying will not bring the saga back. Set on the
+    /// combined rules of one chain only, never on the global rules
+    /// </summary>
+    internal Func<Exception, bool>? ChainTerminalFailure { get; set; }
+
+    private bool isTerminal(Exception e) => TerminalFailures.IsTerminal(e) || ChainTerminalFailure?.Invoke(e) == true;
+
     internal IContinuation DetermineExecutionContinuation(Exception e, Envelope envelope)
     {
         var continuation = determineExecutionContinuation(e, envelope);
 
         // GH-5556: a terminal failure skips the retries and goes straight to what comes after them
-        if (TerminalFailures.IsTerminal(e) && TerminalFailures.Retries(continuation))
+        if (isTerminal(e) && TerminalFailures.Retries(continuation))
         {
             continuation = new MoveToErrorQueue(e);
         }
@@ -99,7 +108,7 @@ public class FailureRuleCollection : IEnumerable<FailureRule>
     internal IInlineContinuation? TryFindInlineContinuation(Exception e, Envelope envelope)
     {
         // GH-5556: a terminal failure is never retried, inline or not
-        if (TerminalFailures.IsTerminal(e)) return null;
+        if (isTerminal(e)) return null;
 
         foreach (var rule in _rules)
         {
