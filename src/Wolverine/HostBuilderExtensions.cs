@@ -255,6 +255,10 @@ public static class HostBuilderExtensions
 
         services.AddSingleton<IWolverineRuntime, WolverineRuntime>();
 
+        // GH-5723. Resolved last thing in the runtime's startup, so a host disposed without being stopped stops
+        // Wolverine before the container disposes the services its shutdown needs
+        services.AddSingleton<StopWolverineBeforeItsServicesAreDisposed>();
+
         // GH-5572. Sweeps retained, completed sagas. It has no agents unless a saga type is retained.
         services.AddSingleton<IAgentFamily, Wolverine.Persistence.Sagas.SagaRetentionAgentFamily>();
 
