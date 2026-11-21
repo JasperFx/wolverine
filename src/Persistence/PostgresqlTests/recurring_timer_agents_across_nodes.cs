@@ -259,24 +259,41 @@ public class recurring_timer_agents_across_nodes : IAsyncLifetime
         return capabilities.RecurringSchedules.Single(x => x.Name == ScheduleName);
     }
 
+    /// <summary>
+    /// The node running the timer agent, once the cluster has recorded it there. GH-5736: a node registers an
+    /// agent as running the moment it starts and only then writes the assignment row, and that row is what every
+    /// assignment evaluation reads -- including the one that carries a pause out before PauseAsync returns. A
+    /// pause issued in between finds the agent placed nowhere, so nothing stops it until the leader's next
+    /// evaluation, after PauseAsync has already returned.
+    /// </summary>
     private static async Task<IHost> waitForOwnerAsync(IHost[] nodes)
     {
-        IHost[] owners = [];
-        await waitUntilAsync(() =>
+        IHost? owner = null;
+        await waitUntilAsync(async () =>
         {
-            owners = nodes.Where(x => x.GetRuntime().Agents.AllRunningAgentUris().Contains(AgentUri)).ToArray();
-            return owners.Length == 1;
-        }, 60.Seconds(), "the timer agent was never running on exactly one node");
+            var owners = nodes.Where(x => x.GetRuntime().Agents.AllRunningAgentUris().Contains(AgentUri)).ToArray();
+            if (owners.Length != 1) return false;
 
-        return owners.Single();
+            owner = owners[0];
+            var runtime = owner.GetRuntime();
+            var (persisted, _) = await runtime.Storage.Nodes.LoadNodeAgentStateAsync(TestContext.Current.CancellationToken);
+            return persisted.Any(x => x.NodeId == runtime.Options.UniqueNodeId && x.ActiveAgents.Contains(AgentUri));
+        }, 60.Seconds(), "the timer agent was never running and recorded on exactly one node");
+
+        return owner!;
     }
 
-    private static async Task waitUntilAsync(Func<bool> condition, TimeSpan timeout, string because)
+    private static Task waitUntilAsync(Func<bool> condition, TimeSpan timeout, string because)
+    {
+        return waitUntilAsync(() => Task.FromResult(condition()), timeout, because);
+    }
+
+    private static async Task waitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout, string because)
     {
         var deadline = DateTimeOffset.UtcNow.Add(timeout);
         while (DateTimeOffset.UtcNow < deadline)
         {
-            if (condition()) return;
+            if (await condition()) return;
             await Task.Delay(100.Milliseconds());
         }
 
