@@ -412,8 +412,25 @@ request's claim and answers from it.
   listener) is rethrown, as on claim-and-release, and a retry is answered from the claim.
 - The response is captured just before the commit, after the endpoint has set the status and `Location`.
   A value only the commit assigns (a document version, say) is not in the stored body. An endpoint whose
-  response is only produced after the commit, such as one returning `UpdatedAggregate`, keeps
-  claim-and-release.
+  response is only produced after the commit keeps claim-and-release.
+- An endpoint that returns Marten's `UpdatedAggregate` or `UpdatedAggregate<T>` builds the aggregate before
+  the commit, from this transaction's events, and claims in its transaction. It keeps claim-and-release when the
+  store uses `EventAppendMode.Quick` or the aggregate has an `Async` snapshot. This is a behavior change in
+  Wolverine 7.0: before 7.0, such an endpoint kept claim-and-release on every store. See
+  [responding with the aggregate built before the commit](/guide/durability/marten/event-sourcing.html#responding-with-the-aggregate-built-before-the-commit)
+  for the metadata the response has, and its limitations.
+
+<!-- snippet: sample_updated_aggregate_with_claim_in_transaction -->
+<a id='snippet-sample_updated_aggregate_with_claim_in_transaction'></a>
+```cs
+[DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true)]
+[WolverinePost("/before-commit/bump")]
+public static (UpdatedAggregate, Events) Bump(BumpStampedCounter command,
+    [WriteAggregate] StampedCounter counter)
+    => (new UpdatedAggregate(), [new StampedCounterBumped(), new StampedCounterBumped()]);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/updated_aggregate_claim_in_transaction.cs#L724-L732' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_updated_aggregate_with_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 An endpoint that asks for `ClaimInTransaction` but cannot take it — another store, database per tenant, a
 message store in another database, no commit through the middleware — keeps claim-and-release, and
@@ -437,7 +454,7 @@ endpoint in your application, set `DefaultClaimInTransaction` when you map the e
 // writes its claim inside its own transaction where it can
 opts.DefaultClaimInTransaction = true;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L56-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L58-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 An endpoint that doesn't set `ClaimInTransaction` takes that default. An endpoint that sets it, either
@@ -458,7 +475,7 @@ public static DeduplicatedOrderCreated PostUnset(DeduplicatedOrder request, IDoc
 public static DeduplicatedOrderCreated PostOff(DeduplicatedOrder request, IDocumentSession session)
     => store(request, session);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L167-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L169-L183' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Endpoints that can't claim inside their transaction keep claim-and-release, as above. When they only
@@ -475,7 +492,7 @@ on, generating the code for an endpoint that would fall back to claim-and-releas
 ```cs
 opts.ThrowWhenClaimInTransactionFallsBack = true;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L240-L244' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_throw_when_claim_in_transaction_falls_back' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L269-L273' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_throw_when_claim_in_transaction_falls_back' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 It throws when the endpoint's code is generated: inside `MapWolverineEndpoints` when `WarmUpRoutes` is

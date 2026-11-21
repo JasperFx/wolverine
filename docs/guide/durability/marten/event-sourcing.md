@@ -711,6 +711,85 @@ to consume Wolverine + Marten commands within Hot Chocolate mutations and always
 the projected aggregate being updated to the user interface.
 :::
 
+### Responding with the Aggregate Built Before the Commit
+
+`UpdatedAggregate` usually calls `FetchLatest` after the transaction commits. A `[DeduplicatedWithResponse]` HTTP
+endpoint that [claims its key inside the transaction](/guide/http/deduplication.html#claiming-inside-the-transaction)
+must write the claim and its response before the commit. When that endpoint returns `UpdatedAggregate` or
+`UpdatedAggregate<T>`, Wolverine builds the aggregate before the commit instead. First it assigns the pending events
+the metadata that the commit will write. Then it calls Marten's `ProjectLatest`, which applies this transaction's
+pending events to the aggregate. This happens whether the endpoint sets `ClaimInTransaction = true` itself or
+inherits `DefaultClaimInTransaction`.
+
+The endpoint keeps claim-and-release, and calls `FetchLatest` after the commit as before, in two cases:
+
+- The store's `Events.AppendMode` is `EventAppendMode.Quick`. In that mode the database server writes the timestamp
+  of an event appended to an existing stream, so an aggregate built before the commit would disagree with the
+  stored events. `Rich` and `QuickWithServerTimestamps` write the timestamp assigned before the commit.
+- The aggregate has an `Async` snapshot. `ProjectLatest` would store the snapshot in the same transaction, and the
+  async daemon would then apply the same events to it again.
+
+With `ThrowWhenClaimInTransactionFallsBack` set, these endpoints throw when their code is generated.
+
+::: info
+This is a behavior change in Wolverine 7.0. Before 7.0, such an endpoint fell back to claim-and-release on every
+store. With `ThrowWhenClaimInTransactionFallsBack` set, it threw when its code was generated. Message handlers,
+and HTTP endpoints that don't claim inside their transaction, still call `FetchLatest` after the commit.
+:::
+
+Before the projection, Wolverine assigns these values to every pending event in the session, in every stream:
+
+- `Timestamp`, if the event doesn't have one, from the `TimeProvider` that Marten is configured with. The value is
+  truncated to whole microseconds, which is the precision that PostgreSQL stores.
+- `Version`, when the stream's expected version is known. It is known after `FetchForWriting` (which the aggregate
+  handler workflow uses) and for a stream started in the same transaction.
+- `UserName`, `CorrelationId` and `CausationId` from the session, if the event doesn't have one and the value is
+  enabled in `MetadataConfig`.
+
+Wolverine leaves a value that is already on an event alone, except `Version`. Marten keeps these values when it
+commits. These are the limitations:
+
+- The response has no values that only the commit assigns, such as the event `Sequence`.
+- An event appended without an expected version, such as with `session.Events.Append()`, gets its `Version` at
+  the commit, so the response doesn't have it.
+- The response has no event headers and no tenant id.
+- The response doesn't include events appended after it is built, such as by a Marten session listener during
+  the commit.
+
+You can build your own response type that reads this transaction's work before the commit, for a message handler
+or an HTTP endpoint. In its `ConfigureResponse()`, call `UseForResponseBeforeCommit()` instead of `UseForResponse()`
+to put the response before the Marten commit. This also works when the commit is added later, such as for an
+endpoint that returns `MartenOps.StartStream()`. Call `PendingEventMetadata.Stamp()` before you project from the
+pending events. Wolverine doesn't check the store for a custom response. With `EventAppendMode.Quick`, its
+timestamps differ from the stored ones. With an `Async` snapshot, `ProjectLatest` stores the snapshot and the async
+daemon applies the same events to it again.
+
+<!-- snippet: sample_custom_before_commit_response -->
+<a id='snippet-sample_custom_before_commit_response'></a>
+```cs
+/// <summary>
+/// Responds with a summary of the aggregate built from this transaction's events, before the commit.
+/// </summary>
+public class StampedCounterSummaryResponse : IResponseAware
+{
+    public static void ConfigureResponse(IChain chain)
+    {
+        chain.UseForResponseBeforeCommit(new MethodCall(typeof(StampedCounterSummaryResponse),
+            nameof(SummarizeAsync)));
+    }
+
+    public static async Task<StampedCounterSummary> SummarizeAsync(BumpStampedCounter command,
+        IDocumentSession session, CancellationToken cancellation)
+    {
+        PendingEventMetadata.Stamp(session);
+        var counter = await session.Events.ProjectLatest<StampedCounter>(command.StampedCounterId, cancellation);
+        return new StampedCounterSummary(counter!.Count, counter.Version, counter.LastBumped);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/updated_aggregate_claim_in_transaction.cs#L680-L702' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_before_commit_response' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ### Passing the Aggregate to Before/Validate/Load Methods
 
 The "[compound handler](/guide/handlers/#compound-handlers)" feature is a valuable way in Wolverine to organize your handler code, and fully supported
