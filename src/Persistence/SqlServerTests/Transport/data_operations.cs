@@ -48,8 +48,10 @@ public class data_operations : IAsyncLifetime
                     // This would only be applicable in testing
                     .AutoPurgeOnStartup();
 
-                // Whatever you're doing to local queues today probably changes to this:
-                opts.ListenToSqlServerQueue("one");
+                // Not listened to. Every test here works the queue's tables directly and then counts rows, and a
+                // listener on "one" polls that same queue in the background: a poll landing between a test's sends
+                // and its own pop took messages first ("popped.Count should be 5 but was 4"). The publishing rule
+                // is what declares the queue
                 opts.PublishMessage<Message1>().ToSqlServerQueue("one");
 
                 // I added this to cover the inbox/outbox
@@ -243,13 +245,15 @@ public class data_operations : IAsyncLifetime
             await theQueue.SendAsync(envelope, CancellationToken.None);
         }
 
-        var popped = await theQueue.TryPopDurablyAsync(5, new DurabilitySettings{AssignedNodeNumber = 21}, NullLogger.Instance, CancellationToken.None);
+        // GH-5707: pop as this host's own node. The host's orphan sweep resets rows owned by any node missing from
+        // wolverine_nodes to owner 0 every 5 seconds, so a made-up owner like 21 could lose these rows before the assertion
+        var popped = await theQueue.TryPopDurablyAsync(5, _host.GetRuntime().DurabilitySettings, NullLogger.Instance, CancellationToken.None);
         popped.Count.ShouldBe(5);
 
         (await theQueue.CountAsync()).ShouldBe(15);
 
         var incoming = await theMessageStore.Admin.AllIncomingAsync();
         incoming.Count.ShouldBe(5);
-        incoming.All(x => x.OwnerId == 21).ShouldBeTrue();
+        incoming.All(x => x.OwnerId == _host.GetRuntime().DurabilitySettings.AssignedNodeNumber).ShouldBeTrue();
     }
 }

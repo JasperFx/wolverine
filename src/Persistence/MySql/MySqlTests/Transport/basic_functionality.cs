@@ -53,7 +53,9 @@ public class basic_functionality : IAsyncLifetime
             {
                 opts.UseMySqlPersistenceAndTransport(Servers.MySqlConnectionString, schema: "wolverine_transports",
                     transportSchema: "wolverine_transports");
-                opts.ListenToMySqlQueue("one");
+                // The tests here pop and count "one" themselves. Left at the default interval, the host's own
+                // listener could poll mid-test and take messages first, as PostgresqlTests' copy of this fixture found
+                opts.ListenToMySqlQueue("one").PollingInterval(1.Hours());
             }).StartAsync();
 
         theTransport = theHost.GetRuntime().Options.Transports.GetOrCreate<MySqlTransport>();
@@ -299,13 +301,15 @@ AND table_name LIKE 'wolverine_queue_%'";
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new MySqlQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
 
-        var popped = await theListener.TryPopDurablyAsync(5, new DurabilitySettings { AssignedNodeNumber = 21 }, NullLogger.Instance, CancellationToken.None);
+        // GH-5707: pop as this host's own node. The host's orphan sweep resets rows owned by any node missing from
+        // wolverine_nodes to owner 0 every 5 seconds, so a made-up owner like 21 could lose these rows before the assertion
+        var popped = await theListener.TryPopDurablyAsync(5, theRuntime.DurabilitySettings, NullLogger.Instance, CancellationToken.None);
         popped.Count.ShouldBe(5);
 
         (await theQueue.CountAsync()).ShouldBe(15);
 
         var incoming = await theMessageStore.Admin.AllIncomingAsync();
         incoming.Count.ShouldBe(5);
-        incoming.All(x => x.OwnerId == 21).ShouldBeTrue();
+        incoming.All(x => x.OwnerId == theRuntime.DurabilitySettings.AssignedNodeNumber).ShouldBeTrue();
     }
 }
