@@ -473,6 +473,12 @@ Two things to know that are specific to Redis:
   read until its handler finishes, including time spent queued in a lane. A `minIdle` shorter than the worst-case lane
   residency lets a consumer re-claim an entry it is still working on, and process it twice.
 
+A requeue, whether from a `Requeue()` error policy or from a listener handing back entries while it stops, adds a copy
+of the entry to the tail of the stream with `XADD` and only then acknowledges the original. If the `XADD` fails, the
+original stays pending and the failure is retried, so a failed requeue costs at most a duplicate, never the message.
+Because the copy is a new entry on the stream itself, every other consumer group reading that stream receives it as
+well.
+
 The read batch size is this transport's prefetch equivalent, and in this mode it defaults to twice the number of lanes
 that can be busy at once — the partition slot count when `PartitionProcessingByGroupId()` is used, otherwise
 `MaximumParallelMessages()` — instead of the usual 10. `BatchSize()` still overrides it. Note that unlike RabbitMQ's
