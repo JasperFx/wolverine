@@ -52,9 +52,62 @@ public class NServiceBusPostgresqlTransport : BrokerTransport<NServiceBusPostgre
         return identifier;
     }
 
+    /// <summary>
+    ///     GH-5814. Resolves a queue by the name its Uri was built from, with its case. <c>Uri.Host</c> is lowercased
+    ///     by <see cref="System.Uri" />, and a PostgreSQL quoted table name is case-sensitive, so a reply to an
+    ///     NServiceBus endpoint called <c>Sales.Endpoint</c> used to be written to a <c>sales.endpoint</c> table.
+    /// </summary>
     protected override NServiceBusPostgresqlQueue findEndpointByUri(Uri uri)
     {
-        return Queues[uri.Host];
+        var name = QueueNameFor(uri);
+        if (Queues.TryFind(name, out var queue))
+        {
+            return queue;
+        }
+
+        // A Uri rebuilt from its string form (Uri.ToString()) arrives lowercased. If the name could have been
+        // lowercased that way and exactly one known queue matches it apart from case, that is the queue it means.
+        if (!name.Any(char.IsUpper))
+        {
+            var matches = Queues.Where(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase))
+                .Take(2).ToArray();
+            if (matches.Length == 1)
+            {
+                return matches[0];
+            }
+        }
+
+        return Queues[name];
+    }
+
+    /// <summary>
+    ///     GH-5814. The queue name a Uri made by <see cref="NServiceBusPostgresqlQueue.ToUri" /> carries, with its
+    ///     case: read from <see cref="Uri.OriginalString" />, since <see cref="Uri.Host" /> is lowercased, or from the
+    ///     path of the <c>queue/{escaped name}</c> form used for a name that is not a valid Uri host.
+    /// </summary>
+    internal static string QueueNameFor(Uri uri)
+    {
+        if (uri.Host == "queue" && uri.AbsolutePath.Length > 1)
+        {
+            return Uri.UnescapeDataString(uri.AbsolutePath[1..]);
+        }
+
+        var original = uri.OriginalString;
+        var start = original.IndexOf("://", StringComparison.Ordinal);
+        if (start >= 0)
+        {
+            start += 3;
+            var end = original.IndexOfAny(['/', '?', '#'], start);
+            var authority = end < 0 ? original[start..] : original[start..end];
+
+            // Only when it is the same host apart from case, so a Uri that System.Uri rewrote is read as it reads it
+            if (string.Equals(authority, uri.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                return authority;
+            }
+        }
+
+        return uri.Host;
     }
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
