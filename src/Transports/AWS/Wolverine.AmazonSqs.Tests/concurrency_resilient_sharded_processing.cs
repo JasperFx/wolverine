@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Marten;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Tracking;
 using Xunit;
 namespace Wolverine.AmazonSqs.Tests;
@@ -21,16 +22,17 @@ public class concurrency_resilient_sharded_processing
         _output = output;
     }
 
-    private async Task pumpOutMessages(IMessageContext bus)
+    private static async Task pumpOutMessages(IMessageContext bus, Guid[] ids)
     {
         var tasks = new Task[5];
         for (int i = 0; i < tasks.Length; i++)
         {
+            var batch = i;
             tasks[i] = Task.Run(async () =>
             {
                 for (int j = 0; j < 5; j++)
                 {
-                    var id = Guid.NewGuid();
+                    var id = ids[batch * 5 + j];
 
                     await bus.PublishAsync(new LogA(id));
                     await bus.PublishAsync(new LogB(id));
@@ -85,11 +87,13 @@ public class concurrency_resilient_sharded_processing
                 #endregion
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
+        var ids = ShardedLetterIds.CoveringEveryShard(host.GetRuntime().Options.MessagePartitioning, 4, 25);
+
         var tracked = await host
             .TrackActivity()
             .IncludeExternalTransports()
             .Timeout(120.Seconds())
-            .ExecuteAndWaitAsync(pumpOutMessages);
+            .ExecuteAndWaitAsync(c => pumpOutMessages(c, ids));
 
         var envelopes = tracked.Executed.Envelopes().ToArray();
 
@@ -107,6 +111,34 @@ public class concurrency_resilient_sharded_processing
 
 }
 
+
+/// <summary>
+/// GH-5736. The sharded tests assert that every shard executed something, which only holds if the group ids they
+/// publish actually land on every shard. Twenty-five random Guids miss one of four shards about 0.3% of the time --
+/// (3/4)^25 for each shard -- and that is how hammer_it_with_lots_of_messages_against_buffered failed once with
+/// "sqs://letters4" never receiving anything, while every message that WAS sent executed. Choosing the ids with the
+/// same slot calculation the sharded route uses keeps the assertion and removes the dice roll.
+/// </summary>
+internal static class ShardedLetterIds
+{
+    public static Guid[] CoveringEveryShard(MessagePartitioningRules rules, int numberOfShards, int count)
+    {
+        var ids = new Guid[count];
+        for (var i = 0; i < count; i++)
+        {
+            var shard = i % numberOfShards;
+            Guid id;
+            do
+            {
+                id = Guid.NewGuid();
+            } while (new Envelope(new LogA(id)).SlotForSending(numberOfShards, rules) != shard);
+
+            ids[i] = id;
+        }
+
+        return ids;
+    }
+}
 
 public interface ILetterMessage
 {

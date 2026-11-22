@@ -25,15 +25,26 @@ public static class MessageDatabaseExtensions
     /// <returns></returns>
     public static bool TryFindMessageDatabase(this MessageContext context, out IMessageDatabase? database)
     {
+        return context.TryFindMessageDatabase(context.Storage, out database);
+    }
+
+    /// <summary>
+    /// Try to find the right IMessageDatabase within <paramref name="storage" /> for the current MessageContext,
+    /// including its tenant if any. GH-5731: a DbContext enrolled in an ancillary store names its store directly,
+    /// whatever <see cref="MessageContext.Storage" /> happens to point at when the transaction is built.
+    /// </summary>
+    public static bool TryFindMessageDatabase(this MessageContext context, IMessageStore storage,
+        out IMessageDatabase? database)
+    {
         database = default!;
-        
-        if (context.Storage is IMessageDatabase db)
+
+        if (storage is IMessageDatabase db)
         {
             database = db;
             return true;
         }
 
-        if (context.Storage is MultiTenantedMessageStore tenantedMessageStore)
+        if (storage is MultiTenantedMessageStore tenantedMessageStore)
         {
             if (context.IsDefaultTenant() && tenantedMessageStore.Main is IMessageDatabase db2)
             {

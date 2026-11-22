@@ -19,16 +19,17 @@ public class global_partitioned_sharded_processing
         _output = output;
     }
 
-    private async Task pumpOutMessages(IMessageContext bus)
+    private static async Task pumpOutMessages(IMessageContext bus, Guid[] ids)
     {
         var tasks = new Task[5];
         for (int i = 0; i < tasks.Length; i++)
         {
+            var batch = i;
             tasks[i] = Task.Run(async () =>
             {
                 for (int j = 0; j < 5; j++)
                 {
-                    var id = Guid.NewGuid();
+                    var id = ids[batch * 5 + j];
 
                     await bus.PublishAsync(new LogA(id));
                     await bus.PublishAsync(new LogB(id));
@@ -72,11 +73,13 @@ public class global_partitioned_sharded_processing
                 });
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
+        var ids = ShardedLetterIds.CoveringEveryShard(host.GetRuntime().Options.MessagePartitioning, 4, 25);
+
         var tracked = await host
             .TrackActivity()
             .IncludeExternalTransports()
             .Timeout(120.Seconds())
-            .ExecuteAndWaitAsync(pumpOutMessages);
+            .ExecuteAndWaitAsync(c => pumpOutMessages(c, ids));
 
         var envelopes = tracked.Executed.Envelopes().ToArray();
 

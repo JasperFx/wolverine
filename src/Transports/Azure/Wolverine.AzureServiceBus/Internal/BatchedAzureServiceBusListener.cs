@@ -327,8 +327,9 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
                 }
                 else
                 {
-                    // Slow down if this is a periodically used queue
-                    await backOffAsync(250.Milliseconds(), token);
+                    // Slow down if this is a periodically used queue. GH-5737: the endpoint's IdleDelay, 250ms
+                    // unless configured
+                    await backOffAsync(IdleDelays.For(_endpoint), token);
                 }
             }
             catch (Exception e)

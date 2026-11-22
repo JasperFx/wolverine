@@ -190,6 +190,12 @@ public partial class Envelope : IHasTenantId
     }
 
     /// <summary>
+    ///     The serialized body when there already is one, without serializing the message to get it. Reading
+    ///     <see cref="Data" /> serializes, and throws when there is no serializer for the message
+    /// </summary>
+    internal byte[]? SerializedDataIfAny => _data != null || _pooledBody != null ? Data : null;
+
+    /// <summary>
     ///     The raw, serialized message data
     /// </summary>
     public byte[]? Data

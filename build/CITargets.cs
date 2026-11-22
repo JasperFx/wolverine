@@ -228,6 +228,8 @@ partial class Build
             WaitForPubsubEmulatorToBeReady();
         if (services.Contains("pulsar"))
             WaitForPulsarToBeReady();
+        if (services.Contains("nats"))
+            WaitForNatsToBeReady();
     }
 
     /// <summary>
@@ -484,6 +486,28 @@ partial class Build
             return response.IsSuccessStatusCode
                 ? null
                 : $"admin api answered {(int)response.StatusCode} {response.StatusCode}";
+        });
+    }
+
+    /// <summary>
+    /// GH-5736. The compose <c>nats</c> service had no gate at all, so a suite could start against a
+    /// broker whose port was not yet served -- the shape of the RabbitMQ flake fixed in #5730. The
+    /// service runs with <c>-m 8222</c>, and the monitoring server's <c>/healthz</c> is the broker's own
+    /// readiness answer: it reports an error, not 200, until the server -- JetStream included, which
+    /// the claim check object store needs -- will serve. A TCP connect to 4222 would succeed on
+    /// Docker's port proxy before the broker is listening inside the container.
+    /// </summary>
+    void WaitForNatsToBeReady()
+    {
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+
+        awaitService("NATS", "nats", TimeSpan.FromMinutes(1), () =>
+        {
+            var response = http.GetAsync("http://localhost:8222/healthz").GetAwaiter().GetResult();
+
+            return response.IsSuccessStatusCode
+                ? null
+                : $"/healthz answered {(int)response.StatusCode} {response.StatusCode}";
         });
     }
 
@@ -1574,6 +1598,7 @@ partial class Build
     // proving the same thing.
     Target CIAotSmoke => _ => _
         .ProceedAfterFailure()
+        .OnlyWhenDynamic(() => gateExtraSelected(nameof(CIAotSmoke)))
         .Executes(() =>
         {
             var failures = new List<string>();
@@ -1775,10 +1800,45 @@ partial class Build
     //
     // This target REWRITES the working tree. On a red run the regenerated files are left in place on
     // purpose so the diff can be read; `git checkout -- .` puts them back.
+    /// <summary>
+    /// The projects whose committed <c>codegen write</c> output <see cref="CICodegenDrift"/> regenerates and
+    /// compares, repository-relative. A property rather than a field: GateExtras (build/LocalGate.cs) reads it as
+    /// the drift gate's inputs, and static field initializers in different partial files run in no set order.
+    /// </summary>
+    static string[] CodegenDriftProjects =>
+    [
+        "src/Testing/ConsoleApp",
+        "src/Testing/Wolverine.AotSmoke.Static",
+        "src/Testing/Wolverine.AotSmoke.Publish",
+        // GH-4778. Its committed pre-gen is what CIAotSmoke's native HTTP lane runs, so it has to
+        // be held to the same freshness gate as the rest -- a stale tree here would make that lane
+        // assert against generated code nobody has regenerated since the emitters changed.
+        "src/Testing/Wolverine.AotSmoke.Http",
+        // GH-4805. Same reasoning, and this one finally gives the drift gate a SAGA: it is the
+        // first project here whose committed output contains a saga chain, so the saga emission
+        // is byte-compared from now on. Before it, GH-4765's and GH-4803's rooting changes both
+        // came out identical across every project in this list because none of them had one.
+        "src/Testing/Wolverine.AotSmoke.Saga",
+        // GH-4825. Their committed pre-gen is what the store-backed native lanes run, and the
+        // rooting block is the part of that output this issue changed -- these three are the only
+        // projects here whose emitted roots cover a side effect or an IEndpointMetadataProvider
+        // resource type at all. Polecat is in this list even though CIAotSmoke does not run its
+        // lane yet (see the comment there): a project whose output nothing regenerates is exactly
+        // how the committed pre-gen went stale by six files before this gate existed.
+        "src/Testing/Wolverine.AotSmoke.Marten",
+        "src/Testing/Wolverine.AotSmoke.Polecat",
+        "src/Testing/Wolverine.AotSmoke.Fisher",
+        "src/Http/CodeGenTarget",
+        "src/Http/StaticCodeGenDemonstrator",
+        "src/Http/DeepMiddlewareUsage"
+    ];
+
     Target CICodegenDrift => _ => _
         // Under LocalGate (GH-5125) the two codegen gates run in one tree: CICodegenTest wipes
         // ConsoleApp's generated code, and this regenerates it, so this goes second.
         .After(CICodegenTest)
+        // --affected (build/AffectedGate.cs): only when the change reaches a project it regenerates
+        .OnlyWhenDynamic(() => gateExtraSelected(nameof(CICodegenDrift)))
         .Executes(() =>
         {
             // ConsoleApp configures RabbitMQ, and DeepMiddlewareUsage configures Marten against
@@ -1788,33 +1848,7 @@ partial class Build
             // for the same reason, for Wolverine.AotSmoke.Polecat.
             StartDockerServices("postgresql", "rabbitmq", "sqlserver");
 
-            var projects = new[]
-            {
-                RootDirectory / "src" / "Testing" / "ConsoleApp",
-                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Static",
-                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Publish",
-                // GH-4778. Its committed pre-gen is what CIAotSmoke's native HTTP lane runs, so it has to
-                // be held to the same freshness gate as the rest -- a stale tree here would make that lane
-                // assert against generated code nobody has regenerated since the emitters changed.
-                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Http",
-                // GH-4805. Same reasoning, and this one finally gives the drift gate a SAGA: it is the
-                // first project here whose committed output contains a saga chain, so the saga emission
-                // is byte-compared from now on. Before it, GH-4765's and GH-4803's rooting changes both
-                // came out identical across every project in this list because none of them had one.
-                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Saga",
-                // GH-4825. Their committed pre-gen is what the store-backed native lanes run, and the
-                // rooting block is the part of that output this issue changed -- these three are the only
-                // projects here whose emitted roots cover a side effect or an IEndpointMetadataProvider
-                // resource type at all. Polecat is in this list even though CIAotSmoke does not run its
-                // lane yet (see the comment there): a project whose output nothing regenerates is exactly
-                // how the committed pre-gen went stale by six files before this gate existed.
-                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Marten",
-                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Polecat",
-                RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Fisher",
-                RootDirectory / "src" / "Http" / "CodeGenTarget",
-                RootDirectory / "src" / "Http" / "StaticCodeGenDemonstrator",
-                RootDirectory / "src" / "Http" / "DeepMiddlewareUsage"
-            };
+            var projects = CodegenDriftProjects.Select(x => RootDirectory / x).ToArray();
 
             foreach (var project in projects)
             {
@@ -1889,6 +1923,7 @@ partial class Build
         // test hosts, and this one before CICodegenDrift.
         .After(CICommandLineSmoke, CIAotSmoke, BobcatSamples)
         .ProceedAfterFailure()
+        .OnlyWhenDynamic(() => gateExtraSelected(nameof(CICodegenTest)))
         .Executes(() =>
         {
             // ConsoleApp configures RabbitMQ. `codegen test` compiles the handler graph without starting

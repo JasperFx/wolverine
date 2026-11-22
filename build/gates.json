@@ -409,6 +409,9 @@
       "ciTargets": "CIAzureServiceBus, CIAzureServiceBusLeader, CIAzureServiceBusRouting",
       "workers": 2,
       "optIn": true,
+      "joinsWhenChanged": [
+        "src/Transports/Azure/"
+      ],
       "postgres": "OwnDatabase",
       "services": [
         "postgresql",
@@ -726,6 +729,9 @@
       "path": "src/Testing/Wolverine.Core.FSharpTests/Wolverine.Core.FSharpTests.csproj",
       "ciTargets": "fsharp.yml",
       "workers": 1,
+      "watches": [
+        "src/Testing/Wolverine.Core.FSharp"
+      ],
       "services": [],
       "tracks": []
     },
@@ -734,6 +740,9 @@
       "path": "src/Testing/Wolverine.Http.FSharpTests/Wolverine.Http.FSharpTests.csproj",
       "ciTargets": "fsharp.yml",
       "workers": 1,
+      "watches": [
+        "src/Testing/Wolverine.Http.FSharp"
+      ],
       "services": [],
       "tracks": []
     },
@@ -742,6 +751,9 @@
       "path": "src/Testing/Wolverine.EfCore.FSharpTests/Wolverine.EfCore.FSharpTests.csproj",
       "ciTargets": "fsharp.yml",
       "workers": 1,
+      "watches": [
+        "src/Testing/Wolverine.EfCore.FSharp"
+      ],
       "services": [],
       "tracks": []
     },
@@ -750,6 +762,9 @@
       "path": "src/Testing/Wolverine.Marten.FSharpTests/Wolverine.Marten.FSharpTests.csproj",
       "ciTargets": "fsharp.yml",
       "workers": 1,
+      "watches": [
+        "src/Testing/Wolverine.Marten.FSharp"
+      ],
       "services": [],
       "tracks": []
     },
@@ -758,6 +773,9 @@
       "path": "src/Testing/Wolverine.MartenAggregate.FSharpTests/Wolverine.MartenAggregate.FSharpTests.csproj",
       "ciTargets": "fsharp.yml",
       "workers": 1,
+      "watches": [
+        "src/Testing/Wolverine.MartenAggregate.FSharp"
+      ],
       "services": [],
       "tracks": []
     },
@@ -766,6 +784,9 @@
       "path": "src/Testing/Wolverine.Cosmos.FSharpTests/Wolverine.Cosmos.FSharpTests.csproj",
       "ciTargets": "fsharp.yml",
       "workers": 1,
+      "watches": [
+        "src/Testing/Wolverine.Cosmos.FSharp"
+      ],
       "services": [],
       "tracks": []
     },
@@ -774,6 +795,9 @@
       "path": "src/Testing/Wolverine.Behavioural.FSharpTests/Wolverine.Behavioural.FSharpTests.csproj",
       "ciTargets": "fsharp.yml",
       "workers": 1,
+      "watches": [
+        "src/Testing/Wolverine.Behavioural.FSharp"
+      ],
       "services": [],
       "tracks": []
     }
@@ -781,23 +805,49 @@
   "extras": [
     {
       "target": "CICommandLineSmoke",
-      "workflow": "command-line.yml"
+      "workflow": "command-line.yml",
+      "inputs": [
+        "src/Samples/Quickstart/"
+      ]
     },
     {
       "target": "CIAotSmoke",
-      "workflow": "tests.yml"
+      "workflow": "tests.yml",
+      "inputs": [
+        "src/Testing/Wolverine.AotSmoke",
+        "src/Testing/Wolverine.AI.AotSmoke/"
+      ]
     },
     {
       "target": "BobcatSamples",
-      "workflow": "bobcat-samples.yml"
+      "workflow": "bobcat-samples.yml",
+      "inputs": [
+        "src/Samples/Bobcat/"
+      ]
     },
     {
       "target": "CICodegenTest",
-      "workflow": "command-line.yml"
+      "workflow": "command-line.yml",
+      "inputs": [
+        "src/Testing/ConsoleApp/"
+      ]
     },
     {
       "target": "CICodegenDrift",
-      "workflow": "command-line.yml"
+      "workflow": "command-line.yml",
+      "inputs": [
+        "src/Testing/ConsoleApp/",
+        "src/Testing/Wolverine.AotSmoke.Static/",
+        "src/Testing/Wolverine.AotSmoke.Publish/",
+        "src/Testing/Wolverine.AotSmoke.Http/",
+        "src/Testing/Wolverine.AotSmoke.Saga/",
+        "src/Testing/Wolverine.AotSmoke.Marten/",
+        "src/Testing/Wolverine.AotSmoke.Polecat/",
+        "src/Testing/Wolverine.AotSmoke.Fisher/",
+        "src/Http/CodeGenTarget/",
+        "src/Http/StaticCodeGenDemonstrator/",
+        "src/Http/DeepMiddlewareUsage/"
+      ]
     }
   ],
   "notGated": {

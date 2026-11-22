@@ -1305,6 +1305,28 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return _byTenant.TryFind(tenantId!, out var store) ? store : tenantId!;
     }
 
+    /// <summary>
+    ///     GH-5731. Is <paramref name="store" /> the main database or one of the tenant databases of this store? Used
+    ///     to decide whether a handler's transaction can mark an inbox row this store holds. Two ancillary
+    ///     multi-tenanted stores report the same <see cref="Uri" />, so that alone cannot tell them apart.
+    /// </summary>
+    internal bool Holds(IMessageStore store)
+    {
+        if (ReferenceEquals(Main, store) || Main.Uri == store.Uri) return true;
+
+        foreach (var entry in _byTenant.Enumerate())
+        {
+            if (ReferenceEquals(entry.Value, store) || entry.Value.Uri == store.Uri) return true;
+        }
+
+        foreach (var database in Source.AllActive())
+        {
+            if (ReferenceEquals(database, store) || database.Uri == store.Uri) return true;
+        }
+
+        return false;
+    }
+
     public async ValueTask<IMessageStore> GetDatabaseAsync(string? tenantId)
     {
         if (tenantId.IsDefaultTenant())

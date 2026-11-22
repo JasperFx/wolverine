@@ -572,6 +572,40 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         return multiTenanted != null;
     }
 
+    /// <summary>
+    ///     GH-5733. Solo mode's startup release, for every store that is not the main one (or a tenant database of
+    ///     it), which <see cref="NodeAgentController.StartSoloModeAsync" /> releases on its own. Solo mode means this
+    ///     is the only node, so whatever any node owned is released, as it is in the main store.
+    /// </summary>
+    internal async Task ReleaseAllOwnershipOfAncillaryStoresAsync()
+    {
+        if (_ancillaryStores.IsEmpty) return;
+
+        var mainStores = new HashSet<IMessageStore>(ReferenceEqualityComparer.Instance) { Main };
+        if (_runtime.Storage is MultiTenantedMessageStore mainTenanted)
+        {
+            mainStores.Add(mainTenanted.Main);
+        }
+
+        var released = new HashSet<IMessageStore>(ReferenceEqualityComparer.Instance);
+        foreach (var store in _ancillaryStores.Enumerate().Select(x => x.Value))
+        {
+            if (mainStores.Contains(store) || !released.Add(store)) continue;
+
+            try
+            {
+                // A multi-tenanted store releases in its main database and in every tenant database
+                await store.Admin.ReleaseAllOwnershipAsync();
+            }
+            catch (Exception e)
+            {
+                _runtime.Logger.LogError(e,
+                    "Error while releasing node ownership in ancillary message store {Store} at Solo mode startup. Envelopes it still holds for this node are recovered once their owner is released",
+                    store.Uri);
+            }
+        }
+    }
+
     public async Task ReleaseAllOwnershipAsync(int nodeNumber)
     {
         // Best-effort, per store. This runs during teardown — including after a FAILED or partial

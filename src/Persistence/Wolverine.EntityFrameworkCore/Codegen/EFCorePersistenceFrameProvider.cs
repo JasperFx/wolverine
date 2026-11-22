@@ -472,6 +472,20 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return applierCall(nameof(EfCoreStorageActionApplier.StoreAsync), saga, container);
     }
 
+    /// <summary>
+    ///     GH-5731 / GH-5732. Point the MessageContext at the ancillary store the DbContext is enrolled in AHEAD of
+    ///     every frame this provider added, which all go in at index 0. Inserted first, as it used to be, it ended up
+    ///     after them, so the EfCoreEnvelopeTransaction those frames build saw the main store.
+    /// </summary>
+    private static void applyAncillaryStoreFirst(IChain chain, IServiceContainer container, Type dbContextType)
+    {
+        var runtime = container.Services.GetRequiredService<IWolverineRuntime>();
+        if (!runtime.Stores.HasAncillaryStoreFor(dbContextType)) return;
+
+        var frame = typeof(ApplyAncillaryStoreFrame<>).CloseAndBuildAs<Frame>(dbContextType);
+        chain.Middleware.Insert(0, frame);
+    }
+
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
         if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
@@ -480,13 +494,6 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         var dbContextType = DetermineDbContextType(chain, container);
 
         var mode = ResolveEffectiveMode(chain);
-
-        var runtime = container.Services.GetRequiredService<IWolverineRuntime>();
-        if (runtime.Stores.HasAncillaryStoreFor(dbContextType))
-        {
-            var frame = typeof(ApplyAncillaryStoreFrame<>).CloseAndBuildAs<Frame>(dbContextType);
-            chain.Middleware.Insert(0, frame);
-        }
 
         var enrolledInTransaction = false;
         var multiTenantTransaction = false;
@@ -581,6 +588,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             chain.Middleware.Insert(0, new CastDbContextFrame(abstractionType, dbContextType));
         }
+
+        applyAncillaryStoreFirst(chain, container, dbContextType);
 
         var saveChangesAsync =
             dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);
@@ -926,6 +935,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             chain.Middleware.Insert(0, new CastDbContextFrame(abstractionType, dbType));
         }
+
+        applyAncillaryStoreFirst(chain, container, dbType);
 
         var saveChangesAsync =
             dbType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);

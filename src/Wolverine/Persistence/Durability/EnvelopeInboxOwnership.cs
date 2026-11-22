@@ -19,15 +19,23 @@ internal static class EnvelopeInboxOwnership
         var owner = envelope.Store;
         if (owner == null)
         {
-            // The main store or a tenant database of it, as it always has been
-            if (store.Role != MessageStoreRole.Ancillary) return true;
+            // The row is in the main store, or the tenant database of it the transaction was opened on
+            if (store.Role == MessageStoreRole.Main || ReferenceEquals(store, mainStore)) return true;
 
+            // GH-5732: a tenant database is not necessarily the MAIN store's. One of an ancillary store that
+            // registers tenants has role Tenant too, and only the main store can say whether it is one of its own
             owner = mainStore;
         }
 
-        // A multi-tenanted store keeps the row in the tenant's database, which is the one a non-ancillary
-        // transaction was opened on
-        if (owner is MultiTenantedMessageStore) return store.Role != MessageStoreRole.Ancillary;
+        // A multi-tenanted store keeps the row in the tenant's database, which is the one a transaction for that
+        // tenant was opened on -- but only when the transaction's database belongs to that store at all. GH-5731:
+        // a handler on another ancillary store's tenant database (role Tenant, not Ancillary) used to pass here,
+        // mark the row on the wrong database, and flip the status that tells DurableReceiver to mark it itself
+        if (owner is MultiTenantedMessageStore multiTenanted)
+        {
+            if (store is MultiTenantedMessageStore) return ReferenceEquals(store, owner);
+            return multiTenanted.Holds(store);
+        }
 
         return ReferenceEquals(owner, store) || owner.Uri == store.Uri;
     }
