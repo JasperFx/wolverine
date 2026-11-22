@@ -43,6 +43,12 @@ public abstract class TransportBase<TEndpoint> : ITransport, ITagged where TEndp
     /// </summary>
     public virtual IEnumerable<string> AdditionalProtocols => [];
 
+    /// <summary>
+    ///     See <see cref="ITransport.EndpointNamesAreCaseSensitive" />. Declared here as a virtual for the same reason
+    ///     as <see cref="AdditionalProtocols" />.
+    /// </summary>
+    public virtual bool EndpointNamesAreCaseSensitive => true;
+
     public IEnumerable<Endpoint> Endpoints()
     {
         return endpoints();
@@ -79,12 +85,31 @@ public abstract class TransportBase<TEndpoint> : ITransport, ITagged where TEndp
             throw new ArgumentOutOfRangeException($"Uri must have scheme {accepted}, but received {uri.Scheme}");
         }
 
-        return findEndpointByUri(uri);
+        return findEndpointWithOriginalName(uri) ?? findEndpointByUri(uri);
     }
 
     public Endpoint TryGetEndpoint(Uri uri)
     {
-        return findEndpointByUri(uri);
+        return findEndpointWithOriginalName(uri) ?? findEndpointByUri(uri);
+    }
+
+    /// <summary>
+    ///     GH-5821. An existing endpoint whose Uri was written exactly like this one, upper case letters and all.
+    ///     <see cref="Uri.Host" /> is lower cased by <see cref="Uri" />, so a transport that looks an endpoint up by its
+    ///     host turned a configured <c>Orders</c> into a second, lower case <c>orders</c> endpoint the first time the
+    ///     configured endpoint's own Uri was handed back to it -- <c>PublishMessage&lt;T&gt;().To(queue.Uri)</c> does
+    ///     exactly that -- and the publishing rule landed on the copy. Only a host with upper case letters can lose
+    ///     anything, so every other Uri goes straight to the transport's own lookup.
+    /// </summary>
+    private TEndpoint? findEndpointWithOriginalName(Uri uri)
+    {
+        var host = EndpointNameCollisions.OriginalHost(uri);
+        if (!host.Any(char.IsUpper))
+        {
+            return null;
+        }
+
+        return endpoints().FirstOrDefault(x => x.Uri.OriginalString == uri.OriginalString);
     }
 
     /// <summary>

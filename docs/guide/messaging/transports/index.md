@@ -35,6 +35,29 @@ the error that was already available. Raise the budget if your broker is genuine
 connections at deploy time; lower it if you would rather fail fast and let your orchestrator restart the
 process.
 
+## Endpoint Names That Differ Only in Case
+
+Wolverine identifies every endpoint by its `Uri`, and `System.Uri` lower cases the host part of a `Uri`. Several
+transports carry the queue or topic name in that host, so `sqs://Orders` and `sqs://orders` are the same `Uri` even
+though SQS treats `Orders` and `orders` as two queues. Wolverine would treat such a pair as one endpoint, so a message
+meant for one could go to the other.
+
+Wolverine refuses to start with such a pair and throws an `EndpointNameCollisionException` that names both endpoints
+and the transport. Rename one of them so the names differ by more than case. Using the same name twice is fine.
+
+| Transport | Names that differ only in case |
+|-----------|--------------------------------|
+| Amazon SQS, Amazon SNS | Refused. The name is in the `Uri` host, and AWS names are case-sensitive |
+| NServiceBus or MassTransit over PostgreSQL | Refused. The name is in the `Uri` host, and the queues are case-sensitive |
+| Shared memory | Refused. The name is in the `Uri` host |
+| NServiceBus over SQL Server | Allowed. SQL Server's default collations are case-insensitive, so both names are one table. With a case-sensitive collation, use names that differ by more than case |
+| Local queues, and Wolverine's own PostgreSQL, SQL Server, MySQL, SQLite and Oracle queues | Allowed. Wolverine folds these names to one case when you configure them, so both names are one queue |
+| Azure Service Bus | Allowed. Wolverine folds names to lower case, and Azure Service Bus names are case-insensitive |
+| RabbitMQ, Kafka, NATS, Redis, MQTT, Pulsar topics, GCP Pub/Sub topics | Allowed. The name is in the `Uri` path, which keeps its case, so `rabbitmq://queue/Orders` and `rabbitmq://queue/orders` are two endpoints |
+
+A custom transport whose entity names are case-insensitive can override `EndpointNamesAreCaseSensitive` to return
+`false` on its `TransportBase<T>` subclass.
+
 ## Building a new Transport
 
 In Wolverine parlance, a "transport" refers to one of Wolverine's adapter libraries that enable the usage of an
