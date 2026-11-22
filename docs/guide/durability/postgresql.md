@@ -468,8 +468,6 @@ A few more things to be aware of:
 * **Connection poolers.** `LISTEN` requires a dedicated session, so PgBouncer, RDS Proxy, or anything else running in
   *transaction* pooling mode won't deliver notifications. You'll need session pooling (or a direct connection) for
   the notification connection, and that pins a server connection for its whole lifetime.
-* **No Npgsql multiplexing.** Wolverine refuses to start a listener with notifications enabled on a data source using
-  `Multiplexing=true`, because `LISTEN` can't work on a multiplexed connection.
 * **Everybody has to opt in.** Notifications are published by the *sender*. If one application sends to the queue with
   this option turned on and another sends without it, the second application's messages are only found by polling.
   Likewise, anything outside of Wolverine that writes directly into the queue tables needs to call

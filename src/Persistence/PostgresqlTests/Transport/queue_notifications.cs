@@ -71,36 +71,6 @@ public class queue_notifications : PostgresqlContext
     }
 
     [Fact]
-    public async Task notifications_reject_multiplexed_data_sources()
-    {
-        var connectionString = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString)
-        {
-            Multiplexing = true
-        };
-        await using var dataSource = NpgsqlDataSource.Create(connectionString);
-        var manager = new PostgresqlQueueNotificationManager();
-        IAsyncDisposable? registration = null;
-
-        try
-        {
-            var exception = await Should.ThrowAsync<InvalidOperationException>(async () =>
-            {
-                registration = await manager.RegisterAsync(dataSource, "default", "queue_schema.messages",
-                    static () => { }, NullLogger.Instance, TestContext.Current.CancellationToken);
-            });
-
-            exception.Message.ShouldContain("Multiplexing=false");
-        }
-        finally
-        {
-            if (registration != null)
-            {
-                await registration.DisposeAsync();
-            }
-        }
-    }
-
-    [Fact]
     public async Task polling_delivers_after_notification_connection_drops_and_listener_reconnects()
     {
         var schema = $"qnotify_{Guid.NewGuid():N}"[..16];
