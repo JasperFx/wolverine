@@ -52,7 +52,7 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
     [IgnoreDescription]
     public IPulsarClientBuilder Builder { get; }
 
-    internal IPulsarClient? Client { get; private set; }
+    internal IPulsarClient? Client { get; set; }
 
     /// <summary>
     /// Broker-per-tenant registrations (GH-3308). Each tenant owns a child <see cref="PulsarTransport"/>
