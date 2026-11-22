@@ -105,12 +105,12 @@ internal class NServiceBusPostgresqlEnvelopeMapper
     /// <summary>
     /// Hydrate an <see cref="Envelope"/> from a row read off the NServiceBus queue table.
     /// </summary>
-    public Envelope MapIncoming(Guid id, string? headersJson, byte[] body)
+    public Envelope MapIncoming(Guid id, string? headersJson, byte[] body, long? seq = null)
     {
         // NServiceBus' JSON serializer prefixes the body with a UTF-8 BOM, which
         // System.Text.Json rejects ('0xEF' is an invalid start of a value). Strip it so
         // the configured serializer can read the payload.
-        var envelope = new Envelope { Data = stripUtf8Bom(body) };
+        var envelope = new NServiceBusPostgresqlEnvelope { Data = stripUtf8Bom(body), Seq = seq };
 
         var headers = headersJson.IsNotEmpty()
             ? JsonSerializer.Deserialize(headersJson!, NServiceBusPostgresqlJsonContext.Default.DictionaryStringString) ?? new()
@@ -166,15 +166,32 @@ internal class NServiceBusPostgresqlEnvelopeMapper
             address = address[..at];
         }
 
-        // PostgreSQL form: drop quoting and take the last dotted segment ("public"."nsb" -> nsb).
-        address = address.Replace("\"", string.Empty);
-        var dot = address.LastIndexOf('.');
-        if (dot >= 0)
+        // PostgreSQL form: "schema"."table". GH-5775: split on the FIRST dot outside the quotes, the way
+        // NServiceBus's own QueueAddress.Parse does, so a dotted endpoint name ("public"."Sales.Endpoint") stays
+        // whole instead of being cut at its last dot.
+        var quotes = 0;
+        for (var i = 0; i < address.Length; i++)
         {
-            address = address[(dot + 1)..];
+            if (address[i] == '"')
+            {
+                quotes++;
+            }
+            else if (address[i] == '.' && quotes % 2 == 0)
+            {
+                address = address[(i + 1)..];
+                break;
+            }
         }
 
-        return address;
+        return unquote(address);
+    }
+
+    // "Sales.Endpoint" -> Sales.Endpoint, with PostgreSQL's doubled quote escape undone
+    private static string unquote(string name)
+    {
+        return name.Length >= 2 && name[0] == '"' && name[^1] == '"'
+            ? name[1..^1].Replace("\"\"", "\"")
+            : name;
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2070",

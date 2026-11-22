@@ -667,7 +667,12 @@ receive uses `FOR UPDATE SKIP LOCKED` ordered by the NServiceBus `seq` column. A
 
 * NServiceBus uses lowercase column names; Wolverine's send/receive SQL matches them with unquoted identifiers.
 * NServiceBus addresses queues as the schema-qualified `"schema"."table"`; Wolverine maps the reply address back to the
-  bare queue name so request/reply works in both directions.
+  bare queue name so request/reply works in both directions. Like NServiceBus, it splits on the first dot outside the
+  quotes, so a dotted endpoint name such as `"public"."Sales.Endpoint"` maps to the `Sales.Endpoint` queue.
+* A deferred message (a handler failure in `Inline` mode, or a listener shutting down with messages still in hand) is
+  put back by inserting a copy with its original `seq`, so it keeps its place in the queue. The insert is retried with
+  backoff for up to `DurabilitySettings.DrainTimeout`, a retry never adds a second copy, and an insert that still fails
+  is logged as a `DatabaseQueueReinsertFailedException` naming the message id.
 
 Tenant propagation works exactly as it does for SQL Server: NServiceBus carries the tenant id in a message
 header, and Wolverine maps it to and from `Envelope.TenantId` when you add `MapTenantIdToHeader` /
