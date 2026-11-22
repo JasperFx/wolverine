@@ -18,7 +18,20 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     private bool _hasInitialized;
     public PubsubClientOptions Client = new();
-    internal bool IsExistingSubscription = false;
+    internal bool IsExistingSubscription { get; private set; }
+
+    /// <summary>
+    ///     Make this endpoint a listener on the existing subscription <paramref name="subscriptionId" />, which
+    ///     Wolverine neither provisions nor renames. GH-5842: the constructor applies the transport's
+    ///     <see cref="PubsubTransport.IdentifierPrefix" /> to the subscription name,
+    ///     so put the exact name back.
+    /// </summary>
+    internal void MarkAsExistingSubscription(string subscriptionId)
+    {
+        IsExistingSubscription = true;
+        IsListener = true;
+        Server.Subscription.Name = new SubscriptionName(_transport.ProjectId, subscriptionId);
+    }
 
     /// <summary>
     ///     GH-5822. The topic an existing subscription (<see cref="IsExistingSubscription" />) is attached to, when it
