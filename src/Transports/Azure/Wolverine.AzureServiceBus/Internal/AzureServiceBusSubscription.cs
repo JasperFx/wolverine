@@ -69,6 +69,45 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         }
     }
 
+    // GH-5809. A requeue or native scheduled retry from this subscription sends its copy to the retry queue, which
+    // only exists while system queues are enabled. Without it, AzureServiceBusTransport.buildListenerForSubscription
+    // falls back to publishing the copy to the topic, and every subscription on the topic receives it again.
+    protected internal override IEnumerable<string> validateModeConfiguration()
+    {
+        foreach (var message in base.validateModeConfiguration())
+        {
+            yield return message;
+        }
+
+        if (!Parent.SystemQueuesEnabled && Parent.AssertsSubscriptionRequeuesDoNotFanOut)
+        {
+            yield return requeuesFanOutMessage() +
+                         " AssertSubscriptionRequeuesDoNotFanOut() was configured, so Wolverine refuses to start.";
+        }
+    }
+
+    protected internal override IEnumerable<string> listenerConfigurationWarnings()
+    {
+        foreach (var message in base.listenerConfigurationWarnings())
+        {
+            yield return message;
+        }
+
+        if (!Parent.SystemQueuesEnabled && !Parent.AssertsSubscriptionRequeuesDoNotFanOut)
+        {
+            yield return requeuesFanOutMessage();
+        }
+    }
+
+    private string requeuesFanOutMessage()
+    {
+        return
+            $"Azure Service Bus subscription '{Uri}' is listening with system queues disabled (SystemQueuesAreEnabled(false)), " +
+            $"so there is no retry queue. A Requeue() or a native scheduled retry from this subscription will publish its copy " +
+            $"to topic '{Topic.TopicName}', which fans it out to every subscription on that topic, including other services' " +
+            "subscriptions. Use SystemQueuesAreEnabled(true) so the copy goes to this service's own retry queue.";
+    }
+
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         return Parent.BuildListenerForSubscription(runtime, receiver, this);

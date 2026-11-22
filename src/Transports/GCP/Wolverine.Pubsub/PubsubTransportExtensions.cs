@@ -299,6 +299,8 @@ public static class PubsubTransportExtensions
     /// <summary>
     ///     Listen for incoming messages on an existing Google Cloud Platform Pub/Sub subscription.
     ///     Since an existing subscription is used, IdentifierPrefix is not applied to the subscription name.
+    ///     A requeue from this listener publishes a copy to the subscription's topic, which Wolverine reads from the
+    ///     subscription at startup unless it is configured with <see cref="PubsubTopicListenerConfiguration.FromTopic" />.
     /// </summary>
     /// <param name="endpoints"></param>
     /// <param name="subscriptionName">The name of the Google Cloud Platform Pub/Sub subscription</param>
@@ -315,8 +317,7 @@ public static class PubsubTransportExtensions
         var transport = endpoints.PubsubTransport();
         var topic = transport.Topics[subscriptionName];
 
-        topic.IsListener = true;
-        topic.IsExistingSubscription = true;
+        topic.MarkAsExistingSubscription(subscriptionName);
 
         configure?.Invoke(topic);
 
@@ -326,6 +327,8 @@ public static class PubsubTransportExtensions
     /// <summary>
     ///     Listen for incoming messages on an existing Google Cloud Platform Pub/Sub subscription on a named broker.
     ///     Since an existing subscription is used, IdentifierPrefix is not applied to the subscription name.
+    ///     A requeue from this listener publishes a copy to the subscription's topic, which Wolverine reads from the
+    ///     subscription at startup unless it is configured with <see cref="PubsubTopicListenerConfiguration.FromTopic" />.
     /// </summary>
     /// <param name="endpoints"></param>
     /// <param name="name">The name of the additional broker registered via <see cref="AddNamedPubsubBroker" />.</param>
@@ -344,8 +347,7 @@ public static class PubsubTransportExtensions
         var transport = endpoints.PubsubTransport(name);
         var topic = transport.Topics[subscriptionName];
 
-        topic.IsListener = true;
-        topic.IsExistingSubscription = true;
+        topic.MarkAsExistingSubscription(subscriptionName);
 
         configure?.Invoke(topic);
 

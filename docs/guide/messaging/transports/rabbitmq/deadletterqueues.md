@@ -104,6 +104,12 @@ These same metadata headers are automatically included for all other Wolverine t
 Enhanced dead lettering bypasses RabbitMQ's native dead letter exchange (DLX) mechanism. Messages are published to the DLQ by Wolverine rather than being NACK'd. If you rely on native DLX routing or policies, this mode may not be appropriate.
 :::
 
+When the Rabbit MQ listener publishes the dead letter copy itself (`InteropFriendly` mode on an inline or buffered
+listener, or enhanced dead lettering on an inline listener), the copy always goes out with a publisher confirm and `mandatory: true`, whatever your publisher confirm settings are.
+Wolverine only acks the original message once the broker has confirmed the copy. If the copy can't be published after
+a few quick attempts (the broker refuses it, or the dead letter queue doesn't exist), the original is nacked with
+requeue so the broker delivers it again. It isn't acked or lost.
+
 And lastly, if you don't particularly want to have any Rabbit MQ dead letter queues and you quite like the [database backed 
 dead letter queues](/guide/durability/dead-letter-storage) you get with Wolverine's message durability, you can use the `WolverineStorage` option:
 

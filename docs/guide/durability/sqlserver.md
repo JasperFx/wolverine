@@ -748,6 +748,11 @@ Wolverine leaves it alone. A receive transaction's rollback leaves the row untou
 count by message id instead. That memory lasts for the listener's lifetime and holds up to 10,000 messages, oldest
 forgotten first, so a requeue that comes back to a different node or after a restart starts counting again.
 
+Queue names keep their case, so a reply to a mixed-case NServiceBus endpoint such as `Sales.Endpoint` goes to that
+table even on a database with a case-sensitive collation. Under SQL Server's default case-insensitive collations two
+names that differ only in case are one table, so Wolverine allows such a pair; with a case-sensitive collation, give
+the queues names that differ by more than case.
+
 ### Multi-Tenancy
 
 NServiceBus implements multi-tenancy as a *persistence* concern rather than a transport one: the SQL Server

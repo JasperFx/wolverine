@@ -94,10 +94,25 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
     private sealed class ClientListenerGroup
     {
-        public List<MqttListener> Listeners { get; } = new();
+        // Copy-on-write: read on MQTTnet's receive thread while a restarting listener replaces an entry
+        public MqttListener[] Listeners = [];
         public ImHashMap<string, MqttListener> TopicListeners = ImHashMap<string, MqttListener>.Empty;
         public bool Subscribed;
+
+        // GH-5790. Messages that arrived on this connection before their listener registered, still
+        // unacknowledged. Guarded by HeldLock, which also covers listener registration so that a message is
+        // either found by its listener's lookup or held for it, never neither.
+        public readonly object HeldLock = new();
+        public List<MqttApplicationMessageReceivedEventArgs> Held = new();
     }
+
+    /// <summary>
+    ///     GH-5790. The most messages one connection holds for listeners that have not registered yet. Past this,
+    ///     a message that arrives before its listener is left unacknowledged and not held, so it stays in flight
+    ///     on this connection until the session resumes on a new one (the GH-4802 behaviour). The broker's own
+    ///     in-flight window normally keeps the count far lower.
+    /// </summary>
+    internal int MaximumHeldBeforeListeners { get; set; } = 1000;
 
     private ClientListenerGroup groupFor(IManagedMqttClient client)
     {
@@ -297,12 +312,66 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         if (lifetime == null)
         {
             // Nothing to hang the latch off, so never defer. Holding a message unacknowledged forever
-            // would be a worse failure than the drop it replaces -- see receiveAsync.
+            // would be a worse failure than the drop it replaces -- see ReceiveFromClientAsync.
             _listenersAreUp = true;
             return;
         }
 
-        lifetime.ApplicationStarted.Register(() => _listenersAreUp = true);
+        lifetime.ApplicationStarted.Register(MarkListenersAreUp);
+    }
+
+    /// <summary>
+    ///     Every listener this process will register has registered. Hands anything still held to a listener
+    ///     that can take it now, and discards the rest the way a message for a topic nothing listens to is
+    ///     discarded after startup.
+    /// </summary>
+    internal void MarkListenersAreUp()
+    {
+        _listenersAreUp = true;
+
+        // Every group was created while connecting and subscribing, all of which is finished by now
+        var clients = _clientGroups.Keys.ToArray();
+
+        foreach (var client in clients)
+        {
+            var group = groupFor(client);
+            List<MqttApplicationMessageReceivedEventArgs> held;
+            lock (group.HeldLock)
+            {
+                held = group.Held;
+                group.Held = new List<MqttApplicationMessageReceivedEventArgs>();
+            }
+
+            foreach (var arg in held)
+            {
+                if (tryFindListener(client, arg.ApplicationMessage.Topic, out var listener))
+                {
+                    listener.ReceiveHeldMessages([arg]);
+                }
+                else
+                {
+                    _ = discardHeldAsync(arg);
+                }
+            }
+        }
+    }
+
+    private async Task discardHeldAsync(MqttApplicationMessageReceivedEventArgs arg)
+    {
+        _logger?.LogWarning(
+            "Wolverine has finished starting and no listener is attached for MQTT topic {TopicName}, so a message held for it since the connection came up is being discarded. The broker is most likely still holding a subscription from an earlier session for a topic this process does not listen to",
+            arg.ApplicationMessage.Topic);
+
+        try
+        {
+            // Held unacknowledged, so the broker still counts it in flight until this
+            await arg.AcknowledgeAsync(CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            _logger?.LogError(e, "Failed to acknowledge a discarded MQTT message for topic {TopicName}",
+                arg.ApplicationMessage.Topic);
+        }
     }
 
     private void startSubscribing(IManagedMqttClient client)
@@ -310,11 +379,24 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         var group = groupFor(client);
         if (group.Subscribed) return;
 
-        client.ApplicationMessageReceivedAsync += arg => receiveAsync(client, arg);
+        client.ApplicationMessageReceivedAsync += arg => ReceiveFromClientAsync(client, arg);
+
+        // GH-5790. A held message can only be acknowledged on the connection it arrived on. Once that is gone
+        // the broker resends it when the session resumes, so the held copy would only be a duplicate.
+        client.DisconnectedAsync += _ =>
+        {
+            lock (group.HeldLock)
+            {
+                group.Held = new List<MqttApplicationMessageReceivedEventArgs>();
+            }
+
+            return Task.CompletedTask;
+        };
+
         group.Subscribed = true;
     }
 
-    private Task receiveAsync(IManagedMqttClient client, MqttApplicationMessageReceivedEventArgs arg)
+    internal Task ReceiveFromClientAsync(IManagedMqttClient client, MqttApplicationMessageReceivedEventArgs arg)
     {
         var topicName = arg.ApplicationMessage.Topic;
         if (tryFindListener(client, topicName, out var listener))
@@ -326,14 +408,42 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         {
             // GH-4802: the host is still starting, so this is a persistent session's backlog racing
             // listener registration rather than a topic nothing will ever listen to. Decline the
-            // acknowledgement and let the broker redeliver once the listener exists.
+            // acknowledgement.
             arg.AutoAcknowledge = false;
 
-            _logger?.LogInformation(
-                "Received an MQTT message for topic {TopicName} before its listener was registered. Leaving it unacknowledged so that the broker redelivers it once Wolverine has finished starting",
-                topicName);
+            // GH-5790: and hold it for the listener. GH-4802 left it to the broker to redeliver, but a broker
+            // resends an unacknowledged message only when the session resumes on a NEW connection, so the
+            // message sat in flight, holding one of this client's in-flight slots, until the next reconnect.
+            var group = groupFor(client);
+            lock (group.HeldLock)
+            {
+                // The listener may have registered since the lookup above
+                if (tryFindListener(client, topicName, out listener))
+                {
+                    listener.ReceiveHeldMessages([arg]);
+                    return Task.CompletedTask;
+                }
 
-            return Task.CompletedTask;
+                if (!_listenersAreUp)
+                {
+                    if (group.Held.Count < MaximumHeldBeforeListeners)
+                    {
+                        group.Held.Add(arg);
+
+                        _logger?.LogInformation(
+                            "Received an MQTT message for topic {TopicName} before its listener was registered. Holding it unacknowledged until the listener registers",
+                            topicName);
+                    }
+                    else
+                    {
+                        _logger?.LogWarning(
+                            "Received an MQTT message for topic {TopicName} before its listener was registered, and this connection already holds {Count} such messages. Leaving it unacknowledged and not held: the broker will resend it only when the session resumes on a new connection",
+                            topicName, group.Held.Count);
+                    }
+
+                    return Task.CompletedTask;
+                }
+            }
         }
 
         // Deliberately bounded to startup. An unacknowledged message occupies a slot in the broker's
@@ -503,7 +613,41 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         IManagedMqttClient client)
     {
         var group = groupFor(client);
-        group.Listeners.Add(listener);
+
+        // GH-5770. A listener that restarts (after a pause, say) is a new MqttListener for the same topic on the
+        // same connection. The stopped one used to stay first in line, so every later message for the topic went
+        // to a listener whose receiver was latched or gone. Replace it, and take over the deferred messages it
+        // handed back: they are still unacknowledged, and the broker will not redeliver them on this connection.
+        var replaced = group.Listeners.Where(x => x.IsStopped && x.TopicName == listener.TopicName).ToArray();
+
+        List<MqttApplicationMessageReceivedEventArgs> held;
+        lock (group.HeldLock)
+        {
+            group.Listeners = group.Listeners.Except(replaced).Append(listener).ToArray();
+            if (replaced.Length > 0)
+            {
+                group.TopicListeners = ImHashMap<string, MqttListener>.Empty;
+            }
+
+            // GH-5790: the messages that arrived for this listener before it registered
+            held = group.Held.Where(x =>
+                tryFindListener(client, x.ApplicationMessage.Topic, out var found) &&
+                ReferenceEquals(found, listener)).ToList();
+            if (held.Count > 0)
+            {
+                group.Held = group.Held.Except(held).ToList();
+            }
+        }
+
+        if (held.Count > 0)
+        {
+            listener.ReceiveHeldMessages(held);
+        }
+
+        foreach (var previous in replaced)
+        {
+            listener.TakeOverHandedBackMessages(previous);
+        }
 
         await client.SubscribeAsync(topicName, mqttTopic.QualityOfServiceLevel);
 
