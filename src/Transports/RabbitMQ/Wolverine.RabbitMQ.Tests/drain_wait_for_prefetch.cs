@@ -6,10 +6,12 @@ using JasperFx.Resources;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using RabbitMQ.Client;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.Marten;
+using Wolverine.Persistence.Durability;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Tracking;
 using Wolverine.Transports;
@@ -147,9 +149,22 @@ public class drain_wait_for_prefetch : IAsyncLifetime
 
         persistedCount.ShouldBe(messageCount);
 
-        // And the ones that beat the shutdown latch ran through the handler, proving drained
-        // deliveries reach the pipeline, not just the inbox table.
-        _tracker.Handled.Count.ShouldBeGreaterThan(0);
+        // And the drained deliveries reach the pipeline, not just the inbox table. GH-5736: this used to
+        // assert that some had been handled before the stop returned, but the receiver is latched as soon as
+        // the listener has stopped, and whether any handler beat that latch is a race (CI lost it about once
+        // in ten runs). What the drain does promise is that the rows it captured run once the listener is
+        // back, so start it again, recover what the drain released, and every message is handled.
+        await agent.StartAsync();
+        await new ListenerInboxRecovery(runtime, agent, NullLogger.Instance)
+            .RecoverAsync(TestContext.Current.CancellationToken);
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
+        while (_tracker.Handled.Distinct().Count() < messageCount && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken);
+        }
+
+        _tracker.Handled.Distinct().Count().ShouldBe(messageCount);
     }
 }
 

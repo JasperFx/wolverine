@@ -48,19 +48,13 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
             (e, _) => AzureServiceBusSettlement.CompleteAsync(e, maximumAckAttempts, _logger, _cancellation.Token),
             _logger, _cancellation.Token);
 
-        _defer = new RetryBlock<Envelope>(async (envelope, _) =>
-        {
-            // GH-3494 (AO8): settle the original before re-sending the copy, exactly like the
-            // inline listener already does. Leaving it unsettled meant the message stayed locked
-            // until the lock expired and Azure Service Bus redelivered it -- so every deferral
-            // produced a duplicate on top of the copy this block sends.
-            if (envelope is AzureServiceBusEnvelope { IsCompleted: false } e)
-            {
-                await e.CompleteAsync(_cancellation.Token);
-            }
-
-            await _requeue.SendAsync(envelope);
-        }, logger, _cancellation.Token);
+        // GH-3494 (AO8): settle the original as well as re-sending the copy, exactly like the inline listener
+        // does. Leaving it unsettled meant the message stayed locked until the lock expired and Azure Service Bus
+        // redelivered it -- so every deferral produced a duplicate on top of the copy this block sends.
+        // GH-5767: the copy is sent before the original is completed.
+        _defer = new RetryBlock<Envelope>(
+            (envelope, _) => AzureServiceBusRequeue.RequeueAsync(envelope, _requeue, _cancellation.Token), logger,
+            _cancellation.Token);
 
         _deadLetter =
             new RetryBlock<AzureServiceBusEnvelope>(
@@ -180,7 +174,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
     /// Reschedule by re-publishing the envelope as an Azure Service Bus scheduled message -- the outgoing mapper
     /// turns <see cref="Envelope.ScheduledTime" /> into <c>ServiceBusMessage.ScheduledEnqueueTime</c>, so the broker
     /// holds it, not Wolverine. Same mechanism the inline listener uses (InlineAzureServiceBusListener), routed
-    /// through this listener's existing <c>_defer</c> block so the original delivery is settled first: leaving it
+    /// through this listener's existing <c>_defer</c> block so the original delivery is settled too (after the copy, GH-5767): leaving it
     /// locked means the broker redelivers it at lock expiry and every reschedule costs a duplicate. That is exactly
     /// the GH-3494 (AO8) defect the block was fixed for.
     /// </summary>

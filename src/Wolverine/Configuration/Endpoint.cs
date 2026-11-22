@@ -1050,6 +1050,17 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     }
 
     /// <summary>
+    /// GH-5809. The warning counterpart of <see cref="validateModeConfiguration"/>: transport-specific configuration
+    /// that will work, but not in the way the user is likely to expect. Checked over the same final, compiled state at
+    /// bootstrap for every listening endpoint. Return one message per problem; each is logged as a warning and the
+    /// host still starts.
+    /// </summary>
+    protected internal virtual IEnumerable<string> listenerConfigurationWarnings()
+    {
+        yield break;
+    }
+
+    /// <summary>
     /// Check if this endpoint supports the specified mode
     /// </summary>
     public bool SupportsMode(EndpointMode mode)

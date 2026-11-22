@@ -222,15 +222,10 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
         _complete = AzureServiceBusSettlement.CompleteBlock((e, _) => e.CompleteAsync(_cancellation.Token),
             _logger, _cancellation.Token);
 
-        _defer = new RetryBlock<AzureServiceBusEnvelope>(async (envelope, _) =>
-        {
-            if (envelope is { IsCompleted: false } e)
-            {
-                await e.CompleteAsync(_cancellation.Token);
-            }
-
-            await requeue.SendAsync(envelope);
-        }, logger, _cancellation.Token);
+        // GH-5767: the copy is sent before the original is completed
+        _defer = new RetryBlock<AzureServiceBusEnvelope>(
+            (envelope, _) => AzureServiceBusRequeue.RequeueAsync(envelope, requeue, _cancellation.Token), logger,
+            _cancellation.Token);
 
         _deadLetter =
             new RetryBlock<AzureServiceBusEnvelope>(
