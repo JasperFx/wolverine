@@ -342,6 +342,13 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L44-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_local_partitioned_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: warning
+Under `MultipleHandlerBehavior.Separated`, a message type in a partitioned topology can only be handled by one
+handler type. Each handler type then gets its own handler chain and local queue, so the topology could not keep a
+group's messages in order across them, and Wolverine refuses that combination at startup. The default combined
+mode runs every handler of the message type in one chain on the topology's slot and is not affected.
+:::
+
 ## Grouping Rules Scoped to a Topology <Badge type="tip" text="6.41" />
 
 A partitioned topology can declare its own grouping rules with `GroupByTenantId()`, `GroupBy<T>()` or
