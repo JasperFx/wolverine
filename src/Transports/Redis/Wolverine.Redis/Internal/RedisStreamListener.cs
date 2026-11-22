@@ -371,44 +371,80 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
         await CompleteAsync(envelope);
     }
 
+    /// <summary>
+    ///     Puts a copy of the entry at the tail of the stream and then acknowledges the original. GH-5769: in
+    ///     that order, and a failure of either step is thrown to the caller, whose retry block retries the
+    ///     requeue. Acknowledging first lost the message whenever the <c>XADD</c> failed or the process exited
+    ///     in between, because an acknowledged entry is no longer pending and <c>XAUTOCLAIM</c> cannot recover
+    ///     it. Now a failed add leaves the original pending, and the worst case is a duplicate, not a loss.
+    /// </summary>
     public async ValueTask DeferAsync(Envelope envelope)
     {
-        try
-        {
-            var db = getDatabase();
+        var db = getDatabase();
+        var streamEnvelope = envelope as RedisStreamEnvelope;
 
-            // 1) Ack the current pending entry if we can
-            if (envelope.Headers.TryGetValue(RedisEnvelopeMapper.RedisEntryIdHeader, out var idString) && !string.IsNullOrEmpty(idString))
+        // A retry after a failed acknowledgement must not add a second copy
+        if (streamEnvelope is not { RequeueCopyAdded: true })
+        {
+            try
             {
-                try
+                _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
+                var fields = new List<NameValueEntry>();
+                _endpoint.EnvelopeMapper.MapEnvelopeToOutgoing(envelope, fields);
+                var newId = await db.StreamAddAsync(_endpoint.StreamKey, fields.ToArray());
+
+                if (streamEnvelope != null)
                 {
-                    await acknowledgeAsync(db, idString!);
+                    streamEnvelope.RequeueCopyAdded = true;
                 }
-                catch (Exception ackEx)
+
+                if (_logger.IsEnabled(LogLevel.Debug))
                 {
-                    logAckFailure(ackEx, envelope, "acknowledging before a requeue");
+                    _logger.LogDebug("Requeued envelope {EnvelopeId} to Redis stream {StreamKey} as new entry {NewId}",
+                        envelope.Id, _endpoint.StreamKey, newId);
                 }
             }
-
-            // 2) Re-add a copy to the tail of the stream
-            _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
-            var fields = new List<NameValueEntry>();
-            _endpoint.EnvelopeMapper.MapEnvelopeToOutgoing(envelope, fields);
-            var newId = await db.StreamAddAsync(_endpoint.StreamKey, fields.ToArray());
-
-            _logger.LogDebug("Requeued envelope {EnvelopeId} to Redis stream {StreamKey} as new entry {NewId}",
-                envelope.Id, _endpoint.StreamKey, newId);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to add the requeued copy of envelope {EnvelopeId} to Redis stream {StreamKey}; the original entry stays pending",
+                    envelope.Id, _endpoint.StreamKey);
+                throw;
+            }
         }
-        catch (Exception ex)
+
+        if (envelope.Headers.TryGetValue(RedisEnvelopeMapper.RedisEntryIdHeader, out var idString) && !string.IsNullOrEmpty(idString))
         {
-            _logger.LogError(ex, "Failed to requeue Redis stream message for envelope {EnvelopeId}", envelope.Id);
+            try
+            {
+                await acknowledgeAsync(db, idString!);
+            }
+            catch (Exception ackEx)
+            {
+                logAckFailure(ackEx, envelope, "acknowledging after a requeue");
+                throw;
+            }
         }
     }
 
+    /// <summary>
+    ///     GH-5769. <c>true</c> once the copy is on the stream, even if acknowledging the original then failed:
+    ///     the caller must not run the message itself as well, and the still-pending original costs at most a
+    ///     duplicate through <c>XAUTOCLAIM</c>. <c>false</c> when the copy could not be added, so the caller
+    ///     keeps the message while the original entry stays pending.
+    /// </summary>
     public async Task<bool> TryRequeueAsync(Envelope envelope)
     {
-        await DeferAsync(envelope);
-        return true;
+        try
+        {
+            await DeferAsync(envelope);
+            return true;
+        }
+        catch (Exception)
+        {
+            // DeferAsync already logged the failure
+            return envelope is RedisStreamEnvelope { RequeueCopyAdded: true };
+        }
     }
 
     private async Task EnsureGroupExistsAsync(IDatabase db)
