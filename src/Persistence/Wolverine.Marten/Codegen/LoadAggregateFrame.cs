@@ -25,18 +25,13 @@ internal class LoadAggregateFrame : Wolverine.Persistence.EventSourcing.Codegen.
 
     public void WriteCodeToEnlistInBatchQuery(GeneratedMethod method, ISourceWriter writer)
     {
-        // GH-4567: this used to emit batchQuery.Events.FetchForWriting<T, TNaturalKey>(...), which is
-        // precisely the overload IBatchedQuery does not have -- so had it ever run it would have emitted
-        // code that does not compile. It could not run: MartenBatchingPolicy is the only thing that enlists
-        // these frames and MartenBatchingPolicy.IsBatchable refuses natural-key loads for exactly that
-        // reason. Kept as a throw rather than deleted so that relaxing IsBatchable fails here, loudly and
-        // at codegen time, instead of producing an uncompilable generated type.
+        // GH-4567: IBatchedQuery has the natural key overloads, and resolves the key inside the batch, so
+        // a natural key load is one more item in the same round trip.
         if (_att.IsNaturalKey)
         {
-            throw new InvalidOperationException(
-                $"A natural-key aggregate load for {_att.AggregateType.FullNameInCode()} cannot be batched: " +
-                $"IBatchedQuery has no FetchForWriting<T, TNaturalKey> overload. " +
-                $"{nameof(MartenBatchingPolicy)}.IsBatchable is supposed to have excluded this frame.");
+            writeNullKeyCheck(writer);
+            writer.WriteLine($"var {_batchQueryItem!.Usage} = {naturalKeyFetchForWriting(_batchQuery!.Usage)};");
+            return;
         }
 
         if (_att.LoadStyle == CoreConcurrencyStyle.Exclusive)

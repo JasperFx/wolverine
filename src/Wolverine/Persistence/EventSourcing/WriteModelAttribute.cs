@@ -96,6 +96,19 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
     /// </summary>
     public string? VersionSource { get; set; }
 
+    /// <summary>
+    ///     Load the model by this natural key type rather than by its stream id: the model's own natural key,
+    ///     or one it maps from another projection. The key is found as a member, route value or other value of
+    ///     that type (or <c>TKey?</c> for a struct key) by the name given to the attribute, <c>[Identity]</c>,
+    ///     the naming conventions, or the only member of that type. <c>[WriteModel&lt;TKey&gt;]</c> and
+    ///     <c>[WriteAggregate&lt;TKey&gt;]</c> set this.
+    /// </summary>
+    /// <remarks>
+    ///     Without it, a natural key is only tried after the stream id lookup finds nothing, which never happens
+    ///     for an HTTP route or query string value: those parse into a stream id of any type.
+    /// </remarks>
+    public Type? NaturalKey { get; set; }
+
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "Handler/command/model types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container,
@@ -132,30 +145,44 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
         // store rather than the default one.
         var idType = ((IPersistenceFrameProvider)provider).DetermineSagaIdType(aggregateType, chain, container);
 
-        // If a specific ValueSource has been set (e.g. via FromMethod, FromRoute, FromHeader, FromClaim),
-        // use the base class identity resolution which respects that ValueSource
         Variable? identity = null;
-        if (ValueSource != ValueSource.InputMember && ArgumentName.IsNotEmpty())
-        {
-            tryFindIdentityVariable(chain, parameter, idType, out identity);
-        }
-
-        // Fall back to WriteModel's standard identity resolution
-        identity ??= FindIdentity(aggregateType, idType, chain);
         var isNaturalKey = false;
+
+        if (NaturalKey != null)
+        {
+            // Named explicitly, so the stream id is never considered
+            var (name, source) = ArgumentName.IsNotEmpty()
+                ? (ArgumentName, ValueSource)
+                : (RouteOrParameterName, ValueSource.Anything);
+
+            identity = NaturalKeyIdentity.FindByKeyType(provider, aggregateType, NaturalKey, chain, container,
+                name, source);
+            isNaturalKey = true;
+        }
+        else
+        {
+            NaturalKeyIdentity.AssertIdentityIsNotANaturalKey(provider, aggregateType, idType, chain, container);
+
+            // If a specific ValueSource has been set (e.g. via FromMethod, FromRoute, FromHeader, FromClaim),
+            // use the base class identity resolution which respects that ValueSource
+            if (ValueSource != ValueSource.InputMember && ArgumentName.IsNotEmpty())
+            {
+                tryFindIdentityVariable(chain, parameter, idType, out identity);
+            }
+
+            // Fall back to WriteModel's standard identity resolution
+            identity ??= FindIdentity(aggregateType, idType, chain);
+        }
 
         // If standard identity resolution failed, check for natural key support
         if (identity == null)
         {
-            // GH-4439: the chain goes over the seam because natural keys are registered per store. Without it
-            // the store side can only ask the default store, and an aggregate registered on an ancillary store
-            // never takes this branch.
-            var naturalKeyType = provider.TryDetermineNaturalKeyType(aggregateType, chain, container);
-            if (naturalKeyType != null)
-            {
-                identity = FindIdentity(aggregateType, naturalKeyType, chain);
-                if (identity != null) isNaturalKey = true;
-            }
+            // A copy for the lambda: capturing aggregateType itself would hoist it into a closure, which the
+            // trim analysis cannot follow through to its earlier uses
+            var keyedAggregateType = aggregateType;
+            identity = NaturalKeyIdentity.Find(provider, aggregateType, chain, container,
+                keyType => FindIdentity(keyedAggregateType, keyType, chain));
+            isNaturalKey = identity != null;
         }
 
         if (identity == null)
@@ -380,5 +407,27 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
 
         property = null;
         return false;
+    }
+}
+
+/// <summary>
+///     <see cref="WriteModelAttribute" /> loading the model by its <typeparamref name="TNaturalKey" /> natural
+///     key. Equivalent to <c>[WriteModel(NaturalKey = typeof(TNaturalKey))]</c>.
+/// </summary>
+/// <typeparam name="TNaturalKey">
+///     The model's own natural key type, or one it maps from another projection. Never <c>TKey?</c>: a
+///     <c>TKey?</c> member is still matched to <c>TKey</c>.
+/// </typeparam>
+[AttributeUsage(AttributeTargets.Parameter)]
+public class WriteModelAttribute<TNaturalKey> : WriteModelAttribute where TNaturalKey : notnull
+{
+    public WriteModelAttribute()
+    {
+        NaturalKey = typeof(TNaturalKey);
+    }
+
+    public WriteModelAttribute(string? routeOrParameterName) : base(routeOrParameterName)
+    {
+        NaturalKey = typeof(TNaturalKey);
     }
 }

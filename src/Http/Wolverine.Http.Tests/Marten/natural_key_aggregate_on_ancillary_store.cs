@@ -68,12 +68,33 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
             opts.Events.DatabaseSchemaName = "nk_http_things";
             opts.DisableNpgsqlLogging = true;
             opts.Projections.Snapshot<NkThing>(SnapshotLifecycle.Inline);
+            // Every host scanning the endpoint assembly builds the NkGadget endpoints too
+            opts.Projections.Snapshot<NkGadget>(SnapshotLifecycle.Inline);
+            opts.Projections.Snapshot<NkBin>(SnapshotLifecycle.Inline);
+            opts.Projections.Snapshot<NkPart>(SnapshotLifecycle.Inline);
+            opts.Projections.Snapshot<NkGadgetView>(SnapshotLifecycle.Async);
+        }).IntegrateWithWolverine();
+
+        // The string-identity natural-key endpoints in the endpoint assembly need this store
+        builder.Services.AddMartenStore<INkStringStore>(m =>
+        {
+            m.Connection(Servers.PostgresConnectionString);
+            m.DatabaseSchemaName = "nk_http_strings";
+            m.Events.DatabaseSchemaName = "nk_http_strings";
+            m.Events.StreamIdentity = JasperFx.Events.StreamIdentity.AsString;
+            m.DisableNpgsqlLogging = true;
+            m.Projections.Snapshot<NkStringGadget>(SnapshotLifecycle.Inline);
         }).IntegrateWithWolverine();
 
         builder.Services.AddResourceSetupOnStartup();
         builder.Services.AddWolverineHttp();
 
-        theHost = await AlbaHost.For(builder, app => { app.MapWolverineEndpoints(); });
+        theHost = await AlbaHost.For(builder, app =>
+        {
+            // A second stream claiming an existing natural key is a 409. Every chain, because the default
+            // filter (IsTransactional) is evaluated before AutoApplyTransactions marks a plain session endpoint.
+            app.MapWolverineEndpoints(opts => opts.MapConcurrencyFailuresToConflict(_ => true));
+        });
     }
 
     public async ValueTask DisposeAsync()
@@ -139,5 +160,431 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
         var thing = await load(streamId);
         thing.ShouldNotBeNull();
         thing.IsArchived.ShouldBeTrue();
+    }
+
+    private async Task<(Guid StreamId, GadgetCode Code)> seedGadget(string name)
+    {
+        var streamId = Guid.NewGuid();
+        var code = new GadgetCode("G-" + Guid.NewGuid().ToString("N"));
+
+        var store = theHost.Services.GetRequiredService<INkThingStore>();
+        await using var session = store.LightweightSession();
+        session.Events.StartStream<NkGadget>(streamId, new NkGadgetCreated(code, name));
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        return (streamId, code);
+    }
+
+    private async Task<NkGadget?> loadGadget(Guid streamId)
+    {
+        var store = theHost.Services.GetRequiredService<INkThingStore>();
+        await using var session = store.LightweightSession();
+        return await session.LoadAsync<NkGadget>(streamId, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task write_aggregate_by_a_natural_key_in_the_route()
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("Renamed")).ToUrl($"/nkgadgets/{code.Value}/rename");
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("Renamed");
+    }
+
+    [Fact]
+    public async Task write_aggregate_by_a_natural_key_in_the_query_string()
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("By query")).ToUrl("/nkgadgets-by-query/rename").QueryString("code", code.Value);
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("By query");
+    }
+
+    [Fact]
+    public async Task an_unknown_natural_key_in_the_route_is_a_404()
+    {
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("Nobody")).ToUrl("/nkgadgets/G-NONE/rename");
+            s.StatusCodeShouldBe(404);
+        });
+
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url("/nkgadgets/G-NONE");
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task read_aggregate_by_a_natural_key_in_the_route()
+    {
+        var (streamId, code) = await seedGadget("Readable");
+
+        var gadget = await theHost.GetAsJson<NkGadget>($"/nkgadgets/{code.Value}");
+        gadget!.Id.ShouldBe(streamId);
+        gadget.Name.ShouldBe("Readable");
+    }
+
+    [Fact]
+    public async Task a_duplicate_natural_key_is_a_409()
+    {
+        var (_, code) = await seedGadget("First");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new CreateNkGadget(code.Value, "Second")).ToUrl("/nkgadgets");
+            s.StatusCodeShouldBe(409);
+        });
+    }
+
+    private async Task<Guid> seed<T>(object @event) where T : class
+    {
+        var streamId = Guid.NewGuid();
+
+        var store = theHost.Services.GetRequiredService<INkThingStore>();
+        await using var session = store.LightweightSession();
+        session.Events.StartStream<T>(streamId, @event);
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        return streamId;
+    }
+
+    private async Task<T?> load<T>(Guid streamId) where T : class
+    {
+        var store = theHost.Services.GetRequiredService<INkThingStore>();
+        await using var session = store.LightweightSession();
+        return await session.LoadAsync<T>(streamId, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task write_and_read_by_a_key_wrapping_an_int_in_the_route()
+    {
+        var number = new BinNumber(Random.Shared.Next(1, int.MaxValue));
+        var streamId = await seed<NkBin>(new NkBinCreated(number, "Original"));
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RelabelNkBin("Relabelled")).ToUrl($"/nkbins/{number.Value}/relabel");
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await load<NkBin>(streamId))!.Label.ShouldBe("Relabelled");
+
+        var bin = await theHost.GetAsJson<NkBin>($"/nkbins/{number.Value}");
+        bin!.Id.ShouldBe(streamId);
+
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url("/nkbins/not-a-number");
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task without_the_key_type_a_route_value_is_the_stream_id()
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("Nobody")).ToUrl($"/nkgadgets-untyped/{code.Value}/rename");
+            s.StatusCodeShouldBe(404);
+        });
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("By stream id")).ToUrl($"/nkgadgets-untyped/{streamId}/rename");
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("By stream id");
+    }
+
+    [Fact]
+    public async Task read_by_a_class_key_with_its_own_try_parse_in_the_route()
+    {
+        var code = new PartCode("P-" + Guid.NewGuid().ToString("N"));
+        var streamId = await seed<NkPart>(new NkPartAdded(code, "Bolt"));
+
+        var part = await theHost.GetAsJson<NkPart>($"/nkparts/{code.Value}");
+        part!.Id.ShouldBe(streamId);
+        part.Description.ShouldBe("Bolt");
+
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url("/nkparts/P-NONE");
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task write_by_a_class_key_in_the_request_body()
+    {
+        var code = new PartCode("P-" + Guid.NewGuid().ToString("N"));
+        var streamId = await seed<NkPart>(new NkPartAdded(code, "Bolt"));
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new DescribeNkPart(code, "Hex bolt")).ToUrl("/nkparts/describe");
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await load<NkPart>(streamId))!.Description.ShouldBe("Hex bolt");
+    }
+
+    [Fact]
+    public async Task write_by_a_nullable_key_in_the_request_body()
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadgetByBody(code, "By body")).ToUrl("/nkgadgets-by-body/rename");
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("By body");
+    }
+
+    [Fact]
+    public async Task write_by_a_query_string_value_without_the_key_type()
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("Untyped")).ToUrl("/nkgadgets-by-query-untyped/rename").QueryString("code", code.Value);
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("Untyped");
+    }
+
+    [Fact]
+    public async Task an_optional_read_by_a_query_string_value()
+    {
+        var (_, code) = await seedGadget("Optional");
+
+        var found = await theHost.GetAsJson<GadgetLookup>($"/nkgadgets-by-optional-query?code={code.Value}");
+        found.ShouldBe(new GadgetLookup(true, "Optional"));
+
+        var unknown = await theHost.GetAsJson<GadgetLookup>("/nkgadgets-by-optional-query?code=G-NONE");
+        unknown.ShouldBe(new GadgetLookup(false, null));
+
+        var missing = await theHost.GetAsJson<GadgetLookup>("/nkgadgets-by-optional-query");
+        missing.ShouldBe(new GadgetLookup(false, null));
+    }
+
+    [Fact]
+    public async Task a_required_read_by_a_nullable_query_string_value()
+    {
+        var (streamId, code) = await seedGadget("Required");
+
+        var gadget = await theHost.GetAsJson<NkGadget>($"/nkgadgets-by-nullable-query?code={code.Value}");
+        gadget!.Id.ShouldBe(streamId);
+
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url("/nkgadgets-by-nullable-query");
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task a_write_by_a_nullable_query_string_value()
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("By nullable query")).ToUrl("/nkgadgets-by-nullable-query/rename").QueryString("code", code.Value);
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("By nullable query");
+    }
+
+    [Theory]
+    [InlineData("/nkgadgets-by-stream-id-query/rename")]
+    [InlineData("/nkstring-gadgets-by-stream-key-query/rename")]
+    [InlineData("/nkgadgets-by-query/rename")]
+    [InlineData("/nkgadgets-by-nullable-query/rename")]
+    public async Task a_write_with_the_query_string_value_missing_is_refused_as_for_a_stream_id(string url)
+    {
+        // The first two are a stream id and a stream key, which Marten refuses when empty or null. A natural
+        // key is refused the same way: as a TKey? by the generated code, and as a struct wrapping a null
+        // string, which is what a missing value binds to, by Marten.
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("Nobody")).ToUrl(url);
+        }));
+    }
+
+    // ---------- every attribute over HTTP (NkHttpAttributeEndpoints) ----------
+
+    [Theory]
+    [InlineData("/nkhttp/write-model/{0}")]
+    [InlineData("/nkhttp/aggregate/{0}")]
+    [InlineData("/nkhttp/consistent/{0}")]
+    [InlineData("/nkhttp/as-parameters/{0}/rename")]
+    [InlineData("/nkhttp/exclusive/{0}/rename")]
+    public async Task a_write_by_a_natural_key_in_the_route(string route)
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("By route")).ToUrl(string.Format(route, code.Value));
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("By route");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("Nobody")).ToUrl(string.Format(route, "G-NONE"));
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Theory]
+    [InlineData("/nkhttp/write-model-by-body")]
+    [InlineData("/nkhttp/aggregate-by-body")]
+    public async Task a_write_by_a_natural_key_in_the_request_body(string url)
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadgetByCode(code, "By body")).ToUrl(url);
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("By body");
+    }
+
+    [Theory]
+    [InlineData("/nkhttp/read-model/{0}")]
+    [InlineData("/nkhttp/read-model-by-query?code={0}")]
+    [InlineData("/nkhttp/read-aggregate-by-query?code={0}")]
+    public async Task a_read_by_a_natural_key(string url)
+    {
+        var (streamId, code) = await seedGadget("Readable");
+
+        var gadget = await theHost.GetAsJson<NkGadget>(string.Format(url, code.Value));
+        gadget!.Id.ShouldBe(streamId);
+        gadget.Name.ShouldBe("Readable");
+
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url(string.Format(url, "G-NONE"));
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task an_async_view_by_its_mapped_key()
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("Viewed")).ToUrl($"/nkhttp/view/{code.Value}/rename");
+            s.StatusCodeShouldBe(204);
+        });
+
+        // The view is Async with no daemon running: read at its current state through the gadget's lookup
+        var view = await theHost.GetAsJson<NkGadgetView>($"/nkhttp/view/{code.Value}");
+        view!.Id.ShouldBe(streamId);
+        view.Name.ShouldBe("Viewed");
+
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url("/nkhttp/view/G-NONE");
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task a_write_by_a_natural_key_checks_the_version()
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadgetAtVersion("At 1", 1)).ToUrl($"/nkhttp/versioned/{code.Value}/rename");
+            s.StatusCodeShouldBe(204);
+        });
+
+        // Now at version 2, so 1 is stale: a concurrency failure, which this host maps to a 409
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadgetAtVersion("Stale", 1)).ToUrl($"/nkhttp/versioned/{code.Value}/rename");
+            s.StatusCodeShouldBe(409);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("At 1");
+    }
+
+    [Fact]
+    public async Task two_loads_by_natural_key_in_one_endpoint()
+    {
+        var (_, code) = await seedGadget("Paired");
+        var number = new BinNumber(Random.Shared.Next(1, int.MaxValue));
+        await seed<NkBin>(new NkBinCreated(number, "Shelf"));
+
+        var both = await theHost.GetAsJson<GadgetAndBin>($"/nkhttp/gadget/{code.Value}/bin/{number.Value}");
+        both.ShouldBe(new GadgetAndBin("Paired", number.Value));
+    }
+
+    private async Task<NkStringGadget?> loadStringGadget(string streamKey)
+    {
+        var store = theHost.Services.GetRequiredService<INkStringStore>();
+        await using var session = store.LightweightSession();
+        return await session.LoadAsync<NkStringGadget>(streamKey, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task write_and_read_by_a_natural_key_in_the_route_on_a_string_identity_store()
+    {
+        // Without the key type the route value would be the stream key, which any string parses into
+        var streamKey = "stream-" + Guid.NewGuid().ToString("N");
+        var code = new GadgetCode("G-" + Guid.NewGuid().ToString("N"));
+
+        var store = theHost.Services.GetRequiredService<INkStringStore>();
+        await using (var session = store.LightweightSession())
+        {
+            session.Events.StartStream<NkStringGadget>(streamKey, new NkStringGadgetCreated(code, "Original"));
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkStringGadget("Renamed")).ToUrl($"/nkstring-gadgets/{code.Value}/rename");
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadStringGadget(streamKey))!.Name.ShouldBe("Renamed");
+
+        var gadget = await theHost.GetAsJson<NkStringGadget>($"/nkstring-gadgets/{code.Value}");
+        gadget!.Id.ShouldBe(streamKey);
+
+        // The stream key is not the natural key
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url($"/nkstring-gadgets/{streamKey}");
+            s.StatusCodeShouldBe(404);
+        });
     }
 }

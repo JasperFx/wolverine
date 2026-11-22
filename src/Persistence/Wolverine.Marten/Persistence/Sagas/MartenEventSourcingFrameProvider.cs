@@ -43,6 +43,9 @@ internal partial class MartenPersistenceFrameProvider : IEventSourcingFrameProvi
     public Frame BuildFetchLatestFrame(Type aggregateType, Variable identity)
         => new FetchLatestAggregateFrame(aggregateType, identity);
 
+    public Frame BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey)
+        => new FetchLatestAggregateFrame(aggregateType, naturalKey, true);
+
     public Frame BuildLoadBoundaryFrame(Type modelType) => new LoadBoundaryFrame(modelType);
 
     public StreamIdentity DetermineStreamIdentity(IServiceContainer container)
@@ -62,6 +65,18 @@ internal partial class MartenPersistenceFrameProvider : IEventSourcingFrameProvi
         if (resolveStoreOptions(chain, container) is not { } storeOptions) return null;
 
         return storeOptions.Projections.FindNaturalKeyDefinition(aggregateType)?.OuterType;
+    }
+
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "The aggregate type comes from handler discovery, which already roots it. Codegen-time only. See docs/guide/aot.md.")]
+    public IReadOnlyList<Type> DetermineMappedNaturalKeyTypes(Type aggregateType, IChain chain,
+        IServiceContainer container)
+    {
+        if (resolveStoreOptions(chain, container) is not { } storeOptions) return [];
+
+        return storeOptions.Projections.TryFindAggregate(aggregateType, out var projection)
+            ? projection.MappedNaturalKeyDefinitions.Select(x => x.OuterType).ToArray()
+            : [];
     }
 
     /// <summary>

@@ -16,7 +16,15 @@ internal class FetchLatestAggregateFrame : Wolverine.Persistence.EventSourcing.C
     private Variable? _batchQueryItem;
 
     public FetchLatestAggregateFrame(Type aggregateType, Variable identity)
-        : base(aggregateType, identity, typeof(IDocumentSession))
+        : this(aggregateType, identity, false)
+    {
+    }
+
+    /// <param name="isNaturalKey">
+    /// The identity is one of the aggregate's natural keys, fetched as is with <c>FetchLatest&lt;T, TKey&gt;</c>.
+    /// </param>
+    public FetchLatestAggregateFrame(Type aggregateType, Variable identity, bool isNaturalKey)
+        : base(aggregateType, identity, typeof(IDocumentSession), isNaturalKey)
     {
     }
 
@@ -25,8 +33,10 @@ internal class FetchLatestAggregateFrame : Wolverine.Persistence.EventSourcing.C
         if (_batchQueryItem == null)
             throw new InvalidOperationException("This frame has not been enlisted in a MartenBatchFrame");
 
-        writer.Write(
-            $"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Events.{nameof(IBatchEvents.FetchLatest)}<{Aggregate.VariableType.FullNameInCode()}>({_identity.Usage});");
+        var fetch = $"{_batchQuery!.Usage}.Events.{nameof(IBatchEvents.FetchLatest)}<{_typeArguments}>({argumentUsage})";
+        writer.Write(_naturalKey is { CanBeNull: true }
+            ? $"var {_batchQueryItem.Usage} = {_naturalKey.IsNullCheck} ? System.Threading.Tasks.Task.FromResult<{Aggregate.VariableType.FullNameInCode()}>(null) : {fetch};"
+            : $"var {_batchQueryItem.Usage} = {fetch};");
     }
 
     public void EnlistInBatchQuery(Variable batchQuery)

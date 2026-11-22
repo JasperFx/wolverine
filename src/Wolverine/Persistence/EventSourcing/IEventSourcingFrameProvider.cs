@@ -82,6 +82,15 @@ public interface IEventSourcingFrameProvider
     Frame BuildFetchLatestFrame(Type aggregateType, Variable identity);
 
     /// <summary>
+    /// The <see cref="BuildFetchLatestFrame"/> counterpart for an aggregate found by one of its natural keys,
+    /// owned or mapped: <paramref name="naturalKey"/> is the key itself, of the key's type or its nullable form,
+    /// never unwrapped. Must create exactly one variable of the aggregate type. Null for a store that cannot fetch
+    /// the latest state by natural key, in which case <c>[ReadModel]</c> reports that it could not determine an
+    /// identity.
+    /// </summary>
+    Frame? BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey);
+
+    /// <summary>
     /// Build the frame that opens a Dynamic Consistency Boundary for writing — the store's
     /// <c>FetchForWritingByTags&lt;T&gt;</c> call, which reads the <see cref="EventTagQuery"/> the handler's
     /// <c>Load()</c>/<c>Before()</c> method produced. Must create exactly one variable of type
@@ -168,6 +177,19 @@ public interface IEventSourcingFrameProvider
     /// directly, which is still null at this point on an HTTP chain.
     /// </remarks>
     Type? TryDetermineNaturalKeyType(Type aggregateType, IChain chain, IServiceContainer container) => null;
+
+    /// <summary>
+    /// The types of the aggregate's <b>mapped</b> natural keys: keys whose lookup another projection owns,
+    /// declared with <c>[MappedNaturalKey&lt;T&gt;]</c> or <c>[NaturalKey(SourceProjection = ...)]</c>. The
+    /// aggregate's owned key is <see cref="TryDetermineNaturalKeyType"/>'s, and is not repeated here. Empty for a
+    /// store without mapped keys.
+    /// </summary>
+    /// <remarks>
+    /// Resolve the store the same way as <see cref="TryDetermineNaturalKeyType"/> (GH-4439). Every type is the
+    /// key's own type, never <c>Nullable&lt;T&gt;</c>; the workflow also matches a <c>T?</c> command member.
+    /// </remarks>
+    IReadOnlyList<Type> DetermineMappedNaturalKeyTypes(Type aggregateType, IChain chain,
+        IServiceContainer container);
 }
 
 internal static class EventSourcingFrameProviderExtensions

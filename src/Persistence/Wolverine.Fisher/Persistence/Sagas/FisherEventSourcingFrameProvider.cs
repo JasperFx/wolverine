@@ -46,6 +46,14 @@ internal partial class FisherPersistenceFrameProvider : IEventSourcingFrameProvi
     public Frame BuildFetchLatestFrame(Type aggregateType, Variable identity)
         => new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestAggregateFrame(aggregateType, identity, typeof(IDocumentSession));
 
+    // The Fisher integration has no natural key read and no mapped keys
+    public Frame? BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey)
+        => null;
+
+    public IReadOnlyList<Type> DetermineMappedNaturalKeyTypes(Type aggregateType, IChain chain,
+        IServiceContainer container)
+        => [];
+
     public Frame BuildLoadBoundaryFrame(Type modelType) => new LoadBoundaryFrame(modelType);
 
     public StreamIdentity DetermineStreamIdentity(IServiceContainer container)

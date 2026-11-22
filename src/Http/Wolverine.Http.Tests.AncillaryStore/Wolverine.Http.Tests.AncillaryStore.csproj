@@ -16,6 +16,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj" />
     </ItemGroup>
 
 </Project>

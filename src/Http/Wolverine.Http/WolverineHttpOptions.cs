@@ -671,7 +671,9 @@ public class WolverineHttpOptions
     /// <c>EventStreamUnexpectedMaxEventIdException</c>, document revision/version violations,
     /// <c>DcbConcurrencyException</c>, <c>SagaConcurrencyException</c> and
     /// <see cref="JasperFx.Events.StreamLockedException"/>, which <c>FetchForExclusiveWriting</c> throws on a
-    /// contended stream (a <see cref="JasperFx.ConcurrencyException"/> since JasperFx 3.0).
+    /// contended stream (a <see cref="JasperFx.ConcurrencyException"/> since JasperFx 3.0). Also
+    /// <see cref="JasperFx.Events.DuplicateNaturalKeyException"/>, a second stream claiming a natural key that
+    /// another stream already has.
     /// </para>
     ///
     /// <para>
