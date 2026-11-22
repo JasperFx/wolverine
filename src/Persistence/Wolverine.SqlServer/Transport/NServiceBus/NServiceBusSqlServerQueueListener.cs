@@ -15,6 +15,8 @@ internal class NServiceBusSqlServerQueueListener : DatabaseListener
     private readonly NServiceBusSqlServerEnvelopeMapper _mapper;
     private readonly NServiceBusSqlServerQueueSender _sender;
     private readonly string _receiveSql;
+    private readonly TimeSpan _reinsertBudget;
+    private readonly CancellationToken _hostCancellation;
 
     public NServiceBusSqlServerQueueListener(NServiceBusSqlServerQueue queue, IWolverineRuntime runtime,
         IReceiver receiver)
@@ -26,6 +28,8 @@ internal class NServiceBusSqlServerQueueListener : DatabaseListener
         _connectionString = queue.Parent.Settings.ConnectionString!;
         _mapper = queue.BuildMapper(runtime);
         _sender = new NServiceBusSqlServerQueueSender(queue, runtime);
+        _reinsertBudget = runtime.DurabilitySettings.DrainTimeout;
+        _hostCancellation = runtime.Cancellation;
 
         // Destructive competing-consumer pop honoring NServiceBus FIFO-by-RowVersion ordering.
         _receiveSql = $@"
@@ -47,8 +51,21 @@ OUTPUT deleted.Id, deleted.Headers, deleted.Body;";
 
     public override async ValueTask DeferAsync(Envelope envelope)
     {
-        // Re-expose the message by writing it back to the NServiceBus queue table.
-        await _sender.SendAsync(envelope);
+        // Re-expose the message by writing it back to the NServiceBus queue table. The pop already deleted the
+        // row, so this copy is the only one there will be: retry it, and fail loudly if it never goes in
+        // (GH-5775). The copy goes to the back of the queue: RowVersion is an IDENTITY column and cannot be
+        // written back without IDENTITY_INSERT, which needs ALTER permission on the table.
+        var sqlServerEnvelope = envelope as NServiceBusSqlServerEnvelope;
+
+        await reinsertWithRetriesAsync(envelope, attempt =>
+        {
+            // Any attempt after the first one (in this deferral or an earlier one of the same envelope) may
+            // follow an insert that committed while reporting a failure
+            var retry = attempt > 1 || sqlServerEnvelope is { ReinsertAttempted: true };
+            if (sqlServerEnvelope != null) sqlServerEnvelope.ReinsertAttempted = true;
+
+            return _sender.ReinsertAsync(envelope, retry);
+        }, _reinsertBudget, _hostCancellation);
     }
 
     protected override async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, CancellationToken token)

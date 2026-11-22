@@ -496,14 +496,29 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
 
     public ISender BuildSender(RabbitMqEndpoint endpoint, RoutingMode routingType, IWolverineRuntime runtime)
     {
-        var rabbitMqSender = new RabbitMqSender(endpoint, this, routingType, runtime);
+        return buildSender(endpoint, routingType, runtime, false);
+    }
+
+    /// <summary>
+    /// GH-5781. A sender whose every publish is confirmed by the broker (and mandatory for a queue), on channels of its
+    /// own. Requeue copies go through it so the original delivery is never acked ahead of a copy the broker dropped.
+    /// </summary>
+    internal ISender BuildConfirmedSender(RabbitMqEndpoint endpoint, RoutingMode routingType, IWolverineRuntime runtime)
+    {
+        return buildSender(endpoint, routingType, runtime, true);
+    }
+
+    private ISender buildSender(RabbitMqEndpoint endpoint, RoutingMode routingType, IWolverineRuntime runtime,
+        bool confirmEveryPublish)
+    {
+        var rabbitMqSender = new RabbitMqSender(endpoint, this, routingType, runtime, confirmEveryPublish);
         
         if (Tenants.Any() && endpoint.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             var tenantedSender = new TenantedSender(endpoint.Uri, TenantedIdBehavior, rabbitMqSender);
             foreach (var tenant in Tenants)
             {
-                var sender = new RabbitMqSender(endpoint, tenant.Transport, routingType, runtime);
+                var sender = new RabbitMqSender(endpoint, tenant.Transport, routingType, runtime, confirmEveryPublish);
                 tenantedSender.RegisterSender(tenant.TenantId, sender);
             }
 
