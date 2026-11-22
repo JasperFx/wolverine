@@ -66,6 +66,14 @@ public class NServiceBusSqlServerTransport : BrokerTransport<NServiceBusSqlServe
     }
 
     /// <summary>
+    ///     GH-5821. SQL Server's default collations are case-insensitive, so the NServiceBus queue tables <c>Sales</c>
+    ///     and <c>sales</c> are one table, and Wolverine treating the two names as one endpoint is right. Wolverine
+    ///     cannot see the database's collation from here; with a case-sensitive one, give the queues names that differ
+    ///     by more than case.
+    /// </summary>
+    public override bool EndpointNamesAreCaseSensitive => false;
+
+    /// <summary>
     ///     GH-5814. Resolves a queue by the name its Uri was built from, with its case. <c>Uri.Host</c> is lowercased
     ///     by <see cref="System.Uri" />, so on a database with a case-sensitive collation a reply to an NServiceBus
     ///     endpoint called <c>Sales.Endpoint</c> used to go to a <c>sales.endpoint</c> table.

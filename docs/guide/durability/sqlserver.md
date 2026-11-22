@@ -692,8 +692,9 @@ a second copy, and an insert that still fails is logged as a `DatabaseQueueReins
 id. The copy goes to the back of the queue, since the `RowVersion` column it is ordered by is an identity column.
 
 Queue names keep their case, so a reply to a mixed-case NServiceBus endpoint such as `Sales.Endpoint` goes to that
-table even on a database with a case-sensitive collation. Wolverine's endpoint addresses (`Uri`s) do not distinguish
-case, so two queues whose names differ only in case should not be used side by side from one Wolverine application.
+table even on a database with a case-sensitive collation. Under SQL Server's default case-insensitive collations two
+names that differ only in case are one table, so Wolverine allows such a pair; with a case-sensitive collation, give
+the queues names that differ by more than case.
 
 ### Multi-Tenancy
 

@@ -219,6 +219,8 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
     /// </summary>
     public const int MaximumQueueNameLength = 80;
 
+    private const string FifoSuffix = ".fifo";
+
     /// <summary>
     /// Coerce an identifier into something Amazon SQS will actually accept: "Can only include
     /// alphanumeric characters, hyphens, or underscores. 1 to 80 in length".
@@ -235,14 +237,14 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
     /// </summary>
     public static string SanitizeSqsName(string identifier)
     {
-        //AWS requires FIFO queues to have a `.fifo` suffix
-        var suffixIndex = identifier.LastIndexOf(".fifo", StringComparison.OrdinalIgnoreCase);
-
+        //AWS requires FIFO queues to have a `.fifo` suffix. Only a TRAILING `.fifo` is that suffix
+        // (GH-5774); one anywhere else in the name, like My.App.FifoOrderPlaced, is sanitized as usual
         var suffix = string.Empty;
         var name = identifier;
 
-        if (suffixIndex != -1) // ".fifo" suffix found
+        if (identifier.EndsWith(FifoSuffix, StringComparison.OrdinalIgnoreCase))
         {
+            var suffixIndex = identifier.Length - FifoSuffix.Length;
             suffix = identifier[suffixIndex..];
             name = identifier[..suffixIndex];
         }

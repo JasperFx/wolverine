@@ -269,6 +269,12 @@ internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvide
 
     public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
     {
+        // GH-5658: the loaded revision + 1, captured by LoadDocumentFrame
+        if (saga.VariableType.CanBeCastTo<IRevisioned>())
+        {
+            return new UpdateSagaRevisionFrame(saga);
+        }
+
         return new DocumentSessionOperationFrame(saga, nameof(IDocumentSession.Update));
     }
 

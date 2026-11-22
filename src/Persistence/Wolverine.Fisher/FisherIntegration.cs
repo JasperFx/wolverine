@@ -229,6 +229,7 @@ internal class FisherOverrides : IConfigureFisher
         // Fisher's DocumentMapping automatically detects IRevisioned types
         // and enables numeric revisions. Wolverine's Saga type uses Version property
         // which is handled by the saga persistence framework.
+        FisherRevisionedSagas.Configure(options);
 
         // Replace Fisher's default NulloMessageOutbox with the Wolverine bridge so
         // projection authors who call `slice.PublishMessage(...)` from a Fisher

@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using Wolverine.Configuration;
 
 namespace Wolverine.RDBMS.Transport;
 
@@ -50,21 +51,7 @@ internal static class CaseSensitiveQueueLookup
             return Uri.UnescapeDataString(uri.AbsolutePath[1..]);
         }
 
-        var original = uri.OriginalString;
-        var start = original.IndexOf("://", StringComparison.Ordinal);
-        if (start >= 0)
-        {
-            start += 3;
-            var end = original.IndexOfAny(['/', '?', '#'], start);
-            var authority = end < 0 ? original[start..] : original[start..end];
-
-            // Only when it is the same host apart from case, so a Uri that System.Uri rewrote is read as it reads it
-            if (string.Equals(authority, uri.Host, StringComparison.OrdinalIgnoreCase))
-            {
-                return authority;
-            }
-        }
-
-        return uri.Host;
+        // GH-5821's reading of the host as it was written, with its case
+        return EndpointNameCollisions.OriginalHost(uri);
     }
 }

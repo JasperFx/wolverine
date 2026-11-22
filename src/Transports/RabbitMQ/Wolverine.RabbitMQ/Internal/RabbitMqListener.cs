@@ -520,9 +520,17 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     /// GH-5123. Publish a deferred delivery's copy back to this queue, without settling the original. See
     /// <see cref="RabbitMqEnvelope.DeferAsync" /> for why the copy has to land before the original is acked.
     /// </summary>
+    /// <remarks>
+    /// GH-5781. The copy goes through the queue's confirmed sender, not the ordinary one. With publisher confirms off
+    /// (the default) an ordinary publish returns once the frame is written, so a copy the broker refused, could not
+    /// route, or never received because the sending connection dropped looked published, and the original was acked
+    /// with no copy anywhere. This publish only returns once the broker has confirmed the copy, and throws otherwise,
+    /// which leaves the original unacked for the caller's retry or for the broker to redeliver.
+    /// </remarks>
     internal ValueTask PublishDeferredCopyAsync(RabbitMqEnvelope envelope)
     {
-        return _sender.Value.SendAsync(envelope);
+        // Resolved on every requeue rather than cached here, so a sender disposed underneath us is rebuilt (GH-3955)
+        return Queue.ResolveConfirmedSender(_runtime).SendAsync(envelope);
     }
 
     public Task CompleteAsync(RabbitMqEnvelope envelope)

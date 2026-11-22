@@ -265,6 +265,20 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L242-L256' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: warning
+Without system queues there is no response queue and no retry queue, and that has consequences:
+
+* **No request/reply through Azure Service Bus.** `InvokeAsync<T>()` and `SendAndWaitAsync()` against an Azure Service
+  Bus endpoint need the per-node response queue for the reply (or acknowledgement) to come back to.
+* **A requeue or native scheduled retry from a topic subscription fans out.** That copy normally goes to the
+  `wolverine.retries.[service name]` queue. Without it, Wolverine publishes the copy to the subscription's *topic*, so
+  every subscription on that topic, including other services' subscriptions, receives the message again. Wolverine logs a
+  warning at startup for each subscription listener in this situation. Call `AssertSubscriptionRequeuesDoNotFanOut()`
+  on the Azure Service Bus configuration to make it a startup failure instead.
+
+A requeue from a *queue* listener is unaffected, because it goes back to the same queue.
+:::
+
 ## Prefixing System Queues <Badge type="tip" text="6.34" />
 
 Wolverine creates a handful of queues for its own use, and by default their names all start with the `wolverine`
