@@ -48,6 +48,10 @@ public class InlineAzureServiceBusSender : ISender
         await _endpoint.InitializeAsync(_logger);
         var message = new ServiceBusMessage();
         _mapper.MapEnvelopeToOutgoing(envelope, message);
+
+        // GH-5767: a listener's requeue copy needs its own MessageId and the session it was received in
+        AzureServiceBusRequeue.StampCopy(envelope, message);
+
         await _sender.SendMessageAsync(message, _cancellationToken);
     }
 }

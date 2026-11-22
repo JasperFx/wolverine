@@ -72,6 +72,14 @@ It is exposed two ways:
 This lets a monitor detect endpoints that dead-letter **natively without recovery** (`Native`) and
 recommend enabling recovery so those dead letters become visible and replayable in the durable store.
 
+## When a Native Dead Letter Queue Can't Be Reached <Badge type="tip" text="7.0" />
+
+A buffered endpoint acknowledges each message to the broker when it receives it, so once the handler gives up,
+the message in memory is the only copy. Wolverine sends it to the native dead letter queue once inline and retries
+a failed send three more times in the background. If none of those sends succeed, or the host stops before one
+does, Wolverine writes the message to dead letter storage in the message store instead and logs an error with the
+message id. With no message store configured, the message is discarded, and the error log says so.
+
 ## Dead Letter Expiration <Badge type="tip" text="3.9" />
 
 ::: tip
