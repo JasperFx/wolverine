@@ -285,6 +285,19 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     }
 
     /// <summary>
+    /// GH-5809. Make Wolverine throw at startup (instead of only logging a warning) when system queues are disabled
+    /// and the application listens to a topic subscription. A requeue or native scheduled retry from a subscription
+    /// sends its copy to the retry queue, which only exists while system queues are enabled. Without it the copy is
+    /// published to the topic, and every subscription on that topic -- including other services' -- receives it again.
+    /// </summary>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration AssertSubscriptionRequeuesDoNotFanOut()
+    {
+        Transport.AssertsSubscriptionRequeuesDoNotFanOut = true;
+        return this;
+    }
+
+    /// <summary>
     /// Prepend a prefix to the names of the queues that Wolverine creates for its own use, so that
     /// several unrelated applications can share one Azure Service Bus namespace without colliding.
     /// With a prefix of "my-project" the system queues become

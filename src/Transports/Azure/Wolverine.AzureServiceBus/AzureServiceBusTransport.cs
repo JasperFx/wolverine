@@ -128,6 +128,13 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     public bool SystemQueuesEnabled { get; set; } = true;
 
     /// <summary>
+    /// GH-5809. Refuse to start, rather than only log a warning, when a subscription listener would requeue or
+    /// schedule a retry through its topic because there is no retry queue. Set by
+    /// <see cref="AzureServiceBusConfiguration.AssertSubscriptionRequeuesDoNotFanOut"/>.
+    /// </summary>
+    internal bool AssertsSubscriptionRequeuesDoNotFanOut { get; set; }
+
+    /// <summary>
     /// Optional prefix prepended to the names of the queues Wolverine creates for its own use --
     /// the response queue, the retry queue, the node control queue, and the default dead letter
     /// queue. Null or empty (the default) leaves those names exactly as they have always been.
