@@ -62,6 +62,19 @@ public class NServiceBusPostgresqlQueue : Endpoint, IBrokerQueue
     public int MaximumMessagesToReceive { get; set; } = 20;
 
     /// <summary>
+    ///     GH-5815. Receive each message inside a database transaction that stays open while its handler runs, the
+    ///     way NServiceBus's own SQL transports receive. The row is deleted when the handler succeeds and put back
+    ///     where it was when the message is handed back or the process dies. Only for an Inline listener
+    ///     (<c>ProcessInline()</c>); refused at startup in any other mode. Default is false, the destructive pop.
+    /// </summary>
+    public bool UseReceiveTransaction { get; set; }
+
+    /// <summary>
+    /// GH-5815. Does the listener receive inside a receive transaction?
+    /// </summary>
+    internal bool ReceivesInTransaction => UseReceiveTransaction && Mode == EndpointMode.Inline;
+
+    /// <summary>
     ///     How often to poll for new messages when the queue is idle. If null, falls back to
     ///     DurabilitySettings.ScheduledJobPollingTime (default 5s).
     /// </summary>
@@ -78,6 +91,21 @@ public class NServiceBusPostgresqlQueue : Endpoint, IBrokerQueue
     protected override bool supportsMode(EndpointMode mode)
     {
         return mode == EndpointMode.BufferedInMemory || mode == EndpointMode.Inline;
+    }
+
+    // GH-5815. A receive transaction is held for as long as the receiver takes to settle the message, and only the
+    // Inline receiver settles a message before it returns. Refused rather than ignored: a listener that silently
+    // dropped back to the destructive pop would lose the very messages the opt-in was asked to keep.
+    protected internal override IEnumerable<string> validateModeConfiguration()
+    {
+        if (UseReceiveTransaction && Mode != EndpointMode.Inline)
+        {
+            yield return
+                $"Invalid listener configuration for endpoint '{Uri}': UseReceiveTransaction() requires ProcessInline(), " +
+                $"but this listener is {Mode}. The receive transaction stays open until the message is settled, and only an " +
+                "Inline listener settles a message before it takes the next one; any other mode would hold a connection " +
+                "and a transaction per buffered message. Add ProcessInline() to this listener, or remove UseReceiveTransaction().";
+        }
     }
 
     internal NServiceBusPostgresqlEnvelopeMapper BuildMapper(IWolverineRuntime runtime)

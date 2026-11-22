@@ -692,6 +692,14 @@ If your NServiceBus endpoints still use the NServiceBus `XmlSerializer`, you don
 Wolverine reads XML and JSON from NServiceBus on the same endpoint, and can send XML back. See
 [XML serialization with NServiceBus](/tutorials/interop#xml-serialization-with-nservicebus).
 
+If your NServiceBus endpoints run on the SQL Server or PostgreSQL transport, Wolverine reads and writes their queue
+tables directly ([interop over database transports](/tutorials/interop#interop-with-nservicebus-over-database-transports)).
+Know that those listeners receive with a destructive delete by default: `BufferedInMemory` listeners are at-most-once,
+and an `Inline` listener loses the message it is handling if its process crashes. NServiceBus itself holds a receive
+transaction open while the handler runs, and you get the same behaviour with `ProcessInline().UseReceiveTransaction()`,
+at the cost of a database connection and an open transaction per message, one message at a time. See
+[Delivery Guarantees and the Receive Transaction](/guide/durability/sqlserver.html#delivery-guarantees-and-the-receive-transaction).
+
 ### Migration Checklist
 
 **Phase 1: Coexistence**
