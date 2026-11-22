@@ -18,6 +18,7 @@ using Wolverine.Configuration;
 using Wolverine.Persistence;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.RemoteInvocation;
@@ -396,6 +397,36 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         }
 
         throw new NoHandlerForEndpointException(messageType, endpoint.Uri, group);
+    }
+
+    /// <summary>
+    /// GH-5695. Whether one of the message type's handler chains is bound to <paramref name="endpoint"/>
+    /// </summary>
+    internal bool HasChainBoundTo(Type messageType, Endpoint endpoint)
+    {
+        return GroupFor(messageType) is { } group && group.Chains.Any(x => x.Endpoints.Contains(endpoint));
+    }
+
+    /// <summary>
+    /// GH-5695. A message type of a partitioned topology with more than one handler type is refused at startup. Each
+    /// handler type runs on its own local queue, so the slot that sequences a group's messages can only relay them to
+    /// those queues and move on, and nothing keeps the group's messages in order across them
+    /// </summary>
+    internal void AssertPartitionedMessagesHaveOneHandlerType(MessagePartitioningRules partitioning)
+    {
+        foreach (var group in Groups)
+        {
+            if (group.Chains.Count < 2) continue;
+            if (!partitioning.TryFindTopology(group.MessageType, out var topology)) continue;
+
+            var handlerTypes = group.Chains.Select(x => MessageHandlerGroup.HandlerTypeOf(x).FullNameInCode()).Join(", ");
+
+            throw new InvalidOperationException(
+                $"Message type '{group.MessageType.FullNameInCode()}' belongs to the partitioned message topology " +
+                $"'{topology!.Uri}' and is handled by more than one handler type ({handlerTypes}). Each handler type " +
+                "runs on its own local queue, so the topology cannot keep the messages of one group in order across " +
+                "them. Handle this message type in one handler type, or leave it out of the partitioned topology.");
+        }
     }
 
     /// <summary>

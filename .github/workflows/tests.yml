@@ -13,7 +13,8 @@ on:
     # Confirmed at the time of writing: `main` has no branch protection, and the only ruleset ("Copilot")
     # carries deletion / non_fast_forward / copilot_code_review and no required_status_checks. If required
     # checks are ever added for these jobs, this filter has to go, or gain a companion job that reports
-    # success on the skipped path.
+    # success on the skipped path. The same holds for the plan job below: a matrix target it leaves out of a
+    # pull request never reports at all.
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
@@ -29,8 +30,122 @@ env:
   disable_test_parallelization: true
 
 jobs:
+  # Which of the matrix targets below this run needs. A pull request runs the targets whose test projects its
+  # change can reach, by the rules of `./build.sh LocalGate --affected` (build/AffectedGate.cs): dotnet-affected
+  # maps the changed files to projects and walks ProjectReferences to their dependents, and a change to the
+  # build, the containers, the SDK pins or this file runs everything. A push to main, and a manual run, always
+  # runs the full matrix, so main stays the measured baseline the duration and flakiness steps compare against.
+  # See build/TestsMatrixPlan.cs. Replayed over the 150 merges before 2026-11-21 this would have spent ~29% fewer
+  # runner-minutes; nine of those merges needed no test job at all.
+  plan:
+    name: Plan the test matrix
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    outputs:
+      targets: ${{ steps.plan.outputs.targets }}
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # A pull request checks out its merge commit; depth 2 brings both parents, and HEAD^1 is the base
+          # branch it merges into, which is what the change is measured against.
+          fetch-depth: 2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            10.0.x
+            11.0.x
+
+      - name: Select the matrix targets
+        id: plan
+        env:
+          # The full matrix, one build target per line. Lines starting with # are comments.
+          TESTS_MATRIX: |
+            # AWS is split three ways: the SQS project is far and away the heavier of the two, so it is further
+            # split into its compliance batteries and everything else. See #3350.
+            CIAWSSqs
+            CIAWSSqsCompliance
+            CIAWSSns
+            CIAmazonS3
+            # Wolverine's Aspire hosting integrations: each test starts a sample AppHost, which runs its own
+            # Pulsar / LocalStack / Pub/Sub emulator container through Aspire. GH-5603/5604/5605.
+            CIAspireHosting
+            CIAzureBlobStorage
+            # GH-4833: WolverineFx.Bobcat (net10.0;net11.0) and WolverineFx.Bobcat.Http (net10.0, Alba 9) against Postgres.
+            CIBobcat
+            # Wolverine.AzureServiceBus.Tests is one project sharded three ways by CLASS, balanced on
+            # MEASURED per-class durations. Namespaces cannot split it — 264 of its 306 tests are in the
+            # root namespace. CIAzureServiceBus is the "everything else" shard, so a newly added class
+            # still runs somewhere. It sat at 84% of the 20 minute cap as a single job. See #3790, #3350.
+            CIAzureServiceBus
+            CIAzureServiceBusLeader
+            CIAzureServiceBusRouting
+            CICosmosDb
+            CIEfCore
+            # EfCoreTests.MultiTenancy, split off CIEfCore to keep both under the 20 minute cap (#3350).
+            CIEfCoreMultiTenancy
+            # Fisher is an embedded SQLite file - no container, no service dependency.
+            CIFisher
+            CIGrpc
+            CIKafka
+            # MartenTests is one Postgres project sharded three ways by namespace, each shard strictly
+            # sequential against a single database, balanced on MEASURED per-namespace durations. CIMarten
+            # is the "everything else" shard, so a newly added namespace still runs somewhere. Replaces the
+            # worker-lane split that got the runner OOM-killed. See #3771, #3762, #3350.
+            CIMarten
+            CIMartenDistribution
+            CIMartenTenancy
+            CIMQTT
+            CIMySql
+            CINATS
+            CIOracle
+            CIOtel
+            # PersistenceTests + PostgresqlTests split three ways: CIPostgresql owns the message store compliance
+            # classes and the Transport namespace, CIPostgresqlFeatures the Agents, Bugs, Durability,
+            # MultiTenancy and Sagas namespaces and the deduplication classes, CIPersistence is everything
+            # else. It sat at ~18m of the 20 minute cap as one job and was regularly cancelled (2026-10-28);
+            # the two-way split was back up to 17.5-19.7m by 2026-11-20.
+            CIPersistence
+            CIPostgresql
+            CIPostgresqlFeatures
+            # PolecatTests is one serial SqlServer project sharded three ways by namespace. CIPolecat is the
+            # "everything else" shard, so a newly added namespace still runs somewhere. See #3350.
+            CIPolecat
+            CIPolecatWorkflow
+            CIPolecatSagas
+            CIPubsub
+            CIPulsar
+            CIRabbitMQ
+            CIRavenDb
+            CIRedis
+            CISqlite
+            # SqlServerTests is sharded by namespace: CISqlServerTransport lists its namespaces and CISqlServer
+            # is the "everything else" shard. It sat at 16-19.9m of the 20 minute cap as one job (2026-10-22).
+            CISqlServer
+            CISqlServerTransport
+            CICircuitBreaking
+            CIClaimCheck
+            CIAotSmoke
+            CIExtensions
+            # NOTE: CISlowTests is deliberately NOT here. It is wall-clock bound by design and blew
+            # through the 20 minute cap on its first run; it lives in slow-tests.yml as a manual job.
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ./build.sh PlanTestsMatrix --affected --affected-from HEAD^1
+          else
+            ./build.sh PlanTestsMatrix
+          fi
+
   test:
     name: ${{ matrix.target }}
+    needs: plan
+    # An empty matrix is an error rather than a no-op, so a change that reaches no target skips the job.
+    if: needs.plan.outputs.count != '0'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -44,75 +159,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          # AWS is split three ways: the SQS project is far and away the heavier of the two, so it is further
-          # split into its compliance batteries and everything else. See #3350.
-          - CIAWSSqs
-          - CIAWSSqsCompliance
-          - CIAWSSns
-          - CIAmazonS3
-          # Wolverine's Aspire hosting integrations: each test starts a sample AppHost, which runs its own
-          # Pulsar / LocalStack / Pub/Sub emulator container through Aspire. GH-5603/5604/5605.
-          - CIAspireHosting
-          - CIAzureBlobStorage
-          # GH-4833: WolverineFx.Bobcat (net10.0;net11.0) and WolverineFx.Bobcat.Http (net10.0, Alba 9) against Postgres.
-          - CIBobcat
-          # Wolverine.AzureServiceBus.Tests is one project sharded three ways by CLASS, balanced on
-          # MEASURED per-class durations. Namespaces cannot split it — 264 of its 306 tests are in the
-          # root namespace. CIAzureServiceBus is the "everything else" shard, so a newly added class
-          # still runs somewhere. It sat at 84% of the 20 minute cap as a single job. See #3790, #3350.
-          - CIAzureServiceBus
-          - CIAzureServiceBusLeader
-          - CIAzureServiceBusRouting
-          - CICosmosDb
-          - CIEfCore
-          # EfCoreTests.MultiTenancy, split off CIEfCore to keep both under the 20 minute cap (#3350).
-          - CIEfCoreMultiTenancy
-          # Fisher is an embedded SQLite file - no container, no service dependency.
-          - CIFisher
-          - CIGrpc
-          - CIKafka
-          # MartenTests is one Postgres project sharded three ways by namespace, each shard strictly
-          # sequential against a single database, balanced on MEASURED per-namespace durations. CIMarten
-          # is the "everything else" shard, so a newly added namespace still runs somewhere. Replaces the
-          # worker-lane split that got the runner OOM-killed. See #3771, #3762, #3350.
-          - CIMarten
-          - CIMartenDistribution
-          - CIMartenTenancy
-          - CIMQTT
-          - CIMySql
-          - CINATS
-          - CIOracle
-          - CIOtel
-          # PersistenceTests + PostgresqlTests split three ways: CIPostgresql owns the message store compliance
-          # classes and the Transport namespace, CIPostgresqlFeatures the Agents, Bugs, Durability,
-          # MultiTenancy and Sagas namespaces and the deduplication classes, CIPersistence is everything
-          # else. It sat at ~18m of the 20 minute cap as one job and was regularly cancelled (2026-10-28);
-          # the two-way split was back up to 17.5-19.7m by 2026-11-20.
-          - CIPersistence
-          - CIPostgresql
-          - CIPostgresqlFeatures
-          # PolecatTests is one serial SqlServer project sharded three ways by namespace. CIPolecat is the
-          # "everything else" shard, so a newly added namespace still runs somewhere. See #3350.
-          - CIPolecat
-          - CIPolecatWorkflow
-          - CIPolecatSagas
-          - CIPubsub
-          - CIPulsar
-          - CIRabbitMQ
-          - CIRavenDb
-          - CIRedis
-          - CISqlite
-          # SqlServerTests is sharded by namespace: CISqlServerTransport lists its namespaces and CISqlServer
-          # is the "everything else" shard. It sat at 16-19.9m of the 20 minute cap as one job (2026-10-22).
-          - CISqlServer
-          - CISqlServerTransport
-          - CICircuitBreaking
-          - CIClaimCheck
-          - CIAotSmoke
-          - CIExtensions
-          # NOTE: CISlowTests is deliberately NOT here. It is wall-clock bound by design and blew
-          # through the 20 minute cap on its first run; it lives in slow-tests.yml as a manual job.
+        # The plan job's selection from the full list in its TESTS_MATRIX block.
+        target: ${{ fromJson(needs.plan.outputs.targets) }}
         # HISTORY: from 2026-08 to 2026-08-24 an `include:` block here carried per-target
         # stall_deadline overrides for build/ci-memory-sampler.sh — a shell watchdog that sampled
         # RSS from outside the process, guessed which pid was the test host, inferred stalls from
@@ -196,7 +244,8 @@ jobs:
   flakiness:
     name: Flakiness roll-up
     needs: test
-    if: always()
+    # Not when the plan selected nothing (or failed): there are no ledgers to roll up.
+    if: always() && needs.test.result != 'skipped'
     runs-on: ubuntu-latest
     permissions:
       actions: read
