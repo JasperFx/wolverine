@@ -920,6 +920,19 @@ Here's some more important background on the multi-tenancy support:
   or utilize the tenant id detection in Wolverine.HTTP as well
 * You can "plug in" a custom implementation of `ITenantSource<string>` to manage tenant id to connection string assignments in whatever way works for your deployed system
 
+### Removing a Tenant from a Running System <Badge type="tip" text="7.0" />
+
+Deleting a tenant's row from the master table does not stop running nodes from using that tenant's database: every node
+keeps its durability agent and any queue listener for that database until it restarts, and once the database is dropped
+those poll it with errors. Taking a tenant out of a running fleet is an operator action in
+[CritterWatch](https://github.com/JasperFx/CritterWatch), which first has every node deregister the tenant (stop its
+database's durability agent and listeners and forget its message store), then removes the tenancy entry, and only then
+drops the database. The same applies to Marten and Polecat master table tenancy.
+
+After a tenant is deregistered, a message or lookup for it fails with `RemovedTenantException`, an
+`UnknownTenantIdException`. Adding the tenant again through Wolverine's `AddTenantAsync` admits it again on that node;
+a tenant re-added only through Marten's or Polecat's own tenancy is not picked up until the process restarts.
+
 
 ## Lightweight Saga Usage <Badge type="tip" text="3.0" />
 
