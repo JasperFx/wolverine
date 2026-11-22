@@ -676,6 +676,19 @@ await host.StartAsync();
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.Mqtt5.Tests/Samples.cs#L125-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_custom_mqtt_envelope_mapper-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Requeued and Deferred Messages
+
+MQTT has no way to hand a delivered message back to the broker. Wolverine therefore leaves a requeued or deferred
+message unacknowledged and offers it to the listener again in memory, after a one second pause. The PUBACK goes out
+only once the message is actually handled.
+
+When the listener stops while such a message is still waiting, the message stays unacknowledged. If the listener is
+restarted on the same connection (after a pause, for instance), the new listener picks it up. Otherwise it is up to
+the broker: an MQTT broker resends an unacknowledged QoS 1 or 2 message only when a persistent session
+(`CleanSession = false`, or a non-zero session expiry on MQTT 5) resumes on a new connection, never on the
+connection it was sent over. With a clean session, or a QoS 0 subscription, a message deferred at shutdown is not
+redelivered.
+
 ## Clearing Out Retained Messages
 
 MQTT brokers allow you to publish retained messages to a topic, meaning that the last message will always be retained by the 

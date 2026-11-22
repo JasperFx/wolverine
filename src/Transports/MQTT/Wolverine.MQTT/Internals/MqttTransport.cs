@@ -81,7 +81,8 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
     private sealed class ClientListenerGroup
     {
-        public List<MqttListener> Listeners { get; } = new();
+        // Copy-on-write: read on MQTTnet's receive thread while a restarting listener replaces an entry
+        public MqttListener[] Listeners = [];
         public ImHashMap<string, MqttListener> TopicListeners = ImHashMap<string, MqttListener>.Empty;
         public bool Subscribed;
     }
@@ -486,7 +487,22 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         IManagedMqttClient client)
     {
         var group = groupFor(client);
-        group.Listeners.Add(listener);
+
+        // GH-5770. A listener that restarts (after a pause, say) is a new MqttListener for the same topic on the
+        // same connection. The stopped one used to stay first in line, so every later message for the topic went
+        // to a listener whose receiver was latched or gone. Replace it, and take over the deferred messages it
+        // handed back: they are still unacknowledged, and the broker will not redeliver them on this connection.
+        var replaced = group.Listeners.Where(x => x.IsStopped && x.TopicName == listener.TopicName).ToArray();
+        group.Listeners = group.Listeners.Except(replaced).Append(listener).ToArray();
+        if (replaced.Length > 0)
+        {
+            group.TopicListeners = ImHashMap<string, MqttListener>.Empty;
+        }
+
+        foreach (var previous in replaced)
+        {
+            listener.TakeOverHandedBackMessages(previous);
+        }
 
         await client.SubscribeAsync(topicName, mqttTopic.QualityOfServiceLevel);
 
