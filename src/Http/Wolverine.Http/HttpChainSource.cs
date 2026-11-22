@@ -84,10 +84,16 @@ internal class HttpChainSource
     // Static-mode counterpart to FindActions(): the endpoint types were already discovered and
     // captured into the generated HttpEndpointRegistry at codegen write time, so we apply the normal
     // endpoint-method selection to exactly those types instead of scanning assemblies. See GH-2925.
+    //
+    // GH-5751: the registry is generated once, often for one image deployed to every environment, so it
+    // holds every endpoint type that was discovered at codegen time. The runtime
+    // CustomizeHttpEndpointDiscovery excludes still apply here; otherwise an endpoint excluded by
+    // environment or configuration is silently routed in static mode.
     internal MethodCall[] FindActions(IReadOnlyList<Type> endpointTypes)
     {
         return endpointTypes
             .Distinct()
+            .Where(x => _userDiscovery is null || !_userDiscovery.Excludes.Matches(x))
             .SelectMany(actionsFromType).ToArray();
     }
 
