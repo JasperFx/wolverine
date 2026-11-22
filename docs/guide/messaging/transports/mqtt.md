@@ -682,6 +682,15 @@ MQTT has no way to hand a delivered message back to the broker. Wolverine theref
 message unacknowledged and offers it to the listener again in memory, after a one second pause. The PUBACK goes out
 only once the message is actually handled.
 
+::: warning Requeue and defer keep the message only at QoS 1 and 2
+The guarantee comes from the broker holding an unacknowledged message, and a broker resends only QoS 1 and QoS 2
+messages. At QoS 0 (`AtMostOnce`) the in-memory copy is the only one, so a QoS 0 message that is requeued or deferred,
+or that is still waiting or in flight when the listener stops or the application shuts down, is lost if it has not been
+handled by then. That is MQTT's at-most-once contract. Wolverine logs a warning at startup for every listener that
+subscribes at QoS 0. Use `QualityOfService(MqttQualityOfServiceLevel.AtLeastOnce)` (the default) or `ExactlyOnce`
+on the listener if these messages must survive a requeue, defer or shutdown.
+:::
+
 When the listener stops while such a message is still waiting, the message stays unacknowledged. If the listener is
 restarted on the same connection (after a pause, for instance), the new listener picks it up. Otherwise it is up to
 the broker: an MQTT broker resends an unacknowledged QoS 1 or 2 message only when a persistent session
