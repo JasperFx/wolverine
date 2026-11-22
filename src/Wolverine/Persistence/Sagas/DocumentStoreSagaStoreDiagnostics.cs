@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json;
+using JasperFx;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using JasperFx.Documents;
@@ -35,6 +36,7 @@ internal sealed partial class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiag
     private readonly IDocumentSessionFactory _sessions;
     private readonly Type _providerType;
     private readonly string _storeName;
+    private readonly Type? _ancillaryStoreType;
     private readonly object _gate = new();
     private Dictionary<string, (Type SagaType, Type IdType)>? _sagaIndex;
 
@@ -45,13 +47,20 @@ internal sealed partial class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiag
     ///     types this store owns.
     /// </param>
     /// <param name="storeName">The name reported on each <see cref="SagaDescriptor" />, e.g. "Marten".</param>
+    /// <param name="ancillaryStoreType">
+    ///     GH-5799. The marker type of the ancillary store these sessions come from, such as <c>IOtherStore</c>
+    ///     in <c>[MartenStore(typeof(IOtherStore))]</c>, or null for the main store. A saga type belongs to the
+    ///     store its handler chains are routed to, so the main store no longer claims an ancillary store's
+    ///     sagas and then reads them from the wrong database.
+    /// </param>
     public DocumentStoreSagaStoreDiagnostics(IWolverineRuntime runtime, IDocumentSessionFactory sessions,
-        Type providerType, string storeName)
+        Type providerType, string storeName, Type? ancillaryStoreType = null)
     {
         _runtime = runtime;
         _sessions = sessions;
         _providerType = providerType;
         _storeName = storeName;
+        _ancillaryStoreType = ancillaryStoreType;
     }
 
     public Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)
@@ -375,12 +384,12 @@ internal sealed partial class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiag
             var rules = _runtime.Options.CodeGeneration;
             var container = _runtime.Options.HandlerGraph.Container;
 
-            var sagaTypes = _runtime.Options.HandlerGraph.SagaChains() // GH-5133: includes Separated saga chains
-                .Select(c => c.SagaType)
-                .Distinct();
+            var sagaChains = _runtime.Options.HandlerGraph.SagaChains() // GH-5133: includes Separated saga chains
+                .GroupBy(c => c.SagaType);
 
-            foreach (var sagaType in sagaTypes)
+            foreach (var group in sagaChains)
             {
+                var sagaType = group.Key;
                 IPersistenceFrameProvider? owner;
                 Type idType;
                 try
@@ -390,7 +399,11 @@ internal sealed partial class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiag
                     if (!rules.TryFindPersistenceFrameProvider(container, sagaType, out owner)) continue;
                     if (owner.GetType() != _providerType) continue;
 
-                    idType = owner.DetermineSagaIdType(sagaType, container);
+                    // GH-5799: and the same store the saga chain's codegen writes to
+                    var chain = group.FirstOrDefault(c => c.DetermineAncillaryStoreType() != null) ?? group.First();
+                    if (!ownsStore(chain.DetermineAncillaryStoreType(), container)) continue;
+
+                    idType = owner.DetermineSagaIdType(sagaType, chain, container);
                 }
                 catch
                 {
@@ -408,5 +421,19 @@ internal sealed partial class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiag
             _sagaIndex = index;
             return index;
         }
+    }
+
+    /// <summary>
+    ///     GH-5799. Whether a saga chain routed to <paramref name="chainStoreType" /> (its
+    ///     <c>DetermineAncillaryStoreType()</c>) commits to this store. An ancillary store owns exactly the chains
+    ///     routed to it. The main store owns the rest, including a chain routed to a store type the container
+    ///     cannot resolve to a document store, because the saga codegen falls back to the main store for those too.
+    /// </summary>
+    private bool ownsStore(Type? chainStoreType, IServiceContainer container)
+    {
+        if (_ancillaryStoreType != null) return chainStoreType == _ancillaryStoreType;
+        if (chainStoreType == null) return true;
+
+        return container.Services.GetService(chainStoreType) is not IDocumentSessionFactory;
     }
 }
