@@ -795,7 +795,10 @@ depend on that promotion, register a custom mapper with `UseInterop((runtime, en
 
 A record `PublishRawJson()` sends is keyed by the envelope's `GroupId` when one is set, else by its `PartitionKey`.
 A dead letter or retry-tier copy of a record received with `ReceiveRawJson()` keeps the key of the record it came
-from, not the consumer group name Wolverine stamps on the envelope as its `GroupId`.
+from, not the consumer group name Wolverine stamps on the envelope as its `GroupId`. That holds for a record
+recovered from the durable inbox too: `ReceiveRawJson()` keeps the record's key in the `wolverine-kafka-record-key`
+envelope header (empty for a record without a key), which the inbox persists and `PublishRawJson()` never writes
+to Kafka.
 
 ## Confluent Schema Registry Serializers <Badge type="tip" text="5.27" />
 
