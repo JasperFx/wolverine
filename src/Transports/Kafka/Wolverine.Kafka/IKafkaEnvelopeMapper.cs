@@ -24,7 +24,14 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
 
     public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
     {
-        outgoing.Key = envelope.GroupId!;
+        // GH-5772. A record received off Kafka -- here as a dead-letter or retry-tier copy -- keeps the key it
+        // arrived with. The GroupId on it is the listener's stamp (the consumer group name by default, or the key
+        // itself under GroupByMessageKey), not something the application set, and keying copies by the consumer
+        // group sent every one of them to a single partition. A message the application sends keeps the GroupId
+        // it set, else its PartitionKey.
+        outgoing.Key = (envelope.PartitionId.HasValue
+            ? envelope.PartitionKey
+            : !string.IsNullOrEmpty(envelope.GroupId) ? envelope.GroupId : envelope.PartitionKey)!;
 
         // Sender liveness pings must stay recognizable on the receiving side. A raw-JSON
         // listener identifies pings solely by the message-type header (see the guard in
