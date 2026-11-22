@@ -204,4 +204,27 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
     public MqttQualityOfServiceLevel QualityOfServiceLevel { get; set; } = MqttQualityOfServiceLevel.AtLeastOnce;
 
     public bool Retain { get; set; } = false;
+
+    // GH-5823. A requeued or deferred message is kept unacknowledged so the broker can resend it (GH-5770), but at
+    // QoS 0 the broker never resends anything, so the in-memory copy is the only one. Error policies are configured on
+    // the handler graph, not on this endpoint, and a shutdown hands deferred messages back whatever the policies say,
+    // so this warns for every QoS 0 listener rather than guessing which ones can requeue.
+    protected internal override IEnumerable<string> listenerConfigurationWarnings()
+    {
+        foreach (var message in base.listenerConfigurationWarnings())
+        {
+            yield return message;
+        }
+
+        if (IsListener && Role != EndpointRole.System && QualityOfServiceLevel == MqttQualityOfServiceLevel.AtMostOnce)
+        {
+            yield return
+                $"MQTT listener '{Uri}' on topic '{TopicName}' subscribes at QoS 0 (AtMostOnce), so the broker never " +
+                "resends its messages. A message that is requeued or deferred (an error policy's Requeue(), for example), " +
+                "or that is still waiting or in flight when the listener stops or the application shuts down, exists only " +
+                "in this process and is lost if it is not handled before then. That is MQTT's at-most-once contract. " +
+                "Subscribe at QoS 1 (AtLeastOnce) or 2 (ExactlyOnce) if these messages must survive a requeue, defer or " +
+                "shutdown.";
+        }
+    }
 }

@@ -53,7 +53,14 @@ public class sqs_records_its_own_delete_4489 : IAsyncDisposable
 
     private static AmazonSqsEnvelope envelopeFor(string receiptHandle)
     {
-        return new AmazonSqsEnvelope(new Message { MessageId = receiptHandle, ReceiptHandle = receiptHandle });
+        // GH-5753: a requeue now sends its copy before it deletes, so the envelope needs the body a received
+        // envelope always carries for that send to get as far as SQS
+        return new AmazonSqsEnvelope(new Message { MessageId = receiptHandle, ReceiptHandle = receiptHandle })
+        {
+            Data = "{}"u8.ToArray(),
+            MessageType = "ping",
+            ContentType = "application/json"
+        };
     }
 
     public async ValueTask DisposeAsync()
@@ -95,7 +102,7 @@ public class sqs_records_its_own_delete_4489 : IAsyncDisposable
     }
 
     /// <summary>
-    /// The requeue path deletes the original and puts a COPY back on the queue, so it records the delete but
+    /// The requeue path puts a COPY back on the queue and then deletes the original (GH-5753), so it records the delete but
     /// must NOT claim a terminal. Per GH-3710 the idempotency layer reads <c>HasBeenAcked</c> to decide
     /// whether an id may be remembered as processed, and remembering a requeued id would silently discard
     /// the very redelivery this path just arranged.

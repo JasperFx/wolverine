@@ -793,6 +793,13 @@ depend on that promotion, register a custom mapper with `UseInterop((runtime, en
 `ReceiveRawJson()` to keep that behavior as an explicit opt-in.
 :::
 
+A record `PublishRawJson()` sends is keyed by the envelope's `GroupId` when one is set, else by its `PartitionKey`.
+A dead letter or retry-tier copy of a record received with `ReceiveRawJson()` keeps the key of the record it came
+from, not the consumer group name Wolverine stamps on the envelope as its `GroupId`. That holds for a record
+recovered from the durable inbox too: `ReceiveRawJson()` keeps the record's key in the `wolverine-kafka-record-key`
+envelope header (empty for a record without a key), which the inbox persists and `PublishRawJson()` never writes
+to Kafka.
+
 ## Confluent Schema Registry Serializers <Badge type="tip" text="5.27" />
 
 When you need to interoperate with other Kafka clients that use the [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/index.html)
@@ -1036,7 +1043,9 @@ opts.OnException<TransientException>()
 Each delay defines a tier. Wolverine auto-derives one retry topic per delay, named off the source topic
 (`orders.retry.1s`, `orders.retry.30s`, `orders.retry.5m`), auto-provisions them (when `AutoProvision()` is
 on), and runs a delayed consumer for each. Retry/exception metadata (source topic, tier, attempt count,
-first-failure time, exception) travels in headers.
+first-failure time, exception) travels in headers. Every Kafka listener topic gets tiers except the dead letter
+topic and Wolverine's own tier topics, so a topic of your own that happens to contain `.retry.` in its name, like
+`billing.retry.requests`, gets tiers like any other.
 
 ::: tip Prefer the durable inbox when you have a database
 This is the **DB-free** retry path. If your app uses a database, Wolverine's `ScheduleRetry(...)` (→ the

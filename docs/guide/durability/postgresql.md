@@ -374,6 +374,21 @@ opts.ListenToPostgresqlQueue("inbound").PollingInterval(2.Seconds());
 
 When not set, the queue falls back to the global `DurabilitySettings.ScheduledJobPollingTime`.
 
+#### Scheduled Message Polling <Badge type="tip" text="6.65" />
+
+Each queue listener also runs a second loop that moves due scheduled messages into the queue and deletes expired
+rows, and by default that loop waits the same polling interval. If you lower `PollingInterval()` for faster pickup,
+you can keep the scheduled message loop on a slower interval of its own:
+
+```cs
+opts.ListenToPostgresqlQueue("inbound")
+    .PollingInterval(100.Milliseconds())
+    .ScheduledMessagePollingInterval(1.Seconds());
+```
+
+When not set, the scheduled message loop falls back to the queue's `PollingInterval()`, and then to
+`DurabilitySettings.ScheduledJobPollingTime`.
+
 ### Queue Notifications with LISTEN/NOTIFY <Badge type="tip" text="6.50" />
 
 Out of the box, a PostgreSQL queue listener only finds out about new messages when it polls. When a queue is busy, that
@@ -646,6 +661,10 @@ receive uses `FOR UPDATE SKIP LOCKED` ordered by the NServiceBus `seq` column. A
 * NServiceBus addresses queues as the schema-qualified `"schema"."table"`; Wolverine maps the reply address back to the
   bare queue name so request/reply works in both directions. Like NServiceBus, it splits on the first dot outside the
   quotes, so a dotted endpoint name such as `"public"."Sales.Endpoint"` maps to the `Sales.Endpoint` queue.
+* Queue names keep their case. NServiceBus quotes its queue table names, so `Sales.Endpoint` and `sales.endpoint` are
+  different tables, and a reply to a mixed-case endpoint goes to that endpoint's own table. Wolverine's endpoint
+  addresses (`Uri`s) do not distinguish case, though, so two queues whose names differ only in case should not be used
+  side by side from one Wolverine application.
 * A deferred message (a handler failure in `Inline` mode, or a listener shutting down with messages still in hand) is
   put back by inserting a copy with its original `seq`, so it keeps its place in the queue. The insert is retried with
   backoff for up to `DurabilitySettings.DrainTimeout`, a retry never adds a second copy, and an insert that still fails

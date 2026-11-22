@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf.Collections;
@@ -42,6 +43,16 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
     private readonly PubsubHeldDeliveries _held = new();
 
     private bool holdsUntilSettled => _endpoint.Mode == EndpointMode.NativeAck;
+
+    /// <summary>
+    /// GH-5771. The envelopes an Inline endpoint is executing inside their subscriber callback, mapped to the
+    /// delivery they arrived in. A requeue of one of these has to be settled by that callback's reply.
+    /// </summary>
+    private readonly ConcurrentDictionary<Envelope, PubsubInlineDelivery> _inline =
+        new(ReferenceEqualityComparer.Instance);
+
+    private bool runsInsideCallback => _endpoint.Mode == EndpointMode.Inline;
+
     private readonly IPubsubEnvelopeMapper _mapper;
 
     /// <summary>
@@ -98,7 +109,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
 
         _requeue = new RetryBlock<Envelope>(async (e, _) =>
         {
-            await _endpoint.SendMessageAsync(e, _logger, _clients);
+            await publishRequeueCopyAsync(e);
         }, _logger, runtime.Cancellation);
 
         _task = StartAsync();
@@ -137,6 +148,22 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
             return;
         }
 
+        if (_inline.TryGetValue(envelope, out var inline))
+        {
+            await requeueInsideCallbackAsync(envelope, inline);
+            return;
+        }
+
+        if (!_endpoint.KnowsItsTopic)
+        {
+            // GH-5822. Reached only when the receiver hands a delivery back without a local fallback of its own (a
+            // latched or drained receiver). The original is settled already and there is no topic to put a copy on
+            _logger.LogError(
+                "{Uri}: Cannot requeue envelope {EnvelopeId}: the topic of the existing Google Cloud Platform Pub/Sub subscription is not known, so no copy can be published. Configure it with FromTopic().",
+                _endpoint.Uri, envelope.Id);
+            return;
+        }
+
         await _requeue.PostAsync(envelope);
     }
 
@@ -148,9 +175,62 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
             return true;
         }
 
+        if (_inline.TryGetValue(envelope, out var inline))
+        {
+            await requeueInsideCallbackAsync(envelope, inline);
+            return true;
+        }
+
+        if (!_endpoint.KnowsItsTopic)
+        {
+            // GH-5822. No topic to publish a copy to, and the original is already acked. False has the receiver
+            // requeue the envelope locally, in memory, instead of losing it to a publish that can never succeed
+            return false;
+        }
+
         await _requeue.PostAsync(envelope);
 
         return true;
+    }
+
+    /// <summary>
+    /// GH-5771. The original is still held by its subscriber callback, which settles it the moment it returns. So
+    /// publish the copy right here rather than through the fire-and-forget <c>RetryBlock</c>, whose
+    /// <c>PostAsync</c> swallows a failed publish (and does nothing at all once the host is stopping), and when the
+    /// copy cannot be published, have the callback Nack the original so Pub/Sub redelivers it instead.
+    /// </summary>
+    private async Task requeueInsideCallbackAsync(Envelope envelope, PubsubInlineDelivery delivery)
+    {
+        if (!_endpoint.KnowsItsTopic)
+        {
+            // GH-5822. There is no topic to publish a copy to, so the native Nack is the requeue: Pub/Sub redelivers
+            // the original to this subscription
+            delivery.RequeueFailed();
+            return;
+        }
+
+        try
+        {
+            await publishRequeueCopyAsync(envelope);
+        }
+        catch (Exception e)
+        {
+            delivery.RequeueFailed();
+
+            _logger.LogError(e,
+                "{Uri}: Could not publish the requeued copy of envelope {EnvelopeId}; the Google Cloud Platform Pub/Sub delivery will be nacked so that Pub/Sub redelivers the original instead.",
+                _endpoint.Uri, envelope.Id);
+        }
+    }
+
+    /// <summary>
+    /// Requeue by publishing a copy to the topic. GH-5771: the copy keeps the native ordering key the original was
+    /// received with when nothing else (a group id, <c>OrderMessagesBy()</c>, a custom mapper) determines one.
+    /// </summary>
+    private Task publishRequeueCopyAsync(Envelope envelope)
+    {
+        return _endpoint.SendMessageAsync(envelope, _logger, _clients,
+            (envelope as PubsubEnvelope)?.ReceivedOrderingKey);
     }
 
     public async ValueTask StopAsync()
@@ -321,26 +401,31 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
 
         try
         {
-            await subscriber.StartAsync(async (PubsubMessage message, CancellationToken cancel) =>
-            {
-                // GH-4052. Under NativeAck the callback is held open until every envelope this delivery
-                // carried reaches a terminal, because the callback's return value IS the settlement -- Pub/Sub
-                // exposes no per-message ack. Every other mode returns as soon as the envelopes are handed
-                // over, exactly as before.
-                if (holdsUntilSettled)
-                {
-                    return await handleMessageHeldAsync(message);
-                }
-
-                var success = await handleMessageAsync(message);
-                return success ? SubscriberClient.Reply.Ack : SubscriberClient.Reply.Nack;
-            });
+            await subscriber.StartAsync((PubsubMessage message, CancellationToken _) => ReceiveDeliveryAsync(message));
         }
         finally
         {
             ctRegistration.Unregister();
             await shutDownOnceAsync();
         }
+    }
+
+    /// <summary>
+    /// The subscriber callback: hand one Pub/Sub delivery to the receiver and answer how Pub/Sub should settle it.
+    /// </summary>
+    internal async Task<SubscriberClient.Reply> ReceiveDeliveryAsync(PubsubMessage message)
+    {
+        // GH-4052. Under NativeAck the callback is held open until every envelope this delivery
+        // carried reaches a terminal, because the callback's return value IS the settlement -- Pub/Sub
+        // exposes no per-message ack. Every other mode returns as soon as the envelopes are handed
+        // over, exactly as before.
+        if (holdsUntilSettled)
+        {
+            return await handleMessageHeldAsync(message);
+        }
+
+        var success = await handleMessageAsync(message);
+        return success ? SubscriberClient.Reply.Ack : SubscriberClient.Reply.Nack;
     }
 
     private Task stopAndDisposeSubscriberAsync(SubscriberClient subscriber)
@@ -520,7 +605,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
 
             if (batched.Any())
             {
-                await _receiver.ReceivedAsync(this, batched);
+                return await receiveAsync(batched);
             }
 
             return true;
@@ -530,15 +615,41 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
         {
             var envelope = readEnvelope(message);
 
-            await _receiver.ReceivedAsync(this, [envelope]);
-
-            return true;
+            return await receiveAsync([envelope]);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "{Uri}: Error while mapping Google Cloud Platform Pub/Sub message {MessageId}.", _endpoint.Uri, message.MessageId);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Hand one delivery's envelopes to the receiver. False when the delivery must be nacked.
+    /// </summary>
+    private async Task<bool> receiveAsync(Envelope[] envelopes)
+    {
+        if (!runsInsideCallback)
+        {
+            await _receiver.ReceivedAsync(this, envelopes);
+            return true;
+        }
+
+        // GH-5771. An Inline endpoint executes the handlers inside this callback, so a requeue of any of these
+        // envelopes happens before the callback replies -- and that reply is what settles the original
+        var delivery = new PubsubInlineDelivery();
+        foreach (var envelope in envelopes) _inline[envelope] = delivery;
+
+        try
+        {
+            await _receiver.ReceivedAsync(this, envelopes);
+        }
+        finally
+        {
+            foreach (var envelope in envelopes) _inline.TryRemove(envelope, out _);
+        }
+
+        return !delivery.HasFailedRequeue;
     }
 
 }

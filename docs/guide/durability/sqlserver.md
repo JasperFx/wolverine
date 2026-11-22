@@ -327,6 +327,21 @@ opts.ListenToSqlServerQueue("inbound").PollingInterval(2.Seconds());
 
 When not set, the queue falls back to the global `DurabilitySettings.ScheduledJobPollingTime`.
 
+#### Scheduled Message Polling <Badge type="tip" text="6.65" />
+
+Each queue listener also runs a second loop that moves due scheduled messages into the queue and deletes expired
+rows, and by default that loop waits the same polling interval. If you lower `PollingInterval()` for faster pickup,
+you can keep the scheduled message loop on a slower interval of its own:
+
+```cs
+opts.ListenToSqlServerQueue("inbound")
+    .PollingInterval(100.Milliseconds())
+    .ScheduledMessagePollingInterval(1.Seconds());
+```
+
+When not set, the scheduled message loop falls back to the queue's `PollingInterval()`, and then to
+`DurabilitySettings.ScheduledJobPollingTime`.
+
 ### Optimizing Queue Throughput <Badge type="tip" text="6.16" />
 
 By default the Sql Server queue and scheduled-message tables use a clustered primary key on the
@@ -694,6 +709,10 @@ A requeued message keeps its attempt count, so attempt-bounded error policies su
 Wolverine leaves it alone. A receive transaction's rollback leaves the row untouched, so the listener remembers the
 count by message id instead. That memory lasts for the listener's lifetime and holds up to 10,000 messages, oldest
 forgotten first, so a requeue that comes back to a different node or after a restart starts counting again.
+
+Queue names keep their case, so a reply to a mixed-case NServiceBus endpoint such as `Sales.Endpoint` goes to that
+table even on a database with a case-sensitive collation. Wolverine's endpoint addresses (`Uri`s) do not distinguish
+case, so two queues whose names differ only in case should not be used side by side from one Wolverine application.
 
 ### Multi-Tenancy
 

@@ -76,6 +76,13 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint, 
     /// </summary>
     public TimeSpan? PollingInterval { get; set; }
 
+    /// <summary>
+    ///     How often the listener's scheduled message loop moves due scheduled messages into this queue
+    ///     and deletes expired rows. If null, falls back to <see cref="PollingInterval"/>, and then to
+    ///     DurabilitySettings.ScheduledJobPollingTime (default 5s).
+    /// </summary>
+    public TimeSpan? ScheduledMessagePollingInterval { get; set; }
+
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         if (Parent.AutoProvision)

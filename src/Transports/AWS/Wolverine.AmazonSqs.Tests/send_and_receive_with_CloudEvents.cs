@@ -11,15 +11,20 @@ public class send_and_receive_with_CloudEvents : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
+        // A queue of its own per test rather than one shared queue purged on startup: an SQS purge is not
+        // instantaneous, and LocalStack could delete the message a test sent right after purging, so the
+        // tracked session timed out waiting for a receive that never came
+        var queueName = "cloudevents-" + Guid.NewGuid().ToString("N");
+
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseAmazonSqsTransportLocally()
-                    .AutoProvision().AutoPurgeOnStartup();
+                    .AutoProvision();
 
-                opts.ListenToSqsQueue("cloudevents").InteropWithCloudEvents();
+                opts.ListenToSqsQueue(queueName).InteropWithCloudEvents();
 
-                opts.PublishAllMessages().ToSqsQueue("cloudevents").InteropWithCloudEvents().MessageBatchMaxDegreeOfParallelism(5);
+                opts.PublishAllMessages().ToSqsQueue(queueName).InteropWithCloudEvents().MessageBatchMaxDegreeOfParallelism(5);
             }).StartAsync();
     }
 
