@@ -140,14 +140,16 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>, IAsyncDisposa
     /// </summary>
     internal bool PairedSqsIsStandalone { get; set; }
 
+    private const string FifoSuffix = ".fifo";
+
     // TODO duplicated code in SqsTransport
     public static string SanitizeSnsName(string identifier)
     {
-        //AWS requires FIFO topics to have a `.fifo` suffix
-        var suffixIndex = identifier.LastIndexOf(".fifo", StringComparison.OrdinalIgnoreCase);
-
-        if (suffixIndex != -1) // ".fifo" suffix found
+        //AWS requires FIFO topics to have a `.fifo` suffix. Only a TRAILING `.fifo` is that suffix
+        // (GH-5774); one anywhere else in the name, like My.App.FifoOrderPlaced, is sanitized as usual
+        if (identifier.EndsWith(FifoSuffix, StringComparison.OrdinalIgnoreCase))
         {
+            var suffixIndex = identifier.Length - FifoSuffix.Length;
             var prefix = identifier[..suffixIndex];
             var suffix = identifier[suffixIndex..];
 

@@ -122,7 +122,7 @@ internal class NServiceBusSqlServerEnvelopeMapper
         // NServiceBus' JSON serializer prefixes the body with a UTF-8 BOM, which
         // System.Text.Json rejects ('0xEF' is an invalid start of a value). Strip it so
         // the configured serializer can read the payload.
-        var envelope = new Envelope { Data = stripUtf8Bom(body) };
+        var envelope = new NServiceBusSqlServerEnvelope { Data = stripUtf8Bom(body) };
 
         var headers = headersJson.IsNotEmpty()
             ? JsonSerializer.Deserialize(headersJson!, NServiceBusSqlJsonContext.Default.DictionaryStringString) ?? new()

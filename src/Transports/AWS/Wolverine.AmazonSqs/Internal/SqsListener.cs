@@ -85,21 +85,42 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
         _requeueBlock = new RetryBlock<AmazonSqsEnvelope>(async (env, _) =>
         {
+            // GH-5753: send the copy FIRST and settle the original only once SQS has accepted it. Deleting
+            // first lost the message whenever the send failed or the process exited in between -- and a
+            // NativeAck endpoint requeues every envelope still in its lanes on a graceful shutdown. If the
+            // send fails the original stays put and SQS redelivers it after the visibility timeout, so the
+            // worst case is now a duplicate rather than a loss.
+            if (!env.RequeueCopySent)
+            {
+                // GH-5752: on a FIFO queue the copy needs a deduplication id of its own, the same one on
+                // every retry of this requeue, and the group the original was received under.
+                if (_queue.IsFifoQueue)
+                {
+                    env.RequeueDeduplicationId ??= Guid.NewGuid().ToString("N");
+                }
+
+                if (!await sendOrDiscardAsync(_queue, env, "requeue", env.RequeueDeduplicationId,
+                        env.ReceivedMessageGroupId))
+                {
+                    // The copy can never be sent, so the original is the only copy there is. Leave it to SQS.
+                    return;
+                }
+
+                // Before the delete: a failed delete retries this block, which must not send a second copy
+                env.RequeueCopySent = true;
+            }
+
             if (!env.WasDeleted)
             {
                 await CompleteAsync(env.SqsMessages);
 
-                // GH-4489: this is what the guard above was always reading and nothing ever wrote. Without
-                // it, a failure in the requeue send below re-runs the whole lambda and deletes the original
-                // a second time.
+                // GH-4489: recorded so a retry does not delete the original a second time.
                 //
                 // WasDeleted only -- deliberately NOT HasBeenAcked. This path puts a COPY back on the queue,
                 // and per GH-3710 a requeue must not be remembered as a terminal: the idempotency layer
                 // would mark the id processed and silently discard the redelivery this block just arranged.
                 env.WasDeleted = true;
             }
-
-            await sendOrDiscardAsync(_queue, env, "requeue");
         }, runtime.LoggerFactory.CreateLogger<SqsListener>(), runtime.Cancellation);
 
         _deadLetterBlock =
@@ -170,16 +191,19 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     /// exception through would spin the block forever on a send that is impossible, which is the very
     /// failure GH-3926 exists to remove.
     /// </remarks>
-    private async Task sendOrDiscardAsync(AmazonSqsQueue queue, Envelope envelope, string operation)
+    private async Task<bool> sendOrDiscardAsync(AmazonSqsQueue queue, Envelope envelope, string operation,
+        string? deduplicationId = null, string? groupIdFallback = null)
     {
         try
         {
-            await queue.SendMessageAsync(envelope, _logger);
+            await queue.SendMessageAsync(envelope, _logger, deduplicationId, groupIdFallback);
+            return true;
         }
         catch (SqsMessageTooLargeException e)
         {
             _logger.LogError(e, "Discarding envelope {Id} on {Operation} to {Queue} - it is too large for SQS and no retry can change that",
                 envelope.Id, operation, queue.Uri);
+            return false;
         }
     }
 

@@ -23,7 +23,16 @@ public class PulsarSender : ISender, IAsyncDisposable
     private long _sequence;
 
     public PulsarSender(IWolverineRuntime runtime, PulsarEndpoint endpoint, PulsarTransport transport,
-        CancellationToken cancellation)
+        CancellationToken cancellation) : this(runtime, endpoint, transport, cancellation, null)
+    {
+    }
+
+    /// <summary>
+    ///     GH-5768. <paramref name="topic" /> overrides the endpoint's primary topic: a listener over several topics
+    ///     (<c>Topics()</c> or <c>TopicsPattern()</c>) requeues a message to the topic it came from.
+    /// </summary>
+    internal PulsarSender(IWolverineRuntime runtime, PulsarEndpoint endpoint, PulsarTransport transport,
+        CancellationToken cancellation, string? topic)
     {
         var endpoint1 = endpoint;
         _cancellation = cancellation;
@@ -36,7 +45,7 @@ public class PulsarSender : ISender, IAsyncDisposable
         var producerBuilder = (endpoint.Schema != null
                 ? transport.Client!.NewProducer(endpoint.Schema)
                 : transport.Client!.NewProducer())
-            .Topic(endpoint1.PulsarTopic());
+            .Topic(topic ?? endpoint1.PulsarTopic());
 
         if (endpoint.DeduplicationEnabled)
         {
@@ -89,14 +98,7 @@ public class PulsarSender : ISender, IAsyncDisposable
 
     public async ValueTask SendAsync(Envelope envelope)
     {
-        var message = new MessageMetadata();
-
-        _mapper.MapEnvelopeToOutgoing(envelope, message);
-
-        if (_nativeScheduledSendEnabled)
-        {
-            ApplyScheduledDelivery(envelope, message);
-        }
+        var message = buildMetadata(envelope);
 
         if (_deduplicationEnabled && _sequenceIds != null)
         {
@@ -110,6 +112,73 @@ public class PulsarSender : ISender, IAsyncDisposable
             message.SequenceId = _sequenceIds.GetOrAdd(envelope.Id, _ => (ulong)Interlocked.Increment(ref _sequence));
         }
 
+        await sendAsync(envelope, message);
+    }
+
+    /// <summary>
+    ///     GH-5768. Put a copy of a received message back on this sender's topic (a requeue). The copy keeps the
+    ///     key and ordering key it was received with, so a keyed message from another producer stays on its
+    ///     partition and its Key_Shared consumer.
+    ///
+    ///     <para>Under deduplication the copy never reuses the envelope's cached sequence id. A message requeued
+    ///     twice is the same envelope id both times, and Pulsar drops every message whose sequence id is not above
+    ///     the highest one it has seen from the producer -- the second copy was dropped as a duplicate while its
+    ///     original had already been acked. Each attempt takes the next id; a retried attempt whose first send did
+    ///     land is at worst a duplicate, where a reused id after any later send would be a loss.</para>
+    /// </summary>
+    internal async ValueTask SendCopyAsync(Envelope envelope, IMessage<ReadOnlySequence<byte>> received)
+    {
+        var message = buildMetadata(envelope);
+        CopyKeys(received, message);
+
+        if (_deduplicationEnabled)
+        {
+            message.SequenceId = (ulong)Interlocked.Increment(ref _sequence);
+        }
+
+        await sendAsync(envelope, message);
+    }
+
+    /// <summary>
+    ///     GH-5768. Carry the key and ordering key a message was received with onto a copy of it, unless a custom
+    ///     mapper already set its own.
+    /// </summary>
+    internal static void CopyKeys(IMessage<ReadOnlySequence<byte>> received, MessageMetadata outgoing)
+    {
+        if (received.HasKey && string.IsNullOrEmpty(outgoing.Key))
+        {
+            if (received.HasBase64EncodedKey)
+            {
+                outgoing.KeyBytes = received.KeyBytes;
+            }
+            else
+            {
+                outgoing.Key = received.Key;
+            }
+        }
+
+        if (received.HasOrderingKey && outgoing.OrderingKey is not { Length: > 0 })
+        {
+            outgoing.OrderingKey = received.OrderingKey;
+        }
+    }
+
+    private MessageMetadata buildMetadata(Envelope envelope)
+    {
+        var message = new MessageMetadata();
+
+        _mapper.MapEnvelopeToOutgoing(envelope, message);
+
+        if (_nativeScheduledSendEnabled)
+        {
+            ApplyScheduledDelivery(envelope, message);
+        }
+
+        return message;
+    }
+
+    private async ValueTask sendAsync(Envelope envelope, MessageMetadata message)
+    {
         // GH-3213: for a schema that owns the encoding (Avro), encode the message object directly so the
         // body is genuine schema-encoded bytes. Non-codec messages (e.g. a ping) on the same endpoint fall
         // back to Wolverine's serialized body.
