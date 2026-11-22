@@ -562,6 +562,16 @@ using var host = await builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/Samples/RedisTransportWithScheduling.cs#L18-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dead_letter_queue_for_redis' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Disabling System Queues
+
+By default, Wolverine creates a reply stream for each node, named like `wolverine.response.[service name].[node]`.
+`SystemQueuesEnabled(false)` on the Redis transport configuration turns that off, as in the dead letter queue sample above.
+
+::: warning
+Without the reply stream there is **no request/reply through Redis**: `InvokeAsync<T>()` and `SendAndWaitAsync()`
+against a Redis endpoint need that per-node stream for the reply (or acknowledgement) to come back to.
+:::
+
 ## Resetting in Tests
 
 Redis stream endpoints implement the same `IBrokerQueue` surface as the relational database queue
