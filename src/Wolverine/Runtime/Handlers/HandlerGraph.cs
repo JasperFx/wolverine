@@ -18,6 +18,7 @@ using Wolverine.Configuration;
 using Wolverine.Persistence;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
@@ -805,6 +806,47 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
             _messageTypes = _messageTypes.AddOrUpdate(messageAlias, messageType);
             _replyTypes = _replyTypes.Add(messageType);
+        }
+    }
+
+    /// <summary>
+    /// GH-5695. Whether one of the message type's separated or sticky handler chains is bound to
+    /// <paramref name="endpoint"/>
+    /// </summary>
+    internal bool HasChainBoundTo(Type messageType, Endpoint endpoint)
+    {
+        return _chains.TryFind(messageType, out var chain) &&
+               chain.ByEndpoint.Any(x => x.Endpoints.Contains(endpoint));
+    }
+
+    /// <summary>
+    /// GH-5695. Under <see cref="Wolverine.MultipleHandlerBehavior.Separated"/>, a message type of a partitioned
+    /// topology with more than one handler type is refused at startup. Each handler type runs on its own local queue,
+    /// so the slot that sequences a group's messages can only relay them to those queues and move on, and nothing
+    /// keeps the group's messages in order across them. The default combined mode runs them all in one chain on the
+    /// slot and is unaffected
+    /// </summary>
+    internal void AssertPartitionedMessagesHaveOneHandlerType(MessagePartitioningRules partitioning)
+    {
+        if (MultipleHandlerBehavior != MultipleHandlerBehavior.Separated) return;
+
+        foreach (var root in Chains)
+        {
+            var running = root.ByEndpoint.Where(x => x.Handlers.Any()).ToList();
+            if (root.Handlers.Any()) running.Insert(0, root);
+
+            if (running.Count < 2) continue;
+            if (!partitioning.TryFindTopology(root.MessageType, out var topology)) continue;
+
+            var handlerTypes = running.SelectMany(x => x.Handlers).Select(x => x.HandlerType.FullNameInCode())
+                .Distinct().Join(", ");
+
+            throw new InvalidOperationException(
+                $"Message type '{root.MessageType.FullNameInCode()}' belongs to the partitioned message topology " +
+                $"'{topology!.Uri}' and is handled by more than one handler type ({handlerTypes}). Under " +
+                "MultipleHandlerBehavior.Separated each handler type runs on its own local queue, so the topology cannot " +
+                "keep the messages of one group in order across them. Handle this message type in one handler type, " +
+                "or leave it out of the partitioned topology.");
         }
     }
 
