@@ -691,6 +691,10 @@ inserting a copy. That insert is retried with backoff for up to `DurabilitySetti
 a second copy, and an insert that still fails is logged as a `DatabaseQueueReinsertFailedException` naming the message
 id. The copy goes to the back of the queue, since the `RowVersion` column it is ordered by is an identity column.
 
+Queue names keep their case, so a reply to a mixed-case NServiceBus endpoint such as `Sales.Endpoint` goes to that
+table even on a database with a case-sensitive collation. Wolverine's endpoint addresses (`Uri`s) do not distinguish
+case, so two queues whose names differ only in case should not be used side by side from one Wolverine application.
+
 ### Multi-Tenancy
 
 NServiceBus implements multi-tenancy as a *persistence* concern rather than a transport one: the SQL Server
