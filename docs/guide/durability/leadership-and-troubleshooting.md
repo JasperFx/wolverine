@@ -38,6 +38,74 @@ To keep the durability agents, listeners or projections off some of your nodes -
 [Node Roles](/guide/durability/node-roles).
 :::
 
+## Node Health Checks and Hosts That Pause
+
+Every Wolverine node writes its own health check to the message store every
+`opts.Durability.HealthCheckPollingTime` (default: 10 seconds), and reads everybody else's while it's at it. When a
+node's last health check is older than `opts.Durability.StaleNodeTimeout` (default: 1 minute), the other nodes stop
+routing work to it right away. After `opts.Durability.StaleNodeEjectionThreshold` (default: 2) consecutive checks in
+that state, the node gets **ejected**: its node row is deleted, every inbox and outbox envelope it owned is released for
+recovery, and its agents are reassigned to the surviving nodes. Peers log
+`Ejected stale node ... after 2 consecutive missed health checks` when that happens
+([GH-4852](https://github.com/JasperFx/wolverine/issues/4852)).
+
+Long story short, with the defaults a node that stops writing health checks is ejected after a little over a minute.
+That's exactly what you want for a node that crashed. It's not what you want for a node that's still alive but was
+**paused**, because Wolverine then recovers work that node is still holding in memory. If the node really was alive,
+it re-registers its own row on its next health check and logs that it was ejected while live.
+
+### Hosts that pause
+
+Let's say you're running Wolverine on a platform that occasionally freezes your whole container or VM for a few
+seconds at a time -- or for a minute or more. Serverless container platforms do this to small replicas, burstable VMs
+do it when they run out of CPU credits, and a long full garbage collection does much the same thing from inside the
+process. Azure Container Apps on the Consumption workload profile, for example, freezes small replicas at fixed points
+after the underlying VM starts
+([microsoft/azure-container-apps#1892](https://github.com/microsoft/azure-container-apps/issues/1892)).
+
+You can recognize it by a few things showing up at the same moment:
+
+* **Kestrel complains about thread pool starvation.** You'll see `the heartbeat has been running for ... This could be
+  caused by thread pool starvation`, but a stack capture taken during the stall shows idle thread pool workers rather
+  than blocked ones. Nothing in your code is blocking -- the whole process just wasn't running.
+* **Every database connection the node was opening times out together.** The connect timeout kept counting while the
+  process was frozen.
+* **Other nodes eject the paused node**, and shortly afterward the same node logs that it re-registered its row.
+
+### Riding it out
+
+First, if the platform lets you, size the replicas so they don't get paused in the first place. On the Azure
+Container Apps Consumption profile, that means more memory per replica. Past that, give Wolverine and your database
+client enough slack to survive the pauses you do see:
+
+<!-- snippet: sample_riding_out_paused_hosts -->
+<a id='snippet-sample_riding_out_paused_hosts'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+builder.UseWolverine(opts =>
+{
+    // Npgsql gives up opening a connection after 15 seconds by default.
+    // A little more room lets a connection opened just before a pause
+    // finish once the host wakes up again
+    opts.Services.AddMarten("Host=localhost;Database=app;Timeout=30")
+        .IntegrateWithWolverine();
+
+    // Don't let the other nodes eject this one just because the
+    // hosting platform froze it for a minute or so
+    opts.Durability.StaleNodeTimeout = 2.Minutes();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L150-L169' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_riding_out_paused_hosts' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Set `StaleNodeTimeout` comfortably above the longest pause you've seen, and the connect timeout above the typical one.
+The trade-off is failover time: a node that really did crash keeps its agents and envelopes until the longer timeout
+runs out.
+
 ## Solo Mode
 
 Let's say that you're working on an individual development machine and frequently stopping and starting the application.

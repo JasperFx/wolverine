@@ -144,4 +144,28 @@ public class DurabilityModes
         Console.WriteLine($"Sent {report.OutgoingSent} outgoing messages, dead lettered {report.OutgoingDeadLettered}, released {report.ScheduledReleased} scheduled messages");
         #endregion
     }
+
+    public static async Task bootstrap_for_hosts_that_pause()
+    {
+        #region sample_riding_out_paused_hosts
+        var builder = Host.CreateApplicationBuilder();
+
+        builder.UseWolverine(opts =>
+        {
+            // Npgsql gives up opening a connection after 15 seconds by default.
+            // A little more room lets a connection opened just before a pause
+            // finish once the host wakes up again
+            opts.Services.AddMarten("Host=localhost;Database=app;Timeout=30")
+                .IntegrateWithWolverine();
+
+            // Don't let the other nodes eject this one just because the
+            // hosting platform froze it for a minute or so
+            opts.Durability.StaleNodeTimeout = 2.Minutes();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
 }
