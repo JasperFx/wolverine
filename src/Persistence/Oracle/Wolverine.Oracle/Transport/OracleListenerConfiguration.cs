@@ -34,6 +34,17 @@ public class OracleListenerConfiguration : ListenerConfiguration<OracleListenerC
     }
 
     /// <summary>
+    ///     Configure how often the scheduled message loop moves due scheduled messages into this queue
+    ///     and deletes expired rows, separately from <see cref="PollingInterval"/>. If not set, falls back
+    ///     to the polling interval, and then to DurabilitySettings.ScheduledJobPollingTime (default 5s).
+    /// </summary>
+    public OracleListenerConfiguration ScheduledMessagePollingInterval(TimeSpan interval)
+    {
+        add(e => e.ScheduledMessagePollingInterval = interval);
+        return this;
+    }
+
+    /// <summary>
     ///     Add circuit breaker exception handling to this listener
     /// </summary>
     public OracleListenerConfiguration CircuitBreaker(Action<CircuitBreakerOptions>? configure = null)
