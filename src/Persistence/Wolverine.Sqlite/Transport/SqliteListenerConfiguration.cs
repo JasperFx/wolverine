@@ -29,4 +29,15 @@ public class SqliteListenerConfiguration : ListenerConfiguration<SqliteListenerC
         add(e => e.PollingInterval = interval);
         return this;
     }
+
+    /// <summary>
+    ///     Configure how often the scheduled message loop moves due scheduled messages into this queue
+    ///     and deletes expired rows, separately from <see cref="PollingInterval"/>. If not set, falls back
+    ///     to the polling interval, and then to DurabilitySettings.ScheduledJobPollingTime (default 5s).
+    /// </summary>
+    public SqliteListenerConfiguration ScheduledMessagePollingInterval(TimeSpan interval)
+    {
+        add(e => e.ScheduledMessagePollingInterval = interval);
+        return this;
+    }
 }

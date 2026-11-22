@@ -151,7 +151,7 @@ internal static class RedisStreamEntryEnvelopes
     internal static Envelope CreateEnvelope(this IRedisEnvelopeMapper mapper, string streamKey, StreamEntry entry,
         RedisStreamEntryIdentity? identity)
     {
-        var envelope = new Envelope { TopicName = streamKey };
+        var envelope = new RedisStreamEnvelope { TopicName = streamKey };
 
         // A fresh envelope's id is a new IdGenerator() value nobody else has seen, so the id still being that
         // value after mapping means neither the id field nor a custom mapper supplied one
