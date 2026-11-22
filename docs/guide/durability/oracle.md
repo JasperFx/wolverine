@@ -247,6 +247,21 @@ opts.ListenToOracleQueue("inbound").PollingInterval(2.Seconds());
 
 When not set, the queue falls back to the global `DurabilitySettings.ScheduledJobPollingTime`.
 
+#### Scheduled Message Polling <Badge type="tip" text="6.65" />
+
+Each queue listener also runs a second loop that moves due scheduled messages into the queue and deletes expired
+rows, and by default that loop waits the same polling interval. If you lower `PollingInterval()` for faster pickup,
+you can keep the scheduled message loop on a slower interval of its own:
+
+```cs
+opts.ListenToOracleQueue("inbound")
+    .PollingInterval(100.Milliseconds())
+    .ScheduledMessagePollingInterval(1.Seconds());
+```
+
+When not set, the scheduled message loop falls back to the queue's `PollingInterval()`, and then to
+`DurabilitySettings.ScheduledJobPollingTime`.
+
 ::: info Control queue
 Wolverine has an internal control queue (`dbcontrol`) used for internal operations.
 This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.

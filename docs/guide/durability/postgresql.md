@@ -374,6 +374,21 @@ opts.ListenToPostgresqlQueue("inbound").PollingInterval(2.Seconds());
 
 When not set, the queue falls back to the global `DurabilitySettings.ScheduledJobPollingTime`.
 
+#### Scheduled Message Polling <Badge type="tip" text="6.65" />
+
+Each queue listener also runs a second loop that moves due scheduled messages into the queue and deletes expired
+rows, and by default that loop waits the same polling interval. If you lower `PollingInterval()` for faster pickup,
+you can keep the scheduled message loop on a slower interval of its own:
+
+```cs
+opts.ListenToPostgresqlQueue("inbound")
+    .PollingInterval(100.Milliseconds())
+    .ScheduledMessagePollingInterval(1.Seconds());
+```
+
+When not set, the scheduled message loop falls back to the queue's `PollingInterval()`, and then to
+`DurabilitySettings.ScheduledJobPollingTime`.
+
 ### Queue Notifications with LISTEN/NOTIFY <Badge type="tip" text="6.50" />
 
 Out of the box, a PostgreSQL queue listener only finds out about new messages when it polls. When a queue is busy, that
