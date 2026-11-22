@@ -1,5 +1,6 @@
 using DotPulsar;
 using DotPulsar.Abstractions;
+using DotPulsar.Extensions;
 using JasperFx.Core;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
@@ -115,6 +116,33 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
     /// </summary>
     public bool NativeScheduledSendEnabled { get; internal set; } = true;
 
+    /// <summary>
+    /// GH-5847. Appended to the producer name of every deduplicating producer when set, through
+    /// <see cref="PulsarConfiguration.ProducerNamePerInstance" />. Null (the default) keeps one shared producer
+    /// name per topic for every instance of the service.
+    /// </summary>
+    public string? ProducerNameInstanceId { get; internal set; }
+
+    /// <summary>
+    /// GH-5847. How long the broker may keep refusing a named producer because the name is already connected
+    /// (ProducerBusy) before Wolverine stops retrying and fails that producer with
+    /// <see cref="PulsarProducerNameInUseException" />. Long enough to ride out the broker clearing the producer of a
+    /// process that just died.
+    /// </summary>
+    internal TimeSpan ProducerNameConflictTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// GH-5847. Watches this transport's client for a named producer the broker keeps refusing (ProducerBusy).
+    /// </summary>
+    internal PulsarProducerNameGuard ProducerNames { get; } = new();
+
+    private void guardProducerNames(IWolverineRuntime runtime, TimeSpan timeout)
+    {
+        ProducerNames.Timeout = timeout;
+        ProducerNames.Logger = runtime.LoggerFactory.CreateLogger<PulsarProducerNameGuard>();
+        Builder.ExceptionHandler(ProducerNames.OnException);
+    }
+
 
     //private IEnumerable<DeadLetterTopic> enabledDeadLetterTopics()
     //{
@@ -176,6 +204,7 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
         // GH-5196. Read when the transport starts, never at registration
         _v6DefaultsRestored = runtime.Options.V6DefaultsRestored;
 
+        guardProducerNames(runtime, ProducerNameConflictTimeout);
         Client = Builder.Build();
         configureRetryTopics(runtime);
 
@@ -186,6 +215,7 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
         foreach (var tenant in Tenants)
         {
             tenant.Compile(this);
+            tenant.Transport.guardProducerNames(runtime, ProducerNameConflictTimeout);
             tenant.Transport.Client = tenant.Transport.Builder.Build();
         }
 
