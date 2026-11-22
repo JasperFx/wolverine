@@ -1469,7 +1469,7 @@ them (the form to use from F#). The key type is the aggregate's own natural key 
 public static NkShelfAudited Handle(AuditNkShelfByCode command, [WriteAggregate<NkShelfCode>] NkShelf shelf)
     => new();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_explicit_key_type.cs#L229-L233' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_write_aggregate_by_named_natural_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_explicit_key_type.cs#L279-L283' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_write_aggregate_by_named_natural_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With the key type named, the stream id is never considered, and only members of that type (or `TKey?` for a

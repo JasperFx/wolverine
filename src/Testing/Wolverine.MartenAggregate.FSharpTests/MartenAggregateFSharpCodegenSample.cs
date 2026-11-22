@@ -28,6 +28,20 @@ public static class MartenAggregateFSharpCodegenSample
     private const string ConnectionString =
         "Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres";
 
+    /// <summary>
+    ///     The stream id load, then every natural key load: at a version, exclusive, and from a key that can be
+    ///     null, for a write and for a read.
+    /// </summary>
+    private static readonly Type[] MessageTypes =
+    [
+        typeof(IncrementCounter),
+        typeof(DepositByCode),
+        typeof(DepositExclusively),
+        typeof(DepositByOptionalCode),
+        typeof(AuditLedger),
+        typeof(AuditLedgerByOptionalCode)
+    ];
+
     public static string GenerateCode()
     {
         DynamicCodeBuilder.WithinCodegenCommand = true;
@@ -39,13 +53,20 @@ public static class MartenAggregateFSharpCodegenSample
                     // No projection registration needed: codegen only emits the FetchForWriting<Counter>
                     // call; the F# projection's convention Apply/Create can't be source-gen-dispatched
                     // (the JasperFx.Events generator is C#-only) and isn't required to render the chain.
-                    opts.Services.AddMarten(m => m.Connection(ConnectionString))
+                    // The Ledger projection is registered, because a load by natural key asks the store for the
+                    // aggregate's key types
+                    opts.Services.AddMarten(m =>
+                        {
+                            m.Connection(ConnectionString);
+                            m.Projections.Add(new LedgerProjection(), ProjectionLifecycle.Inline);
+                        })
                         .IntegrateWithWolverine();
 
                     opts.Policies.AutoApplyTransactions();
 
                     opts.Discovery.DisableConventionalDiscovery();
                     opts.Discovery.IncludeType<IncrementHandler>();
+                    opts.Discovery.IncludeType<LedgerHandler>();
 
                     // GH-5401: read-your-writes on the aggregate handler
                     opts.Policies.Add(new WaitForTheCounterProjection());
@@ -56,12 +77,15 @@ public static class MartenAggregateFSharpCodegenSample
             _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
 
             var handlerGraph = host.Services.GetRequiredService<HandlerGraph>();
-            var chain = handlerGraph.ChainFor(typeof(IncrementCounter))
-                        ?? throw new InvalidOperationException("No handler chain was built for IncrementCounter.");
-
             var serviceVariableSource = host.Services.GetService<IServiceVariableSource>();
             var generatedAssembly = handlerGraph.StartAssembly(handlerGraph.Rules);
-            ((ICodeFile)chain).AssembleTypes(generatedAssembly);
+
+            foreach (var messageType in MessageTypes)
+            {
+                var chain = handlerGraph.ChainFor(messageType)
+                            ?? throw new InvalidOperationException($"No handler chain was built for {messageType.Name}.");
+                ((ICodeFile)chain).AssembleTypes(generatedAssembly);
+            }
 
             return generatedAssembly.GenerateFSharpCode(serviceVariableSource);
         }

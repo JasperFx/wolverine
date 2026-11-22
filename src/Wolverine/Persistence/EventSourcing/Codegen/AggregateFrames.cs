@@ -290,8 +290,11 @@ internal class FetchLatestAggregateFrame : AsyncFrame
             : $"{Aggregate.VariableType.FSharpName()}, {_naturalKey.KeyType.FSharpName()}";
         var fetch = $"{_session.FSharpUsage}.Events.{nameof(IEventStoreOperations.FetchLatest)}<{typeArguments}>({_naturalKey?.FSharpUsage ?? _identity.FSharpUsage}, {_token.FSharpUsage})";
 
+        // Both branches of an F# if are the fetch's ValueTask, and an aggregate defined in F# has no null
+        // literal, so the null key reads Unchecked.defaultof, which is null for any class
+        var aggregateType = Aggregate.VariableType.FSharpName();
         writer.WriteLine(_naturalKey is { CanBeNull: true }
-            ? $"let! {Aggregate.Usage} = if {_naturalKey.FSharpIsNullCheck} then System.Threading.Tasks.Task.FromResult<{Aggregate.VariableType.FSharpName()}>(null) else {fetch}"
+            ? $"let! {Aggregate.Usage} = if {_naturalKey.FSharpIsNullCheck} then System.Threading.Tasks.ValueTask.FromResult<{aggregateType}>(Unchecked.defaultof<{aggregateType}>) else {fetch}"
             : $"let! {Aggregate.Usage} = {fetch}");
         Next?.GenerateFSharpCode(method, writer);
     }

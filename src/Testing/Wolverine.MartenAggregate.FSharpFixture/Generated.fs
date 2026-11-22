@@ -55,3 +55,169 @@ type IncrementCounterHandler805386214(documentStore: Marten.IDocumentStore, outb
             do! (Wolverine.Persistence.EventSourcing.ReadYourWrites.WaitForAppendedEventsAsync(_documentStore, documentSession, [| typeof<WolverineMartenAggregateFSharpSample.Counter> |], 5000, context, cancellation) :> System.Threading.Tasks.Task)
         }
 
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type DepositByCodeHandler491942371(outboxedSessionFactory: Wolverine.Marten.Publishing.OutboxedSessionFactory) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _outboxedSessionFactory = outboxedSessionFactory
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        task {
+            // Building the Marten session
+            use documentSession = _outboxedSessionFactory.OpenSession(context)
+            // The actual message body
+            let depositByCode = context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByCode
+
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+            // Loading Marten aggregate as part of the aggregate handler workflow
+            let! stream_ledger = documentSession.Events.FetchForWriting<WolverineMartenAggregateFSharpSample.Ledger, WolverineMartenAggregateFSharpSample.LedgerCode>((context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByCode).Code, (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByCode).Version, cancellation)
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.id", (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByCode).Code.ToString()) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.type", "WolverineMartenAggregateFSharpSample.Ledger") |> ignore
+            
+            // The actual message execution
+            let outgoing1 = WolverineMartenAggregateFSharpSample.LedgerHandler.Handle(depositByCode, stream_ledger.Aggregate)
+
+            if not (isNull (box outgoing1)) then
+                stream_ledger.AppendOne(outgoing1)
+            
+            // Save all pending changes to this Marten session
+            do! documentSession.SaveChangesAsync(cancellation)
+
+            
+            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+            do! context.FlushOutgoingMessagesAsync()
+
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type DepositExclusivelyHandler313223480(outboxedSessionFactory: Wolverine.Marten.Publishing.OutboxedSessionFactory) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _outboxedSessionFactory = outboxedSessionFactory
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        task {
+            // Building the Marten session
+            use documentSession = _outboxedSessionFactory.OpenSession(context)
+            // The actual message body
+            let depositExclusively = context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositExclusively
+
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+            // Loading Marten aggregate as part of the aggregate handler workflow
+            let! stream_ledger = documentSession.Events.FetchForExclusiveWriting<WolverineMartenAggregateFSharpSample.Ledger, WolverineMartenAggregateFSharpSample.LedgerCode>((context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositExclusively).Code, cancellation)
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.id", (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositExclusively).Code.ToString()) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.type", "WolverineMartenAggregateFSharpSample.Ledger") |> ignore
+            
+            // The actual message execution
+            let outgoing1 = WolverineMartenAggregateFSharpSample.LedgerHandler.Handle(depositExclusively, stream_ledger.Aggregate)
+
+            if not (isNull (box outgoing1)) then
+                stream_ledger.AppendOne(outgoing1)
+            
+            // Save all pending changes to this Marten session
+            do! documentSession.SaveChangesAsync(cancellation)
+
+            
+            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+            do! context.FlushOutgoingMessagesAsync()
+
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type DepositByOptionalCodeHandler1025805385(outboxedSessionFactory: Wolverine.Marten.Publishing.OutboxedSessionFactory) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _outboxedSessionFactory = outboxedSessionFactory
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        task {
+            // Building the Marten session
+            use documentSession = _outboxedSessionFactory.OpenSession(context)
+            // The actual message body
+            let depositByOptionalCode = context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode
+
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+            // Loading Marten aggregate as part of the aggregate handler workflow
+            if isNull (box (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode).Code) then raise (System.ArgumentOutOfRangeException("(context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode).Code", "The WolverineMartenAggregateFSharpSample.LedgerCode natural key on this message is null, so there is no WolverineMartenAggregateFSharpSample.Ledger to load"))
+            let! stream_ledger = documentSession.Events.FetchForWriting<WolverineMartenAggregateFSharpSample.Ledger, WolverineMartenAggregateFSharpSample.LedgerCode>((context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode).Code.Value, cancellation)
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.id", (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode).Code.ToString()) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.type", "WolverineMartenAggregateFSharpSample.Ledger") |> ignore
+            
+            // The actual message execution
+            let outgoing1 = WolverineMartenAggregateFSharpSample.LedgerHandler.Handle(depositByOptionalCode, stream_ledger.Aggregate)
+
+            if not (isNull (box outgoing1)) then
+                stream_ledger.AppendOne(outgoing1)
+            
+            // Save all pending changes to this Marten session
+            do! documentSession.SaveChangesAsync(cancellation)
+
+            
+            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+            do! context.FlushOutgoingMessagesAsync()
+
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type AuditLedgerHandler239245779(outboxedSessionFactory: Wolverine.Marten.Publishing.OutboxedSessionFactory) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _outboxedSessionFactory = outboxedSessionFactory
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        task {
+            // Building the Marten session
+            use documentSession = _outboxedSessionFactory.OpenSession(context)
+            // The actual message body
+            let auditLedger = context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.AuditLedger
+
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+            let! ledger = documentSession.Events.FetchLatest<WolverineMartenAggregateFSharpSample.Ledger, WolverineMartenAggregateFSharpSample.LedgerCode>((context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.AuditLedger).Code, cancellation)
+            
+            // The actual message execution
+            WolverineMartenAggregateFSharpSample.LedgerHandler.Handle(auditLedger, ledger)
+
+            
+            // Save all pending changes to this Marten session
+            do! documentSession.SaveChangesAsync(cancellation)
+
+            
+            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+            do! context.FlushOutgoingMessagesAsync()
+
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type AuditLedgerByOptionalCodeHandler1937762059(outboxedSessionFactory: Wolverine.Marten.Publishing.OutboxedSessionFactory) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _outboxedSessionFactory = outboxedSessionFactory
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        task {
+            // Building the Marten session
+            use documentSession = _outboxedSessionFactory.OpenSession(context)
+            // The actual message body
+            let auditLedgerByOptionalCode = context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.AuditLedgerByOptionalCode
+
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+            let! ledger = if isNull (box (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.AuditLedgerByOptionalCode).Code) then System.Threading.Tasks.ValueTask.FromResult<WolverineMartenAggregateFSharpSample.Ledger>(Unchecked.defaultof<WolverineMartenAggregateFSharpSample.Ledger>) else documentSession.Events.FetchLatest<WolverineMartenAggregateFSharpSample.Ledger, WolverineMartenAggregateFSharpSample.LedgerCode>((context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.AuditLedgerByOptionalCode).Code.Value, cancellation)
+            
+            // The actual message execution
+            WolverineMartenAggregateFSharpSample.LedgerHandler.Handle(auditLedgerByOptionalCode, ledger)
+
+            
+            // Save all pending changes to this Marten session
+            do! documentSession.SaveChangesAsync(cancellation)
+
+            
+            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+            do! context.FlushOutgoingMessagesAsync()
+
+        }
+

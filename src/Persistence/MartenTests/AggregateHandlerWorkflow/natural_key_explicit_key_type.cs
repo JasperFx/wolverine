@@ -1,6 +1,8 @@
 using IntegrationTests;
 using JasperFx;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using JasperFx.Events.Projections;
 using JasperFx.Resources;
@@ -11,6 +13,8 @@ using Shouldly;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Marten;
+using Wolverine.Marten.Persistence.Sagas;
+using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -198,6 +202,42 @@ public class natural_key_explicit_key_type : PostgresqlContext, IAsyncLifetime
     {
         refusalFor<AuditNkShelfAmbiguous>().ShouldContain("[WriteAggregate<TKey>]");
     }
+
+    [Fact]
+    public void a_name_no_member_has_is_refused()
+    {
+        refusalFor<AuditNkShelfMisnamed>()
+            .ShouldContain("Unable to find a MartenTests.AggregateHandlerWorkflow.NkShelfCode named 'Missing'");
+    }
+
+    [Fact]
+    public void a_message_without_the_named_key_is_refused()
+    {
+        refusalFor<AuditNkShelfWithoutCode>()
+            .ShouldContain("Unable to find the MartenTests.AggregateHandlerWorkflow.NkShelfCode natural key");
+    }
+
+    [Fact]
+    public void identity_on_a_mapped_key_member_needs_the_key_type()
+    {
+        var refusal = refusalFor<AuditNkShelfSkuIdentityOnly>();
+        refusal.ShouldContain("marked with [Identity]");
+        refusal.ShouldContain("[WriteAggregate<NkSku>]");
+    }
+
+    [Fact]
+    public void a_named_key_read_is_refused_by_a_store_that_cannot_read_by_natural_key()
+    {
+        refusalFor<ViewNkShelfByNamedSkuWithoutKeyReads>()
+            .ShouldContain("cannot read MartenTests.AggregateHandlerWorkflow.NkShelf by its natural key");
+    }
+
+    [Fact]
+    public void a_key_read_is_reported_as_any_unresolved_load_by_a_store_that_cannot_read_by_natural_key()
+    {
+        // Without the key type, the key is still found, but there is no frame to read it with
+        refusalFor<ViewNkShelfBySkuWithoutKeyReads>().ShouldContain(nameof(InvalidEntityLoadUsageException));
+    }
 }
 
 public record AuditNkShelfByCode(NkSku Sku, NkShelfCode Code);
@@ -221,6 +261,16 @@ public record AuditNkShelfByNullableKeyType(NkSku? Sku);
 public record AuditNkShelfTwoCodes(NkShelfCode First, NkShelfCode Second);
 
 public record AuditNkShelfAmbiguous(NkSku Sku, NkShelfCode Code);
+
+public record AuditNkShelfMisnamed(NkShelfCode Code);
+
+public record AuditNkShelfWithoutCode(string Note);
+
+public record AuditNkShelfSkuIdentityOnly([property: Identity] NkSku Sku);
+
+public record ViewNkShelfByNamedSkuWithoutKeyReads(NkSku Sku);
+
+public record ViewNkShelfBySkuWithoutKeyReads(NkSku Sku);
 
 public static class NkExplicitHandler
 {
@@ -266,4 +316,43 @@ public static class NkRefusedHandler
         => new();
 
     public static NkShelfAudited Handle(AuditNkShelfAmbiguous command, [WriteAggregate] NkShelf shelf) => new();
+
+    public static NkShelfAudited Handle(AuditNkShelfMisnamed command,
+        [WriteAggregate<NkShelfCode>("Missing")] NkShelf shelf) => new();
+
+    public static NkShelfAudited Handle(AuditNkShelfWithoutCode command, [WriteAggregate<NkShelfCode>] NkShelf shelf)
+        => new();
+
+    public static NkShelfAudited Handle(AuditNkShelfSkuIdentityOnly command, [WriteAggregate] NkShelf shelf) => new();
+
+    public static void Handle(ViewNkShelfByNamedSkuWithoutKeyReads query,
+        [ReadModelWithoutNaturalKeyReads(NaturalKey = typeof(NkSku))] NkShelf shelf)
+    {
+    }
+
+    public static void Handle(ViewNkShelfBySkuWithoutKeyReads query,
+        [ReadModelWithoutNaturalKeyReads] NkShelf shelf)
+    {
+    }
+}
+
+/// <summary>
+/// [ReadModel] on a store whose integration has no natural key read, as Polecat's and Fisher's have none.
+/// </summary>
+[AttributeUsage(AttributeTargets.Parameter)]
+public class ReadModelWithoutNaturalKeyReadsAttribute : ReadModelAttribute
+{
+    protected override IEventSourcingFrameProvider ResolveEventSourcingProvider(GenerationRules rules,
+        IServiceContainer container, Type modelType)
+        => new MartenWithoutNaturalKeyReads();
+}
+
+/// <summary>
+/// The Marten provider with only <see cref="IEventSourcingFrameProvider.BuildFetchLatestByNaturalKeyFrame" />
+/// re-implemented, to build nothing. It still finds the aggregate's keys.
+/// </summary>
+internal class MartenWithoutNaturalKeyReads : MartenPersistenceFrameProvider, IEventSourcingFrameProvider
+{
+    Frame? IEventSourcingFrameProvider.BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey)
+        => null;
 }
