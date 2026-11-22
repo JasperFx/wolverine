@@ -2,6 +2,7 @@ using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Polecat;
 using Polecat.Linq;
@@ -57,7 +58,8 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
                     .IncludeType(typeof(OptionallyKeyedPolecatHandler))
                     .IncludeType(typeof(PolecatRacingHandler))
                     .IncludeType(typeof(ShortWindowPolecatPaymentHandler))
-                    .IncludeType(typeof(AdjustPolecatLedgerItselfHandler));
+                    .IncludeType(typeof(AdjustPolecatLedgerItselfHandler))
+                    .IncludeType(typeof(SelfSavingPolecatPaymentHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
@@ -85,6 +87,7 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
         OptionallyKeyedPolecatHandler.Received.Clear();
         ShortWindowPolecatPaymentHandler.Received.Clear();
         FailingPolecatPaymentHandler.Attempts = 0;
+        SelfSavingPolecatPaymentHandler.Attempts = 0;
         PolecatRacingHandler.Arrived = 0;
     }
 
@@ -291,6 +294,61 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
         RecordPolecatPaymentHandler.Received.ShouldHaveSingleItem().ShouldBe("first");
     }
 
+    [Fact]
+    public async Task a_handler_that_saves_its_own_session_is_not_a_duplicate_of_itself()
+    {
+        await _host.SendMessageAndWaitAsync(new SelfSavingPolecatPayment("self-saving"),
+            new DeliveryOptions { DeduplicationId = "self-saving" });
+
+        SelfSavingPolecatPaymentHandler.Attempts.ShouldBe(1);
+        (await recordCountAsync("self-saving-saved")).ShouldBe(1);
+        (await recordCountAsync("self-saving-after")).ShouldBe(1);
+        (await claimCountAsync("self-saving")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_claim_rolled_back_with_its_save_is_written_by_the_next_save_and_only_by_that_one()
+    {
+        await using var session = _host.DocumentStore().LightweightSession();
+        _host.Services.GetRequiredService<IPolecatDeduplicator>().QueueClaim(session, "rolled-back", null);
+
+        // Participants run in the order they were enlisted, so the claim's INSERT has run when this throws
+        session.AddTransactionParticipant(new FailsOncePolecatParticipant());
+
+        await Should.ThrowAsync<DivideByZeroException>(() =>
+            session.SaveChangesAsync(TestContext.Current.CancellationToken));
+        (await claimCountAsync("rolled-back")).ShouldBe(0);
+
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        (await claimCountAsync("rolled-back")).ShouldBe(1);
+
+        session.Store(new PolecatPaymentRecord { Id = Guid.NewGuid(), Name = "after-the-claim" });
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        (await recordCountAsync("after-the-claim")).ShouldBe(1);
+        (await claimCountAsync("rolled-back")).ShouldBe(1);
+    }
+
+    private async Task<int> recordCountAsync(string name)
+    {
+        await using var query = _host.DocumentStore().QuerySession();
+        return await query.Query<PolecatPaymentRecord>()
+            .CountAsync(x => x.Name == name, TestContext.Current.CancellationToken);
+    }
+
+    private class FailsOncePolecatParticipant : ITransactionParticipant
+    {
+        private bool _failed;
+
+        public Task BeforeCommitAsync(SqlConnection connection, SqlTransaction transaction, CancellationToken token)
+        {
+            if (_failed) return Task.CompletedTask;
+
+            _failed = true;
+            throw new DivideByZeroException("fails the first save");
+        }
+    }
+
     private static async Task<DateTimeOffset> expiresAsync(string key)
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
@@ -358,6 +416,25 @@ public static class RecordPolecatPaymentHandler
     {
         Received.Add(message.Name);
         session.Store(new PolecatPaymentRecord { Id = Guid.NewGuid(), Name = message.Name });
+    }
+}
+
+public record SelfSavingPolecatPayment(string Name);
+
+public static class SelfSavingPolecatPaymentHandler
+{
+    public static int Attempts;
+
+    [Deduplicated]
+    [Transactional]
+    public static async Task Handle(SelfSavingPolecatPayment message, IDocumentSession session)
+    {
+        Attempts++;
+
+        session.Store(new PolecatPaymentRecord { Id = Guid.NewGuid(), Name = message.Name + "-saved" });
+        await session.SaveChangesAsync();
+
+        session.Store(new PolecatPaymentRecord { Id = Guid.NewGuid(), Name = message.Name + "-after" });
     }
 }
 
