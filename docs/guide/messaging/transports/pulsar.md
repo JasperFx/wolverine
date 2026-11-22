@@ -359,7 +359,8 @@ topic the message was consumed from, and acknowledges the original only once the
 copy. A failed send leaves the original unacknowledged, so the worst case is a duplicate rather than a lost
 message. The copy keeps the message key and ordering key it was received with, and a listener using
 `Topics()` or `TopicsPattern()` requeues it to the topic it came from rather than the listener's primary
-topic. Retry-letter and dead-letter moves follow the same order: copy first, then the acknowledgment. You can instead opt into Pulsar's native
+topic. That includes a message that came back through the retry-letter topic: its retry-letter copy carries
+the topic it was first consumed from in a `WOLVERINE_SOURCE_TOPIC` property. Retry-letter and dead-letter moves follow the same order: copy first, then the acknowledgment. You can instead opt into Pulsar's native
 per-message redelivery, where the message is left **unacknowledged** and Pulsar redelivers just
 that one message (preserving its redelivery count) rather than creating a duplicate:
 
@@ -373,7 +374,10 @@ opts.Policies.OnException<TransientException>().Requeue(3);
 
 Pulsar can only redeliver a message it still holds unacknowledged. A `BufferedInMemory()` listener
 acknowledges each message as it reaches the in-memory queue, so on a buffered listener a failed message is
-re-published as a copy even with `UseNativeRedelivery()`.
+re-published as a copy even with `UseNativeRedelivery()`. The handler can also fail before that
+acknowledgment has gone out. Whichever comes first settles the message: a native redelivery that comes first
+means the message is not acknowledged afterwards, and an acknowledgment that comes first, even one still on its
+way to the broker, means the failed message is re-published as a copy.
 
 For delayed / backoff redelivery (growing the delay between attempts), use the Pulsar
 retry-letter topics instead — DotPulsar's client does not expose negative-acknowledgment backoff
@@ -766,6 +770,12 @@ message, reusing the same sequence id when the *same envelope* is sent again so 
 duplicate. A brand-new message always gets a new id and is delivered normally. A requeued copy (the
 `Requeue()` error policy) always gets a new sequence id too: a message requeued twice is the same envelope
 both times, and reusing its id would have the broker drop the second copy.
+
+The producer name is the one you pass to `EnableDeduplication()`, or `{ServiceName}-{topic name}` when you
+pass none. When the same application also listens to that topic, the listener's requeue producer uses the
+same name with `-requeue` appended, because Pulsar refuses a second producer with a name that is already
+connected to the topic. Pulsar producer names must be unique per topic, so several running instances of a
+service that publish to the same deduplicated topic each need their own producer name.
 
 You must also enable deduplication on the broker side (it is off by default), e.g.:
 

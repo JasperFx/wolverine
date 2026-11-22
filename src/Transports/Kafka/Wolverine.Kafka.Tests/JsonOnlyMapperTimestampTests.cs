@@ -73,7 +73,9 @@ public class JsonOnlyMapperTimestampTests
         actual.Id.ShouldBe(expected.Id);
         actual.Destination.ShouldBe(expected.Destination);
         actual.SentAt.ShouldBe(expected.SentAt);
-        actual.Headers.ShouldBeEmpty();
+
+        // Only the received record key (GH-5803), which the mapper stamps on every record it reads
+        actual.Headers.Keys.ShouldBe([JsonOnlyMapper.ReceivedRecordKeyHeader]);
     }
 
     [Fact]
@@ -156,7 +158,8 @@ public class JsonOnlyMapperTimestampTests
 
         buildMapper().MapIncomingToEnvelope(envelope, incoming);
 
-        envelope.Headers.ShouldBeEmpty();
+        // Only the received record key (GH-5803), empty for a record without one
+        envelope.Headers.ShouldBe([new KeyValuePair<string, string?>(JsonOnlyMapper.ReceivedRecordKeyHeader, "")]);
     }
 
     public static IEnumerable<object[]> ReservedHeaderKeys()
