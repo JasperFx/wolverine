@@ -77,7 +77,8 @@ internal class NServiceBusPostgresqlQueueSender : ISender
     /// </summary>
     internal async Task ReinsertAsync(Envelope envelope, long? seq, CancellationToken token)
     {
-        var row = _mapper.MapOutgoing(envelope);
+        // GH-5830. The copy carries the attempts the message has had, so attempt-bounded error policies still count
+        var row = _mapper.MapOutgoing(envelope, includeAttempts: true);
 
         await using var conn = await _dataSource.OpenConnectionAsync(token);
         try
