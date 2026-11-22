@@ -1410,6 +1410,9 @@ public partial class WolverineRuntime
         }
 
         Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
+
+        // GH-5695
+        Handlers.AssertPartitionedMessagesHaveOneHandlerType(Options.MessagePartitioning);
     }
 
     internal Task StartLightweightAsync()
