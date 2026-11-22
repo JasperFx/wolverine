@@ -172,9 +172,8 @@ public class mosquitto_defer_without_ack_5770
             await host.StopAsync(TestContext.Current.CancellationToken);
         }
 
-        // Resume the session. A raw client rather than a second Wolverine host: a session backlog that arrives
-        // before Wolverine has registered its listeners is left unacknowledged on that connection (GH-4802),
-        // which this broker does not redeliver until the next reconnect
+        // Resume the session with a raw client, which sees the broker's DUP flag. A second Wolverine host
+        // resuming the session is covered by mosquitto_backlog_before_listener_5790
         var redelivered = new ConcurrentQueue<bool>();
         using var resumed = new MqttFactory().CreateMqttClient();
         resumed.ApplicationMessageReceivedAsync += args =>
