@@ -741,6 +741,13 @@ The receive transaction isn't free, which is why it's opt-in:
   `UseReceiveTransaction()` is used with any other listener mode, rather than quietly falling back to the destructive
   receive.
 
+A requeued message keeps its attempt count, so attempt-bounded error policies such as
+`Requeue(3).Then.MoveToErrorQueue()` stop where they should. A re-inserted copy carries the count in a
+`Wolverine.Attempts` header; NServiceBus's own `NServiceBus.Retries` header counts only its delayed retries, so
+Wolverine leaves it alone. A receive transaction's rollback leaves the row untouched, so the listener remembers the
+count by message id instead. That memory lasts for the listener's lifetime and holds up to 10,000 messages, oldest
+forgotten first, so a requeue that comes back to a different node or after a restart starts counting again.
+
 ### Multi-Tenancy
 
 NServiceBus implements multi-tenancy as a *persistence* concern rather than a transport one: the SQL Server

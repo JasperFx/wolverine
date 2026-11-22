@@ -28,6 +28,23 @@ public abstract class DatabaseListener : IListener
     /// </summary>
     private HeldReceive? _held;
 
+    /// <summary>
+    /// GH-5830. How many messages' attempt counts <see cref="_rolledBackAttempts"/> remembers by default. The oldest
+    /// is forgotten first.
+    /// </summary>
+    internal const int MaximumRememberedAttempts = 10_000;
+
+    /// <summary>GH-5830. The bound on remembered attempt counts; only tests change it</summary>
+    internal int RememberedAttemptsLimit { get; set; } = MaximumRememberedAttempts;
+
+    /// <summary>
+    /// GH-5830. A rolled back receive leaves the row exactly as it was, so the message's attempt count cannot ride in
+    /// it. The listener remembers it by message id instead, for its own lifetime, so an attempt-bounded error policy
+    /// still reaches its limit. Bounded, oldest first; a message forgotten that way starts counting again.
+    /// </summary>
+    private readonly Dictionary<Guid, LinkedListNode<(Guid Id, int Attempts)>> _rolledBackAttempts = new();
+    private readonly LinkedList<(Guid Id, int Attempts)> _rolledBackOrder = new();
+
     protected DatabaseListener(Uri address, string queueName, IReceiver receiver, ILogger logger,
         TimeSpan pollingInterval)
     {
@@ -126,6 +143,8 @@ public abstract class DatabaseListener : IListener
     /// </summary>
     protected void holdReceive(Envelope envelope, DbConnection connection, DbTransaction transaction)
     {
+        restoreAttempts(envelope);
+
         var previous = Interlocked.Exchange(ref _held, new HeldReceive(envelope, connection, transaction));
         if (previous != null)
         {
@@ -145,6 +164,7 @@ public abstract class DatabaseListener : IListener
         var held = take(envelope);
         if (held == null) return false;
 
+        forgetAttempts(envelope.Id);
         await held.SettleAsync(true);
         return true;
     }
@@ -158,8 +178,62 @@ public abstract class DatabaseListener : IListener
         var held = take(envelope);
         if (held == null) return false;
 
+        rememberAttempts(envelope);
         await held.SettleAsync(false);
         return true;
+    }
+
+    private void rememberAttempts(Envelope envelope)
+    {
+        if (envelope.Attempts <= 0) return;
+
+        lock (_rolledBackOrder)
+        {
+            if (_rolledBackAttempts.Remove(envelope.Id, out var existing))
+            {
+                _rolledBackOrder.Remove(existing);
+            }
+
+            _rolledBackAttempts[envelope.Id] = _rolledBackOrder.AddLast((envelope.Id, envelope.Attempts));
+
+            while (_rolledBackOrder.Count > RememberedAttemptsLimit)
+            {
+                var oldest = _rolledBackOrder.First!;
+                _rolledBackOrder.RemoveFirst();
+                _rolledBackAttempts.Remove(oldest.Value.Id);
+            }
+        }
+    }
+
+    private void restoreAttempts(Envelope envelope)
+    {
+        lock (_rolledBackOrder)
+        {
+            if (_rolledBackAttempts.TryGetValue(envelope.Id, out var node) && node.Value.Attempts > envelope.Attempts)
+            {
+                envelope.Attempts = node.Value.Attempts;
+            }
+        }
+    }
+
+    private void forgetAttempts(Guid id)
+    {
+        lock (_rolledBackOrder)
+        {
+            if (_rolledBackAttempts.Remove(id, out var node))
+            {
+                _rolledBackOrder.Remove(node);
+            }
+        }
+    }
+
+    /// <summary>GH-5830. How many rolled back messages' attempt counts the listener remembers right now</summary>
+    internal int RememberedAttemptCount
+    {
+        get
+        {
+            lock (_rolledBackOrder) return _rolledBackAttempts.Count;
+        }
     }
 
     private HeldReceive? take(Envelope envelope)
@@ -180,6 +254,15 @@ public abstract class DatabaseListener : IListener
     {
         var held = Interlocked.Exchange(ref _held, null);
         if (held == null) return;
+
+        if (handled)
+        {
+            forgetAttempts(held.Envelope.Id);
+        }
+        else
+        {
+            rememberAttempts(held.Envelope);
+        }
 
         try
         {
