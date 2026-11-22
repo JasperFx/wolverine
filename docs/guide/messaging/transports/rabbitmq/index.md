@@ -306,7 +306,10 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L52-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_rabbit_mq_system_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Of course, doing so means that you will not be able to do request/reply through Rabbit MQ with your Wolverine application.
+::: warning
+Without the reply queue there is **no request/reply through Rabbit MQ**: `InvokeAsync<T>()` and `SendAndWaitAsync()`
+against a Rabbit MQ endpoint need that per-node queue for the reply (or acknowledgement) to come back to.
+:::
 
 ## Configuring Channel Creation <Badge type="tip" text="5.10" />
 

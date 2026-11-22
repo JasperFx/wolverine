@@ -208,3 +208,22 @@ await host.StartAsync();
 Note that any of these settings would be overridden by specific configuration to
 a specific endpoint.
 
+
+## How a Requeue Works
+
+Azure Service Bus has no native "put this message at the back of the queue", so a `Requeue()` error action, and a
+`ScheduleRetry()` on an endpoint that schedules natively, sends a copy of the message back and completes the original.
+Wolverine sends the copy first and completes the original only after Azure Service Bus has accepted the copy. If the
+send fails, the original stays locked until its lock expires and the broker redelivers it, so a failure can cost a
+duplicate but not the message.
+
+The copy has its own `MessageId`, so an entity with duplicate detection does not discard it as a repeat of the
+original. The Wolverine envelope id stays the same: the copy carries it in the `wolverine-envelope-id` application
+property, and Wolverine's default mapper reads it from there. A custom `IAzureServiceBusEnvelopeMapper` that reads
+the envelope id from `MessageId` sees a new id on the copy. If the copy would otherwise go out without a `SessionId`,
+it keeps the `SessionId` the original was received with.
+
+A requeue from a queue goes back to that queue. A requeue from a subscription goes to the service's retry queue,
+`wolverine.retries.[service name]`. With [system queues disabled](/guide/messaging/transports/azureservicebus/#disabling-system-queues)
+there is no retry queue, and the copy is published to the subscription's topic, where every subscription on the topic
+receives it again.
