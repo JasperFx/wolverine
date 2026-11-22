@@ -696,6 +696,13 @@ What it costs:
 * It only works with `ProcessInline()`. Wolverine refuses to start with an `InvalidListenerConfigurationException` if
   `UseReceiveTransaction()` is used with any other listener mode.
 
+A requeued message keeps its attempt count, so attempt-bounded error policies such as
+`Requeue(3).Then.MoveToErrorQueue()` stop where they should. A re-inserted copy carries the count in a
+`Wolverine.Attempts` header; NServiceBus's own `NServiceBus.Retries` header counts only its delayed retries, so
+Wolverine leaves it alone. A receive transaction's rollback leaves the row untouched, so the listener remembers the
+count by message id instead. That memory lasts for the listener's lifetime and holds up to 10,000 messages, oldest
+forgotten first, so a requeue that comes back to a different node or after a restart starts counting again.
+
 Tenant propagation works exactly as it does for SQL Server: NServiceBus carries the tenant id in a message
 header, and Wolverine maps it to and from `Envelope.TenantId` when you add `MapTenantIdToHeader` /
 `MapTenantIdFromHeader` to the endpoints. See the

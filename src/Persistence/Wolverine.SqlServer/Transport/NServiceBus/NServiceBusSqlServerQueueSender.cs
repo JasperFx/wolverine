@@ -51,7 +51,7 @@ internal class NServiceBusSqlServerQueueSender : ISender
 
     public ValueTask SendAsync(Envelope envelope)
     {
-        return new ValueTask(insertAsync(envelope, _sendSql));
+        return new ValueTask(insertAsync(envelope, _sendSql, false));
     }
 
     /// <summary>
@@ -60,12 +60,13 @@ internal class NServiceBusSqlServerQueueSender : ISender
     /// </summary>
     internal Task ReinsertAsync(Envelope envelope, bool retry)
     {
-        return insertAsync(envelope, retry ? _guardedReinsertSql : _sendSql);
+        // GH-5830. The copy carries the attempts the message has had, so attempt-bounded error policies still count
+        return insertAsync(envelope, retry ? _guardedReinsertSql : _sendSql, true);
     }
 
-    private async Task insertAsync(Envelope envelope, string sql)
+    private async Task insertAsync(Envelope envelope, string sql, bool includeAttempts)
     {
-        var row = _mapper.MapOutgoing(envelope);
+        var row = _mapper.MapOutgoing(envelope, includeAttempts);
 
         await using var conn = new SqlConnection(_connectionString);
         await conn.OpenAsync();
