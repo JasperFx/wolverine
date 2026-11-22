@@ -138,6 +138,9 @@ public class MasterTenantSource : IDynamicTenantSource<string>
         // AddTenantRecordAsync is an upsert that re-enables the row
         _disabled = _disabled.Remove(tenantId);
 
+        // GH-5840: adding a tenant through Wolverine readmits one that was deregistered from this process
+        _options.RemovedTenants.Readmit(tenantId);
+
         var connectionString = _tenantRegistry.Provider.AddApplicationNameToConnectionString(connectionValue, _options.ServiceName);
         _values = _values.AddOrUpdate(tenantId, connectionString);
     }

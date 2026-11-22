@@ -3,11 +3,13 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using IMessageStore = Wolverine.Persistence.Durability.IMessageStore;
+using ITenantDatabaseListener = Wolverine.Persistence.Durability.ITenantDatabaseListener;
 using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
 
 namespace Wolverine.Oracle.Transport;
 
-public class MultiTenantedQueueListener : IListener
+public class MultiTenantedQueueListener : IListener, ITenantDatabaseListener
 {
     private readonly ILogger _logger;
     private readonly OracleQueue _queue;
@@ -71,11 +73,73 @@ public class MultiTenantedQueueListener : IListener
         // first. Listen once per database, exactly like the durability agents, which are per database URI.
         if (_listeners.Contains(store.Name)) return;
 
+        // GH-5840: never start listening through the store of a tenant that was deregistered
+        if (isRemoved(store)) return;
+
         var listener = new OracleQueueListener(_queue, _runtime, _receiver, store.OracleDataSource, store.Name);
         _listeners = _listeners.AddOrUpdate(store.Name, listener);
+        _listenerStores = _listenerStores.AddOrUpdate(store.Name, store);
         await listener.StartAsync();
 
+        // GH-5840: the tenant was deregistered while this listener was starting
+        if (isRemoved(store))
+        {
+            await stopListenerAsync(store.Name, listener);
+            return;
+        }
+
         _logger.LogInformation("Started message listening for Oracle queue {QueueName} on database {Database}", _queue.Name, store.Name);
+    }
+
+    // GH-5840. Store instances whose tenant was deregistered. The refresh loop above can be holding one from
+    // before the removal, so starting a listener checks this. By reference: a readmitted tenant is a new store
+    // with the same name, and that one is listened to again.
+    private readonly HashSet<object> _removedStores = new(ReferenceEqualityComparer.Instance);
+
+    // GH-5840. The store each database's listener was started through, so a removed tenant's store hands its
+    // database's listener over only when it is the one that started it
+    private ImHashMap<string, IMessageStore> _listenerStores = ImHashMap<string, IMessageStore>.Empty;
+
+    private bool isRemoved(IMessageStore store)
+    {
+        lock (_removedStores) return _removedStores.Contains(store);
+    }
+
+    async ValueTask<bool> ITenantDatabaseListener.StopListeningToDatabaseAsync(IMessageStore store, IMessageStore? replacement)
+    {
+        if (store is not OracleMessageStore) return false;
+
+        lock (_removedStores) _removedStores.Add(store);
+
+        if (!_listeners.TryFind(store.Name, out var listener)) return false;
+
+        // Another store still covers this database: leave a listener some other store started alone
+        if (replacement != null && (!_listenerStores.TryFind(store.Name, out var startedBy) || !ReferenceEquals(startedBy, store)))
+        {
+            return false;
+        }
+
+        await stopListenerAsync(store.Name, listener);
+        _logger.LogInformation("Stopped message listening for queue {QueueName} on database {Database} of a removed tenant", _queue.Name, store.Name);
+
+        if (replacement is OracleMessageStore other)
+        {
+            await startListening(other);
+        }
+
+        return true;
+    }
+
+    private async Task stopListenerAsync(string databaseName, IListener listener)
+    {
+        if (_listeners.TryFind(databaseName, out var current) && ReferenceEquals(current, listener))
+        {
+            _listeners = _listeners.Remove(databaseName);
+            _listenerStores = _listenerStores.Remove(databaseName);
+        }
+
+        await listener.StopAsync();
+        await listener.DisposeAsync();
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
