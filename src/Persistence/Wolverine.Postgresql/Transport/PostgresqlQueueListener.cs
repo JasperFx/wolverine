@@ -34,12 +34,18 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
     private readonly string _quotedSchemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
+    private readonly TimeSpan _scheduledPollingInterval;
     private bool _deterministicQueueOrdering;
     private readonly string _queueNotificationKey;
     private IAsyncDisposable? _notificationRegistration;
 
     // GH-5015: a pop whose COMMIT outcome was unknown and whose release could not run yet
     private UnconfirmedPop? _unconfirmedPop;
+
+    /// <summary>
+    ///     The resolved interval between passes of the scheduled message loop
+    /// </summary>
+    internal TimeSpan ScheduledPollingInterval => _scheduledPollingInterval;
 
     public PostgresqlQueueListener(PostgresqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         NpgsqlDataSource dataSource, string? databaseName)
@@ -52,6 +58,7 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
         _logger = runtime.LoggerFactory.CreateLogger<PostgresqlQueueListener>();
         _settings = runtime.DurabilitySettings;
         _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
+        _scheduledPollingInterval = queue.ScheduledMessagePollingInterval ?? _pollingInterval;
         _deterministicQueueOrdering = queue.Parent.EnableDeterministicQueueOrdering;
 
         _sender = new PostgresqlQueueSender(queue, _dataSource, databaseName, _logger);
@@ -155,7 +162,7 @@ SELECT message.{DatabaseConstants.Body} from message ORDER BY message.timestamp{
 
                 failedCount = 0;
 
-                await Task.Delay(_pollingInterval);
+                await Task.Delay(_scheduledPollingInterval);
 
             }
             catch (Exception e)

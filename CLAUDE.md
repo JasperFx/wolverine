@@ -90,7 +90,10 @@ the .NET 10 SDK, so `dotnet test` runs in the platform's own mode:
   can reach, uncommitted work included; `--affected-from <ref>` picks another base, and `./build.sh LocalGatePlan
   --affected` prints the selection without running it. A change under `build/`, to `docker-compose.yml`,
   `global.json` and the like runs everything; one under `src/Transports/Azure` brings the ASB suite in by itself.
-  Rules and the reasoning are in `build/AffectedGate.cs`.
+  Rules and the reasoning are in `build/AffectedGate.cs`. tests.yml's `plan` job applies the same rules to a pull
+  request (`PlanTestsMatrix`, `build/TestsMatrixPlan.cs`): the full matrix is its `TESTS_MATRIX` list, a PR runs
+  only the targets it reaches, and a push to main always runs all of them. A new matrix target goes in that list
+  and in a suite's `CITargets`.
 - **Gating a Stoat plan on a suite:** run its target with `BOBCAT_RUN_TAG={plan}/{node}` set exactly as the
   plan gave it. Every supervised run publishes to the Bobcat monitor when one answers. The command per
   suite, the Docker services each needs and what can run side by side are in `.claude/docs/test_gates.md`.

@@ -15,6 +15,8 @@ internal class NServiceBusPostgresqlQueueListener : DatabaseListener
     private readonly NServiceBusPostgresqlEnvelopeMapper _mapper;
     private readonly NServiceBusPostgresqlQueueSender _sender;
     private readonly string _receiveSql;
+    private readonly TimeSpan _reinsertBudget;
+    private readonly CancellationToken _hostCancellation;
 
     public NServiceBusPostgresqlQueueListener(NServiceBusPostgresqlQueue queue, IWolverineRuntime runtime,
         IReceiver receiver)
@@ -26,6 +28,8 @@ internal class NServiceBusPostgresqlQueueListener : DatabaseListener
         _dataSource = queue.Parent.Store.NpgsqlDataSource;
         _mapper = queue.BuildMapper(runtime);
         _sender = new NServiceBusPostgresqlQueueSender(queue, runtime);
+        _reinsertBudget = runtime.DurabilitySettings.DrainTimeout;
+        _hostCancellation = runtime.Cancellation;
 
         // Destructive competing-consumer pop honoring NServiceBus FIFO-by-seq ordering. The
         // column identifiers are left unquoted, which PostgreSQL folds to lowercase — matching
@@ -38,8 +42,8 @@ WITH message AS (
         ORDER BY seq
         LIMIT :count
         FOR UPDATE SKIP LOCKED)
-    RETURNING id, headers, body)
-SELECT id, headers, body FROM message;";
+    RETURNING id, headers, body, seq)
+SELECT id, headers, body, seq FROM message;";
     }
 
     protected override int MaximumMessagesToReceive => _queue.MaximumMessagesToReceive;
@@ -52,8 +56,13 @@ SELECT id, headers, body FROM message;";
 
     public override async ValueTask DeferAsync(Envelope envelope)
     {
-        // Re-expose the message by writing it back to the NServiceBus queue table.
-        await _sender.SendAsync(envelope);
+        // Re-expose the message by writing it back to the NServiceBus queue table. The pop already deleted the
+        // row, so this copy is the only one there will be: retry it, and fail loudly if it never goes in
+        // (GH-5775). The copy takes back the seq the row was popped with to keep its FIFO place. The host's
+        // cancellation stops the retries but never an insert in flight; the command timeout bounds that.
+        var seq = (envelope as NServiceBusPostgresqlEnvelope)?.Seq;
+        await reinsertWithRetriesAsync(envelope, _ => _sender.ReinsertAsync(envelope, seq, CancellationToken.None),
+            _reinsertBudget, _hostCancellation);
     }
 
     protected override async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, CancellationToken token)
@@ -74,7 +83,9 @@ SELECT id, headers, body FROM message;";
                         ? Array.Empty<byte>()
                         : await reader.GetFieldValueAsync<byte[]>(2, token);
 
-                    return _mapper.MapIncoming(id, headers, body);
+                    var seq = Convert.ToInt64(reader.GetValue(3));
+
+                    return _mapper.MapIncoming(id, headers, body, seq);
                 }, cancellation: token);
         }
         finally
