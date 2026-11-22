@@ -90,7 +90,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         // wired into this host.
         _sagaStorage = new Lazy<ISagaStoreDiagnostics>(() =>
             new AggregateSagaStoreDiagnostics(
-                container.Services.GetServices<ISagaStoreDiagnostics>()));
+                container.Services.GetServices<ISagaStoreDiagnostics>(), Logger));
 
         LoggerFactory = loggers;
         Logger = loggers.CreateLogger<WolverineRuntime>();

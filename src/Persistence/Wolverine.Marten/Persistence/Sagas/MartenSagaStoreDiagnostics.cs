@@ -80,6 +80,55 @@ internal sealed class MartenSagaStoreDiagnostics : ISagaStoreDiagnostics
         return buildInstance(sagaType, identity, saga);
     }
 
+    // GH-5839: complete one saga from outside its handlers, through the same store and saga index the reads use
+
+    public bool SupportsSagaCompletion(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var sagaType) && sagaType.CanBeCastTo<Saga>();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+    {
+        if (!SupportsSagaCompletion(sagaTypeName)) throw SagaTermination.NotSupported(sagaTypeName, "Marten");
+        var sagaType = sagaIndex()[sagaTypeName];
+
+        var idType = _store.Options.FindOrResolveDocumentType(sagaType).IdType;
+        var coercedId = coerceIdentity(identity, idType);
+        if (coercedId is null)
+        {
+            return new SagaTerminationResult(sagaType.FullNameInCode(), identity, SagaTerminationOutcome.NotFound);
+        }
+
+        var task = (Task<SagaTerminationOutcome>)typeof(MartenSagaStoreDiagnostics)
+            .GetMethod(nameof(completeAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sagaType)
+            .Invoke(null, [_store, coercedId, ct])!;
+
+        var outcome = await task.ConfigureAwait(false);
+        return new SagaTerminationResult(sagaType.FullNameInCode(), identity, outcome);
+    }
+
+    private static async Task<SagaTerminationOutcome> completeAsync<TSaga>(IDocumentStore store, object id,
+        CancellationToken ct) where TSaga : Saga
+    {
+        await using var session = store.LightweightSession();
+        var saga = id switch
+        {
+            Guid guid => await session.LoadAsync<TSaga>(guid, ct).ConfigureAwait(false),
+            string text => await session.LoadAsync<TSaga>(text, ct).ConfigureAwait(false),
+            int number => await session.LoadAsync<TSaga>(number, ct).ConfigureAwait(false),
+            long number => await session.LoadAsync<TSaga>(number, ct).ConfigureAwait(false),
+            _ => await session.LoadAsync<TSaga>(id, ct).ConfigureAwait(false)
+        };
+
+        if (saga is null) return SagaTerminationOutcome.NotFound;
+
+        session.Delete(saga);
+        await session.SaveChangesAsync(ct).ConfigureAwait(false);
+        return SagaTerminationOutcome.Deleted;
+    }
+
     public async Task<IReadOnlyList<SagaInstanceState>> ListSagaInstancesAsync(string sagaTypeName, int count, CancellationToken ct)
     {
         if (!sagaIndex().ContainsKey(sagaTypeName))

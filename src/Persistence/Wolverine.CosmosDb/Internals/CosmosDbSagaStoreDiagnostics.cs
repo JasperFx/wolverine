@@ -155,6 +155,64 @@ internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics
         => e is CosmosException { StatusCode: System.Net.HttpStatusCode.BadRequest } or NotSupportedException
            || e.GetType().Name == "DocumentQueryException";
 
+    // GH-5839: complete one saga from outside its handlers. The delete is a compare-and-swap against the ETag the saga
+    // was read at, as the saga's own handlers write it, so a saga a handler changed in the meantime is refused
+
+    public bool SupportsSagaCompletion(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var sagaType) && sagaType.CanBeCastTo<Saga>();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+    {
+        if (!SupportsSagaCompletion(sagaTypeName))
+        {
+            throw SagaTermination.NotSupported(sagaTypeName, "CosmosDB saga storage");
+        }
+
+        var sagaType = sagaIndex()[sagaTypeName];
+        var id = identity.ToString()!;
+        var partitionKey = partitionById(sagaType) ? new PartitionKey(id) : PartitionKey.None;
+
+        var task = (Task<SagaTerminationOutcome>)typeof(CosmosDbSagaStoreDiagnostics)
+            .GetMethod(nameof(completeAsync), BindingFlags.Instance | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sagaType)
+            .Invoke(this, [id, partitionKey, ct])!;
+
+        var outcome = await task.ConfigureAwait(false);
+        return new SagaTerminationResult(sagaType.FullNameInCode(), identity, outcome);
+    }
+
+    private async Task<SagaTerminationOutcome> completeAsync<TSaga>(string id, PartitionKey partitionKey,
+        CancellationToken ct) where TSaga : Saga
+    {
+        ItemResponse<TSaga> read;
+        try
+        {
+            read = await _container.ReadItemAsync<TSaga>(id, partitionKey, cancellationToken: ct).ConfigureAwait(false);
+        }
+        catch (CosmosException e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return SagaTerminationOutcome.NotFound;
+        }
+
+        if (read.Resource is null) return SagaTerminationOutcome.NotFound;
+
+        try
+        {
+            await _container.DeleteItemAsync<TSaga>(id, partitionKey, new ItemRequestOptions { IfMatchEtag = read.ETag },
+                ct).ConfigureAwait(false);
+            return SagaTerminationOutcome.Deleted;
+        }
+        catch (CosmosException e) when (e.StatusCode is System.Net.HttpStatusCode.PreconditionFailed
+                                             or System.Net.HttpStatusCode.NotFound)
+        {
+            // Changed, or deleted by a handler, between the read and the delete
+            throw SagaTermination.Concurrency(typeof(TSaga), id, e);
+        }
+    }
+
     private bool partitionById(Type sagaType)
         => _runtime.Services.GetService<CosmosDbConfiguration>() is { SagasArePartitionedById: true }
            && sagaType.CanBeCastTo<Saga>();

@@ -160,6 +160,101 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
         }
     }
 
+    // GH-5839: complete one saga from outside its handlers, through the saga's own lightweight schema, in the main
+    // database the reads use
+
+    public bool SupportsSagaCompletion(string sagaTypeName) => sagaIndex().ContainsKey(sagaTypeName);
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Diagnostics only: closes the store's saga schema and a helper over the saga and id types, which handler discovery roots. Same as the saga runtime's non-generated path.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Finds the store's public SagaSchemaFor method; message store types are rooted by their registration.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2060",
+        Justification = "Closes SagaSchemaFor over the saga and id types, which handler discovery roots.")]
+    public async Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+    {
+        if (!sagaIndex().TryGetValue(sagaTypeName, out var definition))
+        {
+            throw SagaTermination.NotSupported(sagaTypeName, "Database saga storage");
+        }
+
+        var idType = idTypeOf(definition);
+        var id = coerceIdentity(identity, idType);
+        if (id is null)
+        {
+            return new SagaTerminationResult(definition.SagaType.FullNameInCode(), identity,
+                SagaTerminationOutcome.NotFound);
+        }
+
+        // MessageDatabase<T>.SagaSchemaFor<TSaga, TId>() is the schema the saga's own handlers write through, so the
+        // completion uses the same table name, serializer and version check
+        var schemaFor = _database.GetType().GetMethods()
+            .First(m => m.Name == "SagaSchemaFor" && m.IsGenericMethodDefinition && m.GetParameters().Length == 0);
+        var schema = schemaFor.MakeGenericMethod(definition.SagaType, idType).Invoke(_database, null)!;
+
+        var task = (Task<SagaTerminationOutcome>)typeof(DatabaseSagaStoreDiagnostics)
+            .GetMethod(nameof(completeAsync), System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
+            .MakeGenericMethod(idType, definition.SagaType)
+            .Invoke(null, [_database, schema, id, ct])!;
+
+        var outcome = await task.ConfigureAwait(false);
+        return new SagaTerminationResult(definition.SagaType.FullNameInCode(), identity, outcome);
+    }
+
+    private static async Task<SagaTerminationOutcome> completeAsync<TId, TSaga>(IMessageDatabase database,
+        IDatabaseSagaSchema<TId, TSaga> schema, TId id, CancellationToken ct) where TSaga : Saga
+    {
+        var conn = database.DataSource.CreateConnection();
+        await conn.OpenAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await using var tx = await conn.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+            var saga = await schema.LoadAsync(id, tx, ct).ConfigureAwait(false);
+            if (saga is null) return SagaTerminationOutcome.NotFound;
+
+            // The update checks the version the saga was loaded at, so a saga a handler changed in the meantime is
+            // refused with SagaConcurrencyException before it is deleted, in the same transaction
+            await schema.UpdateAsync(saga, tx, ct).ConfigureAwait(false);
+            await schema.DeleteAsync(saga, tx, ct).ConfigureAwait(false);
+
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+            return SagaTerminationOutcome.Deleted;
+        }
+        finally
+        {
+            await conn.CloseAsync().ConfigureAwait(false);
+        }
+    }
+
+    private static Type idTypeOf(SagaTableDefinition definition) => definition.IdMember switch
+    {
+        System.Reflection.PropertyInfo p => p.PropertyType,
+        System.Reflection.FieldInfo f => f.FieldType,
+        _ => typeof(object)
+    };
+
+    private static object? coerceIdentity(object identity, Type idType)
+    {
+        if (identity.GetType() == idType) return identity;
+
+        try
+        {
+            var text = identity.ToString();
+            if (idType == typeof(Guid)) return Guid.Parse(text!);
+            if (idType == typeof(string)) return text;
+            if (idType == typeof(int)) return int.Parse(text!);
+            if (idType == typeof(long)) return long.Parse(text!);
+            return Convert.ChangeType(identity, idType);
+        }
+        catch
+        {
+            // A mistyped id reads as "not found", as it does for ReadSagaAsync
+            return null;
+        }
+    }
+
     /// <summary>
     /// True when the exception is the backing database's flavor of
     /// "relation / table does not exist". Kept dialect-agnostic - same

@@ -5,12 +5,13 @@ using Wolverine.Configuration.Capabilities;
 namespace Wolverine.Persistence.Sagas;
 
 /// <summary>
-/// Operator-facing read-only diagnostic surface for the saga storages
+/// Operator-facing diagnostic surface for the saga storages
 /// registered with this Wolverine application. Mirrors the shape that
 /// CritterWatch (and any other monitoring tool) needs to render saga
 /// state for an event-store explorer: list the saga types this service
 /// knows about, fetch a single saga instance by type-name + identity,
-/// and list recent instances for a given saga type.
+/// and list recent instances for a given saga type. Its one write,
+/// <see cref="CompleteSagaAsync" /> (GH-5839), ends a single saga instance.
 /// </summary>
 /// <remarks>
 /// One implementation per registered saga storage (Marten, EF Core,
@@ -84,4 +85,38 @@ public interface ISagaStoreDiagnostics
     /// </remarks>
     Task<SagaQueryResult> QuerySagasAsync(string sagaTypeName, DocumentQueryOptions options, CancellationToken ct)
         => throw new NotSupportedException($"{GetType().FullName} does not support querying saga instances.");
+
+    /// <summary>
+    /// GH-5839. Whether <see cref="CompleteSagaAsync" /> can complete instances of <paramref name="sagaTypeName" /> on
+    /// this storage, so a monitoring tool offers the action only where it works. The default says no, which is what a
+    /// storage written before completion existed does.
+    /// </summary>
+    bool SupportsSagaCompletion(string sagaTypeName) => false;
+
+    /// <summary>
+    /// GH-5839. Complete one saga instance from outside the saga's own handlers, for an operator ending an instance
+    /// that will never finish. The instance is completed as <c>MarkCompleted()</c> would complete it: it is deleted.
+    /// No handler of the saga runs, and no <c>NotFound</c> method or cascading message is involved.
+    /// </summary>
+    /// <param name="sagaTypeName">The saga type's full name in code, or its short name.</param>
+    /// <param name="identity">The saga identity, coerced as <see cref="ReadSagaAsync" /> coerces it.</param>
+    /// <param name="reason">Why the saga is being ended. Required. Wolverine logs it.</param>
+    /// <param name="ct">Token to cancel the call.</param>
+    /// <returns>
+    /// What was done. An instance that does not exist reads as <see cref="SagaTerminationOutcome.NotFound" /> and
+    /// changes nothing.
+    /// </returns>
+    /// <exception cref="NotSupportedException">This storage does not keep, or cannot complete, the saga type.</exception>
+    /// <exception cref="JasperFx.ConcurrencyException">
+    /// The instance changed while it was being completed, where the storage can tell (a
+    /// <see cref="SagaConcurrencyException" /> from Wolverine's own checks). Nothing was changed; read it again and retry.
+    /// </exception>
+    /// <remarks>
+    /// Default-implemented so that a storage built against an older Wolverine still loads: the default throws
+    /// <see cref="NotSupportedException" />. Like <see cref="ReadSagaAsync" />, it acts on the saga storage's default
+    /// tenant or main database.
+    /// </remarks>
+    Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+        => throw new NotSupportedException($"{GetType().FullName} does not support completing saga instances.");
 }
