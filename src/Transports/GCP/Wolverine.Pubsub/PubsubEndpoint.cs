@@ -482,7 +482,12 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         return false;
     }
 
-    internal async Task SendMessageAsync(Envelope envelope, ILogger logger, PubsubClientSet? clients = null)
+    /// <param name="orderingKeyFallback">
+    ///     GH-5771. The ordering key to use when nothing else determines one: a requeue copy of a message received
+    ///     with a native ordering key but no <see cref="Envelope.GroupId" />.
+    /// </param>
+    internal async Task SendMessageAsync(Envelope envelope, ILogger logger, PubsubClientSet? clients = null,
+        string? orderingKeyFallback = null)
     {
         clients ??= _transport.DefaultClients;
 
@@ -506,6 +511,11 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         // function supplied to PubsubTopicSubscriberConfiguration.OrderMessagesBy(), and finally whatever a
         // custom IPubsubEnvelopeMapper already stamped onto the message itself.
         message.OrderingKey = envelope.GroupId ?? orderBy ?? message.OrderingKey;
+
+        if (message.OrderingKey.IsEmpty() && orderingKeyFallback.IsNotEmpty())
+        {
+            message.OrderingKey = orderingKeyFallback;
+        }
 
         await clients.PublisherApiClient.PublishAsync(new PublishRequest
         {
