@@ -100,7 +100,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         if (_enableRequeue)
         {
-            _sender = new PulsarSender(runtime, endpoint, transport, _cancellation);
+            _sender = new PulsarSender(runtime, endpoint, transport, _cancellation, null, forRequeue: true);
         }
 
         _unsubscribeOnClose = endpoint.UnsubscribeOnClose;
@@ -577,7 +577,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         }
 
         return _topicSenders.GetOrAdd(topic,
-            t => new Lazy<PulsarSender>(() => new PulsarSender(_runtime, _endpoint, _transport, _cancellation, t)))
+            t => new Lazy<PulsarSender>(() => new PulsarSender(_runtime, _endpoint, _transport, _cancellation, t, forRequeue: true)))
             .Value;
     }
 
