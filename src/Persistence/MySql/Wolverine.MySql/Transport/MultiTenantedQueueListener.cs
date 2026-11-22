@@ -65,6 +65,12 @@ public class MultiTenantedQueueListener : IListener
 
     private async Task startListening(MySqlMessageStore store)
     {
+        // GH-5817. Tenant ids that share one database each get their own tenant store, and every one of those
+        // stores answers to the same name (the database URI). A queue listener is per database, so the second
+        // store's listener would only replace the first in this map, and stop/dispose would never reach the
+        // first. Listen once per database, exactly like the durability agents, which are per database URI.
+        if (_listeners.Contains(store.Name)) return;
+
         var listener = new MySqlQueueListener(_queue, _runtime, _receiver, store.MySqlDataSource, store.Name);
         _listeners = _listeners.AddOrUpdate(store.Name, listener);
         await listener.StartAsync();
