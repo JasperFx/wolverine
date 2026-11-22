@@ -359,7 +359,8 @@ topic the message was consumed from, and acknowledges the original only once the
 copy. A failed send leaves the original unacknowledged, so the worst case is a duplicate rather than a lost
 message. The copy keeps the message key and ordering key it was received with, and a listener using
 `Topics()` or `TopicsPattern()` requeues it to the topic it came from rather than the listener's primary
-topic. Retry-letter and dead-letter moves follow the same order: copy first, then the acknowledgment. You can instead opt into Pulsar's native
+topic. That includes a message that came back through the retry-letter topic: its retry-letter copy carries
+the topic it was first consumed from in a `WOLVERINE_SOURCE_TOPIC` property. Retry-letter and dead-letter moves follow the same order: copy first, then the acknowledgment. You can instead opt into Pulsar's native
 per-message redelivery, where the message is left **unacknowledged** and Pulsar redelivers just
 that one message (preserving its redelivery count) rather than creating a duplicate:
 
@@ -373,7 +374,10 @@ opts.Policies.OnException<TransientException>().Requeue(3);
 
 Pulsar can only redeliver a message it still holds unacknowledged. A `BufferedInMemory()` listener
 acknowledges each message as it reaches the in-memory queue, so on a buffered listener a failed message is
-re-published as a copy even with `UseNativeRedelivery()`.
+re-published as a copy even with `UseNativeRedelivery()`. The handler can also fail before that
+acknowledgment has gone out. Whichever comes first settles the message: a native redelivery that comes first
+means the message is not acknowledged afterwards, and an acknowledgment that comes first, even one still on its
+way to the broker, means the failed message is re-published as a copy.
 
 For delayed / backoff redelivery (growing the delay between attempts), use the Pulsar
 retry-letter topics instead — DotPulsar's client does not expose negative-acknowledgment backoff
