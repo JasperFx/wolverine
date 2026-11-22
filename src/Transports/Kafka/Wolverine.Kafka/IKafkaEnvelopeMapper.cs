@@ -29,9 +29,9 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         // itself under GroupByMessageKey), not something the application set, and keying copies by the consumer
         // group sent every one of them to a single partition. A message the application sends keeps the GroupId
         // it set, else its PartitionKey.
-        outgoing.Key = envelope.PartitionId.HasValue
+        outgoing.Key = (envelope.PartitionId.HasValue
             ? envelope.PartitionKey
-            : !string.IsNullOrEmpty(envelope.GroupId) ? envelope.GroupId : envelope.PartitionKey;
+            : !string.IsNullOrEmpty(envelope.GroupId) ? envelope.GroupId : envelope.PartitionKey)!;
 
         // Sender liveness pings must stay recognizable on the receiving side. A raw-JSON
         // listener identifies pings solely by the message-type header (see the guard in

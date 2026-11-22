@@ -73,12 +73,15 @@ public class kafka_copies_keep_their_key_5772
     // What KafkaListener.buildEnvelope does with a record off the broker
     private static Envelope received(JsonOnlyMapper mapper, string? key)
     {
-        var result = TestRecords.Incoming("copies-5772", key, Encoding.UTF8.GetBytes("{\"Color\":\"blue\"}"),
-            partition: 2, offset: 41);
-        var envelope = mapper.CreateEnvelope(result);
-        envelope.TopicName = result.Topic;
-        envelope.Offset = result.Offset;
-        envelope.PartitionId = result.Partition;
+        var message = new Confluent.Kafka.Message<string, byte[]>
+        {
+            Key = key!,
+            Value = Encoding.UTF8.GetBytes("{\"Color\":\"blue\"}")
+        };
+        var envelope = mapper.CreateEnvelope("copies-5772", message);
+        envelope.TopicName = "copies-5772";
+        envelope.Offset = 41;
+        envelope.PartitionId = 2;
 
         return envelope;
     }
