@@ -476,8 +476,13 @@ Two things to know that are specific to Redis:
 A requeue, whether from a `Requeue()` error policy or from a listener handing back entries while it stops, adds a copy
 of the entry to the tail of the stream with `XADD` and only then acknowledges the original. If the `XADD` fails, the
 original stays pending and the failure is retried, so a failed requeue costs at most a duplicate, never the message.
-Because the copy is a new entry on the stream itself, every other consumer group reading that stream receives it as
-well.
+The copy is a new entry on the stream itself, so Wolverine addresses it to the consumer group that requeued it with a
+`wolverine-requeue-group` field. A Wolverine listener in any other consumer group on that stream acknowledges an entry
+addressed to a different group without handling it (`XACKDEL` under `DeleteStreamEntryOnAck`, which only deletes the
+entry once every group has settled it). A Redis-native scheduled retry is addressed the same way when it goes back on
+the stream. Entries without the field, including messages scheduled by a sender, still go to every consumer group.
+Consumers that are not Wolverine, or that run a Wolverine version without this field, do not know about it and still
+receive the copy.
 
 The read batch size is this transport's prefetch equivalent, and in this mode it defaults to twice the number of lanes
 that can be busy at once — the partition slot count when `PartitionProcessingByGroupId()` is used, otherwise
