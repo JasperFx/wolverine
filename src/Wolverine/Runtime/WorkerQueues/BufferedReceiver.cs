@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Scheduled;
@@ -23,7 +25,8 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private readonly Endpoint _endpoint;
     private readonly IWolverineRuntime _runtime;
     private readonly ILogger _logger;
-    private readonly RetryBlock<Envelope>? _moveToErrors;
+    // GH-5806. The dead-letter sends still retrying in the background, so DrainAsync can wait for them
+    private readonly ConcurrentDictionary<DeadLetterRetry, byte> _deadLetterRetries = new();
     private readonly int _boundedCapacity;
     private readonly object _receivingBlockLock = new();
     private volatile IBlock<Envelope> _receivingBlock;
@@ -86,12 +89,14 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {
             _deadLetterSender = dlq;
-
-            _moveToErrors = new RetryBlock<Envelope>(
-                async (envelope, _) => { await _deadLetterSender!.SendAsync(envelope).ConfigureAwait(false); }, _logger,
-                _settings.Cancellation);
         }
     }
+
+    /// <summary>
+    /// GH-5806. The pauses before each background retry of a failed send to the native dead letter queue, after the
+    /// first attempt made inline. Once they are used up the envelope goes to the message store's dead letter storage
+    /// </summary>
+    internal TimeSpan[] DeadLetterSendPauses { get; set; } = [50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds()];
 
     private IBlock<Envelope> buildReceivingBlock()
     {
@@ -387,9 +392,26 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             await _batchMembers.DrainAsync().ConfigureAwait(false);
         }
 
-        if (_moveToErrors != null)
+        await drainDeadLetterRetriesAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// GH-5806. Endpoints drain before the host cancels anything and before the message store shuts down, so a
+    /// dead-letter send still retrying here either succeeds or reaches dead letter storage while the store is open
+    /// </summary>
+    private async Task drainDeadLetterRetriesAsync()
+    {
+        var pending = _deadLetterRetries.Keys.ToArray();
+        if (pending.Length == 0) return;
+
+        var all = Task.WhenAll(pending.Select(x => x.Task));
+        if (await Task.WhenAny(all, Task.Delay(_settings.DrainTimeout)).ConfigureAwait(false) == all) return;
+
+        foreach (var retry in pending.Where(x => !x.Task.IsCompleted))
         {
-            await _moveToErrors.DrainAsync().ConfigureAwait(false);
+            _logger.LogError(
+                "Envelope {EnvelopeId} ({MessageType}) was still being moved to the dead letter queue for {Uri} when the drain timed out",
+                retry.Envelope.Id, retry.Envelope.MessageType, Uri);
         }
     }
 
@@ -565,14 +587,127 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             d.SafeDispose();
         }
 
-        _moveToErrors?.Dispose();
         _batchMembers?.Dispose();
     }
 
-    public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
+    /// <summary>
+    /// The first send to the native dead letter queue is made inline. A failed send is retried in the background
+    /// (<see cref="DeadLetterSendPauses"/>). GH-5806: the broker delivery was settled on arrival, so this envelope is
+    /// the only copy. When no send succeeds, or the host stops first, it goes to the message store's dead letter
+    /// storage instead of being discarded
+    /// </summary>
+    public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
         DeadLetterQueueConstants.StampFailureMetadata(envelope, exception, _runtime.DurabilitySettings.DeadLetterFingerprinter);
-        return _moveToErrors!.PostAsync(envelope);
+
+        try
+        {
+            await sendToDeadLetterQueueAsync(envelope).ConfigureAwait(false);
+            return;
+        }
+        catch (Exception e)
+        {
+            if (_settings.Cancellation.IsCancellationRequested)
+            {
+                await fallBackToDeadLetterStorageAsync(envelope, exception, e, 1).ConfigureAwait(false);
+                return;
+            }
+
+            _logger.LogError(e,
+                "Error sending envelope {EnvelopeId} ({MessageType}) to the dead letter queue for {Uri}; retrying",
+                envelope.Id, envelope.MessageType, Uri);
+
+            var retry = new DeadLetterRetry(envelope);
+            retry.Task = Task.Run(() => retryDeadLetterSendAsync(envelope, exception, e));
+            _deadLetterRetries[retry] = 0;
+            _ = retry.Task.ContinueWith(_ => _deadLetterRetries.TryRemove(retry, out var _),
+                CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }
+    }
+
+    private async Task sendToDeadLetterQueueAsync(Envelope envelope)
+    {
+        await _deadLetterSender!.SendAsync(envelope).ConfigureAwait(false);
+    }
+
+    private async Task retryDeadLetterSendAsync(Envelope envelope, Exception exception, Exception sendFailure)
+    {
+        var attempts = 1;
+        try
+        {
+            foreach (var pause in DeadLetterSendPauses)
+            {
+                if (_settings.Cancellation.IsCancellationRequested) break;
+
+                try
+                {
+                    await Task.Delay(pause, _settings.Cancellation).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                attempts++;
+                try
+                {
+                    await sendToDeadLetterQueueAsync(envelope).ConfigureAwait(false);
+                    return;
+                }
+                catch (Exception e)
+                {
+                    sendFailure = e;
+                    _logger.LogError(e,
+                        "Error sending envelope {EnvelopeId} ({MessageType}) to the dead letter queue for {Uri} on attempt {Attempts}",
+                        envelope.Id, envelope.MessageType, Uri, attempts);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            sendFailure = e;
+        }
+
+        await fallBackToDeadLetterStorageAsync(envelope, exception, sendFailure, attempts).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// GH-5806. Never throws
+    /// </summary>
+    private async Task fallBackToDeadLetterStorageAsync(Envelope envelope, Exception exception, Exception sendFailure,
+        int attempts)
+    {
+        var store = envelope.Store ?? _runtime.Storage;
+        if (store is NullMessageStore)
+        {
+            _logger.LogError(sendFailure,
+                "Envelope {EnvelopeId} ({MessageType}) could not be sent to the dead letter queue for {Uri} after {Attempts} attempt(s), and there is no message store to fall back to, so it was discarded",
+                envelope.Id, envelope.MessageType, Uri, attempts);
+            return;
+        }
+
+        try
+        {
+            await store.Inbox.MoveToDeadLetterStorageAsync(envelope, exception).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e,
+                "Envelope {EnvelopeId} ({MessageType}) could not be sent to the dead letter queue for {Uri} after {Attempts} attempt(s), and moving it to dead letter storage failed too, so it was discarded",
+                envelope.Id, envelope.MessageType, Uri, attempts);
+
+            return;
+        }
+
+        _logger.LogError(sendFailure,
+            "Envelope {EnvelopeId} ({MessageType}) could not be sent to the dead letter queue for {Uri} after {Attempts} attempt(s), so it was moved to dead letter storage in the message store instead",
+            envelope.Id, envelope.MessageType, Uri, attempts);
+    }
+
+    private sealed class DeadLetterRetry(Envelope envelope)
+    {
+        public Envelope Envelope { get; } = envelope;
+        public Task Task { get; set; } = Task.CompletedTask;
     }
 
     public bool NativeDeadLetterQueueEnabled => _deadLetterSender != null;
