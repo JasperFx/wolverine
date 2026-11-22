@@ -91,7 +91,18 @@ public class Bug_1594_ReplayDeadLetterQueue
 
         // Log state after replay
         var afterReplay = await messageStore.DeadLetters.QueryAsync(deadLetterQuery, CancellationToken.None);
+        // The tracked session completes when the handler succeeds, but marking the replayed inbox row as
+        // handled is a separate write that can still be in flight at that moment. Reading the inbox once,
+        // straight away, made this test fail intermittently; wait (bounded) for the row to leave Incoming.
         var afterIncoming = await messageStore.Admin.AllIncomingAsync();
+        var settle = Stopwatch.StartNew();
+        while (afterIncoming.Any(env => env.Status == EnvelopeStatus.Incoming && env.Id == deadLetterId)
+               && settle.Elapsed < 10.Seconds())
+        {
+            await Task.Delay(100, TestContext.Current.CancellationToken);
+            afterIncoming = await messageStore.Admin.AllIncomingAsync();
+        }
+
         foreach (var env in afterIncoming)
         {
             _output.WriteLine($"[INCOMING] Id: {env.Id}, Status: {env.Status}, OwnerId: {env.OwnerId}, ScheduledTime: {env.ScheduledTime}, Attempts: {env.Attempts}, ReceivedAt: {env.Destination}");
