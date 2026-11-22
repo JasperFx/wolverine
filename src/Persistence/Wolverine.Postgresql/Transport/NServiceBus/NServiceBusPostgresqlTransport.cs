@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using Spectre.Console;
 using Wolverine.Configuration;
+using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using MultiTenantedMessageStore = Wolverine.Persistence.Durability.MultiTenantedMessageStore;
@@ -52,9 +53,14 @@ public class NServiceBusPostgresqlTransport : BrokerTransport<NServiceBusPostgre
         return identifier;
     }
 
+    /// <summary>
+    ///     GH-5814. Resolves a queue by the name its Uri was built from, with its case. <c>Uri.Host</c> is lowercased
+    ///     by <see cref="System.Uri" />, and a PostgreSQL quoted table name is case-sensitive, so a reply to an
+    ///     NServiceBus endpoint called <c>Sales.Endpoint</c> used to be written to a <c>sales.endpoint</c> table.
+    /// </summary>
     protected override NServiceBusPostgresqlQueue findEndpointByUri(Uri uri)
     {
-        return Queues[uri.Host];
+        return CaseSensitiveQueueLookup.Find(Queues, uri, x => x.Name);
     }
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)

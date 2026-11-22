@@ -684,6 +684,10 @@ receive uses `FOR UPDATE SKIP LOCKED` ordered by the NServiceBus `seq` column. A
 * NServiceBus addresses queues as the schema-qualified `"schema"."table"`; Wolverine maps the reply address back to the
   bare queue name so request/reply works in both directions. Like NServiceBus, it splits on the first dot outside the
   quotes, so a dotted endpoint name such as `"public"."Sales.Endpoint"` maps to the `Sales.Endpoint` queue.
+* Queue names keep their case. NServiceBus quotes its queue table names, so `Sales.Endpoint` and `sales.endpoint` are
+  different tables, and a reply to a mixed-case endpoint goes to that endpoint's own table, even one Wolverine was
+  never configured with. Two configured queues whose names differ only in case are refused at startup; see
+  [Endpoint Names That Differ Only in Case](/guide/messaging/transports/#endpoint-names-that-differ-only-in-case).
 * A deferred message (a handler failure in `Inline` mode, or a listener shutting down with messages still in hand) is
   put back by inserting a copy with its original `seq`, so it keeps its place in the queue. The insert is retried with
   backoff for up to `DurabilitySettings.DrainTimeout`, a retry never adds a second copy, and an insert that still fails
