@@ -515,7 +515,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     {
         if (!_initialized)
         {
-            await InitializeAsync(logger);
+            await InitializeForSendingAsync(logger);
         }
 
         Mapper ??= new DefaultSqsEnvelopeMapper();
@@ -618,7 +618,23 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
             : Mapper!.DetermineGroupId(envelope);
     }
 
-    public override async ValueTask InitializeAsync(ILogger logger)
+    public override ValueTask InitializeAsync(ILogger logger)
+    {
+        return initializeAsync(logger, _parent.AutoPurgeAllQueues);
+    }
+
+    /// <summary>
+    ///     GH-5748: initialize a queue this node is about to send to, without purging it. AutoPurgeOnStartup
+    ///     purges the queues initialized as the transport starts and the queues this node listens to. A queue
+    ///     the node first sends to later -- a reply queue owned by the node that sent a request, say -- holds
+    ///     messages someone else is waiting for, and purging it just before the first send can delete them.
+    /// </summary>
+    internal ValueTask InitializeForSendingAsync(ILogger logger)
+    {
+        return initializeAsync(logger, false);
+    }
+
+    private async ValueTask initializeAsync(ILogger logger, bool purge)
     {
         if (_initialized)
         {
@@ -646,7 +662,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
                 QueueUrl = response.QueueUrl;
             }
 
-            if (_parent.AutoPurgeAllQueues)
+            if (purge)
             {
                 await PurgeAsync(logger);
                 logger.LogInformation("Purging Amazon SQS queue {Name}", QueueUrl);

@@ -46,7 +46,7 @@ internal class SqsSenderProtocol : ISenderProtocolWithNativeScheduling, IConditi
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
-        await _queue.InitializeAsync(_logger);
+        await _queue.InitializeForSendingAsync(_logger);
 
         // GH-3926: turn each envelope into the SQS entries it actually needs - one normally, or N when
         // the endpoint opted into fragmenting and the body is over SQS's limit. Done BEFORE chunking so
