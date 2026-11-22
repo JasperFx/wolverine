@@ -89,6 +89,19 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     internal bool DeleteOnAck => _transport.DeleteStreamEntryOnAck;
 
     /// <summary>
+    ///     GH-5811. The envelope header naming the one consumer group a requeued or natively rescheduled copy is
+    ///     meant for. It goes on the stream as the <see cref="RequeueGroupField" /> field.
+    /// </summary>
+    internal const string RequeueGroupHeader = "requeue-group";
+
+    /// <summary>
+    ///     GH-5811. The stream entry field carrying <see cref="RequeueGroupHeader" />. A listener in any other
+    ///     consumer group settles an entry that carries it without handling it. An entry without it is for every
+    ///     group, exactly as before.
+    /// </summary>
+    internal const string RequeueGroupField = "wolverine-" + RequeueGroupHeader;
+
+    /// <summary>
     ///     GH-4058. <c>DeleteStreamEntryOnAck(true)</c> settles with <c>XACKDEL</c>, which arrived in Redis 8.2.
     ///     An older server answers <c>ERR unknown command 'XACKDEL'</c> to every single ack, so the entries pile
     ///     up in the consumer group's pending list forever: under auto-claim they are redelivered and reprocessed
@@ -366,49 +379,170 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     {
         envelope.ScheduledTime = time;
 
+        // GH-5811: the parked copy goes back on the shared stream when it is due, so address it to this group
+        addressToThisGroup(envelope);
+
         // Park the copy first, then settle the original: a crash in between costs a duplicate, not a loss
         await _endpoint.ScheduleRetryAsync(envelope, _cancellation.Token);
         await CompleteAsync(envelope);
     }
 
+    /// <summary>
+    ///     Puts a copy of the entry at the tail of the stream and then acknowledges the original. GH-5769: in
+    ///     that order, and a failure of either step is thrown to the caller, whose retry block retries the
+    ///     requeue. Acknowledging first lost the message whenever the <c>XADD</c> failed or the process exited
+    ///     in between, because an acknowledged entry is no longer pending and <c>XAUTOCLAIM</c> cannot recover
+    ///     it. Now a failed add leaves the original pending, and the worst case is a duplicate, not a loss.
+    /// </summary>
     public async ValueTask DeferAsync(Envelope envelope)
     {
-        try
-        {
-            var db = getDatabase();
+        var db = getDatabase();
+        var streamEnvelope = envelope as RedisStreamEnvelope;
 
-            // 1) Ack the current pending entry if we can
-            if (envelope.Headers.TryGetValue(RedisEnvelopeMapper.RedisEntryIdHeader, out var idString) && !string.IsNullOrEmpty(idString))
+        // A retry after a failed acknowledgement must not add a second copy
+        if (streamEnvelope is not { RequeueCopyAdded: true })
+        {
+            try
             {
-                try
+                _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
+
+                // GH-5811: the copy is a new entry on a stream every consumer group reads, but it is a retry
+                // for this group alone
+                addressToThisGroup(envelope);
+
+                var fields = new List<NameValueEntry>();
+                _endpoint.EnvelopeMapper.MapEnvelopeToOutgoing(envelope, fields);
+                writeRequeueGroup(envelope, fields);
+                var newId = await db.StreamAddAsync(_endpoint.StreamKey, fields.ToArray());
+
+                if (streamEnvelope != null)
                 {
-                    await acknowledgeAsync(db, idString!);
+                    streamEnvelope.RequeueCopyAdded = true;
                 }
-                catch (Exception ackEx)
+
+                if (_logger.IsEnabled(LogLevel.Debug))
                 {
-                    logAckFailure(ackEx, envelope, "acknowledging before a requeue");
+                    _logger.LogDebug("Requeued envelope {EnvelopeId} to Redis stream {StreamKey} as new entry {NewId}",
+                        envelope.Id, _endpoint.StreamKey, newId);
                 }
             }
-
-            // 2) Re-add a copy to the tail of the stream
-            _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
-            var fields = new List<NameValueEntry>();
-            _endpoint.EnvelopeMapper.MapEnvelopeToOutgoing(envelope, fields);
-            var newId = await db.StreamAddAsync(_endpoint.StreamKey, fields.ToArray());
-
-            _logger.LogDebug("Requeued envelope {EnvelopeId} to Redis stream {StreamKey} as new entry {NewId}",
-                envelope.Id, _endpoint.StreamKey, newId);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Failed to add the requeued copy of envelope {EnvelopeId} to Redis stream {StreamKey}; the original entry stays pending",
+                    envelope.Id, _endpoint.StreamKey);
+                throw;
+            }
         }
-        catch (Exception ex)
+
+        if (envelope.Headers.TryGetValue(RedisEnvelopeMapper.RedisEntryIdHeader, out var idString) && !string.IsNullOrEmpty(idString))
         {
-            _logger.LogError(ex, "Failed to requeue Redis stream message for envelope {EnvelopeId}", envelope.Id);
+            try
+            {
+                await acknowledgeAsync(db, idString!);
+            }
+            catch (Exception ackEx)
+            {
+                logAckFailure(ackEx, envelope, "acknowledging after a requeue");
+                throw;
+            }
         }
     }
 
+    private void addressToThisGroup(Envelope envelope)
+    {
+        if (!string.IsNullOrEmpty(_endpoint.ConsumerGroup))
+        {
+            envelope.Headers[RequeueGroupHeader] = _endpoint.ConsumerGroup;
+        }
+    }
+
+    /// <summary>
+    ///     GH-5811. Writes the addressed group as its own field whatever the mapper did with the header, because
+    ///     the listener reads that field from the raw entry, before (and independently of) any custom mapper.
+    /// </summary>
+    private static void writeRequeueGroup(Envelope envelope, List<NameValueEntry> fields)
+    {
+        if (!envelope.Headers.TryGetValue(RequeueGroupHeader, out var group) || string.IsNullOrEmpty(group))
+        {
+            return;
+        }
+
+        fields.RemoveAll(x => x.Name == RequeueGroupField);
+        fields.Add(new NameValueEntry(RequeueGroupField, group));
+    }
+
+    /// <summary>
+    ///     GH-5811. The consumer group a requeued or rescheduled entry is addressed to, or <c>null</c> for an
+    ///     ordinary entry, which is for every group on the stream.
+    /// </summary>
+    internal static string? RequeueGroupOf(StreamEntry entry)
+    {
+        foreach (var nv in entry.Values)
+        {
+            if (nv.Name == RequeueGroupField)
+            {
+                return nv.Value.ToString();
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    ///     GH-5811. <c>true</c> when the entry is another consumer group's requeued or rescheduled copy. It is
+    ///     settled for this group (<c>XACK</c>, or <c>XACKDEL</c> under <c>DeleteStreamEntryOnAck</c>, which only
+    ///     removes it once every group has settled it) and not handled. A failed settle leaves it pending, and
+    ///     <c>XAUTOCLAIM</c> brings it back here to be skipped again.
+    /// </summary>
+    private async Task<bool> skipIfForAnotherGroupAsync(IDatabase database, StreamEntry entry)
+    {
+        var group = RequeueGroupOf(entry);
+        if (group == null || string.IsNullOrEmpty(_endpoint.ConsumerGroup) ||
+            string.Equals(group, _endpoint.ConsumerGroup, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Skipping Redis stream entry {StreamMessageId} on {StreamKey} in consumer group {ConsumerGroup}: it is a requeued copy addressed to consumer group {AddressedGroup}",
+                entry.Id, _endpoint.StreamKey, _endpoint.ConsumerGroup, group);
+        }
+
+        try
+        {
+            await acknowledgeAsync(database, entry.Id!);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Error settling Redis stream entry {StreamMessageId} on {StreamKey} in consumer group {ConsumerGroup}, a requeued copy addressed to consumer group {AddressedGroup}; it stays pending and will be skipped again",
+                entry.Id, _endpoint.StreamKey, _endpoint.ConsumerGroup, group);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     GH-5769. <c>true</c> once the copy is on the stream, even if acknowledging the original then failed:
+    ///     the caller must not run the message itself as well, and the still-pending original costs at most a
+    ///     duplicate through <c>XAUTOCLAIM</c>. <c>false</c> when the copy could not be added, so the caller
+    ///     keeps the message while the original entry stays pending.
+    /// </summary>
     public async Task<bool> TryRequeueAsync(Envelope envelope)
     {
-        await DeferAsync(envelope);
-        return true;
+        try
+        {
+            await DeferAsync(envelope);
+            return true;
+        }
+        catch (Exception)
+        {
+            // DeferAsync already logged the failure
+            return envelope is RedisStreamEnvelope { RequeueCopyAdded: true };
+        }
     }
 
     private async Task EnsureGroupExistsAsync(IDatabase db)
@@ -506,7 +640,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
             // per-message and there is no shared round trip to amortize.
             if (_endpoint.Mode == EndpointMode.Durable && streamResults.Length > 1)
             {
-                await processBatchAsync(streamResults, token);
+                await processBatchAsync(database, streamResults, token);
             }
             else
             {
@@ -517,7 +651,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
                         break;
                     }
 
-                    await ProcessMessage(message);
+                    await ProcessMessage(database, message);
                 }
             }
 
@@ -565,7 +699,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     /// batched. An entry that cannot be mapped is skipped rather than failing its neighbours --
     /// unacknowledged, so the consumer group redelivers it, exactly as the per-message path does.
     /// </summary>
-    private async Task processBatchAsync(StreamEntry[] streamResults, CancellationToken token)
+    private async Task processBatchAsync(IDatabase database, StreamEntry[] streamResults, CancellationToken token)
     {
         _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
 
@@ -579,6 +713,11 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
 
             try
             {
+                if (await skipIfForAnotherGroupAsync(database, streamEntry))
+                {
+                    continue;
+                }
+
                 var envelope = _endpoint.EnvelopeMapper.CreateEnvelope(_endpoint.StreamKey, streamEntry, EntryIdentity);
                 envelopes.Add(envelope);
             }
@@ -597,10 +736,15 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
         await _receiver.ReceivedAsync(this, envelopes.ToArray());
     }
 
-    private async Task ProcessMessage(StreamEntry streamEntry)
+    private async Task ProcessMessage(IDatabase database, StreamEntry streamEntry)
     {
         try
         {
+            if (await skipIfForAnotherGroupAsync(database, streamEntry))
+            {
+                return;
+            }
+
             // Convert Redis stream message to Wolverine envelope using mapper
             _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
 
@@ -741,6 +885,10 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
                     _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
                     var fields = new List<NameValueEntry>();
                     _endpoint.EnvelopeMapper.MapEnvelopeToOutgoing(envelope, fields);
+
+                    // GH-5811: a scheduled retry keeps the consumer group it was parked for. A message scheduled
+                    // by a sender carries no group and still goes to every group.
+                    writeRequeueGroup(envelope, fields);
 
                     var messageId = await database.StreamAddAsync(
                         _endpoint.StreamKey,

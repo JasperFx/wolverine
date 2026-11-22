@@ -18,6 +18,11 @@ namespace PostgresqlTests;
 [Collection("marten")]
 public class PostgresqlMessageStore_with_DeadLetter_Expiration : MessageStoreCompliance
 {
+    // GH-5808. A schema of this class's own. These classes used to share "receiver" with each other and with other
+    // suites (the SQS durable compliance fixture rebuilds it, and the IdAndDestination class dropped it), so a suite
+    // running alongside against the same database wiped the inbox in the middle of a test.
+    private const string SchemaName = "message_store_dlq_expiration";
+
     public override async Task<IHost> BuildCleanHost()
     {
         var host = await Host.CreateDefaultBuilder()
@@ -26,7 +31,7 @@ public class PostgresqlMessageStore_with_DeadLetter_Expiration : MessageStoreCom
                 MartenServiceCollectionExtensions.AddMarten(opts.Services, x =>
                 {
                     x.Connection(Servers.PostgresConnectionString);
-                    x.DatabaseSchemaName = "receiver";
+                    x.DatabaseSchemaName = SchemaName;
                 }).IntegrateWithWolverine();
 
                 opts.ListenAtPort(2345).UseDurableInbox();
