@@ -33,7 +33,10 @@ internal static class PubsubMessageIdentity
     /// </summary>
     internal static Envelope ReadEnvelope(IPubsubEnvelopeMapper mapper, PubsubMessage message, string subscription)
     {
-        var envelope = new Envelope();
+        var envelope = new PubsubEnvelope
+        {
+            ReceivedOrderingKey = message.OrderingKey.IsNotEmpty() ? message.OrderingKey : null
+        };
 
         // A fresh envelope's id is a new IdGenerator() value nobody else has seen, so the id still being that value
         // after mapping means neither the id attribute nor a custom mapper supplied one
