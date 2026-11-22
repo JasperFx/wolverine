@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Wolverine.Transports;
 
 namespace Wolverine.Configuration;
@@ -8,21 +9,19 @@ namespace Wolverine.Configuration;
 /// On a transport that carries the endpoint name in the host -- SQS queues, SNS topics, NServiceBus and MassTransit
 /// PostgreSQL queues, shared memory topics -- two endpoints whose names differ only in case are two endpoint objects
 /// with one identity, and everything keyed on the Uri (the sending agent cache, listener lookups, endpoint policies by
-/// Uri) treats them as one. Rather than carry a case-preserving name next to every Uri, Wolverine refuses to start with
-/// such a pair.
+/// Uri) treats them as one. On 6.x Wolverine logs a warning for each such pair at startup; Wolverine 7.0 refuses to start.
 /// </summary>
 internal static class EndpointNameCollisions
 {
     /// <summary>
-    /// Throw <see cref="EndpointNameCollisionException" /> if any transport whose names are case-sensitive has two
-    /// endpoints that share one Uri but were named differently, apart from case.
+    /// Log a warning for every pair of endpoints, on a transport whose names are case-sensitive, that share one Uri but
+    /// were named differently, apart from case.
     /// </summary>
-    internal static void AssertNone(IEnumerable<ITransport> transports)
+    internal static void WarnAboutAny(IEnumerable<ITransport> transports, ILogger logger)
     {
-        var problems = transports.SelectMany(Find).ToArray();
-        if (problems.Length > 0)
+        foreach (var message in transports.SelectMany(Find))
         {
-            throw new EndpointNameCollisionException(problems.Join(Environment.NewLine));
+            logger.LogWarning(message);
         }
     }
 
@@ -59,10 +58,10 @@ internal static class EndpointNameCollisions
 
             yield return
                 $"Endpoints {names} on the {transport.Name} transport have names that differ only in case. Wolverine " +
-                $"identifies an endpoint by its Uri, and System.Uri lower cases the host, so they would share the one " +
-                $"identity '{group.Key}' and be conflated at runtime: messages meant for one could be sent to the other, " +
-                "and one endpoint's configuration could be applied to the other. Rename one of them so that the names " +
-                "differ by more than case.";
+                $"identifies an endpoint by its Uri, and System.Uri lower cases the host, so they share the one " +
+                $"identity '{group.Key}', and Wolverine is treating them as one endpoint: messages meant for one could be sent " +
+                "to the other, and one endpoint's configuration could be applied to the other. Rename one of them so that " +
+                "the names differ by more than case. Wolverine 7.0 refuses to start with such a pair.";
         }
     }
 

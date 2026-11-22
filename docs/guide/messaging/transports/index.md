@@ -42,14 +42,15 @@ transports carry the queue or topic name in that host, so `sqs://Orders` and `sq
 though SQS treats `Orders` and `orders` as two queues. Wolverine would treat such a pair as one endpoint, so a message
 meant for one could go to the other.
 
-Wolverine refuses to start with such a pair and throws an `EndpointNameCollisionException` that names both endpoints
-and the transport. Rename one of them so the names differ by more than case. Using the same name twice is fine.
+On 6.x Wolverine logs a warning at startup for each such pair. The warning names both endpoints, the transport and
+the `Uri` they share, and says that Wolverine is treating them as one endpoint. Rename one of them so the names differ
+by more than case. Using the same name twice is fine. Wolverine 7.0 refuses to start with such a pair.
 
 | Transport | Names that differ only in case |
 |-----------|--------------------------------|
-| Amazon SQS, Amazon SNS | Refused. The name is in the `Uri` host, and AWS names are case-sensitive |
-| NServiceBus or MassTransit over PostgreSQL | Refused. The name is in the `Uri` host, and the queues are case-sensitive |
-| Shared memory | Refused. The name is in the `Uri` host |
+| Amazon SQS, Amazon SNS | Warns (6.x). The name is in the `Uri` host, and AWS names are case-sensitive |
+| NServiceBus or MassTransit over PostgreSQL | Warns (6.x). The name is in the `Uri` host, and the queues are case-sensitive |
+| Shared memory | Warns (6.x). The name is in the `Uri` host |
 | NServiceBus over SQL Server | Allowed. SQL Server's default collations are case-insensitive, so both names are one table. With a case-sensitive collation, use names that differ by more than case |
 | Local queues, and Wolverine's own PostgreSQL, SQL Server, MySQL, SQLite and Oracle queues | Allowed. Wolverine folds these names to one case when you configure them, so both names are one queue |
 | Azure Service Bus | Allowed. Wolverine folds names to lower case, and Azure Service Bus names are case-insensitive |

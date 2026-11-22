@@ -45,7 +45,7 @@ public interface ITransport
     ///     GH-5821. Whether two endpoints whose names differ only in case are two different things on this transport.
     ///     Wolverine identifies an endpoint by its <see cref="Uri" />, and <see cref="Uri" /> lower cases the host, so
     ///     on a transport that carries the endpoint name in the host such a pair would share one identity. When this is
-    ///     true (the default) Wolverine refuses to start with such a pair. Return false only when the underlying
+    ///     true (the default) Wolverine 6.x warns about such a pair at startup (7.0 refuses to start). Return false only when the underlying
     ///     entities really are case-insensitive, so that the pair names one entity anyway.
     ///
     ///     Implement it on a <see cref="TransportBase{TEndpoint}" /> subclass by OVERRIDING the virtual there, for the
