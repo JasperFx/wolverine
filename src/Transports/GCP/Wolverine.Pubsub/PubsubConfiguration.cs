@@ -38,6 +38,20 @@ public class PubsubConfiguration : BrokerExpression<
     }
 
     /// <summary>
+    /// GH-5810. Make Wolverine throw at startup (instead of only logging a warning) when a listener is not in
+    /// <see cref="Wolverine.Configuration.EndpointMode.NativeAck"/> mode. Outside NativeAck a requeue publishes a copy
+    /// of the message to the topic, and Pub/Sub cannot publish to a single subscription, so every subscription on that
+    /// topic -- including other services' and per-node subscriptions -- receives it again. Use
+    /// <c>ProcessInParallelWithNativeAcks()</c> on every listener, which requeues with a native Nack instead.
+    /// </summary>
+    /// <returns></returns>
+    public PubsubConfiguration AssertRequeuesDoNotFanOut()
+    {
+        Transport.AssertsRequeuesDoNotFanOut = true;
+        return this;
+    }
+
+    /// <summary>
     ///     Opt into using conventional message routing using
     ///     queues based on message type names
     /// </summary>
