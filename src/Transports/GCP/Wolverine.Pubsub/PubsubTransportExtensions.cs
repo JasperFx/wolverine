@@ -317,8 +317,7 @@ public static class PubsubTransportExtensions
         var transport = endpoints.PubsubTransport();
         var topic = transport.Topics[subscriptionName];
 
-        topic.IsListener = true;
-        topic.IsExistingSubscription = true;
+        topic.MarkAsExistingSubscription(subscriptionName);
 
         configure?.Invoke(topic);
 
@@ -348,8 +347,7 @@ public static class PubsubTransportExtensions
         var transport = endpoints.PubsubTransport(name);
         var topic = transport.Topics[subscriptionName];
 
-        topic.IsListener = true;
-        topic.IsExistingSubscription = true;
+        topic.MarkAsExistingSubscription(subscriptionName);
 
         configure?.Invoke(topic);
 

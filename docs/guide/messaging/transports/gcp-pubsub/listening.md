@@ -46,7 +46,7 @@ var host = await Host.CreateDefaultBuilder()
 ## Listening to an existing subscription
 
 `ListenToPubsubSubscription()` attaches to a subscription Wolverine didn't create, and Wolverine never provisions or
-deletes it. A requeue from that listener (an error policy's `Requeue()`, for example) publishes a copy of the message
+deletes it. The subscription name is used exactly as given: `PrefixIdentifiers()` doesn't apply to it. A requeue from that listener (an error policy's `Requeue()`, for example) publishes a copy of the message
 to the subscription's **topic**, so Wolverine needs to know which topic that is. At startup it reads the topic from the
 subscription, which takes the `pubsub.subscriptions.get` permission. You can also name the topic yourself, which wins
 and skips that lookup:
