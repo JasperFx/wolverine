@@ -222,9 +222,14 @@ internal class CoreNatsSubscriber : INatsSubscriber
 
     public async Task RepublishAsync(NatsEnvelope envelope, CancellationToken cancellation)
     {
-        // Increment attempts before republishing for requeue support
-        envelope.Attempts++;
-        
+        // Increment attempts before republishing for requeue support. This runs inside the listener's RetryBlock,
+        // so a republish that failed is retried with the same envelope; one requeue counts once (GH-5773)
+        if (!envelope.RequeueAttemptCounted)
+        {
+            envelope.Attempts++;
+            envelope.RequeueAttemptCounted = true;
+        }
+
         // Republish the message to the subject it arrived on for requeue support. The listener's own subject would
         // drop a tenant prefix -- and with it the tenant, when the tenant-id header is not trusted -- and can be a
         // wildcard nothing can be published to
