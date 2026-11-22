@@ -1,5 +1,6 @@
 using Fisher;
 using Fisher.Linq;
+using Fisher.Services;
 using JasperFx;
 using JasperFx.Core;
 using Microsoft.Data.Sqlite;
@@ -8,11 +9,13 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.EventSourcing;
 using Wolverine.Fisher;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
+using Wolverine.Util;
 
 namespace FisherTests;
 
@@ -55,10 +58,12 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
                     .IncludeType(typeof(RecordFisherPaymentHandler))
                     .IncludeType(typeof(FailingFisherPaymentHandler))
                     .IncludeType(typeof(OptionallyKeyedFisherHandler))
+                    .IncludeType(typeof(SwallowedCommitFisherHandler))
                     .IncludeType(typeof(ObservingFisherHandler))
                     .IncludeType(typeof(FisherRacingHandler))
                     .IncludeType(typeof(ShortWindowFisherPaymentHandler))
-                    .IncludeType(typeof(AdjustFisherLedgerItselfHandler));
+                    .IncludeType(typeof(AdjustFisherLedgerItselfHandler))
+                    .IncludeType(typeof(FailAfterCommitFisherPaymentHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
@@ -72,6 +77,7 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
                 {
                     m.Connection(theDatabase.ConnectionString);
                     m.AutoCreateSchemaObjects = AutoCreate.All;
+                    m.Listeners.Add(new FailAfterCommitFisherListener());
                 }).ApplyAllDatabaseChangesOnStartup().IntegrateWithWolverine();
             }).StartAsync(TestContext.Current.CancellationToken);
 
@@ -141,6 +147,73 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
         await using var query = store.QuerySession();
         var events = await query.Events.FetchStreamAsync(ledgerId, token: TestContext.Current.CancellationToken);
         events.Select(x => x.Data).OfType<FisherLedgerAdjusted>().ShouldHaveSingleItem().Amount.ShouldBe(5);
+    }
+
+    // GH-5613
+    [Fact]
+    public async Task a_committed_claim_counts_as_claimed_and_its_repeat_as_a_duplicate()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+        var id = Guid.NewGuid().ToString();
+
+        await _host.SendMessageAndWaitAsync(new RecordFisherPayment("first"), new DeliveryOptions { DeduplicationId = id });
+        await _host.SendMessageAndWaitAsync(new RecordFisherPayment("repeat"), new DeliveryOptions { DeduplicationId = id });
+
+        outcomes.All.Select(x => x.Outcome).ShouldBe(["claimed", "duplicate"]);
+        outcomes.All.ShouldAllBe(x => x.Handler == typeof(RecordFisherPaymentHandler).FullName &&
+                                      x.MessageType == typeof(RecordFisherPayment).ToMessageTypeName());
+    }
+
+    [Fact]
+    public async Task a_handler_that_throws_counts_nothing()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+
+        await _host.TrackActivity().DoNotAssertOnExceptionsDetected()
+            .SendMessageAndWaitAsync(new FailingFisherPayment(), new DeliveryOptions { DeduplicationId = Guid.NewGuid().ToString() });
+
+        outcomes.All.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task a_message_without_an_id_counts_nothing()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+
+        await _host.SendMessageAndWaitAsync(new OptionallyKeyedFisher("unkeyed"));
+        outcomes.All.ShouldBeEmpty();
+
+        await _host.SendMessageAndWaitAsync(new OptionallyKeyedFisher("keyed"),
+            new DeliveryOptions { DeduplicationId = Guid.NewGuid().ToString() });
+        outcomes.All.Select(x => x.Outcome).ShouldBe(["claimed"]);
+    }
+
+    [Fact]
+    public async Task a_failed_commit_that_middleware_swallows_counts_nothing()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+
+        await _host.SendMessageAndWaitAsync(new SwallowedCommitFisher(),
+            new DeliveryOptions { DeduplicationId = Guid.NewGuid().ToString() });
+
+        SwallowedCommitFisherHandler.Swallowed.ShouldBe(1);
+        outcomes.All.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task a_failure_after_the_database_commit_still_counts_as_claimed()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+        var id = Guid.NewGuid().ToString();
+
+        await _host.TrackActivity().DoNotAssertOnExceptionsDetected()
+            .SendMessageAndWaitAsync(new FailAfterCommitFisherPayment(), new DeliveryOptions { DeduplicationId = id });
+
+        (await claimCountAsync(id)).ShouldBe(1);
+
+        await _host.SendMessageAndWaitAsync(new FailAfterCommitFisherPayment(), new DeliveryOptions { DeduplicationId = id });
+
+        outcomes.For(typeof(FailAfterCommitFisherPaymentHandler)).ShouldBe(["claimed", "duplicate"]);
     }
 
     [Fact]
@@ -254,6 +327,7 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
         // inside a transaction -- but they still both hold a claim the other cannot see, which is what
         // makes the collision happen at all. The single-writer model changes when the loser finds out, not
         // whether it does.
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
         var bus = _host.MessageBus();
         var command = new FisherRacingCommand();
 
@@ -273,6 +347,8 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
 
         written.ShouldBe(1);
         (await claimCountAsync(FisherRacingHandler.DeduplicationId)).ShouldBe(1);
+
+        outcomes.For(typeof(FisherRacingHandler)).Order().ShouldBe(["claimed", "duplicate"]);
     }
 
     [Fact]
@@ -433,6 +509,53 @@ public static class ObservingFisherHandler
 
         ClaimsVisibleDuringHandler = Convert.ToInt32(await count.ExecuteScalarAsync());
     }
+}
+
+public record SwallowedCommitFisher;
+
+public static class SwallowedCommitFisherHandler
+{
+    public static int Swallowed;
+
+    [Deduplicated]
+    [Transactional]
+    public static void Handle(SwallowedCommitFisher message, IDocumentSession session)
+    {
+        session.Store(new FisherPaymentRecord { Id = Guid.NewGuid(), Name = "swallowed" });
+        session.QueueSqlCommand("insert into no_such_table_5613 values (1)");
+    }
+
+    public static void OnException(SqliteException e) => Interlocked.Increment(ref Swallowed);
+}
+
+public record FailAfterCommitFisherPayment;
+
+public class FailAfterCommitFisherMarker
+{
+    public Guid Id { get; set; }
+}
+
+public class FailAfterCommitFisherListener : IDocumentSessionListener
+{
+    public Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token) => Task.CompletedTask;
+
+    public Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
+    {
+        if (commit.Inserted.OfType<FailAfterCommitFisherMarker>().Any())
+        {
+            throw new DivideByZeroException("A session listener failed after the database commit");
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
+public static class FailAfterCommitFisherPaymentHandler
+{
+    [Deduplicated]
+    [Transactional]
+    public static void Handle(FailAfterCommitFisherPayment message, IDocumentSession session)
+        => session.Insert(new FailAfterCommitFisherMarker { Id = Guid.NewGuid() });
 }
 
 public static class OptionallyKeyedFisherHandler

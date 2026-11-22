@@ -10,25 +10,26 @@ namespace Wolverine.ComplianceTests;
 
 /// <summary>
 /// GH-5613. Collects what a metrics consumer sees on one host's <see cref="MetricsConstants.MessageDeduplicationOutcomes" />
-/// counter.
+/// counter, or on <see cref="MetricsConstants.DeduplicationOutcomes" /> for HTTP endpoints.
 /// </summary>
 public sealed class MessageDeduplicationOutcomeListener : IDisposable
 {
     private readonly MeterListener _listener;
     private readonly ConcurrentQueue<MessageDeduplicationOutcome> _measurements = new();
 
-    public MessageDeduplicationOutcomeListener(IHost host)
+    public MessageDeduplicationOutcomeListener(IHost host,
+        string instrument = MetricsConstants.MessageDeduplicationOutcomes)
     {
         var meter = host.Services.GetRequiredService<IWolverineRuntime>().Meter;
 
         _listener = new MeterListener
         {
-            InstrumentPublished = (instrument, listener) =>
+            InstrumentPublished = (published, listener) =>
             {
-                if (ReferenceEquals(instrument.Meter, meter) &&
-                    instrument.Name == MetricsConstants.MessageDeduplicationOutcomes)
+                if (ReferenceEquals(published.Meter, meter) &&
+                    published.Name == instrument)
                 {
-                    listener.EnableMeasurementEvents(instrument);
+                    listener.EnableMeasurementEvents(published);
                 }
             }
         };
@@ -44,7 +45,8 @@ public sealed class MessageDeduplicationOutcomeListener : IDisposable
                     (string?)measured.GetValueOrDefault(MetricsConstants.DeduplicationOutcomeKey),
                     (string?)measured.GetValueOrDefault(MetricsConstants.MessageTypeKey),
                     (string?)measured.GetValueOrDefault(MetricsConstants.MessageHandlerKey),
-                    (string?)measured.GetValueOrDefault(MetricsConstants.SourceKey)));
+                    (string?)measured.GetValueOrDefault(MetricsConstants.SourceKey),
+                    (string?)measured.GetValueOrDefault("http.route")));
             }
         });
 
@@ -61,6 +63,12 @@ public sealed class MessageDeduplicationOutcomeListener : IDisposable
         var handler = handlerType.FullNameInCode();
         return _measurements.Where(x => x.Handler == handler).Select(x => x.Outcome).ToArray();
     }
+
+    /// <summary>
+    /// The outcomes counted for one HTTP route template, in the order they were counted.
+    /// </summary>
+    public string?[] OnRoute(string route)
+        => _measurements.Where(x => x.Route == route).Select(x => x.Outcome).ToArray();
 
     public void Dispose() => _listener.Dispose();
 
@@ -106,4 +114,9 @@ public sealed class MessageDeduplicationOutcomeListener : IDisposable
     }
 }
 
-public record MessageDeduplicationOutcome(string? Outcome, string? MessageType, string? Handler, string? Source);
+public record MessageDeduplicationOutcome(
+    string? Outcome,
+    string? MessageType,
+    string? Handler,
+    string? Source,
+    string? Route);
