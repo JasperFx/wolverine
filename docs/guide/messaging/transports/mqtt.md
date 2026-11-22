@@ -486,6 +486,13 @@ the broker: an MQTT broker resends an unacknowledged QoS 1 or 2 message only whe
 connection it was sent over. With a clean session, or a QoS 0 subscription, a message deferred at shutdown is not
 redelivered.
 
+When a persistent session resumes, the broker sends whatever was waiting for it as soon as the connection comes up,
+which is before Wolverine has registered its listeners. Wolverine holds those messages unacknowledged and hands each one
+to its listener when the listener registers. A connection holds at most 1,000 of them. Past that, a message is
+left unacknowledged and not held, so the broker resends it the next time the session resumes on a new connection. Any
+held message whose topic still has no listener once the application has started is acknowledged and discarded with a
+warning, the same as a message for a topic nothing listens to.
+
 ## Clearing Out Retained Messages
 
 MQTT brokers allow you to publish retained messages to a topic, meaning that the last message will always be retained by the 
