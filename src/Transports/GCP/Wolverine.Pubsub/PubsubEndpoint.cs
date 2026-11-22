@@ -20,6 +20,41 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
     public PubsubClientOptions Client = new();
     internal bool IsExistingSubscription = false;
 
+    /// <summary>
+    ///     GH-5822. The topic an existing subscription (<see cref="IsExistingSubscription" />) is attached to, when it
+    ///     was configured with <see cref="PubsubTopicListenerConfiguration.FromTopic" />. It wins over the topic read
+    ///     from the subscription itself at startup.
+    /// </summary>
+    internal TopicName? ExplicitSubscriptionTopic;
+
+    private bool _subscriptionTopicResolved;
+
+    /// <summary>
+    ///     GH-5822. False only for a listener on an existing subscription whose topic is not known: neither configured
+    ///     with <see cref="PubsubTopicListenerConfiguration.FromTopic" /> nor readable from the subscription at
+    ///     startup. Such an endpoint has nowhere to publish to, so a requeue from it cannot publish a copy.
+    /// </summary>
+    internal bool KnowsItsTopic => !IsExistingSubscription || ExplicitSubscriptionTopic is not null || _subscriptionTopicResolved;
+
+    /// <summary>
+    ///     GH-5822. A topic id in <paramref name="projectId" />, or a full <c>projects/{project}/topics/{topic}</c>
+    ///     resource name.
+    /// </summary>
+    internal static TopicName ParseTopicName(string topicName, string projectId)
+    {
+        if (TopicName.TryParse(topicName, out var parsed) && parsed.Type == TopicName.ResourceNameType.ProjectTopic)
+        {
+            return parsed;
+        }
+
+        if (!PubsubTransport.NameRegex.IsMatch(topicName))
+        {
+            throw new WolverinePubsubInvalidEndpointNameException(topicName);
+        }
+
+        return new TopicName(projectId, topicName);
+    }
+
     protected override PubsubEnvelopeMapper buildMapper(IWolverineRuntime runtime)
     {
         return new PubsubEnvelopeMapper(this);
@@ -384,12 +419,17 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     public override async ValueTask InitializeAsync(ILogger logger)
     {
-        if (IsExistingSubscription)
-        {
-            _hasInitialized = true;
-        }
         if (_hasInitialized)
         {
+            return;
+        }
+
+        if (IsExistingSubscription)
+        {
+            // Nothing to provision: the subscription is not Wolverine's. But its topic is where a requeue copy (and
+            // anything else sent through this endpoint) has to go, and that is not the subscription's name
+            await ResolveSubscriptionTopicAsync(logger);
+            _hasInitialized = true;
             return;
         }
 
@@ -412,6 +452,69 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         }
 
         _hasInitialized = true;
+    }
+
+    /// <summary>
+    ///     GH-5822. A listener on an existing subscription used to take the subscription's NAME as its topic, so a
+    ///     requeue copy was published to a topic that normally does not exist. Point <see cref="PubsubServerOptions.Topic" />
+    ///     at the topic the subscription really belongs to: the one configured with
+    ///     <see cref="PubsubTopicListenerConfiguration.FromTopic" />, or else the one the broker reports for the
+    ///     subscription. When neither is available, warn and leave <see cref="KnowsItsTopic" /> false, so a requeue
+    ///     falls back to something that cannot lose the message.
+    /// </summary>
+    internal async Task ResolveSubscriptionTopicAsync(ILogger logger)
+    {
+        if (ExplicitSubscriptionTopic is not null)
+        {
+            Server.Topic.Name = ExplicitSubscriptionTopic;
+            _subscriptionTopicResolved = true;
+            return;
+        }
+
+        if (!IsListener || _subscriptionTopicResolved)
+        {
+            return;
+        }
+
+        if (_transport.SubscriberApiClient is null)
+        {
+            warnTopicUnknown(logger, null, "the transport is not connected");
+            return;
+        }
+
+        try
+        {
+            var subscription = await _transport.SubscriberApiClient.GetSubscriptionAsync(Server.Subscription.Name);
+
+            // A subscription whose topic was deleted reports "_deleted-topic_", which is no topic name at all
+            if (subscription.Topic.IsNotEmpty() && TopicName.TryParse(subscription.Topic, out var topic) &&
+                topic.Type == TopicName.ResourceNameType.ProjectTopic)
+            {
+                Server.Topic.Name = topic;
+                _subscriptionTopicResolved = true;
+
+                logger.LogInformation(
+                    "{Uri}: Google Cloud Platform Pub/Sub subscription \"{Subscription}\" belongs to topic \"{Topic}\"",
+                    Uri, Server.Subscription.Name, topic);
+
+                return;
+            }
+
+            warnTopicUnknown(logger, null, $"the subscription reports topic '{subscription.Topic}'");
+        }
+        catch (Exception e)
+        {
+            warnTopicUnknown(logger, e, "reading the subscription failed");
+        }
+    }
+
+    private void warnTopicUnknown(ILogger logger, Exception? exception, string reason)
+    {
+        logger.LogWarning(exception,
+            "{Uri}: Could not determine the topic of the existing Google Cloud Platform Pub/Sub subscription \"{Subscription}\" ({Reason}; reading it takes the pubsub.subscriptions.get permission). " +
+            "Listening is unaffected, but a requeue from this listener cannot publish a copy of the message: an Inline listener nacks the delivery so that Pub/Sub redelivers it, " +
+            "and a buffered listener requeues it in memory instead. Configure the topic with ListenToPubsubSubscription(...).FromTopic(\"topic\") to requeue through the topic.",
+            Uri, Server.Subscription.Name, reason);
     }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
@@ -504,6 +607,8 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
             await InitializeAsync(logger);
         }
 
+        AssertKnowsItsTopic();
+
         var message = new PubsubMessage();
         var orderBy = Server.Topic.OrderBy(envelope);
 
@@ -525,6 +630,16 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
             TopicAsTopicName = TopicNameFor(clients.ProjectId),
             Messages = { message }
         });
+    }
+
+    /// <summary>GH-5822. Throws when this endpoint has no known topic to publish to.</summary>
+    internal void AssertKnowsItsTopic()
+    {
+        if (!KnowsItsTopic)
+        {
+            throw new WolverinePubsubTransportException(
+                $"{Uri}: The topic of the existing Google Cloud Platform Pub/Sub subscription '{Server.Subscription.Name}' is not known, so nothing can be published through this endpoint. Configure it with ListenToPubsubSubscription(...).FromTopic(\"topic\").", null);
+        }
     }
 
     internal void ConfigureDeadLetter(Action<PubsubEndpoint> configure)
@@ -632,15 +747,19 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     private string requeuesFanOutMessage()
     {
-        var topic = Server.Topic.Name.TopicId;
+        // GH-5822. A listener on an existing subscription whose topic is not known yet must not name the
+        // subscription as its topic
+        var topic = KnowsItsTopic
+            ? $"topic '{Server.Topic.Name.TopicId}'"
+            : $"the topic of existing subscription '{Server.Subscription.Name.SubscriptionId}'";
         var perNode = IsSubscriptionPerNode && ListenerScope == ListenerScope.CompetingConsumers
             ? ", and the per-node subscriptions of this service's other nodes (SubscriptionPerNode())"
             : string.Empty;
 
         return
             $"Google Cloud Platform Pub/Sub listener '{Uri}' on subscription '{Server.Subscription.Name.SubscriptionId}' of " +
-            $"topic '{topic}' runs in {Mode} mode, so a requeue from it (an error policy's Requeue(), for example) publishes " +
-            $"a copy of the message to topic '{topic}'. Pub/Sub cannot publish to a single subscription, so every subscription " +
+            $"{topic} runs in {Mode} mode, so a requeue from it (an error policy's Requeue(), for example) publishes " +
+            $"a copy of the message to {topic}. Pub/Sub cannot publish to a single subscription, so every subscription " +
             $"on that topic receives the copy again, including other services' subscriptions{perNode}. Wolverine cannot see " +
             "the topic's other subscriptions, so this is harmless only if this subscription is the topic's only one. Use " +
             "ProcessInParallelWithNativeAcks() (EndpointMode.NativeAck) on this listener, which requeues with a native Nack " +

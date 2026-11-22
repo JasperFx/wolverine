@@ -69,6 +69,37 @@ public class PubsubTopicListenerConfiguration : InteroperableListenerConfigurati
     }
 
     /// <summary>
+    ///     GH-5822. Only for <c>ListenToPubsubSubscription()</c>: the topic the existing subscription is attached to,
+    ///     which is where a requeue copy of a message received on it is published. Without this, Wolverine reads the
+    ///     topic from the subscription at startup, which takes the <c>pubsub.subscriptions.get</c> permission. When
+    ///     neither works, a requeue nacks the delivery (Inline) or requeues it in memory (buffered) instead.
+    ///     The <see cref="PubsubTransport.IdentifierPrefix" /> is not applied to this name.
+    /// </summary>
+    /// <param name="topicName">
+    ///     The topic id in this broker's project, or a full topic resource name
+    ///     (<c>projects/{project}/topics/{topic}</c>) for a topic in another project
+    /// </param>
+    /// <returns></returns>
+    public PubsubTopicListenerConfiguration FromTopic(string topicName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(topicName);
+
+        add(e =>
+        {
+            if (!e.IsExistingSubscription)
+            {
+                throw new InvalidOperationException(
+                    $"FromTopic() only applies to a listener on an existing subscription (ListenToPubsubSubscription()), but {e.Uri} listens to topic '{e.Server.Topic.Name.TopicId}'.");
+            }
+
+            e.ExplicitSubscriptionTopic = PubsubEndpoint.ParseTopicName(topicName, e.Transport.ProjectId);
+            e.Server.Topic.Name = e.ExplicitSubscriptionTopic;
+        });
+
+        return this;
+    }
+
+    /// <summary>
     ///     Configure the underlying Google Cloud Platform Pub/Sub subscriber.
     /// </summary>
     /// <param name="configure"></param>
