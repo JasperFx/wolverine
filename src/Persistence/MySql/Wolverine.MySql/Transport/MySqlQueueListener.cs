@@ -31,6 +31,7 @@ internal class MySqlQueueListener : IListener
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
+    private readonly TimeSpan _scheduledPollingInterval;
     private bool _deterministicQueueOrdering;
     private string _queueOrderBy = null!;
     private string _scheduledOrderBy = null!;
@@ -39,6 +40,11 @@ internal class MySqlQueueListener : IListener
 
     // GH-5015: ids of a durable pop whose COMMIT failed with an unknown outcome and could not be released yet
     private UnconfirmedPop? _unconfirmedPop;
+
+    /// <summary>
+    ///     The resolved interval between passes of the scheduled message loop
+    /// </summary>
+    internal TimeSpan ScheduledPollingInterval => _scheduledPollingInterval;
 
     public MySqlQueueListener(MySqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         MySqlDataSource dataSource, string? databaseName)
@@ -51,6 +57,7 @@ internal class MySqlQueueListener : IListener
         _logger = runtime.LoggerFactory.CreateLogger<MySqlQueueListener>();
         _settings = runtime.DurabilitySettings;
         _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
+        _scheduledPollingInterval = queue.ScheduledMessagePollingInterval ?? _pollingInterval;
 
         _sender = new MySqlQueueSender(queue, _dataSource, databaseName);
 
@@ -224,7 +231,7 @@ ORDER BY {_queueOrderBy} LIMIT @count FOR UPDATE SKIP LOCKED
                 continue;
             }
 
-            if (!await pauseAsync(_pollingInterval))
+            if (!await pauseAsync(_scheduledPollingInterval))
             {
                 break;
             }
