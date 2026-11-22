@@ -1,3 +1,4 @@
+using System.Data.Common;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
@@ -21,6 +22,11 @@ public abstract class DatabaseListener : IListener
     private readonly TimeSpan _pollingInterval;
     private readonly string _queueName;
     private Task? _task;
+
+    /// <summary>
+    /// GH-5815. The receive transaction holding the one message in flight, when the listener receives in one
+    /// </summary>
+    private HeldReceive? _held;
 
     protected DatabaseListener(Uri address, string queueName, IReceiver receiver, ILogger logger,
         TimeSpan pollingInterval)
@@ -112,6 +118,80 @@ public abstract class DatabaseListener : IListener
         }
     }
 
+    /// <summary>
+    /// GH-5815. Hold the open receive transaction that popped <paramref name="envelope"/>. The row stays deleted
+    /// but uncommitted, and so locked away from every other consumer, until <see cref="commitReceiveAsync"/> or
+    /// <see cref="rollbackReceiveAsync"/> settles it. The listener owns <paramref name="connection"/> and
+    /// <paramref name="transaction"/> from here on. One message at a time: call it only with a batch of one.
+    /// </summary>
+    protected void holdReceive(Envelope envelope, DbConnection connection, DbTransaction transaction)
+    {
+        var previous = Interlocked.Exchange(ref _held, new HeldReceive(envelope, connection, transaction));
+        if (previous != null)
+        {
+            // Never expected: the polling loop settles every receive before it pops again
+            _logger.LogError("A receive transaction for message {EnvelopeId} from database queue {Name} was still open when the next message was popped; rolling it back",
+                previous.Envelope.Id, _queueName);
+            _ = previous.SettleAsync(false);
+        }
+    }
+
+    /// <summary>
+    /// GH-5815. Commit the receive transaction holding <paramref name="envelope"/>, which deletes its row for good.
+    /// False when no receive transaction holds it.
+    /// </summary>
+    protected async ValueTask<bool> commitReceiveAsync(Envelope envelope)
+    {
+        var held = take(envelope);
+        if (held == null) return false;
+
+        await held.SettleAsync(true);
+        return true;
+    }
+
+    /// <summary>
+    /// GH-5815. Roll back the receive transaction holding <paramref name="envelope"/>, which puts its row back
+    /// exactly as it was, in its original place in the queue. False when no receive transaction holds it.
+    /// </summary>
+    protected async ValueTask<bool> rollbackReceiveAsync(Envelope envelope)
+    {
+        var held = take(envelope);
+        if (held == null) return false;
+
+        await held.SettleAsync(false);
+        return true;
+    }
+
+    private HeldReceive? take(Envelope envelope)
+    {
+        var held = Volatile.Read(ref _held);
+        if (held == null || !ReferenceEquals(held.Envelope, envelope)) return null;
+
+        return Interlocked.CompareExchange(ref _held, null, held) == held ? held : null;
+    }
+
+    /// <summary>
+    /// GH-5815. Settle a receive transaction that is still open once the receiver is done with the message. The
+    /// receiver settles a message through CompleteAsync or DeferAsync; one that does neither and returns normally
+    /// was handled some other way (a retry rescheduled into the message store, for one) and is committed, as the
+    /// destructive pop would have left it. A receiver that throws has not handled it, so it is rolled back.
+    /// </summary>
+    private async Task settleLeftoverReceiveAsync(bool handled)
+    {
+        var held = Interlocked.Exchange(ref _held, null);
+        if (held == null) return;
+
+        try
+        {
+            await held.SettleAsync(handled);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error settling the receive transaction for message {EnvelopeId} from database queue {Name}",
+                held.Envelope.Id, _queueName);
+        }
+    }
+
     public Task StartAsync()
     {
         _task = Task.Run(listenForMessagesAsync, _cancellation.Token);
@@ -124,9 +204,25 @@ public abstract class DatabaseListener : IListener
         _task?.SafeDispose();
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        return StopAsync();
+        await StopAsync();
+
+        // GH-5815. A message still in flight when the listener is torn down (the drain timed out) is handed back
+        // to the queue, where another consumer can take it, rather than held until its handler finishes
+        var held = Interlocked.Exchange(ref _held, null);
+        if (held != null)
+        {
+            try
+            {
+                await held.SettleAsync(false);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error rolling back the receive transaction for message {EnvelopeId} from database queue {Name}",
+                    held.Envelope.Id, _queueName);
+            }
+        }
     }
 
     private async Task listenForMessagesAsync()
@@ -142,7 +238,16 @@ public abstract class DatabaseListener : IListener
 
                 if (messages.Count > 0)
                 {
-                    await _receiver.ReceivedAsync(this, messages.ToArray());
+                    var handled = false;
+                    try
+                    {
+                        await _receiver.ReceivedAsync(this, messages.ToArray());
+                        handled = true;
+                    }
+                    finally
+                    {
+                        await settleLeftoverReceiveAsync(handled);
+                    }
                 }
                 else
                 {
@@ -160,6 +265,35 @@ public abstract class DatabaseListener : IListener
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
                 _logger.LogError(e, "Error while trying to receive messages from database queue {Name}", _queueName);
                 await Task.Delay(pauseTime);
+            }
+        }
+    }
+
+    /// <summary>
+    /// GH-5815. An open receive transaction and the connection it lives on, settled exactly once
+    /// </summary>
+    private sealed class HeldReceive(Envelope envelope, DbConnection connection, DbTransaction transaction)
+    {
+        public Envelope Envelope { get; } = envelope;
+
+        public async Task SettleAsync(bool commit)
+        {
+            try
+            {
+                // Never the listener's cancellation: a stop must not abandon the commit of a handled message
+                if (commit)
+                {
+                    await transaction.CommitAsync(CancellationToken.None);
+                }
+                else
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                }
+            }
+            finally
+            {
+                await transaction.DisposeAsync();
+                await connection.DisposeAsync();
             }
         }
     }
