@@ -42,7 +42,8 @@ internal class RabbitMqEnvelope : Envelope
         Acknowledged = true;
     }
 
-    // Set once the copy is on the broker, so a retry of a deferral whose ack failed does not publish it again
+    // Set once the broker has confirmed the copy (GH-5781), so a retry of a deferral whose ack failed does not publish
+    // it again, and a copy the broker refused or never got is published again by the retry
     private bool _deferredCopyPublished;
 
     internal async ValueTask DeferAsync()
@@ -55,6 +56,10 @@ internal class RabbitMqEnvelope : Envelope
         // -- a channel or connection that was not usable -- left the message nowhere at all. Publishing first
         // costs at worst a duplicate (the copy landed, the ack did not, and the broker redelivers the original),
         // which the durable inbox deduplicates. Publishing needs no prefetch slot, so this cannot block on one.
+        //
+        // GH-5781. "Published" has to mean the broker has it. The copy goes out with a publisher confirm (and
+        // mandatory, for a queue) whatever the application-wide confirm settings are, so a copy the broker refused,
+        // could not route or never received throws here, and the original is not acked.
         if (!_deferredCopyPublished)
         {
             await RabbitMqListener.PublishDeferredCopyAsync(this);

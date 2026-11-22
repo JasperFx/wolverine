@@ -119,9 +119,15 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable, IReportConnecti
     /// </summary>
     protected virtual ushort? ConsumerDispatchConcurrency => null;
 
+    /// <summary>
+    /// GH-5781. True for an agent whose channel must have publisher confirms on regardless of the application-wide
+    /// settings. Only the dedicated sender for requeue copies sets this.
+    /// </summary>
+    protected virtual bool RequirePublisherConfirms => false;
+
     protected async Task startNewChannel()
     {
-        Channel = await _monitor.CreateChannelAsync(ConsumerDispatchConcurrency);
+        Channel = await _monitor.CreateChannelAsync(ConsumerDispatchConcurrency, RequirePublisherConfirms);
 
         Channel.CallbackExceptionAsync += HandleChannelExceptionAsync;
         Channel.ChannelShutdownAsync += HandleChannelShutdownAsync;
