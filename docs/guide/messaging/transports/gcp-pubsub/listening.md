@@ -43,6 +43,24 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L64-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_pubsub_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Listening to an existing subscription
+
+`ListenToPubsubSubscription()` attaches to a subscription Wolverine didn't create, and Wolverine never provisions or
+deletes it. A requeue from that listener (an error policy's `Requeue()`, for example) publishes a copy of the message
+to the subscription's **topic**, so Wolverine needs to know which topic that is. At startup it reads the topic from the
+subscription, which takes the `pubsub.subscriptions.get` permission. You can also name the topic yourself, which wins
+and skips that lookup:
+
+```cs
+opts.ListenToPubsubSubscription("orders-subscription")
+    // The topic id in this project, or "projects/{project}/topics/{topic}" for another project
+    .FromTopic("orders");
+```
+
+If Wolverine can't determine the topic, it logs a warning at startup and still listens. A requeue then never
+publishes a copy: an `Inline` listener nacks the delivery so Pub/Sub redelivers it, and a buffered listener requeues
+the message in memory.
+
 ## Subscriptions across multiple nodes
 
 When several nodes of the same application listen to a Pub/Sub topic, Wolverine has all of them share **one**
