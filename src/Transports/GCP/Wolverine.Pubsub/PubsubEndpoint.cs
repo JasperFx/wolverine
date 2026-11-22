@@ -47,7 +47,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
     ///     with <see cref="PubsubTopicListenerConfiguration.FromTopic" /> nor readable from the subscription at
     ///     startup. Such an endpoint has nowhere to publish to, so a requeue from it cannot publish a copy.
     /// </summary>
-    internal bool KnowsItsTopic => !IsExistingSubscription || _subscriptionTopicResolved;
+    internal bool KnowsItsTopic => !IsExistingSubscription || ExplicitSubscriptionTopic is not null || _subscriptionTopicResolved;
 
     /// <summary>
     ///     GH-5822. A topic id in <paramref name="projectId" />, or a full <c>projects/{project}/topics/{topic}</c>
@@ -719,6 +719,64 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
             runtime.DurabilitySettings.Cancellation,
             runtime.LoggerFactory.CreateLogger<PubsubSenderProtocol>()
         );
+    }
+
+    // GH-5810. Outside NativeAck, PubsubListener requeues by publishing a copy to the topic, and Pub/Sub cannot
+    // publish to a single subscription, so every subscription on the topic receives the copy. Wolverine cannot see
+    // other services' subscriptions from its configuration, so it warns for every such listener -- once, at
+    // startup -- and AssertRequeuesDoNotFanOut() refuses to start instead. The per-node response topic is exempt:
+    // its one subscription is this node's own.
+    protected internal override IEnumerable<string> validateModeConfiguration()
+    {
+        foreach (var message in base.validateModeConfiguration())
+        {
+            yield return message;
+        }
+
+        if (requeuePublishesToTopic() && _transport.AssertsRequeuesDoNotFanOut)
+        {
+            yield return requeuesFanOutMessage() +
+                         " AssertRequeuesDoNotFanOut() was configured, so Wolverine refuses to start.";
+        }
+    }
+
+    protected internal override IEnumerable<string> listenerConfigurationWarnings()
+    {
+        foreach (var message in base.listenerConfigurationWarnings())
+        {
+            yield return message;
+        }
+
+        if (requeuePublishesToTopic() && !_transport.AssertsRequeuesDoNotFanOut)
+        {
+            yield return requeuesFanOutMessage();
+        }
+    }
+
+    private bool requeuePublishesToTopic()
+    {
+        return IsListener && !IsDeadLetter && Role != EndpointRole.System && Mode != EndpointMode.NativeAck;
+    }
+
+    private string requeuesFanOutMessage()
+    {
+        // GH-5822. A listener on an existing subscription whose topic is not known yet must not name the
+        // subscription as its topic
+        var topic = KnowsItsTopic
+            ? $"topic '{Server.Topic.Name.TopicId}'"
+            : $"the topic of existing subscription '{Server.Subscription.Name.SubscriptionId}'";
+        var perNode = IsSubscriptionPerNode && ListenerScope == ListenerScope.CompetingConsumers
+            ? ", and the per-node subscriptions of this service's other nodes (SubscriptionPerNode())"
+            : string.Empty;
+
+        return
+            $"Google Cloud Platform Pub/Sub listener '{Uri}' on subscription '{Server.Subscription.Name.SubscriptionId}' of " +
+            $"{topic} runs in {Mode} mode, so a requeue from it (an error policy's Requeue(), for example) publishes " +
+            $"a copy of the message to {topic}. Pub/Sub cannot publish to a single subscription, so every subscription " +
+            $"on that topic receives the copy again, including other services' subscriptions{perNode}. Wolverine cannot see " +
+            "the topic's other subscriptions, so this is harmless only if this subscription is the topic's only one. Use " +
+            "ProcessInParallelWithNativeAcks() (EndpointMode.NativeAck) on this listener, which requeues with a native Nack " +
+            "so that Pub/Sub redelivers the original to this subscription alone.";
     }
 
     // GH-4052. An explicit allow-list rather than a bare `true`. The spike called this out as the worst

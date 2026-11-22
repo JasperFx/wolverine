@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using JasperFx.Blocks;
 using JasperFx.Core;
@@ -14,7 +15,16 @@ internal class MqttListener : IListener, IReportConnectionState
     private readonly MqttTransport _broker;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly RetryBlock<MqttEnvelope> _complete;
-    private readonly RetryBlock<MqttEnvelope> _defer;
+
+    // GH-5770. Cancelled by StopAsync (and DisposeAsync): from then on a deferred message is handed back rather
+    // than offered to the receiver again. Never disposed, because a pending redelivery may still read it.
+    private readonly CancellationTokenSource _stopping = new();
+
+    // GH-5770. Deferred messages this listener handed back after it stopped. They are still unacknowledged, so
+    // the broker counts them as in flight on this connection: the listener that replaces this one on the same
+    // connection takes them over (TakeOverHandedBackMessages), and if none does, the broker redelivers them when
+    // a persistent session resumes.
+    private readonly ConcurrentQueue<MqttEnvelope> _handedBack = new();
     private readonly ILogger _logger;
     private readonly IReceiver _receiver;
     private readonly MqttTopic _topic;
@@ -41,29 +51,32 @@ internal class MqttListener : IListener, IReportConnectionState
 
         TopicName = topic.ListeningTopic;
 
-        _complete = new RetryBlock<MqttEnvelope>(
-            async (e, _) => { await e.Args.AcknowledgeAsync(_cancellation.Token); }, _logger, _cancellation.Token);
-
-        _defer = new RetryBlock<MqttEnvelope>(async (envelope, _) =>
+        _complete = new RetryBlock<MqttEnvelope>(async (e, _) =>
         {
-            if (!envelope.IsAcked)
-            {
-                await envelope.Args.AcknowledgeAsync(_cancellation.Token);
-                envelope.IsAcked = true;
-            }
+            // MQTTnet throws on a second acknowledgement, and a message deferred after BufferedInMemory acked it
+            // on receipt comes back through receipt and is completed again
+            if (e.IsAcked) return;
 
-            // Really just an inline retry
-            await _receiver.ReceivedAsync(this, envelope);
-        }, logger, _cancellation.Token);
+            await e.Args.AcknowledgeAsync(_cancellation.Token);
+            e.IsAcked = true;
+        }, _logger, _cancellation.Token);
     }
+
+    /// <summary>
+    ///     GH-5770. How long a deferred message waits before it is offered to the receiver again. This bounds how
+    ///     fast a receiver that keeps deferring can spin.
+    /// </summary>
+    internal static TimeSpan DeferredRedeliveryDelay { get; set; } = TimeSpan.FromSeconds(1);
 
     public string TopicName { get; }
 
     public Uri Address { get; }
 
-    public ValueTask StopAsync()
+    internal bool IsStopped => _stopping.IsCancellationRequested;
+
+    public async ValueTask StopAsync()
     {
-        return ValueTask.CompletedTask;
+        await _stopping.CancelAsync();
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
@@ -78,22 +91,115 @@ internal class MqttListener : IListener, IReportConnectionState
         return ValueTask.CompletedTask;
     }
 
+    /// <summary>
+    ///     GH-5770. A deferred message is NOT acknowledged. MQTT has no way to hand a delivery back to the broker
+    ///     on a live connection, so a running listener offers it to the receiver again, on its own task after
+    ///     <see cref="DeferredRedeliveryDelay" />, and it is acknowledged only once something completes it. A stopped
+    ///     listener hands it back instead (see <see cref="_handedBack" />).
+    ///
+    ///     <para>This used to PUBACK the message and then feed it straight back into the receiver inline. Once
+    ///     acknowledged the broker never redelivers it, so a re-feed that failed, or a process exit, lost it; and a
+    ///     latched receiver deferred the re-feed again, recursing for as long as the listener object lived.</para>
+    /// </summary>
     public ValueTask DeferAsync(Envelope envelope)
     {
         if (envelope is MqttEnvelope e)
         {
-            return new ValueTask(_defer.PostAsync(e));
+            defer(e);
         }
 
         return ValueTask.CompletedTask;
     }
 
+    private void defer(MqttEnvelope envelope)
+    {
+        if (IsStopped)
+        {
+            handBack(envelope);
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(DeferredRedeliveryDelay, _stopping.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                handBack(envelope);
+                return;
+            }
+
+            try
+            {
+                await _receiver.ReceivedAsync(this, envelope).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error redelivering deferred MQTT message {MessageId} at {Uri}", envelope.Id,
+                    Address);
+
+                // Still unacknowledged, so it is still ours to deliver
+                defer(envelope);
+            }
+        }, CancellationToken.None);
+    }
+
+    private void handBack(MqttEnvelope envelope)
+    {
+        _handedBack.Enqueue(envelope);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Handing back deferred MQTT message {MessageId} at {Uri} unacknowledged because the listener has stopped",
+                envelope.Id, Address);
+        }
+    }
+
+    /// <summary>
+    ///     GH-5770. Called on the listener that replaces <paramref name="previous" /> on the same connection, for
+    ///     instance when a paused listener restarts. The broker will not redeliver the messages the previous
+    ///     listener handed back while this connection stays up, so this listener offers them to its receiver.
+    /// </summary>
+    internal void TakeOverHandedBackMessages(MqttListener previous)
+    {
+        while (previous._handedBack.TryDequeue(out var envelope))
+        {
+            defer(envelope);
+        }
+    }
+
+    /// <summary>
+    ///     GH-5790. Messages that reached this connection before this listener registered, held unacknowledged by
+    ///     the transport. Received in order, on their own task so registration does not wait on them.
+    /// </summary>
+    internal void ReceiveHeldMessages(IReadOnlyList<MqttApplicationMessageReceivedEventArgs> held)
+    {
+        _ = Task.Run(async () =>
+        {
+            foreach (var args in held)
+            {
+                try
+                {
+                    await ReceiveAsync(args).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Error receiving a held MQTT message for topic {TopicName}",
+                        args.ApplicationMessage.Topic);
+                }
+            }
+        }, CancellationToken.None);
+    }
+
     public async ValueTask DisposeAsync()
     {
+        await _stopping.CancelAsync();
         await _cancellation.CancelAsync();
         _cancellation.Dispose();
         _complete.SafeDispose();
-        _defer.SafeDispose();
     }
 
     public async Task ReceiveAsync(MqttApplicationMessageReceivedEventArgs args)
@@ -160,6 +266,14 @@ internal class MqttListener : IListener, IReportConnectionState
             return;
         }
 
+        // GH-5770. A stopped listener stays registered for its topic until a new one replaces it, and its
+        // receiver is latched or gone, so keep the message unacknowledged for that replacement
+        if (IsStopped)
+        {
+            handBack(envelope);
+            return;
+        }
+
         try
         {
             await _receiver.ReceivedAsync(this, envelope);
@@ -168,14 +282,7 @@ internal class MqttListener : IListener, IReportConnectionState
         {
             _logger.LogError(e, "Failure to receive an incoming message with {Id}, trying to 'Nack' the message",
                 envelope.Id);
-            try
-            {
-                await _defer.PostAsync(envelope);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failure trying to Nack a previously failed message {Id}", envelope.Id);
-            }
+            defer(envelope);
         }
     }
 }

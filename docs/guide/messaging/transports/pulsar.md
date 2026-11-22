@@ -354,8 +354,13 @@ by this setting.
 
 ## Per-Message Redelivery
 
-By default, when a message fails and is requeued, the Pulsar listener acknowledges it and
-re-publishes a fresh copy to the source topic. You can instead opt into Pulsar's native
+By default, when a message fails and is requeued, the Pulsar listener re-publishes a fresh copy to the
+topic the message was consumed from, and acknowledges the original only once the broker has accepted the
+copy. A failed send leaves the original unacknowledged, so the worst case is a duplicate rather than a lost
+message. The copy keeps the message key and ordering key it was received with, and a listener using
+`Topics()` or `TopicsPattern()` requeues it to the topic it came from rather than the listener's primary
+topic. That includes a message that came back through the retry-letter topic: its retry-letter copy carries
+the topic it was first consumed from in a `WOLVERINE_SOURCE_TOPIC` property. Retry-letter and dead-letter moves follow the same order: copy first, then the acknowledgment. You can instead opt into Pulsar's native
 per-message redelivery, where the message is left **unacknowledged** and Pulsar redelivers just
 that one message (preserving its redelivery count) rather than creating a duplicate:
 
@@ -366,6 +371,13 @@ opts.ListenToPulsarTopic("persistent://public/default/orders")
 // Combine with a retry policy that requeues on failure:
 opts.Policies.OnException<TransientException>().Requeue(3);
 ```
+
+Pulsar can only redeliver a message it still holds unacknowledged. A `BufferedInMemory()` listener
+acknowledges each message as it reaches the in-memory queue, so on a buffered listener a failed message is
+re-published as a copy even with `UseNativeRedelivery()`. The handler can also fail before that
+acknowledgment has gone out. Whichever comes first settles the message: a native redelivery that comes first
+means the message is not acknowledged afterwards, and an acknowledgment that comes first, even one still on its
+way to the broker, means the failed message is re-published as a copy.
 
 For delayed / backoff redelivery (growing the delay between attempts), use the Pulsar
 retry-letter topics instead — DotPulsar's client does not expose negative-acknowledgment backoff
@@ -398,7 +410,7 @@ configuration the Pulsar transport compliance suite runs, so each of these is co
 | --- | --- |
 | `RetryTimes()`, `RetryWithCooldown()` | ✅ Retried in the handler lane; the message never leaves the process |
 | `ScheduleRetry()` | ✅ Rescheduled in memory, or in the durable inbox if a message store is configured |
-| `Requeue()`, `RequeueIndefinitely()`, `MaximumAttempts()` | ✅ The listener acknowledges the message and re-publishes it to the same topic, carrying its `attempts` header forward. Turn this off with [`DisableRequeue()`](#read-only-subscriptions) if the topic is read-only to your application, or prefer [`UseNativeRedelivery()`](#per-message-redelivery) to redeliver in place instead of re-publishing a copy. |
+| `Requeue()`, `RequeueIndefinitely()`, `MaximumAttempts()` | ✅ The listener re-publishes the message to the topic it came from and then acknowledges the original, carrying its `attempts` header forward. Turn this off with [`DisableRequeue()`](#read-only-subscriptions) if the topic is read-only to your application, or prefer [`UseNativeRedelivery()`](#per-message-redelivery) to redeliver in place instead of re-publishing a copy. |
 | `MoveToErrorQueue()` | ✅ The envelope is moved to **Wolverine's durable dead letter table** — see the note below |
 
 ::: warning `MoveToErrorQueue()` needs either a native DLQ topic or a message store
@@ -580,9 +592,8 @@ when a node dies, and DotPulsar's default of 1000 makes that cost far larger tha
 ### Failure handling
 
 Prefer `UseNativeRedelivery()` (or a retry-letter / dead-letter topic) on a native-ack listener. The
-default requeue path acknowledges the original message and re-publishes a copy, which opens a small
-window in which a crash between the two loses the message; native redelivery never acknowledges at
-all. Pulsar has no client-side negative-acknowledgment backoff, so a redelivered message returns
+default requeue path re-publishes a copy and then acknowledges the original, so a crash between the two
+leaves a duplicate on the topic; native redelivery never acknowledges at all. Pulsar has no client-side negative-acknowledgment backoff, so a redelivered message returns
 immediately — use the retry-letter topics for a growing delay between attempts, or Wolverine's own
 in-lane `RetryWithCooldown` so the retry never leaves the process.
 
@@ -756,7 +767,44 @@ opts.PublishMessage<OrderPlaced>()
 
 Wolverine creates the producer with a **stable producer name** and stamps a monotonic sequence id per
 message, reusing the same sequence id when the *same envelope* is sent again so the broker discards the
-duplicate. A brand-new message always gets a new id and is delivered normally.
+duplicate. A brand-new message always gets a new id and is delivered normally. A requeued copy (the
+`Requeue()` error policy) always gets a new sequence id too: a message requeued twice is the same envelope
+both times, and reusing its id would have the broker drop the second copy.
+
+The producer name is the one you pass to `EnableDeduplication()`, or `{ServiceName}-{topic name}` when you
+pass none. When the same application also listens to that topic, the listener's requeue producer uses the
+same name with `-requeue` appended, because Pulsar refuses a second producer with a name that is already
+connected to the topic.
+
+### Several running instances of one service
+
+Pulsar allows only one connected producer per name on a topic. By default, every running instance of a service
+asks for the same `{ServiceName}-{topic name}`, so the broker refuses every instance after the first. To give
+each instance its own producer name, append an instance id:
+
+```cs
+opts.UsePulsar(c => c.ServiceUrl(new Uri("pulsar://localhost:6650")))
+    // A stable id for this instance, e.g. a StatefulSet pod name from the environment
+    .ProducerNamePerInstance(Environment.GetEnvironmentVariable("POD_NAME"));
+
+opts.PublishMessage<OrderPlaced>()
+    .ToPulsarTopic("persistent://public/default/orders")
+    .EnableDeduplication();
+```
+
+The id is appended to every deduplicating producer's name, including a name you pass to
+`EnableDeduplication()`. A requeue producer gets `-requeue` after the id. Deduplication then works **per
+instance**. The broker tracks the last sequence id for each producer name, so deduplication only carries across a
+restart when the instance comes back with the same id. With no argument, `ProducerNamePerInstance()` uses the
+machine name. That stays the same across restarts on one host, but every pod of a Kubernetes Deployment gets a
+new name, and two processes on the same machine get the same one. Pass your own id in those cases. You can also
+set a distinct name per instance with `EnableDeduplication(producerName)` or `ConfigureProducer()`.
+
+If the broker keeps refusing a Wolverine producer because its name is already connected (`ProducerBusy`),
+Wolverine stops retrying after 30 seconds, logs an error that names the topic and the producer, and fails that
+producer's sends with `PulsarProducerNameInUseException`. Before this, those sends hung while the client retried
+forever. A refusal that clears within the 30 seconds is retried as normal: the broker can briefly hold on to the
+producer of a process that has just died.
 
 You must also enable deduplication on the broker side (it is off by default), e.g.:
 

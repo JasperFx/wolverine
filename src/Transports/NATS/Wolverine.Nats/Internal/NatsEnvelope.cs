@@ -13,4 +13,10 @@ public class NatsEnvelope : Envelope
 
     public NatsMsg<byte[]>? CoreMsg { get; }
     public INatsJSMsg<byte[]>? JetStreamMsg { get; }
+
+    /// <summary>
+    /// GH-5773. Set once a core NATS requeue has counted its attempt, so the listener's RetryBlock retrying a
+    /// failed republish of this same envelope does not count it again
+    /// </summary>
+    internal bool RequeueAttemptCounted { get; set; }
 }

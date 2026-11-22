@@ -83,6 +83,9 @@ opts.UsePubsub("your-project-id")
 
 Leader-pinned and exclusive listeners always use a single shared subscription and ignore `SubscriptionPerNode()`.
 
+Outside `NativeAck`, a requeue from a per-node subscription is published to the topic, so every node handles the
+message again. See [Requeueing a message](#requeueing-a-message).
+
 ::: warning
 Pub/Sub keeps every subscription around, and keeps adding messages to it, until it has been inactive for its
 expiration period (31 days by default). A per-node subscription is named after the node number, and a node that
@@ -270,7 +273,23 @@ The copy keeps the ordering key of the original. When neither a group id nor `Or
 one, it gets the `OrderingKey` the original was received with, which is how a message from a publisher
 other than Wolverine carries its key.
 
-::: warning
-Because the copy is published to the topic, every other subscription on that topic receives it as well.
-Use `NativeAck` when other subscriptions share the topic and must not see a requeued message twice.
+::: warning A requeued copy reaches every subscription on the topic
+Pub/Sub can't publish to a single subscription, so the copy is published to the **topic**, and **every**
+subscription on that topic receives it again: other services' subscriptions, and with `SubscriptionPerNode()`
+the subscriptions of this service's other nodes too. They handle the message a second time.
+
+Use `ProcessInParallelWithNativeAcks()` (`EndpointMode.NativeAck`) on any listener whose topic has, or may get,
+other subscriptions. It requeues with a native Nack, so Pub/Sub redelivers the original to that one subscription.
 :::
+
+Wolverine can't see the other subscriptions on a topic, so at startup it logs a warning for every listener that
+isn't in `NativeAck` mode, naming the topic and the subscription. The warning is harmless when the subscription is
+the topic's only one. To make Wolverine refuse to start instead, opt in with `AssertRequeuesDoNotFanOut()`:
+
+```cs
+opts.UsePubsub("your-project-id")
+    // Every listener must use NativeAck, or the host doesn't start
+    .AssertRequeuesDoNotFanOut();
+
+opts.ListenToPubsubTopic("incoming").ProcessInParallelWithNativeAcks();
+```

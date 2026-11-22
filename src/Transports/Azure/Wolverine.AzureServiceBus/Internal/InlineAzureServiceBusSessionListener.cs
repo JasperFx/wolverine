@@ -52,15 +52,10 @@ public class InlineAzureServiceBusSessionListener : IListener, ISupportDeadLette
         _complete = AzureServiceBusSettlement.CompleteBlock((e, _) => e.CompleteAsync(_cancellation.Token),
             _logger, _cancellation.Token);
 
-        _defer = new RetryBlock<AzureServiceBusEnvelope>(async (envelope, _) =>
-        {
-            if (envelope is { IsCompleted: false } e)
-            {
-                await e.CompleteAsync(_cancellation.Token);
-            }
-
-            await _requeue.SendAsync(envelope);
-        }, logger, _cancellation.Token);
+        // GH-5767: the copy is sent before the original is completed
+        _defer = new RetryBlock<AzureServiceBusEnvelope>(
+            (envelope, _) => AzureServiceBusRequeue.RequeueAsync(envelope, _requeue, _cancellation.Token), logger,
+            _cancellation.Token);
 
         _deadLetter =
             new RetryBlock<AzureServiceBusEnvelope>(
@@ -142,7 +137,8 @@ public class InlineAzureServiceBusSessionListener : IListener, ISupportDeadLette
     {
         envelope.ScheduledTime = time;
 
-        // GH-4062: settle the original before sending the scheduled copy, exactly like _defer above.
+        // GH-4062: settle the original as well as sending the scheduled copy, exactly like _defer above
+        // (copy first since GH-5767).
         // This only re-sent the copy, so on an inline session listener the original delivery was
         // never settled and came back as a duplicate. Held back from the GH-4062 fix until GH-4068
         // stopped _defer from double-settling a message the BufferedReceiver had already completed.

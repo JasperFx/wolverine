@@ -49,6 +49,69 @@ public abstract class DatabaseListener : IListener
 
     public abstract ValueTask DeferAsync(Envelope envelope);
 
+    /// <summary>
+    /// GH-5775. Backoff between attempts to put a popped message back into its queue table. The last value
+    /// repeats until the time budget runs out.
+    /// </summary>
+    internal static readonly TimeSpan[] ReinsertBackoff =
+    [
+        100.Milliseconds(), 250.Milliseconds(), 500.Milliseconds(), 1.Seconds(), 2.Seconds()
+    ];
+
+    /// <summary>
+    /// GH-5775. For a listener whose receive is a destructive pop, the row is already gone by the time the
+    /// message is deferred, so the re-insert is the only copy of the message there will ever be. Runs
+    /// <paramref name="reinsert"/> until it succeeds, backing off between attempts, until
+    /// <paramref name="budget"/> has elapsed or <paramref name="cancellation"/> is signalled. A final failure
+    /// throws a <see cref="DatabaseQueueReinsertFailedException"/> naming the message instead of returning.
+    /// </summary>
+    /// <param name="envelope">The message being put back</param>
+    /// <param name="reinsert">
+    /// One insert attempt. The argument is the 1-based attempt number; an attempt after the first must be
+    /// idempotent, because the attempt before it may have committed even though it reported a failure.
+    /// </param>
+    /// <param name="budget">How long to keep retrying, typically the host's drain timeout</param>
+    /// <param name="cancellation">The host's cancellation</param>
+    protected async ValueTask reinsertWithRetriesAsync(Envelope envelope, Func<int, Task> reinsert,
+        TimeSpan budget, CancellationToken cancellation)
+    {
+        var started = DateTimeOffset.UtcNow;
+        var attempt = 0;
+
+        while (true)
+        {
+            attempt++;
+            try
+            {
+                await reinsert(attempt);
+                return;
+            }
+            catch (Exception e)
+            {
+                var delay = ReinsertBackoff[Math.Min(attempt - 1, ReinsertBackoff.Length - 1)];
+                var outOfTime = DateTimeOffset.UtcNow - started + delay > budget;
+
+                if (outOfTime || cancellation.IsCancellationRequested)
+                {
+                    throw new DatabaseQueueReinsertFailedException(envelope.Id, _queueName, attempt, e);
+                }
+
+                _logger.LogWarning(e,
+                    "Attempt {Attempt} to put message {EnvelopeId} back into database queue {Name} failed, retrying",
+                    attempt, envelope.Id, _queueName);
+
+                try
+                {
+                    await Task.Delay(delay, cancellation);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw new DatabaseQueueReinsertFailedException(envelope.Id, _queueName, attempt, e);
+                }
+            }
+        }
+    }
+
     public Task StartAsync()
     {
         _task = Task.Run(listenForMessagesAsync, _cancellation.Token);

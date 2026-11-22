@@ -685,6 +685,17 @@ The `Body` written by NServiceBus' JSON serializer begins with a UTF-8 byte orde
 receive so the payload deserializes cleanly with either the default `System.Text.Json` or a Newtonsoft serializer.
 :::
 
+Wolverine receives from the NServiceBus queue table with a destructive `DELETE ... OUTPUT`, so a message that is
+deferred (a handler failure in `Inline` mode, or a listener shutting down with messages still in hand) is put back by
+inserting a copy. That insert is retried with backoff for up to `DurabilitySettings.DrainTimeout`, a retry never adds
+a second copy, and an insert that still fails is logged as a `DatabaseQueueReinsertFailedException` naming the message
+id. The copy goes to the back of the queue, since the `RowVersion` column it is ordered by is an identity column.
+
+Queue names keep their case, so a reply to a mixed-case NServiceBus endpoint such as `Sales.Endpoint` goes to that
+table even on a database with a case-sensitive collation. Under SQL Server's default case-insensitive collations two
+names that differ only in case are one table, so Wolverine allows such a pair; with a case-sensitive collation, give
+the queues names that differ by more than case.
+
 ### Multi-Tenancy
 
 NServiceBus implements multi-tenancy as a *persistence* concern rather than a transport one: the SQL Server

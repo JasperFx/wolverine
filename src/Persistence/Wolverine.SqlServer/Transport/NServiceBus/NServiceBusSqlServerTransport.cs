@@ -3,6 +3,7 @@ using Microsoft.Data.SqlClient;
 using Spectre.Console;
 using Wolverine.Configuration;
 using Wolverine.RDBMS;
+using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.SqlServer.Persistence;
 using Wolverine.Transports;
@@ -64,9 +65,22 @@ public class NServiceBusSqlServerTransport : BrokerTransport<NServiceBusSqlServe
         return identifier;
     }
 
+    /// <summary>
+    ///     GH-5821. SQL Server's default collations are case-insensitive, so the NServiceBus queue tables <c>Sales</c>
+    ///     and <c>sales</c> are one table, and Wolverine treating the two names as one endpoint is right. Wolverine
+    ///     cannot see the database's collation from here; with a case-sensitive one, give the queues names that differ
+    ///     by more than case.
+    /// </summary>
+    public override bool EndpointNamesAreCaseSensitive => false;
+
+    /// <summary>
+    ///     GH-5814. Resolves a queue by the name its Uri was built from, with its case. <c>Uri.Host</c> is lowercased
+    ///     by <see cref="System.Uri" />, so on a database with a case-sensitive collation a reply to an NServiceBus
+    ///     endpoint called <c>Sales.Endpoint</c> used to go to a <c>sales.endpoint</c> table.
+    /// </summary>
     protected override NServiceBusSqlServerQueue findEndpointByUri(Uri uri)
     {
-        return Queues[uri.Host];
+        return CaseSensitiveQueueLookup.Find(Queues, uri, x => x.Name);
     }
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)

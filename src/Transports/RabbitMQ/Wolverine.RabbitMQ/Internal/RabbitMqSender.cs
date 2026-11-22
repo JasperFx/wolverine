@@ -17,9 +17,15 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
     private readonly bool _isDurable;
     private readonly CachedString _routingKey = null!;
     private readonly IRabbitMqEnvelopeMapper _mapper;
+    private readonly bool _confirmEveryPublish;
 
+    /// <param name="confirmEveryPublish">
+    /// GH-5781. When true, this sender's channel always has publisher confirms with tracking, and a publish to a
+    /// queue is mandatory, so <see cref="SendAsync" /> only returns once the broker has the message and throws if the
+    /// broker refused it or could not route it. Used only for requeue copies; ordinary senders leave it false.
+    /// </param>
     public RabbitMqSender(RabbitMqEndpoint endpoint, RabbitMqTransport transport,
-        RoutingMode routingType, IWolverineRuntime runtime) : base(
+        RoutingMode routingType, IWolverineRuntime runtime, bool confirmEveryPublish = false) : base(
         transport.SendingConnection, runtime.LoggerFactory.CreateLogger<RabbitMqSender>())
     {
         Destination = endpoint.Uri;
@@ -37,7 +43,10 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
         _endpoint = endpoint;
         _transport = transport;
         _runtime = runtime;
+        _confirmEveryPublish = confirmEveryPublish;
     }
+
+    protected override bool RequirePublisherConfirms => _confirmEveryPublish;
 
     private async ValueTask<CachedString> ToRoutingKeyAsync(Envelope envelope)
     {
@@ -90,7 +99,8 @@ internal class RabbitMqSender : RabbitMqChannelAgent, ISender
         var routingKey = await ToRoutingKeyAsync(envelope);
         // GH-5016: a queue that does not exist makes a mandatory publish fail rather than be confirmed and dropped,
         // so its outbox row stays. An exchange with no bindings still drops a message, as it does in any other mode
-        var mandatory = _transport.RequirePublisherConfirms && _endpoint is RabbitMqQueue;
+        // GH-5781: so does a requeue copy, whose original is acked only once the copy is on the broker
+        var mandatory = (_transport.RequirePublisherConfirms || _confirmEveryPublish) && _endpoint is RabbitMqQueue;
         await Channel.BasicPublishAsync(_exchangeName, routingKey, mandatory, props, envelope.Data);
     }
 
