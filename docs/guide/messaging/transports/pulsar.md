@@ -767,6 +767,12 @@ duplicate. A brand-new message always gets a new id and is delivered normally. A
 `Requeue()` error policy) always gets a new sequence id too: a message requeued twice is the same envelope
 both times, and reusing its id would have the broker drop the second copy.
 
+The producer name is the one you pass to `EnableDeduplication()`, or `{ServiceName}-{topic name}` when you
+pass none. When the same application also listens to that topic, the listener's requeue producer uses the
+same name with `-requeue` appended, because Pulsar refuses a second producer with a name that is already
+connected to the topic. Pulsar producer names must be unique per topic, so several running instances of a
+service that publish to the same deduplicated topic each need their own producer name.
+
 You must also enable deduplication on the broker side (it is off by default), e.g.:
 
 ```bash
