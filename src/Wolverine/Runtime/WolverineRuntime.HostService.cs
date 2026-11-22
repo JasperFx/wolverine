@@ -947,6 +947,13 @@ public partial class WolverineRuntime
         //
         // Deliberately ahead of the sending agents below: an Inline local queue cannot build one at all,
         // and LocalQueue.BuildAgent()'s throw is a much worse error message than the validator's. See GH-4022.
+        // GH-5821. Two endpoints whose names differ only in case share one Uri, and so one identity everywhere Wolverine
+        // keys on it. Refuse before any sending agent or listener starts, and whether or not the transports are stubbed.
+        // Deliberately after InitializeAsync() rather than before it: some transports' Endpoints() fills in endpoints as
+        // a side effect (SQS adds the dead letter queue each listener names), and before initialization a listener's
+        // delayed configuration has not yet replaced the default dead letter queue name.
+        EndpointNameCollisions.AssertNone(Options.Transports);
+
         validateListenerConfiguration();
 
         foreach (var transport in Options.Transports)

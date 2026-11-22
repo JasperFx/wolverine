@@ -21,6 +21,11 @@ namespace PostgresqlTests;
 [Collection("marten")]
 public class PostgresqlMessageStoreTests : MessageStoreCompliance
 {
+    // GH-5808. A schema of this class's own. These classes used to share "receiver" with each other and with other
+    // suites (the SQS durable compliance fixture rebuilds it, and the IdAndDestination class dropped it), so a suite
+    // running alongside against the same database wiped the inbox in the middle of a test.
+    private const string SchemaName = "message_store_compliance";
+
     public override async Task<IHost> BuildCleanHost()
     {
         var host = await Host.CreateDefaultBuilder()
@@ -29,7 +34,7 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
                 opts.Services.AddMarten(x =>
                 {
                     x.Connection(Servers.PostgresConnectionString);
-                    x.DatabaseSchemaName = "receiver";
+                    x.DatabaseSchemaName = SchemaName;
                 }).IntegrateWithWolverine();
 
                 opts.ListenAtPort(2345).UseDurableInbox();
@@ -57,7 +62,7 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
 
         var hourAgo = DateTimeOffset.UtcNow.Add(1.Hours());
         var operation =
-            new DeleteExpiredEnvelopesOperation(new DbObjectName("receiver", DatabaseConstants.IncomingTable), hourAgo);
+            new DeleteExpiredEnvelopesOperation(new DbObjectName(SchemaName, DatabaseConstants.IncomingTable), hourAgo);
         var batch = new DatabaseOperationBatch((IMessageDatabase)thePersistence, [operation]);
         await theHost.InvokeAsync(batch);
 
@@ -85,7 +90,7 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
         {
             await conn.OpenAsync(TestContext.Current.CancellationToken);
             await conn.CreateCommand(
-                    $"update receiver.{DatabaseConstants.IncomingTable} set {DatabaseConstants.KeepUntil} = :cutoff where status = 'Handled'")
+                    $"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.KeepUntil} = :cutoff where status = 'Handled'")
                 .With("cutoff", DateTimeOffset.UtcNow.Subtract(1.Hours()))
                 .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
             await conn.CloseAsync();
@@ -129,7 +134,7 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync(TestContext.Current.CancellationToken);
         await conn.CreateCommand(
-                $"update receiver.{DatabaseConstants.NodeRecordTableName} set timestamp = :time where node_number = 2")
+                $"update {SchemaName}.{DatabaseConstants.NodeRecordTableName} set timestamp = :time where node_number = 2")
             .With("time", DateTimeOffset.UtcNow.Subtract(10.Days()))
             .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         await conn.CloseAsync();

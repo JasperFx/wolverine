@@ -310,6 +310,7 @@ internal class FisherOverrides<T> : IConfigureFisher<T> where T : IDocumentStore
 
         // Fisher's DocumentMapping automatically detects IRevisioned types
         // and enables numeric revisions.
+        Persistence.Sagas.FisherRevisionedSagas.Configure(options);
 
         // GH-3109: replace this ancillary store's default NulloMessageOutbox with the Wolverine
         // bridge so a projection author who calls slice.PublishMessage(...) from a RaiseSideEffects
