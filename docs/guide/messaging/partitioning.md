@@ -364,6 +364,13 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L44-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_local_partitioned_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: warning
+A message type in a partitioned topology can only be handled by one handler type. Since 7.0 every handler type
+gets its own handler chain and local queue, so the topology could not keep a group's messages in order across
+them. Wolverine refuses that combination at startup. Handle the message type in one handler type, or leave it
+out of the topology.
+:::
+
 ## Grouping Rules Scoped to a Topology <Badge type="tip" text="6.41" />
 
 A partitioned topology can declare its own grouping rules with `GroupByTenantId()`, `GroupBy<T>()` or

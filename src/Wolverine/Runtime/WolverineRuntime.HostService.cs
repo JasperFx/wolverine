@@ -1382,6 +1382,9 @@ public partial class WolverineRuntime
 
         // GH-5137. Every listener is bound to its chains by now
         Handlers.AssertOneChainPerEndpoint();
+
+        // GH-5695
+        Handlers.AssertPartitionedMessagesHaveOneHandlerType(Options.MessagePartitioning);
     }
 
     internal Task StartLightweightAsync()
