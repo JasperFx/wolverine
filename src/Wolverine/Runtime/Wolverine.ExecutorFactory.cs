@@ -47,7 +47,10 @@ public partial class WolverineRuntime : IExecutorFactory
 
         if (handler == null && Options.MessagePartitioning.TryFindTopology(messageType, out var topology))
         {
-            if (!topology!.Slots.Contains(endpoint))
+            // GH-5695. A queue with a chain of this message type bound to it is where a slot relays the message to
+            // run that chain. Re-routing it from there sent it straight back to the slot, which relayed it here
+            // again, forever
+            if (!topology!.Slots.Contains(endpoint) && !Handlers.HasChainBoundTo(messageType, endpoint))
             {
                 handler = new PartitionedMessageReRouter(topology, messageType);
             }

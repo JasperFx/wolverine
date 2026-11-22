@@ -29,6 +29,12 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
     private string _moveScheduledToReadyQueueSql = null!;
     private readonly string _deleteExpiredSql;
     private readonly TimeSpan _pollingInterval;
+    private readonly TimeSpan _scheduledPollingInterval;
+
+    /// <summary>
+    ///     The resolved interval between passes of the scheduled message loop
+    /// </summary>
+    internal TimeSpan ScheduledPollingInterval => _scheduledPollingInterval;
 
     public SqlServerQueueListener(SqlServerQueue queue, IWolverineRuntime runtime, IReceiver receiver)
         : this(queue, runtime, receiver, queue.Parent.Settings.ConnectionString!, null)
@@ -46,6 +52,7 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
         _logger = runtime.LoggerFactory.CreateLogger<SqlServerQueueListener>();
         _settings = runtime.DurabilitySettings;
         _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
+        _scheduledPollingInterval = queue.ScheduledMessagePollingInterval ?? _pollingInterval;
 
         _sender = new SqlServerQueueSender(queue, connectionString, databaseName);
 
@@ -149,7 +156,7 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
 
                 failedCount = 0;
 
-                await Task.Delay(_pollingInterval);
+                await Task.Delay(_scheduledPollingInterval);
             }
             catch (Exception e)
             {
