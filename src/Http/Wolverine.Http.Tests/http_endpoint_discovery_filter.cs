@@ -2,6 +2,9 @@ using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
+using JasperFx.Core.TypeScanning;
+using Wolverine.Http.Tests.DifferentAssembly.DiscoveryFilter.Excluded;
+using Wolverine.Http.Tests.DifferentAssembly.DiscoveryFilter.Included;
 using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using Wolverine.Marten;
 
@@ -39,6 +42,34 @@ public class http_endpoint_discovery_filter
 
         // ...but the excluded-namespace endpoint, which the default discovered above, is gone.
         endpoints.ChainFor("GET", ExcludedRoute).ShouldBeNull();
+    }
+
+    // GH-5751: in TypeLoadMode.Static the endpoint types come from the HttpEndpointRegistry generated at
+    // `codegen write` time instead of an assembly scan. One image built for every environment generates
+    // that registry once, so an endpoint excluded at runtime (by environment or configuration) is still in
+    // it. The runtime excludes have to apply to the registry's types too, or the excluded route is served.
+    [Fact]
+    public void runtime_excludes_apply_to_the_pre_generated_endpoint_types()
+    {
+        var discovery = new TypeQuery(TypeClassification.All);
+        discovery.Excludes.WithCondition("non-production surfaces", t => t == typeof(ExcludedPongEndpoint));
+
+        var source = new HttpChainSource([typeof(IncludedPingEndpoint).Assembly], discovery);
+
+        var calls = source.FindActions([typeof(IncludedPingEndpoint), typeof(ExcludedPongEndpoint)]);
+
+        calls.Select(x => x.HandlerType).ShouldBe([typeof(IncludedPingEndpoint)]);
+    }
+
+    [Fact]
+    public void pre_generated_endpoint_types_are_all_used_without_runtime_excludes()
+    {
+        var source = new HttpChainSource([typeof(IncludedPingEndpoint).Assembly]);
+
+        var calls = source.FindActions([typeof(IncludedPingEndpoint), typeof(ExcludedPongEndpoint)]);
+
+        calls.Select(x => x.HandlerType).ShouldBe([typeof(IncludedPingEndpoint), typeof(ExcludedPongEndpoint)],
+            ignoreOrder: true);
     }
 
     // Boots a minimal, database-less host whose endpoint discovery is pinned to the small, isolated
