@@ -81,6 +81,17 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     /// <returns>A task that resolves to an <see cref="IChannel"/> instance for RabbitMQ communication.</returns>
     public Task<IChannel> CreateChannelAsync(ushort? consumerDispatchConcurrency = null)
     {
+        return CreateChannelAsync(consumerDispatchConcurrency, false);
+    }
+
+    /// <param name="consumerDispatchConcurrency">See <see cref="IConnectionMonitor.CreateChannelAsync" /></param>
+    /// <param name="requirePublisherConfirms">
+    /// GH-5781. Turns publisher confirms and confirm tracking on for this one channel, whatever the application-wide
+    /// settings are. Used for the channel that publishes requeue copies, which must be on the broker before the
+    /// original delivery is acked.
+    /// </param>
+    internal Task<IChannel> CreateChannelAsync(ushort? consumerDispatchConcurrency, bool requirePublisherConfirms)
+    {
         var connection = _connection
             ?? throw new InvalidOperationException(RabbitMqTransport.NotInitializedMessage(Role));
 
@@ -90,8 +101,8 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
         // GH-5016: with tracking on, BasicPublishAsync only returns once the broker confirmed the message, and
         // throws if it was rejected or, when mandatory, returned as unroutable
         var options = new CreateChannelOptions(
-            wolverineOptions.PublisherConfirmationsEnabled || _transport.RequirePublisherConfirms,
-            wolverineOptions.PublisherConfirmationTrackingEnabled || _transport.RequirePublisherConfirms,
+            wolverineOptions.PublisherConfirmationsEnabled || _transport.RequirePublisherConfirms || requirePublisherConfirms,
+            wolverineOptions.PublisherConfirmationTrackingEnabled || _transport.RequirePublisherConfirms || requirePublisherConfirms,
             consumerDispatchConcurrency: consumerDispatchConcurrency ?? wolverineOptions.ConsumerDispatchConcurrency);
 
         return connection.CreateChannelAsync(options);

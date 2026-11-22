@@ -511,11 +511,18 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         return MaximumSqsDelaySeconds;
     }
 
-    internal async Task SendMessageAsync(Envelope envelope, ILogger logger)
+    /// <param name="deduplicationIdOverride">
+    ///     GH-5752. Replaces the envelope's own deduplication id on a FIFO queue (a requeue copy).
+    /// </param>
+    /// <param name="groupIdFallback">
+    ///     GH-5752. The message group to use when the mapper determines none (a raw JSON requeue copy).
+    /// </param>
+    internal async Task SendMessageAsync(Envelope envelope, ILogger logger, string? deduplicationIdOverride = null,
+        string? groupIdFallback = null)
     {
         if (!_initialized)
         {
-            await InitializeAsync(logger);
+            await InitializeForSendingAsync(logger);
         }
 
         Mapper ??= new DefaultSqsEnvelopeMapper();
@@ -524,7 +531,8 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
 
         if (!SqsMessageFragments.ExceedsLimit(body))
         {
-            await _parent.Client!.SendMessageAsync(buildSendRequest(envelope, body, null, logger));
+            await _parent.Client!.SendMessageAsync(buildSendRequest(envelope, body, null, logger,
+                deduplicationIdOverride, groupIdFallback));
             return;
         }
 
@@ -549,24 +557,30 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         for (var i = 0; i < bodies.Length; i++)
         {
             var header = new SqsFragmentHeader(envelope.Id, i, bodies.Length);
-            await _parent.Client!.SendMessageAsync(buildSendRequest(envelope, bodies[i], header, logger));
+            await _parent.Client!.SendMessageAsync(buildSendRequest(envelope, bodies[i], header, logger,
+                deduplicationIdOverride, groupIdFallback));
         }
     }
 
     private SendMessageRequest buildSendRequest(Envelope envelope, string body, SqsFragmentHeader? fragment,
-        ILogger logger)
+        ILogger logger, string? deduplicationIdOverride = null, string? groupIdFallback = null)
     {
         var request = new SendMessageRequest(QueueUrl, body);
 
         if (IsFifoQueue)
         {
             var groupId = groupIdFor(envelope, fragment);
+            if (groupId.IsEmpty())
+            {
+                groupId = groupIdFallback;
+            }
+
             if (groupId.IsNotEmpty())
             {
                 request.MessageGroupId = groupId;
             }
 
-            var deduplicationId = DetermineDeduplicationId(envelope);
+            var deduplicationId = deduplicationIdOverride ?? DetermineDeduplicationId(envelope);
             if (deduplicationId.IsNotEmpty())
             {
                 // Every fragment of one envelope would otherwise carry the identical deduplication id,
@@ -618,7 +632,23 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
             : Mapper!.DetermineGroupId(envelope);
     }
 
-    public override async ValueTask InitializeAsync(ILogger logger)
+    public override ValueTask InitializeAsync(ILogger logger)
+    {
+        return initializeAsync(logger, _parent.AutoPurgeAllQueues);
+    }
+
+    /// <summary>
+    ///     GH-5748: initialize a queue this node is about to send to, without purging it. AutoPurgeOnStartup
+    ///     purges the queues initialized as the transport starts and the queues this node listens to. A queue
+    ///     the node first sends to later -- a reply queue owned by the node that sent a request, say -- holds
+    ///     messages someone else is waiting for, and purging it just before the first send can delete them.
+    /// </summary>
+    internal ValueTask InitializeForSendingAsync(ILogger logger)
+    {
+        return initializeAsync(logger, false);
+    }
+
+    private async ValueTask initializeAsync(ILogger logger, bool purge)
     {
         if (_initialized)
         {
@@ -646,7 +676,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
                 QueueUrl = response.QueueUrl;
             }
 
-            if (_parent.AutoPurgeAllQueues)
+            if (purge)
             {
                 await PurgeAsync(logger);
                 logger.LogInformation("Purging Amazon SQS queue {Name}", QueueUrl);
@@ -980,12 +1010,20 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         // delivery count is invisible. It is the one counter that survives envelope reconstruction, which
         // is what lets DurabilitySettings.MaximumBrokerRedeliveries bound a redeliver -> dedupe -> re-ack
         // loop that Envelope.AckAttempts cannot see.
-        request.MessageSystemAttributeNames = _receivedSystemAttributeNames;
+        //
+        // GH-5752: a FIFO queue also asks for MessageGroupId, so a requeue copy of a message whose envelope
+        // carries no GroupId (raw JSON) can still be sent to its group. SQS rejects a FIFO send without one.
+        request.MessageSystemAttributeNames = IsFifoQueue
+            ? _receivedFifoSystemAttributeNames
+            : _receivedSystemAttributeNames;
     }
 
     private List<string>? _receivedAttributeNames;
 
     private static readonly List<string> _receivedSystemAttributeNames = ["ApproximateReceiveCount"];
+
+    private static readonly List<string> _receivedFifoSystemAttributeNames =
+        ["ApproximateReceiveCount", "MessageGroupId"];
 
     /// <summary>
     ///     Whatever the endpoint asked for, plus Wolverine's own fragment framing (GH-3926). SQS returns

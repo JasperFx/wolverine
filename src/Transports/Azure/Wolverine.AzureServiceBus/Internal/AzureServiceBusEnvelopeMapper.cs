@@ -31,6 +31,16 @@ public class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceivedMe
             (e, m) => m.Body = new BinaryData(e.Data!));
         MapProperty(x => x.Id, (e, m) =>
         {
+            // GH-5767: a requeue copy carries a MessageId of its own and the envelope's id beside it
+            if (m.ApplicationProperties != null &&
+                m.ApplicationProperties.TryGetValue(AzureServiceBusRequeue.EnvelopeIdKey, out var raw) &&
+                Guid.TryParse(raw?.ToString(), out var envelopeId))
+            {
+                e.Id = envelopeId;
+                e.Headers.Remove(AzureServiceBusRequeue.EnvelopeIdKey);
+                return;
+            }
+
             if (Guid.TryParse(m.MessageId, out var id))
             {
                 e.Id = id;

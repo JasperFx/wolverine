@@ -76,11 +76,35 @@ public abstract partial class RabbitMqEndpoint : Endpoint<IRabbitMqEnvelopeMappe
         return _sender;
     }
 
+    private ISender? _confirmedSender;
+
+    /// <summary>
+    /// GH-5781. The sender for requeue copies: publisher confirms on (and mandatory for a queue) whatever the
+    /// application-wide settings are, on channels of its own so ordinary sends are untouched. Built on the first
+    /// requeue, so an endpoint that never requeues never opens its channel.
+    /// </summary>
+    internal ISender ResolveConfirmedSender(IWolverineRuntime runtime)
+    {
+        // Same reasoning as ResolveSender, GH-3955
+        if (_confirmedSender is RabbitMqChannelAgent { IsDisposed: true })
+        {
+            _confirmedSender = null;
+        }
+
+        _confirmedSender ??= _parent.BuildConfirmedSender(this, RoutingType, runtime);
+        return _confirmedSender;
+    }
+
     public async ValueTask DisposeAsync()
     {
         if(_sender is IAsyncDisposable ad)
         {
             await ad.DisposeAsync();
+        }
+
+        if (_confirmedSender is IAsyncDisposable confirmed)
+        {
+            await confirmed.DisposeAsync();
         }
     }
 
