@@ -27,11 +27,17 @@ internal class SqliteQueueListener : IListener
     private readonly string _queueName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
+    private readonly TimeSpan _scheduledPollingInterval;
     private readonly SqliteMessageStore? _store;
     private readonly string _incomingTableName;
     private readonly string _selectReadySql;
     private readonly string _moveScheduledToReadySql;
     private readonly bool _deterministicQueueOrdering;
+
+    /// <summary>
+    ///     The resolved interval between passes of the scheduled message loop
+    /// </summary>
+    internal TimeSpan ScheduledPollingInterval => _scheduledPollingInterval;
 
     public SqliteQueueListener(SqliteQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         DbDataSource dataSource, string? databaseName)
@@ -44,6 +50,7 @@ internal class SqliteQueueListener : IListener
         _logger = runtime.LoggerFactory.CreateLogger<SqliteQueueListener>();
         _settings = runtime.DurabilitySettings;
         _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
+        _scheduledPollingInterval = queue.ScheduledMessagePollingInterval ?? _pollingInterval;
 
         _sender = new SqliteQueueSender(queue, _dataSource, databaseName);
 
@@ -219,7 +226,7 @@ internal class SqliteQueueListener : IListener
                 continue;
             }
 
-            if (!await pauseAsync(_pollingInterval))
+            if (!await pauseAsync(_scheduledPollingInterval))
             {
                 break;
             }
