@@ -237,3 +237,22 @@ sharing a group id from running concurrently. When ordering is enabled at the su
 serialisation is the binding one, because the second message never arrives to be partitioned. How the two
 mechanisms should combine for a future native-ack Pub/Sub endpoint is still open — see
 [#4052](https://github.com/JasperFx/wolverine/issues/4052).
+
+## Requeueing a message
+
+Pub/Sub has no way to put one message back, so outside `EndpointMode.NativeAck` an error policy's
+`Requeue()` publishes a **copy** of the message to the topic and the original is acknowledged. Under
+`NativeAck` the original is nacked instead and Pub/Sub redelivers it.
+
+On an inline endpoint (`ProcessInline()`) the handler runs inside the subscriber callback, and the callback's
+reply is what settles the original. The original is acknowledged only once the copy was published. When the
+copy cannot be published, the original is nacked and Pub/Sub redelivers it instead.
+
+The copy keeps the ordering key of the original. When neither a group id nor `OrderMessagesBy()` gives it
+one, it gets the `OrderingKey` the original was received with, which is how a message from a publisher
+other than Wolverine carries its key.
+
+::: warning
+Because the copy is published to the topic, every other subscription on that topic receives it as well.
+Use `NativeAck` when other subscriptions share the topic and must not see a requeued message twice.
+:::
