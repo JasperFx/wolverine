@@ -34,7 +34,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
     ///     with <see cref="PubsubTopicListenerConfiguration.FromTopic" /> nor readable from the subscription at
     ///     startup. Such an endpoint has nowhere to publish to, so a requeue from it cannot publish a copy.
     /// </summary>
-    internal bool KnowsItsTopic => !IsExistingSubscription || _subscriptionTopicResolved;
+    internal bool KnowsItsTopic => !IsExistingSubscription || ExplicitSubscriptionTopic is not null || _subscriptionTopicResolved;
 
     /// <summary>
     ///     GH-5822. A topic id in <paramref name="projectId" />, or a full <c>projects/{project}/topics/{topic}</c>
@@ -747,15 +747,19 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     private string requeuesFanOutMessage()
     {
-        var topic = Server.Topic.Name.TopicId;
+        // GH-5822. A listener on an existing subscription whose topic is not known yet must not name the
+        // subscription as its topic
+        var topic = KnowsItsTopic
+            ? $"topic '{Server.Topic.Name.TopicId}'"
+            : $"the topic of existing subscription '{Server.Subscription.Name.SubscriptionId}'";
         var perNode = IsSubscriptionPerNode && ListenerScope == ListenerScope.CompetingConsumers
             ? ", and the per-node subscriptions of this service's other nodes (SubscriptionPerNode())"
             : string.Empty;
 
         return
             $"Google Cloud Platform Pub/Sub listener '{Uri}' on subscription '{Server.Subscription.Name.SubscriptionId}' of " +
-            $"topic '{topic}' runs in {Mode} mode, so a requeue from it (an error policy's Requeue(), for example) publishes " +
-            $"a copy of the message to topic '{topic}'. Pub/Sub cannot publish to a single subscription, so every subscription " +
+            $"{topic} runs in {Mode} mode, so a requeue from it (an error policy's Requeue(), for example) publishes " +
+            $"a copy of the message to {topic}. Pub/Sub cannot publish to a single subscription, so every subscription " +
             $"on that topic receives the copy again, including other services' subscriptions{perNode}. Wolverine cannot see " +
             "the topic's other subscriptions, so this is harmless only if this subscription is the topic's only one. Use " +
             "ProcessInParallelWithNativeAcks() (EndpointMode.NativeAck) on this listener, which requeues with a native Nack " +

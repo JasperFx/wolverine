@@ -3,6 +3,8 @@ using Google.Api.Gax.Grpc;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 using Grpc.Core;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -286,5 +288,42 @@ public class pubsub_existing_subscription_topic_5822 : IAsyncDisposable
         }
 
         thePublished.ShouldHaveSingleItem().TopicAsTopicName.ShouldBe(new TopicName("wolverine", "orders"));
+    }
+
+    private static async Task<string> fanOutWarningFor(Action<PubsubTopicListenerConfiguration> configure)
+    {
+        var recorder = new RecordingLoggerProvider();
+
+        using var host = await Host.CreateDefaultBuilder()
+            .ConfigureLogging(x => x.AddProvider(recorder))
+            .UseWolverine(opts =>
+            {
+                opts.UsePubsub("wolverine");
+                configure(opts.ListenToPubsubSubscription("orders-sub").BufferedInMemory());
+                opts.StubAllExternalTransports();
+            }).StartAsync(TestContext.Current.CancellationToken);
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        return recorder.Warnings.Where(x => x.Contains("receives the copy again")).ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public async Task the_requeue_fan_out_warning_never_names_the_subscription_as_its_topic()
+    {
+        // Stubbed transports never read the subscription, so its topic is unknown
+        var warning = await fanOutWarningFor(_ => { });
+
+        warning.ShouldContain("the topic of existing subscription 'orders-sub'");
+        warning.ShouldNotContain("topic 'orders-sub'");
+    }
+
+    [Fact]
+    public async Task the_requeue_fan_out_warning_names_an_explicit_topic()
+    {
+        var warning = await fanOutWarningFor(x => x.FromTopic("orders"));
+
+        warning.ShouldContain("topic 'orders'");
+        warning.ShouldContain("subscription 'orders-sub'");
     }
 }

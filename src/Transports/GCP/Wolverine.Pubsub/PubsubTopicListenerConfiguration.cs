@@ -93,6 +93,7 @@ public class PubsubTopicListenerConfiguration : InteroperableListenerConfigurati
             }
 
             e.ExplicitSubscriptionTopic = PubsubEndpoint.ParseTopicName(topicName, e.Transport.ProjectId);
+            e.Server.Topic.Name = e.ExplicitSubscriptionTopic;
         });
 
         return this;
