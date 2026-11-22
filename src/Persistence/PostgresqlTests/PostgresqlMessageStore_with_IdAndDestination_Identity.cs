@@ -21,6 +21,11 @@ namespace PostgresqlTests;
 [Collection("marten")]
 public class PostgresqlMessageStore_with_IdAndDestination_Identity : MessageStoreCompliance
 {
+    // GH-5808. A schema of this class's own. These classes used to share "receiver" with each other and with other
+    // suites (the SQS durable compliance fixture rebuilds it, and the IdAndDestination class dropped it), so a suite
+    // running alongside against the same database wiped the inbox in the middle of a test.
+    private const string SchemaName = "message_store_id_and_destination";
+
     public override async Task<IHost> BuildCleanHost()
     {
         var host = await Host.CreateDefaultBuilder()
@@ -29,7 +34,7 @@ public class PostgresqlMessageStore_with_IdAndDestination_Identity : MessageStor
                 opts.Services.AddMarten(x =>
                 {
                     x.Connection(Servers.PostgresConnectionString);
-                    x.DatabaseSchemaName = "receiver";
+                    x.DatabaseSchemaName = SchemaName;
                 }).IntegrateWithWolverine();
 
                 opts.ListenAtPort(2345).UseDurableInbox();
@@ -42,15 +47,15 @@ public class PostgresqlMessageStore_with_IdAndDestination_Identity : MessageStor
         return host;
     }
 
-    // The 'receiver' schema is shared with the default-identity classes in this collection. This class
-    // leaves its inbox keyed by (id, received_at) and holding rows that share an id, which those classes
-    // cannot migrate back to PRIMARY KEY (id) -- every one of their tests then failed with 23505 whenever
-    // they ran after this class. Leave nothing behind.
+    // This class leaves its inbox keyed by (id, received_at) and holding rows that share an id, which a
+    // default-identity store cannot migrate back to PRIMARY KEY (id). When this schema was the shared 'receiver'
+    // one, every test of the default-identity classes then failed with 23505 whenever they ran after this class.
+    // It has its own schema now (GH-5808), and it still leaves nothing behind.
     protected override async Task afterHostDisposedAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
-        await conn.CreateCommand("drop schema if exists receiver cascade").ExecuteNonQueryAsync();
+        await conn.CreateCommand($"drop schema if exists {SchemaName} cascade").ExecuteNonQueryAsync();
     }
 
     [Fact]
@@ -84,11 +89,11 @@ public class PostgresqlMessageStore_with_IdAndDestination_Identity : MessageStor
 
         var runtime = theHost.GetRuntime();
 
-        var incoming = await new IncomingEnvelopeTable(runtime.Options.Durability, "receiver").FetchExistingAsync(conn, TestContext.Current.CancellationToken);
+        var incoming = await new IncomingEnvelopeTable(runtime.Options.Durability, SchemaName).FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         incoming!.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         incoming.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
 
-        var dlq = await new DeadLettersTable(runtime.Options.Durability, "receiver").FetchExistingAsync(conn, TestContext.Current.CancellationToken);
+        var dlq = await new DeadLettersTable(runtime.Options.Durability, SchemaName).FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         dlq!.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         dlq.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
         
@@ -107,7 +112,7 @@ public class PostgresqlMessageStore_with_IdAndDestination_Identity : MessageStor
 
         var hourAgo = DateTimeOffset.UtcNow.Add(1.Hours());
         var operation =
-            new DeleteExpiredEnvelopesOperation(new DbObjectName("receiver", DatabaseConstants.IncomingTable), hourAgo);
+            new DeleteExpiredEnvelopesOperation(new DbObjectName(SchemaName, DatabaseConstants.IncomingTable), hourAgo);
         var batch = new DatabaseOperationBatch((IMessageDatabase)thePersistence, [operation]);
         await theHost.InvokeAsync(batch);
 
