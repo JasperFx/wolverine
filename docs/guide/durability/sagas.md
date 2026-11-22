@@ -1073,6 +1073,42 @@ Turning retention off again leaves the sagas that were already kept in storage. 
 stops a later message from reaching them. To clear them out, either delete them by hand, or turn retention back on
 for a little while so the sweep deletes them.
 
+## Completing a Saga from Outside its Handlers <Badge type="tip" text="7.0" />
+
+Sometimes a saga is never going to finish, say because the partner it waits on went away, and an operator wants to
+end it. The saga diagnostics on `IWolverineRuntime.SagaStorage`, the ones monitoring tools like CritterWatch use,
+can complete one saga instance without sending it a message:
+
+```cs
+var sagas = host.GetRuntime().SagaStorage;
+
+if (sagas.SupportsSagaCompletion(typeof(ShipmentSaga).FullName!))
+{
+    var result = await sagas.CompleteSagaAsync(typeof(ShipmentSaga).FullName!, shipmentId,
+        "The carrier lost the parcel and refunded it", cancellationToken);
+
+    // Deleted, Retained, CompletionAppended, AlreadyCompleted or NotFound
+    Console.WriteLine(result.Outcome);
+}
+```
+
+The saga is completed the way `MarkCompleted()` would complete it, but none of its handlers run:
+
+* A saga type that is not retained is deleted
+* A retained saga type (see above) is kept with `CompletedAt` set
+* An [event-sourced saga](/guide/durability/event-sourced-sagas) gets a `SagaCompleted` event with the reason in its
+  `Reason`, plus the `Archived` event for an `[ArchiveWhenCompleted]` saga. Its stream is never deleted
+
+The reason is required, and Wolverine logs it with the saga type and id. A saga that has already completed, or does not
+exist, is left alone and reported as `AlreadyCompleted` or `NotFound`. If a handler changes the saga while it is being
+completed, the call fails with a concurrency exception and changes nothing, where the storage can tell: the
+lightweight tables check the saga's version, RavenDB its change vector, CosmosDB its ETag, an event-sourced saga its
+stream version, Marten a retained saga's revision, and EF Core whatever concurrency token your mapping has.
+
+Every built-in saga storage that the saga diagnostics cover supports this (the lightweight tables, Marten, Polecat,
+Fisher, EF Core, RavenDB and CosmosDB). Like `ReadSagaAsync()`, it works on the default tenant or main database. An
+`ISagaStoreDiagnostics` written for an older Wolverine keeps working, and says it can't complete sagas.
+
 ## Recording a Saga's Message History <Badge type="tip" text="7.0" />
 
 A saga kept as a document or a row only has its current state. To see how it got there, you can have Wolverine record

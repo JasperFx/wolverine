@@ -185,6 +185,68 @@ internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics, ISagaI
         }
     }
 
+    // GH-5839: complete one saga from outside its handlers, through the DbContext that owns the saga's entity
+
+    public bool SupportsSagaCompletion(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var pair) && pair.sagaType.CanBeCastTo<global::Wolverine.Saga>();
+
+    public async Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+    {
+        if (!SupportsSagaCompletion(sagaTypeName))
+        {
+            throw SagaTermination.NotSupported(sagaTypeName, "EF Core saga storage");
+        }
+
+        var pair = sagaIndex()[sagaTypeName];
+
+        using var scope = _services.CreateScope();
+        var dbContext = (DbContext)scope.ServiceProvider.GetRequiredService(pair.dbContextType);
+
+        var id = coerceIdentity(identity, expectedIdType(dbContext, pair.sagaType));
+        if (id is null)
+        {
+            return new SagaTerminationResult(pair.sagaType.FullNameInCode(), identity, SagaTerminationOutcome.NotFound);
+        }
+
+        var task = (Task<SagaTerminationOutcome>)typeof(EFCoreSagaStoreDiagnostics)
+            .GetMethod(nameof(completeAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(pair.sagaType)
+            .Invoke(null, [dbContext, id, SagaTermination.IsRetained(pair.sagaType, _runtime.Options), ct])!;
+
+        var outcome = await task.ConfigureAwait(false);
+        return new SagaTerminationResult(pair.sagaType.FullNameInCode(), identity, outcome);
+    }
+
+    private static async Task<SagaTerminationOutcome> completeAsync<TSaga>(DbContext dbContext, object id, bool retained,
+        CancellationToken ct) where TSaga : global::Wolverine.Saga
+    {
+        var saga = await dbContext.Set<TSaga>().FindAsync([id], ct).ConfigureAwait(false);
+        if (saga is null) return SagaTerminationOutcome.NotFound;
+        if (saga.IsCompleted()) return SagaTerminationOutcome.AlreadyCompleted;
+
+        if (retained)
+        {
+            SagaTermination.MarkRetainedCompleted(saga);
+        }
+        else
+        {
+            dbContext.Remove(saga);
+        }
+
+        try
+        {
+            await dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException e)
+        {
+            // Only where the model maps a concurrency token for the saga, as for the saga's own handlers
+            throw SagaTermination.Concurrency(typeof(TSaga), id, e);
+        }
+
+        return retained ? SagaTerminationOutcome.Retained : SagaTerminationOutcome.Deleted;
+    }
+
     // GH-5558: idle saga diagnostics over the mapped Saga.LastModified property
 
     private const string TenantRefusal =

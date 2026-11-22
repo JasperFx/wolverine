@@ -270,6 +270,76 @@ internal sealed class CosmosDbSagaStoreDiagnostics : ISagaStoreDiagnostics, ISag
         return source.Where(System.Linq.Expressions.Expression.Lambda<Func<TSaga, bool>>(open, parameter));
     }
 
+    // GH-5839: complete one saga from outside its handlers. The write is a compare-and-swap against the ETag the saga
+    // was read at, as the saga's own handlers write it, so a saga a handler changed in the meantime is refused
+
+    public bool SupportsSagaCompletion(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var sagaType) && sagaType.CanBeCastTo<Saga>();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+    {
+        if (!SupportsSagaCompletion(sagaTypeName))
+        {
+            throw SagaTermination.NotSupported(sagaTypeName, "CosmosDB saga storage");
+        }
+
+        var sagaType = sagaIndex()[sagaTypeName];
+        var id = identity.ToString()!;
+        var partitionKey = partitionById(sagaType) ? new PartitionKey(id) : PartitionKey.None;
+
+        var task = (Task<SagaTerminationOutcome>)typeof(CosmosDbSagaStoreDiagnostics)
+            .GetMethod(nameof(completeAsync), BindingFlags.Instance | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sagaType)
+            .Invoke(this, [id, partitionKey, SagaTermination.IsRetained(sagaType, _runtime.Options), ct])!;
+
+        var outcome = await task.ConfigureAwait(false);
+        return new SagaTerminationResult(sagaType.FullNameInCode(), identity, outcome);
+    }
+
+    private async Task<SagaTerminationOutcome> completeAsync<TSaga>(string id, PartitionKey partitionKey, bool retained,
+        CancellationToken ct) where TSaga : Saga
+    {
+        ItemResponse<TSaga> read;
+        try
+        {
+            read = await _container.ReadItemAsync<TSaga>(id, partitionKey, cancellationToken: ct).ConfigureAwait(false);
+        }
+        catch (CosmosException e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return SagaTerminationOutcome.NotFound;
+        }
+
+        var saga = read.Resource;
+        if (saga is null) return SagaTerminationOutcome.NotFound;
+        if (saga.IsCompleted()) return SagaTerminationOutcome.AlreadyCompleted;
+
+        var options = new ItemRequestOptions { IfMatchEtag = read.ETag };
+        try
+        {
+            if (retained)
+            {
+                SagaTermination.MarkRetainedCompleted(saga);
+                await _container.ReplaceItemAsync(saga, id, partitionKey, options, ct).ConfigureAwait(false);
+                return SagaTerminationOutcome.Retained;
+            }
+
+            await _container.DeleteItemAsync<TSaga>(id, partitionKey, options, ct).ConfigureAwait(false);
+            return SagaTerminationOutcome.Deleted;
+        }
+        catch (CosmosException e) when (e.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+        {
+            throw SagaTermination.Concurrency(typeof(TSaga), id, e);
+        }
+        catch (CosmosException e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Deleted by a handler between the read and the write
+            throw SagaTermination.Concurrency(typeof(TSaga), id, e);
+        }
+    }
+
     // GH-5572: retained, completed sagas are found by query and deleted one by one. Saga documents carry no type
     // marker, so a sweep for one saga type sees every completed saga document in the container. Only retained saga
     // types ever keep a completed document, so with several saga types in the container the sweep uses the longest

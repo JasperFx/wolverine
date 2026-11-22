@@ -191,6 +191,86 @@ internal sealed partial class DocumentStoreSagaStoreDiagnostics : ISagaStoreDiag
         }
     }
 
+    // GH-5839: complete one saga from outside its handlers, through the same store and saga index the reads use
+
+    public bool SupportsSagaCompletion(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var entry) && entry.SagaType.CanBeCastTo<Saga>();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+    {
+        if (!SupportsSagaCompletion(sagaTypeName)) throw SagaTermination.NotSupported(sagaTypeName, _storeName);
+        var entry = sagaIndex()[sagaTypeName];
+
+        var coercedId = coerceIdentity(identity, entry.IdType);
+        if (coercedId is null)
+        {
+            return SagaTerminationResult.For(entry.SagaType, identity, SagaTerminationOutcome.NotFound);
+        }
+
+        Task<SagaTerminationOutcome> task;
+        if (entry.SagaType.CanBeCastTo<EventSourcedSaga>())
+        {
+            // GH-5415: an event-sourced saga completes by an event in its stream, never by a delete
+            task = (Task<SagaTerminationOutcome>)typeof(DocumentStoreSagaStoreDiagnostics)
+                .GetMethod(nameof(completeEventSourcedAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+                .MakeGenericMethod(entry.SagaType)
+                .Invoke(null, [_sessions, EventSessionAccess.StreamIdentityOf(coercedId), reason, ct])!;
+        }
+        else
+        {
+            task = (Task<SagaTerminationOutcome>)typeof(DocumentStoreSagaStoreDiagnostics)
+                .GetMethod(nameof(completeDocumentAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+                .MakeGenericMethod(entry.SagaType)
+                .Invoke(null, [_sessions, coercedId, SagaTermination.IsRetained(entry.SagaType, _runtime.Options), ct])!;
+        }
+
+        var outcome = await task.ConfigureAwait(false);
+
+        // An archived stream ([ArchiveWhenCompleted]) is out of FetchForWriting's sight on some stores, though its
+        // completed snapshot is still there to read
+        if (outcome == SagaTerminationOutcome.NotFound && entry.SagaType.CanBeCastTo<EventSourcedSaga>() &&
+            await ReadSagaAsync(sagaTypeName, coercedId, ct).ConfigureAwait(false) is { IsCompleted: true })
+        {
+            outcome = SagaTerminationOutcome.AlreadyCompleted;
+        }
+
+        return SagaTerminationResult.For(entry.SagaType, identity, outcome);
+    }
+
+    private static async Task<SagaTerminationOutcome> completeDocumentAsync<TSaga>(IDocumentSessionFactory sessions,
+        object id, bool retained, CancellationToken ct) where TSaga : Saga
+    {
+        await using var session = sessions.LightweightSession();
+        var saga = await session.LoadAsync<TSaga>(id, ct).ConfigureAwait(false);
+        if (saga is null) return SagaTerminationOutcome.NotFound;
+        if (saga.IsCompleted()) return SagaTerminationOutcome.AlreadyCompleted;
+
+        if (retained)
+        {
+            SagaTermination.MarkRetainedCompleted(saga);
+
+            // A store that keeps saga documents with numeric revisions (Marten) takes the revision on the document as
+            // the new one, and refuses it unless the stored revision is the one this saga was loaded at: a saga a
+            // handler changed in the meantime is refused with JasperFx's ConcurrencyException
+            saga.Version++;
+
+            // Store, not Update: not every store implements the store-agnostic Update. A retained saga is never deleted
+            // by its handlers, only by the retention sweep long after it completed, so the upsert cannot bring back a
+            // saga a handler removed in the meantime
+            session.Store(saga);
+        }
+        else
+        {
+            session.Delete(saga);
+        }
+
+        await session.SaveChangesAsync(ct).ConfigureAwait(false);
+        return retained ? SagaTerminationOutcome.Retained : SagaTerminationOutcome.Deleted;
+    }
+
     // GH-5558: Saga.LastModified is a member of every saga document (Marten also maps it onto mt_last_modified), so
     // the idle queries are plain LINQ over the saga type
 
