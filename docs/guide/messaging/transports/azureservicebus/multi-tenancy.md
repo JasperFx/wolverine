@@ -118,6 +118,12 @@ fully qualified namespaces for the known tenants. When a message is received at 
 `TenantId` that's appropriate for each separate tenant-specific listening endpoint. That helps Wolverine also track
 tenant specific operations (with Marten maybe?) and tracks the tenant id across any outgoing messages or responses as well.
 
+With system queues enabled (the default), Wolverine's retry queue (`wolverine.retries.[service name]`) is also created
+and listened to in every tenant's namespace, and a requeue or native scheduled retry from a topic subscription in a tenant's
+namespace sends its copy to that tenant's retry queue rather than back to the tenant's topic, where every subscription on
+the topic would receive it again. With system queues disabled, the startup warning about subscription requeues covers the
+tenant namespaces' subscriptions too.
+
 ## Single Namespace, Topic-per-Tenant Routing <Badge type="tip" text="6.0" />
 
 The configuration above gives every tenant its own Azure Service Bus *namespace*. That topology is the right answer when
