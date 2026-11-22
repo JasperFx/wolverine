@@ -569,21 +569,26 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         }
 
         var status = effectiveDuplicateStatusCode(requirement);
+        var recordDuplicate = BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome.Duplicate);
 
         // A success code means the application has declared a replayed request benign, so there is
         // nothing to explain and a problem document would be actively wrong. Anything else is a
         // refusal, and a refusal without a reason is a status code the caller has to guess at.
         if (status is >= 200 and < 300)
         {
-            return [new DeduplicationStatusCodeFrame(condition, status)];
+            return [new DeduplicationStatusCodeFrame(condition, status, recordDuplicate)];
         }
 
         return
         [
             new DeduplicationProblemDetailsFrame(condition, status,
-                $"A request with this '{key}' has already been handled")
+                $"A request with this '{key}' has already been handled", recordDuplicate)
         ];
     }
+
+    /// <inheritdoc />
+    public override Frame? BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome outcome)
+        => new RecordHttpDeduplicationOutcomeFrame(outcome);
 
     /// <summary>
     ///     GH-5206. When the <c>[Deduplicated]</c> claim rides the endpoint's own transaction, a concurrent repeat can miss
@@ -621,7 +626,10 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     /// </remarks>
     public override Frame BuildDeduplicationReleaseFrame(Variable deduplicationId)
     {
-        return new ReleaseDeduplicationIdOnHttpFailureFrame(deduplicationId, AncillaryStoreType);
+        return new ReleaseDeduplicationIdOnHttpFailureFrame(deduplicationId, AncillaryStoreType)
+        {
+            RecordClaimKept = BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome.Claimed)
+        };
     }
 
     public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)

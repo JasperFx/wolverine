@@ -8,6 +8,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Runtime.Metrics;
 using Wolverine.Tracking;
 using Wolverine.Transports;
@@ -44,6 +45,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     private readonly Counter<int> _receivedCounter;
     private readonly Counter<int> _sentCounter;
     private readonly Counter<int> _successCounter;
+    private readonly Counter<int> _deduplicationOutcomes;
 
     static WolverineRuntime()
     {
@@ -134,6 +136,30 @@ public sealed partial class WolverineRuntime : IMessageTracker
         var tags = envelope.ToMetricsHeaders();
         tags.Add(MetricsConstants.SourceKey, _serviceName);
         return tags;
+    }
+
+    internal void RecordDeduplicationOutcome(Envelope? envelope, DeduplicatedExecutionOutcome outcome,
+        string handlerType)
+    {
+        var (value, eventName) = outcome switch
+        {
+            DeduplicatedExecutionOutcome.Claimed => ("claimed", WolverineTracing.DeduplicationClaimed),
+            DeduplicatedExecutionOutcome.Duplicate => ("duplicate", WolverineTracing.DeduplicationDuplicate),
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, null)
+        };
+
+        if (_deduplicationOutcomes.Enabled)
+        {
+            _deduplicationOutcomes.Add(1, new TagList
+            {
+                { MetricsConstants.DeduplicationOutcomeKey, value },
+                { MetricsConstants.MessageTypeKey, envelope?.MessageType },
+                { MetricsConstants.MessageHandlerKey, handlerType },
+                { MetricsConstants.SourceKey, _serviceName }
+            });
+        }
+
+        WolverineTracing.MessageActivity(envelope)?.AddEvent(new ActivityEvent(eventName));
     }
 
     public void Sent(Envelope envelope)

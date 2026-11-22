@@ -242,6 +242,8 @@ public abstract partial class HttpHandler
 
         protected override Task answerAsync(HttpContext context)
         {
+            RecordDeduplicationOutcome(context, DeduplicatedExecutionOutcome.Duplicate);
+
             if (Detail == null)
             {
                 context.Response.StatusCode = StatusCode;

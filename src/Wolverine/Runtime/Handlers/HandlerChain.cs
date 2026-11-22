@@ -544,11 +544,16 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     {
         return outcome switch
         {
-            DeduplicationOutcome.Duplicate => [new HandlerDeduplicationStopFrame(condition)],
+            DeduplicationOutcome.Duplicate =>
+                [new HandlerDeduplicationStopFrame(condition, BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome.Duplicate))],
             DeduplicationOutcome.MissingId => [new MissingDeduplicationIdFrame(condition, Description)],
             _ => throw new ArgumentOutOfRangeException(nameof(outcome))
         };
     }
+
+    /// <inheritdoc />
+    public override Frame? BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome outcome)
+        => new RecordHandlerDeduplicationOutcomeFrame(outcome, TelemetryHandlerTypeName());
 
     // GH-4752: see the overload above - the frame is constructed directly rather than reflectively.
     public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
