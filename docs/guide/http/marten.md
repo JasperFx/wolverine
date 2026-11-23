@@ -82,7 +82,7 @@ In the code above, if the `Invoice` document does not exist, the route will stop
 
 If you, for whatever reason, want your handler executed even if the document does not exist, then you can set the `DocumentAttribute.Required` property to `false`.
 
-Use the `OnMissing` property for any other answer — a `ProblemDetails` body, a thrown exception, or an
+Use the `OnMissing` property for any other answer -- a `ProblemDetails` body, a thrown exception, or an
 empty `204` with `OnMissing.EmptyContentWith204` <Badge type="tip" text="6.28" />. See
 [the full `OnMissing` table](/guide/handlers/persistence#automatically-loading-entities-to-method-parameters).
 
@@ -531,8 +531,8 @@ The aggregate/stream identity is found with the same rules as the `[Entity]` or 
 
 ## Reading a Stream Without Folding It <Badge type="tip" text="6.30" />
 
-`[ReadAggregate]` gives you the *folded* aggregate. When an endpoint's whole job is to serve the history —
-a timeline view, an audit trail — folding has already thrown away what it needs. `[StreamState]` and
+`[ReadAggregate]` gives you the *folded* aggregate. When an endpoint's whole job is to serve the history -- 
+a timeline view, an audit trail -- folding has already thrown away what it needs. `[StreamState]` and
 `[StreamEvents]` are the raw reads for those endpoints:
 
 <!-- snippet: sample_using_streamstate_and_streamevents_in_http -->
@@ -560,7 +560,7 @@ The identity rules are **not** quite the same, though, and it is worth reading t
 [full treatment in the persistence helpers guide](/guide/handlers/persistence.html#raw-stream-reads)
 before you use them. `[ReadAggregate] Order order` can find a route argument named `OrderId` because the
 parameter type names your aggregate; the parameter type here is `StreamState`, so only a route argument or
-body property named `Id` resolves without help. Name it explicitly for anything else —
+body property named `Id` resolves without help. Name it explicitly for anything else -- 
 `[StreamState("orderId")]`.
 
 The `[MartenStreamState]` and `[MartenStreamEvents]` spellings used above name Marten directly, in the
@@ -611,7 +611,7 @@ public class ApprovedInvoicedCompiledQuery : ICompiledListQuery<Invoice>
 ## Streaming JSON Responses <Badge type="tip" text="5.32" />
 
 [`Marten.AspNetCore`](https://martendb.io/documents/aspnetcore.html) ships three
-typed return values — `StreamOne<T>`, `StreamMany<T>`, and `StreamAggregate<T>` —
+typed return values -- `StreamOne<T>`, `StreamMany<T>`, and `StreamAggregate<T>` -- 
 that write Marten's raw JSON directly to the HTTP response. The JSON never
 round-trips through a .NET object and the framework's serializer, so there's no
 deserialize/serialize overhead.
@@ -621,22 +621,22 @@ where appropriate) via `IEndpointMetadataProvider`, so Swashbuckle, NSwag, and
 Minimal-API's built-in OpenAPI generator all see the right response shape.
 
 The types implement `IResult`, so Wolverine.Http dispatches them through its
-existing `ResultWriterPolicy` — **no extra Wolverine-specific configuration is
+existing `ResultWriterPolicy` -- **no extra Wolverine-specific configuration is
 needed**. Just `using Marten.AspNetCore;` in your endpoint file and return one.
 
 ### When to use which
 
 | Type                   | Source                                           | Shape returned | 404? |
 | ---------------------- | ------------------------------------------------ | -------------- | ---- |
-| `StreamOne<T>`         | `IQueryable<T>` — regular Marten document query  | Single `T`     | yes  |
-| `StreamMany<T>`        | `IQueryable<T>` — regular Marten document query  | JSON array `T[]` | no (empty array = 200) |
-| `StreamAggregate<T>`   | `IDocumentSession` + stream id — event-sourced   | Single `T`     | yes  |
+| `StreamOne<T>`         | `IQueryable<T>` -- regular Marten document query  | Single `T`     | yes  |
+| `StreamMany<T>`        | `IQueryable<T>` -- regular Marten document query  | JSON array `T[]` | no (empty array = 200) |
+| `StreamAggregate<T>`   | `IDocumentSession` + stream id -- event-sourced   | Single `T`     | yes  |
 | `StreamPaged<T>`       | `IQueryable<T>` + page number/size                | Paged envelope | no   |
 | `StreamPagedByCursor<T>` | `IQueryable<T>` + cursor/page size              | Cursor envelope | no   |
 
-**Key difference — `StreamOne<T>` vs `StreamAggregate<T>`**:
+**Key difference -- `StreamOne<T>` vs `StreamAggregate<T>`**:
 
-- **`StreamOne<T>`** is for regular Marten documents — plain objects persisted via
+- **`StreamOne<T>`** is for regular Marten documents -- plain objects persisted via
   `session.Store()` and queried with `session.Query<T>()`. The query hits the
   document table directly.
 - **`StreamAggregate<T>`** is for event-sourced aggregates. Marten rebuilds the
@@ -644,7 +644,7 @@ needed**. Just `using Marten.AspNetCore;` in your endpoint file and return one.
   projected snapshot if you have one configured). Use this when `T` is an
   event-sourced aggregate, not a stored document.
 
-### `StreamOne<T>` — single document with 404 on miss
+### `StreamOne<T>` -- single document with 404 on miss
 
 ```csharp
 using Marten.AspNetCore;
@@ -657,7 +657,7 @@ public static StreamOne<Invoice> Get(Guid id, IQuerySession session)
 Returns `200 application/json` with the JSON body on a hit, `404` on a miss.
 `Content-Length` and `Content-Type` are set automatically.
 
-### `StreamMany<T>` — JSON array
+### `StreamMany<T>` -- JSON array
 
 ```csharp
 [WolverineGet("/invoices/approved")]
@@ -668,7 +668,7 @@ public static StreamMany<Invoice> Approved(IQuerySession session)
 Returns `200 application/json` with a JSON array body. An empty result set
 returns `[]`, not `404`.
 
-### `StreamAggregate<T>` — event-sourced aggregate (latest)
+### `StreamAggregate<T>` -- event-sourced aggregate (latest)
 
 ```csharp
 [WolverineGet("/orders/{id}")]
@@ -698,7 +698,7 @@ public static StreamOne<Invoice> Create(CreateInvoice cmd, IQuerySession session
 
 Reach for these types when:
 
-- The response is large (big documents, long arrays) — avoids allocating the
+- The response is large (big documents, long arrays) -- avoids allocating the
   deserialized graph and re-serializing it
 - You need fine-grained control over status code and content type without
   wrapping in `IResult`
@@ -713,11 +713,11 @@ For small responses where the query result is already going to be materialized
 `Marten.AspNetCore` 9.18 adds two more `IResult` types built on the same
 streaming infrastructure, for paginated queries: `StreamPaged<T>` and
 `StreamPagedByCursor<T>`. Like `StreamOne<T>`, `StreamMany<T>`, and
-`StreamAggregate<T>`, both types just work with Wolverine.HTTP — they
+`StreamAggregate<T>`, both types just work with Wolverine.HTTP -- they
 implement `IResult` and `IEndpointMetadataProvider`, so no Wolverine-specific
 code is required.
 
-### `StreamPaged<T>` — offset paging
+### `StreamPaged<T>` -- offset paging
 
 ```csharp
 [WolverineGet("/invoices/paged")]
@@ -739,7 +739,7 @@ Returns `200 application/json` with a paged envelope shaped like:
 Use this for classic "page 1 of N" UIs where you need a total count and
 random access to any page number.
 
-### `StreamPagedByCursor<T>` — keyset (cursor) paging
+### `StreamPagedByCursor<T>` -- keyset (cursor) paging
 
 ```csharp
 [WolverineGet("/invoices/by-cursor")]
@@ -767,7 +767,7 @@ count or skip over previously-seen rows on every request.
 `StreamOne<T>` and `StreamAggregate<T>` compute and emit an `ETag` response
 header by default. If the client sends a matching `If-None-Match` request
 header, Marten short-circuits the response with `304 Not Modified` instead of
-re-serializing and sending the body — useful for caching individual
+re-serializing and sending the body -- useful for caching individual
 documents or aggregates behind a CDN or browser cache.
 
 Set `EmitETag = false` to opt out if you don't want this behavior for a

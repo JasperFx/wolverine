@@ -954,8 +954,6 @@ An application with an ancillary store (Marten's `AddMartenStore<IInvoicingStore
 `AddPolecatStore<T>()`, Fisher's `AddFisherStore<T>()`) is specified in one scenario, whichever store a step is
 about.
 
-<!-- JEREMY -->
-
 **Each step goes to the store that owns its types.** Bobcat reads what each store registers through the same
 JasperFx abstractions it reads everything else through: the aggregate and document types of its projections, the
 events they apply and the event types it has registered, its DCB tag types (`IEventStore.TryCreateUsage`), and its
@@ -1083,7 +1081,6 @@ can be far above the events the spec appended.
 
 ### Why there is no Bobcat.Marten package {#why-there-is-no-package}
 
-<!-- JEREMY -->
 `Bobcat.Marten` existed and was deleted, so that support could be rebuilt from what applications turn out to need
 rather than from what an abstraction seemed like it should offer. It never came back. Seven of nine sample suites had
 hand-written a Marten-specific reset (`DeleteAllDocumentsAsync` plus `DeleteAllEventDataAsync`) that Bobcat already

@@ -34,7 +34,7 @@ The message will be moved to the dead letter queue mechanism for the listening e
 
 ## Custom Actions
 
-::: note
+::: info
 The missing handlers are additive, meaning that you can provide more than one and Wolverine will try to execute
 each one that is registered for the missing handler behavior. 
 :::

@@ -93,7 +93,7 @@ The default delimiter between the prefix and the original name is `.` for Azure 
 ### System Queues Are Not Prefixed <Badge type="tip" text="6.34" />
 
 `PrefixIdentifiers()` only touches the queues, topics, and subscriptions that *your application* names. Wolverine's own
-system queues — the response, retry, control, and dead letter queues — keep their names, because two cooperating
+system queues -- the response, retry, control, and dead letter queues -- keep their names, because two cooperating
 applications that message each other have to keep addressing the same application queue names even while each needs its
 own set of system queues.
 

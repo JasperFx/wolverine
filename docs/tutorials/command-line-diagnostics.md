@@ -1,7 +1,7 @@
 # Diagnosing a Wolverine Application from the Command Line
 
 Wolverine is a configuration-heavy framework. Conventions, policies, middleware, transports, and explicit
-routing all layer together, which is powerful — but it can leave you asking "what is my app *actually*
+routing all layer together, which is powerful -- but it can leave you asking "what is my app *actually*
 doing?" This tutorial is a guided tour of the command-line tools Wolverine gives you to answer exactly
 that, roughly in the order you'd reach for them when something looks off.
 
@@ -26,8 +26,8 @@ dotnet run -- help
 ```
 
 ::: tip
-The metadata commands — `describe`, `codegen`, `codegen-preview`, `describe-routing`, and OpenAPI
-generation — run **without a live database or message broker**. Wolverine detects "CLI metadata mode" and
+The metadata commands -- `describe`, `codegen`, `codegen-preview`, `describe-routing`, and OpenAPI
+generation -- run **without a live database or message broker**. Wolverine detects "CLI metadata mode" and
 stubs out persistence and transports, so these are safe to run in CI or on a laptop with no infrastructure.
 :::
 
@@ -41,20 +41,20 @@ dotnet run -- describe
 
 `describe` prints a series of tabular reports about the running configuration:
 
-- **Wolverine Options** — the basics, including which assembly Wolverine thinks is your application
+- **Wolverine Options** -- the basics, including which assembly Wolverine thinks is your application
   assembly and which extensions loaded
-- **Listeners** — every configured listening endpoint and local queue, with how each is configured
-- **Message Routing** — where known, published message types are routed
-- **Sending Endpoints** — configured endpoints that send messages externally
-- **Error Handling** — a preview of the active message-failure policies
-- **HTTP Endpoints** — all Wolverine HTTP endpoints (only when `WolverineFx.Http` is in use)
+- **Listeners** -- every configured listening endpoint and local queue, with how each is configured
+- **Message Routing** -- where known, published message types are routed
+- **Sending Endpoints** -- configured endpoints that send messages externally
+- **Error Handling** -- a preview of the active message-failure policies
+- **HTTP Endpoints** -- all Wolverine HTTP endpoints (only when `WolverineFx.Http` is in use)
 
 This is also the report the Wolverine team will most often ask you to paste when you need help.
 
 ## Step 2: See the Code Wolverine Generates
 
 Wolverine generates the adapter code around your handlers and HTTP endpoints at startup. When you want to
-*see* it — what middleware ran, how dependencies resolve, where transactions wrap — write it out or preview
+*see* it -- what middleware ran, how dependencies resolve, where transactions wrap -- write it out or preview
 it:
 
 ```bash
@@ -84,8 +84,8 @@ far higher.
 
 ## Step 3: Understand *Where* and *Why* Messages Route
 
-`describe` shows you the routing table. When you need to focus on one message type — or understand *why* it
-routes the way it does — use `describe-routing` <Badge type="tip" text="5.15" />:
+`describe` shows you the routing table. When you need to focus on one message type -- or understand *why* it
+routes the way it does -- use `describe-routing` <Badge type="tip" text="5.15" />:
 
 ```bash
 # One message type (full name, short name, or fuzzy match)
@@ -126,14 +126,14 @@ dotnet run -- wolverine-diagnostics describe-handlers CreateOrderHandler
 
 The argument is matched against the types in your application, and if it matches more than one type you get
 a report for *each*. Every report tells you whether the type's assembly is being scanned, which type-level
-include/exclude rules HIT or MISS, and — per method — whether it satisfies the handler naming and signature
+include/exclude rules HIT or MISS, and -- per method -- whether it satisfies the handler naming and signature
 conventions. It's the command-line surface over `WolverineOptions.DescribeHandlerMatch(Type)`, so you don't
 have to drop a temporary `Console.WriteLine(...)` into your bootstrapping code (see
 [Troubleshooting Handler Discovery](/guide/diagnostics#troubleshooting-handler-discovery)).
 
 ## Step 5: Check Your Infrastructure
 
-Wolverine's transports and the durable inbox/outbox register self-diagnosing environment checks — can I
+Wolverine's transports and the durable inbox/outbox register self-diagnosing environment checks -- can I
 reach the database? the broker? are the IoC registrations valid?
 
 ```bash
@@ -176,13 +176,13 @@ dotnet run -- clear-handled
 dotnet run -- capabilities wolverine.json
 ```
 
-Writes a complete JSON description of the application — settings, message types, message store, messaging
+Writes a complete JSON description of the application -- settings, message types, message store, messaging
 endpoints, even configured event stores. It's useful for support, for feeding external tooling, and for
 detecting unintended configuration drift between deployments.
 
 ## Bonus: Generate OpenAPI Offline (Wolverine.Http)
 
-If you use `WolverineFx.Http`, you can generate the OpenAPI document without starting the host — no database
+If you use `WolverineFx.Http`, you can generate the OpenAPI document without starting the host -- no database
 or broker required, which makes it CI-friendly:
 
 ```bash
@@ -198,7 +198,7 @@ dotnet run -- openapi --route "GET /orders/{id}"
 | `describe` | What's my whole configuration? |
 | `codegen write` / `preview` | What code is Wolverine generating? |
 | `wolverine-diagnostics codegen-preview` | …for *one* handler / endpoint / gRPC service |
-| `wolverine-diagnostics describe-routing [--explain] [--json]` | Where — and *why* — does a message route? |
+| `wolverine-diagnostics describe-routing [--explain] [--json]` | Where -- and *why* -- does a message route? |
 | `wolverine-diagnostics describe-handlers <TypeName>` | Why is (or isn't) a type discovered as a handler? |
 | `check-env` | Can I connect to my infrastructure? |
 | `resources setup / check / teardown` | Provision or inspect stateful resources |
@@ -209,7 +209,7 @@ dotnet run -- openapi --route "GET /orders/{id}"
 
 ## Where to Go Next
 
-- [Command Line Integration](/guide/command-line) — the full reference, including every flag
-- [Diagnostics](/guide/diagnostics) — handler-discovery troubleshooting and the routing-explanation API
-- [Code Generation](/guide/codegen) — how Wolverine's generated code works
+- [Command Line Integration](/guide/command-line) -- the full reference, including every flag
+- [Diagnostics](/guide/diagnostics) -- handler-discovery troubleshooting and the routing-explanation API
+- [Code Generation](/guide/codegen) -- how Wolverine's generated code works
 - [Command Line](https://shared-libs.jasperfx.net/cli/) and [Environment Checks](https://shared-libs.jasperfx.net/cli/environment-checks) in the JasperFx documentation -- the shared command line library underneath all of this

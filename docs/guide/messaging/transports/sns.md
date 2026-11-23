@@ -315,7 +315,7 @@ await bus.SendAsync(new ColorMessage("blue"), new DeliveryOptions { TenantId = "
 ```
 
 ::: warning SNS is publish-only
-SNS has no listening surface in Wolverine, so broker-per-tenant support here means **tenant-specific publishers only** —
+SNS has no listening surface in Wolverine, so broker-per-tenant support here means **tenant-specific publishers only** -- 
 Wolverine wraps the outbound topic in a `TenantedSender` that dispatches on `Envelope.TenantId` to a per-tenant SNS
 client. There is no per-tenant listener.
 
@@ -328,10 +328,10 @@ through its own paired SQS client, so the SNS and SQS tenant connections line up
 
 `TenantIdBehavior(...)` controls what happens when a message has a null or unregistered tenant id:
 
-* `DeadLetterUnknownTenants` (the default since 7.0) — a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
-* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) — publish it to the shared/default connection (the one passed to `UseAmazonSnsTransport`).
-* `TenantIdRequired` — throw; every message must carry a known tenant id.
-* `IgnoreUnknownTenants` — silently drop the message.
+* `DeadLetterUnknownTenants` (the default since 7.0) -- a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
+* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) -- publish it to the shared/default connection (the one passed to `UseAmazonSnsTransport`).
+* `TenantIdRequired` -- throw; every message must carry a known tenant id.
+* `IgnoreUnknownTenants` -- silently drop the message.
 
 ::: tip Named broker vs. broker-per-tenant
 Use a **named broker** when a *fixed set of endpoints* should always publish to a *specific* broker. Use

@@ -1,6 +1,6 @@
 # OpenAPI Metadata
 
-As much as possible, Wolverine is trying to glean [OpenAPI](https://www.openapis.org/) ([Swashbuckle](https://learn.microsoft.com/en-us/aspnet/core/tutorials/getting-started-with-swashbuckle?view=aspnetcore-7.0&tabs=visual-studio) / Swagger) metadata from the method signature
+As much as possible, Wolverine is trying to glean [OpenAPI](https://www.openapis.org/) ([Swashbuckle](https://learn.microsoft.com/en-us/aspnet/core/tutorials/getting-started-with-swashbuckle?tabs=visual-studio) / Swagger) metadata from the method signature
 of the HTTP endpoint methods instead of forcing developers to add repetitive boilerplate code.
 
 There's a handful of predictable rules about metadata for Wolverine endpoints:
@@ -144,7 +144,7 @@ public Task<string> SayHelloAsync()
 
 ## IHttpAware or IEndpointMetadataProvider Models
 
-Wolverine honors the ASP.Net Core [IEndpointMetadataProvider](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.metadata.iendpointmetadataprovider?view=aspnetcore-7.0)
+Wolverine honors the ASP.Net Core [IEndpointMetadataProvider](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.http.metadata.iendpointmetadataprovider)
 interface on resource types to add or modify endpoint metadata.
 
 If you want Wolverine to automatically apply metadata (and HTTP runtime behavior) based on the resource type of 
@@ -228,7 +228,7 @@ public class ValidatedCompoundEndpoint2
 **Reach for this whenever Microsoft's built-in OpenAPI generation chokes on your infrastructure.**
 The standard build-time generators ([`Microsoft.Extensions.ApiDescription.Server`](#with-microsoft-extensions-apidescription-server)
 and NSwag's `GetDocument.Insider`) call `IHost.StartAsync()`, which boots Wolverine's hosted service and
-tries to connect to your database and/or message broker *before* a single line of JSON is written — so
+tries to connect to your database and/or message broker *before* a single line of JSON is written -- so
 they routinely fail in build/CI environments that have no real database or broker. The `openapi` command
 was **purposefully designed to avoid that**: it never starts your host, so it never opens a database or
 broker connection just to emit a JSON file.
@@ -236,7 +236,7 @@ broker connection just to emit a JSON file.
 
 Wolverine.HTTP adds an `openapi` command to the JasperFx command line (the same command line you already
 use for `dotnet run -- codegen`, `dotnet run -- check-env`, and friends). It reuses the host your
-application already builds — Wolverine added and `MapWolverineEndpoints()` already called — and asks the
+application already builds -- Wolverine added and `MapWolverineEndpoints()` already called -- and asks the
 registered OpenAPI document provider (the `Microsoft.AspNetCore.OpenApi` service that Microsoft's own
 `GetDocument.Insider` tool uses) to serialize the document directly from your endpoint metadata. The
 host is never started, so the result is functionally equivalent to Microsoft's output without any of the
@@ -280,8 +280,8 @@ builder.Services.AddOpenApi(o => o.OpenApiVersion = OpenApiSpecVersion.OpenApi3_
 
 ### Inspecting a single route
 
-When you just want to look at the OpenAPI metadata for one endpoint — a great way to troubleshoot how
-Wolverine.HTTP is binding parameters, negotiating content, or shaping responses — use `--route`. It does
+When you just want to look at the OpenAPI metadata for one endpoint -- a great way to troubleshoot how
+Wolverine.HTTP is binding parameters, negotiating content, or shaping responses -- use `--route`. It does
 a case-insensitive fuzzy match against the route templates (so it may match several related routes) and
 emits a document containing only those paths plus the schema components they reference:
 
@@ -297,7 +297,7 @@ dotnet run -- openapi -r todoitems
 | --- | --- | --- |
 | `--document` | `-d` | The named document to generate. Defaults to `v1`, the default document name registered by `AddOpenApi()`. |
 | `--output` | `-o` | File path for the generated JSON. When omitted (or set to `-`), the document is written to standard output. Use `--output` to capture a clean JSON file, since application and command-line logging is also written to the console. |
-| `--route` | `-r` | Fuzzy (case-insensitive, substring) filter on the route template. Only matching paths — and the schema components they reference — are written. |
+| `--route` | `-r` | Fuzzy (case-insensitive, substring) filter on the route template. Only matching paths -- and the schema components they reference -- are written. |
 | `--list` | `-l` | List the document names this application exposes and exit. |
 
 ::: warning
@@ -312,13 +312,13 @@ is worth knowing if you add endpoints dynamically.
 The `openapi` command is one case of a more general rule: the API descriptions are complete on the very
 first ApiExplorer read after `MapWolverineEndpoints()` has run, even before the host starts.
 
-This matters because ASP.NET Core **caches the first ApiExplorer read for the lifetime of the host** —
+This matters because ASP.NET Core **caches the first ApiExplorer read for the lifetime of the host** -- 
 nothing that happens later, host startup included, invalidates it. Whatever that first read sees is what
 your application serves from then on, and the read can happen surprisingly early: build-time OpenAPI
 generation, a monitoring agent taking a capability snapshot, or the `openapi` command above.
 
-The completeness covers the whole route table, not just Wolverine's share of it. On a **hybrid host** —
-Wolverine HTTP endpoints alongside minimal API and/or MVC routes — ASP.NET Core does not publish the
+The completeness covers the whole route table, not just Wolverine's share of it. On a **hybrid host** -- 
+Wolverine HTTP endpoints alongside minimal API and/or MVC routes -- ASP.NET Core does not publish the
 application's endpoints to its own description providers until the server starts, so a read before that
 would otherwise describe Wolverine's endpoints while silently omitting every other route. Wolverine
 publishes them ahead of the read instead, exactly as ASP.NET Core's `UseEndpoints()` does at startup, so
@@ -326,7 +326,7 @@ an early read still yields every route in the application.
 
 ::: warning
 This one shape is the exception: if you call `MapWolverineEndpoints()` on a **route group** rather than on
-the `WebApplication` itself, Wolverine cannot publish the application's endpoints early — a group only
+the `WebApplication` itself, Wolverine cannot publish the application's endpoints early -- a group only
 knows its own, and ASP.NET Core publishes those itself at startup. An ApiExplorer read before the host
 starts will then describe Wolverine's endpoints and omit the rest, and Wolverine logs a warning saying so.
 Either map Wolverine's endpoints on the `WebApplication` (using `RoutePrefix()` if you wanted the prefix a
@@ -337,12 +337,12 @@ group would have given you), or read the ApiExplorer after the host has started.
 
 ::: tip
 If you are hitting the problems described below, consider the
-[`openapi` command](#generating-the-openapi-document-at-the-command-line) instead — it was built
+[`openapi` command](#generating-the-openapi-document-at-the-command-line) instead -- it was built
 specifically to avoid the full application startup that `Microsoft.Extensions.ApiDescription.Server`
 forces.
 :::
 
-Just a heads up, if you are trying to use [Microsoft.Extensions.ApiDescription.Server](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/openapi/aspnetcore-openapi?view=aspnetcore-9.0&tabs=net-cli%2Cvisual-studio-code#generate-openapi-documents-at-build-time) and
+Just a heads up, if you are trying to use [Microsoft.Extensions.ApiDescription.Server](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/openapi/aspnetcore-openapi?tabs=net-cli%2Cvisual-studio-code#generate-openapi-documents-at-build-time) and
 you get an `ObjectDisposedException` error on compilation against the `IServiceProvider`, follow these steps to fix:
 
 1. Remove `Microsoft.Extensions.ApiDescription.Server` altogether

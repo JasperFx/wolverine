@@ -34,7 +34,7 @@ configuration no longer declares, is documented with the [Weasel migration engin
 Every `PersistMessagesWithXXX()` overload takes an optional schema name for Wolverine's tables, as do the
 database-backed transports. That name has to be a **single database identifier**. Wolverine renders each of its
 tables as `{schema}.{table}`, so a multi-part value like `crm.sales.opportunities` would produce
-`crm.sales.opportunities.wolverine_incoming_envelopes` — a name with more parts than any supported database engine
+`crm.sales.opportunities.wolverine_incoming_envelopes` -- a name with more parts than any supported database engine
 accepts. SQL Server reports *"The object name contains more than the maximum number of prefixes. The maximum is 2"*
 and PostgreSQL reports *"improper qualified name (too many dotted names)"*.
 
@@ -49,7 +49,7 @@ opts.PersistMessagesWithSqlServer(connectionString, "crm.sales.opportunities");
 ```
 
 Wolverine rejects a multi-part schema name at the point where it is configured rather than letting it fail later as
-unusable DDL. Delimiting the name yourself — `"[crm.sales]"` on SQL Server — is rejected too, and does not work if
+unusable DDL. Delimiting the name yourself -- `"[crm.sales]"` on SQL Server -- is rejected too, and does not work if
 you route around the check: the schema is created, but the `CREATE SCHEMA` guard compares `sys.schemas.name` against
 the spelling it was handed, brackets and all, so it never matches and every restart after the first re-issues the
 `CREATE SCHEMA` against a schema that now exists. Schema difference detection cannot match a delimited name against
@@ -63,8 +63,8 @@ carries the exact SQL that could not be applied. Before 6.30 those failures were
 up against storage that had never been created and then die much later against an error that named nothing you had
 configured.
 
-Hosts that would rather start up anyway — a replica in a rolling deploy where another node is mid-migration, for
-instance — can keep the older, tolerant behavior by setting the failure mode (or setting it once for every
+Hosts that would rather start up anyway -- a replica in a rolling deploy where another node is mid-migration, for
+instance -- can keep the older, tolerant behavior by setting the failure mode (or setting it once for every
 Critter Stack library through the JasperFx profile's
 [`ResourceMigrationFailureMode`](https://shared-libs.jasperfx.net/configuration/jasperfx-options.html#resourcemigrationfailuremode)):
 
@@ -79,11 +79,11 @@ Note that Wolverine already serializes migrations across processes with a global
 migration once after a short delay, so a genuine race between two nodes starting at the same instant is resolved
 without this setting.
 
-The same setting governs **broker** resources — the queues, topics, and subscriptions a transport provisions. Both
+The same setting governs **broker** resources -- the queues, topics, and subscriptions a transport provisions. Both
 `resources setup` and `AddResourceSetupOnStartup()` sweep those, and by default a broker object that cannot be
 provisioned fails the sweep, so a deploy step that provisions ahead of its hosts cannot exit 0 having created nothing.
 `ContinueOnFailures` is the setting for a host whose broker topology is owned externally and whose broker may not
-expose an administration API at all — an Azure Service Bus emulator, for instance, with its queues declared in the
+expose an administration API at all -- an Azure Service Bus emulator, for instance, with its queues declared in the
 emulator's own configuration. Such a host logs the provisioning failure and starts.
 
 ## Disable Automatic Storage Migration
@@ -105,10 +105,10 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 ::: tip
-Disabling the automatic migration only affects the *passive* paths — host startup and tenant store discovery. An
+Disabling the automatic migration only affects the *passive* paths -- host startup and tenant store discovery. An
 explicit setup operation ([`dotnet run -- resources setup`](https://shared-libs.jasperfx.net/cli/resources.html), `dotnet run -- db-apply`,
 `IHost.SetupResources()`, or the `UseResourceSetupOnStartup()` / `AddResourceSetupOnStartup()` hosted service) is treated as intent to
-provision the storage, so it always applies the message storage migration as `CreateOrUpdate` — even when
+provision the storage, so it always applies the message storage migration as `CreateOrUpdate` -- even when
 `AutoBuildMessageStorageOnStartup` or the store's `AutoCreate` is `None`. `CreateOrUpdate` never drops existing
 data. This is the recommended production recipe: disable automatic migrations, then run `resources setup` as an
 explicit deployment step. When a schema difference is detected at runtime but `AutoCreate` is `None`, Wolverine
@@ -158,14 +158,14 @@ public static async Task testing_setup_or_teardown(IHost host)
 <!-- endSnippet -->
 
 ::: tip
-`RebuildAsync()` and `ClearAllAsync()` operate on **envelope storage only** — the incoming, outgoing,
+`RebuildAsync()` and `ClearAllAsync()` operate on **envelope storage only** -- the incoming, outgoing,
 and dead letter tables. They deliberately do not touch the tables owned by a
 [database-backed queue transport](/guide/messaging/transports/postgresql), because those are transport
 data rather than envelope storage, and the right scope is genuinely ambiguous per provider (SQL Server's
 rate-limit table, for instance, is registered the same way but has to survive a reset).
 
 If you want the whole Wolverine storage footprint wiped between integration test runs, use
-`IHost.ClearAllWolverineStorageAsync()` instead — see
+`IHost.ClearAllWolverineStorageAsync()` instead -- see
 [Resetting All Wolverine Storage in Tests](/guide/testing.html#resetting-all-wolverine-storage-in-tests).
 :::
 
@@ -222,22 +222,38 @@ that you can discover from typing `dotnet run -- help` at the command line at th
 ```bash
 The available commands are:
 
-  Alias       Description
+  Alias                   Description
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  check-env   Execute all environment checks against the application
-  codegen     Utilities for working with JasperFx.CodeGeneration and JasperFx.RuntimeCompiler
-  db-apply    Applies all outstanding changes to the database(s) based on the current configuration
-  db-assert   Assert that the existing database(s) matches the current configuration
-  db-dump     Dumps the entire DDL for the configured Marten database
-  db-list     List all the databases as configured for this application
-  db-patch    Evaluates the current configuration against the database and writes a patch and drop file if there are
-              any differences
-  describe    Writes out a description of your running application to either the console or a file
-  help        List all the available commands
-  resources   Check, setup, or teardown stateful resources of this system
-  run         Start and run this .Net application
-  storage     Administer the Wolverine message storage
+  capabilities            Write the Wolverine capabilities of this application as JSON, to wolverine.json by default
+  check-env               Execute all environment checks against the application
+  clear-handled           Clear out all persisted inbox messages marked as `Handled`
+  codegen                 Utilities for working with JasperFx.CodeGeneration and JasperFx.RuntimeCompiler
+  db-apply                Applies all outstanding changes to the database(s) based on the current configuration
+  db-assert               Assert that the existing database(s) matches the current configuration
+  db-dump                 Dumps the entire DDL for the configured Marten database
+  db-list                 List all database(s) based on the current configuration
+  db-patch                Evaluates the current configuration against the database and writes a patch and drop file if there are any differences
+  describe                Writes out a description of your running application to either the console or a file
+  describe-event-model    Describe the application's Event Model -- every slice by domain and chapter, with its trigger, aggregate, events, code, specifications and hotspots
+  event-model             Write the application's Event Model -- the roles every handler, HTTP and gRPC chain derives about itself, plus any registered overlay -- as JSON, without a running fleet
+  event-query             Query events across all streams with filters, ordered by sequence ascending, paged
+  help                    List all the available commands
+  marten                  Advanced Marten operations to 'heal' event store projection issues or reset data
+  projection-run          Replay a projection over a stream, stream slice, or tag query and show the per-event before/after state
+  projections             Asynchronous projection and projection rebuilds
+  resources               Check, setup, or teardown stateful resources of this system
+  run                     Start and run this .Net application
+  saga-flow               Draw each saga's flow -- messages in, the methods that handle them, what they send, schedule and append, NotFound and Compensate -- as a Mermaid diagram
+  scaffold                Write implementation skeletons for the Event Model slices that are declared but have no code yet
+  storage                 Administer the Wolverine message storage
+  stream-query            Query event stream metadata (version, aggregate type, compaction watermark, archive flag) with filters and paging
+  wolverine-diagnostics   Wolverine diagnostics tools for inspecting generated code and runtime behavior
 ```
+
+That's the list from a Wolverine application using Marten, the `OrderSagaSample` in the Wolverine codebase. The exact
+list depends on what you have installed. The `marten`, `projections`, `projection-run`, `event-query` and
+`stream-query` commands come with Marten's event store, and other Wolverine packages bring their own, like `openapi`
+from `WolverineFx.Http`, `kafka-replay` from `WolverineFx.Kafka` and `write-specs` from `WolverineFx.Bobcat.EventModel`.
 
 There's admittedly some duplication here with different options coming from [JasperFx](https://github.com/JasperFx/jasperfx) itself, the [Weasel.CommandLine](https://weasel.jasperfx.net/cli/) library,
 and the `storage` command from Wolverine itself. To build out the schema objects for [message persistence](/guide/durability/), you
@@ -250,11 +266,11 @@ dotnet run -- db-apply
 ::: info
 The `db-apply`, `db-assert`, `db-patch`, `db-dump`, and `db-list` commands come from Weasel. See the per-command references at:
 
-- [`db-apply`](https://weasel.jasperfx.net/cli/db-apply.html) — apply all outstanding changes to the configured database(s)
-- [`db-assert`](https://weasel.jasperfx.net/cli/db-assert.html) — assert the live schema matches the configuration (good for CI deploy gates)
-- [`db-patch`](https://weasel.jasperfx.net/cli/db-patch.html) — emit a SQL patch + rollback file for pending changes
-- [`db-dump`](https://weasel.jasperfx.net/cli/db-dump.html) — dump the full DDL for the configured database(s)
-- [`db-list`](https://weasel.jasperfx.net/cli/db-list.html) — list configured databases
+- [`db-apply`](https://weasel.jasperfx.net/cli/db-apply.html) -- apply all outstanding changes to the configured database(s)
+- [`db-assert`](https://weasel.jasperfx.net/cli/db-assert.html) -- assert the live schema matches the configuration (good for CI deploy gates)
+- [`db-patch`](https://weasel.jasperfx.net/cli/db-patch.html) -- emit a SQL patch + rollback file for pending changes
+- [`db-dump`](https://weasel.jasperfx.net/cli/db-dump.html) -- dump the full DDL for the configured database(s)
+- [`db-list`](https://weasel.jasperfx.net/cli/db-list.html) -- list configured databases
 :::
 
 > NOTE: See the [Exporting SQL Scripts](#exporting-sql-scripts) section down the page for details of applying migrations when integrating with Marten

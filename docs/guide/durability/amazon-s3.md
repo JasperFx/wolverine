@@ -3,16 +3,16 @@
 ::: tip
 `WolverineFx.AmazonS3` does two independent things, and this page is about the first.
 
-1. **Document persistence** — registered entity types are read and written as S3 objects, so `[Entity]`
+1. **Document persistence** -- registered entity types are read and written as S3 objects, so `[Entity]`
    and the `Storage.Store()` / `Storage.Delete()` return values work against a bucket. That is the rest
    of this page.
-2. **[Claim check](/guide/durability/claim-checks) storage** — off-loading a large *message payload* to
+2. **[Claim check](/guide/durability/claim-checks) storage** -- off-loading a large *message payload* to
    a bucket and shipping a token through the broker. Different feature, different problem; see the
    [Amazon S3 claim check section](/guide/durability/claim-checks#amazon-s3).
 
 The two share nothing but a package and an `IAmazonS3`. Use either, or both.
 
-Sagas are supported too, through their own registration — see [sagas](#sagas).
+Sagas are supported too, through their own registration -- see [sagas](#sagas).
 :::
 
 ::: warning Moved in 6.32
@@ -23,7 +23,7 @@ The types and their namespace are unchanged, so swapping the package reference i
 Plenty of real entities are not in any database. An invoice's rendered content, a generated report, a
 document scan: they live in a bucket, addressed by a key the application decides. Without a
 persistence provider for that, handlers drop out of Wolverine's [declarative
-persistence](/guide/handlers/persistence) entirely — inject a client, `await` it, and re-implement the
+persistence](/guide/handlers/persistence) entirely -- inject a client, `await` it, and re-implement the
 "what if it is not there" half by hand in every handler that reads it.
 
 This package teaches Wolverine to read and write registered types as S3 objects, so a plain `[Entity]`
@@ -66,7 +66,7 @@ claims only what you registered, and is otherwise invisible.
 
 ### The key function
 
-`KeyFor` receives an `S3KeyContext` — the entity type, the resolved identity, and the tenant — and
+`KeyFor` receives an `S3KeyContext` -- the entity type, the resolved identity, and the tenant -- and
 returns the object key. That is enough for the keys real buckets actually use:
 
 ```csharp
@@ -85,7 +85,7 @@ Documents are written as `System.Text.Json` by default. Ask for compression, and
 x.Serializer = new S3DocumentSerializer(compression: S3Compression.Brotli);
 ```
 
-For anything else — a different format, an envelope around the payload, a checksum, encryption —
+For anything else -- a different format, an envelope around the payload, a checksum, encryption -- 
 implement `IS3DocumentSerializer` and set it on the mapping.
 
 ## Reading a document
@@ -101,7 +101,7 @@ public static InvoiceContent Get(
     InvoiceContent content) => content;
 ```
 
-The identity is discovered exactly as it is for any other store — the route argument, query string or
+The identity is discovered exactly as it is for any other store -- the route argument, query string or
 message member named `Id` or `{TypeName}Id`. Its type comes from the document's own identity member,
 or from `IdentityType` on the mapping if you set it.
 
@@ -139,8 +139,8 @@ opts.UseAmazonS3Persistence(s3 =>
 **Saga writes are conditional; document writes are not.** A document is last-write-wins, because
 `PutObject` overwrites whatever is at the key. A saga is a read-modify-write, so two messages for the
 same saga arriving at once would silently lose one update. Wolverine writes a saga with S3's
-conditional put instead — `If-None-Match: *` when starting one, `If-Match` against the ETag it read
-when updating one — and turns a `412 Precondition Failed` into `SagaConcurrencyException`, which is the
+conditional put instead -- `If-None-Match: *` when starting one, `If-Match` against the ETag it read
+when updating one -- and turns a `412 Precondition Failed` into `SagaConcurrencyException`, which is the
 same exception Marten, EF Core and CosmosDB raise for the same situation. A single
 `OnException<ConcurrencyException>().RetryTimes(...)` policy covers all of them.
 
@@ -149,7 +149,7 @@ two are not interchangeable: a saga registered as a document would be claimed fo
 for its *chain*, so Wolverine would keep it in the in-memory saga persistor while the bucket and key
 function sat unused.
 
-Everything else about sagas is unchanged — `[SagaIdentity]`, `MarkCompleted()`, timeout messages, and
+Everything else about sagas is unchanged -- `[SagaIdentity]`, `MarkCompleted()`, timeout messages, and
 identities of `string`, `Guid`, `int` or `long` all behave exactly as they do on any other store.
 
 ## Alongside another store
@@ -175,8 +175,8 @@ integrations were registered in.
 
 Two consequences worth knowing:
 
-- **Sagas belong to whoever was asked for them.** Saga chains resolve on a different question — which
-  provider owns this *chain* rather than which owns this *type* — and this provider claims a chain only
+- **Sagas belong to whoever was asked for them.** Saga chains resolve on a different question -- which
+  provider owns this *chain* rather than which owns this *type* -- and this provider claims a chain only
   for a saga you registered with `Saga<T>()`. A saga you did not register that way is persisted by
   Marten or your database exactly as before.
 - **There is no atomicity across the two.** The Marten write commits in its transaction; the S3 write

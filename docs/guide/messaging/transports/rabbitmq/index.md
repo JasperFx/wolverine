@@ -147,8 +147,8 @@ using var host = await Host.CreateDefaultBuilder()
 
 `AddClusterNode(host, port)` copies the TLS settings configured on the
 `ConnectionFactory` onto the new endpoint, so a homogeneous cluster only
-needs `Ssl` configured once. To override per node — for example, with
-distinct certificates — pass an
+needs `Ssl` configured once. To override per node -- for example, with
+distinct certificates -- pass an
 [`AmqpTcpEndpoint`](https://www.rabbitmq.com/client-libraries/dotnet-api-guide#endpoints)
 directly:
 
@@ -166,7 +166,7 @@ Multi-tenant configurations that share a cluster (i.e. tenants separated
 by virtual host via `AddTenant(tenantId, virtualHostName)`) inherit the
 parent transport's cluster nodes automatically. Tenants configured via
 `AddTenant(tenantId, Uri)` or `AddTenant(tenantId, Action<ConnectionFactory>)`
-do **not** inherit the cluster — those overloads are intended for tenants
+do **not** inherit the cluster -- those overloads are intended for tenants
 on separate brokers and bring their own connection settings. Put differently:
 virtual-host tenants share the same broker and therefore the same cluster
 topology; URI- and Action-based tenants are explicitly pointed at a
@@ -210,7 +210,7 @@ builder.UseWolverine(opts =>
 ```
 
 `UseRabbitMqUsingNamedConnection` reads from `IConfiguration.GetConnectionString("rabbitmq")`.
-Aspire populates this automatically — it handles both URI-format strings (e.g., `amqp://guest:guest@localhost:5672`)
+Aspire populates this automatically -- it handles both URI-format strings (e.g., `amqp://guest:guest@localhost:5672`)
 and the key=value format. See [Aspire Integration](/guide/aspire) for how the named connection strings work across
 every Wolverine transport and message store.
 

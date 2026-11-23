@@ -7,9 +7,9 @@ now throws `InvalidServiceLocationException` at startup instead of silently emit
 
 **Two paths forward:**
 
-1. **Preferred** — change the registration to a form Wolverine can see through: `AddScoped<TInterface, TImpl>()`
+1. **Preferred** -- change the registration to a form Wolverine can see through: `AddScoped<TInterface, TImpl>()`
    instead of `AddScoped<TInterface>(sp => new TImpl(...))`, or constructor injection into the handler.
-2. **Opt-in escape hatch** — list specific types Wolverine should service-locate, via
+2. **Opt-in escape hatch** -- list specific types Wolverine should service-locate, via
    `opts.CodeGeneration.AlwaysUseServiceLocationFor<TService>()`. This keeps the rest of the codegen
    constructor-inlined and only routes the listed types through the service locator.
 
@@ -29,7 +29,7 @@ middleware directly into the runtime pipeline without requiring the copious usag
 that is prevalent in most other .NET frameworks.
 
 ::: info
-This page covers Wolverine-specific use of code generation. The shared JasperFx code-generation library that backs it — [frames](https://shared-libs.jasperfx.net/codegen/frames.html), [variables](https://shared-libs.jasperfx.net/codegen/variables.html), [`MethodCall`](https://shared-libs.jasperfx.net/codegen/method-call.html), [generated types](https://shared-libs.jasperfx.net/codegen/generated-types.html), and the [`codegen` CLI command](https://shared-libs.jasperfx.net/codegen/cli.html) — is documented at [shared-libs.jasperfx.net/codegen](https://shared-libs.jasperfx.net/codegen/). Reach for it when you're authoring a custom `IVariableSource` or middleware frame.
+This page covers Wolverine-specific use of code generation. The shared JasperFx code-generation library that backs it -- [frames](https://shared-libs.jasperfx.net/codegen/frames.html), [variables](https://shared-libs.jasperfx.net/codegen/variables.html), [`MethodCall`](https://shared-libs.jasperfx.net/codegen/method-call.html), [generated types](https://shared-libs.jasperfx.net/codegen/generated-types.html), and the [`codegen` CLI command](https://shared-libs.jasperfx.net/codegen/cli.html) -- is documented at [shared-libs.jasperfx.net/codegen](https://shared-libs.jasperfx.net/codegen/). Reach for it when you're authoring a custom `IVariableSource` or middleware frame.
 :::
 
 That's great when everything is working as it should, but there's a couple issues:
@@ -124,22 +124,22 @@ Most of the facilities shown here will require the [JasperFx command line integr
 
 ## The `WolverineFx.RuntimeCompilation` Package <Badge type="tip" text="5.34" />
 
-Runtime code generation requires a Roslyn-backed `IAssemblyGenerator` to compile the generated C# source into an assembly that Wolverine can load. That implementation ships in `JasperFx.RuntimeCompiler`, which pulls in roughly 100 MB of Roslyn assemblies. For applications that pre-generate all of their handler / middleware code with `TypeLoadMode.Static` and never recompile at runtime, those assemblies are dead weight — bigger deployment, slower cold start, and incompatible with Native AOT.
+Runtime code generation requires a Roslyn-backed `IAssemblyGenerator` to compile the generated C# source into an assembly that Wolverine can load. That implementation ships in `JasperFx.RuntimeCompiler`, which pulls in roughly 100 MB of Roslyn assemblies. For applications that pre-generate all of their handler / middleware code with `TypeLoadMode.Static` and never recompile at runtime, those assemblies are dead weight -- bigger deployment, slower cold start, and incompatible with Native AOT.
 
 The `WolverineFx.RuntimeCompilation` package isolates that runtime-compilation dependency in a separate package, so production deployments that don't need it ship without Roslyn.
 
 ::: warning Changed in 6.0
-**As of Wolverine 6.0, core `WolverineFx` no longer references `JasperFx.RuntimeCompiler` or registers a default `IAssemblyGenerator`.** Applications running `TypeLoadMode.Dynamic` (the default) or `Auto` now **must** reference `WolverineFx.RuntimeCompilation` — simply referencing the package is enough (it auto-registers the Roslyn `IAssemblyGenerator` via a `[WolverineModule]`). `TypeLoadMode.Static` apps that pre-generate all of their code need nothing and ship without Roslyn. See [Migrating from 5 to 6](/guide/migration). On 5.x this package was an optional, forward-looking opt-in; in 6.0 it is required for runtime code generation. Part of the cold-start / AOT-readiness work in [#1577](https://github.com/JasperFx/wolverine/issues/1577) / [#2876](https://github.com/JasperFx/wolverine/issues/2876).
+**As of Wolverine 6.0, core `WolverineFx` no longer references `JasperFx.RuntimeCompiler` or registers a default `IAssemblyGenerator`.** Applications running `TypeLoadMode.Dynamic` (the default) or `Auto` now **must** reference `WolverineFx.RuntimeCompilation` -- simply referencing the package is enough (it auto-registers the Roslyn `IAssemblyGenerator` via a `[WolverineModule]`). `TypeLoadMode.Static` apps that pre-generate all of their code need nothing and ship without Roslyn. See [Migrating from 5 to 6](/guide/migration). On 5.x this package was an optional, forward-looking opt-in; in 6.0 it is required for runtime code generation. Part of the cold-start / AOT-readiness work in [#1577](https://github.com/JasperFx/wolverine/issues/1577) / [#2876](https://github.com/JasperFx/wolverine/issues/2876).
 :::
 
 ### When you need it
 
 | Scenario | Need the package? |
 |----------|-------------------|
-| Local development with `TypeLoadMode.Dynamic` (the default) | **Yes** — runtime compilation runs every time. |
-| `TypeLoadMode.Auto` with the source-code fall-back | **Yes** — compilation runs the first time a missing handler is invoked. |
-| Production with `TypeLoadMode.Static` and all generated code pre-built into the application assembly | **No** — runtime compilation is never invoked. In 6.0 core `WolverineFx` no longer carries Roslyn, so a Static-mode deployment ships without it automatically. |
-| Running `dotnet run -- codegen write` from a CI build agent | **Yes** — that command emits the generated source by compiling it once. |
+| Local development with `TypeLoadMode.Dynamic` (the default) | **Yes** -- runtime compilation runs every time. |
+| `TypeLoadMode.Auto` with the source-code fall-back | **Yes** -- compilation runs the first time a missing handler is invoked. |
+| Production with `TypeLoadMode.Static` and all generated code pre-built into the application assembly | **No** -- runtime compilation is never invoked. In 6.0 core `WolverineFx` no longer carries Roslyn, so a Static-mode deployment ships without it automatically. |
+| Running `dotnet run -- codegen write` from a CI build agent | **Yes** -- that command emits the generated source by compiling it once. |
 
 ### Installation
 
@@ -151,7 +151,7 @@ The package depends on `JasperFx.RuntimeCompiler`. It does not pull in any other
 
 ### Configuration
 
-In 6.0, **referencing the package is usually all you need**: `WolverineFx.RuntimeCompilation` ships a `[WolverineModule]` that Wolverine auto-discovers at startup and which registers the Roslyn `IAssemblyGenerator` for you. With the default extension auto-discovery on, `TypeLoadMode.Dynamic`/`Auto` "just works" once the package is referenced — no code change required.
+In 6.0, **referencing the package is usually all you need**: `WolverineFx.RuntimeCompilation` ships a `[WolverineModule]` that Wolverine auto-discovers at startup and which registers the Roslyn `IAssemblyGenerator` for you. With the default extension auto-discovery on, `TypeLoadMode.Dynamic`/`Auto` "just works" once the package is referenced -- no code change required.
 
 You can also register it explicitly inside `UseWolverine(...)` via the `UseRuntimeCompilation()` extension method. This is **required** if you've turned extension auto-discovery off (`ExtensionDiscovery.ManualOnly`), and is handy when you want to gate it by environment (see below):
 
@@ -166,7 +166,7 @@ builder.Host.UseWolverine(opts =>
 });
 ```
 
-`UseRuntimeCompilation()` is idempotent — calling it twice (or alongside the auto-registering module) does nothing on the second call. It registers `IAssemblyGenerator` as a singleton in DI using `TryAddSingleton`, so a custom registration you've already added wins.
+`UseRuntimeCompilation()` is idempotent -- calling it twice (or alongside the auto-registering module) does nothing on the second call. It registers `IAssemblyGenerator` as a singleton in DI using `TryAddSingleton`, so a custom registration you've already added wins.
 
 For advanced scenarios where you need to register the runtime compiler outside of `UseWolverine(...)` (e.g., from a hosted-service registration ordering), the `IServiceCollection` overload is available:
 
@@ -196,14 +196,17 @@ Combine that with `TypeLoadMode.Static` in production and the `dotnet run -- cod
 
 ### Dropping Roslyn from the production image entirely
 
-The dev-time-only pattern above keeps `WolverineFx.RuntimeCompilation` referenced for the *whole* project, so the ~100 MB of Roslyn assemblies still ship in the production image — they're simply never registered. To actually **remove Roslyn from production builds**, make the package reference conditional on the build configuration and let production run pre-generated code in `Static` mode:
+The dev-time-only pattern above keeps `WolverineFx.RuntimeCompilation` referenced for the *whole* project, so the ~100 MB of Roslyn assemblies still ship in the production image -- they're simply never registered. To actually **remove Roslyn from production builds**, make the package reference conditional on the build configuration and let production run pre-generated code in `Static` mode:
 
 ```xml
 <!-- Referenced only in Debug, so a Release publish ships without Roslyn. -->
 <ItemGroup Condition="'$(Configuration)' == 'Debug'">
-  <PackageReference Include="WolverineFx.RuntimeCompilation" Version="7.0.0-beta.2" />
+  <PackageReference Include="WolverineFx.RuntimeCompilation" />
 </ItemGroup>
 ```
+
+Use the same version of `WolverineFx.RuntimeCompilation` as the rest of your `WolverineFx` packages, either with a
+`Version` attribute here or in your central package management file.
 
 ```csharp
 using JasperFx;
@@ -219,13 +222,13 @@ builder.Services.CritterStackDefaults(x =>
 });
 ```
 
-Because `WolverineFx.RuntimeCompilation` **auto-registers** when referenced (via its `[WolverineModule]`), this pattern needs **no `UseRuntimeCompilation()` call** — and that's exactly what lets you drop the package in Release without a compile error. In `Debug` the package is present and `Dynamic` mode compiles at runtime; in a `Release`/`Production` build the package is gone and `Static` mode runs the pre-generated code.
+Because `WolverineFx.RuntimeCompilation` **auto-registers** when referenced (via its `[WolverineModule]`), this pattern needs **no `UseRuntimeCompilation()` call** -- and that's exactly what lets you drop the package in Release without a compile error. In `Debug` the package is present and `Dynamic` mode compiles at runtime; in a `Release`/`Production` build the package is gone and `Static` mode runs the pre-generated code.
 
 ::: warning
-The condition must use `$(Configuration)` **with the parentheses**. A malformed condition such as `'$Configuration)' != 'Release'` silently never matches, so the assembly keeps shipping anyway — a common cause of "I excluded the package but Roslyn is still in my image."
+The condition must use `$(Configuration)` **with the parentheses**. A malformed condition such as `'$Configuration)' != 'Release'` silently never matches, so the assembly keeps shipping anyway -- a common cause of "I excluded the package but Roslyn is still in my image."
 :::
 
-A complete, tested end-to-end example — `Program.cs`, the conditional `.csproj`, committed `Internal/Generated/`, a multi-stage `Dockerfile`, a `verify-production-build.sh` script that asserts the Release publish is Roslyn-free, and an Alba test that boots the app in the `Production` environment — lives in the **[CqrsMinimalApi sample](https://github.com/JasperFx/CritterStackSamples/tree/main/CqrsMinimalApi)**.
+A complete, tested end-to-end example -- `Program.cs`, the conditional `.csproj`, committed `Internal/Generated/`, a multi-stage `Dockerfile`, a `verify-production-build.sh` script that asserts the Release publish is Roslyn-free, and an Alba test that boots the app in the `Production` environment -- lives in the **[CqrsMinimalApi sample](https://github.com/JasperFx/CritterStackSamples/tree/main/CqrsMinimalApi)**.
 
 ### What happens if you forget?
 
@@ -235,7 +238,7 @@ In 6.0, core `WolverineFx` no longer registers a default `IAssemblyGenerator`. A
 
 To resolve it: reference `WolverineFx.RuntimeCompilation` (Dynamic/Auto mode), or move to `TypeLoadMode.Static` with pre-generated code (production, Roslyn-free).
 
-(On 5.x, `WolverineFx` registered a default `IAssemblyGenerator`, so the package was an optional forward-looking opt-in. 6.0 removed that default — hence the requirement above.)
+(On 5.x, `WolverineFx` registered a default `IAssemblyGenerator`, so the package was an optional forward-looking opt-in. 6.0 removed that default -- hence the requirement above.)
 
 ## Embedding Codegen in Docker
 
@@ -416,7 +419,7 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ServiceLocationUsage.cs#L11-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_servicelocationpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-::: note
+::: info
 [Wolverine.HTTP has some additional control over the service locator](/guide/http/#using-the-httpcontext-requestservices) to utilize the shared scoped container
 with the rest of the AspNetCore pipeline. 
 :::
@@ -468,18 +471,18 @@ handler's own outbox-enrolled session for the duration of the message:
 | `WolverineFx.Fisher` | `IDocumentSession`, `IQuerySession` |
 | `WolverineFx.RavenDb` | `IAsyncDocumentSession` |
 
-This applies to service location *anywhere* the scope reaches — a service-located session, or one
+This applies to service location *anywhere* the scope reaches -- a service-located session, or one
 injected into a service that a handler depends on. Outside a handler scope (hosted services, admin
 tooling, plain `CreateScope()`), nothing is primed and the registration falls back to the store's own
 session factory, so an ordinary DI scope still gets an ordinary scoped session.
 
 Priming only ever hands over a session the handler or endpoint **already has**. A chain with no
-persistence in it — no session parameter, no `[Transactional]`, no storage side effect — does not open
+persistence in it -- no session parameter, no `[Transactional]`, no storage side effect -- does not open
 one just because it happens to service-locate something, and anything resolved from its scope falls
 back to the store's own session factory exactly as it would anywhere else.
 
 ::: warning New in RavenDb
-`Wolverine.RavenDb` previously registered no `IAsyncDocumentSession` in DI at all — RavenDb sessions
+`Wolverine.RavenDb` previously registered no `IAsyncDocumentSession` in DI at all -- RavenDb sessions
 only ever reached a handler through code generation, so a service-located one could not resolve.
 `UseRavenDbPersistence()` now owns that registration. If your application already registers
 `IAsyncDocumentSession` itself, Wolverine decorates your registration rather than replacing it, and
@@ -701,9 +704,9 @@ builder.UseWolverine(opts =>
 
 Note that explicit Wolverine configuration takes precedence over `CritterStackDefaults`.
 
-## Custom Variable Sources — Teaching Codegen to Resolve Your Types <Badge type="tip" text="5.32" />
+## Custom Variable Sources -- Teaching Codegen to Resolve Your Types <Badge type="tip" text="5.32" />
 
-Wolverine's codegen resolves handler parameters out of the service container, message body, HTTP route, and other built-in sources. For types it doesn't know how to build — strong-typed identifiers, correlation tokens, sequence-generated values — you can register an `IVariableSource` from JasperFx's codegen subsystem and tell Wolverine exactly how to materialize the value at runtime.
+Wolverine's codegen resolves handler parameters out of the service container, message body, HTTP route, and other built-in sources. For types it doesn't know how to build -- strong-typed identifiers, correlation tokens, sequence-generated values -- you can register an `IVariableSource` from JasperFx's codegen subsystem and tell Wolverine exactly how to materialize the value at runtime.
 
 A common motivating case: **generating a strong-typed identifier from a database sequence before an aggregate is created.** In a plain handler you'd have to inject the session and call an async helper yourself:
 
@@ -799,7 +802,7 @@ internal class ReportIdSource : IVariableSource
 Two things to notice:
 
 - You only describe how to create the value. Wolverine handles the `await`, the lifetime of the dependency (`IDocumentSession`), and where the fragment lands inside the generated handler.
-- Because the `MethodCall` is async, every handler that takes a `ReportId` parameter becomes async under the hood — even if your source code declares the handler as synchronous. Wolverine's codegen rewrites the method signature for you.
+- Because the `MethodCall` is async, every handler that takes a `ReportId` parameter becomes async under the hood -- even if your source code declares the handler as synchronous. Wolverine's codegen rewrites the method signature for you.
 
 ### 3. Register the source
 
@@ -814,7 +817,7 @@ From here on, any handler (or Wolverine HTTP endpoint) that declares a `ReportId
 
 ### Why not `LoadAsync`?
 
-Wolverine's [A-Frame `LoadAsync` pattern](/guide/handlers/middleware) is the go-to when you need to *load an existing aggregate* before the handler runs. Custom id generation has the same ergonomic goal — pull infrastructure calls out of `Handle` — but the result is a *new* value rather than a retrieved aggregate, so `IVariableSource` is a better fit. You can freely mix the two styles inside one handler: a `ReportId` materialized from an `IVariableSource` alongside a parent aggregate loaded via a `LoadAsync` method.
+Wolverine's [A-Frame `LoadAsync` pattern](/guide/handlers/middleware) is the go-to when you need to *load an existing aggregate* before the handler runs. Custom id generation has the same ergonomic goal -- pull infrastructure calls out of `Handle` -- but the result is a *new* value rather than a retrieved aggregate, so `IVariableSource` is a better fit. You can freely mix the two styles inside one handler: a `ReportId` materialized from an `IVariableSource` alongside a parent aggregate loaded via a `LoadAsync` method.
 
 ### Previewing the generated code
 

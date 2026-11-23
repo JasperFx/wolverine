@@ -18,7 +18,7 @@ WolverineFx.Bobcat and WolverineFx.Bobcat.Http.
 Wolverine resolves the *application assembly* it scans for handlers once per process and caches it in a static, so
 whichever host runs first can pin handler discovery for every later host that doesn't set one explicitly. If handlers
 seem to vanish only in full-suite runs (order-dependent `No routes can be determined` errors), see
-[the application-assembly warning under Assembly Discovery](/guide/handlers/discovery.html#assembly-discovery) — set
+[the application-assembly warning under Assembly Discovery](/guide/handlers/discovery.html#assembly-discovery) -- set
 `opts.ApplicationAssembly` or `opts.Discovery.IncludeAssembly(...)` explicitly on the affected hosts.
 :::
 
@@ -189,7 +189,7 @@ private static async Task using_tracked_sessions_advanced(IHost otherWolverineSy
 <!-- endSnippet -->
 
 ::: tip
-As of 6.17.3, tracked sessions ignore Wolverine's own framework traffic by default — anything marked
+As of 6.17.3, tracked sessions ignore Wolverine's own framework traffic by default -- anything marked
 `INotToBeRouted`, which covers agent commands and the telemetry a monitored host publishes to
 CritterWatch. Before 6.17.3 that telemetry could be picked up by a tracked session and keep it
 waiting on messages your test never sent. If you are on an older version and see that, filter it
@@ -199,7 +199,7 @@ yourself:
 .IgnoreMessagesMatchingType(type => type.CanBeCastTo<INotToBeRouted>())
 ```
 
-`Acknowledgement` and `FailureAcknowledgement` are deliberately still tracked — the session's own
+`Acknowledgement` and `FailureAcknowledgement` are deliberately still tracked -- the session's own
 acknowledgement APIs depend on them.
 :::
 
@@ -303,7 +303,7 @@ wait for the retry delay. Deferring or rescheduling a message also counts as a r
 
 `IgnoreMessageType<T>()` and `IgnoreMessagesMatchingType()` can only separate traffic by *message type*,
 which does not help on a shared host where the same message type is legitimately in flight for more than
-one reason at once — background subscriptions, hosted services, or another test's tail. A session that
+one reason at once -- background subscriptions, hosted services, or another test's tail. A session that
 keeps recording that traffic waits on it, and times out.
 
 `IgnoreEnvelopes()` is the envelope-level twin. The predicate sees the whole `Envelope`, so you can scope
@@ -342,7 +342,7 @@ Two things are worth knowing before reaching for it:
 * Acknowledgements are never ignored, whatever the filter says, because the session's own acknowledgement
   APIs depend on them being recorded.
 
-If you want to scope by correlation id, write that predicate yourself —
+If you want to scope by correlation id, write that predicate yourself -- 
 `IgnoreEnvelopes(e => e.CorrelationId != mine)`. Wolverine deliberately does not offer a built-in version,
 because that would be a promise that a correlation id survives every transport, HTTP endpoint and interop
 mapping, and any gap would surface as a session that silently stops waiting rather than as an error.
@@ -415,7 +415,7 @@ public class MyToolExtension : IWolverineExtension
 
 ### Timeouts govern the whole session
 
-`Timeout()` bounds the *entire* tracked session, including any stage it runs — so a stage that does
+`Timeout()` bounds the *entire* tracked session, including any stage it runs -- so a stage that does
 slow work, like `PauseThenCatchUpOnMartenDaemonActivity()` waiting for projections to catch up, is
 capped by the session's timeout and **not** by any budget internal to that stage. The default is only
 5 seconds. Projection catch-up against a cold daemon, a large event backlog, or a busy CI machine
@@ -489,7 +489,7 @@ suite: there it measured 2-6% of a run's CPU.
 
 Under `UseWolverineManagedEventSubscriptionDistribution` the Marten store runs in
 `DaemonMode.ExternallyManaged`, so Marten's own `IHost.ForceAllMartenDaemonActivityToCatchUpAsync()` is
-deliberately a **passive** read-only wait — it will not drive a paused daemon forward, and it leaves active
+deliberately a **passive** read-only wait -- it will not drive a paused daemon forward, and it leaves active
 catch-up to the external coordinator, which is Wolverine. Use Wolverine's own helper instead:
 
 ```csharp
@@ -522,7 +522,7 @@ Do **not** hand-roll this by pausing the coordinator and then calling `IProjecti
 each daemon. That introduces a *second* writer of each projection's progression row alongside the shard's
 own agent, which is what produces intermittent `ProgressionProgressOutOfOrderException` ("multiple processes
 try to process the projection") and `23505: duplicate key value violates unique constraint
-"pk_mt_event_progression"` errors. Wolverine's helper never calls `CatchUpAsync` — it resumes the agents
+"pk_mt_event_progression"` errors. Wolverine's helper never calls `CatchUpAsync` -- it resumes the agents
 that already own those shards and waits for non-stale data, so there is only ever one writer.
 :::
 
@@ -1514,18 +1514,18 @@ public static async Task reset_everything(IHost host)
 
 The method is the union of two things:
 
-1. A `RebuildAsync()` against **every** known message store — the main store, every tenant database in a
+1. A `RebuildAsync()` against **every** known message store -- the main store, every tenant database in a
    separate-database-per-tenant system, and every ancillary store.
 2. Every database-backed queue transport's tables left **built but empty**, fanning out across every tenant
    database. That covers PostgreSQL, SQL Server, MySQL, Oracle, SQLite, and Redis streams.
 
-"Built but empty" means the tables are created if they are missing, then emptied — so the reset works
+"Built but empty" means the tables are created if they are missing, then emptied -- so the reset works
 whether the previous run left rows behind or tore the schema down completely.
 
 ::: tip
 This is deliberately opt-in rather than folded into `RebuildAsync()` / `ClearAllAsync()`, which stay scoped
 to [envelope storage only](/guide/durability/managing). Queue transport tables are transport data, and other
-tables registered on the message store — SQL Server's rate-limit table, for example — must survive a reset.
+tables registered on the message store -- SQL Server's rate-limit table, for example -- must survive a reset.
 :::
 
 It is safe to call on a host with no message store and no database-backed queues, so you can put it in a

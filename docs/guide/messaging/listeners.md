@@ -64,7 +64,7 @@ Use the `Inline` mode if you care about message ordering or if you do not want g
 without having to use any kind of message persistence.
 
 To improve throughput, you can direct Wolverine to use a number of parallel listeners, but the default is
-just 1 per listening endpoint. Note that `ListenerCount()` — and *not* `MaximumParallelMessages()` — is the
+just 1 per listening endpoint. Note that `ListenerCount()` -- and *not* `MaximumParallelMessages()` -- is the
 throughput knob for an `Inline` endpoint, because an `Inline` endpoint has no local execution block for
 `MaximumParallelMessages()` to size. See [Which settings apply in which mode](#which-settings-apply-in-which-mode)
 below.
@@ -113,7 +113,7 @@ opts.ListenToRabbitQueue("webhooks")
 ```
 
 The delivery is held unacknowledged while the message flows through an in-memory, optionally
-group-partitioned execution block, and is settled natively from the completion continuation — acked on
+group-partitioned execution block, and is settled natively from the completion continuation -- acked on
 handler success, nacked or dead-lettered on terminal failure. Nothing is written to a database.
 
 ::: warning The guarantee, stated exactly
@@ -122,7 +122,7 @@ delivery order is not.**
 
 The sequential lane per group slot structurally guarantees that no two messages sharing a group id execute
 concurrently on the owning node. Original-order processing is *not* guaranteed under failure, requeue, or
-broker redelivery — a failed or redelivered message re-enters its lane later, never concurrently. That is the
+broker redelivery -- a failed or redelivered message re-enters its lane later, never concurrently. That is the
 honest contract for native-ack retry semantics on every broker. If you need strict order under failure, use
 the durable inbox.
 :::
@@ -131,15 +131,15 @@ Three consequences follow from never acking at receipt, and all three are the po
 
 * **Back pressure is the broker's prefetch window**, not `BufferingLimits`. The broker stops delivering once
   its unacked ceiling is reached, so no `BackPressureAgent` is created. On RabbitMQ the prefetch default
-  covers every lane that can be busy at once — the partition slot count when group-partitioned, otherwise
-  `MaximumParallelMessages` — doubled so a lane never starves.
+  covers every lane that can be busy at once -- the partition slot count when group-partitioned, otherwise
+  `MaximumParallelMessages` -- doubled so a lane never starves.
 * **A dying node loses nothing.** Anything queued but not yet completed is still unacknowledged, so closing
   the channel or crashing hands every one of those deliveries back to the broker.
 * **Shutdown redelivers, but redelivery is not the same as duplicate execution.** Graceful drain finishes the
   handlers already running and settles them; whatever it never started is simply not settled, and the broker
-  redelivers it. Those redeliveries are bounded by the prefetch window — but almost all of them are messages
+  redelivers it. Those redeliveries are bounded by the prefetch window -- but almost all of them are messages
   that had not run yet, so they execute for the *first* time, and your handler cannot tell them from any other
-  first delivery. A **duplicate execution** — the same message running twice — needs something narrower: a
+  first delivery. A **duplicate execution** -- the same message running twice -- needs something narrower: a
   handler that finished while its acknowledgement was in flight, on a connection that died before the ack
   landed. See [What a redeployment actually costs](#what-a-redeployment-actually-costs) for the measured
   numbers.
@@ -155,8 +155,8 @@ qualify and are supported today. Kafka cannot and is out of scope: a cumulative 
 way to express a gap. Calling `ProcessInParallelWithNativeAcks()` on a transport that has not opted in throws
 at configuration time rather than degrading silently.
 
-On a broker where an *unsettled* delivery is on a clock — SQS's visibility timeout, Azure Service Bus's lock
-duration, JetStream's `AckWait` — Wolverine renews that clock for every delivery still sitting in a lane, for
+On a broker where an *unsettled* delivery is on a clock -- SQS's visibility timeout, Azure Service Bus's lock
+duration, JetStream's `AckWait` -- Wolverine renews that clock for every delivery still sitting in a lane, for
 as long as it sits there. This is unconditional under this mode and not something you opt into: lane queue time
 is unbounded by design, so an un-renewed native-ack endpoint would be a duplicate-delivery generator by
 construction rather than merely at risk under a slow handler. A transport that declares such a clock but does
@@ -166,7 +166,7 @@ A transport may also refuse the mode for a *particular* endpoint whose own setti
 bootstrap rather than at runtime. There are two examples today. Pulsar's acknowledgment strategy is
 configurable, and `AcknowledgeCumulative()` reintroduces exactly the gap-less-commit problem that disqualifies
 Kafka. And an [SQS FIFO queue](/guide/messaging/transports/sqs/listening.html#fifo-queues-do-not-support-native-acks)
-exists to guarantee ordering within a message group, which native-ack lanes deliberately do not preserve — and
+exists to guarantee ordering within a message group, which native-ack lanes deliberately do not preserve -- and
 which partitioning by group id does not rescue, because SQS blocks a message group behind its own in-flight
 head. Both combinations are rejected by name.
 
@@ -177,7 +177,7 @@ depth." That was honest reasoning, but it was never measured, and measuring it s
 one to quote: it is the bound on *redeliveries*, and it overstates handler-visible duplicates by more than an
 order of magnitude.
 
-The numbers below come from `webhook_flood_native_ack_chaos` in `SlowTests` — a five node cluster,
+The numbers below come from `webhook_flood_native_ack_chaos` in `SlowTests` -- a five node cluster,
 group-partitioned across five RabbitMQ slots, under a sustained flood deep enough that the broker was holding
 a full unacked window at every disruption, with the broker's own `messages_unacknowledged` read at that
 instant. The ranges are across four consecutive runs:
@@ -192,24 +192,24 @@ instant. The ranges are across four consecutive runs:
 Two things follow, and both matter more than the headline percentage:
 
 * **A graceful rolling deploy costs zero duplicate executions.** Draining settles the handlers that were
-  already running, so nothing runs twice. The prefetch window is still redelivered — it simply had not been
+  already running, so nothing runs twice. The prefetch window is still redelivered -- it simply had not been
   executed yet, so those are first executions.
 * **A hard kill costs about one duplicate per busy lane, not one per unacked message.** Only handlers that
   were *mid-flight* when the connection died can run twice, and that population is the number of lanes the
   endpoint runs, not the prefetch depth. On the group-partitioned endpoint measured here that is the partition
-  slot count: three or four duplicates per killed node against an unacked window of 180 — a factor of roughly
+  slot count: three or four duplicates per killed node against an unacked window of 180 -- a factor of roughly
   45, and it barely moved between runs. On an **unpartitioned** `NativeAck` endpoint there are no slots, and
   the ceiling is `MaximumParallelMessages()` instead.
 
 On a **group-partitioned** endpoint, none of this weakens the guarantee: every duplicate re-enters its group's
 sequential lane, so a duplicate never runs concurrently with the original, and the intra-group concurrency
 invariant held across every kill and every handoff in all of the runs above. That is a property of group
-partitioning rather than of `NativeAck` itself — an **unpartitioned** `NativeAck` endpoint has no such lanes,
+partitioning rather than of `NativeAck` itself -- an **unpartitioned** `NativeAck` endpoint has no such lanes,
 and a redelivery can and will run alongside the original. Group partitioning is opt-in via
 [`PartitionProcessingByGroupId()`](/guide/messaging/partitioning); it is never on by default.
 
-Handlers must still be idempotent either way — at-least-once is the contract,
-and 0.1% of a flood is not a small number of messages — but size that work against in-flight lanes rather than
+Handlers must still be idempotent either way -- at-least-once is the contract,
+and 0.1% of a flood is not a small number of messages -- but size that work against in-flight lanes rather than
 against prefetch. The [in-memory idempotency guard](#in-memory-idempotency-guard) below removes the remainder
 within a *running* process; it cannot help across a node's death, because the guard dies with it.
 
@@ -218,12 +218,12 @@ within a *running* process; it cannot help across a node's death, because the gu
 The [durable inbox](/guide/durability/) deduplicates incoming messages on the primary key of its incoming
 table: a redelivery of a message id it has already stored is acked back to the broker and never executed
 again. `NativeAck`, `BufferedInMemory`, and `Inline` endpoints have no such table, and `NativeAck` in
-particular is *at-least-once by design* — every rolling deploy leaves whatever the drain could not finish
+particular is *at-least-once by design* -- every rolling deploy leaves whatever the drain could not finish
 unsettled, and the broker redelivers it.
 
 `WithInMemoryIdempotency()` is the non-durable analogue: an opt-in, bounded, in-memory set of the message ids
 this process has already handled on this endpoint. A redelivery of one is settled with the broker and dropped
-without ever reaching your handler — the same outcome as the durable path, minus the database.
+without ever reaching your handler -- the same outcome as the durable path, minus the database.
 
 ```csharp
 opts.ListenToRabbitQueue("webhooks")
@@ -247,7 +247,7 @@ need opposite settlements:
 
 * **Already processed.** The message reached a terminal the broker will not undo. The redelivery is
   acknowledged and dropped, exactly as above.
-* **Still in flight.** The same message is executing right now under its first delivery — the broker
+* **Still in flight.** The same message is executing right now under its first delivery -- the broker
   redelivered it because a lease lapsed, a channel closed, or a consumer asked for its unacknowledged
   messages back on the way out. Acknowledging that redelivery would settle the message at the broker
   underneath the running handler, and a node that then drained or died would lose it. So it is **held,
@@ -258,7 +258,7 @@ need opposite settlements:
 Each delivery settles with its own handle, which is the one the broker honours after a redelivery: the new
 RabbitMQ delivery tag on the new channel, the newest SQS receipt handle, the fresh Azure Service Bus lock, the
 new Pub/Sub ack id. On SQS, Azure Service Bus and NATS JetStream the held copy is also the one whose lease
-Wolverine keeps renewing while it waits, so the broker does not keep redelivering it — or, on SQS and Azure
+Wolverine keeps renewing while it waits, so the broker does not keep redelivering it -- or, on SQS and Azure
 Service Bus, count those redeliveries towards dead-lettering a message that is being handled fine. Pulsar and
 Redis Streams redeliver the same message id or stream entry, so acknowledging either copy settles both.
 
@@ -273,7 +273,7 @@ The guard is **per process and in memory**. Three limits follow, and none of the
   on the node that starts up. It protects a *running* process against a redelivery it saw itself.
 * **A second node never knew.** With competing consumers, a redelivery can land on a different node than the
   original. With an exclusive listener (including the [partitioned topology](/guide/messaging/partitioning)
-  story) redeliveries land on the node that owns the listener — the same node whose guard saw the original —
+  story) redeliveries land on the node that owns the listener -- the same node whose guard saw the original -- 
   so the guard is effective in steady state, but a failover hands the queue to a node starting from empty.
 * **Eviction is generational, not exact.** An id is remembered for at least half the window and at most the
   whole window, and less than that when a flood of unique ids hits `maxTracked` first.
@@ -290,31 +290,31 @@ the intra-group concurrency guarantee holds either way.
 ### Bounding and tuning
 
 Memory is bounded by construction, which matters because the workload `NativeAck` exists for is exactly the
-one that would make an unbounded set of seen ids a leak. Two hash sets — a current generation and the
-previous one — are kept and both are consulted on lookup. The pair rotates on whichever comes first:
+one that would make an unbounded set of seen ids a leak. Two hash sets -- a current generation and the
+previous one -- are kept and both are consulted on lookup. The pair rotates on whichever comes first:
 
 | Trigger | Effect |
 | --- | --- |
 | `window / 2` elapsed | current generation becomes previous, previous is dropped |
-| `maxTracked / 2` ids in the current generation | same rotation, early — a flood of unique ids evicts by size rather than growing |
+| `maxTracked / 2` ids in the current generation | same rotation, early -- a flood of unique ids evicts by size rather than growing |
 
 So the ceiling really is `maxTracked` ids, roughly single-digit megabytes at the 100,000 default, with no
 per-entry timestamps and no LRU bookkeeping. Size the `window` to cover the redelivery burst you actually
-expect — for `NativeAck` that is the drain timeout plus the broker's redelivery latency, seconds rather than
-minutes — and leave `maxTracked` alone unless you are running a flood at a sustained rate where
+expect -- for `NativeAck` that is the drain timeout plus the broker's redelivery latency, seconds rather than
+minutes -- and leave `maxTracked` alone unless you are running a flood at a sustained rate where
 `maxTracked / peak messages per second` would fall below that window.
 
 ### Where it applies
 
 | Mode | Guard |
 | --- | --- |
-| `NativeAck` | ✔️ — the primary use case |
+| `NativeAck` | ✔️ -- the primary use case |
 | `BufferedInMemory` | ✔️ |
 | `Inline` | ✔️ |
-| `Durable` | ignored (warns at startup) — the inbox already deduplicates, and does it better |
-| Local queues | `NotSupportedException` — nothing redelivers to a local queue |
+| `Durable` | ignored (warns at startup) -- the inbox already deduplicates, and does it better |
+| Local queues | `NotSupportedException` -- nothing redelivers to a local queue |
 
-A message that fails and is handed *back* to the broker — nacked, requeued, or deferred during a drain — is
+A message that fails and is handed *back* to the broker -- nacked, requeued, or deferred during a drain -- is
 deliberately **not** remembered, because remembering it would suppress its own retry and turn a failure into
 a lost message. Only a delivery that reached a terminal the broker will not undo (handler success, or a
 native dead-letter move) is recorded. Duplicate drops are logged at `Debug`, not `Error`: in a mode that
@@ -324,11 +324,11 @@ Both are also metered <Badge type="tip" text="6.32" />, tagged by endpoint:
 
 | Meter | Answers |
 | --- | --- |
-| `wolverine.duplicates.suppressed` | "Is my redelivery rate normal?" — how many duplicate deliveries this guard has dropped |
-| `wolverine.idempotency.early_rotation` | "Is my window big enough?" — how often the `maxTracked` ceiling forced a rotation *before* the window elapsed |
+| `wolverine.duplicates.suppressed` | "Is my redelivery rate normal?" -- how many duplicate deliveries this guard has dropped |
+| `wolverine.idempotency.early_rotation` | "Is my window big enough?" -- how often the `maxTracked` ceiling forced a rotation *before* the window elapsed |
 
 The second is the one to alert on. A non-zero and rising count means the early-rotation row in the table
-above is firing, so the effective suppression window is **shorter than the `window` you configured** — the
+above is firing, so the effective suppression window is **shorter than the `window` you configured** -- the
 guard is still bounded and still correct, but it is forgetting ids sooner than you asked it to. A deployment
 doing that was previously indistinguishable from one that was not. Rotations the clock caused are deliberately
 not counted, or every long-lived endpoint would report a shrinkage it does not have.
@@ -336,11 +336,11 @@ not counted, or every long-lived endpoint would report a shrinkage it does not h
 ### Prefer broker-side deduplication where it exists
 
 Some transports can deduplicate at the broker, which is strictly better than anything an in-process guard can
-do — it survives restarts and spans nodes:
+do -- it survives restarts and spans nodes:
 
-* **NATS JetStream** — a stream's `duplicate_window` deduplicates on the `Nats-Msg-Id` header.
-* **SQS FIFO queues** — `MessageDeduplicationId`, with a five-minute window.
-* **Google Cloud Pub/Sub** — subscription-level deduplication on a publisher-supplied `deduplication-id`.
+* **NATS JetStream** -- a stream's `duplicate_window` deduplicates on the `Nats-Msg-Id` header.
+* **SQS FIFO queues** -- `MessageDeduplicationId`, with a five-minute window.
+* **Google Cloud Pub/Sub** -- subscription-level deduplication on a publisher-supplied `deduplication-id`.
 
 Use those where they are available. This guard is chiefly for RabbitMQ classic and quorum queues, which have
 nothing of the kind.
@@ -348,30 +348,30 @@ nothing of the kind.
 ### Brokers that put a clock on an unsettled delivery
 
 Some brokers expire an unsettled delivery on their own: Amazon SQS's visibility timeout, Azure Service Bus's
-lock duration, GCP Pub/Sub's ack deadline, NATS JetStream's `AckWait`. RabbitMQ and Redis Streams do not — an
+lock duration, GCP Pub/Sub's ack deadline, NATS JetStream's `AckWait`. RabbitMQ and Redis Streams do not -- an
 unacked delivery there lives until the channel closes.
 
 On a broker that does, Wolverine renews that lease for the whole time an envelope sits in an execution lane,
-not merely while its handler runs — the risk window opens the moment the envelope is *enqueued*. Renewal ticks
+not merely while its handler runs -- the risk window opens the moment the envelope is *enqueued*. Renewal ticks
 at half the lease, sends nothing while the lanes are empty, and stops at a configurable ceiling (on SQS,
 `MaximumVisibilityExtension`, capped by the SQS limit of 12 hours). It is **not** opt-in for this mode:
 lane depth is unbounded by design, so an un-renewed endpoint would be a duplicate generator by construction.
 A NativeAck endpoint on such a broker whose listener cannot renew fails at startup rather than running.
 
 ::: warning What happens when a lease is lost anyway
-If the broker refuses a renewal — or no renewal succeeds for a full lease duration — the broker owns that
+If the broker refuses a renewal -- or no renewal succeeds for a full lease duration -- the broker owns that
 delivery again and is going to redeliver it. Wolverine's response depends on where the envelope had got to:
 
 * **Still queued, not yet executing.** The queued copy is **dropped: neither completed nor deferred.** That
   looks harsh and is the only non-amplifying option. Every transport's defer path *republishes a copy and
   settles the original* (as of 7.0 the brokers' requeue paths send or confirm that copy before they settle the original), so deferring after the lease is gone would put a second copy on the queue on top of the redelivery already
   coming. Dropping turns "handled twice" into "handled once, later".
-* **Already executing.** A running handler cannot be un-run. This one stays at-least-once — NativeAck's
-  documented contract — and Wolverine's only job is to not compound it, so its defer is suppressed too.
+* **Already executing.** A running handler cannot be un-run. This one stays at-least-once -- NativeAck's
+  documented contract -- and Wolverine's only job is to not compound it, so its defer is suppressed too.
 
 Both are metered. `wolverine.leases.lost` is tagged `lease.loss.stage` = `not-started` (duplication prevented)
 or `executing` (duplication realized); `wolverine.leases.renewed` and `wolverine.lease.ceiling_reached` round
-out the picture. A rising `executing` count means lane depth has outgrown the configured lease — raise the
+out the picture. A rising `executing` count means lane depth has outgrown the configured lease -- raise the
 lease, raise the slot count, or lower the prefetch.
 :::
 
@@ -382,7 +382,7 @@ ordinary ones are the wrong numbers on these two modes.
 
 ### The depth needs the right ceiling
 
-`QueueCount` is real for `Inline` and `NativeAck` — but `BufferLimit` is **null** on both, and that is
+`QueueCount` is real for `Inline` and `NativeAck` -- but `BufferLimit` is **null** on both, and that is
 deliberate rather than missing. Neither mode builds a `BackPressureAgent`, so nothing enforces
 `BufferingLimits` there even if you set it; reporting it would render as `234 of 1,000` and offer headroom
 that does not exist.
@@ -391,7 +391,7 @@ The ceiling that *does* bound these modes is the broker's prefetch window, repor
 
 | Transport | `InFlightLimit` |
 | --- | --- |
-| RabbitMQ | `PreFetchCount` — a genuine cap on unacknowledged deliveries, applied with `BasicQosAsync` |
+| RabbitMQ | `PreFetchCount` -- a genuine cap on unacknowledged deliveries, applied with `BasicQosAsync` |
 | Azure Service Bus | `PrefetchCount`, or null when prefetch is disabled |
 | Everything else | null |
 
@@ -404,7 +404,7 @@ avoids.
 
 `PartitionProcessingByGroupId()` gives you one sequential lane per slot, and the sum across those lanes
 cannot see the failure the lanes exist to bound. 100 messages spread evenly over 10 lanes and 100 messages
-piled into a single lane report the **identical** `QueueCount` — and the second is a stalled listener while
+piled into a single lane report the **identical** `QueueCount` -- and the second is a stalled listener while
 the first is perfectly healthy. That is the "one dominant group id serializes everything behind it" case.
 
 Three more fields make it visible:
@@ -422,7 +422,7 @@ lane holding most of the total is a hot group id, and the fix is a better group 
 lane runs at the endpoint's full parallelism rather than as a sequential slot. A healthy exempt lane holding
 plenty of messages is not a hot partition, and folding the two together would report it as one.
 
-A null `LaneCount` means the listener is not partitioned — which is a different state from a listener
+A null `LaneCount` means the listener is not partitioned -- which is a different state from a listener
 partitioned into a single lane.
 
 ## Buffered Endpoints
@@ -521,7 +521,7 @@ opts.Policies.AllListeners(x => x.MaximumParallelMessages = 5);
 
 ## Which settings apply in which mode
 
-Several listener settings only mean something for a mode that has a *local execution block* — the in-memory
+Several listener settings only mean something for a mode that has a *local execution block* -- the in-memory
 queue that `BufferedInMemory` and `Durable` endpoints put between the transport listener and your handlers.
 An `Inline` endpoint has no such block: it executes each message directly on the transport's listening
 callback. Settings that size or shard that block therefore do nothing on an `Inline` endpoint.
@@ -530,7 +530,7 @@ callback. Settings that size or shard that block therefore do nothing on an `Inl
 | --- | --- | --- | --- | --- |
 | `MaximumParallelMessages(n)` / `Sequential()` | ignored (warns) | ✔️ | ✔️ | ✔️ |
 | `PartitionProcessingByGroupId(slots)` | **throws at startup** | ✔️ | ✔️ | ✔️ |
-| `BufferedInMemory(limits)` / `UseDurableInbox(limits)` back pressure | ignored (warns) | n/a — broker prefetch | ✔️ | ✔️ |
+| `BufferedInMemory(limits)` / `UseDurableInbox(limits)` back pressure | ignored (warns) | n/a -- broker prefetch | ✔️ | ✔️ |
 | `ListenerCount(n)` | ✔️ | ✔️ | ✔️ | ✔️ |
 | `ListenWithStrictOrdering()` / `ListenOnlyAtLeader()` | ✔️ (exclusivity only) | ✔️ | ✔️ | ✔️ |
 | `ExclusiveNodeWithParallelism(n)` | ✔️ exclusivity, parallelism ignored (warns) | ✔️ | ✔️ | ✔️ |
@@ -540,13 +540,13 @@ callback. Settings that size or shard that block therefore do nothing on an `Inl
 As of Wolverine 6.30, these combinations are no longer silently accepted:
 
 * `ProcessInline()` together with `PartitionProcessingByGroupId()` throws an
-  `InvalidListenerConfigurationException` at bootstrap. Partitioned processing is a *guarantee* — messages
-  sharing a group id never run concurrently — and an `Inline` endpoint cannot make it, so failing to start
+  `InvalidListenerConfigurationException` at bootstrap. Partitioned processing is a *guarantee* -- messages
+  sharing a group id never run concurrently -- and an `Inline` endpoint cannot make it, so failing to start
   is preferable to quietly not honoring it.
 * `ProcessInline()` together with an explicit parallelism or `BufferingLimits` logs a warning at startup, and
   Wolverine normalizes `MaxDegreeOfParallelism` to 1.
 * `ProcessInline()` on a [local queue](/guide/messaging/transports/local) throws a `NotSupportedException`
-  right where you call it, because a local queue has no transport listener to be inline with — the queue
+  right where you call it, because a local queue has no transport listener to be inline with -- the queue
   itself *is* the local execution block. A local queue that reaches `Inline` through one of the lazily
   resolved configuration points (`LocalQueueFor<T>()`, `IConfigureLocalQueue`) throws an
   `InvalidListenerConfigurationException` at bootstrap instead.
@@ -561,8 +561,8 @@ That normalization also removes an order dependency: `.MaximumParallelMessages(2
 `describe` and `wolverine-diagnostics describe-routing --all` listener tables likewise print `n/a (Inline)` for parallelism
 rather than a number the endpoint never reads.
 
-How many messages an `Inline` listener actually handles at once is up to the transport's own listener — for
-example RabbitMQ's `ConsumerDispatchConcurrency` — plus `ListenerCount()`.
+How many messages an `Inline` listener actually handles at once is up to the transport's own listener -- for
+example RabbitMQ's `ConsumerDispatchConcurrency` -- plus `ListenerCount()`.
 
 ::: warning
 This most often bites with a [partitioned messaging topology](/guide/messaging/partitioning) on RabbitMQ,
@@ -615,7 +615,7 @@ This option does a couple things:
   a single thread
 
 If the endpoint is also using the durable inbox, the node that currently holds the listener is the *only* node
-that recovers that endpoint's dormant inbox messages — the per-database durability agents deliberately leave
+that recovers that endpoint's dormant inbox messages -- the per-database durability agents deliberately leave
 them alone. See [Inbox Recovery Ownership](/guide/messaging/exclusive-node-processing#inbox-recovery-ownership)
 for the details. The same applies to `ListenOnlyAtLeader()`.
 

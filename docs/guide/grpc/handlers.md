@@ -2,8 +2,8 @@
 
 Wolverine's gRPC adapter is deliberately thin: the gRPC service class is a small **shim** that
 forwards to `IMessageBus.InvokeAsync` or `IMessageBus.StreamAsync`, and the handler on the other side
-is an ordinary Wolverine handler. Everything Wolverine already does for messages — handler discovery,
-middleware, codegen, tracing, error mapping — applies unchanged.
+is an ordinary Wolverine handler. Everything Wolverine already does for messages -- handler discovery,
+middleware, codegen, tracing, error mapping -- applies unchanged.
 
 This page explains the shape of that flow, and how a gRPC handler compares to the HTTP and messaging
 handlers you already know.
@@ -32,7 +32,7 @@ Three things are worth calling out:
 2. The **handler** never references gRPC. It takes a request DTO and returns a response (or an
    `IAsyncEnumerable<T>`). The same handler can back an HTTP endpoint or an async message.
 3. **Exceptions travel through an interceptor**, not inside the handler. Throw ordinary .NET
-   exceptions and the interceptor turns them into `RpcException` with the right status code — see
+   exceptions and the interceptor turns them into `RpcException` with the right status code -- see
    [Error Handling](./errors).
 
 ## How gRPC handlers differ from HTTP and messaging handlers
@@ -44,10 +44,10 @@ the response**:
 | Aspect | Messaging handler | HTTP endpoint | gRPC handler |
 |--------|-------------------|---------------|--------------|
 | **Invoked by** | Transport listener (Rabbit, SQS, etc.) or `IMessageBus.InvokeAsync` | ASP.NET Core routing | gRPC service method forwarding to `IMessageBus` |
-| **Primary entry point** | `Handle(T message, …)` on a handler class | Route method on an endpoint class (`[WolverineGet]` etc.) | `Handle(T request, …)` — same shape as messaging |
-| **Discovered as** | Any `Handle`/`Consume` method that takes a non-framework type | Annotated endpoint method | Same as messaging — the gRPC adapter doesn't introduce a separate handler category |
+| **Primary entry point** | `Handle(T message, …)` on a handler class | Route method on an endpoint class (`[WolverineGet]` etc.) | `Handle(T request, …)` -- same shape as messaging |
+| **Discovered as** | Any `Handle`/`Consume` method that takes a non-framework type | Annotated endpoint method | Same as messaging -- the gRPC adapter doesn't introduce a separate handler category |
 | **Transport concerns** | Retries, durable outbox, DLQ | HTTP verbs, content negotiation, `ProblemDetails` | `RpcException`, `grpc-status-details-bin`, HTTP/2 framing |
-| **Streaming** | Not directly — use sagas or outbound messages | Not native — server-sent events or chunked responses | First-class: handler returns `IAsyncEnumerable<T>` |
+| **Streaming** | Not directly -- use sagas or outbound messages | Not native -- server-sent events or chunked responses | First-class: handler returns `IAsyncEnumerable<T>` |
 | **Cancellation** | Token from the listener's shutdown signal | `HttpContext.RequestAborted` | Client's `CallContext.CancellationToken` flows in |
 | **Error conversion** | Retry/DLQ policies | `ProblemDetails` / `ValidationProblemDetails` | AIP-193 `StatusCode` table + optional `google.rpc.Status` details |
 
@@ -65,7 +65,7 @@ itself doesn't know which of the three invoked it.
 - **The transport concerns stay at the edge.** You won't see `RpcException` inside a handler.
 
 ::: tip Throw domain exceptions, not RpcException
-Throw ordinary .NET exceptions from handlers — `ArgumentException`, `KeyNotFoundException`, your
+Throw ordinary .NET exceptions from handlers -- `ArgumentException`, `KeyNotFoundException`, your
 own domain types. The interceptor translates them to the right `StatusCode` automatically.
 Throwing `RpcException` directly from a handler does work (it passes through unchanged), but it
 couples the handler to the gRPC transport and prevents it from being reused over messaging or HTTP.
@@ -161,26 +161,26 @@ public Task<OrderReply> PlaceOrder(PlaceOrderRequest request, CallContext contex
 - `ValidateAsync` returning `Task<Status?>` is also supported when the check is asynchronous.
 - Validate is matched **per request type**: a `Validate(PlaceOrderRequest)` does not fire for
   RPC methods whose first parameter is a different request type on the same service class.
-- Validate is not woven for **bidirectional or client streaming** methods — there is no single
+- Validate is not woven for **bidirectional or client streaming** methods -- there is no single
   request instance in scope before the stream is consumed.
 - Validation runs **before** any `[WolverineBefore]` middleware that is not itself a validate hook.
 
 ::: tip
 For `InvalidArgument` rejections that carry field-level detail, consider returning a
 `google.rpc.BadRequest` via a rich-status provider instead of (or in addition to) the `Validate`
-hook — that way the client can surface per-field errors. See [Error Handling](./errors).
+hook -- that way the client can surface per-field errors. See [Error Handling](./errors).
 :::
 
 ## Middleware and Policies
 
-There are three ways to attach cross-cutting behaviour to Wolverine gRPC chains — choose based on
+There are three ways to attach cross-cutting behaviour to Wolverine gRPC chains -- choose based on
 how targeted or structural the concern is.
 
 ### Inline methods on the service class (per-service)
 
 The lightest-weight option. Add a static `Validate`, `Before`, or `After` method directly to your
 proto-first stub or hand-written service class. Wolverine weaves it into the generated wrapper for
-that one service automatically — no registration required. See [Validate convention](#validate-convention)
+that one service automatically -- no registration required. See [Validate convention](#validate-convention)
 for the full rules and an example.
 
 ### `opts.AddMiddleware<T>()` (gRPC-scoped, all chains)
@@ -202,18 +202,18 @@ builder.Services.AddWolverineGrpc(grpc =>
 
 The middleware class follows the same `Before` / `After` / `Finally` method-name conventions
 as Wolverine's HTTP and messaging middleware. Wolverine weaves the calls into the generated service
-wrapper at startup — no runtime overhead after boot.
+wrapper at startup -- no runtime overhead after boot.
 
 ::: tip
 `opts.Policies.AddMiddleware<T>()` (the global Wolverine path) intentionally does **not** reach
-gRPC chains — its filter is `HandlerChain`-only. Use `grpc.AddMiddleware<T>()` inside
+gRPC chains -- its filter is `HandlerChain`-only. Use `grpc.AddMiddleware<T>()` inside
 `AddWolverineGrpc(...)` for gRPC-targeted middleware.
 :::
 
 ### `opts.AddPolicy<T>()` / `IGrpcChainPolicy` (structural customization)
 
-For changes that go beyond middleware weaving — inspecting service names, overriding idempotency
-styles, or conditionally modifying chain configuration — implement `IGrpcChainPolicy` and register
+For changes that go beyond middleware weaving -- inspecting service names, overriding idempotency
+styles, or conditionally modifying chain configuration -- implement `IGrpcChainPolicy` and register
 it via `AddPolicy`:
 
 ```csharp
@@ -245,7 +245,7 @@ pass as handler and HTTP chain policies.
 
 ## Endpoint metadata and `[Authorize]`
 
-Everything above runs *inside* the generated method — which is the wrong side of the router for
+Everything above runs *inside* the generated method -- which is the wrong side of the router for
 authorization. `AuthorizationMiddleware` decides from the endpoint's own metadata, before the
 method is entered, so a gRPC `Interceptor` or a Wolverine middleware can only re-implement the
 decision, not participate in it: the endpoint carries no policy, a fallback policy cannot back it
@@ -253,7 +253,7 @@ up, and default-deny stops being a router guarantee.
 
 Wolverine generates the type that gets mapped, so an `[Authorize]` on your hand-written service
 class is never seen by the router either. `ConfigureEndpoints` is the seam that reaches the real
-ASP.NET endpoint — the gRPC counterpart to
+ASP.NET endpoint -- the gRPC counterpart to
 [`WolverineHttpOptions.ConfigureEndpoints`](../http/policies):
 
 ```csharp
@@ -275,7 +275,7 @@ builder.Services.AddWolverineGrpc(grpc =>
 
 The lambda takes `IGrpcChain`, which is what the three chain kinds have in common for this purpose:
 an `IChain` for the middleware pipeline, an `IEndpointConventionBuilder` for endpoint metadata, and
-`ServiceType` — the stub, the `[ServiceContract]` interface, or the service class the chain was
+`ServiceType` -- the stub, the `[ServiceContract]` interface, or the service class the chain was
 built from. Per-RPC targeting needs nothing new, because every gRPC endpoint already carries
 `GrpcMethodMetadata`:
 
@@ -296,14 +296,14 @@ the enforcer.
 
 ::: warning
 This reaches the chains Wolverine *generates* a type for. A hand-written service class that
-Wolverine maps directly — one with no `HandWrittenGrpcServiceChain` — has no chain to configure;
+Wolverine maps directly -- one with no `HandWrittenGrpcServiceChain` -- has no chain to configure;
 put conventions on it where you map it.
 :::
 
 ## Observability
 
 The service shim invokes `IMessageBus` on the same `ExecutionContext` as the inbound gRPC request,
-so `Activity.Current` propagates naturally — every Wolverine handler span becomes a child of the
+so `Activity.Current` propagates naturally -- every Wolverine handler span becomes a child of the
 ASP.NET Core hosting span. A single trace covers the full call with no extra wiring. If you already
 export an OpenTelemetry pipeline for Wolverine messaging handlers, it picks up gRPC traffic
 automatically.
@@ -325,7 +325,7 @@ See [Instrumentation and Metrics](/guide/logging) for the full set of Wolverine 
 and semantic conventions.
 
 ::: warning
-Cross-process traceparent propagation depends on real HTTP/2 — it goes through `HttpClient`'s
+Cross-process traceparent propagation depends on real HTTP/2 -- it goes through `HttpClient`'s
 diagnostic handler on the client and ASP.NET Core hosting diagnostics on the server. Integration
 tests based on `Microsoft.AspNetCore.TestHost.TestServer` bypass that layer, so the client's
 TraceId will not reach the server in tests even though it does in production. Use real hosts or

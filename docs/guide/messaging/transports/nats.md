@@ -207,8 +207,8 @@ two outstanding pings allowed. Think twice before switching `SubPendingChannelFu
 then stalls the connection's read loop instead of dropping, so one slow core NATS listener holds up every
 subscription on that connection, and the server eventually disconnects the client as a slow consumer.
 
-Wolverine hands NATS.Net the host's `ILoggerFactory`, so the client's own messages — connection changes, and
-errors the server reports only to the client, such as a permissions violation — appear in the application log
+Wolverine hands NATS.Net the host's `ILoggerFactory`, so the client's own messages -- connection changes, and
+errors the server reports only to the client, such as a permissions violation -- appear in the application log
 under the `NATS.Client` categories. Raise their minimum level there to quiet them, or replace `LoggerFactory` in
 the hook.
 
@@ -281,15 +281,15 @@ opts.UseNats("nats://localhost:4222")
 `MaxDeliver`, `AckWait` and `DeliverPolicy` apply to the consumers of Wolverine's JetStream listeners.
 `MaxDeliver` is also the only limit on a message whose dead-letter copy keeps failing on an Inline or native-ack
 listener: it comes back every five seconds until the consumer has delivered it `MaxDeliver` times, and forever with
-`MaxDeliver = -1` — see "When the dead-letter copy fails" under [Error Handling](#error-handling). The stream
+`MaxDeliver = -1` -- see "When the dead-letter copy fails" under [Error Handling](#error-handling). The stream
 limits in `JetStreamDefaults` (`MaxAge`, `MaxMessages`, `MaxBytes`, `Replicas`) only apply to a stream that
 `resources setup` / `AddResourceSetupOnStartup()` creates because a JetStream endpoint's stream does not exist yet. A stream
-you declare with `DefineStream()` and friends does not inherit them — whatever its declaration leaves unset is
-unlimited — and only `DuplicateWindow` serves as its default.
+you declare with `DefineStream()` and friends does not inherit them -- whatever its declaration leaves unset is
+unlimited -- and only `DuplicateWindow` serves as its default.
 
 ### Consumer Deliver Policy
 
-When Wolverine auto-provisions a JetStream consumer for a listener it leaves the consumer config's `DeliverPolicy` unset, which falls through to NATS's own default of `DeliverPolicy.All` — every message currently in the stream is replayed when the consumer first connects. For new listeners attached to a long-running stream that's usually not what you want.
+When Wolverine auto-provisions a JetStream consumer for a listener it leaves the consumer config's `DeliverPolicy` unset, which falls through to NATS's own default of `DeliverPolicy.All` -- every message currently in the stream is replayed when the consumer first connects. For new listeners attached to a long-running stream that's usually not what you want.
 
 Set a transport-wide default through `JetStreamDefaults.DeliverPolicy` so every auto-provisioned consumer under this transport starts at the same position:
 
@@ -319,7 +319,7 @@ default says. On a work-queue stream you declare yourself, give the listeners
 `DeliverFrom(ConsumerConfigDeliverPolicy.All)` when you set a transport-wide default. The same goes for the stream
 resource setup creates for a JetStream endpoint whose stream is not declared, which gets work-queue retention.
 
-The override only applies to consumers Wolverine itself auto-provisions. If you reference a pre-created consumer by name with `UseJetStream(streamName, consumerName)`, Wolverine keeps that consumer's existing `DeliverPolicy` regardless of `DeliverFrom(...)` — JetStream does not allow changing it on an existing consumer, so pre-creating the consumer with the desired policy via the NATS CLI or `JetStream` API is the right tool there.
+The override only applies to consumers Wolverine itself auto-provisions. If you reference a pre-created consumer by name with `UseJetStream(streamName, consumerName)`, Wolverine keeps that consumer's existing `DeliverPolicy` regardless of `DeliverFrom(...)` -- JetStream does not allow changing it on an existing consumer, so pre-creating the consumer with the desired policy via the NATS CLI or `JetStream` API is the right tool there.
 
 | `ConsumerConfigDeliverPolicy` | Effect |
 |---|---|
@@ -327,7 +327,7 @@ The override only applies to consumers Wolverine itself auto-provisions. If you 
 | `New` | Only deliver messages that arrive **after** the consumer is created. |
 | `Last` | Deliver only the latest message in the stream. |
 | `LastPerSubject` | Deliver the latest message per matching subject filter. |
-| `ByStartSequence` / `ByStartTime` | Start from a specific sequence number or timestamp. Requires pre-creating the consumer outside Wolverine — `OptStartSeq` / `OptStartTime` have no listener-configuration surface. |
+| `ByStartSequence` / `ByStartTime` | Start from a specific sequence number or timestamp. Requires pre-creating the consumer outside Wolverine -- `OptStartSeq` / `OptStartTime` have no listener-configuration surface. |
 
 ### Defining Streams
 
@@ -341,8 +341,8 @@ opts.UseNats("nats://localhost:4222")
 ::: warning Interest retention, not JetStream work-queue retention
 Despite their names, `DefineWorkQueueStream()` and `StreamConfiguration.AsWorkQueue()` set
 `StreamConfigRetention.Interest`. An interest stream keeps a message only while a consumer is interested in it,
-so a message published while no consumer is bound — before the first listener starts, or between two
-deployments — is discarded on arrival. For JetStream's work-queue retention, which keeps every message until a
+so a message published while no consumer is bound -- before the first listener starts, or between two
+deployments -- is discarded on arrival. For JetStream's work-queue retention, which keeps every message until a
 consumer acknowledges it, set the retention explicitly:
 
 ```csharp
@@ -487,20 +487,20 @@ opts.ListenToNatsSubject("webhooks")
 ```
 
 Incoming messages flow through an in-memory (optionally group-partitioned) execution block while the JetStream
-delivery is held **unacknowledged**, and are settled natively — `Ack` on handler success, `Nak` or `AckTerminate`
-on terminal failure — from the completion continuation. JetStream qualifies for this mode because each delivery is
+delivery is held **unacknowledged**, and are settled natively -- `Ack` on handler success, `Nak` or `AckTerminate`
+on terminal failure -- from the completion continuation. JetStream qualifies for this mode because each delivery is
 settled individually against the message's own reply subject, so one delivery can be settled, out of order, from
 whichever worker thread finished it.
 
 The guarantee is the one the mode promises everywhere: **messages sharing a group id never execute concurrently**,
 and nothing is acknowledged until its handler succeeds, so a node that dies mid-flight has every unfinished message
-redelivered. Processing in original stream order is *best effort*, not promised — a failed or redelivered message
+redelivered. Processing in original stream order is *best effort*, not promised -- a failed or redelivered message
 re-enters its lane later, never concurrently. Use `UseDurableInbox()` if you need strict ordering under failure.
 
 ::: warning Core NATS cannot use this mode
 `ProcessInParallelWithNativeAcks()` requires JetStream and is **refused at bootstrap** on a core NATS subject. Core
-NATS delivers a message once and forgets it — there is no unacknowledged delivery to hold and no redelivery when a
-node dies — so the crash-safety story the mode exists for does not exist there. Use `BufferedInMemory()` or
+NATS delivers a message once and forgets it -- there is no unacknowledged delivery to hold and no redelivery when a
+node dies -- so the crash-safety story the mode exists for does not exist there. Use `BufferedInMemory()` or
 `ProcessInline()` on core NATS.
 :::
 
@@ -508,13 +508,13 @@ node dies — so the crash-safety story the mode exists for does not exist there
 
 Unlike RabbitMQ, where an unacknowledged delivery lives until the channel closes, JetStream redelivers anything
 still unacknowledged after the consumer's `AckWait`. Under native acks a message is held unsettled for **lane queue
-time plus handler time**, and lane queue time is unbounded by design — so Wolverine keeps the lease alive by sending
+time plus handler time**, and lane queue time is unbounded by design -- so Wolverine keeps the lease alive by sending
 JetStream's `AckProgress` for every queued-but-unsettled message, every half `AckWait`, for as long as it sits in a
 lane ([GH-4048](https://github.com/JasperFx/wolverine/issues/4048)). You do not configure this; it is what the mode
 requires to be correct on this transport.
 
 Each renewal is sent as a **double ack** (a request the server answers) rather than fire-and-forget, because that
-is the only way a lost lease — a deleted consumer, a dead connection — can be detected at all. If a lease is lost
+is the only way a lost lease -- a deleted consumer, a dead connection -- can be detected at all. If a lease is lost
 before a message starts executing, it is dropped from its lane without being settled, so the server's redelivery is
 the only remaining copy rather than a second one.
 
@@ -537,13 +537,13 @@ opts.ListenToNatsSubject("webhooks")
 
 #### MaxAckPending is the prefetch, and it must cover every lane
 
-`MaxAckPending` — the number of deliveries JetStream will leave unacknowledged before it stops delivering — is this
+`MaxAckPending` -- the number of deliveries JetStream will leave unacknowledged before it stops delivering -- is this
 transport's prefetch equivalent, and in this mode it *is* the back pressure. Wolverine defaults it to **twice the
 number of lanes that can be busy at once**: the `PartitionProcessingByGroupId()` slot count when the endpoint is
 partitioned, otherwise `MaximumParallelMessages()`. Every other endpoint mode leaves the NATS server default of
 1,000 alone.
 
-Sizing it below the lane count makes the consumer **stall itself** — the server stops delivering while lanes sit
+Sizing it below the lane count makes the consumer **stall itself** -- the server stops delivering while lanes sit
 idle waiting for work. Override it only if you know why:
 
 ```csharp
@@ -555,14 +555,14 @@ opts.ListenToNatsSubject("webhooks")
 
 ::: warning Don't call `SendInline()` on a subject you also listen to
 A publisher and a listener for the same subject resolve to the **same** endpoint, and `EndpointMode` is a single
-property on it — so `opts.PublishMessage<T>().ToNatsSubject("x").SendInline()` sets `Mode = Inline` and silently
+property on it -- so `opts.PublishMessage<T>().ToNatsSubject("x").SendInline()` sets `Mode = Inline` and silently
 downgrades a `ProcessInParallelWithNativeAcks()` listener on `"x"` out of native acks. It is also unnecessary: a
 native-ack endpoint already sends through the inline sending agent.
 :::
 
 ::: tip Server-side dedup is a different guarantee
 JetStream's `Nats-Msg-Id` duplicate window (see [JetStream Configuration](#jetstream-configuration)) deduplicates on
-**publish**, at stream ingest. It does not deduplicate *redeliveries* — a redelivered message was already accepted
+**publish**, at stream ingest. It does not deduplicate *redeliveries* -- a redelivered message was already accepted
 into the stream, so the window never sees it again. Native acks are at-least-once by design and produce a burst of
 redeliveries on every rolling deploy, so if you want those suppressed, that is what `WithInMemoryIdempotency()` is
 for, and as of Wolverine 7.0 it is on by default for native-ack listeners. The two are complementary, not alternatives.
@@ -631,8 +631,8 @@ opts.PublishMessage<OrderCreated>()
 
 ### Per-Message (Dynamic) Subjects
 
-`ToNatsSubject("...")` publishes to a single static subject. To compute the subject *per message* — e.g. an
-aggregate-scoped subject like `orders.events.{id}` — use `PublishMessagesToNatsSubject<T>`. This is built on
+`ToNatsSubject("...")` publishes to a single static subject. To compute the subject *per message* -- e.g. an
+aggregate-scoped subject like `orders.events.{id}` -- use `PublishMessagesToNatsSubject<T>`. This is built on
 Wolverine's generic topic routing (`RoutingMode.ByTopic` / `Envelope.TopicName`), the same mechanism the
 RabbitMQ, Kafka, and MQTT transports use, so it also participates in `IMessageBus.BroadcastToTopicAsync`.
 
@@ -657,8 +657,8 @@ For Core NATS, listen on `orders.events.>`. For JetStream, provision the stream 
 too-narrow stream subject silently fails to capture the dynamic subjects.
 :::
 
-For subject shaping that a strongly-typed `Func<T, string>` can't express — for example deriving the subject
-from an envelope header or tenant id — configure an `ISubjectResolver`. It runs after the base/topic subject
+For subject shaping that a strongly-typed `Func<T, string>` can't express -- for example deriving the subject
+from an envelope header or tenant id -- configure an `ISubjectResolver`. It runs after the base/topic subject
 is determined and can rewrite it from any envelope state:
 
 ```csharp
@@ -707,7 +707,7 @@ See [message routing diagnostics](/guide/messaging/subscriptions#diagnostics) fo
 ### Deduplication (JetStream `Nats-Msg-Id`)
 
 Wolverine stamps a `Nats-Msg-Id` on every JetStream publish, so the stream's duplicate window discards
-duplicates server-side — the idempotency key external (non-Wolverine) consumers can rely on, independent of
+duplicates server-side -- the idempotency key external (non-Wolverine) consumers can rely on, independent of
 Wolverine's own durable-inbox dedup on `Envelope.Id`.
 
 By default the id is the Wolverine `Envelope.Id`. Project a domain identity instead with `DeduplicateUsing`
@@ -793,17 +793,17 @@ The transport automatically detects server version at startup.
 
 NATS keeps one schedule per subject: a control message replaces the pending schedule on its subject. It also
 rejects a control message published to its own target subject (`message schedules target is invalid`,
-err 10190). Wolverine therefore publishes every control message to a **schedule subject** of its own — the
+err 10190). Wolverine therefore publishes every control message to a **schedule subject** of its own -- the
 destination subject, a suffix (default `.scheduled`) and the envelope id, e.g.
-`orders.created.scheduled.4f0c…` — while `Nats-Schedule-Target` stays the real destination (`orders.created`).
+`orders.created.scheduled.4f0c…` -- while `Nats-Schedule-Target` stays the real destination (`orders.created`).
 At the due time the server stores the message on the target subject, where the listener's consumer receives it,
 and removes the control message. Until then the schedule lives in the stream, so it survives a restart or crash
 of the sending and the receiving application.
 
 The schedule subjects must be covered by the **same stream** as the target. They have two more tokens than the
 target, so cover them with a `>` wildcard: `orders.>`, or `orders.created.scheduled.>` next to an exact
-`orders.created`. An endpoint whose declared stream does not capture them — such as one declared with the exact
-`orders.created.scheduled` earlier versions needed — logs a warning and uses Wolverine's own scheduling. Override
+`orders.created`. An endpoint whose declared stream does not capture them -- such as one declared with the exact
+`orders.created.scheduled` earlier versions needed -- logs a warning and uses Wolverine's own scheduling. Override
 the suffix per publishing endpoint when needed:
 
 ```csharp
@@ -837,9 +837,9 @@ single subject, but consumers maintained outside the application may not.
 
 ### Fallback Behavior
 
-When native scheduled send is not available — a server older than 2.12, a publishing endpoint without JetStream,
+When native scheduled send is not available -- a server older than 2.12, a publishing endpoint without JetStream,
 a stream that is not declared in the application, lacks `EnableScheduledDelivery()` or uses interest or
-work-queue retention — Wolverine schedules the message itself, persisted in its message store when one is
+work-queue retention -- Wolverine schedules the message itself, persisted in its message store when one is
 configured.
 
 ## Connecting to Multiple NATS Brokers
@@ -888,9 +888,9 @@ and [Multi-Tenancy with Wolverine](/guide/handlers/multi-tenancy) for how Wolver
 
 The NATS transport supports two flavors of tenant isolation:
 
-- **Subject-based** — all tenants share one connection and are separated by a tenant subject prefix
+- **Subject-based** -- all tenants share one connection and are separated by a tenant subject prefix
   (`{tenantId}.{subject}`). This is soft partitioning within a single NATS account.
-- **Connection-based** — a tenant gets its own dedicated NATS connection to a different server or **account**.
+- **Connection-based** -- a tenant gets its own dedicated NATS connection to a different server or **account**.
 
 ::: info NATS accounts are the native tenancy boundary
 In NATS, true multi-tenancy is [Accounts](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/accounts):
@@ -921,8 +921,8 @@ opts.UseNats("nats://localhost:4222")
 ### Per-Tenant Connections
 
 To route a tenant to its own NATS server or account, add it with a configuration action. The action runs when
-the transport connects, against a copy of the transport's configuration as it is then — including settings made
-after `AddTenant()` — so you only override what differs for this tenant: a different URL, or any of the NATS auth
+the transport connects, against a copy of the transport's configuration as it is then -- including settings made
+after `AddTenant()` -- so you only override what differs for this tenant: a different URL, or any of the NATS auth
 mechanisms (token, JWT/NKey, credentials file, client certificate):
 
 ```csharp
@@ -974,8 +974,8 @@ opts.UseNats("nats://shared:4222")
 Both **sending and listening** are tenant-aware. A listener consumes on the shared connection *and* on each
 tenant's dedicated connection: when a message arrives on a tenant connection it is stamped with that tenant's
 id, and its ack/nak/dead-letter is routed back over the same connection. Sending a message tagged with a
-`TenantId` publishes it over that tenant's connection. The streams the tenant's configuration declares — the
-transport's, unless its action changed them — are provisioned on each tenant server as well, as the tenant's own
+`TenantId` publishes it over that tenant's connection. The streams the tenant's configuration declares -- the
+transport's, unless its action changed them -- are provisioned on each tenant server as well, as the tenant's own
 `AutoProvision` and `Provisioning` say.
 
 ### Where the Tenant Id Comes From
@@ -1024,7 +1024,7 @@ opts.UseNats("nats://shared:4222")
 
 A listener uses each tenant's own mapper on that tenant's connection, and the transport's mapper on the shared
 connection. A JetStream listener with a consumer name uses that name on every connection, so tenants that reach
-the same stream in one account with different mappers — or a tenant and the shared connection — share the
+the same stream in one account with different mappers -- or a tenant and the shared connection -- share the
 consumer and overwrite each other's filter: keep such tenants in accounts of their own. `SameSubjectTenantMapper`
 is meant for tenants with a connection of their own; on the shared connection a plain subject names no tenant.
 
@@ -1061,8 +1061,8 @@ The response endpoint always uses Core NATS for low-latency replies, even when t
 When a request goes to a core NATS subject that nothing subscribes to, the NATS server answers it with a
 "no responders" status, and `InvokeAsync()` fails at once with a `WolverineRequestReplyException` instead of
 waiting out its timeout <Badge type="tip" text="6.47" />. To tie that answer to the request, every request
-carries its own reply subject on the wire — the node's reply subject plus a per-request token,
-`wolverine.response.{service}.{node}.{token}` — and the reply listener also subscribes to
+carries its own reply subject on the wire -- the node's reply subject plus a per-request token,
+`wolverine.response.{service}.{node}.{token}` -- and the reply listener also subscribes to
 `wolverine.response.{service}.{node}.>`. A Wolverine responder answers on exactly the reply subject the request
 carried, so it keeps working when its NATS user may only publish responses (`allow_responses`).
 
@@ -1264,13 +1264,13 @@ are still written. Request/reply and the tenant id header need Wolverine's heade
 
 ### JetStream
 
-- **Rejected publishes** <Badge type="tip" text="6.47" />: a JetStream publish the server refuses — the stream is
+- **Rejected publishes** <Badge type="tip" text="6.47" />: a JetStream publish the server refuses -- the stream is
   full under `DiscardPolicy.New`, a `Nats-Expected-Last-Sequence` (or other `Nats-Expected-*`) check fails, the
-  message is larger than the stream allows — fails the send with a `SendRejectedException` carrying the
+  message is larger than the stream allows -- fails the send with a `SendRejectedException` carrying the
   `NatsJSApiException` as its inner exception <Badge type="tip" text="6.49" />. A durable outbox keeps the message and
   applies its sending failure handling instead of deleting it as sent. On an endpoint configured with `SendInline()`
-  and no sending failure policy that takes the exception, the refusal is not retried — no retry can change the
-  server's answer — and `SendAsync()` throws the `SendRejectedException` to the caller rather than logging three
+  and no sending failure policy that takes the exception, the refusal is not retried -- no retry can change the
+  server's answer -- and `SendAsync()` throws the `SendRejectedException` to the caller rather than logging three
   retries and discarding the message. A publish the stream discards as a duplicate `Nats-Msg-Id` is still a
   successful send, because the stream already holds that message.
 - **No PubAck**: a JetStream publish that gets no answer within the request timeout (`ConfigureTimeouts()`,
@@ -1279,22 +1279,22 @@ are still written. Request/reply and the tenant id header need Wolverine's heade
   with it.
 - **Retry**: Message is requeued via `NakAsync()` with optional delay, up to the consumer's maximum delivery
   attempts (`JetStreamDefaults.MaxDeliver`, default 5, or a per-endpoint `MaxDeliveryAttempts` override).
-- **Dead Letter**: When Wolverine's error handling moves a message to the error queue — once its retries are
-  used up, or at once for `MoveToErrorQueue()` — the poison message is first forwarded to the configured
+- **Dead Letter**: When Wolverine's error handling moves a message to the error queue -- once its retries are
+  used up, or at once for `MoveToErrorQueue()` -- the poison message is first forwarded to the configured
   dead-letter subject as a JetStream publish, and only once the stream has confirmed the copy is the original
   terminated on the consumer via `AckTerminateAsync(reason)`, so the server stops redelivering and records why.
   <Badge type="tip" text="6.47" />
   This no longer waits for the consumer's `MaxDeliver` to be used up: Buffered and Inline listeners have
   acknowledged the delivery by then, so a message moved to the error queue earlier used to be dropped. The copy
   carries its own `Nats-Msg-Id` (`{original}.dead-letter`), so a dead-letter subject inside the original's stream
-  does not have it discarded as a duplicate of the original. It drops the original's other `Nats-*` headers —
-  `Nats-Expected-*`, `Nats-TTL`, `Nats-Rollup`, `Nats-Schedule*` — which the server would otherwise apply to the
+  does not have it discarded as a duplicate of the original. It drops the original's other `Nats-*` headers -- 
+  `Nats-Expected-*`, `Nats-TTL`, `Nats-Rollup`, `Nats-Schedule*` -- which the server would otherwise apply to the
   dead-letter stream; the lowercase `nats-stream`, `nats-consumer`, `nats-delivered` and other diagnostics of the
   delivery stay. If **no** dead-letter subject
-  is configured, Wolverine logs a warning and the message is terminated without being retained — configure a
+  is configured, Wolverine logs a warning and the message is terminated without being retained -- configure a
   dead-letter subject to keep poison messages. Messages forwarded to the dead-letter subject carry the
   standard Wolverine diagnostic headers (`exception-type`, `exception-message`, `exception-stack`,
-  `failed-at`, `original-destination`), with the delivery attempt count on the standard `attempts` header —
+  `failed-at`, `original-destination`), with the delivery attempt count on the standard `attempts` header -- 
   see [diagnostic headers on dead letter messages](/tutorials/dead-letter-queues#diagnostic-headers-on-dead-letter-messages).
 - **When the dead-letter copy fails**: no stream captures the dead-letter subject, or the stream refuses the
   copy (full under `DiscardPolicy.New`, larger than it allows). What happens to the original depends on the
@@ -1324,7 +1324,7 @@ The NATS transport health check reports:
 
 - **Unhealthy** while a NATS listener's last start failed, with the endpoint and the reason, until a later start of
   that listener succeeds. A listener that starts with the host fails the host instead, but one the agent framework
-  starts afterwards — an exclusive listener, a shard of a global partitioned topology — can fail on its own, for
+  starts afterwards -- an exclusive listener, a shard of a global partitioned topology -- can fail on its own, for
   example when its stream or its named consumer under `Provisioning(NatsProvisioning.Verify)` is missing. The
   record belongs to the node: when the agent framework gives the listener to another node after the failure, this
   node stays unhealthy until it restarts, so keep this check out of a liveness probe that restarts on it.
@@ -1386,7 +1386,7 @@ so does a consumer's `DeliverPolicy`.
 ::: warning
 `CreateOrUpdate` applies what the configuration says. Lowering `MaxBytes`, `MaxMessages` or `MaxAge` makes the
 server discard messages to fit, and the server refuses changes JetStream does not allow on an existing stream or
-consumer — a different storage type, a change to or from work-queue retention — which then fails the start.
+consumer -- a different storage type, a change to or from work-queue retention -- which then fails the start.
 :::
 
 `Verify` is meant for streams and consumers provisioned outside the application, for example by infrastructure as
@@ -1402,8 +1402,8 @@ change one:
 
 | Command | Declared streams |
 |---|---|
-| `resources setup` / `AddResourceSetupOnStartup()` | Created when missing — also with `AutoProvision` off, since setup is the explicit way to create broker objects — and existing ones handled as `Provisioning()` says; under `Verify` a missing or differing stream fails the setup |
-| `resources check` | Read only. Fails for a missing stream of a JetStream endpoint and, under `CreateOrUpdate` or `Verify`, for one that differs from its declaration — whatever startup would create, change or fail on. It checks the streams the endpoints use on the shared connection, not the tenants' servers |
+| `resources setup` / `AddResourceSetupOnStartup()` | Created when missing -- also with `AutoProvision` off, since setup is the explicit way to create broker objects -- and existing ones handled as `Provisioning()` says; under `Verify` a missing or differing stream fails the setup |
+| `resources check` | Read only. Fails for a missing stream of a JetStream endpoint and, under `CreateOrUpdate` or `Verify`, for one that differs from its declaration -- whatever startup would create, change or fail on. It checks the streams the endpoints use on the shared connection, not the tenants' servers |
 | `resources statistics`, `resources clear`, `resources teardown` | Left alone; they work under any `Provisioning()` setting. `teardown` deletes the named consumers of JetStream listeners |
 
 Resource setup writes the same consumer settings the listener does, whatever the `Provisioning()` setting, so a
@@ -1510,7 +1510,7 @@ replication.
 ::: tip Shard streams use work-queue retention <Badge type="tip" text="6.47" />
 The shard streams `UseShardedNatsSubjects()` declares use JetStream's work-queue retention
 (`StreamConfigRetention.Workqueue`), so a message waits in its shard until it is acknowledged even while no
-node is consuming that shard — at startup, or while the shard moves to another node. Earlier versions declared
+node is consuming that shard -- at startup, or while the shard moves to another node. Earlier versions declared
 them with interest retention, which discards a message that arrives while no consumer is bound. This applies to
 shard streams created from now on: Wolverine leaves an existing stream as it is, and the server refuses to change
 an existing stream to or from work-queue retention, so recreate an old shard stream (once it is drained) to switch

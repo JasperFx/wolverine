@@ -4,7 +4,7 @@
 
 Community-built transports maintained outside this repository:
 
-* [Salesforce Pub/Sub](https://github.com/meyc-v1/wolverinefxcontrib-salesforcepubsub) — listen to
+* [Salesforce Pub/Sub](https://github.com/meyc-v1/wolverinefxcontrib-salesforcepubsub) -- listen to
   Salesforce platform events (topics, custom channels, and managed event subscriptions) as ordinary
   Wolverine messages
 
@@ -27,7 +27,7 @@ The budget is checked *between* attempts. Broker client SDKs do not accept a `Ca
 provisioning calls, so an attempt already in flight is never interrupted and the real worst case is the
 budget plus one client request timeout.
 
-Before 6.31 there was no clock here at all — only the count of twenty attempts. Because a single attempt
+Before 6.31 there was no clock here at all -- only the count of twenty attempts. Because a single attempt
 costs whatever the broker client's own request timeout is (60 seconds for librdkafka, which backs the Kafka
 transport), an unreachable or degraded broker made host startup take **21 minutes and 38 seconds** to fail,
 measured. That is longer than most orchestrator start probes will wait, and it produced a hang rather than

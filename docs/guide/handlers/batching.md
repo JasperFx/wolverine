@@ -204,9 +204,9 @@ timing. This differs by [endpoint mode](/guide/messaging/listeners):
 
 | Endpoint mode | When the member messages are settled | Crash while a batch is accumulating |
 |---|---|---|
-| **Durable** | *After* the batch succeeds — members are held `InBatch` and only marked handled in the message store once the batch message completes | Members are recovered from the inbox and reprocessed — **no loss** |
-| **Inline** | The moment each message is absorbed into the batcher — *before* the batch runs | Accumulated members are already settled and are **lost** |
-| **Buffered** | At receipt — *before* the batch runs | Accumulated members are already settled and are **lost** |
+| **Durable** | *After* the batch succeeds -- members are held `InBatch` and only marked handled in the message store once the batch message completes | Members are recovered from the inbox and reprocessed -- **no loss** |
+| **Inline** | The moment each message is absorbed into the batcher -- *before* the batch runs | Accumulated members are already settled and are **lost** |
+| **Buffered** | At receipt -- *before* the batch runs | Accumulated members are already settled and are **lost** |
 
 In other words, deferred settlement is exactly what makes batching loss-proof, and the durable inbox is the
 *only* mode that provides it. This is a deliberate design choice: holding a broker lease open across an entire
@@ -240,8 +240,8 @@ pick them up rather than leaving them stuck on a live node.
 
 ### The lock window caveat (lock-based transports)
 
-On transports that hand out a time-bounded lock or lease per message — Azure Service Bus peek-lock, Amazon SQS
-visibility timeout, and similar — the **accumulation window plus the batch processing time must fit inside that
+On transports that hand out a time-bounded lock or lease per message -- Azure Service Bus peek-lock, Amazon SQS
+visibility timeout, and similar -- the **accumulation window plus the batch processing time must fit inside that
 lock duration**. Wolverine's broker listeners do not renew these locks for messages that are sitting inside a
 batch waiting to be flushed.
 
@@ -305,12 +305,12 @@ in-process, including cascading messages, never show up there.
 Batched messages honor member-level [message expiration](/guide/messages) the same way unbatched messages do,
 just at two different points in the batching pipeline:
 
-1. **At batch assembly** — any member whose `DeliverBy` elapsed while it waited in the batching channel is shed
+1. **At batch assembly** -- any member whose `DeliverBy` elapsed while it waited in the batching channel is shed
    individually and never becomes part of the batch message. Only the still-live members are handed to the
    batch handler. Each shed member is logged with the same "discarded expired envelope" log event a normal
    expired message gets, and its inbox/back-pressure bookkeeping is settled exactly as if its batch had
    completed.
-2. **At batch execution** — the assembled batch envelope carries the *latest* member expiry as its own
+2. **At batch execution** -- the assembled batch envelope carries the *latest* member expiry as its own
    `DeliverBy` (only when *every* member has one; a single member with no expiration keeps the batch alive
    forever). If the batch then sits on the local execution queue long enough for that latest expiry to pass,
    every member is by definition expired, so the whole batch is discarded without invoking the handler and all
@@ -318,7 +318,7 @@ just at two different points in the batching pipeline:
    over-shed a live member.
 
 Members of one batch may carry different `DeliverBy` values (or none). A member that expires *after* assembly
-but before the batch executes will still be processed if any of its batch-mates are unexpired — per-member
+but before the batch executes will still be processed if any of its batch-mates are unexpired -- per-member
 precision inside an already-built batch message isn't possible generically. If stale members must never reach
 your handler, check each item's staleness in the batch handler itself.
 
@@ -346,11 +346,11 @@ The key selector's lambda parameter must be **explicitly typed** to the batched 
 `(RecalculateScores x) => ...`) so both the message and key type arguments can be inferred.
 :::
 
-`CoalesceBy` is just sugar over the [`IMessageBatcher`](#custom-batching-strategies) seam — it installs a
+`CoalesceBy` is just sugar over the [`IMessageBatcher`](#custom-batching-strategies) seam -- it installs a
 built-in `CoalescingMessageBatcher<T, TKey>` instead of the default batcher. Like the default it first groups
 by tenant id, then de-duplicates within each tenant group.
 
-Crucially, coalescing only changes **what the handler sees** — never what gets acknowledged. Every original
+Crucially, coalescing only changes **what the handler sees** -- never what gets acknowledged. Every original
 member message still rides on the batch, so the transactional inbox/outbox tracking and dead-lettering behave
 exactly as they do for a normal (non-coalesced) batch. If you drop from 1,000 messages to 40 distinct keys,
 the handler runs once over 40 items, but all 1,000 member messages are settled with that batch.
@@ -481,7 +481,7 @@ the batched and unbatched handlers for a group id to be sequenced against each o
 
 When a batched element type also has unbatched handlers and Wolverine could **not** point the batch at a shared
 partitioned topology, it logs a warning at startup naming the message type, the queue the batch landed on, and the fix.
-Two independent writers to one entity is otherwise invisible until it isn't — it surfaces as intermittent concurrency
+Two independent writers to one entity is otherwise invisible until it isn't -- it surfaces as intermittent concurrency
 or stream-version collisions under load, and only in the deployments that lack a partitioned topology.
 
 That asymmetry is the real hazard: a defect can be unreachable in the configuration your tests use and reachable in the
@@ -496,7 +496,7 @@ against nothing else. See [GH-3973](https://github.com/JasperFx/wolverine/issues
 
 ## Batch identity with `IBatchContext`
 
-A batched handler can inject `IBatchContext` to get read-only information about the batch it is processing —
+A batched handler can inject `IBatchContext` to get read-only information about the batch it is processing -- 
 useful for correlating log entries, emitting batch-level metrics, or making per-batch decisions:
 
 ```csharp
@@ -514,7 +514,7 @@ ones that settle with the batch), even though the `items` array the handler sees
 
 ## Isolating poison items with `ApplyItemException`
 
-By default a failed batch is retried and dead-lettered **as a unit** — one poison message takes every other
+By default a failed batch is retried and dead-lettered **as a unit** -- one poison message takes every other
 message in the batch to the dead-letter queue with it. When your batch handler already knows *which* item is
 bad (a validation failure, a specific row a bulk API rejected), it can throw `ApplyItemException` to isolate
 just that item instead. Wolverine dead-letters only the named item(s) and dispositions the survivors, so the
@@ -543,29 +543,29 @@ throw ApplyItemException.DeadLetterAndAckOthers(bad1, bad2);             // DLQ 
 throw ApplyItemException.DeadLetter(poison: bads, ackItems: committed);  // DLQ bads, ack what I committed, replay the remainder
 ```
 
-- **`DeadLetterAndReplayOthers`** — dead-letter the poison item(s), then re-run the batch handler over the
+- **`DeadLetterAndReplayOthers`** -- dead-letter the poison item(s), then re-run the batch handler over the
   remaining items as a fresh, reduced batch. Use it when the handler had not yet committed anything.
-- **`DeadLetterAndAckOthers`** — dead-letter the poison item(s) and acknowledge every other item as-is (no
+- **`DeadLetterAndAckOthers`** -- dead-letter the poison item(s) and acknowledge every other item as-is (no
   re-run). Use it when the handler already committed the good items in the same transaction.
-- **`DeadLetter(poison, ackItems)`** — dead-letter the poison item(s), acknowledge the items you explicitly
+- **`DeadLetter(poison, ackItems)`** -- dead-letter the poison item(s), acknowledge the items you explicitly
   committed, and replay the remainder.
 
-Throwing the exception *is* the opt-in — there is no configuration to enable. The items are matched back to
+Throwing the exception *is* the opt-in -- there is no configuration to enable. The items are matched back to
 their original messages by reference identity, so throw the factory with the actual object(s) handed to your
 handler.
 
 When combined with [`CoalesceBy`](#de-duplicating-a-batch-with-coalesceby), flagging a coalesced item
-poisons **every** original message that collapsed into that key — the handler only sees one message per key,
+poisons **every** original message that collapsed into that key -- the handler only sees one message per key,
 but all the de-duplicated members for a poisoned key are dead-lettered together.
 
-`ApplyItemException` is for failures the handler can *name*. For **opaque** failures — where the handler
-throws but cannot tell which item was the culprit — use the `IsolateBatchMembers()` error policy below.
+`ApplyItemException` is for failures the handler can *name*. For **opaque** failures -- where the handler
+throws but cannot tell which item was the culprit -- use the `IsolateBatchMembers()` error policy below.
 
 ## Isolating an opaque batch failure with `IsolateBatchMembers`
 
 When a batch handler throws an exception it can't attribute to a specific item, you can still avoid
 dead-lettering the whole batch by isolating the failing member. The `IsolateBatchMembers()` error policy,
-keyed on an exception type, re-runs each member of the failed batch as its own size-1 batch — so only the
+keyed on an exception type, re-runs each member of the failed batch as its own size-1 batch -- so only the
 member that actually reproduces the failure is dead-lettered, and every healthy member succeeds:
 
 ```csharp
@@ -578,14 +578,14 @@ opts.Policies.OnException<SqlException>().RetryWithCooldown(100.Milliseconds(), 
 
 Because it is matched by exception type, it composes with the ordinary retry verbs: a transient
 `SqlException` retries the whole batch with a cooldown, while a deterministic `ValidationException` isolates
-the bad member. The isolation is bounded and one-time — a member that has already been reduced to a size-1
+the bad member. The isolation is bounded and one-time -- a member that has already been reduced to a size-1
 batch is simply dead-lettered rather than probed again. On a message type that is **not** batched,
 `IsolateBatchMembers()` behaves like a plain move-to-error-queue (there is nothing to isolate).
 
 ### Probing after N whole-batch failures
 
-When you don't have a specific exception type to key on — the batch just fails and you can't tell whether it's
-transient or a poison item — configure a **count-based** probe directly on the batch. `ProbeIndividuallyAfter(N)`
+When you don't have a specific exception type to key on -- the batch just fails and you can't tell whether it's
+transient or a poison item -- configure a **count-based** probe directly on the batch. `ProbeIndividuallyAfter(N)`
 retries the whole batch `N` times and *only then* falls back to isolating each member individually:
 
 ```csharp
@@ -601,7 +601,7 @@ opts.BatchMessagesOf<Order>(b =>
 ```
 
 This gives transient failures a chance to clear on retry before paying for the per-member probe, and like
-`IsolateBatchMembers` it is bounded and one-time — once reduced to a size-1 batch, a failing member is
+`IsolateBatchMembers` it is bounded and one-time -- once reduced to a size-1 batch, a failing member is
 dead-lettered rather than probed again.
 
 ## Custom Batching Strategies
@@ -699,7 +699,7 @@ public class SubTaskCompletedBatcher : IMessageBatcher
 <!-- endSnippet -->
 
 ::: tip
-`BatchMessageType` is a free-form `Type` — a custom batcher does **not** have to produce `T[]`, and Wolverine
+`BatchMessageType` is a free-form `Type` -- a custom batcher does **not** have to produce `T[]`, and Wolverine
 deliberately leaves an application-supplied `IMessageBatcher` alone so it can assemble whatever shape it likes.
 
 That means tooling cannot infer "how is this element type handled?" from the batch handler's parameter being

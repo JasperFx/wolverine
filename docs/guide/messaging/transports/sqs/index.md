@@ -305,7 +305,7 @@ for the broker. So in the example above, you might see `Uri` values for `emea://
 ## Multi-Tenancy with a Broker per Tenant <Badge type="tip" text="6.17" />
 
 Named brokers (above) are a *static* topology: you pin specific endpoints to a specific broker by name at
-configuration time. **Broker-per-tenant** is different — it is *runtime* routing. You declare one shared queue
+configuration time. **Broker-per-tenant** is different -- it is *runtime* routing. You declare one shared queue
 topology, and each tenant is served by its **own dedicated SQS connection** (a distinct AWS account/credentials,
 region, or `ServiceURL`). Which connection a message goes to (and which connection an inbound message came from) is
 decided at runtime by the message's [tenant id](/guide/handlers/multi-tenancy), typically set through
@@ -362,7 +362,7 @@ await bus.SendAsync(new ColorMessage("blue"), new DeliveryOptions { TenantId = "
 ```
 
 Wolverine wraps the outbound endpoint in a `TenantedSender` that dispatches on `Envelope.TenantId`, and builds a
-compound listener that runs one poller per tenant connection — each inbound envelope is stamped with the tenant id
+compound listener that runs one poller per tenant connection -- each inbound envelope is stamped with the tenant id
 of the connection it was consumed from. This mirrors the
 [RabbitMQ](/guide/messaging/transports/rabbitmq/multi-tenancy) and [Azure Service Bus](/guide/messaging/transports/azureservicebus/multi-tenancy)
 broker-per-tenant support.
@@ -375,25 +375,25 @@ tenant* based on the runtime tenant id. They are independent features and can be
 
 ### How a tenant connection is seeded
 
-Each tenant owns its own child transport — its own `IAmazonSQS` client *and* its own queue-url cache (which is why
+Each tenant owns its own child transport -- its own `IAmazonSQS` client *and* its own queue-url cache (which is why
 tenants can safely share a queue name without their cached `QueueUrl` values colliding). At startup Wolverine seeds
-the tenant's connection from the parent's — AWS credentials, region/`ServiceURL`, `AuthenticationRegion`,
-auto-provisioning, and the dead-letter-queue configuration — and *then* applies your `AddTenant(...)` overrides, so a
+the tenant's connection from the parent's -- AWS credentials, region/`ServiceURL`, `AuthenticationRegion`,
+auto-provisioning, and the dead-letter-queue configuration -- and *then* applies your `AddTenant(...)` overrides, so a
 tenant only re-points the axes it actually sets and inherits everything else.
 
 ### Choosing the unknown-tenant behavior
 
 `TenantIdBehavior(...)` controls what happens when a message has a null or unregistered tenant id:
 
-* `DeadLetterUnknownTenants` (the default since 7.0) — a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
-* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) — route it to the shared/default connection (the one passed to `UseAmazonSqsTransport`).
-* `TenantIdRequired` — throw; every message must carry a known tenant id.
-* `IgnoreUnknownTenants` — silently drop the message.
+* `DeadLetterUnknownTenants` (the default since 7.0) -- a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
+* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) -- route it to the shared/default connection (the one passed to `UseAmazonSqsTransport`).
+* `TenantIdRequired` -- throw; every message must carry a known tenant id.
+* `IgnoreUnknownTenants` -- silently drop the message.
 
 ### Auto-provisioning per connection
 
-When `AutoProvision()` is enabled, Wolverine provisions the shared queue topology — including each queue's dead
-letter queue — on **every** tenant connection, not just the default one, since each is an independent broker. A tenant
+When `AutoProvision()` is enabled, Wolverine provisions the shared queue topology -- including each queue's dead
+letter queue -- on **every** tenant connection, not just the default one, since each is an independent broker. A tenant
 listener's dead-lettered messages are likewise sent to the dead letter queue on that tenant's own connection.
 
 ## Identifier Prefixing for Shared Brokers

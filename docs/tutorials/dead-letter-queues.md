@@ -268,8 +268,8 @@ await store.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync("InvalidPayment
 `IDeadLetters` also exposes `QueryAsync`, `SummarizeAllAsync`, `ReplayAsync`, `DiscardAsync`, and
 `EditAndReplayAsync` (which lets you fix up a message body before replaying it) for more fine-grained control.
 
-`DeadLetterEnvelopeQuery` filters by message type, exception type, exception message, time range, and — as of
-6.22 — the `Replayable` flag. The filter is applied in the database, so `TotalCount` and paging stay coherent
+`DeadLetterEnvelopeQuery` filters by message type, exception type, exception message, time range, and -- as of
+6.22 -- the `Replayable` flag. The filter is applied in the database, so `TotalCount` and paging stay coherent
 for the subset (unlike filtering a page in memory after it comes back):
 
 ```cs
@@ -330,10 +330,10 @@ not quite real time.
 
 ## Diagnostic headers on dead letter messages <Badge type="tip" text="6.21" />
 
-Whenever Wolverine moves a failed message to a *native* dead letter destination — a RabbitMQ dead letter
+Whenever Wolverine moves a failed message to a *native* dead letter destination -- a RabbitMQ dead letter
 queue, a Kafka DLQ topic (or tiered retry topic), the Azure Service Bus `$DeadLetterQueue`, an SQS dead letter
 queue, a Pulsar DLQ or retry-letter topic, a Redis dead letter stream, a GCP Pub/Sub dead letter topic, or a
-NATS dead-letter subject — it stamps one standard set of diagnostic headers on the moved message:
+NATS dead-letter subject -- it stamps one standard set of diagnostic headers on the moved message:
 
 | Header | Description |
 |--------|-------------|

@@ -99,7 +99,7 @@ public static StoreObjects Handle(CrossTenantAudit command)
 }
 ```
 
-All existing method signatures are unchanged — the tenant overloads are purely additive.
+All existing method signatures are unchanged -- the tenant overloads are purely additive.
 
 There's also a specific helper for starting a new event stream as shown below:
 
@@ -151,7 +151,7 @@ Wolverine will pick up on any return type that can be cast to `IEnumerable<IPole
 
 The `tenantId` overloads above are one factory method per op. Every op also implements
 `ITenantedPolecatOp`, so a single extension does the scoping while preserving the concrete return
-type — which means it chains onto the ops that have a fluent surface of their own:
+type -- which means it chains onto the ops that have a fluent surface of their own:
 
 ```csharp
 PolecatOps.ArchiveStream(command.OrderId).ForTenant(command.TenantId);
@@ -174,7 +174,7 @@ public static IEnumerable<IPolecatOp> Handle(PurgeAccount command)
 }
 ```
 
-`HardDelete<T>()` takes a document or an id — `string`, `Guid`, `int` or `long`. Polecat has no
+`HardDelete<T>()` takes a document or an id -- `string`, `Guid`, `int` or `long`. Polecat has no
 `object`-typed `HardDelete` overload to fall back on, so an id of any other type is rejected by the
 factory with an `ArgumentOutOfRangeException` rather than surfacing inside `SaveChangesAsync()` long
 after your handler returned a side effect that looked valid.
@@ -220,7 +220,7 @@ public static IEnumerable<IPolecatOp> Handle(CloseAccount command)
 }
 ```
 
-Both take a `Guid` stream id or a `string` stream key, and both refuse an empty identity — the
+Both take a `Guid` stream id or a `string` stream key, and both refuse an empty identity -- the
 Guid/string discrimination is on `Guid.Empty`, the same sentinel `StartStream<T>` uses, so an empty
 id would otherwise silently take the string branch and archive nothing.
 
@@ -234,7 +234,7 @@ PolecatOps.TombstoneStream(command.StreamId);
 
 ::: tip
 Polecat has no `InsertObjects` / `DeleteObjects`, no `TryUpdateRevision`, no patching API, and no
-placeholder overload of `QueueSqlCommand`, so there is no `PolecatOps` factory for any of those —
+placeholder overload of `QueueSqlCommand`, so there is no `PolecatOps` factory for any of those -- 
 the ops here are checked against Polecat's own session API rather than copied across from
 [the Marten set](../marten/operations).
 :::

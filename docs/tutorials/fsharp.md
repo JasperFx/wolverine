@@ -1,7 +1,7 @@
 # Using Wolverine with F#
 
 Wolverine works with F#, not just C#. You can author message handlers as F# functions/methods, use the
-EF Core, Marten, CosmosDB, and FluentValidation integrations, and — the focus of this tutorial — ship an
+EF Core, Marten, CosmosDB, and FluentValidation integrations, and -- the focus of this tutorial -- ship an
 F# application that runs entirely on **pre-generated F# code** with no runtime code generation.
 
 ::: tip
@@ -18,16 +18,16 @@ message off the envelope, resolves dependencies, runs your handler, applies midd
 validation, the outbox, OpenTelemetry tagging, cascading messages…), and saves changes. By default that
 adapter is generated and compiled **at startup** with Roslyn (`TypeLoadMode.Dynamic`). Wolverine can also
 emit that adapter as **F#** and load it from your already-compiled assembly at runtime
-(`TypeLoadMode.Static`) — so an F# app can ship with zero runtime compilation.
+(`TypeLoadMode.Static`) -- so an F# app can ship with zero runtime compilation.
 
 There are therefore two ways to run an F# Wolverine app:
 
-1. **Dynamic code generation** — quickest to get going; needs the Roslyn runtime compiler.
-2. **Pre-generated (static) code** — commit the generated F# and load it under `TypeLoadMode.Static`.
+1. **Dynamic code generation** -- quickest to get going; needs the Roslyn runtime compiler.
+2. **Pre-generated (static) code** -- commit the generated F# and load it under `TypeLoadMode.Static`.
 
 ## Writing a handler in F#
 
-A handler is just a type with a `Handle`/`Consume` method. Here is an EF Core transactional handler — it
+A handler is just a type with a `Handle`/`Consume` method. Here is an EF Core transactional handler -- it
 takes the command and an injected `DbContext`, writes an entity, and returns an event that Wolverine
 cascades as an outgoing message:
 
@@ -84,7 +84,7 @@ To run via **dynamic** code generation, reference the `WolverineFx.RuntimeCompil
 `opts.UseRuntimeCompilation()` as shown above. Apps that run on pre-generated code (below) do not need it.
 :::
 
-## What Wolverine generates — as F#
+## What Wolverine generates -- as F#
 
 Take this minimal F# handler:
 
@@ -137,7 +137,7 @@ dotnet run -- codegen write --language fsharp
 ```
 
 This emits one `.fs` file per generated type into your code-generation output directory
-(`Internal/Generated/…` by default) — the handler adapters plus Wolverine's static
+(`Internal/Generated/…` by default) -- the handler adapters plus Wolverine's static
 `GeneratedHandlerRegistry`. Because F# requires explicit, ordered compilation, add the generated files
 to your `.fsproj` `<Compile>` list (the registry and adapters depend on your handler/message types, so
 list them after those):
@@ -162,7 +162,7 @@ To ship an F# app that runs on pre-generated code rather than compiling at start
    application, compiled into the app assembly. The generated type names are deterministic for a given
    handler graph.
 2. Boot the host in `TypeLoadMode.Static` and point Wolverine's `ApplicationAssembly` at the assembly that
-   contains the pre-generated F# — Wolverine then loads each handler adapter **by name** out of that
+   contains the pre-generated F# -- Wolverine then loads each handler adapter **by name** out of that
    assembly's exported types, with no Roslyn at runtime:
 
 <!-- snippet: sample_fsharp_static_host -->
@@ -196,7 +196,7 @@ await bus.InvokeAsync(new BehaviouralPing(42), TestContext.Current.CancellationT
 ::: tip
 Setting `opts.ApplicationAssembly` cascades to `opts.CodeGeneration.ApplicationAssembly` and pins the
 assembly Wolverine scans for pre-built types. If the committed F# drifts from the configured handler graph
-the generated type name won't match and the host throws `ExpectedTypeMissingException` at startup — a loud,
+the generated type name won't match and the host throws `ExpectedTypeMissingException` at startup -- a loud,
 useful signal to regenerate.
 :::
 
@@ -241,7 +241,7 @@ type IncrementHandler =
 ::: warning F# aggregates: override `Evolve`
 Marten's convention-based aggregation (`Create`/`Apply` methods) is dispatched by the **C#-only**
 `JasperFx.Events` source generator, which does not run for F# assemblies. For an F# aggregate, override
-`Evolve` directly — an explicit per-event fold — instead of using convention methods:
+`Evolve` directly -- an explicit per-event fold -- instead of using convention methods:
 :::
 
 <!-- snippet: sample_fsharp_aggregate_projection -->
@@ -301,5 +301,5 @@ type CreateThingHandler =
 - **Entities & documents**: use `[<CLIMutable>]` records so the persistence tooling can construct/populate them.
 - **Marten aggregates**: override `Evolve` rather than using convention `Create`/`Apply` (the source
   generator is C#-only).
-- **FluentValidation**: F# auto-quotes `RuleFor` lambdas to expression trees — no special handling needed.
+- **FluentValidation**: F# auto-quotes `RuleFor` lambdas to expression trees -- no special handling needed.
 - **Static loading**: set `opts.ApplicationAssembly` to the assembly carrying the committed F# adapters.

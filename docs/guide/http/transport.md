@@ -12,7 +12,7 @@ between applications. This is particularly useful when:
 ::: tip
 The HTTP transport is a full Wolverine messaging transport. All of Wolverine's messaging capabilities are supported,
 including error handling policies, retry logic, circuit breaking, Open Telemetry tracing, and even **durable message
-persistence** through the transactional outbox. Messages are not simply fire-and-forget HTTP calls — they go through
+persistence** through the transactional outbox. Messages are not simply fire-and-forget HTTP calls -- they go through
 the same pipeline as any other Wolverine transport.
 :::
 
@@ -65,7 +65,7 @@ prefer `https` for anything crossing a trust boundary.
 ## Security and Authentication
 
 Since the HTTP transport uses standard ASP.NET Core Minimal API endpoints, you can use **all of ASP.NET Core's
-built-in security features** — the same authentication and authorization middleware you already know.
+built-in security features** -- the same authentication and authorization middleware you already know.
 
 ### Securing the Receiver (Listener)
 
@@ -189,12 +189,12 @@ var quote = await bus.InvokeAsync<PriceQuote>(new PriceQuoteRequest("SKU-123"));
 This is materially cheaper than request/reply over a brokered transport (Rabbit MQ, SQS, Azure Service
 Bus): because HTTP already provides a response slot, there is
 
-- **no `ReplyListener` and no listener loop on the sender** — the reply is the HTTP response, not a
+- **no `ReplyListener` and no listener loop on the sender** -- the reply is the HTTP response, not a
   separate correlated message, so the sender does not need to run a listening endpoint just to receive
   its own replies;
 - **no cross-loop `TaskCompletionSource`** allocated per call.
 
-The optimization is **structural and automatic** — there is no opt-in flag. Any `InvokeAsync<T>` routed
+The optimization is **structural and automatic** -- there is no opt-in flag. Any `InvokeAsync<T>` routed
 to an HTTP endpoint takes this path; the decision is baked into the route when it is compiled, so there
 is no per-message branching. Fire-and-forget sends (`PublishAsync` / `SendAsync`) continue to use the
 batched/inline send path described above.
@@ -202,7 +202,7 @@ batched/inline send path described above.
 ### Failure semantics
 
 If the receiver's handler throws, the receiver responds with HTTP 500 and an envelope-shaped error
-body, and the sender re-throws a `WolverineRequestReplyException` — exactly the same caller-visible
+body, and the sender re-throws a `WolverineRequestReplyException` -- exactly the same caller-visible
 behavior as brokered request/reply:
 
 ```cs
@@ -253,7 +253,7 @@ opts.PublishAllMessages().ToHttpEndpoint(url)
 
 The HTTP transport participates in Wolverine's Open Telemetry tracing. Sent and received messages
 are tracked as spans, and correlation IDs are propagated across service boundaries just like with
-any other Wolverine transport. No additional configuration is needed — if you have Open Telemetry
+any other Wolverine transport. No additional configuration is needed -- if you have Open Telemetry
 configured in your application, HTTP transport messages will appear in your traces automatically.
 
 ## Complete Example
@@ -334,7 +334,7 @@ public record PlaceOrder(Guid OrderId, string CustomerId, decimal Total);
 
 ::: tip
 If you're coming from NServiceBus or Rebus, you may know this pattern as a "WAN Gateway" or "HTTP Gateway."
-Wolverine's HTTP transport covers the same use case — durable, reliable messaging across sites separated
+Wolverine's HTTP transport covers the same use case -- durable, reliable messaging across sites separated
 by firewalls, WANs, or network boundaries where a shared message broker isn't available.
 :::
 
@@ -342,8 +342,8 @@ by firewalls, WANs, or network boundaries where a shared message broker isn't av
 
 In many enterprise environments, you have services deployed across different sites, data centers, or
 cloud regions that cannot share a single message broker. Firewalls may only allow HTTP/HTTPS traffic
-between sites. You still want the benefits of asynchronous messaging — decoupled services, retry
-policies, guaranteed delivery — but without requiring every site to connect to the same RabbitMQ
+between sites. You still want the benefits of asynchronous messaging -- decoupled services, retry
+policies, guaranteed delivery -- but without requiring every site to connect to the same RabbitMQ
 cluster or Kafka instance.
 
 Other frameworks solve this with a dedicated gateway component:
@@ -353,7 +353,7 @@ Other frameworks solve this with a dedicated gateway component:
 - **Rebus HTTP Gateway** bridges REST endpoints and messaging for external integration
 
 Wolverine takes a simpler approach: the HTTP transport **is** the gateway. There's no separate
-component to deploy or configure — you use the same `ToHttpEndpoint()` API shown above, and all of
+component to deploy or configure -- you use the same `ToHttpEndpoint()` API shown above, and all of
 Wolverine's messaging infrastructure works automatically.
 
 ### How Wolverine Covers the WAN Gateway Pattern
@@ -367,7 +367,7 @@ Wolverine's messaging infrastructure works automatically.
 | **Authentication** | Custom HTTP headers | Standard ASP.NET Core authentication and authorization middleware |
 | **Serialization** | Gateway-specific binary | Wolverine binary format or [CloudEvents](https://cloudevents.io/) JSON for interoperability |
 | **Observability** | NServiceBus metrics | Full Open Telemetry tracing and metrics |
-| **Deployment** | Separate gateway process per site | No separate process — endpoints are hosted in your existing ASP.NET Core application |
+| **Deployment** | Separate gateway process per site | No separate process -- endpoints are hosted in your existing ASP.NET Core application |
 | **Batching** | Single messages | Configurable batch sending for throughput |
 
 ### Setting Up Cross-Site Messaging
@@ -384,7 +384,7 @@ site over HTTPS:
 └─────────────────┘                        └─────────────────┘
 ```
 
-**Site A (Sender)** — uses the durable outbox to guarantee delivery:
+**Site A (Sender)** -- uses the durable outbox to guarantee delivery:
 
 ```cs
 builder.UseWolverine(opts =>
@@ -397,7 +397,7 @@ builder.UseWolverine(opts =>
 });
 ```
 
-**Site B (Receiver)** — exposes the transport endpoints with authentication:
+**Site B (Receiver)** -- exposes the transport endpoints with authentication:
 
 ```cs
 app.MapWolverineHttpTransportEndpoints()
@@ -455,6 +455,6 @@ opts.PublishAllMessages()
 ```
 
 The receiver can be any HTTP endpoint that accepts
-[CloudEvents](https://cloudevents.io/) JSON — a .NET Minimal API, a Java service, a Go application,
+[CloudEvents](https://cloudevents.io/) JSON -- a .NET Minimal API, a Java service, a Go application,
 or anything else that speaks HTTP. See the [interoperability tutorial](/tutorials/interop) for more
 details on messaging with non-Wolverine systems.

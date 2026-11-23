@@ -4,7 +4,7 @@
 
 ## Naming Convention
 
-Wolverine detects FIFO queues by the `.fifo` suffix on the queue name — this follows the AWS naming requirement. Simply use a queue name ending in `.fifo` when configuring your endpoints:
+Wolverine detects FIFO queues by the `.fifo` suffix on the queue name -- this follows the AWS naming requirement. Simply use a queue name ending in `.fifo` when configuring your endpoints:
 
 ```cs
 using var host = await Host.CreateDefaultBuilder()
@@ -35,7 +35,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 ## Message Group Id and Deduplication Id
 
-SQS FIFO queues use a **Message Group Id** to determine ordering — messages within the same group are delivered in order. Optionally, a **Message Deduplication Id** prevents duplicate delivery within a 5-minute window.
+SQS FIFO queues use a **Message Group Id** to determine ordering -- messages within the same group are delivered in order. Optionally, a **Message Deduplication Id** prevents duplicate delivery within a 5-minute window.
 
 When Wolverine sends messages to a FIFO queue, it automatically maps:
 
@@ -56,7 +56,7 @@ If you enable `ContentBasedDeduplication` on the queue (as shown above), you can
 
 ## Scheduled Messages and FIFO Queues
 
-SQS does not allow per-message delays (`DelaySeconds`) on FIFO queues — only a queue-level delay
+SQS does not allow per-message delays (`DelaySeconds`) on FIFO queues -- only a queue-level delay
 that applies to every message. For that reason, Wolverine never uses native SQS delays for
 scheduled sends to a FIFO queue and always falls back to its own message scheduling instead. See
 [Scheduled Delivery](/guide/messaging/transports/sqs/scheduled) for the details.
@@ -80,12 +80,12 @@ opts.ListenToSqsQueue("orders.fifo", queue =>
 ## FIFO Queues and Endpoint Modes
 
 A FIFO queue can be listened to with `BufferedInMemory` (the default), `UseDurableInbox()` or
-`ProcessInline()`. Only `ProcessInline()` actually preserves the ordering the queue guarantees —
+`ProcessInline()`. Only `ProcessInline()` actually preserves the ordering the queue guarantees -- 
 the other two hand messages to Wolverine's local execution block, which runs them in parallel.
 
 `ProcessInParallelWithNativeAcks()` is **refused at bootstrap** on a `.fifo` queue, rather than
 silently voiding the guarantee you are paying for. Native-ack lanes do not preserve delivery
-order, and partitioning by group id does not rescue it — SQS blocks a message group behind its
+order, and partitioning by group id does not rescue it -- SQS blocks a message group behind its
 own in-flight head, so under that mode every group would be stalled at the broker for as long as
 unrelated messages sat ahead of it in a Wolverine lane. See
 [Native Ack Processing](/guide/messaging/transports/sqs/listening#fifo-queues-do-not-support-native-acks)
@@ -101,4 +101,4 @@ messages. Like any new message, the copy goes to the back of its message group.
 
 ## Partitioned Publishing with FIFO Queues
 
-For high-throughput scenarios where you need ordered processing *per group* but want parallelism *across groups*, consider using Wolverine's [partitioned sequential messaging](/guide/messaging/partitioning) with sharded SQS FIFO queues. This distributes messages across multiple queues based on their group id, giving you the best of both worlds — strict ordering within a group and horizontal scaling across groups.
+For high-throughput scenarios where you need ordered processing *per group* but want parallelism *across groups*, consider using Wolverine's [partitioned sequential messaging](/guide/messaging/partitioning) with sharded SQS FIFO queues. This distributes messages across multiple queues based on their group id, giving you the best of both worlds -- strict ordering within a group and horizontal scaling across groups.

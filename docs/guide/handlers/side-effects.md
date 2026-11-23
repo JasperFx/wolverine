@@ -264,7 +264,7 @@ actions to your underlying persistence tooling.
 ## Event Side Effects <Badge type="tip" text="6.28" />
 
 `Storage.Store()` and friends write *documents*. Their counterparts for an *event stream* are
-`Storage.StartStream()` and `Storage.AppendEvents()`, and they work the same way — return one from a
+`Storage.StartStream()` and `Storage.AppendEvents()`, and they work the same way -- return one from a
 handler or HTTP endpoint and Wolverine relays it to your event store:
 
 ```cs
@@ -279,8 +279,8 @@ public static class InvoiceHandler
 }
 ```
 
-That handler is a pure function of its input, trivially unit testable without a database, and — the
-actual point — **valid against Marten, Polecat, or Fisher without changing a line**. The work is
+That handler is a pure function of its input, trivially unit testable without a database, and -- the
+actual point -- **valid against Marten, Polecat, or Fisher without changing a line**. The work is
 expressed entirely in terms of `JasperFx.Events.IEventOperations`, the shared write-side event API all
 three implement, and each store's `IntegrateWithWolverine()` registers the variable source that hands
 Wolverine the right `IEventOperations` for the active session.
@@ -344,7 +344,7 @@ message is already handled in.
 ### Ancillary Stores
 
 Returning one of these from a handler marked with `[Storage(typeof(IMyStore))]` appends to that
-*ancillary* store rather than the application's primary one — no extra configuration. The attribute
+*ancillary* store rather than the application's primary one -- no extra configuration. The attribute
 swaps the session the chain resolves, and these side effects follow it.
 
 ```cs
@@ -354,7 +354,7 @@ public static AppendEvents Handle(ApproveInvoice command)
 ```
 
 ::: tip
-Appending through the event store only *queues* the work into that store's unit of work — something
+Appending through the event store only *queues* the work into that store's unit of work -- something
 still has to commit it. Wolverine enrolls the chain in the event store's transaction for you when it
 sees one of these return values, so the events commit together with any outgoing messages through the
 outbox. You do not need `[Transactional]` or `AutoApplyTransactions()` for this to work.

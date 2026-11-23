@@ -143,14 +143,14 @@ listener, otherwise recovered messages would be handed to a node that is not lis
 `ExclusiveNodeWithParallelism()`, `ListenWithStrictOrdering()`, or `ListenOnlyAtLeader()`:
 
 * The per-database **durability agents never claim** those endpoints' inbox messages. They keep doing
-  everything else for them — releasing a dead node's ownership back to the cluster, bumping stale inbox rows,
-  expiring messages — they just stop claiming.
+  everything else for them -- releasing a dead node's ownership back to the cluster, bumping stale inbox rows,
+  expiring messages -- they just stop claiming.
 * The **node currently hosting the listener** recovers them itself, starting as soon as the listener reaches
   `Accepting` and then polling on the `Durability.ScheduledJobPollingTime` cadence for as long as it stays
   `Accepting`. The poll matters: a dead node's messages are released back to `owner_id = 0` later, on whichever
   node holds that database's durability agent, which is usually *after* the exclusive listener has restarted
   somewhere else.
-* The sweep covers **every database that can hold inbox rows for the listener** — the main store, every tenant
+* The sweep covers **every database that can hold inbox rows for the listener** -- the main store, every tenant
   database when you use a separate database per tenant (including tenant databases added at runtime), and any
   ancillary stores.
 * A listener that is latched, paused, or already at its `BufferingLimits` recovers nothing, exactly like the

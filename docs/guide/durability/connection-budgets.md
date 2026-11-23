@@ -1,7 +1,7 @@
 # Connection Budgets
 
 ::: tip
-Introduced in Wolverine 6.19. This is a measurement feature — Wolverine reports connection pressure,
+Introduced in Wolverine 6.19. This is a measurement feature -- Wolverine reports connection pressure,
 it does not yet react to it.
 :::
 
@@ -22,7 +22,7 @@ A *connection budget* makes that pressure visible. Wolverine reports, per databa
 ## Turning it on
 
 The budget machinery is on automatically when your message stores span statically-known multiple
-databases — Marten's `MultiTenantedWithShardedDatabases`, the many-databases-per-server shape the
+databases -- Marten's `MultiTenantedWithShardedDatabases`, the many-databases-per-server shape the
 feature exists for. It is off for a single database, where a per-server number tells you nothing a
 per-database number doesn't.
 
@@ -41,7 +41,7 @@ using var host = await Host.CreateDefaultBuilder()
 Budgets are declared per server because one deployment routinely spans servers with different
 limits. The port is part of the key, so two clusters co-hosted on one host stay distinct.
 
-For SQL Server, pass the `Data Source` verbatim — it already carries the port or named instance:
+For SQL Server, pass the `Data Source` verbatim -- it already carries the port or named instance:
 
 ```csharp
 opts.Durability.ConnectionBudgets.ForServer("sql-1,1433", maxConnections: 500);
@@ -54,7 +54,7 @@ the automatic rule.
 
 Wolverine deliberately does **not** treat the server's own `max_connections` as your budget.
 
-If there is any pooler in front of the database — pgBouncer being the usual one — the server's limit
+If there is any pooler in front of the database -- pgBouncer being the usual one -- the server's limit
 describes how many connections *the pooler* may open, which is not remotely the same question as how
 many your application is entitled to take. Charting utilization against it would be reassuring and
 wrong.
@@ -63,7 +63,7 @@ So the budget is something you declare, and the probe supplies only the `used` s
 haven't declared one, Wolverine falls back to reading the server's limit
 (`max_connections` / `@@MAX_CONNECTIONS`) and labels the reading as *probed* so you can tell a
 declared budget from a guessed one. If even that can't be read, the budget is reported as *unknown*
-— the used count is still published, but no utilization is computed.
+ -- the used count is still published, but no utilization is computed.
 
 ## What the numbers actually mean in your topology
 
@@ -73,8 +73,8 @@ Read this before you alert on the number.
 
 **The used count is server-wide and includes other applications.** It comes from
 `sum(numbackends)` on PostgreSQL and `count(*) from sys.dm_exec_connections` on SQL Server. That is
-the point — the connections are a shared resource and the contention is real regardless of who is
-causing it — but do not read the number as "connections Wolverine is using."
+the point -- the connections are a shared resource and the contention is real regardless of who is
+causing it -- but do not read the number as "connections Wolverine is using."
 
 **Behind a transaction-pooling pgBouncer, the used count is not your client connections.** It counts
 pgBouncer's backend connections to Postgres, which is exactly what you want to watch (that is the
@@ -148,8 +148,8 @@ The whole feature is silent when `Durability.DurabilityMetricsEnabled` is `false
 ## Reacting to pressure
 
 Not yet. Today Wolverine measures and reports; it does not throttle itself when the budget gets
-tight. Adaptive back-off — scaling daemon polling and concurrency down under pressure, with
-hysteresis so a single threshold doesn't flap — is planned as a follow-up and will be opt-in. See
+tight. Adaptive back-off -- scaling daemon polling and concurrency down under pressure, with
+hysteresis so a single threshold doesn't flap -- is planned as a follow-up and will be opt-in. See
 [GH-3397](https://github.com/JasperFx/wolverine/issues/3397).
 
 ## Node roles and connection pools

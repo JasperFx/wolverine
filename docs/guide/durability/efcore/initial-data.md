@@ -2,7 +2,7 @@
 
 `Weasel.EntityFrameworkCore.IInitialData<TContext>` is the declarative seed-data hook that runs every time a `DbContext` is reset via `DatabaseCleaner<T>.ResetAllDataAsync()` or Wolverine's [`host.ResetAllDataAsync<T>()`](./index#resetting-data-between-tests). It's the recommended way to keep integration tests and local dev loops seeded with a known baseline without hand-rolling setup code per test.
 
-See the [Weasel docs on `IInitialData`](https://weasel.jasperfx.net/efcore/database-cleaner.html#iinitialdata) for the authoritative reference — this page is a Wolverine-focused overview of how to use it well.
+See the [Weasel docs on `IInitialData`](https://weasel.jasperfx.net/efcore/database-cleaner.html#iinitialdata) for the authoritative reference -- this page is a Wolverine-focused overview of how to use it well.
 
 ## Class-based seeders
 
@@ -74,7 +74,7 @@ So the contract of a seeder is: **after me, the database contains whatever I jus
 
 ## Idempotency
 
-Seeders are expected to be idempotent across resets — the cleaner always deletes first, so you can use fixed primary keys without collision concerns:
+Seeders are expected to be idempotent across resets -- the cleaner always deletes first, so you can use fixed primary keys without collision concerns:
 
 ```csharp
 public async Task Populate(ItemsDbContext context, CancellationToken cancellation)
@@ -92,5 +92,5 @@ This makes assertions trivial: look up the known Id, no need to keep a reference
 
 ## When not to use `IInitialData`
 
-- **Production bootstrap data** — `IInitialData` runs on *reset*, not on every app start. For data that should exist on first deploy, use EF Core's [`UseSeeding`](https://learn.microsoft.com/ef/core/modeling/data-seeding) or an explicit setup command.
-- **Per-test unique fixtures** — if each test needs fundamentally different baseline data, keep that inside the test (Arrange) rather than baking it into shared seeders. `IInitialData` is for the *common floor* across your suite.
+- **Production bootstrap data** -- `IInitialData` runs on *reset*, not on every app start. For data that should exist on first deploy, use EF Core's [`UseSeeding`](https://learn.microsoft.com/ef/core/modeling/data-seeding) or an explicit setup command.
+- **Per-test unique fixtures** -- if each test needs fundamentally different baseline data, keep that inside the test (Arrange) rather than baking it into shared seeders. `IInitialData` is for the *common floor* across your suite.

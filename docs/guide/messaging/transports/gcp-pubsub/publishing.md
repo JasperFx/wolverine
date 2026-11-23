@@ -60,7 +60,7 @@ ordering keys whether or not they ask for them explicitly.
 
 ### From a per-topic function
 
-Sometimes the value you want to order on is not the group id — a tenant id, a header, or something derived
+Sometimes the value you want to order on is not the group id -- a tenant id, a header, or something derived
 from the message itself. `OrderMessagesBy()` is the per-topic escape hatch for exactly that, and it does not
 require replacing the endpoint's envelope mapper:
 
@@ -83,7 +83,7 @@ The function is evaluated on every publish through that topic, and returning `nu
 message without an ordering key.
 
 Note that this is a **publishing** concern, so it lives on the subscriber (`ToPubsubTopic()`) configuration
-only — there is deliberately no equivalent on `ListenToPubsubTopic()`. Whether a *consumer* enforces ordering
+only -- there is deliberately no equivalent on `ListenToPubsubTopic()`. Whether a *consumer* enforces ordering
 keys is decided by `EnableMessageOrdering` on the subscription instead, which is reached through
 `ConfigurePubsubSubscription()`.
 
@@ -91,7 +91,7 @@ keys is decided by `EnableMessageOrdering` on the subscription instead, which is
 Ordering keys are not free. If the receiving **subscription** has `EnableMessageOrdering` turned on, Pub/Sub
 will not dispatch a second message for an ordering key while an earlier one is still outstanding. The
 consumer's effective concurrency therefore drops to the number of *distinct* ordering keys in flight, no
-matter how `MaxOutstandingMessages` is sized — a listener sized for 100 outstanding messages whose traffic is
+matter how `MaxOutstandingMessages` is sized -- a listener sized for 100 outstanding messages whose traffic is
 concentrated on 3 keys will process 3 at a time. This holds however the key was set, including by
 `OrderMessagesBy()`, and it is the usual explanation for a Pub/Sub listener running far below the concurrency
 it was configured for. See [Listening](/guide/messaging/transports/gcp-pubsub/listening) for the details.

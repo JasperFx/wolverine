@@ -11,7 +11,7 @@ dotnet add package WolverineFx.Redis
 ```
 
 ::: tip
-Since 6.32 the same package can also keep **entities and saga state** in Redis — a different feature
+Since 6.32 the same package can also keep **entities and saga state** in Redis -- a different feature
 solving a different problem, with a durability caveat worth reading before you reach for it. See
 [Redis Persistence](/guide/durability/redis). The two halves share nothing but the package and a
 `StackExchange.Redis` dependency; use either, or both.
@@ -190,7 +190,7 @@ opts.UseRedisTransport(configuration);
 
 ::: tip
 When you pass an `IConnectionMultiplexer` (option 3) or a factory that resolves one (option 4), Wolverine uses
-it as-is and does **not** dispose it on shutdown — the multiplexer (and any token-refresh background work wired
+it as-is and does **not** dispose it on shutdown -- the multiplexer (and any token-refresh background work wired
 into it) is owned by your application / IoC container. With the connection-string and `ConfigurationOptions`
 overloads Wolverine owns the multiplexer it builds and disposes it for you.
 :::
@@ -337,10 +337,10 @@ Outbound sends are routed by tenant id through the framework's `TenantedSender`;
 listener per tenant connection and stamps each received envelope with its tenant id. `ConfigureMultiTenancy`
 controls what happens for a message whose tenant id is unknown:
 
-* `DeadLetterUnknownTenants` (the default since 7.0) — a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
-* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) — use the shared/default connection.
-* `TenantIdRequired` — reject a message that has no tenant id.
-* `IgnoreUnknownTenants` — silently drop messages for tenants that were never registered.
+* `DeadLetterUnknownTenants` (the default since 7.0) -- a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
+* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) -- use the shared/default connection.
+* `TenantIdRequired` -- reject a message that has no tenant id.
+* `IgnoreUnknownTenants` -- silently drop messages for tenants that were never registered.
 
 Each tenant is an independent Redis server, so the same stream key and consumer group are created separately
 on each tenant's connection without colliding. As with named brokers, `AddTenant` accepts a connection
@@ -431,7 +431,7 @@ how long handlers take.
 
 ::: warning
 Before 6.30 the Redis stream endpoint was marked `IDatabaseBackedEndpoint`, which made a "durable" listener
-skip the inbox write entirely and acknowledge the entry **on receipt** — effectively at-most-once on a crash,
+skip the inbox write entirely and acknowledge the entry **on receipt** -- effectively at-most-once on a crash,
 and scheduled retries went to Redis's own scheduled set rather than the inbox. If you were running
 `UseDurableInbox()` on Redis without a message store, that configuration now requires one, the same as for
 RabbitMQ, Kafka or SQS. If what you actually wanted was Redis-native scheduled retries without a database,
@@ -454,14 +454,14 @@ opts.ListenToRedisStream("webhooks", "webhook-processors")
 ```
 
 Incoming entries flow through an in-memory (optionally group-partitioned) execution block while the stream entry is
-held **unacknowledged**, and are settled natively — `XACK` on handler success, dead-lettered or requeued on terminal
-failure — from the completion continuation. Redis qualifies for this mode because `XACK` names a single entry id that
+held **unacknowledged**, and are settled natively -- `XACK` on handler success, dead-lettered or requeued on terminal
+failure -- from the completion continuation. Redis qualifies for this mode because `XACK` names a single entry id that
 Wolverine carries on the envelope itself, so one delivery can be settled, out of order, from whichever worker thread
 finished it.
 
 The guarantee is exactly the one the mode promises everywhere: **messages sharing a group id never execute
 concurrently**, and nothing is acknowledged until its handler succeeds. Processing in original delivery order is
-*best effort*, not promised — a failed or reclaimed message re-enters its lane later, never concurrently. Use
+*best effort*, not promised -- a failed or reclaimed message re-enters its lane later, never concurrently. Use
 `UseDurableInbox()` if you need strict ordering under failure.
 
 Two things to know that are specific to Redis:
@@ -485,8 +485,8 @@ Consumers that are not Wolverine, or that run a Wolverine version without this f
 receive the copy.
 
 The read batch size is this transport's prefetch equivalent, and in this mode it defaults to twice the number of lanes
-that can be busy at once — the partition slot count when `PartitionProcessingByGroupId()` is used, otherwise
-`MaximumParallelMessages()` — instead of the usual 10. `BatchSize()` still overrides it. Note that unlike RabbitMQ's
+that can be busy at once -- the partition slot count when `PartitionProcessingByGroupId()` is used, otherwise
+`MaximumParallelMessages()` -- instead of the usual 10. `BatchSize()` still overrides it. Note that unlike RabbitMQ's
 prefetch, it does not cap how many entries can be unacknowledged: the bounded execution block is what applies back
 pressure, and the consumer loop stops reading once that block is full.
 
@@ -503,7 +503,7 @@ opts.UseRedisTransport(connectionString)
 
 ::: warning Requires Redis 8.2 or later
 This setting settles with `XACKDEL`, which was added in Redis 8.2. Against an older server every acknowledgement is
-rejected, so **nothing is ever acknowledged** — entries accumulate in the pending entries list forever, and with
+rejected, so **nothing is ever acknowledged** -- entries accumulate in the pending entries list forever, and with
 `EnableAutoClaim()` on they are re-claimed and reprocessed indefinitely. Wolverine therefore refuses to start a
 listener when this setting meets a server that does not implement the command, and the exception tells you to either
 upgrade the server or turn the setting off.
@@ -513,8 +513,8 @@ the entry for *every* consumer group on the stream rather than only the one ackn
 destroy messages other groups have not read yet. That difference is why `XACKDEL` exists.
 
 Note that the capability is detected by asking the server what commands it implements rather than by comparing version
-numbers, so Redis-compatible servers that carry their own versioning — Valkey, DragonflyDB, and the managed cloud
-offerings — are judged on what they actually support.
+numbers, so Redis-compatible servers that carry their own versioning -- Valkey, DragonflyDB, and the managed cloud
+offerings -- are judged on what they actually support.
 :::
 
 ## Scheduled Messaging <Badge type="tip" text="5.10" />
@@ -526,8 +526,8 @@ necessary to utilize that.
 
 For `Buffered` or `Inline` endpoints, you can use native Redis streams for "dead letter queue" messages using
 the name "{StreamKey}:dead-letter". Each dead letter stream entry contains the serialized envelope plus the
-standard Wolverine diagnostic headers as top-level entry fields — `exception-type`, `exception-message`,
-`exception-stack`, `failed-at`, `original-destination` — alongside `message-type`, `envelope-id`, and
+standard Wolverine diagnostic headers as top-level entry fields -- `exception-type`, `exception-message`,
+`exception-stack`, `failed-at`, `original-destination` -- alongside `message-type`, `envelope-id`, and
 `attempts` fields so tooling can inspect failures without deserializing the envelope. See
 [diagnostic headers on dead letter messages](/tutorials/dead-letter-queues#diagnostic-headers-on-dead-letter-messages)
 for the full cross-transport header structure.

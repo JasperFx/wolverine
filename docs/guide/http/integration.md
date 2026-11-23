@@ -23,7 +23,7 @@ dotnet add package WolverineFx.HTTP
 The [sample project for this page is on GitHub](https://github.com/JasperFx/wolverine/tree/main/src/Samples/TodoWebService/TodoWebService).
 :::
 
-From there, let's jump into the application bootstrapping. Stealing the [sample "Todo" project idea from the Minimal API documentation](https://learn.microsoft.com/en-us/aspnet/core/tutorials/min-web-api?view=aspnetcore-10.0&tabs=visual-studio) (and
+From there, let's jump into the application bootstrapping. Stealing the [sample "Todo" project idea from the Minimal API documentation](https://learn.microsoft.com/en-us/aspnet/core/tutorials/min-web-api?tabs=visual-studio) (and
 shifting to [Marten](https://martendb.io) for persistence just out of personal preference), this is the application bootstrapping:
 
 <!-- snippet: sample_bootstrapping_wolverine_http -->

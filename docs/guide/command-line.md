@@ -7,7 +7,7 @@ tools. To get started, apply JasperFx as the command line parser in your applica
 sample application bootstrapping from Wolverine's [Getting Started](/introduction/getting-started):
 
 ::: info
-This page covers the Wolverine-specific CLI surface. The underlying JasperFx command-line library that backs `RunJasperFxCommands` — including how to [author your own commands](https://shared-libs.jasperfx.net/cli/writing-commands.html), [argument/flag handling](https://shared-libs.jasperfx.net/cli/arguments-flags.html), and [environment checks](https://shared-libs.jasperfx.net/cli/environment-checks.html) — is documented at [shared-libs.jasperfx.net/cli](https://shared-libs.jasperfx.net/cli/). When a command accepts a generic flag not listed on this page, that's where to look first.
+This page covers the Wolverine-specific CLI surface. The underlying JasperFx command-line library that backs `RunJasperFxCommands` -- including how to [author your own commands](https://shared-libs.jasperfx.net/cli/writing-commands.html), [argument/flag handling](https://shared-libs.jasperfx.net/cli/arguments-flags.html), and [environment checks](https://shared-libs.jasperfx.net/cli/environment-checks.html) -- is documented at [shared-libs.jasperfx.net/cli](https://shared-libs.jasperfx.net/cli/). When a command accepts a generic flag not listed on this page, that's where to look first.
 :::
 
 ::: tip Native AOT
@@ -145,9 +145,9 @@ developer machines that do not have external infrastructure available.
 
 Detection is based on two signals:
 
-1. **`DynamicCodeBuilder.WithinCodegenCommand`** — set by JasperFx when the `codegen` command is
+1. **`DynamicCodeBuilder.WithinCodegenCommand`** -- set by JasperFx when the `codegen` command is
    used, either via `dotnet run -- codegen ...` or the `--start` flag.
-2. **`ASPNETCORE_HOSTINGSTARTUPASSEMBLIES` environment variable** — contains `"GetDocument"` when
+2. **`ASPNETCORE_HOSTINGSTARTUPASSEMBLIES` environment variable** -- contains `"GetDocument"` when
    OpenAPI generation tools like `GetDocument.Insider` start the host.
 
 When either condition is true, Wolverine applies the equivalent of "lightweight mode":
@@ -215,7 +215,7 @@ dotnet run -- wolverine-diagnostics codegen-preview --grpc GreeterGrpcService
 dotnet run -- wolverine-diagnostics codegen-preview -g Greeter
 ```
 
-The output includes the full generated class — the `Handle` or `HandleAsync` override, all
+The output includes the full generated class -- the `Handle` or `HandleAsync` override, all
 middleware calls in order, dependency resolution from the IoC container, and any
 transaction-wrapping frames. This is identical to what `codegen preview` outputs, but scoped to
 exactly one handler so the signal-to-noise ratio is much higher.
@@ -237,15 +237,15 @@ dotnet run -- wolverine-diagnostics describe-routing MyApp.Orders.CreateOrder
 
 The output for a single message type includes:
 
-- **Local handler** — the handler class and method, if any
-- **Routes table** — each destination with its type (local vs. external), endpoint mode
+- **Local handler** -- the handler class and method, if any
+- **Routes table** -- each destination with its type (local vs. external), endpoint mode
   (Buffered/Durable/Inline), outbox enrollment, serialization format, and how the route was
   resolved (local handler convention, explicit publish rule, transport routing convention, or
   `[LocalQueue]` attribute)
-- **Message-level attributes** — any `ModifyEnvelopeAttribute`-derived attributes (e.g.,
+- **Message-level attributes** -- any `ModifyEnvelopeAttribute`-derived attributes (e.g.,
   `[DeliverWithin]`) applied to the message class
 
-**Explain *why* a message routes where it does** <Badge type="tip" text="6.0" /> — add `--explain`
+**Explain *why* a message routes where it does** <Badge type="tip" text="6.0" /> -- add `--explain`
 (`-e`) to print the route source chain in the order Wolverine consults it, what each source
 produced, and which **terminating** source short-circuited the rest:
 
@@ -278,15 +278,15 @@ dotnet run -- wolverine-diagnostics describe-routing --all
 
 The `--all` output includes:
 
-- **Routing Conventions** — transport-level conventions registered via `RouteWith()`
-- **Message Routing** table — every known message type with its destinations, mode, outbox status,
+- **Routing Conventions** -- transport-level conventions registered via `RouteWith()`
+- **Message Routing** table -- every known message type with its destinations, mode, outbox status,
   and serializer; unrouted types are flagged in yellow
-- **Listeners** — all configured listening endpoints with name, mode, and parallelism
-- **Senders** — all configured sending endpoints with name, mode, and subscription count
+- **Listeners** -- all configured listening endpoints with name, mode, and parallelism
+- **Senders** -- all configured sending endpoints with name, mode, and subscription count
 
 ### describe-handlers <Badge type="tip" text="6.0" />
 
-Explain *why* a candidate type is — or is not — discovered as a message handler. This is the command-line
+Explain *why* a candidate type is -- or is not -- discovered as a message handler. This is the command-line
 surface over [`WolverineOptions.DescribeHandlerMatch(Type)`](/guide/diagnostics#troubleshooting-handler-discovery),
 so you no longer have to drop a temporary `Console.WriteLine(...)` into your bootstrapping code.
 
@@ -298,10 +298,10 @@ dotnet run -- wolverine-diagnostics describe-handlers CreateOrderHandler
 dotnet run -- wolverine-diagnostics describe-handlers MyApp.Orders.CreateOrderHandler
 ```
 
-The argument is matched against the types in your application — exact full name, then exact short name, then
+The argument is matched against the types in your application -- exact full name, then exact short name, then
 a fuzzy "contains" match. If the term matches **more than one** type, Wolverine prints a discovery report for
 *each* match. For every matched type the report shows whether its assembly is being scanned, which type-level
-include/exclude rules HIT or MISS, and — for each method — whether it satisfies the handler naming and
+include/exclude rules HIT or MISS, and -- for each method -- whether it satisfies the handler naming and
 signature conventions.
 
 Like the other diagnostics commands, this builds the host and compiles the handler graph but does **not**
@@ -340,7 +340,7 @@ Bobcat viewer; CritterWatch renders the same descriptor live from a running serv
 :::
 
 Every Wolverine message handler chain, HTTP endpoint chain and gRPC-forwarded RPC *derives* its own
-[Event Modeling](https://eventmodeling.org/) roles — the inbound command, the handler, the aggregate(s) the
+[Event Modeling](https://eventmodeling.org/) roles -- the inbound command, the handler, the aggregate(s) the
 handler decides against (`[WriteAggregate]` / `[WriteModel]`, `[AggregateHandler]` / `[DeciderFunction]`, the
 DCB `[DcbModel]` / `[BoundaryModel]`), the events it emits (its declarative return values), the read models it loads
 (`[ReadAggregate]` / `[ReadModel]`, `[Entity]`) or produces (`IStorageAction<T>`), the messages it cascades, how it is
@@ -348,9 +348,9 @@ triggered and which of the four slice patterns it is. Nothing is declared; it is
 flows out through the `ServiceCapabilities` snapshot CritterWatch already consumes and through JasperFx's
 `IEventModelDefinitionSource` seam.
 
-The `event-model` command writes that whole picture — Wolverine's derived slices, Wolverine.HTTP's, and any
+The `event-model` command writes that whole picture -- Wolverine's derived slices, Wolverine.HTTP's, and any
 [overlay](https://shared-libs.jasperfx.net/event-modeling/overlay) the application registered with
-`services.AddEventModel(...)` — as one JSON `EventModelDescriptor`, **without a running fleet**:
+`services.AddEventModel(...)` -- as one JSON `EventModelDescriptor`, **without a running fleet**:
 
 To read the model rather than export it, `describe-event-model` (GH-4917) prints it by domain and chapter: each
 slice's trigger, command, aggregate (and whether it came from a `ForAggregate` default, `NoAggregate()` or a DCB
@@ -397,21 +397,23 @@ with no manifest is reported and skipped.
 ### Publishing to a monitor
 
 `--url` PUTs the assembled descriptor to a monitor instead of writing it to a file, which collapses the
-design-time loop to a single command:
+design-time loop to a single command. The examples here publish to [Stoat](https://stoat.jasperfx.net/guide/event-model),
+which draws the model at `http://localhost:5526/event-model`. Bobcat's free `bobcat ui` takes the same PUT at
+`http://localhost:5525/api/event-model`:
 
 ```bash
-dotnet watch run -- event-model --url http://localhost:5525
+dotnet watch run -- event-model --url http://localhost:5527/api/event-model
 ```
 
 The two flags compose. `--url` on its own publishes and writes nothing; add `--json` and you get both, with
 the file and the request body byte-for-byte identical:
 
 ```bash
-dotnet run -- event-model --url http://localhost:5525                       # publish only
-dotnet run -- event-model --url http://localhost:5525 --json ./out.json     # publish and write
+dotnet run -- event-model --url http://localhost:5527/api/event-model       # publish only
+dotnet run -- event-model --url http://localhost:5527/api/event-model --json ./out.json  # publish and write
 ```
 
-Wolverine takes **no reference on the monitor** — this is an HTTP PUT to whatever URL you name, so anything
+Wolverine takes **no reference on the monitor** -- this is an HTTP PUT to whatever URL you name, so anything
 that accepts the descriptor works. A monitor that is down fails with a one-line message and a non-zero exit
 rather than a stack trace, because under `dotnet watch` a console you have not started yet is the ordinary
 case and must not look like a crash.
@@ -419,12 +421,12 @@ case and must not look like a crash.
 ::: tip
 Note that the rebuild has to come from `dotnet watch`, not from a `--watch` flag on the command. The command's
 process already has your assembly loaded, so an internal loop would re-serialize the same chains forever and
-never see an edit — only a fresh process picks up recompiled handlers.
+never see an edit -- only a fresh process picks up recompiled handlers.
 :::
 
 The host is built but **never started**: the handler graph is compiled the same way
 `wolverine-diagnostics describe-handlers` does it, so no transport is opened, no database is touched, and no
-runtime compiler is needed — a `TypeLoadMode.Dynamic` application without `WolverineFx.RuntimeCompilation`
+runtime compiler is needed -- a `TypeLoadMode.Dynamic` application without `WolverineFx.RuntimeCompilation`
 still exports. The JSON is written camelCase with enums as strings, exactly as CritterWatch puts the descriptor
 on the wire, so the file round-trips through `EventModelDescriptor` and renders in the shared Event Modeling
 component with the same output CritterWatch shows for the same host.
@@ -467,7 +469,7 @@ public static (ConfirmAppointmentResponse, EventsToAppend) Post(
 }
 ```
 
-It is additive — everything the signature and the generator already say still holds — and purely
+It is additive -- everything the signature and the generator already say still holds -- and purely
 diagnostic: nothing about dispatch, codegen or persistence reads it. Without it, or the generator, `emittedEvents`
 on those slices is empty, which is indistinguishable from a slice that emits nothing at all.
 
@@ -483,7 +485,7 @@ Two roles are deliberately left unclaimed rather than guessed at, so a declarati
 | Role | Why the code cannot answer |
 | --- | --- |
 | `TriggerLabel` | A trigger label is a naming concern ("Customer at the ATM"). The structural facts already ride on `TriggerOrigin`. |
-| `Pattern`, for a message handler | An inbound message that appends events is a `Command` or an `Automation` depending on *why* it arrived — a person asked, or the system reacted. A handler signature cannot tell the two apart. |
+| `Pattern`, for a message handler | An inbound message that appends events is a `Command` or an `Automation` depending on *why* it arrived -- a person asked, or the system reacted. A handler signature cannot tell the two apart. |
 
 `Pattern` is still claimed wherever the code genuinely answers it: an HTTP `GET` is a `View`, a `TimeoutMessage`
 or a cron-scheduled message is an `Automation`, a gRPC RPC is a `Command`, an inbound external system makes the
@@ -519,11 +521,11 @@ rather than going unnoticed.
 
 ### Meeting a declared model
 
-A declared model — a curated board file, an overlay — names a slice for the behaviour: `ConfirmAppointment`.
+A declared model -- a curated board file, an overlay -- names a slice for the behaviour: `ConfirmAppointment`.
 Wolverine's derived sources name it for what they can see: the message type `ConfirmAppointmentRequest`, the
 triggering event `HomeCheckAssignmentAccepted`, the route `GET /api/appointmentsqueue/{id}`. Slice names are
 the merge key, so left alone the two never meet and an eleven-slice application assembles as twenty-two slices
-with no disagreements — not because the sources agree, but because they were never compared.
+with no disagreements -- not because the sources agree, but because they were never compared.
 
 `HandlerType` is the one role both kinds of source fill and mean the same thing by, so the export aligns on it:
 where a declaration and the code describe the same handler type under different names, the **declared** name
@@ -535,9 +537,9 @@ how they name things), a handler type carrying more than one slice inside a sour
 a rename that would collide with a slice already in that source is dropped.
 
 A model declared *stub-first* has no handler type yet, so the export also joins on the other roles a stub pins
-down, in this order: the triggering message **and its domain** (see below), the triggering message on its own —
+down, in this order: the triggering message **and its domain** (see below), the triggering message on its own -- 
 the event an automation reacts to with `On<T>()`, else the command from `Command<T>()` or `Automation<TCommand>()`,
-which is also the request type a Wolverine.HTTP endpoint is named for — and the read model of a `View<T>()`. A
+which is also the request type a Wolverine.HTTP endpoint is named for -- and the read model of a `View<T>()`. A
 stub *is* the real type, so these joins are exact, and a role declared by name matches the type of that name. The
 same guards apply to every one of them, and a slice joined on an earlier key is never joined again on a later one.
 
@@ -545,10 +547,10 @@ same guards apply to every one of them, and a slice joined on an earlier key is 
 
 In a modular monolith, every module's handler of the same message is
 its own chain, and each gets its own slice. A message with a single handler keeps its bare name; a message with
-several gets one slice per handler, named for its **domain** — `OrderPlaced (Billing)`, `OrderPlaced (Shipping)` —
+several gets one slice per handler, named for its **domain** -- `OrderPlaced (Billing)`, `OrderPlaced (Shipping)` -- 
 or, when no domain is declared, for its handler type: `OrderPlaced (MyApp.Billing.OrderPlacedHandler)`.
 
-A module is a domain, and membership is **declared, never inferred** — Wolverine never guesses a module from a
+A module is a domain, and membership is **declared, never inferred** -- Wolverine never guesses a module from a
 namespace or an assembly on its own. Declare it on the handler or endpoint, or as a policy on a declared model:
 
 ```cs
@@ -566,12 +568,12 @@ services.AddEventModel("Orders", model =>
 ```
 
 Every slice derived for such a handler carries that `Domain`, and a declaration that lost to a more specific one
-— a namespace policy overridden by an attribute, say — is called out as a hotspot on the slice rather than dropped.
+ -- a namespace policy overridden by an attribute, say -- is called out as a hotspot on the slice rather than dropped.
 
 ### The slice next to the route
 
-The assembled model is one picture of the whole service. A monitoring console often wants the other view —
-walking the surface area endpoint by endpoint and asking "what does *this* one do?" — so the derived slice is
+The assembled model is one picture of the whole service. A monitoring console often wants the other view -- 
+walking the surface area endpoint by endpoint and asking "what does *this* one do?" -- so the derived slice is
 also attached to the descriptor of the thing that starts it:
 
 | Descriptor | Slot | What it carries |
@@ -579,19 +581,19 @@ also attached to the descriptor of the thing that starts it:
 | `MessageHandlerDescriptor` | `EventModel` | the handler chain's slice (GH-3988) |
 | `GrpcRpcDescriptor` | `EventModel` | the slice of the message the RPC forwards to the bus, with the RPC as its trigger (GH-4000) |
 
-Both slots are nullable and additive on the wire, and both are *the same slice* the assembled model carries —
+Both slots are nullable and additive on the wire, and both are *the same slice* the assembled model carries -- 
 derived once, by the same code, so the two cannot drift.
 
 Because an RPC's generated wrapper forwards its request to the bus, the slice on a `GrpcRpcDescriptor` is the
-forwarded message's whole slice — handler, aggregates, emitted events, cascaded messages — not merely a note
+forwarded message's whole slice -- handler, aggregates, emitted events, cascaded messages -- not merely a note
 that something was published. When nothing in the process handles that message, the slice is trigger-only: there
 is still a boundary worth rendering. And where two RPCs forward the *same* message, each descriptor names its own
-RPC as the trigger, while the assembled model — which folds a message into one slice — can only name the first.
+RPC as the trigger, while the assembled model -- which folds a message into one slice -- can only name the first.
 
 ### Naming the external system on an endpoint
 
-The *edge* of a translation slice is derived — a listener that receives from, or a subscriber that publishes to,
-something outside your application *is* the external-system boundary — but the **name** of that system is the one
+The *edge* of a translation slice is derived -- a listener that receives from, or a subscriber that publishes to,
+something outside your application *is* the external-system boundary -- but the **name** of that system is the one
 thing code cannot say. Declare it on the endpoint, never in the event-model overlay:
 
 ```cs
@@ -606,7 +608,7 @@ opts.PublishMessage<IssueStripeRefund>()
 
 `.ExternalSystem("...")` is available on every listener and subscriber configuration. The name flows out through
 the endpoint's `EndpointDescriptor.ExternalSystem` in the capabilities snapshot, and the Event Model attaches a
-**Stripe** external-system element — inbound — to the slice the listener triggers (a handler stuck to that
+**Stripe** external-system element -- inbound -- to the slice the listener triggers (a handler stuck to that
 listener, or the handler of its `DefaultIncomingMessage<T>()`), which makes that slice a `Translation` slice
 triggered `External`; a named listener bound to no slice still renders as a trigger-only boundary. On the outbound
 side, every slice whose published messages or emitted events the named endpoint subscribes to gets the system on
@@ -616,7 +618,7 @@ slice).
 ## Scaffolding Declared Slices
 
 Once a model is declared over stub types, the `scaffold` command writes an implementation skeleton for every slice
-that is declared but has **no code behind it yet** — something only the running application can tell, because it
+that is declared but has **no code behind it yet** -- something only the running application can tell, because it
 takes the declared model and the derived chains assembled together:
 
 See [Declaring the Model in Code](https://shared-libs.jasperfx.net/event-modeling/declaring) in the JasperFx
@@ -669,6 +671,6 @@ EDIT src/Domain/Appointment.cs -- MyApp.Appointment (aggregate): the aggregate a
 UNKNOWN BookAppointment: trigger Unknown -- no HTTP endpoint, message handler or gRPC service handles BookAppointmentRequest yet, and the declaration does not say which it will be. Declare .TriggeredBy(TriggerKind.Http) or .TriggeredBy(TriggerKind.MessageHandler) and run the scaffold again.
 ```
 
-A stub type that already exists — an aggregate or a view — is never rewritten: `EDIT` names the file it is declared in
+A stub type that already exists -- an aggregate or a view -- is never rewritten: `EDIT` names the file it is declared in
 and the exact `Apply` methods it is missing. And a command slice whose trigger neither the declaration nor the code
 reveals is reported as `UNKNOWN` rather than guessed.

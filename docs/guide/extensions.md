@@ -266,7 +266,7 @@ with this attribute to automatically add that extension to Wolverine:
 <!-- endSnippet -->
 
 You can also use the non-generic `[assembly: WolverineModule]` form to mark an assembly purely as a *handler*
-module — its handlers are discovered, but no `IWolverineExtension` is applied.
+module -- its handlers are discovered, but no `IWolverineExtension` is applied.
 
 ### How discovery works (source generator, not runtime scanning)
 
@@ -276,8 +276,8 @@ probed the application's bin directory at startup (`AssemblyFinder`), which was 
 :::
 
 The `[WolverineModule]` and `[WolverineModule<T>]` attributes both derive from JasperFx's `[JasperFxAssembly]`
-attribute. The **`JasperFx.SourceGenerator`** analyzer — which the `WolverineFx` package flows transitively to
-every project that references it (directly or through any Wolverine extension/transport package) — sees these
+attribute. The **`JasperFx.SourceGenerator`** analyzer -- which the `WolverineFx` package flows transitively to
+every project that references it (directly or through any Wolverine extension/transport package) -- sees these
 assembly attributes at **compile time** and emits a small `JasperFx.Generated.DiscoveredExtensions` manifest into
 the assembly listing the declared extension type(s). At startup Wolverine reads those generated manifests from the
 loaded assemblies instead of scanning the filesystem and speculatively `Assembly.Load`-ing candidates.
@@ -287,7 +287,7 @@ in the JasperFx documentation for the reference on `DiscoveredExtensions`.
 A few consequences worth knowing:
 
 * **Only the type declared in `[WolverineModule<T>]` (or `[WolverineModule(typeof(T))]`) is auto-applied.** Other
-  `IWolverineExtension` implementations sitting in the same assembly are *not* activated automatically — register
+  `IWolverineExtension` implementations sitting in the same assembly are *not* activated automatically -- register
   those explicitly with `opts.Include<T>()` or `services.AddWolverineExtension<T>()`.
 * The extension assembly must be **compiled against WolverineFx 6.0+** so that the analyzer runs and emits its
   manifest. A module built against an older Wolverine will not be auto-discovered; reference it and call its
@@ -299,7 +299,7 @@ A few consequences worth knowing:
 ## Disabling Assembly Scanning
 
 ::: info
-As of Wolverine 6.0 there is no runtime bin-directory assembly scan for extensions — discovery is driven by the
+As of Wolverine 6.0 there is no runtime bin-directory assembly scan for extensions -- discovery is driven by the
 compile-time manifest described above. `ExtensionDiscovery.ManualOnly` remains the switch to turn automatic module
 discovery off entirely.
 :::

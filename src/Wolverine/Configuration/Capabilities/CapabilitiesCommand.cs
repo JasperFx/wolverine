@@ -12,6 +12,7 @@ public class CapabilitiesInput : NetCoreInput
     public string FileName { get; set; } = "wolverine.json";
 }
 
+[Description("Write the Wolverine capabilities of this application as JSON, to wolverine.json by default", Name = "capabilities")]
 public class CapabilitiesCommand : JasperFxAsyncCommand<CapabilitiesInput>
 {
     public CapabilitiesCommand()

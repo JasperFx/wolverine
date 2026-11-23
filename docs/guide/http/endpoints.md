@@ -191,7 +191,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
 ## The HTTP QUERY Method <Badge type="tip" text="6.17" />
 
 Wolverine.HTTP supports the [HTTP `QUERY` method (RFC 10008)](https://www.rfc-editor.org/rfc/rfc10008.html)
-through the `[WolverineQuery]` attribute. `QUERY` is a **safe, idempotent** method — like `GET` — but,
+through the `[WolverineQuery]` attribute. `QUERY` is a **safe, idempotent** method -- like `GET` -- but,
 unlike `GET`, it is allowed to carry a **request body**. It's intended for search/query endpoints whose
 criteria are too large or too structured to encode in the query string:
 
@@ -219,7 +219,7 @@ public static SearchResults Search(SearchRequest request)
 The request body binds exactly as it would for a `POST` endpoint.
 
 ::: tip
-Wolverine applies no verb-specific middleware rules to `QUERY` — the same dependency-based rules apply
+Wolverine applies no verb-specific middleware rules to `QUERY` -- the same dependency-based rules apply
 as for every other verb. Outbox middleware is gated on an `IMessageBus`/`IMessageContext` dependency,
 and transactional middleware is gated on a persistence dependency: a `QUERY` endpoint that takes an
 `IDocumentSession` (Marten) or a `DbContext` (EF Core) **is** wrapped in transactional middleware under
@@ -231,8 +231,8 @@ when using EF Core.
 
 ::: warning OpenAPI limitation
 `QUERY` only became a first-class operation in **OpenAPI 3.2**. The OpenAPI 3.1 document produced by the
-Swashbuckle / `Microsoft.OpenApi` stack cannot represent it, so — matching ASP.NET Core's own behavior on
-OpenAPI 3.1 — Wolverine **gracefully omits `QUERY` endpoints from the generated OpenAPI document** rather
+Swashbuckle / `Microsoft.OpenApi` stack cannot represent it, so -- matching ASP.NET Core's own behavior on
+OpenAPI 3.1 -- Wolverine **gracefully omits `QUERY` endpoints from the generated OpenAPI document** rather
 than break generation for the rest of the application. The endpoints are fully routable and functional;
 they are simply not described in the OpenAPI 3.1 output. First-class OpenAPI documentation can follow once
 the underlying OpenAPI stack emits 3.2.
@@ -243,7 +243,7 @@ the underlying OpenAPI stack emits 3.2.
 A parameter named `now` of type `DateTime` or `DateTimeOffset` is filled with the current UTC time rather
 than being bound from the request. This is the same convention
 [message handlers have always had](/guide/handlers/#message-handler-parameters), and it exists for
-testability's sake — the endpoint stays a pure function of its inputs instead of reaching for a static clock:
+testability's sake -- the endpoint stays a pure function of its inputs instead of reaching for a static clock:
 
 ```cs
 [WolverineGet("/api/orders/{id}/age")]
@@ -260,7 +260,7 @@ The convention is keyed on the parameter being **named** `now`, not on its type 
 an HTTP endpoint a `DateTimeOffset` is otherwise an ordinary [query string value](/guide/http/querystring),
 and `DateTimeOffset from` / `DateTimeOffset to` are far too common to hijack. Only `now` is special.
 
-An explicit route argument still wins — `[WolverineGet("/report/{now}")]` binds `now` from the route, because
+An explicit route argument still wins -- `[WolverineGet("/report/{now}")]` binds `now` from the route, because
 a parameter the author spelled out in the route is not a request for the clock. So do `[FromRoute]`,
 `[FromQuery]`, and `[FromHeader]`, which are all resolved before this convention.
 :::
@@ -324,10 +324,10 @@ passing, and generated typed clients (NSwag, Kiota, Refit) will map the 204 onto
 ::: tip
 This setting is strictly about the response *body*. What happens when a required entity cannot be loaded
 in the first place is a separate question, answered by
-[`OnMissing` on `[Entity]`](/guide/handlers/persistence#answering-204-instead-of-404) — including its own
+[`OnMissing` on `[Entity]`](/guide/handlers/persistence#answering-204-instead-of-404) -- including its own
 `OnMissing.EmptyContentWith204`. In an endpoint like
 `Get([Entity] Thing thing) => thing`, the entity guard runs *before* the endpoint body, so it is
-`OnMissing` — not `[NoContentIfMissing]` — that decides the answer.
+`OnMissing` -- not `[NoContentIfMissing]` -- that decides the answer.
 :::
 
 ## Returning Strings
@@ -487,7 +487,7 @@ public static string GetNow(DateTimeOffset now) // using the custom parameter st
 
 ::: info
 As of 6.28 a `now` parameter is [handled by Wolverine out of the box](#the-current-time), so this particular
-strategy is no longer necessary — it is kept here purely because it is a small, complete illustration of the
+strategy is no longer necessary -- it is kept here purely because it is a small, complete illustration of the
 plugin interface. It still works: strategies registered through `AddParameterHandlingStrategy()` are placed
 ahead of every built-in strategy, which is also how you would override built-in behavior deliberately.
 :::

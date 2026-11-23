@@ -34,7 +34,7 @@ public override async Task StreamGreetings(StreamGreetingsRequest request,
 
 ### Handler
 
-The handler is identical for both contract styles — it's just a Wolverine handler that returns
+The handler is identical for both contract styles -- it's just a Wolverine handler that returns
 `IAsyncEnumerable<T>` with an `[EnumeratorCancellation]` token:
 
 ```csharp
@@ -52,7 +52,7 @@ public static async IAsyncEnumerable<PongReply> Handle(
 ```
 
 Each `yield return` is one gRPC message frame. Back-pressure from a slow client propagates
-naturally through the `IAsyncEnumerable<T>` chain — no extra plumbing needed.
+naturally through the `IAsyncEnumerable<T>` chain -- no extra plumbing needed.
 
 ::: tip Why `await Task.Yield()` appears in the examples
 A streaming handler that only `yield return`s synchronous values can be compiled by the C# compiler
@@ -64,7 +64,7 @@ awaits real I/O (a database call, an HTTP request, etc.).
 ## Client streaming
 
 Client streaming inverts the server-streaming shape: the client sends a stream of N request
-messages and the server answers with a **single** response once the stream completes — think
+messages and the server answers with a **single** response once the stream completes -- think
 telemetry ingest (`stream LocationPing → LocationIngestAck`), batched uploads, or metering.
 Both contract styles are code-generated.
 
@@ -83,7 +83,7 @@ service TelemetryService {
 public abstract class TelemetryServiceStub : TelemetryService.TelemetryServiceBase;
 ```
 
-Wolverine generates the bridge at startup — the inbound `IAsyncStreamReader<T>` is adapted to
+Wolverine generates the bridge at startup -- the inbound `IAsyncStreamReader<T>` is adapted to
 `IAsyncEnumerable<T>` and handed to
 [`IMessageBus.StreamAsync`](/guide/messaging/message-bus.html#streaming-requests) as a whole:
 
@@ -113,7 +113,7 @@ public interface ITelemetryService
 }
 ```
 
-Here no adapter is needed at all — protobuf-net.Grpc already hands the method the inbound
+Here no adapter is needed at all -- protobuf-net.Grpc already hands the method the inbound
 stream as `IAsyncEnumerable<TRequest>`, which is exactly what the bus overload consumes:
 
 ```csharp
@@ -126,7 +126,7 @@ public Task<LocationIngestAck> ReportLocations(
 ```
 
 The bidi-shaped interface method (`IAsyncEnumerable<TResponse>` return **and**
-`IAsyncEnumerable<TRequest>` parameter) is still not generated — see
+`IAsyncEnumerable<TRequest>` parameter) is still not generated -- see
 [bidirectional streaming](#code-first-manual-bridge) for the manual bridge, which also remains
 available as an alternative for client streaming if you want custom per-item logic in the
 service layer.
@@ -151,17 +151,17 @@ public static async Task<LocationIngestAck> Handle(
 }
 ```
 
-The handler processes items **incrementally** as the client sends them — Wolverine never
+The handler processes items **incrementally** as the client sends them -- Wolverine never
 materializes the stream into a collection, so memory stays constant regardless of stream length.
 An empty stream (client completes without sending anything) still reaches the handler, which
 returns its response from a zero-item drain.
 
 ::: info Before-middleware and Validate hooks
 Like bidirectional streaming, before-frames (including the `Validate → Status?` short-circuit)
-are **not** woven into client-streaming methods in either generated wrapper — they need a single
+are **not** woven into client-streaming methods in either generated wrapper -- they need a single
 `TRequest` in scope when the method begins, which the streaming signature doesn't provide.
 Tenant id detection **is** woven (proto-first always; code-first when the method declares a
-`CallContext` parameter) — it only needs the call context, and the `Task<TResponse>` return
+`CallContext` parameter) -- it only needs the call context, and the `Task<TResponse>` return
 lets the generated body await detection before the stream is drained.
 :::
 
@@ -182,8 +182,8 @@ var ack = await client.ReportLocations(pings, context);
 
 Wolverine supports bidirectional streaming for both **proto-first** (generated wrapper) and
 **code-first** (manual bridge) contracts. In both cases the handler shape is the same as server
-streaming: `Handle(TRequest) → IAsyncEnumerable<TResponse>`. The bidi loop — read one request,
-stream its responses, repeat — is handled for you.
+streaming: `Handle(TRequest) → IAsyncEnumerable<TResponse>`. The bidi loop -- read one request,
+stream its responses, repeat -- is handled for you.
 
 ### Proto-first (generated wrapper)
 
@@ -220,7 +220,7 @@ public override async Task Race(
 }
 ```
 
-The handler shape is identical to server streaming — one request message in, a stream of response
+The handler shape is identical to server streaming -- one request message in, a stream of response
 messages out:
 
 ```csharp
@@ -247,7 +247,7 @@ code-first with a manual shim if you need per-stream authentication or validatio
 ### Code-first (manual bridge)
 
 Code-first services receive the `IAsyncEnumerable<TRequest>` directly from protobuf-net.Grpc.
-The `WolverineGrpcServiceBase` path lets you write the outer loop by hand — useful when you need
+The `WolverineGrpcServiceBase` path lets you write the outer loop by hand -- useful when you need
 control over per-request error handling or logging. The
 [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc) sample
 uses this pattern:
@@ -304,18 +304,18 @@ but your detached tasks keep running. Always thread the token through.
   level (smaller messages) rather than relying on transport-level flow control alone.
 - **Exception timing:** an exception thrown **before** the first `yield return` surfaces on the
   client via the trailers as expected. An exception thrown **mid-stream** surfaces as a trailer
-  after messages the client has already received — well-behaved clients must still check the final
+  after messages the client has already received -- well-behaved clients must still check the final
   status even after consuming messages successfully. Server-side, the OpenTelemetry activity for
-  the handler is marked `Error` in both cases (including cancellation) — the activity stays open
+  the handler is marked `Error` in both cases (including cancellation) -- the activity stays open
   until the stream fully drains or faults, so dashboards reflect the real terminal state rather
   than the moment the handler returned the `IAsyncEnumerable<T>`.
 
 ## Related
 
-- [Handlers](./handlers) — where the `CancellationToken` comes from and how the service shim forwards.
-- [Error Handling](./errors) — how `OperationCanceledException` becomes `StatusCode.Cancelled` and
+- [Handlers](./handlers) -- where the `CancellationToken` comes from and how the service shim forwards.
+- [Error Handling](./errors) -- how `OperationCanceledException` becomes `StatusCode.Cancelled` and
   how to attach rich details to errors that terminate a stream.
-- [Samples](./samples) — `PingPongWithGrpcStreaming`, `ProgressTrackerWithGrpc`, and `RacerWithGrpc`
+- [Samples](./samples) -- `PingPongWithGrpcStreaming`, `ProgressTrackerWithGrpc`, and `RacerWithGrpc`
   are the canonical streaming walkthroughs, covering server streaming (hand-written), server
   streaming (generated + cancellation), and bidirectional streaming respectively.
   `GreeterProtoFirstGrpc` and `GreeterCodeFirstGrpc` each include a client-streaming

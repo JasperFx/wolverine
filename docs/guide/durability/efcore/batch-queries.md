@@ -13,9 +13,9 @@ Every extra `SELECT` in a handler is another round-trip to the database. Four qu
 | Sequential `await`s | 345.8 ms | **6.92 ms** | 1.0× |
 | Batched via `BatchedQuery` | 124.3 ms | **2.49 ms** | **2.78×** |
 
-Measured locally against `mcr.microsoft.com/mssql/server`, 4 keyed lookups per iteration, after warm-up. The speedup scales with (a) number of queries in the handler and (b) network latency — across a region-to-region hop, a four-query handler can drop from ~40 ms to ~12 ms.
+Measured locally against `mcr.microsoft.com/mssql/server`, 4 keyed lookups per iteration, after warm-up. The speedup scales with (a) number of queries in the handler and (b) network latency -- across a region-to-region hop, a four-query handler can drop from ~40 ms to ~12 ms.
 
-## Pattern 1 — Two `IQueryPlan`s on one handler
+## Pattern 1 -- Two `IQueryPlan`s on one handler
 
 The simplest win. If your handler [uses query plans](./query-plans) that implement *both* `IQueryPlan<TDbContext, TResult>` **and** `IBatchQueryPlan<TDbContext, TResult>` (which `QueryPlan<TDb, TEntity>` and `QueryListPlan<TDb, TEntity>` do automatically), Wolverine's code generator detects multiple batch-capable loads on the same handler and rewrites them into a shared `BatchedQuery`:
 
@@ -58,9 +58,9 @@ var orders   = await ordersTask;
 
 One round-trip, no manual batch wiring, no change to the plan classes.
 
-## Pattern 2 — Manual `IBatchQueryPlan<TDbContext, TResult>`
+## Pattern 2 -- Manual `IBatchQueryPlan<TDbContext, TResult>`
 
-When a query doesn't fit the `QueryPlan<>` / `QueryListPlan<>` shape — for example, a pre-aggregated count or any other scalar result — implement `IBatchQueryPlan` directly:
+When a query doesn't fit the `QueryPlan<>` / `QueryListPlan<>` shape -- for example, a pre-aggregated count or any other scalar result -- implement `IBatchQueryPlan` directly:
 
 ```csharp
 public class OrderCountFor(Guid customerId) : IBatchQueryPlan<OrderDbContext, int>
@@ -72,9 +72,9 @@ public class OrderCountFor(Guid customerId) : IBatchQueryPlan<OrderDbContext, in
 
 Any handler parameter implementing `IBatchQueryPlan<TDb, TResult>` gets the same auto-batching treatment as `IQueryPlan`-derived plans. Use `IBatchQueryPlan` when you need full control over the batched shape; use `QueryPlan<>` / `QueryListPlan<>` when you want the plan to work both standalone and batched.
 
-## Pattern 3 — `[Entity]` primary-key lookup + a spec in the same handler
+## Pattern 3 -- `[Entity]` primary-key lookup + a spec in the same handler
 
-`[Entity]` lookups and query plans batch together. A common shape — load the root aggregate by id, then fetch a related collection with a spec:
+`[Entity]` lookups and query plans batch together. A common shape -- load the root aggregate by id, then fetch a related collection with a spec:
 
 ```csharp
 public record ArchiveOrderLines(Guid OrderId);
@@ -99,7 +99,7 @@ public static class ArchiveOrderLinesHandler
 
 Both the `[Entity]` load and the spec fetch are enlisted into a single `BatchedQuery`, one round-trip for two reads.
 
-## Pattern 4 — Count + page in one round-trip
+## Pattern 4 -- Count + page in one round-trip
 
 Paginated list responses almost always want `(totalCount, currentPage)`. Two queries, same filter, one logical operation. Keep it one round-trip:
 
@@ -147,14 +147,14 @@ One `SELECT COUNT(*)` + one paginated `SELECT`, merged into a single `DbBatch` o
 
 ## Opting out
 
-If a specific handler genuinely needs sequential round-trips (e.g. because a later query depends on an earlier query's result), just don't use batch-capable plans — the batching policy only fires when two or more `IBatchQueryPlan` parameters appear on the same handler.
+If a specific handler genuinely needs sequential round-trips (e.g. because a later query depends on an earlier query's result), just don't use batch-capable plans -- the batching policy only fires when two or more `IBatchQueryPlan` parameters appear on the same handler.
 
 ## Testing batched handlers
 
-The batching is transparent to tests. The same handler that uses `IQueryPlan` parameters can be unit-tested against an in-memory `DbContext` the normal way — query plans execute standalone through `FetchAsync(DbContext)` when invoked outside a `BatchedQuery`. See [Query Plans → Testing a plan in isolation](./query-plans#testing-a-plan-in-isolation).
+The batching is transparent to tests. The same handler that uses `IQueryPlan` parameters can be unit-tested against an in-memory `DbContext` the normal way -- query plans execute standalone through `FetchAsync(DbContext)` when invoked outside a `BatchedQuery`. See [Query Plans → Testing a plan in isolation](./query-plans#testing-a-plan-in-isolation).
 
 ## Further reading
 
-- [Weasel — `BatchedQuery` fluent API reference](https://weasel.jasperfx.net/efcore/batch-queries.html)
-- [Query Plans](./query-plans) — the Specification model that backs the auto-batching
-- [Marten — Batched Queries](https://martendb.io/documents/querying/batched-queries.html) — the Critter Stack sibling this mirrors
+- [Weasel -- `BatchedQuery` fluent API reference](https://weasel.jasperfx.net/efcore/batch-queries.html)
+- [Query Plans](./query-plans) -- the Specification model that backs the auto-batching
+- [Marten -- Batched Queries](https://martendb.io/documents/querying/batched-queries.html) -- the Critter Stack sibling this mirrors

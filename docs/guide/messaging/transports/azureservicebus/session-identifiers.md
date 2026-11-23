@@ -113,8 +113,8 @@ await bus.PublishAsync(new OrderPlaced("2"), new DeliveryOptions { GroupId = "B"
 The producer simply selects the target consumer by setting the session id (the `GroupId`) on the outgoing message, exactly
 as with any other session-enabled endpoint.
 
-For any of the other `ServiceBusSessionProcessorOptions` knobs — `MaxConcurrentSessions`, `MaxAutoLockRenewalDuration`,
-`SessionIdleTimeout`, and so on — use the general `ConfigureSessionProcessor(...)` hook:
+For any of the other `ServiceBusSessionProcessorOptions` knobs -- `MaxConcurrentSessions`, `MaxAutoLockRenewalDuration`,
+`SessionIdleTimeout`, and so on -- use the general `ConfigureSessionProcessor(...)` hook:
 
 <!-- snippet: sample_configuring_azure_service_bus_session_processor -->
 <a id='snippet-sample_configuring_azure_service_bus_session_processor'></a>

@@ -7,8 +7,8 @@ ASP.NET Core health-check pipeline. Three checks ship in the box:
 
 | Check | What it covers |
 | --- | --- |
-| `WolverineBusHealthCheck` | The Wolverine runtime itself — has it started? Is it cancelling? |
-| `WolverineListenerHealthCheck` | Listening agents — are they accepting, too busy, latched, or stopped? |
+| `WolverineBusHealthCheck` | The Wolverine runtime itself -- has it started? Is it cancelling? |
+| `WolverineListenerHealthCheck` | Listening agents -- are they accepting, too busy, latched, or stopped? |
 | `WolverineTransportsHealthCheck` | Broker connections of every transport that reports its health (RabbitMQ, Kafka, Azure Service Bus...) |
 
 ## Install
@@ -108,7 +108,7 @@ checks, tagged for Aspire's `/health` and `/alive` endpoints.
 `AddWolverineListeners` accepts an optional `filter` predicate so you can scope
 the check by listener name, URI scheme, or any property exposed by
 `IListeningAgent`. This is useful when you only care about a subset of
-transports for a given probe — for example, requiring the inbound RabbitMQ
+transports for a given probe -- for example, requiring the inbound RabbitMQ
 listeners to be up for readiness while ignoring local in-memory queues:
 
 ```csharp

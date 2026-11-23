@@ -195,7 +195,7 @@ the listener could not settle, rather than bounding duplicate execution, so it d
 The single most impactful change you can make for cluster stability in cloud or Kubernetes environments is appending `Keepalive=30;Tcp Keepalive=true` to your Wolverine PostgreSQL connection string. Everything else in this section is context for *why*.
 :::
 
-Wolverine's [leader election](leadership-and-troubleshooting) holds a **session-level PostgreSQL advisory lock**. That lock identifies the cluster leader; only the node holding it evaluates the assignment grid and dispatches `AssignAgent` / `ReassignAgent` commands. Note that the leader *assigns* the durability agents rather than running them all itself — each message database's durability agent is assigned to exactly one node, which need not be the leader (see [Scheduled Message Polling](leadership-and-troubleshooting#scheduled-message-polling)). Session-level advisory locks live and die with the Postgres backend session — the moment the leader's session is terminated server-side (TCP RST, idle-connection cull, `pg_terminate_backend`, managed-PG failover, Azure Flexible Server maintenance, k8s service-mesh idle timeout, NAT/conntrack eviction, ELB idle close, etc.) the lock is released and another node can legitimately acquire it.
+Wolverine's [leader election](leadership-and-troubleshooting) holds a **session-level PostgreSQL advisory lock**. That lock identifies the cluster leader; only the node holding it evaluates the assignment grid and dispatches `AssignAgent` / `ReassignAgent` commands. Note that the leader *assigns* the durability agents rather than running them all itself -- each message database's durability agent is assigned to exactly one node, which need not be the leader (see [Scheduled Message Polling](leadership-and-troubleshooting#scheduled-message-polling)). Session-level advisory locks live and die with the Postgres backend session -- the moment the leader's session is terminated server-side (TCP RST, idle-connection cull, `pg_terminate_backend`, managed-PG failover, Azure Flexible Server maintenance, k8s service-mesh idle timeout, NAT/conntrack eviction, ELB idle close, etc.) the lock is released and another node can legitimately acquire it.
 
 Wolverine pings the lock-holding connection every `Durability.HealthCheckPollingTime` (default 10 seconds) with `SELECT 1` to detect server-side session loss. When the ping fails the current leader emits:
 
@@ -211,7 +211,7 @@ Detected duplicate agent wolverine://leader/ reported running on Node X and Node
 — sending StopRemoteAgent to the older copy to heal split-brain residue.
 ```
 
-**Seeing these log lines occasionally is normal.** Seeing them every minute means the connection between your app pods and PostgreSQL is being dropped at sub-`HealthCheckPollingTime` intervals — Wolverine is detecting and recovering from those drops correctly, but the steady state is wrong.
+**Seeing these log lines occasionally is normal.** Seeing them every minute means the connection between your app pods and PostgreSQL is being dropped at sub-`HealthCheckPollingTime` intervals -- Wolverine is detecting and recovering from those drops correctly, but the steady state is wrong.
 
 ### Configure TCP keepalives on the Wolverine connection string
 
@@ -227,13 +227,13 @@ builder.Host.UseWolverine(opts =>
 });
 ```
 
-30 seconds is a good default — short enough to survive every common cloud idle timeout (Azure Flexible Server's 30-min default, AWS NAT Gateway's 350s, k8s service mesh's typical 60–90s) without flooding the network. If you can pair it with server-side `tcp_keepalives_idle = 30` in `postgresql.conf`, even better, but the client-side setting is sufficient on its own.
+30 seconds is a good default -- short enough to survive every common cloud idle timeout (Azure Flexible Server's 30-min default, AWS NAT Gateway's 350s, k8s service mesh's typical 60–90s) without flooding the network. If you can pair it with server-side `tcp_keepalives_idle = 30` in `postgresql.conf`, even better, but the client-side setting is sufficient on its own.
 
 ### Avoid PgBouncer / RDS Proxy in transaction-pooling mode
 
-Session-level advisory locks **require session identity**. Transaction-pooling poolers (PgBouncer's `pool_mode = transaction`, RDS Proxy's transaction mode, etc.) multiplex multiple application connections onto a smaller pool of backend sessions on a per-transaction basis, so the backend session that took the lock isn't the same one that later checks it. This *will* break leader election — usually quietly, with split-brain symptoms.
+Session-level advisory locks **require session identity**. Transaction-pooling poolers (PgBouncer's `pool_mode = transaction`, RDS Proxy's transaction mode, etc.) multiplex multiple application connections onto a smaller pool of backend sessions on a per-transaction basis, so the backend session that took the lock isn't the same one that later checks it. This *will* break leader election -- usually quietly, with split-brain symptoms.
 
-If you need pooling between Wolverine and PostgreSQL, use **session pooling** (`pool_mode = session`). Or — preferred for Wolverine specifically — bypass the pooler entirely and connect directly to the database. The connection count Wolverine itself uses for advisory locks and durability operations is modest; pooling rarely pays off for the Wolverine ↔ PG hop in particular.
+If you need pooling between Wolverine and PostgreSQL, use **session pooling** (`pool_mode = session`). Or -- preferred for Wolverine specifically -- bypass the pooler entirely and connect directly to the database. The connection count Wolverine itself uses for advisory locks and durability operations is modest; pooling rarely pays off for the Wolverine ↔ PG hop in particular.
 
 ### Match managed-PG idle eviction to `HealthCheckPollingTime`
 
@@ -558,7 +558,7 @@ deterministic ties adds a composite index to cover the sequence ordering too.
 Unlike the [Sql Server transport's `OptimizeQueueThroughput()`](./sqlserver.html#optimizing-queue-throughput),
 there is no clustered-storage opt-in for PostgreSQL: PostgreSQL tables are heaps (there is no clustered
 index to align with the dequeue order), so the index above already captures essentially all of the
-available benefit. For very high-churn queues the main operational lever is PostgreSQL autovacuum —
+available benefit. For very high-churn queues the main operational lever is PostgreSQL autovacuum -- 
 busy queue tables accumulate dead tuples from the constant insert/delete cycle, so ensure autovacuum
 is keeping up (and consider per-table autovacuum tuning) rather than reaching for a storage-layout change.
 
@@ -571,7 +571,7 @@ This queue is hardcoded to poll every second and should not be changed to ensure
 
 PostgreSQL queues can be used as the external transport for
 [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This gives you
-cluster-wide sequential processing by group id with **no extra infrastructure** — the shards are
+cluster-wide sequential processing by group id with **no extra infrastructure** -- the shards are
 just more tables in the database you already have.
 
 Use `UseShardedPostgresqlQueues()` inside a `GlobalPartitioned()` configuration:
@@ -595,13 +595,13 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 ```
 
-That creates queues named `orders1` through `orders4` — each backed by its own
-`wolverine_queue_orders{n}` / `wolverine_queue_orders{n}_scheduled` table pair — with companion
+That creates queues named `orders1` through `orders4` -- each backed by its own
+`wolverine_queue_orders{n}` / `wolverine_queue_orders{n}_scheduled` table pair -- with companion
 local queues `global-orders1` through `global-orders4`. Each shard queue is marked exclusive, so
 only one node in the cluster listens to it at a time.
 
-If you only want the *publishing* half — sharded queues with no companion local queues, so every
-message really does round-trip through the database — use the `MessagePartitioningRules` variant
+If you only want the *publishing* half -- sharded queues with no companion local queues, so every
+message really does round-trip through the database -- use the `MessagePartitioningRules` variant
 instead:
 
 ```cs
@@ -631,14 +631,14 @@ produces distinct, in-range table names for each shard.
 
 ::: warning Multi-tenancy
 Under [database-per-tenant storage](#multi-tenancy) the shard queue tables are provisioned in
-**every** tenant database and slot routing is unchanged — a group id maps to the same slot number
+**every** tenant database and slot routing is unchanged -- a group id maps to the same slot number
 regardless of tenant. Listening is then assigned per `(queue, database)` pair by the sticky listener
 agent family rather than per queue.
 :::
 
 ### Resetting in Tests
 
-`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only — they leave
+`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only -- they leave
 this transport's queue and scheduled-message tables alone. To wipe both in an integration test
 harness, call [`IHost.ClearAllWolverineStorageAsync()`](/guide/testing.html#resetting-all-wolverine-storage-in-tests),
 which leaves the queue tables built but empty across every tenant database.
@@ -647,7 +647,7 @@ which leaves the queue tables built but empty across every tenant database.
 
 Wolverine can exchange messages with an [NServiceBus](https://particular.net/nservicebus) endpoint that uses the
 [PostgreSQL transport](https://docs.particular.net/transports/sql/) by reading and writing the NServiceBus queue
-tables directly — the same database-backed interop available for [SQL Server](/guide/durability/sqlserver.html#nservicebus-interoperability).
+tables directly -- the same database-backed interop available for [SQL Server](/guide/durability/sqlserver.html#nservicebus-interoperability).
 One table per queue with a JSON `Headers` column and a raw `Body` column; Wolverine's own durable inbox/outbox still
 lives in its PostgreSQL message store, only the *queue* tables belong to NServiceBus.
 
@@ -751,8 +751,8 @@ header, and Wolverine maps it to and from `Envelope.TenantId` when you add `MapT
 [SQL Server multi-tenancy section](/guide/durability/sqlserver.html#multi-tenancy) for the full explanation and sample.
 
 The [SQL Server NServiceBus interoperability guide](/guide/durability/sqlserver.html#nservicebus-interoperability)
-shows the complete bidirectional setup inline — the shared message contracts, the NServiceBus host configuration, and
-a handler — all of which applies here apart from swapping the `*SqlServer*` configuration calls for the `*Postgresql*`
+shows the complete bidirectional setup inline -- the shared message contracts, the NServiceBus host configuration, and
+a handler -- all of which applies here apart from swapping the `*SqlServer*` configuration calls for the `*Postgresql*`
 ones shown above. See the [interop tutorial](/tutorials/interop) for the bigger picture.
 
 ## MassTransit Interoperability <Badge type="tip" text="6.0" />
@@ -761,8 +761,8 @@ Wolverine can also interoperate with a [MassTransit](https://masstransit.io) app
 [PostgreSQL SQL transport](https://masstransit.io/documentation/transports/sql). Unlike NServiceBus' documented
 table contract, MassTransit's SQL transport is a function-driven, two-table model
 (`transport.message` + `transport.message_delivery`) that MassTransit **owns and migrates itself**, so Wolverine
-interoperates by calling MassTransit's stored functions — `send_message` to publish, `fetch_messages` to lease, and
-`delete_message`/`unlock_message` to ack/nack — rather than reading and writing a table directly. MassTransit must be
+interoperates by calling MassTransit's stored functions -- `send_message` to publish, `fetch_messages` to lease, and
+`delete_message`/`unlock_message` to ack/nack -- rather than reading and writing a table directly. MassTransit must be
 running (or have run) to migrate the `transport` schema; Wolverine never provisions it (beyond optionally calling
 `create_queue_v2` for a queue it listens to).
 
@@ -980,7 +980,7 @@ across concurrent processes (preventing duplicate `CREATE SCHEMA IF NOT EXISTS` 
 by default for its own migrations.
 
 When `IntegrateWithWolverine()` is in use, both frameworks target the same schema. To make them serialize
-against the *same* advisory lock — useful when many test fixtures or service replicas boot in parallel —
+against the *same* advisory lock -- useful when many test fixtures or service replicas boot in parallel -- 
 align the two ids:
 
 ```csharp
@@ -1004,10 +1004,10 @@ builder.Host.UseWolverine(opts =>
 ### Advisory locks and Marten's async-daemon gap detection
 
 Marten's async daemon (9.16.1+) will not skip a stale event-sequence gap while any Postgres session
-that *might* have reserved those sequence numbers is still alive — concretely, any session whose open
+that *might* have reserved those sequence numbers is still alive -- concretely, any session whose open
 transaction predates the gap ([marten#4953](https://github.com/JasperFx/marten/issues/4953)). A
 session that parks inside an open transaction for the life of the process therefore looks like a
-permanent "possible reserver" and can hold the high-water mark — and every async projection — behind a
+permanent "possible reserver" and can hold the high-water mark -- and every async projection -- behind a
 genuinely dead gap indefinitely.
 
 Wolverine's long-held locks are deliberately shaped to stay out of that candidate set:
@@ -1028,7 +1028,7 @@ Two rules for combined Marten + Wolverine deployments:
    9.16.1+ and, where needed, its `SkipStaleGapsDespiteLiveTransactionsAfter` setting.
 2. **Never add keepalive queries inside a long-lived open transaction** in your own code. A periodic
    `select 1` bumps `pg_stat_activity.state_change`, which makes the session look active to Marten's
-   liveness fence and re-promotes it to candidate reserver — permanently defeating the mitigation. If a
+   liveness fence and re-promotes it to candidate reserver -- permanently defeating the mitigation. If a
    session must hold an open transaction, it should stay completely silent; better yet, hold long-lived
    exclusivity as a session-scoped lock on a connection with no transaction at all, the way Wolverine's
    `AdvisoryLock` does.

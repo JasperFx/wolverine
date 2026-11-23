@@ -237,7 +237,7 @@ using var host = await Host.CreateDefaultBuilder()
 ::: warning
 A local queue can only be `BufferedInMemory` (the default) or `Durable`. `ProcessInline()` means "execute
 the message on the transport's own listening callback instead of queueing it", and a local queue has no
-transport listener — the queue itself *is* Wolverine's local execution block, so there would be nothing
+transport listener -- the queue itself *is* Wolverine's local execution block, so there would be nothing
 left to run the message. As of Wolverine 6.30 `ProcessInline()` throws a `NotSupportedException` right
 where you call it on a local queue, and a local queue that reaches `Inline` some other way (through
 `LocalQueueFor<T>()` or `IConfigureLocalQueue`, whose queues resolve lazily) stops the host from starting

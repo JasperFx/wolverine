@@ -144,11 +144,11 @@ Any attribute that does not have a dedicated helper can still be set through `Co
 
 The queue configuration described here is shared by both directions of communication:
 
-- [Listening](/guide/messaging/transports/sqs/listening) — receiving messages from a queue.
-- [Publishing](/guide/messaging/transports/sqs/publishing) — routing outgoing messages to a queue.
-- [FIFO Queues](/guide/messaging/transports/sqs/fifo-queues) — creating ordered, exactly-once queues by adding
+- [Listening](/guide/messaging/transports/sqs/listening) -- receiving messages from a queue.
+- [Publishing](/guide/messaging/transports/sqs/publishing) -- routing outgoing messages to a queue.
+- [FIFO Queues](/guide/messaging/transports/sqs/fifo-queues) -- creating ordered, exactly-once queues by adding
   the `FifoQueue` and `ContentBasedDeduplication` attributes.
 
-It does not matter whether a queue is first declared by a listener or by a subscription — Wolverine tracks a
+It does not matter whether a queue is first declared by a listener or by a subscription -- Wolverine tracks a
 single `AmazonSqsQueue` per queue name, so its `CreateQueueRequest` configuration is applied once when the queue
 is provisioned.

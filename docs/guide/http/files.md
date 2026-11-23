@@ -30,7 +30,7 @@ public class FileUploadEndpoint
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/FileUploadEndpoint.cs#L9-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_file_uploads' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-See [Upload files in ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads?view=aspnetcore-10.0)
+See [Upload files in ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads)
 for more information about these types.
 
 ## Multipart Uploads <Badge type="tip" text="5.16" />
@@ -83,7 +83,7 @@ read is asynchronous, so the request thread is not blocked while the body arrive
 buffered. For
 large uploads, take a `MultipartReader` parameter instead. Wolverine opens it over the unbuffered request body and
 your endpoint reads each section as it arrives. This is the pattern ASP.NET Core describes in
-[Upload large files with streaming](https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads?view=aspnetcore-10.0#upload-large-files-with-streaming),
+[Upload large files with streaming](https://learn.microsoft.com/en-us/aspnet/core/mvc/models/file-uploads#upload-large-files-with-streaming),
 without the model binding workarounds MVC needs:
 
 <!-- snippet: sample_streaming_multipart_upload -->

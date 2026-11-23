@@ -5,7 +5,7 @@ Wolverine's gRPC adapter has two layers of error conversion:
 1. A **default mapping table** (always on) that translates common .NET exceptions to the matching
    gRPC `StatusCode`, following [Google AIP-193](https://google.aip.dev/193). This is the gRPC
    counterpart to Wolverine's default HTTP error behaviour.
-2. An **opt-in `google.rpc.Status` pipeline** for structured, field-level detail payloads — the
+2. An **opt-in `google.rpc.Status` pipeline** for structured, field-level detail payloads -- the
    gRPC counterpart to HTTP's [`ProblemDetails`](../http/problemdetails) /
    `ValidationProblemDetails`.
 
@@ -39,7 +39,7 @@ into `RpcException` with the canonical status code from the table below. See
 | *anything else*               | `Internal`              |
 
 A handler can just throw `KeyNotFoundException` and the gRPC client receives an `RpcException` with
-`StatusCode.NotFound` — no explicit translation layer in every service method:
+`StatusCode.NotFound` -- no explicit translation layer in every service method:
 
 ```csharp
 public static OrderReply Handle(GetOrder request, IOrderStore store)
@@ -71,7 +71,7 @@ builder.Services.AddWolverineGrpc(opts =>
 });
 ```
 
-Inheritance is respected — a mapping for a base class also matches derived types unless a more
+Inheritance is respected -- a mapping for a base class also matches derived types unless a more
 specific mapping is registered. When multiple registrations target the same exception type, the
 last one wins.
 
@@ -80,7 +80,7 @@ the [Rich error details](#rich-error-details-opt-in) section below.
 
 ## Rich error details (opt-in)
 
-The default mapping table produces a single `StatusCode` and a message string — enough for
+The default mapping table produces a single `StatusCode` and a message string -- enough for
 "something went wrong," but not for a client that needs to render per-field validation errors or
 inspect a machine-readable reason code. For that, Wolverine ships an opt-in
 [AIP-193 `google.rpc.Status`](https://google.aip.dev/193) pipeline that packs structured detail
@@ -88,7 +88,7 @@ payloads into the `grpc-status-details-bin` trailer.
 
 This is the **gRPC counterpart to** [`ProblemDetails`](../http/problemdetails) on the HTTP side.
 The same handler can surface a `ValidationProblemDetails` response over HTTP and a
-`google.rpc.BadRequest` payload over gRPC — both driven by the same Wolverine middleware and the
+`google.rpc.BadRequest` payload over gRPC -- both driven by the same Wolverine middleware and the
 same handler code.
 
 ### Turning it on
@@ -110,7 +110,7 @@ builder.Host.UseWolverine(opts =>
 });
 ```
 
-`UseGrpcRichErrorDetails()` is safe to call on its own — with no adapters registered the validation
+`UseGrpcRichErrorDetails()` is safe to call on its own -- with no adapters registered the validation
 provider is a no-op and the interceptor falls through to the canonical table.
 `UseFluentValidationGrpcErrorDetails()` ships in a separate package
 (`WolverineFx.FluentValidation.Grpc`) so hosts that don't use FluentValidation never pull the
@@ -156,7 +156,7 @@ opts.UseGrpcRichErrorDetails(cfg =>
 ```
 
 The factory runs per-request and gets the live `ServerCallContext`, so it can read headers, peer
-info, or anything else it needs. First match wins — add multiple `MapException` entries in the
+info, or anything else it needs. First match wins -- add multiple `MapException` entries in the
 order most specific → least specific.
 
 ### Custom providers
@@ -187,7 +187,7 @@ opts.UseGrpcRichErrorDetails(cfg => cfg.AddProvider<CompliancePolicyProvider>())
 ```
 
 The provider is resolved from the request-scoped service provider, so constructor-injected
-dependencies follow normal ASP.NET Core lifetimes. Return `null` from `BuildStatus` to skip — the
+dependencies follow normal ASP.NET Core lifetimes. Return `null` from `BuildStatus` to skip -- the
 next provider in the chain gets a shot.
 
 ### Opt-in catch-all `ErrorInfo`
@@ -201,7 +201,7 @@ opts.UseGrpcRichErrorDetails(cfg => cfg.EnableDefaultErrorInfo());
 
 Unmapped exceptions become `Code.Internal` with a single
 `ErrorInfo { Reason = exception.GetType().Name, Domain = "wolverine.grpc" }`. No stack traces, no
-exception messages — the payload is deliberately opaque so you can turn it on in production without
+exception messages -- the payload is deliberately opaque so you can turn it on in production without
 leaking internals.
 
 ### Reading rich details on the client
@@ -239,7 +239,7 @@ sample demonstrates both paths end-to-end.
 ::: warning
 The `grpc-status-details-bin` trailer shares gRPC's **~8 KB header budget** with the rest of the
 response metadata. Packing dozens of detail payloads (or a single payload with a large free-text
-message) can exceed the limit and truncate the trailer mid-frame — the client then sees the status
+message) can exceed the limit and truncate the trailer mid-frame -- the client then sees the status
 code but no details. Keep payloads small: one detail message per status, short reason codes, and
 refer the client to a separate RPC for deep diagnostics when it needs more.
 :::

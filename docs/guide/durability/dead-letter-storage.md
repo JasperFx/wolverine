@@ -29,7 +29,7 @@ The durability agent's background replay and cleanup cycles both filter the `wol
 table on the `replayable` column (and, when [dead letter expiration](#dead-letter-expiration) is
 enabled, on the `expires` column). On a large dead-letter table these queries would otherwise force a
 full table scan on every cycle. Wolverine automatically provisions indexes for these columns as part
-of the normal schema creation/migration — a partial index scoped to the matching rows on PostgreSQL,
+of the normal schema creation/migration -- a partial index scoped to the matching rows on PostgreSQL,
 SQL Server, and SQLite, and a plain index on MySQL and Oracle (which don't support filtered indexes).
 There is nothing to configure.
 
@@ -53,7 +53,7 @@ Every endpoint declares its effective destination through a single transport-agn
 
 | Value | Meaning |
 |-------|---------|
-| `Durable` | Dead letters go to Wolverine's durable store (`wolverine_dead_letters`) — queryable and replayable through `IDeadLetters`. |
+| `Durable` | Dead letters go to Wolverine's durable store (`wolverine_dead_letters`) -- queryable and replayable through `IDeadLetters`. |
 | `Native` | Dead letters go to a native broker dead letter queue and are **not** bridged into durable storage. |
 | `NativeWithRecovery` | Dead letters go to a native broker dead letter queue **and** are bridged back into durable storage via `EnableDeadLetterQueueRecovery()` ([RabbitMQ](/guide/messaging/transports/rabbitmq/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage), [Amazon SQS](/guide/messaging/transports/sqs/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage), [Azure Service Bus](/guide/messaging/transports/azureservicebus/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage)). |
 
@@ -454,7 +454,7 @@ app.MapDeadLettersEndpoints()
 - **Method**: `POST`
 - **Request Body**: `DeadLetterEnvelopeGetRequest`
   - `Limit` (uint, default `100`): Number of records to return per page.
-  - `PageNumber` (int): Page number for offset-based pagination — pass `0` (or omit) for the first page.
+  - `PageNumber` (int): Page number for offset-based pagination -- pass `0` (or omit) for the first page.
   - `MessageType` (string?): Filter by message type.
   - `ExceptionType` (string?): Filter by exception type.
   - `ExceptionMessage` (string?): Filter by exception message.
@@ -468,7 +468,7 @@ app.MapDeadLettersEndpoints()
   - `Until` (DateTimeOffset?): End date for fetching records.
   - `TenantId` (string?): Tenant identifier for multi-tenancy support.
   - `DatabaseUri` (Uri?): Scope the query to a single message store when the application has multiple (ancillary) stores configured. Omit to query every store.
-- **Response**: `IReadOnlyList<DeadLetterEnvelopeResults>` — one entry per matching message store. Each `DeadLetterEnvelopeResults` contains:
+- **Response**: `IReadOnlyList<DeadLetterEnvelopeResults>` -- one entry per matching message store. Each `DeadLetterEnvelopeResults` contains:
   - `TotalCount` (int): Total matching records for the filter in that store.
   - `Envelopes` (`List<DeadLetterEnvelope>`): The page of dead-letter envelopes.
   - `PageNumber` (int): Echo of the requested page number.
@@ -479,7 +479,7 @@ The pagination model changed from cursor-based (`StartId` / `NextId`) to offset-
 :::
 
 ::: tip Filtering by replayable state <Badge type="tip" text="6.22" />
-After deploying a fix, operators commonly want to separate the messages that are still stuck (`"Replayable": false`) from the ones already queued for replay (`"Replayable": true`). Because the predicate is applied in the database rather than in memory after paging, `TotalCount` reflects the filtered subset — so a `false`-only view drives a paginated UI or batch redrive correctly.
+After deploying a fix, operators commonly want to separate the messages that are still stuck (`"Replayable": false`) from the ones already queued for replay (`"Replayable": true`). Because the predicate is applied in the database rather than in memory after paging, `TotalCount` reflects the filtered subset -- so a `false`-only view drives a paginated UI or batch redrive correctly.
 
 ```json
 {
@@ -548,7 +548,7 @@ After deploying a fix, operators commonly want to separate the messages that are
 ]
 ```
 
-The `Message` property is the deserialized message body — populated when Wolverine's handler graph knows the message type and a matching serializer is registered. The full wire `Envelope` (headers, content type, destination, etc.) is also returned for inspection.
+The `Message` property is the deserialized message body -- populated when Wolverine's handler graph knows the message type and a matching serializer is registered. The full wire `Envelope` (headers, content type, destination, etc.) is also returned for inspection.
 
 #### Replay Dead Letters Endpoint
 

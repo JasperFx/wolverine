@@ -30,7 +30,7 @@ While that strategy works and doesn't require Wolverine.Http at all, there's an 
 Wolverine.HTTP to quickly build ASP.Net Core routes with Wolverine message handlers that bypasses some of the 
 performance overhead of "classic mediator" usage.
 
-The functionality is used from extension methods off of the ASP.Net Core [WebApplication](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.webapplication?view=aspnetcore-7.0) class used in bootstrapping:
+The functionality is used from extension methods off of the ASP.Net Core [WebApplication](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.builder.webapplication) class used in bootstrapping:
 
 <!-- snippet: sample_optimized_mediator_usage -->
 <a id='snippet-sample_optimized_mediator_usage'></a>

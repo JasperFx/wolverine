@@ -2,12 +2,12 @@
 
 Wolverine supports both idiomatic ways of defining a gRPC surface on .NET:
 
-- **Code-first** — a C# interface with `[ServiceContract]`, using
+- **Code-first** -- a C# interface with `[ServiceContract]`, using
   [protobuf-net.Grpc](https://protobuf-net.github.io/protobuf-net.Grpc/) to synthesise the wire
   format at runtime.
-- **Proto-first** — a `.proto` file compiled by `Grpc.Tools` into a `{Service}Base` stub.
+- **Proto-first** -- a `.proto` file compiled by `Grpc.Tools` into a `{Service}Base` stub.
 
-They can coexist in the same host — `AddCodeFirstGrpc()` and `AddGrpc()` are orthogonal. The table
+They can coexist in the same host -- `AddCodeFirstGrpc()` and `AddGrpc()` are orthogonal. The table
 below is the quick decision lens; the rest of the page has both sides laid out together so you can
 scroll between them and compare.
 
@@ -30,7 +30,7 @@ always deploy together, **proto-first for anything the outside world consumes**.
 
 Applying `[WolverineGrpcService]` to the **interface** itself alongside `[ServiceContract]` lets
 Wolverine generate the concrete implementation for you. Wolverine discovers the interface at startup,
-emits `{ServiceName}GrpcHandler` that injects `IMessageBus`, and maps it — no service class to write
+emits `{ServiceName}GrpcHandler` that injects `IMessageBus`, and maps it -- no service class to write
 or maintain.
 
 ```csharp
@@ -82,11 +82,11 @@ builder.Services.AddWolverineGrpc();
 app.MapWolverineGrpcServices();
 ```
 
-The generated class name follows the convention `{InterfaceNameWithoutLeadingI}GrpcHandler` — so
+The generated class name follows the convention `{InterfaceNameWithoutLeadingI}GrpcHandler` -- so
 `IGreeterCodeFirstService` → `GreeterCodeFirstServiceGrpcHandler`. The generated type implements the
 contract interface and is the class that protobuf-net.Grpc maps as the service endpoint.
 
-On the client side, use the same interface with `channel.CreateGrpcService<T>()` — no stubs, no
+On the client side, use the same interface with `channel.CreateGrpcService<T>()` -- no stubs, no
 `.proto` file, no code-gen step:
 
 ```csharp
@@ -154,8 +154,8 @@ See [Samples](./samples#greetercodefirstgrpc) for a walkthrough.
 The generated implementation recognises **unary** (`Task<TResponse> Name(TRequest[, CallContext])`),
 **server streaming** (`IAsyncEnumerable<TResponse> Name(TRequest[, CallContext])`), and
 **client streaming** (`Task<TResponse> Name(IAsyncEnumerable<TRequest>[, CallContext])`) method
-shapes. The bidirectional shape — an `IAsyncEnumerable<TRequest>` *parameter* combined with an
-`IAsyncEnumerable<TResponse>` *return* — is skipped by method discovery. Because the generated class
+shapes. The bidirectional shape -- an `IAsyncEnumerable<TRequest>` *parameter* combined with an
+`IAsyncEnumerable<TResponse>` *return* -- is skipped by method discovery. Because the generated class
 must implement the whole interface, a contract that declares a bidi method fails to compile at
 `MapWolverineGrpcServices()` with `CS0535` naming the missing member. This applies whether the
 contract is attributed or registered with `IncludeCodeFirstContract<T>()`. Use a hand-written
@@ -175,8 +175,8 @@ proto-first rule that the stub must be abstract.
 
 ### Code-first (hand-written service class)
 
-When you prefer explicit control over the service class — for example to add per-method logging or
-to call multiple downstream services from one RPC — write the class yourself:
+When you prefer explicit control over the service class -- for example to add per-method logging or
+to call multiple downstream services from one RPC -- write the class yourself:
 
 ```csharp
 [ServiceContract]
@@ -207,7 +207,7 @@ Wolverine generates a thin **delegation wrapper** around the class at startup, n
 any `GrpcService` suffix and appending `GrpcHandler` (`PingGrpcService` → `PingGrpcHandler`).
 The wrapper implements the same `[ServiceContract]` interface, weaves
 any `Validate` / `[WolverineBefore]` middleware defined on the service class, then calls into the
-inner class — which Wolverine resolves from the DI container or constructs via
+inner class -- which Wolverine resolves from the DI container or constructs via
 `ActivatorUtilities` if no explicit registration exists. This gives hand-written service classes
 the same middleware and validation hooks available to the proto-first and generated-implementation
 paths.
@@ -234,19 +234,19 @@ public static class PingHandler
 At startup Wolverine scans assemblies, finds the abstract stub, and generates a concrete wrapper
 named `{ProtoServiceName}GrpcHandler` (e.g. `PingGrpcHandler`) that overrides each RPC and forwards
 to `IMessageBus`. The generated type participates in the same code-generation pipeline as handler
-and HTTP chains — it shows up in `dotnet run -- describe` and `describe-routing` CLI diagnostics.
+and HTTP chains -- it shows up in `dotnet run -- describe` and `describe-routing` CLI diagnostics.
 
 ::: warning
-The stub **must be abstract**. Making it concrete short-circuits the code-generation pipeline —
+The stub **must be abstract**. Making it concrete short-circuits the code-generation pipeline -- 
 Wolverine throws `InvalidOperationException` with a diagnostic message pointing at the offending
 type. Proto-first handlers must live on separate classes, not on the stub itself.
 :::
 
 ## Server streaming
 
-Same handler shape on both sides — `IAsyncEnumerable<T>` plus `[EnumeratorCancellation]`. The
+Same handler shape on both sides -- `IAsyncEnumerable<T>` plus `[EnumeratorCancellation]`. The
 difference is purely in how the contract is declared. For the generated-implementation path, the
-interface method simply returns `IAsyncEnumerable<T>` — see the [Code-first codegen](#code-first-codegen-generated-implementation)
+interface method simply returns `IAsyncEnumerable<T>` -- see the [Code-first codegen](#code-first-codegen-generated-implementation)
 section above.
 
 ### Code-first (hand-written service class)
@@ -318,7 +318,7 @@ public static class GreeterHandler
 }
 ```
 
-Notice that the handler is identical between code-first and proto-first — only the contract
+Notice that the handler is identical between code-first and proto-first -- only the contract
 declaration changes. Cancellation from the client propagates into the handler's `CancellationToken`
 in both styles, so mid-stream cancellation cleanly unwinds. For the broader streaming story
 (bidirectional, limitations, timing) see [Streaming](./streaming).
@@ -327,9 +327,9 @@ in both styles, so mid-stream cancellation cleanly unwinds. For the broader stre
 
 A `stream TRequest → TResponse` RPC is code-generated on both the proto-first and the code-first
 paths (on code-first, a `Task<TResponse>` method taking `IAsyncEnumerable<TRequest>`). The handler
-receives the whole inbound stream as `IAsyncEnumerable<TRequest>` — the message type Wolverine's
+receives the whole inbound stream as `IAsyncEnumerable<TRequest>` -- the message type Wolverine's
 [`IMessageBus.StreamAsync`](/guide/messaging/message-bus.html#streaming-requests) dispatches
-on — and returns the single response:
+on -- and returns the single response:
 
 ```proto
 service Greeter {
@@ -351,12 +351,12 @@ public static class GreeterHandler
 }
 ```
 
-See [Streaming — Client streaming](./streaming#client-streaming) for the generated
+See [Streaming -- Client streaming](./streaming#client-streaming) for the generated
 wrapper shape (both contract styles) and middleware caveats.
 
 ## Mixing both in one host
 
-Nothing stops you from running both styles together. The registration order doesn't matter — call
+Nothing stops you from running both styles together. The registration order doesn't matter -- call
 `AddCodeFirstGrpc()` and `AddGrpc()` and `AddWolverineGrpc()` in any order, then the single
 `MapWolverineGrpcServices()` call handles both:
 
@@ -369,7 +369,7 @@ builder.Services.AddWolverineGrpc();
 app.MapWolverineGrpcServices();        // discovers code-first + proto-first in one pass
 ```
 
-This is what the `GreeterProtoFirstGrpc` sample does implicitly — Wolverine sits in front and
+This is what the `GreeterProtoFirstGrpc` sample does implicitly -- Wolverine sits in front and
 routes correctly regardless of which contract style produced the service.
 
 ## Wiring recap

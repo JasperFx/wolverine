@@ -134,7 +134,7 @@ isolation, throttling, or chargeback have to live at the broker boundary.
 A second, lighter-weight topology is common in SaaS deployments where the application owns a single Azure Service Bus
 namespace and gives every tenant a dedicated *topic* inside it. Tenant isolation lives at the topic level; one connection
 string, one namespace-level RBAC policy, one set of metrics. The tradeoff is that broker-level concerns (per-tenant
-throttling, namespace-scoped credentials) all collapse onto the shared namespace — pick this topology when that's
+throttling, namespace-scoped credentials) all collapse onto the shared namespace -- pick this topology when that's
 acceptable.
 
 Wolverine doesn't ship a built-in helper for topic-per-tenant routing because the right answer to *how* tenant ids map to
@@ -146,7 +146,7 @@ that any application can drop in and adapt.
 
 `TopicPerTenantRoute` resolves the per-tenant `AzureServiceBusTopic` at publish time using the
 `DeliveryOptions.TenantId` carried by the outgoing envelope. Wolverine's per-message-type router asks
-`IMessageRouteSource.FindRoutes` exactly once per message type (the result is cached) — so the actual per-tenant
+`IMessageRouteSource.FindRoutes` exactly once per message type (the result is cached) -- so the actual per-tenant
 resolution happens inside `CreateForSending`, where the `TenantId` is known.
 
 <!-- snippet: sample_topic_per_tenant_route -->
@@ -319,7 +319,7 @@ await bus.PublishAsync(
 
 ### Behavior notes
 
-- The route source is **non-additive** — it short-circuits the default routing sources for any user message type. Local
+- The route source is **non-additive** -- it short-circuits the default routing sources for any user message type. Local
   handlers, framework-internal messages (`IInternalMessage`, `IAgentCommand`, `INotToBeRouted`), and explicit per-message
   `PublishMessage<T>().To*()` configuration still resolve through their own paths because of the filters in `FindRoutes`.
   If your application needs both topic-per-tenant routing for some messages and explicit routing for others, tweak the
@@ -334,7 +334,7 @@ await bus.PublishAsync(
 
 ### Limitations vs. the broker-per-tenant topology
 
-The recipe above shares the **same Azure Service Bus connection string** across every tenant — that's the whole point of
+The recipe above shares the **same Azure Service Bus connection string** across every tenant -- that's the whole point of
 topic-per-tenant routing. If different tenants need different connection strings or fully-qualified namespaces, use the
 broker-per-tenant configuration above (`AddTenantByConnectionString` / `AddTenantByNamespace`) instead. The two
 topologies don't compose; pick one.

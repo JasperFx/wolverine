@@ -213,20 +213,20 @@ Wolverine consults its route sources in a fixed order, and a **terminating** sou
 accumulated, while **additive** sources (e.g. `LocalRouting`, `ConventionalRouting`) let later
 sources keep contributing. `RoutingExplanation` makes that precedence visible:
 
-- `MessageType` and `IsSystemMessageType` — the latter is `true` for framework-internal types
+- `MessageType` and `IsSystemMessageType` -- the latter is `true` for framework-internal types
   (`IInternalMessage` / `IAgentCommand` / `INotToBeRouted`, or types from an
   `[ExcludeFromServiceCapabilities]` assembly), which are filtered out of observers and service
   capabilities.
-- `LocalRoutingConventionDisabled` — the current value of
+- `LocalRoutingConventionDisabled` -- the current value of
   `WolverineOptions.LocalRoutingConventionDisabled`; when `true` the `LocalRouting` source is
   short-circuited, so it explains why a locally-handled message routes nowhere locally.
-- `Steps` — one `RouteSourceStep` per route source consulted, in order, each carrying the source's
+- `Steps` -- one `RouteSourceStep` per route source consulted, in order, each carrying the source's
   descriptor, the routes it produced, and a `SkipReason` when a prior terminating source had
   already short-circuited the chain.
-- `FinalRoutes` — the final, de-duplicated route set actually used.
+- `FinalRoutes` -- the final, de-duplicated route set actually used.
 
-The same information is also available from the command line — see
-[`describe-routing --explain`](/guide/command-line#describe-routing) — and the route-source
+The same information is also available from the command line -- see
+[`describe-routing --explain`](/guide/command-line#describe-routing) -- and the route-source
 descriptors are surfaced in Wolverine's service capabilities so external tooling (e.g. CritterWatch)
 can reason about routing decisions. The text output is deliberately stable and labeled so it is
 useful for both humans and AI agents.

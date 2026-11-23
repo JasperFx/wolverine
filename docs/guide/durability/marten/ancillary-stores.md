@@ -199,8 +199,8 @@ on whichever chains you choose.
 
 ::: tip
 The attribute, the assembly policy, or `UseMartenStore()` / `UseAncillaryStorage()` is the *only* thing that moves a handler's transaction
-and its inbox/dead letter bookkeeping to an ancillary store. Injecting an ancillary store interface — directly, or
-through another service that takes one — to run read-only queries changes nothing: the handler keeps committing
+and its inbox/dead letter bookkeeping to an ancillary store. Injecting an ancillary store interface -- directly, or
+through another service that takes one -- to run read-only queries changes nothing: the handler keeps committing
 through the main store's `IDocumentSession`, and its envelopes stay in the main store's inbox.
 
 This differs from [EF Core](/guide/durability/efcore/), where the enrolled `DbContext` a handler injects *is* the
