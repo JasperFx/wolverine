@@ -436,7 +436,7 @@ Some things to know:
 ## DbContext Abstractions <Badge type="tip" text="6.2" />
 
 Sometimes the application code wants to depend on an interface that's implemented by a `DbContext`
-rather than on the concrete `DbContext` itself — a `DbContext` that doubles as a custom
+rather than on the concrete `DbContext` itself -- a `DbContext` that doubles as a custom
 `IRepository`, an `IUnitOfWork`, or a similar abstraction. Wolverine's EF Core transactional
 middleware can be taught to recognise those abstractions at handler-graph compile time so the
 auto-applied transaction/outbox still wraps the handler. Register the abstraction with
@@ -499,7 +499,7 @@ one of them. The contract Wolverine honours is: **both parameters resolve to the
 `DbContext` instance, just viewed through different interfaces**, so a single `SaveChangesAsync`
 commits all the writes the handler made through either parameter.
 
-To make this work the abstractions must forward to the same scoped `DbContext` in DI — use a
+To make this work the abstractions must forward to the same scoped `DbContext` in DI -- use a
 factory registration, **not** `AddScoped<TAbstraction, TDbContext>()` (the latter would create a
 separate `DbContext` per registered abstraction):
 
@@ -565,7 +565,7 @@ public class CrossAbstractionAuditHandler
 
 ### Multi-DbContext, mixed abstraction
 
-Each `DbContext` is independent — a host can mix abstracted and non-abstracted `DbContext`s
+Each `DbContext` is independent -- a host can mix abstracted and non-abstracted `DbContext`s
 freely. The middleware picks the right one for each handler based on its actual parameter
 dependencies:
 
@@ -596,17 +596,17 @@ opts.UseEntityFrameworkCoreTransactions()
 
 ## Selecting the Transactional DbContext <Badge type="tip" text="6.17" />
 
-A handler chain can only have **one** transactional `DbContext` — the one Wolverine enrolls in the
+A handler chain can only have **one** transactional `DbContext` -- the one Wolverine enrolls in the
 transaction and uses for the outbox. But a handler is often legitimately given more than one
-`DbContext`-shaped dependency: one it writes through, plus one it only *reads* from — a shared
+`DbContext`-shaped dependency: one it writes through, plus one it only *reads* from -- a shared
 read-only lookup database, or another module's context in a modular monolith.
 
-This applies uniformly to every kind of Wolverine chain — message handlers, HTTP endpoints, and gRPC
-endpoints — since they all resolve their transactional storage the same way. The attributes below can
+This applies uniformly to every kind of Wolverine chain -- message handlers, HTTP endpoints, and gRPC
+endpoints -- since they all resolve their transactional storage the same way. The attributes below can
 be placed on the handler method or the containing class (for HTTP, on the endpoint method).
 
 When a chain depends on more than one `DbContext`-shaped service, Wolverine will **not** guess which
-one is transactional. There is no automatic selection and no "magic" — you designate it explicitly, or
+one is transactional. There is no automatic selection and no "magic" -- you designate it explicitly, or
 Wolverine fails fast at startup:
 
 ```
@@ -654,8 +654,8 @@ public static void Handle(GrantAccess message, IAppStore users, LookupDbContext 
 
 ### 2. `[Storage(typeof(TDbContext))]`
 
-The provider-agnostic `[Storage]` attribute — the same one used to route a handler to a Marten or
-Polecat ancillary store — can equally designate the transactional `DbContext`:
+The provider-agnostic `[Storage]` attribute -- the same one used to route a handler to a Marten or
+Polecat ancillary store -- can equally designate the transactional `DbContext`:
 
 ```csharp
 [Storage(typeof(AppDbContext))]
@@ -673,7 +673,7 @@ dependencies.
 
 ### No guessing
 
-A designation that names a type the handler does **not** actually depend on — directly or via a
-registered abstraction — fails loudly at startup and names the offending type, rather than silently
+A designation that names a type the handler does **not** actually depend on -- directly or via a
+registered abstraction -- fails loudly at startup and names the offending type, rather than silently
 falling back to a default. Single-`DbContext` handlers are unaffected by any of this: there is exactly
 one candidate, so no attribute is needed.

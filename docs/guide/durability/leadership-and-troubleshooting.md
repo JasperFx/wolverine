@@ -29,7 +29,7 @@ If you are frequently stopping and starting a local process -- especially if you
 may want to utilize the `Solo` durability mode explained below:
 
 ::: tip
-Running on PostgreSQL and seeing frequent **"Lost advisory-lock connection"**, **"stepping down from leadership"**, or **"Detected duplicate agent wolverine://leader/"** log lines in a steady-state cluster? The leader election itself is healthy — it's detecting and recovering from server-side session loss correctly — but the underlying database connection is being dropped by something in the network path (managed-PG idle eviction, k8s service mesh, NAT/conntrack, connection pooler in transaction-pooling mode, etc.). See [Connection Stability for Leader Election](postgresql#connection-stability-for-leader-election) for the configuration knobs that fix it.
+Running on PostgreSQL and seeing frequent **"Lost advisory-lock connection"**, **"stepping down from leadership"**, or **"Detected duplicate agent wolverine://leader/"** log lines in a steady-state cluster? The leader election itself is healthy -- it's detecting and recovering from server-side session loss correctly -- but the underlying database connection is being dropped by something in the network path (managed-PG idle eviction, k8s service mesh, NAT/conntrack, connection pooler in transaction-pooling mode, etc.). See [Connection Stability for Leader Election](postgresql#connection-stability-for-leader-election) for the configuration knobs that fix it.
 :::
 
 
@@ -394,13 +394,13 @@ Two things bound that cost:
    leave a node's sweep automatically as agents are redistributed.
 2. **Each node polls one database at a time.** Rather than a timer per database all firing together, a
    single sweeper per node walks that node's databases sequentially, spreading them across the
-   `UpdateMetricsPeriod` window. **At most one metrics query — and one pooled connection for it — is in
+   `UpdateMetricsPeriod` window. **At most one metrics query -- and one pooled connection for it -- is in
    flight per node, regardless of how many databases that node owns** (see
    [GH-3375](https://github.com/JasperFx/wolverine/issues/3375)).
 
 ::: tip
 Before 6.18 every database ran its own in-phase poller, so the metrics polling itself could become
-significant connection pressure at high database counts — hundreds of near-simultaneous queries each
+significant connection pressure at high database counts -- hundreds of near-simultaneous queries each
 pinning a connection, plus open/close churn if your connection strings use a short
 `Connection Idle Lifetime`. If you are on an older version and see that pattern, upgrading is the fix.
 :::
@@ -409,7 +409,7 @@ Each database is still polled once per `UpdateMetricsPeriod`; the sweeper change
 spaced, not how often any one database is sampled. If you want to reduce the cost further:
 
 1. **Disable the durability metrics** entirely with `opts.Durability.DurabilityMetricsEnabled = false`
-   if you don't consume the inbox/outbox/scheduled gauges. Nothing else in Wolverine depends on them —
+   if you don't consume the inbox/outbox/scheduled gauges. Nothing else in Wolverine depends on them -- 
    this only turns off the observability polling, never the durability agents themselves.
 2. **Raise `opts.Durability.UpdateMetricsPeriod`** (default: 5 seconds) to something like 1–5 minutes.
    Queue-depth gauges at tenant-database granularity rarely need 5-second resolution, and the polling
@@ -435,7 +435,7 @@ first, so only one node does the work; the rest find the lock taken and move on.
 
 Before 6.20, *every* node polled *every* tenant database. The lock meant the work was only done once, but it
 didn't stop the connection: each losing node still opened a connection, started a transaction, failed to
-take the lock, and rolled back — every 5 seconds, against every tenant database. With hundreds of tenant
+take the lock, and rolled back -- every 5 seconds, against every tenant database. With hundreds of tenant
 databases that parks a connection per database per node, and adding a node *multiplied* the polling load
 rather than dividing it (see [GH-3376](https://github.com/JasperFx/wolverine/issues/3376)).
 
@@ -444,15 +444,15 @@ assigns to exactly one node. The tenant polling load is now spread across your n
 on each of them, and adding a node divides it.
 
 Main and ancillary stores deliberately keep polling from every node. There are only a handful of them and
-every node already holds connections to them anyway — for heartbeats, leader election, and the control
-queues — so there is nothing to save, and polling from every node means scheduled messages start flowing
+every node already holds connections to them anyway -- for heartbeats, leader election, and the control
+queues -- so there is nothing to save, and polling from every node means scheduled messages start flowing
 the moment a host boots rather than waiting on leader election.
 
 ### What this means for your deployment
 
 * **Connection footprint from scheduled polling scales with the number of databases, not `databases × nodes`.**
 * **Tenant scheduled polling pauses briefly during failover.** If a node goes down, its tenant databases
-  aren't polled until their durability agents are reassigned to a surviving node. Nothing is lost — the
+  aren't polled until their durability agents are reassigned to a surviving node. Nothing is lost -- the
   messages are still persisted, and execute once the new owner picks them up. This is the same behavior
   the durable inbox/outbox recovery already has. Main and ancillary stores are unaffected.
 * **Tenant databases added at runtime** get scheduled polling automatically as soon as their durability
@@ -462,7 +462,7 @@ the moment a host boots rather than waiting on leader election.
   polling every database from every node regardless of role.
 
 The tenant durability agents are ordinary Wolverine agents, so you can see who owns what the same way you
-inspect any other assignment — they use the `wolverinedb://` URI scheme. If tenant scheduled messages seem
+inspect any other assignment -- they use the `wolverinedb://` URI scheme. If tenant scheduled messages seem
 late, confirm the database's agent is actually assigned and running somewhere before looking at
 `ScheduledJobPollingTime`.
 

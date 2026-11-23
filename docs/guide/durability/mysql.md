@@ -349,7 +349,7 @@ To move an existing table to the new layout, do it deliberately:
 
 ### Resetting in Tests
 
-`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only — they leave
+`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only -- they leave
 this transport's queue and scheduled-message tables alone. To wipe both in an integration test
 harness, call [`IHost.ClearAllWolverineStorageAsync()`](/guide/testing.html#resetting-all-wolverine-storage-in-tests),
 which leaves the queue tables built but empty across every tenant database.

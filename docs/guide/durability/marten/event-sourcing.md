@@ -351,8 +351,8 @@ public static IEnumerable<object> Handle(
 If you instead mark the aggregate as `Required = false`, the parameter can be null when the stream does not exist. As long
 as you handle the null case, you can even effectively start a new stream by emitting events from your handler or HTTP endpoint.
 
-You can also control how Wolverine deals with the aggregate being missing — explicitly marking the aggregate as required (the
-default) or customizing the missing-stream behavior — as shown in these sample signatures below:
+You can also control how Wolverine deals with the aggregate being missing -- explicitly marking the aggregate as required (the
+default) or customizing the missing-stream behavior -- as shown in these sample signatures below:
 
 <!-- snippet: sample_validation_on_aggregate_being_missing_in_aggregate_handler_workflow -->
 <a id='snippet-sample_validation_on_aggregate_being_missing_in_aggregate_handler_workflow'></a>
@@ -787,7 +787,7 @@ public static class FindLettersHandler
 heavier aggregate event-sourcing workflow. But remember that Wolverine _also_ opts a handler into that
 workflow when its **type name ends with `AggregateHandler`** (see [Handler Method Signatures](#handler-method-signatures)).
 If both are true, the handler's return value is **appended to the aggregate's event stream as an event**
-rather than published as a cascading message — almost never what you want for a read-only handler, and it
+rather than published as a cascading message -- almost never what you want for a read-only handler, and it
 can look like the message simply vanished. Wolverine logs a startup warning when it detects this
 combination. If you intend the return value to be published as a message, rename the handler type so it
 does **not** end in `AggregateHandler`. See [JasperFx/wolverine#2922](https://github.com/JasperFx/wolverine/pull/2922).
@@ -1397,7 +1397,7 @@ For more details on how natural keys work at the Marten level, see the [Marten n
 The [Dynamic Consistency Boundary](https://dcb.events/) pattern enables event-sourced handlers to work across **multiple event streams simultaneously** within a single consistency boundary. This is essential for domain logic that naturally spans multiple entities.
 :::
 
-Traditional aggregate handlers work with a single event stream at a time. But some business decisions require state from multiple streams — for example, subscribing a student to a course requires checking both the student's enrollment history and the course's capacity. The DCB pattern solves this by loading events from multiple streams based on **event tags**, projecting them into a single aggregate state, and appending new events atomically.
+Traditional aggregate handlers work with a single event stream at a time. But some business decisions require state from multiple streams -- for example, subscribing a student to a course requires checking both the student's enrollment history and the course's capacity. The DCB pattern solves this by loading events from multiple streams based on **event tags**, projecting them into a single aggregate state, and appending new events atomically.
 
 ### How It Works
 
@@ -1552,7 +1552,7 @@ public partial class SubscriptionState
 
 ### Identity-less Boundary Aggregates with `[BoundaryAggregate]`
 
-A boundary aggregate is built from `Apply` / `Create` methods, and the source generator emits the evolver that `FetchForWritingByTags<T>()` (and `AggregateByTagsAsync<T>()`) resolve at runtime. The generator normally discovers the aggregate's identity (`TId`) from an `Id` property or an `[AggregateIdentity]` member. A *true* boundary aggregate, though, has **no single-stream identity** — it spans multiple streams by tag — so the generator cannot infer a `TId`, emits nothing, and the DCB fetch throws:
+A boundary aggregate is built from `Apply` / `Create` methods, and the source generator emits the evolver that `FetchForWritingByTags<T>()` (and `AggregateByTagsAsync<T>()`) resolve at runtime. The generator normally discovers the aggregate's identity (`TId`) from an `Id` property or an `[AggregateIdentity]` member. A *true* boundary aggregate, though, has **no single-stream identity** -- it spans multiple streams by tag -- so the generator cannot infer a `TId`, emits nothing, and the DCB fetch throws:
 
 ```
 JasperFx.Events.Projections.InvalidProjectionException : No source-generated dispatcher found for ...
@@ -1579,10 +1579,10 @@ public partial class SubscriptionState
 Requirements:
 
 - The aggregate must be `partial` and live in an assembly that references the `JasperFx.Events.SourceGenerator` analyzer. See [Making sure the generator ran](https://shared-libs.jasperfx.net/codegen/diagnostics#making-sure-the-generator-ran-at-all) for the `JFXEVT900` build error that catches a missing generator at build time instead of at runtime.
-- The `[BoundaryAggregate]` attribute must sit on the type **in its own defining assembly** — that is the compilation the generator emits into and the assembly the runtime scans (`typeof(T).Assembly`) when resolving the evolver.
+- The `[BoundaryAggregate]` attribute must sit on the type **in its own defining assembly** -- that is the compilation the generator emits into and the assembly the runtime scans (`typeof(T).Assembly`) when resolving the evolver.
 
 ::: tip
-This is only needed for the **identity-less** case. An aggregate that carries an `Id` (or an `[AggregateIdentity]` member) — like the `SubscriptionState` shown above, which keeps an `Id` and is registered as a live single-stream projection — already gets an evolver and needs no marker.
+This is only needed for the **identity-less** case. An aggregate that carries an `Id` (or an `[AggregateIdentity]` member) -- like the `SubscriptionState` shown above, which keeps an `Id` and is registered as a live single-stream projection -- already gets an evolver and needs no marker.
 :::
 
 The `[BoundaryAggregate]` marker comes from JasperFx.Events / JasperFx.Events.SourceGenerator 2.0 and later ([jasperfx#324](https://github.com/JasperFx/jasperfx/issues/324)). See the [Marten DCB documentation](https://martendb.io/events/dcb) for the canonical attribute reference; the note here covers the Wolverine handler-side workflow.
@@ -1634,9 +1634,9 @@ public static class BoundaryModelSubscribeStudentHandler
 
 The `EventTagQuery` uses a fluent API to define which events to load:
 
-- `EventTagQuery.For(tag)` — start with a tag value (e.g., a `CourseId`)
-- `.AndEventsOfType<T1, T2, ...>()` — filter to specific event types for that tag
-- `.Or(tag)` — add another tag to query (e.g., a `StudentId`)
+- `EventTagQuery.For(tag)` -- start with a tag value (e.g., a `CourseId`)
+- `.AndEventsOfType<T1, T2, ...>()` -- filter to specific event types for that tag
+- `.Or(tag)` -- add another tag to query (e.g., a `StudentId`)
 
 Marten loads all events matching **any** of the tag criteria, projects them into your aggregate using the standard `Apply()` methods, and provides the result to your handler.
 

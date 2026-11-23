@@ -37,7 +37,7 @@ builder.Host.UseWolverine(opts =>
 
 ## Behavior
 
-When a handler receives a message carrying any of the named headers, Wolverine will copy those headers onto every outgoing message cascaded within that handler context. Headers not present on the incoming message are silently skipped — no errors are thrown.
+When a handler receives a message carrying any of the named headers, Wolverine will copy those headers onto every outgoing message cascaded within that handler context. Headers not present on the incoming message are silently skipped -- no errors are thrown.
 
 Copying the headers onto outgoing messages works the same on every transport. Whether a custom header arrives on the
 incoming message in the first place depends on the transport, as the warning below explains.

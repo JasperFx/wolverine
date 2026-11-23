@@ -20,9 +20,9 @@ Wolverine takes a fundamentally different approach: middleware is **compiled dir
 When Wolverine bootstraps, it detects your middleware methods by naming convention and weaves them into the
 generated handler source code. The result is:
 
-- **Zero allocation overhead** — no delegate chains or middleware pipeline objects
-- **Clean stack traces** — no nested middleware layers obscuring where an error occurred
-- **Compile-time validation** — middleware parameter mismatches are caught at startup, not at request time
+- **Zero allocation overhead** -- no delegate chains or middleware pipeline objects
+- **Clean stack traces** -- no nested middleware layers obscuring where an error occurred
+- **Compile-time validation** -- middleware parameter mismatches are caught at startup, not at request time
 
 ## Quick Reference
 
@@ -116,7 +116,7 @@ Apply it to a specific endpoint with `[Middleware]`:
 public static Order Get([Entity] Order order) => order;
 ```
 
-Or put the `Before` method directly on the endpoint class — no separate middleware class needed:
+Or put the `Before` method directly on the endpoint class -- no separate middleware class needed:
 
 ```csharp
 public static class GetOrderEndpoint
@@ -142,7 +142,7 @@ how the conventional method names behave in both HTTP endpoints and Wolverine me
 
 ## Short-Circuiting: Replacing IAuthorizationFilter and IResourceFilter
 
-A major use of filters is short-circuiting — stopping the request before the handler runs.
+A major use of filters is short-circuiting -- stopping the request before the handler runs.
 In MVC, you'd set `context.Result` in `OnActionExecuting`. In Minimal APIs, you'd return early
 from `IEndpointFilter` without calling `next()`.
 
@@ -221,7 +221,7 @@ public static class CreateOrderEndpoint
 
 ### Using Nullable IResult
 
-You can also use a nullable `IResult` return type — `null` means "continue":
+You can also use a nullable `IResult` return type -- `null` means "continue":
 
 ```csharp
 public static class AuthMiddleware
@@ -288,7 +288,7 @@ public static class UpdateOrderEndpoint
 ```
 
 The `[Required]` attribute on a nullable parameter tells Wolverine to return a 404 if the loaded
-value is `null` — replacing the manual null check in the MVC filter.
+value is `null` -- replacing the manual null check in the MVC filter.
 
 To go farther into Wolverine, you can simplify that even more with our [persistence helpers](https://wolverinefx.io/guide/handlers/persistence.html#automatically-loading-entities-to-method-parameters)
 and simplify the code above even more:
@@ -518,7 +518,7 @@ to the middleware method. You can also use the non-generic overload with a type 
 chain.AddMiddleware(typeof(StopwatchMiddleware), nameof(StopwatchMiddleware.Before));
 ```
 
-This gives you full control over ordering — you can also directly manipulate `chain.Middleware`
+This gives you full control over ordering -- you can also directly manipulate `chain.Middleware`
 and `chain.Postprocessors` as lists, using `Insert()` to place middleware at specific positions.
 
 ### 4. `IHttpPolicy` for Groups of Endpoints
@@ -639,21 +639,21 @@ app.MapWolverineEndpoints(opts =>
 | Concern | MVC / Minimal API | Wolverine |
 |---------|-------------------|-----------|
 | **Definition** | Implement interfaces (`IActionFilter`, `IEndpointFilter`) | Write methods with conventional names (`Before`, `After`, `Finally`) |
-| **DI** | Constructor injection | Method parameter injection — no constructors needed |
+| **DI** | Constructor injection | Method parameter injection -- no constructors needed |
 | **Registration** | Attributes, global config, or `AddEndpointFilter()` | Inline methods, `[Middleware]`, `Configure(HttpChain)`, or `IHttpPolicy` |
 | **Short-circuit** | Set `context.Result` or return early from `next()` | Return `IResult`, `ProblemDetails`, or nullable types |
-| **Runtime cost** | Delegate chains with allocations | Compiled directly into generated source code — zero overhead |
+| **Runtime cost** | Delegate chains with allocations | Compiled directly into generated source code -- zero overhead |
 | **Data passing** | `HttpContext.Items` dictionary or `context.Arguments` | Method return values automatically injected as handler parameters |
 | **Validation** | Runtime errors if filter has wrong dependencies | Startup errors if middleware parameters can't be resolved |
 
-The key insight is that Wolverine middleware is **just methods** — no interfaces, no base classes,
+The key insight is that Wolverine middleware is **just methods** -- no interfaces, no base classes,
 no ceremony. The framework discovers them by naming convention and compiles them directly into the
 request handling code.
 
 ## One-Off Middleware with [WolverineBefore] / [WolverineAfter]
 
-If you have a one-off cross-cutting concern that doesn't warrant a separate middleware class — the
-equivalent of slapping a single `IActionFilter` on one controller action — consider using Wolverine's
+If you have a one-off cross-cutting concern that doesn't warrant a separate middleware class -- the
+equivalent of slapping a single `IActionFilter` on one controller action -- consider using Wolverine's
 [Railway Programming](/tutorials/railway-programming) patterns instead. The `Before`, `Validate`, and
 `Load` methods directly on your endpoint class serve the same purpose with less ceremony than creating
 a dedicated middleware type.
@@ -665,7 +665,7 @@ advanced middleware patterns.
 
 ## Further Reading
 
-- [Wolverine.HTTP Middleware](/guide/http/middleware) — full reference documentation
-- [Wolverine.HTTP Policies](/guide/http/policies) — `IHttpPolicy` reference
-- [Handler Middleware](/guide/handlers/middleware) — middleware for message handlers (same conventions)
-- [Railway Programming with Wolverine](/tutorials/railway-programming) — validation and data loading patterns
+- [Wolverine.HTTP Middleware](/guide/http/middleware) -- full reference documentation
+- [Wolverine.HTTP Policies](/guide/http/policies) -- `IHttpPolicy` reference
+- [Handler Middleware](/guide/handlers/middleware) -- middleware for message handlers (same conventions)
+- [Railway Programming with Wolverine](/tutorials/railway-programming) -- validation and data loading patterns

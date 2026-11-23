@@ -1,6 +1,6 @@
 # Output Caching <Badge type="tip" text="5.13" />
 
-Wolverine.HTTP supports ASP.NET Core's [Output Caching](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/output?view=aspnetcore-10.0) middleware for server-side response caching. This is different from the client-side [Response Caching](/guide/http/caching) that uses `Cache-Control` headers.
+Wolverine.HTTP supports ASP.NET Core's [Output Caching](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/output) middleware for server-side response caching. This is different from the client-side [Response Caching](/guide/http/caching) that uses `Cache-Control` headers.
 
 ## Response Caching vs. Output Caching
 
@@ -143,4 +143,4 @@ public static async Task Handle(ProductUpdated message, IOutputCacheStore cacheS
 - Output caching only applies to GET and HEAD requests by default.
 - Authenticated requests (those with an `Authorization` header) are not cached by default.
 
-For the full set of configuration options, see [Microsoft's Output Caching documentation](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/output?view=aspnetcore-10.0).
+For the full set of configuration options, see [Microsoft's Output Caching documentation](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/output).

@@ -12,8 +12,6 @@ valuable, but if you've ever done this before, you know what usually happens nex
 the developers start building, and within a couple sprints the diagram and the code no longer agree with each other
 and nobody can say exactly where.
 
-<!-- JEREMY: The opening problem statement (boards rotting on a wiki) is my guess at your framing; author it in your own words. -->
-
 The Critter Stack approach is to treat the Event Model as something you *execute* rather than a picture you keep
 next to the code. In practice that means:
 
@@ -40,11 +38,8 @@ Event Modeling support cuts across most of the Critter Stack, so it's worth know
 
 ::: tip
 Every one of these tools speaks the same `EventModelDescriptor` shape from JasperFx, so a model declared in code, one
-derived from Wolverine, and one observed by CritterWatch can all be merged into a single picture. That shared contract
-is really the whole trick here.
+derived from Wolverine, and one observed by CritterWatch can all be merged into a single picture.
 :::
-
-<!-- JEREMY: "the whole trick" is my characterization of why the pieces compose; reword or cut if it isn't how you'd sell it. -->
 
 ## The Running Example
 
@@ -213,9 +208,12 @@ That doesn't change the picture of the model at all, but it does change what `wo
 
 ### Dynamic Consistency Boundaries
 
-Going back to `AcceptHomeCheckAssignment` for a second, deciding against two streams at once is exactly the kind of
-decision where you might reach for a [Dynamic Consistency Boundary](/guide/durability/marten/event-sourcing#dynamic-consistency-boundary-dcb)
-instead of two aggregates. If so, say so with `DcbModel<T>()`, which is just another name for `DeciderModel<T>()`:
+Going back to `AcceptHomeCheckAssignment` for a second, CritterCrush decides that command against its two aggregates
+with the `Against<HomeCheck>().Against<VolunteerApplication>()` declaration above, which becomes one write parameter
+per stream in the handler (`[WriteAggregate]`, or `[WriteModel]` in the store-agnostic style), and that's what we'd
+recommend here. If you'd rather enforce a rule like that across both streams with a
+[Dynamic Consistency Boundary](/guide/durability/marten/event-sourcing#dynamic-consistency-boundary-dcb) instead of two
+aggregates though, say so with `DcbModel<T>()`, which is just another name for `DeciderModel<T>()`:
 
 ```csharp
 model.Command<AcceptHomeCheckAssignment>()
@@ -224,7 +222,6 @@ model.Command<AcceptHomeCheckAssignment>()
     .Emits<HomeCheckAssignmentAccepted>();
 ```
 
-<!-- JEREMY: Is AcceptHomeCheckAssignment a case you would actually steer toward a DCB decider, or do you prefer the two [WriteAggregate] streams for CritterCrush? I used it only because Bobcat flags it as "several-streams". -->
 
 ### Domains for Modular Monoliths
 
@@ -507,7 +504,8 @@ only reach for member checks, with the optional arguments spelled out, for the c
 suite builds with C# 12, which is why you'll see `ShouldBeGreaterThan(3, null)` in its WolverineFx.Bobcat tests.
 :::
 
-<!-- JEREMY: bobcat#452 says the expected-object forms should get their own Bobcat page; today the only Bobcat home is the import-event-model section of bobcat-tool.md. Swap in the dedicated page's link here once it exists. -->
+See [Expected Objects](https://bobcat.jasperfx.net/expected-objects) in the Bobcat documentation for everything else an
+expected object can say, including collections, dictionaries and relaxed comparisons.
 
 ## Scaffolding the Handlers
 
@@ -581,12 +579,15 @@ declared slice turns into.
 
 ::: tip
 The [Critter Stack AI Skills](https://ai-skills.jasperfx.net) include skills for exactly this step -- taking a red
-specification and the scaffolded skeleton and writing the implementation in house style.
+specification and the scaffolded skeleton and writing the implementation in house style. Start with
+`critterstack-sdd-code-from-specs`.
 :::
 
-<!-- JEREMY: Do you want the AI Skills plug here, and if so, should it name specific skills (critterstack-sdd-code-from-specs)? -->
-
 ## Planning the Work with Stoat
+
+::: info
+Stoat is a commercial JasperFx Software product, so you'll need a license to use it.
+:::
 
 If you're handing slices to AI agents as well as people, [Stoat](https://stoat.jasperfx.net) can turn the
 same board into a coordination plan. `stoat plan-from-model` runs Bobcat's own importer to write the same stubs,
@@ -605,7 +606,6 @@ parallel. `stoat run-plan` then works through the ready slices, and a slice is o
 green. See [From an event model to a plan](https://stoat.jasperfx.net/guide/plan-from-model) and
 [The chapter runner](https://stoat.jasperfx.net/guide/run-plan) for the details.
 
-<!-- JEREMY: Stoat is commercial. Do you want a sentence here about licensing, like the blog draft had, or leave it out? -->
 
 ## Checking the Model Against the Code
 
@@ -670,16 +670,16 @@ as JSON, or pushes it straight to a monitor, without needing a running system:
 
 ```bash
 dotnet run -- event-model --json ./event-model.json
-dotnet watch run -- event-model --url http://localhost:5525/api/event-model
+dotnet watch run -- event-model --url http://localhost:5527/api/event-model
 ```
 
 `--url` is just an HTTP PUT of the model to whatever URL you name, so Wolverine takes no dependency on the monitor. The
 second form, under `dotnet watch`, republishes the model every time you recompile, which makes for a very tight design
-loop on Stoat's Event Model canvas. Once the application is running for real, [CritterWatch](https://critterwatch.jasperfx.net/)
+loop on Stoat's Event Model canvas at `http://localhost:5526/event-model`. If you don't use Stoat, Bobcat's free
+`bobcat ui` takes the same PUT at `http://localhost:5525/api/event-model`. Once the application is running for real, [CritterWatch](https://critterwatch.jasperfx.net/)
 renders the same model live from the running service. See [Exporting the Event Model](/guide/command-line#exporting-the-event-model)
 for everything else the export can do.
 
-<!-- JEREMY: I used Stoat's own docs for the URL (PUT to :5525/api/event-model, canvas at :5526/event-model); command-line.md shows a bare http://localhost:5525. Is naming Stoat as the --url target what you want in the Wolverine docs? -->
 
 ## Summary
 
@@ -697,7 +697,7 @@ Hopefully that gives you a feel for how the pieces fit together. For the details
 | Topic | Reference |
 |-------|-----------|
 | The builder API | [Declaring the Model in Code](https://shared-libs.jasperfx.net/event-modeling/declaring) (JasperFx) |
-| Importing a board, generated specs, expected objects | [The `bobcat` Tool](https://bobcat.jasperfx.net/bobcat-tool#import-event-model) (Bobcat) |
+| Importing a board, generated specs, expected objects | [The `bobcat` Tool](https://bobcat.jasperfx.net/bobcat-tool#import-event-model), [Expected Objects](https://bobcat.jasperfx.net/expected-objects) (Bobcat) |
 | The WolverineFx.Bobcat vocabulary | [Specifications with Bobcat](/guide/testing-with-bobcat) |
 | Spec identities and the gate | [Checking spec identities against the model](/guide/testing-with-bobcat#spec-identity-audit), [Spec Identities](https://bobcat.jasperfx.net/spec-identities) (Bobcat) |
 | `event-model`, `describe-event-model`, `[Emits]`, `[SlicePattern]`, domains | [Exporting the Event Model](/guide/command-line#exporting-the-event-model) |

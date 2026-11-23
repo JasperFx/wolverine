@@ -1,10 +1,10 @@
 # Fetching Query Specifications <Badge type="tip" text="5.x" />
 
-Wolverine recognizes Marten query specifications — either
+Wolverine recognizes Marten query specifications -- either
 [compiled queries](https://martendb.io/documents/querying/compiled-queries.html)
 (`ICompiledQuery<TDoc, TResult>`) or
 [query plans](https://martendb.io/documents/querying/compiled-queries.html#query-plans)
-(`IQueryPlan<T>` / `IBatchQueryPlan<T>`) — when they appear as handler
+(`IQueryPlan<T>` / `IBatchQueryPlan<T>`) -- when they appear as handler
 dependencies, executes them automatically, and **batches them into a single
 Marten `IBatchedQuery` whenever possible**, including alongside `[Entity]`
 and `[ReadAggregate]` / `[WriteAggregate]` loads on the same handler.
@@ -18,7 +18,7 @@ This gives you two ergonomics for the same underlying machinery:
    Wolverine constructs the spec from the message (and other variables
    in scope) and runs it.
 
-Under the hood both paths produce the same codegen — specifications are
+Under the hood both paths produce the same codegen -- specifications are
 collected and run through a single `CreateBatchQuery()` whenever two or
 more can be batched together.
 
@@ -52,7 +52,7 @@ public class LoadOneNoteHandler
 }
 ```
 
-### Tuple returns — multiple specifications in one round-trip
+### Tuple returns -- multiple specifications in one round-trip
 
 When a `Load` returns a `ValueTuple` of specifications, Wolverine treats
 each tuple element as its own specification and batches them:
@@ -83,10 +83,10 @@ var notes = await notesTask;
 Handler.Handle(cmd, note, notes);
 ```
 
-## `[FromQuerySpecification]` — spec construction driven by the attribute
+## `[FromQuerySpecification]` -- spec construction driven by the attribute
 
-When you don't need a dedicated `Load` method — the specification's inputs
-are all available on the message itself — attach
+When you don't need a dedicated `Load` method -- the specification's inputs
+are all available on the message itself -- attach
 `[FromQuerySpecification(typeof(TSpec))]` to the handler parameter:
 
 ```csharp
@@ -108,7 +108,7 @@ Wolverine:
 2. Resolves each constructor parameter from variables in scope (message
    members, route values, headers, claims) by case-insensitive name match
 3. Assigns any remaining public settable properties on the spec from
-   variables in scope — the canonical Marten compiled-query pattern where
+   variables in scope -- the canonical Marten compiled-query pattern where
    parameters are properties
 
 You can also use the generic variant for less ceremony:
@@ -149,15 +149,15 @@ public class ApproveOrderHandler
 
 | Specification kind | Batched? |
 | ------------------ | -------- |
-| `ICompiledQuery<TDoc, TResult>` | **Always** — via `IBatchedQuery.Query(compiled)` |
-| A class that implements `IBatchQueryPlan<T>` (including anything deriving from `QueryListPlan<T>`) | **Always** — via `IBatchedQuery.QueryByPlan(plan)` |
-| A class that implements only `IQueryPlan<T>` (no batch variant) | **Standalone** — runs via `session.QueryByPlanAsync(plan)` after the batch finishes |
+| `ICompiledQuery<TDoc, TResult>` | **Always** -- via `IBatchedQuery.Query(compiled)` |
+| A class that implements `IBatchQueryPlan<T>` (including anything deriving from `QueryListPlan<T>`) | **Always** -- via `IBatchedQuery.QueryByPlan(plan)` |
+| A class that implements only `IQueryPlan<T>` (no batch variant) | **Standalone** -- runs via `session.QueryByPlanAsync(plan)` after the batch finishes |
 
 When a plan cannot be batched, it executes as a separate round-trip; the
 rest of the specifications on the same handler still share one batch.
 
 **Tip:** if you're writing a plan that returns a list, prefer inheriting
-from `QueryListPlan<T>` — it implements both `IQueryPlan<IReadOnlyList<T>>`
+from `QueryListPlan<T>` -- it implements both `IQueryPlan<IReadOnlyList<T>>`
 and `IBatchQueryPlan<IReadOnlyList<T>>`, so your plan is batch-capable for
 free.
 
@@ -173,12 +173,12 @@ free.
 
 **Refactor heuristic:** when you find the same `session.Query<T>().Where(...)`
 expression in two or more handlers, extract it to a plan or compiled query.
-Return it from `Load`. Wolverine will handle the rest — including batching
+Return it from `Load`. Wolverine will handle the rest -- including batching
 it with other loads on the same handler for a free performance win.
 
 ## Cross-provider parity
 
-The same ergonomic applies to Wolverine.EntityFrameworkCore — Load methods
+The same ergonomic applies to Wolverine.EntityFrameworkCore -- Load methods
 returning EF Core `IQueryPlan<TDbContext, TResult>` instances (or tuples of
 them) auto-execute, and `[FromQuerySpecification]` works there too. See
 [Query Plans (EF Core)](../efcore/query-plans.md) for the parallel story.

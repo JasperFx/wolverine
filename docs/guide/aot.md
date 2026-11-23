@@ -1,20 +1,20 @@
 # AOT Publishing
 
 ::: warning
-**Status: in progress.** Wolverine 6.0 sets up the AOT story but the full per-file annotation pass is still landing — see [the AOT-pillar tracking issue](https://github.com/JasperFx/wolverine/issues/2746). The guidance below describes the **target** end state plus the safe escape hatches that work today.
+**Status: in progress.** Wolverine 6.0 sets up the AOT story but the full per-file annotation pass is still landing -- see [the AOT-pillar tracking issue](https://github.com/JasperFx/wolverine/issues/2746). The guidance below describes the **target** end state plus the safe escape hatches that work today.
 :::
 
 Wolverine 6.0 introduces first-class support for publishing applications with [Native AOT](https://learn.microsoft.com/en-us/dotnet/core/deploying/native-aot/) (`dotnet publish /p:PublishAot=true`) and aggressive trimming. The story is two-part:
 
-1. **At build time** — pre-generate handler dispatch code via `dotnet run -- codegen write`, then ship that pre-generated code as ordinary, statically-analyzable C# inside your app's `Internal/Generated/` folder.
-2. **At runtime** — configure Wolverine in `TypeLoadMode.Static` so the host loads the pre-generated types instead of compiling them at boot. With Static mode in effect, Wolverine's Roslyn-based `AssemblyGenerator` is never invoked, and the AOT compiler / trimmer have everything they need statically.
+1. **At build time** -- pre-generate handler dispatch code via `dotnet run -- codegen write`, then ship that pre-generated code as ordinary, statically-analyzable C# inside your app's `Internal/Generated/` folder.
+2. **At runtime** -- configure Wolverine in `TypeLoadMode.Static` so the host loads the pre-generated types instead of compiling them at boot. With Static mode in effect, Wolverine's Roslyn-based `AssemblyGenerator` is never invoked, and the AOT compiler / trimmer have everything they need statically.
 
 ## Why this matters
 
 Wolverine's default `TypeLoadMode.Dynamic` (and `Auto`) configurations compile handler dispatch via [JasperFx.RuntimeCompiler](https://github.com/JasperFx/jasperfx/tree/main/src/JasperFx.RuntimeCompiler) on host startup. That path:
 
 - Loads `Microsoft.CodeAnalysis.CSharp` (~6 MB Roslyn binaries) into your process
-- Emits and JIT-compiles new types at runtime — fundamentally incompatible with Native AOT
+- Emits and JIT-compiles new types at runtime -- fundamentally incompatible with Native AOT
 - Reflects over handler / saga / middleware types in ways the trimmer can't follow statically
 
 `TypeLoadMode.Static` shifts all of that to build time. Production binaries published with `Static` mode + pre-generated code do **not** carry Roslyn at all, start faster, and pass `dotnet publish /p:PublishAot=true` without `IL2026` / `IL3050` warnings outside the explicitly-annotated runtime-codegen surface.
@@ -29,10 +29,10 @@ In your project root, run:
 dotnet run -- codegen write
 ```
 
-This invokes the JasperFx command-line surface that Wolverine extends. The command discovers handlers / sagas / middleware in the configured assemblies, runs the same code-generation passes the host would run at startup, and writes the resulting C# into `Internal/Generated/` (or wherever `opts.CodeGeneration.GeneratedCodeOutputPath` points). The files are normal C# — check them in, run them through the trimmer, set breakpoints in them.
+This invokes the JasperFx command-line surface that Wolverine extends. The command discovers handlers / sagas / middleware in the configured assemblies, runs the same code-generation passes the host would run at startup, and writes the resulting C# into `Internal/Generated/` (or wherever `opts.CodeGeneration.GeneratedCodeOutputPath` points). The files are normal C# -- check them in, run them through the trimmer, set breakpoints in them.
 
 ::: tip
-`codegen write` is the same command that's been available in earlier Wolverine versions for dev-time inspection. The 6.0 difference is that the **output is byte-stable and round-trips into `TypeLoadMode.Static`** — i.e. you can rely on the pre-generated files being the authoritative dispatch code, not just a debugging aid.
+`codegen write` is the same command that's been available in earlier Wolverine versions for dev-time inspection. The 6.0 difference is that the **output is byte-stable and round-trips into `TypeLoadMode.Static`** -- i.e. you can rely on the pre-generated files being the authoritative dispatch code, not just a debugging aid.
 :::
 
 ### 2. Configure `TypeLoadMode.Static`
@@ -47,7 +47,7 @@ builder.Host.UseWolverine(opts =>
 });
 ```
 
-`TypeLoadMode.Static` tells Wolverine "the pre-generated handler types are in this assembly; load them by name and skip the runtime compile step entirely." If a handler is missing pre-generated code, host startup fails with a clear error pointing at the missing file — so the failure mode is "loud and at startup" rather than "silent fallback to Roslyn."
+`TypeLoadMode.Static` tells Wolverine "the pre-generated handler types are in this assembly; load them by name and skip the runtime compile step entirely." If a handler is missing pre-generated code, host startup fails with a clear error pointing at the missing file -- so the failure mode is "loud and at startup" rather than "silent fallback to Roslyn."
 
 ### 3. Publish AOT
 
@@ -57,10 +57,10 @@ Reference `PublishAot` in your csproj or pass it on the command line:
 dotnet publish -c Release /p:PublishAot=true
 ```
 
-A clean AOT-published Wolverine app in `Static` mode emits **no** `IL2026` / `IL3050` warnings from Wolverine itself today against the AOT-clean *subset* of the surface (`Envelope`, `WolverineOptions`, `DeliveryOptions`, the scheduling helpers — what the [`Wolverine.AotSmoke`](https://github.com/JasperFx/wolverine/tree/main/src/Testing/Wolverine.AotSmoke) regression-guard project exercises).
+A clean AOT-published Wolverine app in `Static` mode emits **no** `IL2026` / `IL3050` warnings from Wolverine itself today against the AOT-clean *subset* of the surface (`Envelope`, `WolverineOptions`, `DeliveryOptions`, the scheduling helpers -- what the [`Wolverine.AotSmoke`](https://github.com/JasperFx/wolverine/tree/main/src/Testing/Wolverine.AotSmoke) regression-guard project exercises).
 
 ::: warning
-Until the [AOT-pillar tracking issue (#2746)](https://github.com/JasperFx/wolverine/issues/2746) is fully closed out, Wolverine APIs outside the AOT-clean subset above may emit IL warnings under `PublishAot=true`. The warnings are informative — they tell you which Wolverine APIs require dynamic code / aren't trim-safe. The Static-mode runtime path avoids most of them; the rest get annotated as the pillar work progresses.
+Until the [AOT-pillar tracking issue (#2746)](https://github.com/JasperFx/wolverine/issues/2746) is fully closed out, Wolverine APIs outside the AOT-clean subset above may emit IL warnings under `PublishAot=true`. The warnings are informative -- they tell you which Wolverine APIs require dynamic code / aren't trim-safe. The Static-mode runtime path avoids most of them; the rest get annotated as the pillar work progresses.
 :::
 
 ## The command line in an AOT binary
@@ -125,7 +125,7 @@ Currently exercised AOT-clean surface (will fail the smoke build if any of these
 - `WolverineOptions` construction
 - `WolverineOptions.DetermineSerializer` (dictionary lookup)
 
-As the per-file annotation pass in #2746 progresses, the smoke project expands to exercise the newly-annotated entry points — tightening the regression guard incrementally.
+As the per-file annotation pass in #2746 progresses, the smoke project expands to exercise the newly-annotated entry points -- tightening the regression guard incrementally.
 
 ### `Wolverine.AI.AotSmoke`
 
@@ -137,14 +137,14 @@ Note that CI *runs* this one as well as building it, which is a bit unusual for 
 
 A handful of Wolverine APIs **require** runtime codegen by design. They carry `[RequiresDynamicCode]` / `[RequiresUnreferencedCode]` annotations so the trimmer surfaces a clear warning if your AOT-published app reaches them:
 
-- `HandlerGraph.Compile` and its callees — runtime Roslyn codegen of handler dispatch. Static-mode apps don't reach this.
+- `HandlerGraph.Compile` and its callees -- runtime Roslyn codegen of handler dispatch. Static-mode apps don't reach this.
 - Reflective handler / saga / transport discovery (`HandlerDiscovery.IncludeAssembly` type-scan, the saga-type-descriptor `StartingMessages` reflection, transport `IMessageRoutingConvention` reflection). Static-mode + a pre-generated handler manifest avoid these.
-- `MakeGenericType` / `Activator.CreateInstance` driven factories — the few that still exist in core.
+- `MakeGenericType` / `Activator.CreateInstance` driven factories -- the few that still exist in core.
 - The `WolverineFx.Newtonsoft` companion package (Newtonsoft.Json itself isn't AOT-friendly; if you need Newtonsoft, you're not on the AOT path).
 - The default System.Text.Json message serializer reads message types by reflection. Pass a source generated `JsonSerializerContext` with `opts.UseSystemTextJsonForSerialization(MyMessagesContext.Default)` and it uses the AOT-safe `JsonTypeInfo` path instead; see [source generated System.Text.Json](/guide/messages#source-generated-system-text-json-trimming-and-native-aot).
 - `LlmCallout.Ask(prompt, context)` in `WolverineFx.AI` -- serializing an arbitrary context object means reflecting over its shape, and there's no way around that. Use `.WithContext(context, typeInfo)` instead, which the annotation's message tells you right at the call site.
 
-If you publish AOT in `Dynamic` mode (the default), expect warnings from these surfaces — they tell you what to migrate before you can ship a working AOT binary.
+If you publish AOT in `Dynamic` mode (the default), expect warnings from these surfaces -- they tell you what to migrate before you can ship a working AOT binary.
 
 ## Cold-start side benefit
 
@@ -152,7 +152,7 @@ Even without publishing AOT, `TypeLoadMode.Static` produces meaningful cold-star
 
 ## Pre-generated static registries
 
-`codegen write` also emits a `GeneratedHandlerRegistry` (under `Internal/Generated/WolverineHandlers/`) that captures the discovered handler types as a compile-time `typeof(...)` array. In `TypeLoadMode.Static`, Wolverine consumes this registry at startup and **skips conventional handler discovery's assembly scan** entirely — there's no `Assembly.ExportedTypes` walk and no convention filtering across your assemblies. Handler-method selection still runs over exactly the registry's types, so behavior is identical to a full scan.
+`codegen write` also emits a `GeneratedHandlerRegistry` (under `Internal/Generated/WolverineHandlers/`) that captures the discovered handler types as a compile-time `typeof(...)` array. In `TypeLoadMode.Static`, Wolverine consumes this registry at startup and **skips conventional handler discovery's assembly scan** entirely -- there's no `Assembly.ExportedTypes` walk and no convention filtering across your assemblies. Handler-method selection still runs over exactly the registry's types, so behavior is identical to a full scan.
 
 The JasperFx side of pre-generated code, including how the generated types are rooted for trimming, is in
 [Publishing AOT](https://shared-libs.jasperfx.net/codegen/aot).
@@ -170,12 +170,12 @@ builder.Host.UseWolverine(opts =>
 The fallback is safe rather than loud: if no `GeneratedHandlerRegistry` is present (you forgot to run `codegen write`, or the file wasn't committed), Wolverine logs a single warning and falls back to the runtime assembly scan instead of throwing. Re-run `dotnet run -- codegen write` and commit the regenerated files to eliminate the scan.
 
 ::: tip
-Regenerating during `codegen write` always performs a fresh scan, so the registry can never perpetuate a stale handler set — add the regeneration step to CI alongside the rest of your pre-generated code.
+Regenerating during `codegen write` always performs a fresh scan, so the registry can never perpetuate a stale handler set -- add the regeneration step to CI alongside the rest of your pre-generated code.
 :::
 
 ## Validation and AOT
 
-There is **no pre-generated `ValidatorRegistry`** to build for AOT — but the picture has two distinct paths, only one of which scans assemblies. See #2855 for the full investigation.
+There is **no pre-generated `ValidatorRegistry`** to build for AOT -- but the picture has two distinct paths, only one of which scans assemblies. See #2855 for the full investigation.
 
 **Middleware application is scan-free (AOT-clean).** `FluentValidationPolicy` decides whether to apply validation to a handler chain by *querying the IoC container* per message type (`container.RegistrationsFor(typeof(IValidator<>))`), not by walking `Assembly.ExportedTypes`. The codegen-time policy and the runtime `Execute*` calls carry leaf trim/AOT annotations (see [AOT-pillar tracking](https://github.com/JasperFx/wolverine/issues/2746)), so this path is trim-safe. Likewise `DataAnnotationsValidationExecutor` reflects only over the handler-rooted message type's `[Validation*]` attribute graph (leaf-annotated, no scan).
 
@@ -188,7 +188,7 @@ opts.UseFluentValidation(RegistrationBehavior.ExplicitRegistration);
 opts.Services.AddScoped<IValidator<CreateCustomer>, CreateCustomerValidator>();
 ```
 
-With `ExplicitRegistration`, Wolverine performs no assembly scan; the middleware-application path was already scan-free, so the whole FluentValidation surface is then AOT-clean. (If you instead rely on FluentValidation's own `AddValidatorsFromAssembly*` outside Wolverine, that scan has the same trim-hostility — register explicitly there too, and see [FluentValidation's AOT guidance](https://docs.fluentvalidation.net/).)
+With `ExplicitRegistration`, Wolverine performs no assembly scan; the middleware-application path was already scan-free, so the whole FluentValidation surface is then AOT-clean. (If you instead rely on FluentValidation's own `AddValidatorsFromAssembly*` outside Wolverine, that scan has the same trim-hostility -- register explicitly there too, and see [FluentValidation's AOT guidance](https://docs.fluentvalidation.net/).)
 
 ## Migration checklist
 
@@ -197,15 +197,15 @@ If you're moving an existing 5.x Wolverine app to 6.0 AOT:
 1. Upgrade to Wolverine 6.0 (see the [migration guide](/guide/migration.html))
 2. Run `dotnet run -- codegen write` locally; verify the `Internal/Generated/` folder gets populated and the files compile
 3. Add `opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;` to your `UseWolverine` configuration
-4. Run your existing test suite — same behavior, just no runtime codegen
+4. Run your existing test suite -- same behavior, just no runtime codegen
 5. Add `/p:PublishAot=true` to your `dotnet publish` command, fix any remaining IL warnings (or accept them with `<NoWarn>`) and ship
 
 If a handler type changes between releases, re-run `codegen write` and commit the regenerated files. Add the regeneration step to your CI pipeline (or pre-commit hook) so the pre-generated code never drifts from the source handlers.
 
 ## Related
 
-- [Code Generation](/guide/codegen.html) — full reference for `TypeLoadMode`, `codegen write`, and the underlying JasperFx runtime-compilation surface
+- [Code Generation](/guide/codegen.html) -- full reference for `TypeLoadMode`, `codegen write`, and the underlying JasperFx runtime-compilation surface
 - [Command Line Integration](/guide/command-line.html) and the [JasperFx command line documentation](https://shared-libs.jasperfx.net/cli/), including its [Native AOT](https://shared-libs.jasperfx.net/cli/#native-aot) section
-- [`Wolverine.AotSmoke`](https://github.com/JasperFx/wolverine/tree/main/src/Testing/Wolverine.AotSmoke) — the regression-guard project this guide references
-- [AOT-pillar tracking](https://github.com/JasperFx/wolverine/issues/2746) — what's annotated, what's left
+- [`Wolverine.AotSmoke`](https://github.com/JasperFx/wolverine/tree/main/src/Testing/Wolverine.AotSmoke) -- the regression-guard project this guide references
+- [AOT-pillar tracking](https://github.com/JasperFx/wolverine/issues/2746) -- what's annotated, what's left
 - [Publishing AOT](https://shared-libs.jasperfx.net/codegen/aot) in the JasperFx documentation -- the foundation Wolverine builds on

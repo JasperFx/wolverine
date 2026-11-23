@@ -172,8 +172,8 @@ Wolverine needs to be able to serialize and deserialize your message objects whe
 To that end, the default serialization is performed with [System.Text.Json](https://docs.microsoft.com/en-us/dotnet/api/system.text.json). You may also opt into using
 the battle-tested Newtonsoft.Json by installing the separate `WolverineFx.Newtonsoft` NuGet package (see below).
 
-To opt into using System.Text.Json with different defaults — which can give you better performance but with
-increased risk of serialization failures — use this syntax where `opts` is a `WolverineOptions` object:
+To opt into using System.Text.Json with different defaults -- which can give you better performance but with
+increased risk of serialization failures -- use this syntax where `opts` is a `WolverineOptions` object:
 
 <!-- snippet: sample_opting_into_stj -->
 <a id='snippet-sample_opting_into_stj'></a>

@@ -5,7 +5,7 @@ breaking existing clients. Versioned endpoints coexist at separate URL prefixes 
 carry the correct OpenAPI metadata, and can emit RFC 9745 `Deprecation` and RFC 8594 `Sunset` response headers to
 signal planned end-of-life to callers.
 
-The feature depends on the `Asp.Versioning.Abstractions` NuGet package (10.x or 11.x) — the thin, framework-neutral abstraction
+The feature depends on the `Asp.Versioning.Abstractions` NuGet package (10.x or 11.x) -- the thin, framework-neutral abstraction
 layer. It does **not** require `Asp.Versioning.Http` (the ASP.NET Core-specific middleware pack). Wolverine drives
 versioning entirely through its own `IHttpPolicy` pipeline, so there is no conflict with an existing
 `AddApiVersioning()` registration, and no additional ASP.NET Core middleware is needed.
@@ -15,8 +15,8 @@ This release supports **URL-segment versioning** (e.g. `/v1/...`, `/v2/...`) and
 via repeated `[ApiVersion]` attributes or `[MapToApiVersion]`. See [Multi-version handlers](#multi-version-handlers).
 :::
 
-If you need the full `Asp.Versioning.Http` feature set — its request-time matcher, version reporter, and
-API explorer — or you are migrating an existing Asp.Versioning integration to Wolverine, use the
+If you need the full `Asp.Versioning.Http` feature set -- its request-time matcher, version reporter, and
+API explorer -- or you are migrating an existing Asp.Versioning integration to Wolverine, use the
 `WolverineFx.Http.AspVersioning` bridge instead. See
 [Asp.Versioning.Http Package Support](#asp-versioning-http-package-support).
 
@@ -115,7 +115,7 @@ public static class CustomersEndpoint
 Per-version deprecation propagates to the matching clone only: in this example `/v1/customers` carries the
 `Deprecation` response header while `/v2/customers` and `/v3/customers` do not.
 
-#### `[MapToApiVersion]` — opt a method into a subset of class versions
+#### `[MapToApiVersion]` -- opt a method into a subset of class versions
 
 When a class declares many versions but a particular method only applies to a subset, decorate the method
 with `[MapToApiVersion]` instead of redeclaring `[ApiVersion]`:
@@ -139,7 +139,7 @@ Resolution rules:
   attribute is read; class-level versions are ignored for that method.
 - **Method-level `[MapToApiVersion]` filters class-level versions.** Every version listed must also appear
   at class level, otherwise startup fails fast with an exception naming both the method and the class.
-- **A method may not carry both `[ApiVersion]` and `[MapToApiVersion]`.** Pick one — `[ApiVersion]` declares
+- **A method may not carry both `[ApiVersion]` and `[MapToApiVersion]`.** Pick one -- `[ApiVersion]` declares
   versions independently of the class, `[MapToApiVersion]` selects from them. Mixing the two on one method
   triggers a startup exception.
 
@@ -151,12 +151,12 @@ When a chain is expanded into clones, every per-version policy is applied to its
 |---|---|
 | `RoutePattern` | Rewritten with `UrlSegmentPrefix` for that clone's version |
 | `ApiVersionMetadata` | Built per clone: `DeclaredApiVersions` is the single clone version; `SupportedApiVersions` and `DeprecatedApiVersions` are the union of all sibling clones at the same `(verb, route-without-version-prefix)` |
-| `OperationId` | Inherited from the source chain plus a `_v{sanitised-version-string}` suffix — every non-alphanumeric character is replaced with `_`, so `2.0` → `_v2_0` and date-based versions like `2024-01-01` → `_v2024_01_01` |
+| `OperationId` | Inherited from the source chain plus a `_v{sanitised-version-string}` suffix -- every non-alphanumeric character is replaced with `_`, so `2.0` → `_v2_0` and date-based versions like `2024-01-01` → `_v2024_01_01` |
 | `IEndpointGroupNameMetadata` | `OpenApi.DocumentNameStrategy(clone.ApiVersion)` |
 | `DeprecationPolicy` | `[ApiVersion(..., Deprecated = true)]` for that version, or `Deprecate("X.Y")` from options |
 | `SunsetPolicy` | `Sunset("X.Y")` from options |
 | Response headers (`Deprecation`, `Sunset`, `Link`, `api-supported-versions`) | Per the policies attached to that clone |
-| `Endpoint.Metadata` `[ApiVersion]` / `[MapToApiVersion]` | Filtered to only the clone's own version — sibling-version attributes are scrubbed so OpenAPI tooling reports each clone as implementing exactly one declared version |
+| `Endpoint.Metadata` `[ApiVersion]` / `[MapToApiVersion]` | Filtered to only the clone's own version -- sibling-version attributes are scrubbed so OpenAPI tooling reports each clone as implementing exactly one declared version |
 
 ### Marking a version as deprecated via attribute
 
@@ -185,7 +185,7 @@ By default, Wolverine prepends `v{major}` to every versioned route. Given `[ApiV
 ### Customising the URL segment prefix
 
 The prefix template is controlled by `UrlSegmentPrefix` (default `"v{version}"`). The `{version}` token is
-**required** — omitting it causes a startup exception (see [Troubleshooting](#troubleshooting)):
+**required** -- omitting it causes a startup exception (see [Troubleshooting](#troubleshooting)):
 
 ```csharp
 opts.UseApiVersioning(v =>
@@ -247,14 +247,14 @@ opts.UseApiVersioning(v =>
 
 ## Version-Neutral Endpoints <Badge type="tip" text="5.36" />
 
-Some endpoints — health checks, webhooks, metrics, infrastructure utilities — are intentionally outside the
+Some endpoints -- health checks, webhooks, metrics, infrastructure utilities -- are intentionally outside the
 versioning lifecycle. Mark them with `[ApiVersionNeutral]` to opt out explicitly:
 
-- The chain keeps its declared route — no `/v1`, `/v2`, etc. prefix is injected.
+- The chain keeps its declared route -- no `/v1`, `/v2`, etc. prefix is injected.
 - No `Deprecation`, `Sunset`, `Link`, or `api-supported-versions` headers are emitted.
 - The chain is excluded from duplicate-detection on the version axis (a neutral chain at the same
   `(verb, route)` as a versioned chain does **not** collide).
-- The chain satisfies `UnversionedPolicy.RequireExplicit` — neutrality is treated as an explicit choice,
+- The chain satisfies `UnversionedPolicy.RequireExplicit` -- neutrality is treated as an explicit choice,
   not a missing annotation.
 
 ### Class-level neutrality
@@ -300,7 +300,7 @@ any versioned document.
 
 #### Recommended: surface neutral endpoints only in a dedicated `default` document
 
-The conservative default — and the pattern the WolverineWebApi sample uses — is to keep a separate
+The conservative default -- and the pattern the WolverineWebApi sample uses -- is to keep a separate
 `default` Swagger document for unversioned/neutral endpoints and route them there only.
 
 Note: chains that pass through `UnversionedPolicy.PassThrough` (no `[ApiVersion]`, not `[ApiVersionNeutral]`)
@@ -375,7 +375,7 @@ When a versioned endpoint is matched, Wolverine emits response headers according
 
 | Header | RFC | When emitted |
 |---|---|---|
-| `api-supported-versions` | — | All versioned endpoints (toggleable via `EmitApiSupportedVersionsHeader`) |
+| `api-supported-versions` | n/a | All versioned endpoints (toggleable via `EmitApiSupportedVersionsHeader`) |
 | `Deprecation` | RFC 9745 | Endpoints with a deprecation policy |
 | `Sunset` | RFC 8594 | Endpoints with a sunset date configured |
 | `Link` | RFC 8288 | Endpoints with link references on either policy |
@@ -436,9 +436,9 @@ opts.UseApiVersioning(v =>
 
 Wolverine attaches two pieces of metadata to every versioned chain during bootstrapping:
 
-- `IEndpointGroupNameMetadata` — the document name string (e.g. `"v1"`, `"v2"`) used by Swashbuckle, Scalar,
+- `IEndpointGroupNameMetadata` -- the document name string (e.g. `"v1"`, `"v2"`) used by Swashbuckle, Scalar,
   and Microsoft.AspNetCore.OpenApi to partition the OpenAPI output.
-- `Asp.Versioning.ApiVersionMetadata` — the typed version model consumed by `Asp.Versioning.Http` tooling if
+- `Asp.Versioning.ApiVersionMetadata` -- the typed version model consumed by `Asp.Versioning.Http` tooling if
   it is also present in the application.
 
 ### Customising the document name strategy
@@ -559,7 +559,7 @@ an existing Asp.Versioning codebase and want identical behavior, Wolverine offer
 `WolverineFx.Http.AspVersioning` bridge package to support that integration.
 
 ::: warning
-This integration currently requires **.NET 10 or later** — the `WolverineFx.Http.AspVersioning` package
+This integration currently requires **.NET 10 or later** -- the `WolverineFx.Http.AspVersioning` package
 targets `net10.0` only.
 :::
 
@@ -595,7 +595,7 @@ dotnet add package WolverineFx.Http.AspVersioning
 ```
 
 **2. Register Asp.Versioning and enable the bridge.** Unlike native versioning, you register
-`AddApiVersioning(...)` yourself — the bridge delegates entirely to *your* Asp.Versioning configuration
+`AddApiVersioning(...)` yourself -- the bridge delegates entirely to *your* Asp.Versioning configuration
 (version reader, reporting, sunset policies, and so on):
 
 ```csharp
@@ -616,7 +616,7 @@ app.MapWolverineEndpoints(opts => opts.UseAspVersioning());
 
 ::: warning
 Wolverine will throw an exception if `UseApiVersioning()` and `UseAspVersioning()` are both used in
-the same application — choose one or the other.
+the same application -- choose one or the other.
 :::
 
 **3. Version your endpoints with the usual attributes.** The bridge understands `[ApiVersion]`,
@@ -647,7 +647,7 @@ With this configuration `GET /orders?api-version=1.0` reaches the v1 endpoint an
 
 URL-segment versioning works exactly as it does in a vanilla Asp.Versioning minimal API: author the
 version as a `{version:apiVersion}` route parameter and configure a URL-segment (or combined) reader via
-`AddApiVersioning`. Unlike native versioning, the bridge does **not** synthesize a `/v1/` prefix — you
+`AddApiVersioning`. Unlike native versioning, the bridge does **not** synthesize a `/v1/` prefix -- you
 write the segment yourself, and endpoints declaring different versions share the one template:
 
 ```csharp

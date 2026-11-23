@@ -157,7 +157,7 @@ to any handlers where there are Fluent Validation validators for the message typ
 ```
 
 It's cheating a little bit, because Wolverine has both an add on for incorporating [Fluent Validation middleware for message handlers](/guide/handlers/fluent-validation)
-and a [separate one for HTTP usage](/guide/http/fluentvalidation) that relies on the [ProblemDetails](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails?view=aspnetcore-9.0) specification for relaying validation errors. 
+and a [separate one for HTTP usage](/guide/http/fluentvalidation) that relies on the [ProblemDetails](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails) specification for relaying validation errors. 
 Let's still dive into how that works just to see how Wolverine really differs -- and why we think those differences matter 
 for performance and also to keep exception stack traces cleaner (don't laugh, we really did design Wolverine quite purposely to 
 avoid the really nasty kind of Exception stack traces you get from many other middleware or "behavior" using frameworks).

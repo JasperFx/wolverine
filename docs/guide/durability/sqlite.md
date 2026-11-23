@@ -343,7 +343,7 @@ A few things to know about this:
 
 ### Resetting in Tests
 
-`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only — they leave
+`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only -- they leave
 this transport's queue and scheduled-message tables alone. To wipe both in an integration test
 harness, call [`IHost.ClearAllWolverineStorageAsync()`](/guide/testing.html#resetting-all-wolverine-storage-in-tests),
 which leaves the queue tables built but empty across every tenant database.
@@ -380,7 +380,7 @@ SQLite has no user-defined schemas. The only schema names a plain connection kno
 whatever has been `ATTACH`ed, so there is nothing for a `schema.table` qualifier to point at.
 
 Wolverine therefore treats the schema name as a **table name prefix**. The default is `main`, which prefixes
-nothing — the tables are `wolverine_incoming_envelopes`, `wolverine_outgoing_envelopes` and so on:
+nothing -- the tables are `wolverine_incoming_envelopes`, `wolverine_outgoing_envelopes` and so on:
 
 ```csharp
 opts.PersistMessagesWithSqlite(connectionString, "reporting");
@@ -389,7 +389,7 @@ opts.PersistMessagesWithSqlite(connectionString, "reporting");
 
 That gives the setting a meaning SQLite can honour: several logically separate Wolverine table sets living in
 one database file without colliding. Saga tables take the same prefix. The advisory lock table
-(`wolverine_locks`) deliberately does not — lock ids are derived from the schema name, so prefixed table sets
+(`wolverine_locks`) deliberately does not -- lock ids are derived from the schema name, so prefixed table sets
 share one lock table and still take distinct rows out of it.
 
 ::: warning

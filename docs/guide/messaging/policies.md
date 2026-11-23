@@ -2,7 +2,7 @@
 
 An *endpoint policy* is a reusable rule that Wolverine applies to every messaging endpoint (listeners, senders,
 and local queues) as your application bootstraps. Rather than configuring each Rabbit MQ queue or Azure Service
-Bus subscription one at a time, you can write a single policy that's evaluated against *all* endpoints —
+Bus subscription one at a time, you can write a single policy that's evaluated against *all* endpoints -- 
 including ones created by [conventional routing](/guide/messaging/subscriptions) that you never explicitly
 declared.
 
@@ -98,10 +98,10 @@ You don't always need to write your own `IEndpointPolicy`. For the most common c
 exposes convenience methods that build endpoint policies for you. Each one automatically skips Wolverine's
 internal `System` endpoints:
 
-* `opts.Policies.AllListeners(x => ...)` — apply a `ListenerConfiguration` action to every (non-local) listening
+* `opts.Policies.AllListeners(x => ...)` -- apply a `ListenerConfiguration` action to every (non-local) listening
   endpoint.
-* `opts.Policies.AllSenders(x => ...)` — apply an `ISubscriberConfiguration` action to every sending endpoint.
-* `opts.Policies.AllLocalQueues(x => ...)` — apply configuration to every local queue.
+* `opts.Policies.AllSenders(x => ...)` -- apply an `ISubscriberConfiguration` action to every sending endpoint.
+* `opts.Policies.AllLocalQueues(x => ...)` -- apply configuration to every local queue.
 
 For example:
 

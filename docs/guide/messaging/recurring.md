@@ -4,7 +4,7 @@ Wolverine has long supported [scheduled message delivery](/guide/messaging/messa
 for one-off, "run this later" messages. `opts.Schedules` builds recurring, cron-driven messages on
 top of exactly that machinery: a single agent per cluster keeps the *next* occurrence of every
 registered schedule pre-scheduled through the ordinary scheduled-message pipeline, and everything
-else — delivery, durability, replay after a crash, management tooling — is the infrastructure that
+else -- delivery, durability, replay after a crash, management tooling -- is the infrastructure that
 already ships.
 
 <!-- snippet: sample_registering_recurring_messages -->
@@ -37,7 +37,7 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/RecurringMessageSamples.cs#L43-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_recurring_messages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The message types are handled like any other message — the cron machinery only decides *when* an
+The message types are handled like any other message -- the cron machinery only decides *when* an
 occurrence is published, never how it is processed:
 
 <!-- snippet: sample_recurring_message_types -->
@@ -67,7 +67,7 @@ public static class RecurringSampleHandler
 <!-- endSnippet -->
 
 Registering the first schedule is the feature's opt-in. A host with zero schedules registered
-behaves — and migrates its message store — exactly as it did before this feature existed. The first
+behaves -- and migrates its message store -- exactly as it did before this feature existed. The first
 registration wires three things:
 
 1. **The recurring-message agent**, a [singular agent](/tutorials/leader-election) that runs on
@@ -77,7 +77,7 @@ registration wires three things:
    configured) and fires through the same poller.
 2. **Occurrence deduplication.** Every occurrence carries a deterministic
    [logical deduplication id](/guide/durability/idempotency) of the form
-   `"{scheduleName}:{occurrenceUtc}"` — identical on any node and after any restart — and the
+   `"{scheduleName}:{occurrenceUtc}"` -- identical on any node and after any restart -- and the
    deduplication middleware is applied to the handler chains of exactly the cron-scheduled message
    types. An agent failover or restart that re-publishes the same occurrence is collapsed at
    consumption rather than executed twice. (The requirement is deliberately non-strict: publishing
@@ -86,7 +86,7 @@ registration wires three things:
    header and the instant it fired for in a `recurring-occurrence` header (UTC, round-trippable),
    surfaced on the handler's OpenTelemetry activity as the `wolverine.schedule.name` and
    `wolverine.schedule.occurrence` tags. Trace consumers can therefore attribute work both to the
-   cron job that caused it and to the specific firing it is serving — which matters because
+   cron job that caused it and to the specific firing it is serving -- which matters because
    `ScheduledTime` is cleared by the scheduled machinery before the handler runs, so the occurrence
    instant would otherwise only be recoverable by parsing the deduplication id. The schedule name is
    additionally a [metrics tag](/guide/logging#standard-metrics-tags) (`schedule.name`) on every
@@ -258,7 +258,7 @@ schedule's time zone (UTC unless one is supplied), with daylight-saving transiti
 correctly: a schedule inside a spring-forward gap fires at the adjusted instant, and a fall-back
 repeat fires once.
 
-An invalid expression throws at the registration call site — a bad schedule is a programming
+An invalid expression throws at the registration call site -- a bad schedule is a programming
 error, and it should fail at the line that wrote it. The fastest cadence is every second
 (`* * * * * *`), which is as fine as cron goes. A schedule faster than every 5 seconds always runs
 on a [timer agent](#short-cadences-timer-agents), because durable scheduled messages replay on
@@ -270,8 +270,8 @@ When the message store supports it (the PostgreSQL, SQL Server, MySQL and SQLite
 Oracle provider does not), the recurring feature keeps a small tracking table
 (`wolverine_recurring_messages`) beside the inbox: one row per registered schedule, mapping the
 schedule's name to the envelope id(s) of its pre-scheduled next occurrence. The scheduled inbox
-row is still the materialized occurrence — the tracking table is bookkeeping, never a delivery
-path — but it upgrades the agent's guarantee from fire-and-forget to **record and verify**:
+row is still the materialized occurrence -- the tracking table is bookkeeping, never a delivery
+path -- but it upgrades the agent's guarantee from fire-and-forget to **record and verify**:
 
 * Every publish records the pre-scheduled envelope ids on the schedule's row.
 * The agent's loop periodically confirms those envelopes still sit `Scheduled` in the inbox, and
@@ -279,8 +279,8 @@ path — but it upgrades the agent's guarantee from fire-and-forget to **record 
   lost it out from under the schedule.
 * After a failover or restart, the successor agent *adopts* its predecessor's verified pending
   occurrence off the row instead of blindly re-publishing it.
-* Management tooling can see which schedule owns which pending envelope — and cancel or
-  reschedule an occurrence through the ordinary scheduled-message surface — without parsing
+* Management tooling can see which schedule owns which pending envelope -- and cancel or
+  reschedule an occurrence through the ordinary scheduled-message surface -- without parsing
   deduplication-id strings.
 
 The table is provisioned only on the main message store and only when at least one schedule is
@@ -289,7 +289,7 @@ did before the feature existed.
 
 ## Pausing, resuming and triggering a schedule
 
-Pause/resume/trigger is the one piece of runtime-mutable state the feature has — schedule
+Pause/resume/trigger is the one piece of runtime-mutable state the feature has -- schedule
 *definitions* stay code-first. `IRecurringScheduleControl` is registered in the container alongside
 the first schedule:
 
@@ -328,48 +328,48 @@ instead -- see [what changes on the timer path](#what-changes-on-the-timer-path)
 
 * **Pause marks the durable tracking row and eagerly cancels the pending pre-scheduled
   envelope.** The caller may be on a different node than the scheduling agent, so nothing is
-  allowed to fire in the gap before the agent's next pass — the mark and the cancel happen in one
+  allowed to fire in the gap before the agent's next pass -- the mark and the cancel happen in one
   database transaction. Occurrences already *executing* are unaffected.
 * **Resume schedules strictly after now.** The first occurrence after a resume is the next one
   the cron computes from the resume instant; the paused window is never back-filled.
-* **Pause survives restarts and failovers** — it lives on the row, not in agent memory.
+* **Pause survives restarts and failovers** -- it lives on the row, not in agent memory.
 * Pausing or resuming a name that was never registered throws; pausing an already-paused schedule
   is a no-op that keeps the original pause timestamp.
 * **A trigger is extra, never a replacement.** `TriggerAsync` runs the schedule once, now, and
   leaves the cron cadence and the pending pre-scheduled occurrence completely untouched. The
   request is recorded on the same durable row and the agent acts on it at its next pass, so it
-  works from any node — and it fires even for a fixed-date schedule whose occurrences have run out.
+  works from any node -- and it fires even for a fixed-date schedule whose occurrences have run out.
 * **A manual run carries its own deduplication id** (`{schedule}:manual:{requested:O}`), so it is
   never collapsed into a scheduled firing it happens to coincide with. The id is still derived from
   the request instant rather than a random value, so an agent failover that re-publishes the same
   outstanding request cannot double-handle it.
 * **Only one trigger can be outstanding at a time.** Two calls landing between two agent passes
-  coalesce into a single run — the row has one slot, deliberately.
+  coalesce into a single run -- the row has one slot, deliberately.
 * **Triggering a paused schedule throws** `RecurringSchedulePausedException`. Pausing says the
   schedule must not fire, so a trigger is refused rather than allowed to override it; resume first
   if you meant to let it run.
 
 On a message store *without* the tracking extension (including no store at all), pause and resume
 degrade to the local agent's memory: they only take effect when the running agent is in the same
-process, are lost on restart, and cannot cancel an occurrence that is already pre-scheduled —
+process, are lost on restart, and cannot cancel an occurrence that is already pre-scheduled -- 
 that one will still fire. This is a documented degradation of the same kind as the
 [no-message-store mode](#running-without-a-message-store) below.
 
 ## Diagnostics
 
-Registered schedules surface in three places, all populated from the registrations themselves —
+Registered schedules surface in three places, all populated from the registrations themselves -- 
 there is no parallel configuration surface to keep in sync:
 
 * **The service capabilities snapshot** (`ServiceCapabilities.RecurringSchedules`) carries one
-  typed descriptor per schedule — name, cron expression, time zone, message type, plus the live
-  pause state and pending next occurrence read from the tracking extension — so monitoring
+  typed descriptor per schedule -- name, cron expression, time zone, message type, plus the live
+  pause state and pending next occurrence read from the tracking extension -- so monitoring
   consoles (CritterWatch) can render and manage schedules without parsing deduplication-id
   strings. The read is best-effort: an unreachable database costs the snapshot the runtime
   fields, never the schedule definitions.
 * **`wolverine describe`** renders a Recurring Messages table (name, cron, time zone, message
   type, execution path, computed next occurrence).
 * **The Event Model**: a slice whose command type has a registered schedule is triggered by the
-  job scheduler — the same treatment `TimeoutMessage` gets — with the cron expression as the
+  job scheduler -- the same treatment `TimeoutMessage` gets -- with the cron expression as the
   trigger origin's label.
 
 ## Failure semantics
@@ -377,7 +377,7 @@ there is no parallel configuration surface to keep in sync:
 All of these are deliberate, and worth knowing before relying on the feature:
 
 * **Missed occurrences are skipped, never back-filled.** The one pre-scheduled envelope still
-  fires even with the agent down — it is an ordinary scheduled message — and only occurrences
+  fires even with the agent down -- it is an ordinary scheduled message -- and only occurrences
   *after* it in an agent-less window are lost. This is the reason for the agent shape over a
   self-perpetuating message that schedules its own successor, which dies permanently the first
   time its envelope is discarded. A missed firing is a missed firing, not a dead schedule.
@@ -385,18 +385,18 @@ All of these are deliberate, and worth knowing before relying on the feature:
   the same occurrence produces the same deduplication id.
 * **A failed publish logs and retries on the next tick.** It never kills the scheduling loop.
 * **An occurrence with no subscribers or handlers is not a publish.** The agent logs a warning
-  (once per schedule) and keeps retrying each pass, so a subscription that appears later — or a
-  routing table that was still warming up — still gets the occurrence on time rather than
+  (once per schedule) and keeps retrying each pass, so a subscription that appears later -- or a
+  routing table that was still warming up -- still gets the occurrence on time rather than
   silently skipping it.
 
 ## Running without a message store
 
-A host with no message store still runs recurring messages — the agent starts directly (there is
+A host with no message store still runs recurring messages -- the agent starts directly (there is
 no cluster to coordinate) and occurrences ride the in-process scheduling model. Two things degrade,
 and Wolverine warns about both at startup:
 
-* An occurrence inside a restart window is lost. The *schedule* itself survives — the agent
-  re-establishes the next occurrence from the registrations at startup — but anything that was
+* An occurrence inside a restart window is lost. The *schedule* itself survives -- the agent
+  re-establishes the next occurrence from the registrations at startup -- but anything that was
   pending in memory when the process died is gone.
 * There is no store-backed occurrence deduplication, so an agent restart can double-publish an
   occurrence where a broker's native deduplication does not cover it.
@@ -404,7 +404,7 @@ and Wolverine warns about both at startup:
 `DurabilityMode.Serverless`, `DurabilityMode.ServerlessWithOutbox` and `DurabilityMode.MediatorOnly` are different: those modes run no
 agents at all, so a registered schedule would be accepted and then silently never fire. Wolverine
 **refuses to start** in those modes with schedules registered, naming the schedules in the
-exception — a schedule that quietly never happens is exactly the failure this feature exists to
+exception -- a schedule that quietly never happens is exactly the failure this feature exists to
 avoid.
 
 The refusal does not apply to the metadata-only command line runs (`codegen`, `describe`,

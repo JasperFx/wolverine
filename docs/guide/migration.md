@@ -80,7 +80,7 @@ See [Analyzers](/guide/analyzers/) for the rules.
   - `AutoOffsetReset`, `IsolationLevel` and `Acks` are Dekaf's enums. `AutoOffsetReset.ByDuration` takes its window from `AutoOffsetResetDuration`.
 
   `TopicSpecification` becomes Wolverine's `KafkaTopicSpecification` (with `ToNewTopic()` for hand-off to Dekaf's admin API), and `TopicCreation(...)` callbacks receive `Dekaf.Admin.IAdminClient`.
-- **Custom envelope mappers change signature.** `IKafkaEnvelopeMapper` is now `IEnvelopeMapper<Dekaf.Consumer.ConsumeResult<string, byte[]>, OutgoingKafkaRecord>` — incoming records are Dekaf's `ConsumeResult`, outgoing records are Wolverine's mutable `OutgoingKafkaRecord` (`Key`, `Value` where null means a tombstone, `Headers`, `Timestamp`, `Partition`).
+- **Custom envelope mappers change signature.** `IKafkaEnvelopeMapper` is now `IEnvelopeMapper<Dekaf.Consumer.ConsumeResult<string, byte[]>, OutgoingKafkaRecord>` -- incoming records are Dekaf's `ConsumeResult`, outgoing records are Wolverine's mutable `OutgoingKafkaRecord` (`Key`, `Value` where null means a tombstone, `Headers`, `Timestamp`, `Partition`).
 - **Schema registry serializer constructors changed.** `SchemaRegistryAvroSerializer` and `SchemaRegistryJsonSerializer` now build on the Dekaf.SchemaRegistry packages: constructors take a `Dekaf.SchemaRegistry.ISchemaRegistryClient` (`new SchemaRegistryClient(new SchemaRegistryConfig { Url = "..." })`) plus optional `AvroSerializerConfig` / `JsonSchemaSerializerConfig` (and optional `JsonSerializerOptions` for JSON) instead of the Confluent.SchemaRegistry.Serdes types. The wire format is still the Confluent framing, so records interoperate with Confluent serdes on the other side.
 - **Rebalance opt-ins removed.** `UseCooperativeStickyAssignment()` and `UseNextGenerationRebalanceProtocol()` are gone from both the transport and listener configuration. Under KIP-848 rebalances are always broker-driven and incremental, so there is nothing to opt into. Delete the calls. `UseStaticMembership(...)` is unchanged and fully supported.
 - **Full wire interop.** The transport remains wire-compatible with applications using Confluent.Kafka or any other Kafka client: keys, values, headers, timestamps, and tombstones all round-trip.
@@ -1112,7 +1112,7 @@ will surface there where earlier frameworks swallowed it; Wolverine still stops 
 
 ::: warning
 6.0 is currently in active development on the `main` branch. Items below describe the
-state of `main` as the 6.0 work proceeds — the released 6.0 may add to or refine this
+state of `main` as the 6.0 work proceeds -- the released 6.0 may add to or refine this
 list. Bug fixes for the 5.x line continue to ship from the [`5.0` maintenance branch](https://github.com/JasperFx/wolverine/tree/5.0).
 :::
 
@@ -1130,16 +1130,16 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | `Subscription.Scope` JSON converter attribute | `[StringEnumConverter]` (Newtonsoft) | `[JsonStringEnumConverter]` (STJ) | Wire format unchanged; if you serialize `Subscription` yourself with Newtonsoft and rely on string-named scopes, configure `StringEnumConverter` on your own settings |
 | `WolverineHttpOptions.UseNewtonsoftJsonForSerialization(...)` | instance method on core `WolverineFx.Http` | extension method in `WolverineFx.Http.Newtonsoft` *(BREAKING)* | Install `WolverineFx.Http.Newtonsoft`; call `services.AddWolverineHttpNewtonsoft();` alongside `AddWolverineHttp()`; add `using Wolverine.Http.Newtonsoft;` |
 | `NewtonsoftHttpSerialization` type | `Wolverine.Http` namespace in core `WolverineFx.Http` | `Wolverine.Http.Newtonsoft` namespace in `WolverineFx.Http.Newtonsoft` *(BREAKING)* | Update `using` |
-| `ProblemDetailsContinuationPolicy.WriteProblems` diagnostic logger dump | `JsonConvert.SerializeObject` (Newtonsoft) | `JsonSerializer.Serialize` (STJ) | None — diagnostic-only log line; output shape unchanged |
+| `ProblemDetailsContinuationPolicy.WriteProblems` diagnostic logger dump | `JsonConvert.SerializeObject` (Newtonsoft) | `JsonSerializer.Serialize` (STJ) | None -- diagnostic-only log line; output shape unchanged |
 | `SnapshotLifecycle` namespace | `Marten.Events.Projections` | `JasperFx.Events.Projections` *(BREAKING)* | Add `using JasperFx.Events.Projections;` |
 | `OperationRole` namespace | `Marten.Internal.Operations` | `Weasel.Core` *(BREAKING)* | Add `using Weasel.Core;` |
-| `DatabaseSagaSchema<,>` / `OracleSagaSchema<,>` namespace | `Wolverine.<Store>.Sagas`, and **the global namespace** for PostgreSQL | `Wolverine.<Store>.Internals` *(BREAKING)* | Add `using Wolverine.<Store>.Internals;`. These are "publinternal" — public only so generated code can name them — and are not a supported API |
-| Lightweight relational saga serialization | `JsonSerializerOptions.Default`, not configurable | configurable via `UseSagaSerializerOptions(...)` | None unless publishing Native AOT, where it is now **required** — see [below](#sagas-work-under-native-aot) |
+| `DatabaseSagaSchema<,>` / `OracleSagaSchema<,>` namespace | `Wolverine.<Store>.Sagas`, and **the global namespace** for PostgreSQL | `Wolverine.<Store>.Internals` *(BREAKING)* | Add `using Wolverine.<Store>.Internals;`. These are "publinternal" -- public only so generated code can name them -- and are not a supported API |
+| Lightweight relational saga serialization | `JsonSerializerOptions.Default`, not configurable | configurable via `UseSagaSerializerOptions(...)` | None unless publishing Native AOT, where it is now **required** -- see [below](#sagas-work-under-native-aot) |
 | Target framework | `net8.0;net9.0;net10.0` | `net9.0;net10.0` *(BREAKING)* | Move to .NET 9+ or pin Wolverine 5.x |
-| Critter-stack package versions | 1.x line | 2.0-alpha line | Bump in lockstep across JasperFx, Marten, Polecat — full table below |
+| Critter-stack package versions | 1.x line | 2.0-alpha line | Bump in lockstep across JasperFx, Marten, Polecat -- full table below |
 | `IForwardsTo<T>` discovery | implicit assembly scan at startup | **explicit `opts.RegisterMessageForwarder<TFrom, TTo>()`** *(BREAKING)* | Register each forwarder explicitly; in 6.x you could temporarily call [`opts.UseAutomaticForwarderDiscovery()`](#iforwardsto-discovery-is-now-explicit-breaking) (`[Obsolete]`, removed in 7.0) |
 | `MartenConfigurationExpression.EventForwardingToWolverine(...)` | extension method on the Marten configuration expression *(both overloads `[Obsolete]` since 3.x)* | **removed** *(BREAKING)* | Move the flag into the `IntegrateWithWolverine` callback: [`IntegrateWithWolverine(x => x.UseFastEventForwarding = true)`](#eventforwardingtowolverine-removed-breaking) |
-| `RedisTransport.BuildRedisStreamUri(...)` | static helper on `RedisTransport` *(`[Obsolete]`)* | **removed** *(BREAKING)* | Call [`RedisEndpointUri.Stream(...)`](#redistransport-buildredisstreamuri-removed-breaking) — identical signature, drop the helper |
+| `RedisTransport.BuildRedisStreamUri(...)` | static helper on `RedisTransport` *(`[Obsolete]`)* | **removed** *(BREAKING)* | Call [`RedisEndpointUri.Stream(...)`](#redistransport-buildredisstreamuri-removed-breaking) -- identical signature, drop the helper |
 | `PulsarEndpoint.UriFor(...)` | static helpers on `PulsarEndpoint` *(both overloads `[Obsolete]`)* | **removed** *(BREAKING)* | For the Wolverine-URI form, call [`PulsarEndpointUri.Topic(...)`](#pulsarendpoint-urifor-removed-breaking); the native-topic-path form (`persistent://...`) was an internal-only seam now covered by `PulsarEndpoint.NativeTopicPath` |
 | Runtime code generation (Roslyn) | bundled in core `WolverineFx` (via `JasperFx.RuntimeCompiler`) | **moved to the opt-in `WolverineFx.RuntimeCompilation` package** *(BREAKING for `TypeLoadMode.Dynamic`/`Auto`)* | Reference [`WolverineFx.RuntimeCompilation`](#runtime-code-generation-moved-to-the-wolverinefx-runtimecompilation-package-breaking) (it auto-registers), or pre-generate with `TypeLoadMode.Static` |
 | **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults-removed-in-7-0) *(removed in 7.0)* | Flip every runtime default this method covers back to its 5.x value |
@@ -1157,7 +1157,7 @@ Wolverine 6.0 requires **.NET 9.0 or .NET 10.0**. The JasperFx 2.0-alpha line th
 If you're on .NET 8 LTS and aren't ready to move:
 
 - Pin to the latest Wolverine 5.x release.
-- Bug fixes for the 5.x line continue to ship from the [`5.0` maintenance branch](https://github.com/JasperFx/wolverine/tree/5.0) — open issues / PRs that target that branch the same way you do for `main`.
+- Bug fixes for the 5.x line continue to ship from the [`5.0` maintenance branch](https://github.com/JasperFx/wolverine/tree/5.0) -- open issues / PRs that target that branch the same way you do for `main`.
 
 ### Critter-stack 2.0-alpha dependency line (BREAKING)
 
@@ -1181,13 +1181,13 @@ If you reference any of these directly from your own project, bump in lockstep w
 
 If you import `using Marten.Events.Projections;` and reference `SnapshotLifecycle.Inline` / `SnapshotLifecycle.Async`, add `using JasperFx.Events.Projections;` alongside it. Marten's `Snapshot<T>(...)` overload still accepts the type from this new namespace.
 
-There is no Wolverine documentation page for `SnapshotLifecycle` itself — it's a Marten projection-configuration type. The Marten 9 projection docs cover its full semantics; the only Wolverine-visible change is the `using` directive.
+There is no Wolverine documentation page for `SnapshotLifecycle` itself -- it's a Marten projection-configuration type. The Marten 9 projection docs cover its full semantics; the only Wolverine-visible change is the `using` directive.
 
 ### `OperationRole` moved to `Weasel.Core` (BREAKING)
 
 If you write custom `IStorageOperation` implementations (rare but supported), `OperationRole` now lives in `Weasel.Core` instead of `Marten.Internal.Operations`. Add `using Weasel.Core;`.
 
-No Wolverine documentation page covers this directly — `IStorageOperation` is Marten internals territory. The only Wolverine-visible change is the `using` directive.
+No Wolverine documentation page covers this directly -- `IStorageOperation` is Marten internals territory. The only Wolverine-visible change is the `using` directive.
 
 ### Relational saga schema types moved to `Internals` (BREAKING)
 
@@ -1196,7 +1196,7 @@ The lightweight relational saga schema types moved out of `Wolverine.<Store>.Sag
 
 | Package | 5.x namespace | 6.0 namespace |
 |---|---|---|
-| `WolverineFx.Postgresql` | **none — the global namespace** | `Wolverine.Postgresql.Internals` |
+| `WolverineFx.Postgresql` | **none -- the global namespace** | `Wolverine.Postgresql.Internals` |
 | `WolverineFx.SqlServer` | `Wolverine.SqlServer.Sagas` | `Wolverine.SqlServer.Internals` |
 | `WolverineFx.Sqlite` | `Wolverine.Sqlite.Sagas` | `Wolverine.Sqlite.Internals` |
 | `WolverineFx.MySql` | `Wolverine.MySql.Sagas` | `Wolverine.MySql.Internals` |
@@ -1204,7 +1204,7 @@ The lightweight relational saga schema types moved out of `Wolverine.<Store>.Sag
 
 The PostgreSQL one is the reason this is worth your attention: its file carried no `namespace`
 declaration at all, so a **public** type named `DatabaseSagaSchema<T, TId>` sat in the *global*
-namespace of a shipped package — visible unqualified in every file of every project that referenced
+namespace of a shipped package -- visible unqualified in every file of every project that referenced
 `WolverineFx.Postgresql`, and colliding by name with the four sibling packages' versions of the same
 type.
 
@@ -1212,11 +1212,11 @@ These types are *publinternal*: technically public, deliberately not part of the
 They are public only because Wolverine's generated saga code has to name the closed type in order to
 construct it, and a `typeof()` in generated code cannot see an `internal` type. The `Internals`
 namespace says so. If you are referencing one directly, you are almost certainly reaching for
-something that should be solved another way — but the migration is just a `using`.
+something that should be solved another way -- but the migration is just a `using`.
 
 ### Sagas work under Native AOT
 
-Sagas could not run in a published Native AOT image at all before 6.0, for three separate reasons —
+Sagas could not run in a published Native AOT image at all before 6.0, for three separate reasons -- 
 a generic virtual method ILC cannot dispatch, a rooting attribute that preserves metadata without
 generating code, and saga JSON serialization with no configurable options. All three are fixed, and
 CI now publishes and runs a real native image that drives a saga end to end.
@@ -1246,12 +1246,12 @@ exactly, so it costs nothing if you are not publishing AOT.
 
 In Wolverine 6.0, `WolverineOptions.ServiceLocationPolicy` defaults to `NotAllowed` (was `AllowedButWarn` in 5.x). Apps that previously relied on Wolverine's code generation falling back to service location at runtime now throw `InvalidServiceLocationException` on startup.
 
-**Preferred upgrade path** — change IoC registrations to forms Wolverine can see through:
+**Preferred upgrade path** -- change IoC registrations to forms Wolverine can see through:
 
 - `AddScoped<TInterface, TImpl>()` instead of `AddScoped<TInterface>(sp => new TImpl(...))`
 - Constructor injection into your handlers (Wolverine inlines that into generated code)
 
-**Escape hatch** — opt specific types into the allow-list:
+**Escape hatch** -- opt specific types into the allow-list:
 
 ```csharp
 opts.CodeGeneration.AlwaysUseServiceLocationFor<IMyOpaqueService>();
@@ -1263,7 +1263,7 @@ Use this for services with genuinely opaque lambda factory registrations (Refit 
 
 1. Run your app with `Warning`-level (or lower) logging on the `Wolverine` category. Look for log messages starting with `Utilizing service location for ...`.
 2. For each one, either restructure the registration (preferred) or opt the type in explicitly with `opts.CodeGeneration.AlwaysUseServiceLocationFor<T>()`.
-3. Once the warnings are gone, set `opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed` on 5.x to assert the absence going forward — on 6.0 this is the default, no explicit assignment needed.
+3. Once the warnings are gone, set `opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed` on 5.x to assert the absence going forward -- on 6.0 this is the default, no explicit assignment needed.
 
 See [Code Generation](/guide/codegen.html) for the full IoC + service-location story, including the LOUD callout at the top of that page.
 
@@ -1273,7 +1273,7 @@ See [Code Generation](/guide/codegen.html) for the full IoC + service-location s
 `RestoreV5Defaults()` was removed in Wolverine 7.0. Set `opts.ServiceLocationPolicy = ServiceLocationPolicy.AllowedButWarn;` instead, and see [`RestoreV6Defaults()`](#defaults-that-changed-in-7-0-restorev6defaults) for the 7.0 defaults.
 :::
 
-For applications that want to adopt Wolverine 6's API surface, NuGet line, target frameworks, and bug fixes — without simultaneously adopting its new runtime defaults — Wolverine 6.0 adds a one-line escape hatch:
+For applications that want to adopt Wolverine 6's API surface, NuGet line, target frameworks, and bug fixes -- without simultaneously adopting its new runtime defaults -- Wolverine 6.0 adds a one-line escape hatch:
 
 ```csharp
 builder.Host.UseWolverine(opts =>
@@ -1291,7 +1291,7 @@ builder.Host.UseWolverine(opts =>
 - **It does not change build-time things.** Dropping `net8.0` and moving to the JasperFx 2.0-alpha NuGet line are not runtime flags. Either move to net9+ or pin Wolverine 5.x.
 - **It does not change package layout.** Newtonsoft moving to its own NuGet package is resolved by `dotnet add package WolverineFx.Newtonsoft`, not by a runtime call.
 
-**Treat it as a temporary migration step.** The point of upgrading to 6.0 is to adopt the new defaults eventually; `RestoreV5Defaults()` exists so you can sequence the migration — adopt 6.0's API + bug fixes today, then remove the call and opt into each new default at your own pace.
+**Treat it as a temporary migration step.** The point of upgrading to 6.0 is to adopt the new defaults eventually; `RestoreV5Defaults()` exists so you can sequence the migration -- adopt 6.0's API + bug fixes today, then remove the call and opt into each new default at your own pace.
 
 ### Newtonsoft.Json moved to `WolverineFx.Newtonsoft` package (BREAKING)
 
@@ -1309,11 +1309,11 @@ you must:
 1. **Install the new package**: `dotnet add package WolverineFx.Newtonsoft`
 2. **Add `using Wolverine.Newtonsoft;`** to bring the extension methods (and the `NewtonsoftSerializer` type) into scope.
 
-The call surface itself is unchanged — `opts.UseNewtonsoftForSerialization(settings => …)` etc. work exactly as before, they're just extension methods now. See the [Newtonsoft.Json Serialization](/guide/messages.html#newtonsoft-json-serialization) section of the serialization docs.
+The call surface itself is unchanged -- `opts.UseNewtonsoftForSerialization(settings => …)` etc. work exactly as before, they're just extension methods now. See the [Newtonsoft.Json Serialization](/guide/messages.html#newtonsoft-json-serialization) section of the serialization docs.
 
 Transports that pin a `NewtonsoftSerializer` internally for NServiceBus / MassTransit wire-compat (RabbitMQ's `UseNServiceBusInterop()`, the AWS SQS and SNS NServiceBus mappers, Azure Service Bus listeners) carry the `WolverineFx.Newtonsoft` dependency for you. You don't need to install it explicitly unless you call one of the Newtonsoft APIs from your own code.
 
-In a related cleanup, `Subscription.Scope` no longer carries a `[Newtonsoft.Json.Converters.StringEnumConverter]` attribute — it's now annotated with `[System.Text.Json.Serialization.JsonStringEnumConverter]`. Wire format is unchanged (still string-named scopes). If you serialize `Subscription` instances yourself with Newtonsoft and rely on the string-named scope shape, configure `StringEnumConverter` on your own settings explicitly.
+In a related cleanup, `Subscription.Scope` no longer carries a `[Newtonsoft.Json.Converters.StringEnumConverter]` attribute -- it's now annotated with `[System.Text.Json.Serialization.JsonStringEnumConverter]`. Wire format is unchanged (still string-named scopes). If you serialize `Subscription` instances yourself with Newtonsoft and rely on the string-named scope shape, configure `StringEnumConverter` on your own settings explicitly.
 
 ### `Wolverine.Http` Newtonsoft moved to `WolverineFx.Http.Newtonsoft` package (BREAKING)
 
@@ -1322,7 +1322,7 @@ Mirrors the core extraction above: the `WolverineFx.Http` NuGet package no longe
 If you call the following 5.x API:
 
 - `WolverineHttpOptions.UseNewtonsoftJsonForSerialization(...)`
-- `new NewtonsoftHttpSerialization(...)` directly (rare — it was an internal-feeling singleton)
+- `new NewtonsoftHttpSerialization(...)` directly (rare -- it was an internal-feeling singleton)
 
 you must:
 
@@ -1334,27 +1334,27 @@ you must:
    ```
 3. **Add `using Wolverine.Http.Newtonsoft;`** to bring the extension method (and the `NewtonsoftHttpSerialization` type) into scope.
 
-The call surface itself is unchanged — `opts.UseNewtonsoftJsonForSerialization(settings => …)` works exactly as before, it's just an extension method now. See the [HTTP JSON serialization docs](/guide/http/json.html#using-newtonsoft-json) for the full example.
+The call surface itself is unchanged -- `opts.UseNewtonsoftJsonForSerialization(settings => …)` works exactly as before, it's just an extension method now. See the [HTTP JSON serialization docs](/guide/http/json.html#using-newtonsoft-json) for the full example.
 
 Core `WolverineFx.Http` retains the `JsonUsage.NewtonsoftJson` enum value so the public switch shape doesn't change. The codegen path inside `JsonResourceWriterPolicy` / `JsonBodyParameterStrategy` now dispatches through an internal `INewtonsoftHttpCodeGen` seam implemented in the new package; selecting `JsonUsage.NewtonsoftJson` without the package installed throws an `InvalidOperationException` at codegen time pointing you at `dotnet add package WolverineFx.Http.Newtonsoft`.
 
-In a related cleanup, `ProblemDetailsContinuationPolicy.WriteProblems` (which dumps the `ProblemDetails` payload into the log line for the "found problems with this message" diagnostic) switched from `Newtonsoft.Json.JsonConvert.SerializeObject` to `System.Text.Json.JsonSerializer.Serialize`. This is a logging dump only — `ProblemDetails` round-trips cleanly through STJ; there is no observable output-format change.
+In a related cleanup, `ProblemDetailsContinuationPolicy.WriteProblems` (which dumps the `ProblemDetails` payload into the log line for the "found problems with this message" diagnostic) switched from `Newtonsoft.Json.JsonConvert.SerializeObject` to `System.Text.Json.JsonSerializer.Serialize`. This is a logging dump only -- `ProblemDetails` round-trips cleanly through STJ; there is no observable output-format change.
 
 ### Runtime code generation moved to the `WolverineFx.RuntimeCompilation` package (BREAKING)
 
-In 5.x, core `WolverineFx` referenced `JasperFx.RuntimeCompiler` (≈100 MB of Roslyn assemblies) and registered a default `IAssemblyGenerator`, so runtime code generation always "just worked." In 6.0 that dependency is **removed from core** and lives only in the opt-in **`WolverineFx.RuntimeCompilation`** package. This lets `TypeLoadMode.Static` / Native-AOT deployments ship without Roslyn — smaller binaries, faster cold start — but it is a breaking change for apps that compile at runtime.
+In 5.x, core `WolverineFx` referenced `JasperFx.RuntimeCompiler` (≈100 MB of Roslyn assemblies) and registered a default `IAssemblyGenerator`, so runtime code generation always "just worked." In 6.0 that dependency is **removed from core** and lives only in the opt-in **`WolverineFx.RuntimeCompilation`** package. This lets `TypeLoadMode.Static` / Native-AOT deployments ship without Roslyn -- smaller binaries, faster cold start -- but it is a breaking change for apps that compile at runtime.
 
 **Who is affected:** any app running `TypeLoadMode.Dynamic` (the default) or `TypeLoadMode.Auto`. Such an app now fails fast at startup with an error telling you to add the package or switch to Static:
 
 > Wolverine is running in TypeLoadMode.Dynamic, which compiles handler/middleware code at runtime, but no IAssemblyGenerator (Roslyn) is registered. Core WolverineFx no longer ships the runtime compiler. Either add the 'WolverineFx.RuntimeCompilation' NuGet package (it auto-registers when referenced, or call opts.UseRuntimeCompilation() in UseWolverine(...)), or pre-generate code with 'dotnet run -- codegen write' and set opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static.
 
-**Migration — pick one:**
+**Migration -- pick one:**
 
-1. **Keep runtime codegen (simplest).** Reference the package; that's all — its `[WolverineModule]` auto-registers the Roslyn `IAssemblyGenerator` at bootstrap:
+1. **Keep runtime codegen (simplest).** Reference the package; that's all -- its `[WolverineModule]` auto-registers the Roslyn `IAssemblyGenerator` at bootstrap:
    ```sh
    dotnet add package WolverineFx.RuntimeCompilation
    ```
-   If you've disabled extension auto-discovery (`ExtensionDiscovery.ManualOnly`), the module won't load automatically — call `opts.UseRuntimeCompilation()` inside `UseWolverine(...)` instead.
+   If you've disabled extension auto-discovery (`ExtensionDiscovery.ManualOnly`), the module won't load automatically -- call `opts.UseRuntimeCompilation()` inside `UseWolverine(...)` instead.
 
 2. **Go Roslyn-free in production (recommended for AOT / fast cold start).** Pre-generate code with `dotnet run -- codegen write`, commit `Internal/Generated`, and set `opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static`. Reference `WolverineFx.RuntimeCompilation` only as a dev/build-time dependency (for `codegen write`); production ships without Roslyn. See the [Code Generation guide](/guide/codegen).
 
@@ -1362,9 +1362,9 @@ In 5.x, core `WolverineFx` referenced `JasperFx.RuntimeCompiler` (≈100 MB of R
 
 ### `IForwardsTo<T>` discovery is now explicit (BREAKING)
 
-Wolverine 5.x scanned the application assembly at handler-graph compile time for every concrete type that implemented `IForwardsTo<T>` and wired the source-type → target-type forwarding automatically. That scan walks `Assembly.ExportedTypes` and is **not trim/AOT-clean** — so 6.0 removes it from the default startup path as part of the [AOT pillar](https://github.com/JasperFx/wolverine/issues/2746). Any application that relied on the implicit scan needs to opt in to one of two paths:
+Wolverine 5.x scanned the application assembly at handler-graph compile time for every concrete type that implemented `IForwardsTo<T>` and wired the source-type → target-type forwarding automatically. That scan walks `Assembly.ExportedTypes` and is **not trim/AOT-clean** -- so 6.0 removes it from the default startup path as part of the [AOT pillar](https://github.com/JasperFx/wolverine/issues/2746). Any application that relied on the implicit scan needs to opt in to one of two paths:
 
-**Preferred upgrade path** — register each `IForwardsTo<T>` pair explicitly in your `UseWolverine` lambda:
+**Preferred upgrade path** -- register each `IForwardsTo<T>` pair explicitly in your `UseWolverine` lambda:
 
 ```csharp
 opts.RegisterMessageForwarder<PersonBorn, PersonBornV2>();
@@ -1376,15 +1376,15 @@ There's also a single-type-argument overload that derives the target type from t
 opts.RegisterMessageForwarder<PersonBorn>(); // resolves to <PersonBorn, PersonBornV2>
 ```
 
-Both forms feed `WolverineOptions.ExplicitMessageForwarders`, which is drained inside `HandlerGraph.Compile` — exactly where `Forwarders.FindForwards(Assembly)` used to run. The on-the-wire dispatch behavior (the older message type's `Transform()` builds the newer message, the newer message's handler runs) is unchanged.
+Both forms feed `WolverineOptions.ExplicitMessageForwarders`, which is drained inside `HandlerGraph.Compile` -- exactly where `Forwarders.FindForwards(Assembly)` used to run. The on-the-wire dispatch behavior (the older message type's `Transform()` builds the newer message, the newer message's handler runs) is unchanged.
 
-**Escape hatch (6.x only) — opt back into the legacy scan:**
+**Escape hatch (6.x only) -- opt back into the legacy scan:**
 
 ```csharp
 opts.UseAutomaticForwarderDiscovery();
 ```
 
-This re-enables the 5.x assembly scan against `WolverineOptions.ApplicationAssembly`. It is marked `[Obsolete]` and `[RequiresUnreferencedCode]` because the underlying scan walks exported types and the trimmer cannot prove which forwarder types are reachable. It was a backward-compatibility escape valve for the 6.0 release cycle and **was removed in 7.0** — see [obsolete flags removed in 7.0](#dead-and-obsolete-flags-removed-breaking).
+This re-enables the 5.x assembly scan against `WolverineOptions.ApplicationAssembly`. It is marked `[Obsolete]` and `[RequiresUnreferencedCode]` because the underlying scan walks exported types and the trimmer cannot prove which forwarder types are reachable. It was a backward-compatibility escape valve for the 6.0 release cycle and **was removed in 7.0** -- see [obsolete flags removed in 7.0](#dead-and-obsolete-flags-removed-breaking).
 
 If you don't use `IForwardsTo<T>` at all, no change is needed.
 
@@ -1439,14 +1439,14 @@ var uri = RedisTransport.BuildRedisStreamUri("orders", databaseId: 3);
 var uri = RedisEndpointUri.Stream("orders", databaseId: 3);
 ```
 
-If you never called these helpers directly (most users don't — Wolverine builds these URIs internally from `ListenToRedisStream(...)` / `PublishToRedisStream(...)`), no change is needed.
+If you never called these helpers directly (most users don't -- Wolverine builds these URIs internally from `ListenToRedisStream(...)` / `PublishToRedisStream(...)`), no change is needed.
 ### `PulsarEndpoint.UriFor(...)` removed (BREAKING)
 
 Both `PulsarEndpoint.UriFor(...)` overloads were `[Obsolete]` in the 5.x line and are now removed in 6.0:
 
-- **`UriFor(string topicPath)`** — was a thin forwarder to `PulsarEndpointUri.Topic(topicPath)`. Replace any caller with `PulsarEndpointUri.Topic(...)` directly. Same signature, same return shape.
+- **`UriFor(string topicPath)`** -- was a thin forwarder to `PulsarEndpointUri.Topic(topicPath)`. Replace any caller with `PulsarEndpointUri.Topic(...)` directly. Same signature, same return shape.
 
-- **`UriFor(bool persistent, string tenant, string @namespace, string topicName)`** — returned a Pulsar-*native* topic path of the form `persistent://{tenant}/{ns}/{topic}` for hand-off to the native Pulsar client. That is NOT a Wolverine endpoint URI (`pulsar://...`); the two forms are deliberately not interchangeable. The internal Pulsar transport now uses a renamed helper `PulsarEndpoint.NativeTopicPath(...)` (also `internal`, same signature). External callers of the old `UriFor(bool, ...)` overload were rare-to-nonexistent — if you need this form for your own native-Pulsar interop, construct it directly:
+- **`UriFor(bool persistent, string tenant, string @namespace, string topicName)`** -- returned a Pulsar-*native* topic path of the form `persistent://{tenant}/{ns}/{topic}` for hand-off to the native Pulsar client. That is NOT a Wolverine endpoint URI (`pulsar://...`); the two forms are deliberately not interchangeable. The internal Pulsar transport now uses a renamed helper `PulsarEndpoint.NativeTopicPath(...)` (also `internal`, same signature). External callers of the old `UriFor(bool, ...)` overload were rare-to-nonexistent -- if you need this form for your own native-Pulsar interop, construct it directly:
 
   ```csharp
   var scheme = persistent ? "persistent" : "non-persistent";
@@ -1463,7 +1463,7 @@ Side note for users who register an `IMessageSerializer` *after* host startup: t
 
 ### Performance conventions for contributors
 
-Wolverine's hot-path dictionary lookups stay on `ImHashMap<TKey, TValue>` — this is now codified in [the contributors' CLAUDE.md](https://github.com/JasperFx/wolverine/blob/main/CLAUDE.md#performance-conventions). If you're contributing a perf PR and feel the urge to swap `ImHashMap` for `FrozenDictionary`, read that section first. The right fix for hot-path mutation is bootstrap-time pre-population in the relevant `Compile()` path, not a data-structure swap.
+Wolverine's hot-path dictionary lookups stay on `ImHashMap<TKey, TValue>` -- this is now codified in [the contributors' CLAUDE.md](https://github.com/JasperFx/wolverine/blob/main/CLAUDE.md#performance-conventions). If you're contributing a perf PR and feel the urge to swap `ImHashMap` for `FrozenDictionary`, read that section first. The right fix for hot-path mutation is bootstrap-time pre-population in the relevant `Compile()` path, not a data-structure swap.
 
 ### Stale `DefaultSerializer` XmlDoc fixed
 

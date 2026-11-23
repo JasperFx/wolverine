@@ -8,7 +8,7 @@ Adding the `WolverineFx.Fisher` NuGet to your application lets you combine the t
 * Use Fisher and SQLite as a persistent inbox and outbox for Wolverine messaging
 * Support persistent sagas in Wolverine applications
 * Use the [Decider](https://thinkbeforecoding.com/post/2021/12/17/functional-event-sourcing-decider)
-  function workflow with event sourcing — the same
+  function workflow with event sourcing -- the same
   [`[WriteModel]` / `[ReadModel]` / `[DeciderFunction]`](/guide/handlers/persistence.html#event-sourced-models)
   vocabulary that works against Marten and Polecat
 * Selectively publish events captured by Fisher through Wolverine messaging
@@ -17,7 +17,7 @@ Adding the `WolverineFx.Fisher` NuGet to your application lets you combine the t
 
 Fisher's database is a **file**, embedded in your process. There is no server to run, no container to
 start, and no connection to a network. A Fisher-backed Wolverine service is a zero-infrastructure
-deployable — which makes it a good fit for embedded and edge applications, desktop tools, single-node
+deployable -- which makes it a good fit for embedded and edge applications, desktop tools, single-node
 services, and integration test suites that would otherwise need PostgreSQL or SQL Server running.
 
 The tradeoff is the one SQLite always makes, and it shapes what this integration supports.
@@ -25,7 +25,7 @@ The tradeoff is the one SQLite always makes, and it shapes what this integration
 ::: warning One writer per file
 SQLite allows a single writer per database file. Wolverine's durability tables therefore commit on
 **Fisher's own connection**, inside Fisher's transaction, through Fisher's
-[transaction participants](https://fisher.jasperfx.net/documents/transaction-participants) — not
+[transaction participants](https://fisher.jasperfx.net/documents/transaction-participants) -- not
 through a second connection to the same file. Two connections to one file are two writers, and the
 second blocks on the first from inside the first one's transaction, which presents as a **hang**
 rather than an error.
@@ -138,7 +138,7 @@ public static class ShipOrderHandler
 ```
 
 See [Event Sourced Models](/guide/handlers/persistence.html#event-sourced-models) for the full
-vocabulary — `[WriteModel]`, `[ReadModel]`, `[DeciderFunction]` and `[DcbModel]`.
+vocabulary -- `[WriteModel]`, `[ReadModel]`, `[DeciderFunction]` and `[DcbModel]`.
 
 That handler is also unit testable without a database -- see
 [Unit Testing Aggregate Handlers](/guide/durability/unit-testing-aggregate-handlers).
@@ -235,7 +235,7 @@ Two invariants are enforced at construction rather than at `SaveChangesAsync()` 
 handler that returned a side effect looking perfectly valid would otherwise blow up much later:
 `HardDelete<T>()` and `Patch<T>()` reject an id that is not a `string`, `Guid`, `int` or `long`
 (Fisher has no `object`-typed overload to fall back on), and `Append` / `ArchiveStream` refuse
-`Guid.Empty` and an empty stream key — the Guid/string discrimination is on `Guid.Empty`, the same
+`Guid.Empty` and an empty stream key -- the Guid/string discrimination is on `Guid.Empty`, the same
 sentinel `StartStream<T>` uses, so an empty id would otherwise silently take the string branch.
 
 ::: tip
@@ -253,7 +253,7 @@ release. The following are tracked as follow-up work rather than shipped-but-bro
 | Not yet supported | Why |
 |---|---|
 | Multi-tenancy | Fisher's tenancy is a **file per tenant**, so Wolverine's durability tables cannot follow a tenant across files without a second writer per file |
-| Cluster durability modes | One file, one node — see above |
+| Cluster durability modes | One file, one node -- see above |
 | Schema-qualified transport tables | SQLite has no schemas; use `PrefixName` to prefix the queue tables instead |
 
 ::: tip

@@ -90,8 +90,8 @@ at bootstrapping time. See [Message Discovery](/guide/messages.html#message-disc
 preview functionality by "telling" Wolverine what your outgoing message types are.
 :::
 
-For a more focused look at a single message type — including an explanation of *why* it routes the way it
-does — use the `describe-routing` command <Badge type="tip" text="5.15" />:
+For a more focused look at a single message type -- including an explanation of *why* it routes the way it
+does -- use the `describe-routing` command <Badge type="tip" text="5.15" />:
 
 ```bash
 # Routing for one message type (full name, short name, or fuzzy match)
@@ -111,7 +111,7 @@ form for tooling or AI agents. See the [Command Line Diagnostics](/tutorials/com
 tutorial for a guided tour and the [Command Line Integration](/guide/command-line#describe-routing)
 reference for every flag.
 
-If a message has no local handler when you expected one — which leaves it with no local route — the cause is
+If a message has no local handler when you expected one -- which leaves it with no local route -- the cause is
 usually handler discovery rather than routing. The
 [`describe-handlers`](/guide/command-line#describe-handlers) command <Badge type="tip" text="6.0" /> explains
 why a given type is (or isn't) discovered as a handler:

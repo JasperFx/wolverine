@@ -182,25 +182,25 @@ another mode's table:
 | Mode | Table | Comparison |
 |---|---|---|
 | `None` (6.x default) | neither | no deduplication |
-| `CompareByHash` (7.0 default) | `wolverine_deduplication_hashed` — a binary SHA-256 is the primary key, `deduplication_id` rides along as a plain column | identical on every engine |
-| `CompareByString` | `wolverine_deduplication`, exactly as it has always been — `deduplication_id` is the primary key | whatever the column's collation says |
+| `CompareByHash` (7.0 default) | `wolverine_deduplication_hashed` -- a binary SHA-256 is the primary key, `deduplication_id` rides along as a plain column | identical on every engine |
+| `CompareByString` | `wolverine_deduplication`, exactly as it has always been -- `deduplication_id` is the primary key | whatever the column's collation says |
 
-`CompareByString` is what Wolverine shipped in 6.31, and it compares the ids as strings — which in a
+`CompareByString` is what Wolverine shipped in 6.31, and it compares the ids as strings -- which in a
 relational database means the column's collation decides, not your application. On PostgreSQL and SQLite
 that is a byte comparison and the ids behave as written. On SQL Server and MySQL the default collations
 are case-insensitive, and MySQL's is accent-insensitive too, so `Abc` and `abc` are one claim and so are
 `José` and `Jose`; SQL Server's `varchar` additionally substitutes `?` for any character outside its code
-page. The consequence is work wrongly refused as a duplicate — never a duplicate let through — and the
+page. The consequence is work wrongly refused as a duplicate -- never a duplicate let through -- and the
 same ids behaving differently on different engines.
 
 `CompareByHash` stores the SHA-256 of the id's UTF-8 bytes in a binary column and makes that the primary
 key. Binary has no collation, so the comparison is the same everywhere. The readable `deduplication_id`
 is still stored next to it, so a stuck claim can be identified by eye, but it deliberately carries no
-unique constraint of its own — if it did, a case-insensitive collation would still refuse `abc` after
+unique constraint of its own -- if it did, a case-insensitive collation would still refuse `abc` after
 `Abc` and nothing would have been fixed.
 
 The two tables are separate because moving a primary key from a text column onto a binary one is not a
-migration that can be applied in place — on SQLite it is a full table rebuild. A second table means the
+migration that can be applied in place -- on SQLite it is a full table rebuild. A second table means the
 switch costs nothing: Wolverine creates the one the configured mode needs and leaves the other alone.
 
 ::: warning Upgrading
@@ -258,7 +258,7 @@ A logical id is a `string` rather than a `Guid` on purpose: it is meant to be le
 when someone is working out why a job did not fire.
 
 The second message with that id never reaches your handler. It is discarded, acknowledged to the
-broker, and logged at `Information` — a duplicate that vanished without a trace would be
+broker, and logged at `Information` -- a duplicate that vanished without a trace would be
 indistinguishable from a message that was lost.
 
 ### Where the id comes from
@@ -377,7 +377,7 @@ logical id is dead-lettered with a `MissingDeduplicationIdException`.
 
 That default is deliberately the strict one. The lenient reading is the dangerous one: a handler that
 asked for deduplication and then quietly processed every unkeyed message would report itself as
-protected while providing nothing, and the failure is invisible — the traffic succeeds, the
+protected while providing nothing, and the failure is invisible -- the traffic succeeds, the
 duplicates run, and no log line distinguishes it from a working configuration.
 
 Set `Required = false` when a mixed stream is genuinely expected:
@@ -433,7 +433,7 @@ that turns into a dead-lettered message per unkeyed send.
 logical id is accepted again.
 
 It is deliberately **not** `KeepAfterMessageHandling`. That setting exists to absorb a broker
-redelivery and defaults to five minutes, which would turn "idempotent" into "idempotent for a while" —
+redelivery and defaults to five minutes, which would turn "idempotent" into "idempotent for a while" -- 
 worse than no guarantee, because it holds in testing and fails in production. Size the window against
 how long a duplicate could plausibly arrive: an operator double-click is seconds, a console republish
 is minutes, an agent pre-publishing tomorrow's occurrences is a day.
@@ -467,7 +467,7 @@ same property works on `[Deduplicated]` HTTP endpoints and gRPC methods.
 
 A background reaper deletes expired claims on its own timer
 (`Durability.DeduplicationCleanupPollingTime`, default 5 minutes), in bounded batches, in its own
-transaction. It logs how many claims it removed each cycle — a count that keeps climbing is the signal
+transaction. It logs how many claims it removed each cycle -- a count that keeps climbing is the signal
 that the window is too long, the cadence too slow, or the volume higher than the settings assume.
 
 An expired claim is still honoured until the reaper removes it, so a repeat can be refused for up to one
@@ -496,7 +496,7 @@ never happened.
 With a **database per tenant** this does not apply, however the chain commits. The claims live in the
 main database and the session commits to a tenant one, so queueing the claim onto that unit of work
 would be riding the wrong transaction. Wolverine refuses it and uses the compensating path below
-instead — which means a handler that throws *did* claim, and relies on the release to undo it.
+instead -- which means a handler that throws *did* claim, and relies on the release to undo it.
 :::
 
 EF Core chains get the same treatment when the EF Core middleware runs in its default
@@ -510,7 +510,7 @@ commits, rather than doing its work and losing at commit time. `Lightweight` mod
 The one case this cannot decide up front is two genuinely concurrent callers under the same key.
 Neither one's claim is committed yet, so neither is visible to the other, and both proceed. The
 deduplication table's primary key settles it at commit time: one transaction wins, and the loser is
-refused exactly as if it had been caught by the up-front check — a 409 on HTTP, a discard on a handler. On
+refused exactly as if it had been caught by the up-front check -- a 409 on HTTP, a discard on a handler. On
 Marten, the loser's commit can also fail on its own work before it ever gets to the claim, like two
 `[WriteAggregate]` callers appending to the same stream at the same version. In that case Wolverine
 checks whether the key was claimed in the meantime and refuses the loser the same way. If the key isn't
@@ -530,13 +530,13 @@ An endpoint or `Validate` method that calls `SaveChangesAsync` itself commits it
 On Marten, a failure after that save is the request's own: it goes out as your endpoint answered it, and
 a retry with the same key is refused as a duplicate.
 
-**The claim is compensated.** Everywhere else — a Buffered or Inline endpoint, an HTTP endpoint with no
-transactional middleware, a `[Transactional]` handler on a plain relational message store — the claim
+**The claim is compensated.** Everywhere else -- a Buffered or Inline endpoint, an HTTP endpoint with no
+transactional middleware, a `[Transactional]` handler on a plain relational message store -- the claim
 is written up front on its own connection, and Wolverine gives it back when the chain fails.
 
 HTTP endpoints have a second way to fail on that path, and it is not an exception: a FluentValidation
 400, a `ProblemDetails` returned from a `Validate` method, a 404 from `[WriteAggregate]` on a missing
-stream. The handler never ran, so the claim is released there too — any response of 400 or above gives
+stream. The handler never ran, so the claim is released there too -- any response of 400 or above gives
 the key back, and the release is registered to run before the response is flushed so a prompt retry
 cannot beat it. A 2xx or a 3xx keeps it, so an idempotency key means "this succeeded once" rather than
 "this was attempted once".
@@ -625,7 +625,7 @@ The claims live in their own table (`wolverine_deduplication_hashed`, or `wolver
 1. **Partitioning.** With `EnableInboxPartitioning` the inbox is `PARTITION BY LIST (status)`, and
    PostgreSQL will not create a unique index on a partitioned table unless the index carries the
    partition key. Marking an envelope handled updates `status`, which moves the row between
-   partitions — so a `(deduplication_id, status)` index would let the same logical id exist once as
+   partitions -- so a `(deduplication_id, status)` index would let the same logical id exist once as
    `Incoming` and once as `Handled`, silently, and only for users who enabled partitioning.
 2. **Retention.** A deduplication marker has to outlive the inbox row it came from, and the inbox is
    reaped on a five-minute default.
@@ -638,7 +638,7 @@ The claims live in their own table (`wolverine_deduplication_hashed`, or `wolver
 
 - **Supported on:** message handlers, [Wolverine.HTTP endpoints](/guide/http/deduplication), and
   [Wolverine gRPC services](/guide/grpc/deduplication).
-- **Storage:** the RDBMS message stores — PostgreSQL, SQL Server, MySQL and SQLite (and therefore
+- **Storage:** the RDBMS message stores -- PostgreSQL, SQL Server, MySQL and SQLite (and therefore
   Marten, Polecat and Fisher backed applications). Other stores report themselves as unsupported and fail loudly rather
   than passing every duplicate through.
 - **Scope:** logical ids are unique per message store, not per tenant. With a database per tenant the
@@ -650,6 +650,6 @@ The claims live in their own table (`wolverine_deduplication_hashed`, or `wolver
   for itself (6.52), so one handler running does not make the others discard the message as a duplicate.
   A message type with a single handler chain stores its ids exactly as before.
 - **Fire-and-forget only.** Replaying the *original response* of a deduplicated `InvokeAsync<T>` is
-  Stripe-style idempotency-key machinery — storing and returning the prior result — and is not part
+  Stripe-style idempotency-key machinery -- storing and returning the prior result -- and is not part
   of this feature. HTTP endpoints get a useful answer regardless, because a status code is a
   response; see below.

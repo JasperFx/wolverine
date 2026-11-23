@@ -4,7 +4,7 @@ Wolverine exposes hooks to configure the underlying GCP client builders before t
 
 ## Providing Credentials
 
-By default, Wolverine uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) (ADC) to authenticate with GCP Pub/Sub. If you need to provide a specific `GoogleCredential` — for example when your application runs outside of GCP and authenticates via Workload Identity Federation — use `UseCredential`:
+By default, Wolverine uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) (ADC) to authenticate with GCP Pub/Sub. If you need to provide a specific `GoogleCredential` -- for example when your application runs outside of GCP and authenticates via Workload Identity Federation -- use `UseCredential`:
 
 <!-- snippet: sample_pubsub_use_credential_wif -->
 <a id='snippet-sample_pubsub_use_credential_wif'></a>
@@ -26,7 +26,7 @@ var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 ::: tip
-`GoogleCredential` manages its own token refresh lifecycle. When built from a Workload Identity Federation credential config file or in-code equivalent, it handles the subject token fetch and GCP STS exchange automatically — no background refresh task is needed in your application.
+`GoogleCredential` manages its own token refresh lifecycle. When built from a Workload Identity Federation credential config file or in-code equivalent, it handles the subject token fetch and GCP STS exchange automatically -- no background refresh task is needed in your application.
 :::
 
 `UseCredential` is a convenience shorthand that applies the credential to all three underlying GCP client builders (publisher API client, subscriber API client, and subscriber streaming client). For finer-grained control, use the individual `Configure*` methods described below.
@@ -35,7 +35,7 @@ var host = await Host.CreateDefaultBuilder()
 
 When the application runs in Azure Container Apps with managed identity enabled, ACA automatically sets `IDENTITY_ENDPOINT` and `IDENTITY_HEADER` environment variables that expose the Azure token endpoint. These are the same endpoint that `Azure.Identity`'s `DefaultAzureCredential` calls internally on ACA.
 
-Rather than using `DefaultAzureCredential` and manually bridging to Google's SDK (which has no direct hook for Azure token providers), configure a [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation) external account credential that points to those environment variables. Google's SDK will then call the endpoint itself each time a token refresh is needed — no background task or `Azure.Identity` package required.
+Rather than using `DefaultAzureCredential` and manually bridging to Google's SDK (which has no direct hook for Azure token providers), configure a [Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation) external account credential that points to those environment variables. Google's SDK will then call the endpoint itself each time a token refresh is needed -- no background task or `Azure.Identity` package required.
 
 <!-- snippet: sample_pubsub_use_credential_aca_managed_identity -->
 <a id='snippet-sample_pubsub_use_credential_aca_managed_identity'></a>
@@ -83,7 +83,7 @@ The `audience`, pool ID, provider ID, and service account values all come from y
 
 ### Async credential factory
 
-When the credential itself must be constructed asynchronously at startup — for example, reading a secret from Azure Key Vault, or calling a configuration service before building the `GoogleCredential` — use the async overload:
+When the credential itself must be constructed asynchronously at startup -- for example, reading a secret from Azure Key Vault, or calling a configuration service before building the `GoogleCredential` -- use the async overload:
 
 <!-- snippet: sample_pubsub_use_credential_async -->
 <a id='snippet-sample_pubsub_use_credential_async'></a>
@@ -109,21 +109,21 @@ var host = await Host.CreateDefaultBuilder()
 The factory is **not** a one-time, startup-only hook. It runs again every time Wolverine constructs one of the underlying client builders:
 
 - the publisher and subscriber **API** client builders are rebuilt whenever the transport (re)connects;
-- the streaming **subscriber** client is rebuilt on *every listener (re)connect* — including each automatic restart after a transient fault such as `DEADLINE_EXCEEDED`.
+- the streaming **subscriber** client is rebuilt on *every listener (re)connect* -- including each automatic restart after a transient fault such as `DEADLINE_EXCEEDED`.
 
 This per-connect re-invocation is deliberate, and it is the foundation for [rolling credentials](#rolling-credentials) below.
 
 ::: tip
-Because the factory can fire frequently — once per listener reconnect, not just once at startup — keep it cheap. If you only need a single fetch shared across all three builders, close over a cached `Task<GoogleCredential>` (or use the caching pattern shown under [Rolling credentials](#rolling-credentials)) so you don't hit your secret store on every reconnect.
+Because the factory can fire frequently -- once per listener reconnect, not just once at startup -- keep it cheap. If you only need a single fetch shared across all three builders, close over a cached `Task<GoogleCredential>` (or use the caching pattern shown under [Rolling credentials](#rolling-credentials)) so you don't hit your secret store on every reconnect.
 :::
 
 ## Rolling credentials
 
 A `GoogleCredential` built from Application Default Credentials or a Workload Identity Federation config file refreshes its own *access tokens* internally, so for those you do **not** need to do anything special.
 
-Rolling credentials matter when the credential **material itself** rotates and cannot self-refresh — most commonly when you mint short-lived access tokens yourself via `GoogleCredential.FromAccessToken(...)`, or when the underlying credential config is periodically rotated by an external system. A static `FromAccessToken` credential is frozen at the moment it is created and will eventually expire.
+Rolling credentials matter when the credential **material itself** rotates and cannot self-refresh -- most commonly when you mint short-lived access tokens yourself via `GoogleCredential.FromAccessToken(...)`, or when the underlying credential config is periodically rotated by an external system. A static `FromAccessToken` credential is frozen at the moment it is created and will eventually expire.
 
-Because Wolverine re-invokes the credential factory on every listener (re)connect, you can hand out a freshly-minted credential over time and have running listeners adopt it automatically — no host restart required. Wrap your token source in a small holder that caches the current credential and refreshes it as it nears expiry:
+Because Wolverine re-invokes the credential factory on every listener (re)connect, you can hand out a freshly-minted credential over time and have running listeners adopt it automatically -- no host restart required. Wrap your token source in a small holder that caches the current credential and refreshes it as it nears expiry:
 
 <!-- snippet: sample_pubsub_use_credential_rolling -->
 <a id='snippet-sample_pubsub_use_credential_rolling'></a>
@@ -200,12 +200,12 @@ public class RollingCredentialSource
 <!-- endSnippet -->
 
 ::: warning
-The credential is captured by the streaming subscriber client *at the point of each connect*. An already-running listener will not swap credentials mid-flight — it adopts the refreshed credential on its **next** (re)connect. Size your `_refreshMargin` so a fresh credential is always handed out comfortably before the old one expires.
+The credential is captured by the streaming subscriber client *at the point of each connect*. An already-running listener will not swap credentials mid-flight -- it adopts the refreshed credential on its **next** (re)connect. Size your `_refreshMargin` so a fresh credential is always handed out comfortably before the old one expires.
 :::
 
 ## Customising the API Client Builders
 
-For advanced scenarios — custom service endpoints, channel credentials, quota project overrides, or streaming pull settings — Wolverine exposes `Action<TBuilder>` callbacks for each of the three GCP client builders it constructs:
+For advanced scenarios -- custom service endpoints, channel credentials, quota project overrides, or streaming pull settings -- Wolverine exposes `Action<TBuilder>` callbacks for each of the three GCP client builders it constructs:
 
 | Method | Builder type | Affects |
 |---|---|---|
@@ -263,6 +263,6 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L403-L423' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_configure_subscriber_client' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Multiple calls to any `Configure*` method compose in order — all callbacks are applied, not just the last one.
+Multiple calls to any `Configure*` method compose in order -- all callbacks are applied, not just the last one.
 
 For emulator setup and basic connection options, see [Connecting to the Broker](/guide/messaging/transports/gcp-pubsub/).

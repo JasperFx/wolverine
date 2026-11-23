@@ -75,8 +75,8 @@ will be called by Wolverine to apply message type specific overrides to Wolverin
 
 By default, messages processed via `InvokeAsync()` (Wolverine's in-process mediator) use lightweight tracking
 without emitting the same structured log messages that transport-received messages produce. If you need full
-observability for inline invocations — for example, when using Wolverine purely as a mediator within an HTTP
-application — you can opt into full tracing:
+observability for inline invocations -- for example, when using Wolverine purely as a mediator within an HTTP
+application -- you can opt into full tracing:
 
 ```csharp
 using var host = await Host.CreateDefaultBuilder()
@@ -89,10 +89,10 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 
 When `InvokeTracingMode.Full` is enabled, `InvokeAsync()` will emit:
-- **Execution started** — logged at the configured `MessageExecutionLogLevel` (default `Debug`)
-- **Message succeeded** — logged at the configured `MessageSuccessLogLevel` (default `Debug`)
-- **Message failed** — logged at `Error` level with the exception
-- **Execution finished** — logged at the configured `MessageExecutionLogLevel`
+- **Execution started** -- logged at the configured `MessageExecutionLogLevel` (default `Debug`)
+- **Message succeeded** -- logged at the configured `MessageSuccessLogLevel` (default `Debug`)
+- **Message failed** -- logged at `Error` level with the exception
+- **Execution finished** -- logged at the configured `MessageExecutionLogLevel`
 
 These are the same log messages and event IDs that Wolverine already uses for messages received from
 external transports like RabbitMQ, Kafka, or Azure Service Bus. This makes it easy to use a single
@@ -261,8 +261,8 @@ opts.Policies.ForMessagesOfType<IAccountMessage>().Audit(x => x.AccountId);
 
 ::: warning
 **Each expression has to be a direct member access on the message type**, because Wolverine writes the member
-straight into the generated code. Anything else — a coalesce like `x => x.Name ?? string.Empty`, a method call,
-or a nested member like `x => x.Inner.Name` — is rejected with an `ArgumentOutOfRangeException` at configuration
+straight into the generated code. Anything else -- a coalesce like `x => x.Name ?? string.Empty`, a method call,
+or a nested member like `x => x.Inner.Name` -- is rejected with an `ArgumentOutOfRangeException` at configuration
 time. Use a computed property on the message type marked with `[Audit]` instead.
 :::
 
@@ -276,7 +276,7 @@ This will extend your log entries to like this:
 
 Wolverine supports the [Wire Tap](https://www.enterpriseintegrationpatterns.com/patterns/messaging/WireTap.html) pattern
 from the Enterprise Integration Patterns book. A wire tap lets you record a copy of every message flowing through
-configured endpoints for auditing, compliance, analytics, or monitoring purposes — without affecting the primary
+configured endpoints for auditing, compliance, analytics, or monitoring purposes -- without affecting the primary
 message processing pipeline.
 
 ### Defining a Wire Tap
@@ -323,7 +323,7 @@ public class AuditWireTap : IWireTap
 
 ::: warning
 **Implementations must never allow exceptions to escape.** Wolverine wraps wire tap calls in a safety-net `try/catch`,
-but if your wire tap throws, the exception will only be logged — it will *not* retry or affect message processing.
+but if your wire tap throws, the exception will only be logged -- it will *not* retry or affect message processing.
 Your implementation should handle all errors internally (e.g., log and swallow) to avoid polluting application logs
 with wire tap noise.
 :::
@@ -350,7 +350,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 ### Enabling Wire Taps on Endpoints
 
-Wire taps must be explicitly enabled on each endpoint — there is no global "enable everywhere" switch. This is
+Wire taps must be explicitly enabled on each endpoint -- there is no global "enable everywhere" switch. This is
 intentional: you should deliberately choose which endpoints need auditing.
 
 ```csharp
@@ -784,7 +784,7 @@ public const string ProjectionWaitStatus = "wolverine.projection.wait_status";
 
 ## Opt-in Handler Execution Diagnostics <Badge type="tip" text="5.38" />
 
-The default span surface above covers cluster-level events (listener pause, retries, scheduled redelivery, etc.). Wolverine ships a separate, **opt-in** layer of structured diagnostics aimed primarily at **performance optimization** — handler latency tuning, spotting queue dwell or backpressure, profiling slow transactional commits, and debugging `await`-graph interleaving inside the handler. Each flag lives on `WolverineOptions.Tracking` and **defaults to `false`**, so apps that don't ask for the surface pay nothing for it.
+The default span surface above covers cluster-level events (listener pause, retries, scheduled redelivery, etc.). Wolverine ships a separate, **opt-in** layer of structured diagnostics aimed primarily at **performance optimization** -- handler latency tuning, spotting queue dwell or backpressure, profiling slow transactional commits, and debugging `await`-graph interleaving inside the handler. Each flag lives on `WolverineOptions.Tracking` and **defaults to `false`**, so apps that don't ask for the surface pay nothing for it.
 
 ```csharp
 builder.UseWolverine(opts =>
@@ -810,7 +810,7 @@ builder.UseWolverine(opts =>
 });
 ```
 
-Each flag is independent. The runtime checks each flag at code-generation time only — when a flag is `false`, the corresponding annotations are not emitted into the generated handler at all, so there is **zero per-message runtime cost** for any feature you haven't enabled. That codegen-time gating is the whole point: in tight production hot paths you want a flag that costs literally nothing when it's off, not one guarded by a runtime `if`. The legacy `WolverineOptions.EnableMessageCausationTracking` property was removed in 7.0; use `Tracking.EnableMessageCausationTracking`.
+Each flag is independent. The runtime checks each flag at code-generation time only -- when a flag is `false`, the corresponding annotations are not emitted into the generated handler at all, so there is **zero per-message runtime cost** for any feature you haven't enabled. That codegen-time gating is the whole point: in tight production hot paths you want a flag that costs literally nothing when it's off, not one guarded by a runtime `if`. The legacy `WolverineOptions.EnableMessageCausationTracking` property was removed in 7.0; use `Tracking.EnableMessageCausationTracking`.
 
 ### `HandlerExecutionDiagnosticsEnabled`
 
@@ -820,10 +820,10 @@ When set, two ActivityEvents and two activity tags are emitted around each handl
 |---|---|---|
 | `wolverine.handler.started` | ActivityEvent | Emitted immediately before the user handler body runs, after every middleware frame has completed. Lets you measure middleware overhead independently. |
 | `wolverine.handler.finished` | ActivityEvent | Emitted immediately after the user handler body returns successfully. |
-| `wolverine.envelope.transport_lag_ms` | tag (double, milliseconds) | `activity.StartTimeUtc - envelope.SentAt` — the elapsed time from when the producer stamped the envelope's send timestamp to when the consumer's handler activity started. Skipped for negative values (clock drift). |
-| `wolverine.envelope.receive_dwell_ms` | tag (double, milliseconds) | `activity.StartTimeUtc - envelope.ReceivedAt` — the elapsed time from when the listener stamped the envelope as received (`Envelope.MarkReceived`) to when the handler activity started. Useful for spotting in-process worker-queue backpressure separately from upstream transport latency. Absent for envelopes that didn't traverse a receiver (inline `IMessageBus.InvokeAsync` calls). |
+| `wolverine.envelope.transport_lag_ms` | tag (double, milliseconds) | `activity.StartTimeUtc - envelope.SentAt` -- the elapsed time from when the producer stamped the envelope's send timestamp to when the consumer's handler activity started. Skipped for negative values (clock drift). |
+| `wolverine.envelope.receive_dwell_ms` | tag (double, milliseconds) | `activity.StartTimeUtc - envelope.ReceivedAt` -- the elapsed time from when the listener stamped the envelope as received (`Envelope.MarkReceived`) to when the handler activity started. Useful for spotting in-process worker-queue backpressure separately from upstream transport latency. Absent for envelopes that didn't traverse a receiver (inline `IMessageBus.InvokeAsync` calls). |
 
-The two ActivityEvents are emitted by the JasperFx `MethodCall.ActivityEventBeforeCall` / `.ActivityEventAfterCall` codegen surface, so they wrap exactly the user handler `MethodCall` — middleware frames before the handler body stay unmarked. The two timing tags are stamped by an `ApplyExecutionDiagnosticTagsFrame` that's prepended to the generated chain when the flag is set, so all the tag computation happens inline in the generated handler with no runtime branching in `Executor` or `HandlerPipeline`.
+The two ActivityEvents are emitted by the JasperFx `MethodCall.ActivityEventBeforeCall` / `.ActivityEventAfterCall` codegen surface, so they wrap exactly the user handler `MethodCall` -- middleware frames before the handler body stay unmarked. The two timing tags are stamped by an `ApplyExecutionDiagnosticTagsFrame` that's prepended to the generated chain when the flag is set, so all the tag computation happens inline in the generated handler with no runtime branching in `Executor` or `HandlerPipeline`.
 
 ### `DeserializationSpanEnabled`
 
@@ -833,7 +833,7 @@ When set, Wolverine starts a `wolverine.deserialize` span (kind = `Internal`) ar
 |---|---|
 | `messaging.message_payload_size_bytes` | The size of the raw envelope `Data` array in bytes. |
 
-The span's status is set to `Error` (with the exception type name as description) when deserialization throws — useful for separating "transport delivered me garbage" from "my handler blew up" in trace dashboards. The span only starts when the flag is on, so apps that don't enable it see no extra spans.
+The span's status is set to `Error` (with the exception type name as description) when deserialization throws -- useful for separating "transport delivered me garbage" from "my handler blew up" in trace dashboards. The span only starts when the flag is on, so apps that don't enable it see no extra spans.
 
 ### `OutboxDiagnosticsEnabled`
 
@@ -844,7 +844,7 @@ When set, Wolverine emits two ActivityEvents around the post-handler call to `IM
 | `wolverine.outbox.flushing` | Emitted immediately before the outbox flush call. |
 | `wolverine.outbox.published` | Emitted immediately after the outbox flush call returns successfully. |
 
-This is provider-agnostic — it fires regardless of which transactional middleware (Marten, EF Core, RDBMS, Polecat, etc.) added the `FlushOutgoingMessages` postprocessor frame. The annotation is emitted via the same JasperFx `MethodCall.ActivityEventBeforeCall` / `.ActivityEventAfterCall` codegen surface as the handler events, so when the flag is off the generated outbox-flush call has no extra emission.
+This is provider-agnostic -- it fires regardless of which transactional middleware (Marten, EF Core, RDBMS, Polecat, etc.) added the `FlushOutgoingMessages` postprocessor frame. The annotation is emitted via the same JasperFx `MethodCall.ActivityEventBeforeCall` / `.ActivityEventAfterCall` codegen surface as the handler events, so when the flag is off the generated outbox-flush call has no extra emission.
 
 When the chain pulls in **Wolverine.Marten** transactional middleware, `OutboxDiagnosticsEnabled` also brackets the Marten transactional commit:
 
@@ -853,7 +853,7 @@ When the chain pulls in **Wolverine.Marten** transactional middleware, `OutboxDi
 | `marten.savechanges.start` | Emitted immediately before `IDocumentSession.SaveChangesAsync(CancellationToken)`. |
 | `marten.savechanges.finished` | Emitted immediately after `SaveChangesAsync` returns successfully. |
 
-Useful for separating "the database commit is slow" from "the broker publish is slow" when profiling a transactional handler — the two pairs of events bracket the two distinct stages.
+Useful for separating "the database commit is slow" from "the broker publish is slow" when profiling a transactional handler -- the two pairs of events bracket the two distinct stages.
 
 ### `EnableMessageCausationTracking`
 
@@ -861,7 +861,7 @@ When set, Wolverine emits a `RecordCauseAndEffect(context, context.Runtime.Obser
 
 ### `Envelope.ReceivedAt`
 
-The `wolverine.envelope.receive_dwell_ms` tag depends on a new `Envelope.ReceivedAt` property that's stamped by `Envelope.MarkReceived` — the single point all receivers (`BufferedReceiver`, `DurableReceiver`, etc.) call when a message is handed off from a listener to the worker pipeline. The property is `[JsonIgnore]` and only set by Wolverine itself; it stays `null` for envelopes that didn't traverse a receiver (inline `InvokeAsync` calls).
+The `wolverine.envelope.receive_dwell_ms` tag depends on a new `Envelope.ReceivedAt` property that's stamped by `Envelope.MarkReceived` -- the single point all receivers (`BufferedReceiver`, `DurableReceiver`, etc.) call when a message is handed off from a listener to the worker pipeline. The property is `[JsonIgnore]` and only set by Wolverine itself; it stays `null` for envelopes that didn't traverse a receiver (inline `InvokeAsync` calls).
 
 ### Sample of the generated handler code
 
@@ -876,7 +876,7 @@ public static class TrackingDiagnosticsHandler
 }
 ```
 
-With **all flags off** (the default), the generated `HandleAsync` body is the bare handler invocation — no diagnostic plumbing is emitted at all:
+With **all flags off** (the default), the generated `HandleAsync` body is the bare handler invocation -- no diagnostic plumbing is emitted at all:
 
 ```csharp
 public override Task HandleAsync(MessageContext context, CancellationToken cancellation)
@@ -912,7 +912,7 @@ public override Task HandleAsync(MessageContext context, CancellationToken cance
 }
 ```
 
-Compare the two and the design pattern is concrete: each opt-in flag adds a specific line to the generated method; turning it back off removes the line entirely. There's no runtime `if (options.Tracking.X)` check anywhere in the framework hot path — the chain's `assembleFrames` reads each flag once at codegen time and decides which frames to emit.
+Compare the two and the design pattern is concrete: each opt-in flag adds a specific line to the generated method; turning it back off removes the line entirely. There's no runtime `if (options.Tracking.X)` check anywhere in the framework hot path -- the chain's `assembleFrames` reads each flag once at codegen time and decides which frames to emit.
 
 If you want to inspect what your own handlers look like, set `WolverineOptions.CodeGeneration.SourceCodeWritingEnabled = true` and dump the generated code (or call `host.Services.GetRequiredService<HandlerGraph>().ChainFor<MyMessage>()!.SourceCode`); the same `tracking_diagnostics_opt_in` test suite in the Wolverine repo writes the generated source to xUnit output for every flag combination, so the contract is regression-tested rather than just illustrated here.
 
@@ -1123,8 +1123,8 @@ which sets Wolverine users up for being able to export their system’s performa
 | wolverine.recurring.occurrences_skipped | Counter | Number of occurrences of a `SkipWhileRunning()` [recurring schedule](/guide/messaging/recurring) skipped because the previous occurrence was still running. Tagged by `schedule.name` only |
 
 ::: tip System traffic is not counted <Badge type="tip" text="6.25" />
-Wolverine's own internal traffic — node agent commands on the control queues, acknowledgements, and
-CritterWatch monitoring messages — is excluded from all of the message-level instruments above, as is any
+Wolverine's own internal traffic -- node agent commands on the control queues, acknowledgements, and
+CritterWatch monitoring messages -- is excluded from all of the message-level instruments above, as is any
 endpoint marked with the `System` role or with `TelemetryEnabled = false`. An idle application therefore
 reports zero message volume even when Wolverine's node coordination or CritterWatch monitoring is busy
 underneath. Before 6.25 this internal chatter was counted, which could show up as a steady, phantom
@@ -1149,11 +1149,11 @@ own per-message tags with [`Envelope.SetMetricsTag`](#additional-metrics-tags).
 
 ::: tip The `schedule.name` tag <Badge type="tip" text="6.38" />
 Occurrences published by a [recurring schedule](/guide/messaging/recurring) carry their schedule's name, so the
-success, failure and effective-time series can be sliced per cron job — `sum by (schedule.name, ...)` answers
+success, failure and effective-time series can be sliced per cron job -- `sum by (schedule.name, ...)` answers
 "which schedule is failing" without a separate instrument. It is read from the envelope header rather than set
 locally, so the attribution survives the hop to whichever node actually handles the occurrence.
 
-The occurrence *instant* is deliberately **not** a metrics tag — it takes a distinct value on every firing,
+The occurrence *instant* is deliberately **not** a metrics tag -- it takes a distinct value on every firing,
 which would make the series unbounded in cardinality. It rides the trace instead, as
 `wolverine.schedule.occurrence`.
 :::
@@ -1161,14 +1161,14 @@ which would make the series unbounded in cardinality. It rides the trace instead
 ::: tip The `source` tag <Badge type="tip" text="6.14.1" />
 Before 6.14.1 the `source` (service-name) tag was only present on `wolverine.messages.sent` and
 `wolverine.messages.received`. As of **6.14.1** it is added to **every** message-level instrument, so a shared metrics backend
-that scrapes many services can slice each series per service — `{source="my-service"}` /
+that scrapes many services can slice each series per service -- `{source="my-service"}` /
 `sum by (source, ...)` works uniformly across all Wolverine metrics.
 :::
 
 ### Histogram Buckets <Badge type="tip" text="6.14.1" />
 
 The `wolverine.execution.time` and `wolverine.effective.time` histograms record millisecond latencies, but the
-default OpenTelemetry histogram buckets are tuned for seconds — so quantile baselines computed from a
+default OpenTelemetry histogram buckets are tuned for seconds -- so quantile baselines computed from a
 time-series database (Prometheus / VictoriaMetrics) over those instruments are coarse. Wolverine therefore
 applies a millisecond-oriented set of explicit bucket boundaries (as instrument
 [advice](https://opentelemetry.io/docs/specs/otel/metrics/api/#instrument-advisory-parameters)) by default. You

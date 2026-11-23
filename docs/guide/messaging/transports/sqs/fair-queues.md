@@ -1,6 +1,6 @@
 # Fair Queues
 
-[Amazon SQS fair queues](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagegroupid-property.html) let a **standard** queue mitigate "noisy neighbor" problems in multi-tenant workloads. By assigning a `MessageGroupId` to each message, SQS spreads dwell time more fairly across groups so that one tenant generating a large backlog does not starve the others. Unlike FIFO queues, fair queues imply **no ordering or deduplication semantics** — they keep standard queue throughput while improving fairness.
+[Amazon SQS fair queues](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagegroupid-property.html) let a **standard** queue mitigate "noisy neighbor" problems in multi-tenant workloads. By assigning a `MessageGroupId` to each message, SQS spreads dwell time more fairly across groups so that one tenant generating a large backlog does not starve the others. Unlike FIFO queues, fair queues imply **no ordering or deduplication semantics** -- they keep standard queue throughput while improving fairness.
 
 ## Enabling Fair Queues
 
@@ -12,7 +12,7 @@ opts.PublishMessage<OrderPlaced>()
     .EnableFairQueueMessageGroups();
 ```
 
-Once enabled, set the group id the same way you would for a FIFO queue — typically a tenant id — through `DeliveryOptions`:
+Once enabled, set the group id the same way you would for a FIFO queue -- typically a tenant id -- through `DeliveryOptions`:
 
 ```cs
 await messageBus.PublishAsync(new OrderPlaced(orderId), new DeliveryOptions

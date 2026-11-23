@@ -19,7 +19,7 @@ These all speak one vocabulary, and none of it names your database:
 | An event sourced model's current state, read only | `[ReadModel]` |
 | The whole method to be an event sourced command handler | `[DeciderFunction]` |
 | An event sourced model spanning several streams, matched by tag | `[DcbModel]` |
-| A stream's metadata — version, type, timestamps — **unfolded** | [`[StreamState]`](#raw-stream-reads) |
+| A stream's metadata -- version, type, timestamps -- **unfolded** | [`[StreamState]`](#raw-stream-reads) |
 | A stream's raw events, **unfolded** | [`[StreamEvents]`](#raw-stream-reads) |
 | To write a document back | `Storage.Store` / `Insert` / `Update` / `Delete` / `Nothing<T>` |
 | To append events to a stream | [`Storage.AppendEvents` / `Storage.StartStream`](/guide/handlers/side-effects#event-side-effects) |
@@ -139,7 +139,7 @@ OpenAPI advertises `200` and `204` rather than `200` and `404`.
 Think about your clients before you reach for this. A 404 puts a miss on the failure branch of every
 HTTP client; a 204 puts it on the success branch. Code that does `response.EnsureSuccessStatusCode()`
 will start passing, and generated typed clients (NSwag, Kiota, Refit) will map the 204 onto their
-success path — so a miss can surface later as a null dereference instead of at the call site. If what
+success path -- so a miss can surface later as a null dereference instead of at the call site. If what
 you actually want is a *distinguishable* 404, `OnMissing.ProblemDetailsWith404` names the type and the
 identity in a `application/problem+json` body and keeps the failure on the failure branch.
 :::
@@ -254,7 +254,7 @@ where more than one persistence tool is in play and a reader cannot tell from th
 
 **Disambiguation.** More substantially, two registered stores can both be able to claim the same type.
 Marten's provider claims *every* document type, because Marten genuinely can persist any document, so
-Wolverine consults selective providers first — an entity mapped in an EF Core `DbContext` resolves to EF
+Wolverine consults selective providers first -- an entity mapped in an EF Core `DbContext` resolves to EF
 Core no matter which integration was registered first. That precedence rule is correct as a default, but if
 the type also lives in Marten and *that* is the copy you wanted, `[Entity]` has no way to know:
 
@@ -301,7 +301,7 @@ public static OrderSummary Handle(
 ```
 
 `AsNoTracking` loads the entity detached from EF Core's change tracker. It is cheaper for a read-only
-handler or endpoint — but note that mutating a detached entity will **not** be picked up by the
+handler or endpoint -- but note that mutating a detached entity will **not** be picked up by the
 transactional middleware's `SaveChangesAsync`, which is the entire point of asking for it.
 
 `Include` eagerly loads a navigation property, and `Includes` takes several at once (they combine rather
@@ -319,7 +319,7 @@ difference, and it is why the attribute only makes the switch when you actually 
 :::
 
 Every include path is walked against the EF Core model while the chain is being compiled, so a typo is a
-startup error that names the bad segment and lists the navigations that *do* exist on that type — not a
+startup error that names the bad segment and lists the navigations that *do* exist on that type -- not a
 runtime failure on the first message handled. Nothing is ever silently dropped: a request Wolverine cannot
 honor (an unknown navigation, or a composite primary key, which the query form cannot express) is a
 codegen error rather than a load that quietly ignores half of what you asked for.
@@ -327,11 +327,11 @@ codegen error rather than a load that quietly ignores half of what you asked for
 ### The Rest of the Family
 
 `[FromMarten]` and `[FromEfCore]` ship first, and the family is being extended to the other persistence
-providers on exactly the same shape — same inherited `[Entity]` behavior, same two failure diagnostics.
+providers on exactly the same shape -- same inherited `[Entity]` behavior, same two failure diagnostics.
 
 ## Reading the First of a Type <Badge type="tip" text="6.28" />
 
-`[Entity]` needs an identity to load by, which means it cannot express the *singleton document* — a type
+`[Entity]` needs an identity to load by, which means it cannot express the *singleton document* -- a type
 your system stores exactly one of, looked up by nothing at all. That is what `[FirstOrDefault]` is for. It
 is the equivalent of `await session.Query<T>().FirstOrDefaultAsync()`, resolved through whichever
 persistence provider owns the type:
@@ -358,14 +358,14 @@ public static async Task<MetricsAlertDefaults> GetMetricsDefaults(IDocumentSessi
 Some things to know:
 
 * The parameter is simply `null` when nothing matches, and your handler or endpoint **runs either way**.
-  Unlike `[Entity]`, there is no `Required` and no `OnMissing` — a miss here is not an error condition
+  Unlike `[Entity]`, there is no `Required` and no `OnMissing` -- a miss here is not an error condition
   worth a 404, it is an ordinary answer to "is there one of these yet?". Write your own null branch,
   usually a `?? new T()` fallback.
 * The query is **unfiltered**. If you need a predicate, use a `Before` method, a compiled query, or
   `[FromQuerySpecification]`; ordering semantics across five different LINQ providers is not something
   this attribute tries to promise.
 * Usable in both message handlers and HTTP endpoints, and in `Before` / `Validate` methods.
-* Supported by Marten, Polecat, Fisher, RavenDb, and EF Core. **CosmosDb is not supported** — see below.
+* Supported by Marten, Polecat, Fisher, RavenDb, and EF Core. **CosmosDb is not supported** -- see below.
 
 ::: warning
 CosmosDb cannot support `[FirstOrDefault]`. Wolverine's CosmosDb integration stores every user document
@@ -378,7 +378,7 @@ runtime. Load the value explicitly in a `Before` method instead.
 
 ## Reading Every Document of a Type <Badge type="tip" text="6.28" />
 
-Where [`[FirstOrDefault]`](#reading-the-first-of-a-type) gives you one, `[All]` gives you all of them —
+Where [`[FirstOrDefault]`](#reading-the-first-of-a-type) gives you one, `[All]` gives you all of them -- 
 the equivalent of `await session.Query<T>().ToListAsync()`, resolved through whichever provider owns the
 type:
 
@@ -392,16 +392,16 @@ public static IReadOnlyList<ServiceAlertOverrides> GetAll([All] IReadOnlyList<Se
   parameter and what to change it to. That is the shape Marten and RavenDb return from `ToListAsync()`
   natively, and EF Core's `List<T>` converts to it implicitly, so every provider assigns straight across
   with no copying.
-* An empty table yields an empty list, never `null` — so there is no "missing" case and no `OnMissing`.
+* An empty table yields an empty list, never `null` -- so there is no "missing" case and no `OnMissing`.
 * The query is unfiltered. This is aimed at **small reference and configuration collections**; reading an
   entire table into memory is a decision, not a default.
 * Supported by Marten, Polecat, Fisher, RavenDb and EF Core. **CosmosDb is not supported**, for the same
-  reason `[FirstOrDefault]` is not — see that section's warning.
+  reason `[FirstOrDefault]` is not -- see that section's warning.
 
 ### Batched Reads <Badge type="tip" text="6.28" />
 
 On Marten, Polecat and Fisher, **two or more** batchable reads in the same handler or endpoint are resolved
-in a *single database round trip* rather than one query each. Nothing to turn on — write the parameters and
+in a *single database round trip* rather than one query each. Nothing to turn on -- write the parameters and
 Wolverine batches them:
 
 ```cs
@@ -412,7 +412,7 @@ public static InventoryCounted Handle(
     => new(parts.Count, suppliers.Count);
 ```
 
-That generates one `CreateBatchQuery()`, enlists both reads, executes once, and then resolves each result —
+That generates one `CreateBatchQuery()`, enlists both reads, executes once, and then resolves each result -- 
 instead of two separate round trips. `[All]` batches alongside the other batchable operations too, so an
 `[All]` next to an `[Entity]` load or a query specification joins the same batch.
 
@@ -421,13 +421,13 @@ A **single** read is deliberately left alone: the batch machinery buys nothing f
 
 ::: tip
 This is why `[All]` is worth preferring over [`[Queryable]`](#the-raw-iqueryable-escape-hatch) when you
-genuinely want the whole collection — a queryable you compose yourself cannot participate in the batch.
+genuinely want the whole collection -- a queryable you compose yourself cannot participate in the batch.
 :::
 
 ## The Raw `IQueryable` Escape Hatch <Badge type="tip" text="6.28" />
 
-`[Queryable]` injects the persistence mechanism's own `IQueryable<T>` — Marten's `session.Query<T>()`,
-EF Core's `dbContext.Set<T>()`, and so on — into a message handler, HTTP endpoint, or middleware method:
+`[Queryable]` injects the persistence mechanism's own `IQueryable<T>` -- Marten's `session.Query<T>()`,
+EF Core's `dbContext.Set<T>()`, and so on -- into a message handler, HTTP endpoint, or middleware method:
 
 ```cs
 [WolverineGet("/api/alerts/recent")]
@@ -457,10 +457,10 @@ var names = alerts.Where(x => x.Level == "high").ToArray();   // compiles everyw
 
 works on EF Core and throws `NotSupportedException: As of Marten 9.0, only asynchronous data access is
 supported` on Marten. **Always use the async LINQ operators** — `ToListAsync()`, `FirstOrDefaultAsync()`,
-`CountAsync()` — and pass the `CancellationToken`.
+`CountAsync()` -- and pass the `CancellationToken`.
 
 **It reintroduces the coupling everything else here exists to remove**, and makes the method meaningfully
-harder to unit test — you can no longer hand it a list.
+harder to unit test -- you can no longer hand it a list.
 
 **An unbounded query is easy to write by accident.** There is no paging, no limit, and no guard.
 
@@ -486,7 +486,7 @@ public static void Handle(RecordLedgerEntry command, IEventStoreOperations event
 ```
 
 Because it is the *current session's* operations, the appended events commit with the rest of the
-handler's work through the outbox — no `[Transactional]` needed. A handler marked
+handler's work through the outbox -- no `[Transactional]` needed. A handler marked
 `[Storage(typeof(IMyStore))]` gets that ancillary store's session instead.
 
 See [Event Store Abstractions](https://shared-libs.jasperfx.net/events/) in the JasperFx documentation for the whole
@@ -532,7 +532,7 @@ public static class ShipOrderHandler
 
 Use `[DeciderFunction]` for the same workflow at the method or class level, where the model's
 identity is read off the incoming command rather than off a marked parameter. The name is the
-functional event sourcing one — a decider is `decide(command, state) -> events`, which is exactly
+functional event sourcing one -- a decider is `decide(command, state) -> events`, which is exactly
 what this workflow gives you: Wolverine supplies the `state` and persists the `events`, and your
 method is a pure function in between.
 
@@ -598,7 +598,7 @@ thing: a timeline endpoint, an audit view, or a "what happened to this order?" s
 itself, and the fold has already collapsed it. `[StreamState]` and `[StreamEvents]` are the raw reads for
 those handlers.
 
-`[StreamState]` resolves the stream's metadata — version, aggregate type, created and updated timestamps —
+`[StreamState]` resolves the stream's metadata -- version, aggregate type, created and updated timestamps -- 
 and `[StreamEvents]` resolves its events as `IReadOnlyList<IEvent>`. Neither one folds anything. Both are
 store-agnostic in the same way the rest of this vocabulary is, and the store batches them with any other
 batchable load on the same handler into a single round trip:
@@ -647,8 +647,8 @@ public static class OptionalOrderTimelineHandler
 
 ::: warning The identity convention is not the one `[Entity]` uses
 This is the easiest thing here to get wrong. `[Entity] Order order` can infer an identity member named
-`OrderId`, because the parameter's own type names your entity. The parameter type here is `StreamState` —
-the *store's* vocabulary, not your aggregate — so there is no aggregate name to infer from, and the
+`OrderId`, because the parameter's own type names your entity. The parameter type here is `StreamState` -- 
+the *store's* vocabulary, not your aggregate -- so there is no aggregate name to infer from, and the
 convention degrades to a member literally named `Id`.
 
 For anything else, name the member explicitly:
@@ -674,7 +674,7 @@ public static class OrderAuditHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L149-L166' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_stream_state_with_named_identity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-A miss is not silent. Wolverine throws `InvalidEntityLoadUsageException` when the chain is compiled — at
+A miss is not silent. Wolverine throws `InvalidEntityLoadUsageException` when the chain is compiled -- at
 startup, not at the first request.
 :::
 
@@ -682,7 +682,7 @@ startup, not at the first request.
 
 `[StreamState]` has a `Required` property; `[StreamEvents]` does not, and that asymmetry is intentional
 rather than an oversight. A missing stream yields an **empty list**, not null, so the null-guard model the
-rest of the `[Entity]` family is built on has nothing to test — a guard would either never fire, or would
+rest of the `[Entity]` family is built on has nothing to test -- a guard would either never fire, or would
 have to invent a count threshold. And "zero events" is a genuinely different question from "no such
 stream."
 
@@ -701,7 +701,7 @@ public static OrderTimeline Handle(
 Because these parameter types are store vocabulary rather than your own types, Wolverine cannot ask "who
 owns this?" the way it can for `[ReadModel] Order`. Resolution goes, in order:
 
-1. An explicit `AggregateType` — `[StreamState(AggregateType = typeof(Order))]` — which identifies the
+1. An explicit `AggregateType` -- `[StreamState(AggregateType = typeof(Order))]` -- which identifies the
    owning store and nothing else. It does not change what is read.
 2. The ancillary store the chain was routed to by `[Storage(typeof(IMyStore))]`.
 3. The single registered event store integration, when there is only one.
@@ -717,8 +717,8 @@ store instead of resolving one, so they still work in a host that called `AddMar
 
 ### Dynamic Consistency Boundaries <Badge type="tip" text="6.27" />
 
-`[WriteModel]` and `[DeciderFunction]` are both about *one* stream. When the decision spans several —
-"is this seat still free for this screening, and is this customer under their booking limit?" —
+`[WriteModel]` and `[DeciderFunction]` are both about *one* stream. When the decision spans several -- 
+"is this seat still free for this screening, and is this customer under their booking limit?" -- 
 `[DcbModel]` is the same workflow over a **Dynamic Consistency Boundary**: a model projected from
 every stream whose events match a tag query, with the store asserting at commit that no matching
 event has landed in the meantime.
@@ -754,7 +754,7 @@ public static class ReserveSeatHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L98-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dcb_model_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Mark the parameter as `IEventBoundary<T>` instead of `T` if you want the boundary handle itself —
+Mark the parameter as `IEventBoundary<T>` instead of `T` if you want the boundary handle itself -- 
 its `Events`, its `LastSeenSequence`, and `AppendOne()` / `AppendMany()` for appending imperatively
 rather than by returning events.
 
@@ -767,7 +767,7 @@ Identity resolution follows the same conventions as `[Entity]`, in this order: a
 `[WriteModel("orderId")]`, then a member marked with `[JasperFx.Identity]` on the message, then a
 `[Model Type Name]Id` member, then `id`, then a single member of the model's strong typed id type.
 The `[Identity]` step is the one to reach for when the identity lives on a member whose name says
-something else — it is declared on the message, where it is true regardless of which handler form
+something else -- it is declared on the message, where it is true regardless of which handler form
 reads it.
 
 Missing-model behavior matches `[Entity]` as well: `Required`, `MissingMessage` and `OnMissing` mean
@@ -775,14 +775,14 @@ what they mean there, and both attributes honor the
 [global entity defaults](#global-entity-defaults) below.
 
 On `[WriteModel]` <Badge type="tip" text="6.27" /> and `[ReadModel]` <Badge type="tip" text="6.27.1" />,
-`Required` **defaults to the opposite of the parameter's nullable annotation** — `Order order` is
+`Required` **defaults to the opposite of the parameter's nullable annotation** -- `Order order` is
 required and gets a not-found guard, `Order? order` is not and is handed to your method as `null` so
 your own null branch runs. Setting `Required` explicitly overrides the annotation either way.
 
 ::: warning The store-specific spellings keep the old default
 `[WriteAggregate]`, `[ReadAggregate]` and `[Entity]` **do not** infer from the annotation. They all
 predate it, and quietly dropping a not-found guard from existing code is a change that only shows up
-at runtime — so they keep their unconditional `Required = true`. Say `Required = false` explicitly on
+at runtime -- so they keep their unconditional `Required = true`. Say `Required = false` explicitly on
 those, or move to `[WriteModel]` / `[ReadModel]`.
 
 In a project compiled with `<Nullable>disable</Nullable>` the annotation cannot be read, so
@@ -792,7 +792,7 @@ In a project compiled with `<Nullable>disable</Nullable>` the annotation cannot 
 ::: warning Every return value is an event
 Under `[WriteModel]` and `[DeciderFunction]` alike, anything the method returns that is not
 recognized as something else is **appended to the model's event stream**. That includes a value you
-may have meant to publish as a cascading message — it will land in the stream instead, quietly.
+may have meant to publish as a cascading message -- it will land in the stream instead, quietly.
 
 To do both, return a tuple: the events collection is appended and the other member is published.
 
@@ -806,7 +806,7 @@ public static (IReadOnlyList<object>, OrderShipmentNotice) Handle(
 :::
 
 ::: tip
-Every store integration also ships its own name for these — `[WriteAggregate]`, `[ReadAggregate]`,
+Every store integration also ships its own name for these -- `[WriteAggregate]`, `[ReadAggregate]`,
 `[AggregateHandler]` and `[BoundaryModel]` in `Wolverine.Marten`, `Wolverine.Polecat` and `Wolverine.Fisher`, plus
 `[Aggregate]` in the matching `Wolverine.Http.*` package. As of Wolverine 6.26 (6.27 for
 `[BoundaryModel]`) those all inherit from the attributes above and behave identically, so existing
@@ -861,7 +861,7 @@ public static class MyHandler
 The resolution order is: **Explicit attribute value > Global default > Built-in default** (`Simple404` / `true`).
 
 ::: tip
-`EntityDefaults.OnMissing` reaches every attribute that loads data this way — `[Entity]`, `[Document]`,
+`EntityDefaults.OnMissing` reaches every attribute that loads data this way -- `[Entity]`, `[Document]`,
 `[Aggregate]`, `[ReadAggregate]`, `[WriteAggregate]`, `[ReadModel]`, `[WriteModel]`, and the DCB
 attributes. Setting it to `OnMissing.EmptyContentWith204` changes the answer for *all* of them, including
 aggregate endpoints you may not have been thinking about. Set it on the individual attributes instead if
@@ -870,7 +870,7 @@ you only meant a subset.
 
 Some other facts to know about `[Entity]` usage:
 
-* Supported by the Marten, Polecat, Fisher, EF Core, RavenDb and Redis integrations, and by the in-memory store
+* Supported by the Marten, Polecat, Fisher, EF Core, RavenDb, Redis, Amazon S3 and Azure Blob Storage integrations, and by the in-memory store
 * For EF Core usage, Wolverine has to be able to figure out which `DbContext` type persists the entity type of the parameter
 * In all cases, Wolverine is trying to "know" what the identity type for the entity type is (`Guid`? `int`? Something else?) from the underlying persistence tooling and use that to help parse route arguments as needed
 * `[Entity]` cannot support any kind of composite key or identity

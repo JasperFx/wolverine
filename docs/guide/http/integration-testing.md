@@ -1,17 +1,17 @@
 # Integration Testing Wolverine.HTTP Endpoints
 
-Wolverine.HTTP endpoints are designed from the ground up for testability — but unit tests alone don't tell the full story. When your HTTP endpoint publishes messages, kicks off cascading handlers, or writes to a database through middleware, you need integration tests that can **wait for all that asynchronous activity to finish** before making assertions.
+Wolverine.HTTP endpoints are designed from the ground up for testability -- but unit tests alone don't tell the full story. When your HTTP endpoint publishes messages, kicks off cascading handlers, or writes to a database through middleware, you need integration tests that can **wait for all that asynchronous activity to finish** before making assertions.
 
 Wolverine provides a first-class integration testing experience by combining two tools:
 
-- [**Alba**](https://jasperfx.github.io/alba) — an in-memory HTTP testing library for ASP.NET Core that lets you make HTTP requests without a real network connection
-- [**Wolverine Tracked Sessions**](/guide/testing) — Wolverine's built-in test coordination that tracks all message activity and waits for cascading work to complete
+- [**Alba**](https://jasperfx.github.io/alba) -- an in-memory HTTP testing library for ASP.NET Core that lets you make HTTP requests without a real network connection
+- [**Wolverine Tracked Sessions**](/guide/testing) -- Wolverine's built-in test coordination that tracks all message activity and waits for cascading work to complete
 
 ## Setting Up the Test Harness
 
 ### Install the Packages
 
-You'll need `Alba` and your test framework of choice. Wolverine's tracking support ships in the core `WolverineFx` package — no extra package needed.
+You'll need `Alba` and your test framework of choice. Wolverine's tracking support ships in the core `WolverineFx` package -- no extra package needed.
 
 ```xml
 <PackageReference Include="Alba" Version="9.*" />
@@ -424,7 +424,7 @@ var tracked = await Host.TrackActivity()
 | Method | Purpose |
 |--------|---------|
 | `Timeout(TimeSpan)` | Override how long to wait for all activity to complete |
-| `DoNotAssertOnExceptionsDetected()` | Useful when testing error handling — normally the session throws if any handler threw |
+| `DoNotAssertOnExceptionsDetected()` | Useful when testing error handling -- normally the session throws if any handler threw |
 | `IncludeExternalTransports()` | Track messages to external brokers (disabled by default when using `DisableAllExternalWolverineTransports`) |
 | `IgnoreMessageType<T>()` | Exclude specific message types from tracking (useful for background polling) |
 | `AlsoTrack(otherHost)` | Track message activity across multiple Wolverine hosts in the same process |
@@ -465,7 +465,7 @@ var tracked = await Host.TrackActivity()
     });
 ```
 
-This ensures your async projections have fully processed all events before you make assertions — eliminating flaky tests caused by projection lag.
+This ensures your async projections have fully processed all events before you make assertions -- eliminating flaky tests caused by projection lag.
 
 ## Sample Projects
 
@@ -479,6 +479,6 @@ The Wolverine repository includes several complete sample projects that demonstr
 
 ## Further Reading
 
-- [Alba Documentation](https://jasperfx.github.io/alba) — Full reference for Alba's HTTP testing API including `Scenario`, authentication stubs, and JSON helpers
-- [Wolverine Tracked Sessions](/guide/testing) — Complete guide to Wolverine's `ITrackedSession` and message tracking for both HTTP and messaging tests
-- [Wolverine Best Practices](/introduction/best-practices) — General guidance on structuring Wolverine applications for testability
+- [Alba Documentation](https://jasperfx.github.io/alba) -- Full reference for Alba's HTTP testing API including `Scenario`, authentication stubs, and JSON helpers
+- [Wolverine Tracked Sessions](/guide/testing) -- Complete guide to Wolverine's `ITrackedSession` and message tracking for both HTTP and messaging tests
+- [Wolverine Best Practices](/introduction/best-practices) -- General guidance on structuring Wolverine applications for testability

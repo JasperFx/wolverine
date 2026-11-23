@@ -1,7 +1,7 @@
 # Message Encryption
 
 Wolverine ships with optional application-layer AES-256-GCM encryption of
-message bodies. Use it when transport-level TLS is not enough — typical drivers:
+message bodies. Use it when transport-level TLS is not enough -- typical drivers:
 
 - Compliance regimes (PCI-DSS, HIPAA, GDPR) that require at-rest message body
   encryption above what the broker provides.
@@ -27,7 +27,7 @@ registered as `k1`. Inbound messages with the encrypted content-type
 > replace the default serializer when its content-type is `application/json`,
 > so calling them after `UseEncryption` is a no-op against the default and
 > leaves the encrypting serializer in place. Calling `UseEncryption` more than
-> once throws — configure encryption exactly once during host setup.
+> once throws -- configure encryption exactly once during host setup.
 
 ## The `IKeyProvider` interface
 
@@ -40,7 +40,7 @@ public interface IKeyProvider
 ```
 
 Wolverine ships an `InMemoryKeyProvider` for tests and samples. For
-production, write a thin adapter over your KMS — Azure Key Vault, AWS KMS,
+production, write a thin adapter over your KMS -- Azure Key Vault, AWS KMS,
 HashiCorp Vault. Wrap it with `CachingKeyProvider`:
 
 ```csharp
@@ -52,7 +52,7 @@ keeps that bounded.
 
 The byte array returned by `GetKeyAsync` is treated as a borrowed reference
 owned by the provider. Callers must not mutate it or call
-`CryptographicOperations.ZeroMemory` on it — doing so corrupts caching
+`CryptographicOperations.ZeroMemory` on it -- doing so corrupts caching
 providers like `InMemoryKeyProvider`.
 
 ## Selective encryption
@@ -96,7 +96,7 @@ encrypting serializer is registered with the runtime.
 Selection precedence on send: per-type > endpoint > global default. Per-type
 rules run after per-endpoint rules in the runtime pipeline, so a per-type
 marker takes effect last and wins. For the encryption feature specifically
-this distinction is moot — both per-type `Encrypt<T>()` and per-endpoint
+this distinction is moot -- both per-type `Encrypt<T>()` and per-endpoint
 `Encrypted()` swap to the same encrypting-serializer instance, so the
 resulting envelope is the same regardless of which marker fired last. The
 distinction matters if you write your own envelope rules that compete with
@@ -130,7 +130,7 @@ adds `typeof(Fault<PaymentDetails>)` to the receive-side encryption
 requirement set. The auto-published fault for a failing `PaymentDetails`
 handler reaches the broker as ciphertext, and a `Fault<PaymentDetails>`
 arriving plaintext at any listener is dead-lettered with
-`EncryptionPolicyViolationException` — same protection, both sides. No
+`EncryptionPolicyViolationException` -- same protection, both sides. No
 manual setup. Skipped for value-type `T` because `Fault<T>` requires
 `T : class`.
 
@@ -162,7 +162,7 @@ preserved. Redacted values are `string.Empty` for `Message` and `null`
 for `StackTrace`.
 
 > **Note:** redaction targets `Fault<T>.Exception` only. The original
-> message instance `T` carried as `Fault<T>.Message` is unchanged — that
+> message instance `T` carried as `Fault<T>.Message` is unchanged -- that
 > is what fault events are for. If `T` itself is sensitive, the per-type
 > `Encrypt()` pairing above is the right tool: the entire fault body
 > (including `T` and the `ExceptionInfo`) travels encrypted on the wire.
@@ -202,7 +202,7 @@ attacker re-stamps a legitimately encrypted envelope with a different
 `MessageType` to route the decrypted body into the wrong handler.
 
 `CorrelationId`, `SagaId`, `TenantId`, and any custom headers are NEITHER
-encrypted NOR integrity-protected — brokers may need them for routing and
+encrypted NOR integrity-protected -- brokers may need them for routing and
 they can vary in transit.
 
 > **Rule:** if a value is sensitive, put it in the message body, not in
@@ -217,12 +217,12 @@ they can vary in transit.
 The encrypting serializer and receive-side guard raise three distinct
 exception types on receive:
 
-- `EncryptionKeyNotFoundException` — missing or unknown `key-id` header,
+- `EncryptionKeyNotFoundException` -- missing or unknown `key-id` header,
   or the key provider could not resolve the key.
-- `MessageDecryptionException` — GCM tag mismatch (body tampering or
+- `MessageDecryptionException` -- GCM tag mismatch (body tampering or
   routing-metadata tampering) or malformed body. Always poison: tampered
   or corrupted ciphertext will not decrypt on retry.
-- `EncryptionPolicyViolationException` — an envelope arrived without
+- `EncryptionPolicyViolationException` -- an envelope arrived without
   encryption but the receiving message type or listener has been marked
   as requiring it. Raised by the receive-side guard before any serializer
   runs; no bytes are interpreted.
@@ -232,7 +232,7 @@ any of them.
 
 > **Note on retry policies:** all three exception types are raised before
 > handler dispatch (deserialization or the receive-side guard), so Wolverine's
-> pipeline routes them directly to the dead-letter queue — user `OnException<>`
+> pipeline routes them directly to the dead-letter queue -- user `OnException<>`
 > retry rules do not apply to them in the current runtime. If your provider is
 > a remote KMS that can have transient outages, consider implementing the
 > retry/backoff inside your `IKeyProvider` rather than relying on Wolverine's
@@ -243,15 +243,15 @@ filter on `Envelope.Headers["exception-type"]` when storage is configured.
 
 ## What's not included
 
-- **AES-CBC** — Wolverine ships GCM only. CBC requires a separate MAC for
+- **AES-CBC** -- Wolverine ships GCM only. CBC requires a separate MAC for
   integrity; GCM provides authenticated encryption by construction.
-- **Header encryption** — only the body is encrypted.
-- **Asymmetric / per-recipient encryption** — not supported.
-- **Cloud-KMS adapters** — write a thin `IKeyProvider` over your KMS;
+- **Header encryption** -- only the body is encrypted.
+- **Asymmetric / per-recipient encryption** -- not supported.
+- **Cloud-KMS adapters** -- write a thin `IKeyProvider` over your KMS;
   ready-made adapter packages may ship later.
-- **Replay protection** — encryption does not prevent replay; use Wolverine's
+- **Replay protection** -- encryption does not prevent replay; use Wolverine's
   existing `DeduplicationId` / `MessageIdentity` if you need it.
-- **Field-level encryption and crypto-shredding** — see the next section.
+- **Field-level encryption and crypto-shredding** -- see the next section.
 
 ## Personal data and crypto-shredding with Tayra
 

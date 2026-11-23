@@ -45,7 +45,7 @@ case its property names. Wolverine refuses to start otherwise.
 
 CosmosDB rejects any document that does not carry a lowercase `id` property. The CosmosDB SDK's default
 serializer writes .NET property names verbatim, so a saga with the usual PascalCase `Id` is serialized as
-`"Id"` — and CosmosDB will not store it. Tell the client to camel case its property names:
+`"Id"` -- and CosmosDB will not store it. Tell the client to camel case its property names:
 
 ```cs
 var client = new CosmosClient("your-connection-string", new CosmosClientOptions
@@ -64,13 +64,13 @@ Skip this and the first saga persist fails with:
 ```
 
 Worse, because the saga was never stored, every follow-up message for that saga then fails with an
-`UnknownSagaException` — which looks like an unrelated bug and sends you looking in the wrong place.
+`UnknownSagaException` -- which looks like an unrelated bug and sends you looking in the wrong place.
 
 To keep that from ever reaching production, Wolverine checks the registered `CosmosClient` at startup: it
 serializes a probe instance of each saga with the client's own serializer, and throws an actionable
 `InvalidOperationException` naming the offending saga types if the resulting document would have no `id`.
-Applications that use CosmosDB only for message persistence are unaffected — every document Wolverine
-writes itself already carries an explicit `id` mapping — and start regardless of the naming policy.
+Applications that use CosmosDB only for message persistence are unaffected -- every document Wolverine
+writes itself already carries an explicit `id` mapping -- and start regardless of the naming policy.
 
 If you would rather not change the naming policy for the whole client, map the saga's identity member onto
 the document id yourself instead:
@@ -206,7 +206,7 @@ opts.UseCosmosDbPersistence("your-database-name", cosmos =>
 <!-- endSnippet -->
 
 Wolverine creates the named container on startup in the same way. It does not move existing documents, so
-envelopes and sagas already in the old container are not read from the new one — switch while there is nothing
+envelopes and sagas already in the old container are not read from the new one -- switch while there is nothing
 in flight.
 
 ## Message Persistence
@@ -221,14 +221,14 @@ The CosmosDB integration can serve as a [Wolverine Saga persistence mechanism](/
 all saga identity values must be `string` types. The saga id is used as the CosmosDB document id.
 
 Because it is the document id, the saga's identity member has to serialize as the lowercase `id` CosmosDB
-requires — which means the registered `CosmosClient` needs the camel case naming policy described in
+requires -- which means the registered `CosmosClient` needs the camel case naming policy described in
 [Serializer Configuration](#serializer-configuration). Wolverine enforces this at startup.
 
 ### Saga Partitioning <Badge type="tip" text="6.19" />
 
 By default, **every saga in your application shares a single logical partition**. A saga is your own class, so
 nothing writes the container's `/partitionKey` property into it, and CosmosDB puts a document with no partition
-key value into one "undefined" partition. Wolverine reads and writes sagas there consistently, so this works —
+key value into one "undefined" partition. Wolverine reads and writes sagas there consistently, so this works -- 
 but a CosmosDB logical partition is capped at **20 GB** and **10,000 RU/s**, and that cap therefore applies to
 your application's entire saga workload no matter how far the container itself is scaled out. The symptom, if
 you reach it, is 429 throttling that does *not* improve when you add RU/s, because the limit is per logical
@@ -249,8 +249,8 @@ opts.UseCosmosDbPersistence("your-database-name", cosmos =>
 <!-- endSnippet -->
 
 With this on, Wolverine stamps `partitionKey` = the saga id onto the document as it writes it, so loading,
-updating and deleting a saga is a single-partition point operation — the access pattern CosmosDB is at its best
-on — and sagas spread across every physical partition the container has.
+updating and deleting a saga is a single-partition point operation -- the access pattern CosmosDB is at its best
+on -- and sagas spread across every physical partition the container has.
 
 ::: warning
 This changes **where a saga document lives**, so it is opt in rather than the default. Saga documents written
@@ -263,7 +263,7 @@ Migrating means rewriting each existing saga document with its partition key, th
 undefined partition. Wolverine deliberately does not do this for you: saga documents carry no `docType`
 discriminator, so nothing in the container distinguishes them from the documents your own code and
 `Storage.Store()` side effects put in that same undefined partition, and a blanket migration would re-home
-those too. Only your application knows which documents are its sagas — for example, by saga id:
+those too. Only your application knows which documents are its sagas -- for example, by saga id:
 
 <!-- snippet: sample_cosmos_migrate_saga_to_its_own_partition -->
 <a id='snippet-sample_cosmos_migrate_saga_to_its_own_partition'></a>
@@ -308,7 +308,7 @@ saga. Marten, Azure Blob Storage and Amazon S3 reject a duplicate start the same
 explicit "write this document" side effects rather than saga starts, so they remain upserts.
 
 Because a concurrency violation just means "you read a stale copy, go read it again", the usual response is to
-retry the message — the retry re-reads the saga and re-applies the change against the current state:
+retry the message -- the retry re-reads the saga and re-applies the change against the current state:
 
 ```cs
 opts.Policies.OnException<SagaConcurrencyException>().RetryTimes(3);

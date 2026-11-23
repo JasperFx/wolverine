@@ -8,7 +8,7 @@ but this isn't tested by the Wolverine team.
 
 ::: warning Wolverine 6.0: IoC registrations need to be transparent to codegen
 Wolverine generates message-handler and HTTP-endpoint adapter code at startup. By default in 6.0,
-that codegen refuses to fall back to a runtime service locator — if you register a service with an
+that codegen refuses to fall back to a runtime service locator -- if you register a service with an
 opaque pattern (e.g. `AddScoped<TInterface>(sp => new TImpl(...))`), Wolverine will throw
 `InvalidServiceLocationException` at host startup. **Prefer concrete-type registrations
 (`AddScoped<TInterface, TImpl>()`)** for anything Wolverine needs to inject. See
@@ -193,7 +193,7 @@ host.Services.GetRequiredService<IWolverineRuntime>()
 ## Service-Level Tags <Badge type="tip" text="6.15" />
 
 You can attach free-form, service-level **tags** to a Wolverine application through `WolverineOptions.Tags`. These are
-opaque strings — you own any `key:value` (or any other) convention — and they label the whole service rather than
+opaque strings -- you own any `key:value` (or any other) convention -- and they label the whole service rather than
 individual endpoints or messages:
 
 ```cs
@@ -210,5 +210,5 @@ builder.Services.AddWolverine(opts =>
 
 The tags are surfaced on `ServiceCapabilities.Tags`, the diagnostic snapshot Wolverine exposes for monitoring tools.
 [CritterWatch](https://critterwatch.jasperfx.net) consumes them to let you group and filter related services on
-its dashboard by your own labels. They are distinct from any per-endpoint tagging — this is a single, service-wide set
+its dashboard by your own labels. They are distinct from any per-endpoint tagging -- this is a single, service-wide set
 of labels.

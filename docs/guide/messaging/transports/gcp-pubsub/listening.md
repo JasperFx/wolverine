@@ -140,14 +140,14 @@ cancel your handler and it does *not* raise anything into it. The service then r
 **second execution of that message begins while the first one is still running**.
 
 This is more dangerous than ordinary at-least-once redelivery. Wolverine's delivery contract already means
-your handlers must tolerate seeing a message twice — but here the two executions **overlap**. Anything that
+your handlers must tolerate seeing a message twice -- but here the two executions **overlap**. Anything that
 assumes a message is not running concurrently with itself will be violated rather than merely retried:
 optimistic concurrency checks, event stream appends, sagas, and the intra-group ordering guarantee of
 `PartitionProcessingByGroupId`.
 :::
 
-Because the two failure modes are so lopsided — too low silently corrupts data, too high only delays the
-redelivery of a genuinely stuck message and holds a flow control slot meanwhile — the default deliberately
+Because the two failure modes are so lopsided -- too low silently corrupts data, too high only delays the
+redelivery of a genuinely stuck message and holds a flow control slot meanwhile -- the default deliberately
 errs generous. One hour is sixty times Wolverine's default `DefaultExecutionTimeout`, leaving ample room
 for a slow handler and its inline retries.
 
@@ -163,7 +163,7 @@ Treat that warning as a correctness alarm, not a performance note. Either shorte
 `MaxTotalAckExtension` to cover it.
 
 ::: tip
-A handler that has *already* outlived the budget is not cancelled — it keeps running alongside its own
+A handler that has *already* outlived the budget is not cancelled -- it keeps running alongside its own
 duplicate. Cancelling it instead is under consideration; see
 [#4066](https://github.com/JasperFx/wolverine/issues/4066).
 :::
@@ -189,15 +189,15 @@ client builds for itself do **not** each get their own allowance.
 Google's own API remarks say that a `SubscriberClient` creates multiple `SubscriberServiceApiClient`
 instances and that "each will observe the flow control settings independently", which reads as though the
 effective ceiling were `ClientCount × MaxOutstandingMessages`. Measured against the real client library
-(3.24.0), that is not what happens — the SDK builds a single `Flow` and shares it across every inner
+(3.24.0), that is not what happens -- the SDK builds a single `Flow` and shares it across every inner
 channel. Observed peak in flight tracked the configured limit exactly at 1 → 1, 3 → 3, 8 → 8 and
 1000 → 1000, and with `ClientCount = 4` against a limit of 3 the peak was **3, not 12**. Wolverine never
 sets `ClientCount` itself, so for a single listener `MaxOutstandingMessages` is simply the ceiling.
 See [#4067](https://github.com/JasperFx/wolverine/issues/4067).
 :::
 
-`ListenerCount` is a different matter. Wolverine builds a separate listener — and therefore a separate
-`SubscriberClient` with its own flow controller — for each one, so it *does* multiply. An endpoint declared
+`ListenerCount` is a different matter. Wolverine builds a separate listener -- and therefore a separate
+`SubscriberClient` with its own flow controller -- for each one, so it *does* multiply. An endpoint declared
 like this can hold up to 500 messages in flight, not 100:
 
 ```cs
@@ -223,7 +223,7 @@ the ordering key when it publishes (see
 carries an ordering key too.
 
 The consequence is that effective concurrency becomes the *lesser* of `MaxOutstandingMessages` and **the
-number of distinct group ids currently in flight** — the configured bound stops being the binding constraint
+number of distinct group ids currently in flight** -- the configured bound stops being the binding constraint
 as soon as the group count falls below it. A listener sized for 100 outstanding messages whose traffic is
 concentrated on 3 group ids will process 3 messages at a time. Measured against a subscription with
 `EnableMessageOrdering = true`, publishing 12 messages across 3 ordering keys and holding every callback
@@ -248,15 +248,15 @@ need to inspect it in the Google Cloud console rather than infer it from your Wo
 ::: tip
 To confirm this is what you are hitting, compare the number of messages your listener holds concurrently
 against the number of *distinct* group ids among them. If the two track each other while
-`MaxOutstandingMessages` sits far above both, broker-side ordering is your ceiling. Widening the group id —
-so that traffic spreads over more keys — raises throughput; raising `MaxOutstandingMessages` will not.
+`MaxOutstandingMessages` sits far above both, broker-side ordering is your ceiling. Widening the group id -- 
+so that traffic spreads over more keys -- raises throughput; raising `MaxOutstandingMessages` will not.
 :::
 
 Note that this serialisation overlaps with what
 [`PartitionProcessingByGroupId`](/guide/messaging/partitioning) provides in process: both keep messages
 sharing a group id from running concurrently. When ordering is enabled at the subscription, the broker's
 serialisation is the binding one, because the second message never arrives to be partitioned. How the two
-mechanisms should combine for a future native-ack Pub/Sub endpoint is still open — see
+mechanisms should combine for a future native-ack Pub/Sub endpoint is still open -- see
 [#4052](https://github.com/JasperFx/wolverine/issues/4052).
 
 ## Requeueing a message

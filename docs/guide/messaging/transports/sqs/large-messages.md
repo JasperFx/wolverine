@@ -1,6 +1,6 @@
 # Large Messages
 
-Amazon SQS caps a message at **256KB** — body and message attributes together. Go over it and SQS answers:
+Amazon SQS caps a message at **256KB** -- body and message attributes together. Go over it and SQS answers:
 
 ```
 InvalidParameterValue - Message must be shorter than 262144 bytes. (SenderFault: true)
@@ -58,7 +58,7 @@ Nothing changes for messages that fit; only a body over the limit is split.
 **Reassembly happens in memory, on one listener.** SQS is a competing-consumer queue, so if several nodes
 poll the same standard queue, fragments of a single message can be handed to different nodes and no one of
 them ever holds the whole set. Those partial sets are abandoned after the reassembly timeout (5 minutes by
-default) and redelivered — the message may eventually get through, but only by luck, and meanwhile the
+default) and redelivered -- the message may eventually get through, but only by luck, and meanwhile the
 queue churns.
 
 So only use fragmentation in one of these three shapes:
@@ -69,7 +69,7 @@ So only use fragmentation in one of these three shapes:
 | A **globally partitioned** listener | The fragments carry the message's `GroupId`, so the whole message routes to the node that owns that group. |
 | A **single listening node** | There is nobody to compete with. |
 
-[Global partitioning](/guide/messaging/partitioning#global-partitioning) is the recommended shape — it
+[Global partitioning](/guide/messaging/partitioning#global-partitioning) is the recommended shape -- it
 keeps multiple nodes and still makes reassembly reliable rather than best-effort:
 
 ```csharp
@@ -94,15 +94,15 @@ opts.MessagePartitioning.GlobalPartitioned(topology =>
   That is exactly why this is opt-in rather than automatic.
 
 * **Configure both ends.** A listener reassembles fragments whether or not it was configured to send that
-  way — the framing is self-describing — but the same setting also governs requeues and the reassembly
+  way -- the framing is self-describing -- but the same setting also governs requeues and the reassembly
   timeout, so set it on the sending and listening endpoints alike.
 
 * **Nothing is acknowledged until the set is complete.** Fragments are never deleted from SQS until every
   one of them is in hand, so a node that crashes holding two of three has told SQS nothing and all three
   become visible again. Completing a reassembled message deletes all of its fragments together.
 
-* **Group ids are respected.** If the envelope already has a `GroupId` — from `DeliveryOptions` or
-  [message partitioning](/guide/messaging/partitioning) — every fragment carries it, so the message lands
+* **Group ids are respected.** If the envelope already has a `GroupId` -- from `DeliveryOptions` or
+  [message partitioning](/guide/messaging/partitioning) -- every fragment carries it, so the message lands
   where it was always going to land. Only a message with no group id at all gets a synthesized one, purely
   to hold the set together.
 
@@ -120,6 +120,6 @@ opts.ListenToSqsQueue("documents")
 ```
 
 A listener holding an incomplete set past this timeout abandons it and logs a warning naming the fragment
-id and how many of the set it held. Abandoning is local only — the fragments were never deleted from SQS,
+id and how many of the set it held. Abandoning is local only -- the fragments were never deleted from SQS,
 so they become visible again. Repeated warnings here are the signal that your topology is not one of the
 three above.

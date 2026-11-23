@@ -42,7 +42,7 @@ await host.StartAsync();
 
 ### Buffered Endpoints
 
-For buffered endpoints, Wolverine sends failed messages to a designated dead letter queue. By default, this queue is named `wolverine-dead-letter-queue` — or `[prefix].wolverine-dead-letter-queue` if you opted into [prefixing the system queues](/guide/messaging/transports/azureservicebus/#prefixing-system-queues).
+For buffered endpoints, Wolverine sends failed messages to a designated dead letter queue. By default, this queue is named `wolverine-dead-letter-queue` -- or `[prefix].wolverine-dead-letter-queue` if you opted into [prefixing the system queues](/guide/messaging/transports/azureservicebus/#prefixing-system-queues).
 
 To customize the dead letter queue for buffered endpoints:
 
@@ -115,8 +115,8 @@ await host.StartAsync();
 `wolverine-dead-letter-queue` is fine for a single application, but it carries no service name at all, so several
 applications sharing one Azure Service Bus namespace all dead letter into the same queue. If those applications also
 have dead letter queue recovery turned on, whichever one drains a given message first records it in *its* durable
-storage — so a failure belonging to one service ends up filed against another. Rather than repeating
-`ConfigureDeadLetterQueue(...)` on every endpoint, override the default for the whole transport in one call — this is
+storage -- so a failure belonging to one service ends up filed against another. Rather than repeating
+`ConfigureDeadLetterQueue(...)` on every endpoint, override the default for the whole transport in one call -- this is
 the Azure Service Bus counterpart of RabbitMQ's `CustomizeDeadLetterQueueing()` and of SQS's method of the same name:
 
 <!-- snippet: sample_asb_default_dead_letter_queue_name -->
@@ -154,13 +154,13 @@ await host.StartAsync();
 Resolution order, per endpoint:
 
 1. `ConfigureDeadLetterQueue("name")` on the endpoint wins.
-2. `DisableDeadLetterQueueing()` on the endpoint wins — no dead letter queue for that one, and failures fall back to Wolverine's durable dead letter storage.
+2. `DisableDeadLetterQueueing()` on the endpoint wins -- no dead letter queue for that one, and failures fall back to Wolverine's durable dead letter storage.
 3. Otherwise the transport-wide `DefaultDeadLetterQueueName(...)`.
 4. Otherwise `wolverine-dead-letter-queue`, with any [system queue prefix](/guide/messaging/transports/azureservicebus/#prefixing-system-queues) prepended.
 
 The name is resolved when Wolverine reads it rather than when the endpoint is declared, so the order of these calls
 during bootstrapping does not matter. A name you supply here is taken as fully qualified and is *not* prefixed by
-`SystemQueuePrefix()` — only the name Wolverine picks for itself is. It is sanitized to legal Azure Service Bus entity
+`SystemQueuePrefix()` -- only the name Wolverine picks for itself is. It is sanitized to legal Azure Service Bus entity
 characters the same way per-endpoint names are.
 
 ## Disabling Dead Letter Queues
@@ -196,16 +196,16 @@ await host.StartAsync();
 Azure Service Bus dead letters land in one of two places depending on the endpoint mode: buffered and
 durable endpoints move failures to a Wolverine-managed dead letter **queue** (default
 `wolverine-dead-letter-queue`, or whatever `DefaultDeadLetterQueueName()` / `SystemQueuePrefix()` resolve it to),
-while inline endpoints — and Azure Service Bus itself, on TTL or
-max-delivery — use the native
+while inline endpoints -- and Azure Service Bus itself, on TTL or
+max-delivery -- use the native
 [`$DeadLetterQueue` sub-queue](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-dead-letter-queues)
 of the source entity. Either way, those messages are only visible through Azure tooling. Tools that
 manage Wolverine's *durable* dead letters (for example [CritterWatch](https://critterwatch.jasperfx.net))
 can't see or replay them.
 
-`EnableDeadLetterQueueRecovery()` starts a background listener that drains **both** kinds of source —
+`EnableDeadLetterQueueRecovery()` starts a background listener that drains **both** kinds of source -- 
 the Wolverine-managed dead letter queue(s) and the native `$DeadLetterQueue` sub-queue of every
-listening queue and subscription — copying each message into Wolverine's durable dead letter storage
+listening queue and subscription -- copying each message into Wolverine's durable dead letter storage
 (the `wolverine_dead_letters` table), where it becomes queryable and replayable through
 `IDeadLetters`:
 

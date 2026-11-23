@@ -1,4 +1,4 @@
-## Using ProblemDetails
+# Using ProblemDetails
 
 Wolverine has some first class support for the [ProblemDetails](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails) specification in its [HTTP middleware model](./middleware).
 Wolverine also has a [Fluent Validation middleware package](./validation#fluent-validation-middleware) for HTTP endpoints, but it's frequently valuable to write one

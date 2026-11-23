@@ -604,7 +604,7 @@ opts.UseMqtt(mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("shar
 ## Broker per Tenant
 
 Named brokers (above) are a *static* topology: you pin specific endpoints to a specific broker by name at
-configuration time. **Broker-per-tenant** is different — it is *runtime* routing. You declare one shared topic
+configuration time. **Broker-per-tenant** is different -- it is *runtime* routing. You declare one shared topic
 topology, and each tenant is served by its **own dedicated MQTT connection** (a distinct broker). Which
 connection a message goes to (and which connection an inbound message came from) is decided at runtime by the
 message's [tenant id](/guide/handlers/multi-tenancy), typically set through `DeliveryOptions.TenantId`:
@@ -639,7 +639,7 @@ await bus.SendAsync(new OrderPlaced("blue"), new DeliveryOptions { TenantId = "t
 ```
 
 Wolverine wraps the outbound endpoint in a `TenantedSender` that dispatches on `Envelope.TenantId`, and builds a
-compound listener that runs one subscription per tenant connection — each inbound envelope is stamped with the
+compound listener that runs one subscription per tenant connection -- each inbound envelope is stamped with the
 tenant id of the connection it was consumed from. This mirrors the
 [RabbitMQ](/guide/messaging/transports/rabbitmq/multi-tenancy) and
 [Azure Service Bus](/guide/messaging/transports/azureservicebus/multi-tenancy) broker-per-tenant support.
@@ -652,7 +652,7 @@ if you pre-set one on the tenant options. This is required so tenant connections
 
 ::: info Shared topology, isolated broker
 Unlike a shared-broker/topic-prefix multi-tenancy model, MQTT tenants use the **same topic string** on each
-tenant's **own broker** — isolation is purely a matter of which broker the tenant's connection points at. One
+tenant's **own broker** -- isolation is purely a matter of which broker the tenant's connection points at. One
 consequence: [retained messages](#clearing-out-retained-messages) are per-broker, so a retained message on one
 tenant's broker is not visible to any other tenant.
 :::

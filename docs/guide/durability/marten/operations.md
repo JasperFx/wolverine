@@ -121,7 +121,7 @@ public static DeleteDocWhere<TempRecord> Handle(CleanupTenant command)
 }
 ```
 
-All existing method signatures are unchanged — the tenant overloads are purely additive.
+All existing method signatures are unchanged -- the tenant overloads are purely additive.
 
 ### Scoping Any Operation to a Tenant <Badge type="tip" text="6.35" />
 
@@ -234,7 +234,7 @@ public static IMartenOp Handle(RestoreInvoices command)
 ```
 
 ::: warning
-Marten's `HardDelete<T>()` only accepts `string`, `Guid`, `int`, and `long` identities — it has no
+Marten's `HardDelete<T>()` only accepts `string`, `Guid`, `int`, and `long` identities -- it has no
 `object` overload to fall back on the way `Delete<T>()` does. Passing anything else (a strongly
 typed id, say) throws an `ArgumentOutOfRangeException` from the `MartenOps` factory rather than
 failing later inside `SaveChangesAsync()`.
@@ -349,7 +349,7 @@ public static IMartenOp Handle(CloseOrder command)
 
 ::: tip
 If the handler is working on an aggregate of its own, prefer the
-[aggregate handler workflow](/guide/durability/marten/event-sourcing) — `[WriteAggregate]` and the
+[aggregate handler workflow](/guide/durability/marten/event-sourcing) -- `[WriteAggregate]` and the
 `Events` return type give you the aggregate state and its concurrency protection as well. These
 side effects are for the other case: touching some *other* stream from a handler that has no
 aggregate of its own.

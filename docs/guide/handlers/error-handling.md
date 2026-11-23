@@ -155,7 +155,7 @@ When many nodes retry at the same fixed delay after a shared downstream failure,
 
 Three strategies are available. They are mutually exclusive per error rule.
 
-Jitter is applied once per error rule — all slots in the rule share the same strategy, including those added via `.Then`. Attempting to call a second `WithXxxJitter()` method on the same rule (even after `.Then`) throws `InvalidOperationException`.
+Jitter is applied once per error rule -- all slots in the rule share the same strategy, including those added via `.Then`. Attempting to call a second `WithXxxJitter()` method on the same rule (even after `.Then`) throws `InvalidOperationException`.
 
 ### WithFullJitter
 
@@ -181,7 +181,7 @@ opts.OnException<DownstreamUnavailableException>()
 
 ### WithExponentialJitter
 
-Effective delay ∈ `[d, d × (1 + 2·attempt)]`. The spread widens with every attempt, so persistent failures fan out more than transient ones. This is an attempt-scaled, stateless variant of the "decorrelated jitter" pattern — it deliberately avoids persisting the previous actual delay per envelope.
+Effective delay ∈ `[d, d × (1 + 2·attempt)]`. The spread widens with every attempt, so persistent failures fan out more than transient ones. This is an attempt-scaled, stateless variant of the "decorrelated jitter" pattern -- it deliberately avoids persisting the previous actual delay per envelope.
 
 ```csharp
 opts.OnException<DownstreamUnavailableException>()
@@ -502,8 +502,8 @@ theReceiver = await Host.CreateDefaultBuilder()
 ### Sending Messages from an OnException Hook
 
 There is a simpler option when the message you want to publish can be derived from the failing message
-and the exception itself. An `OnException` method on the handler class — the
-[middleware convention](/guide/handlers/middleware) — can just *return* the messages to send, and
+and the exception itself. An `OnException` method on the handler class -- the
+[middleware convention](/guide/handlers/middleware) -- can just *return* the messages to send, and
 Wolverine cascades them exactly as it would from the handler method:
 
 <!-- snippet: sample_onexception_returning_outgoing_messages -->
@@ -763,7 +763,7 @@ when distributed consumers want to react to failures programmatically,
 or when a typed projection of "what failed and why" is more useful than
 inspecting a generic dead-letter queue.
 
-Fault events sit *after* your retry / requeue / DLQ rules above — they
+Fault events sit *after* your retry / requeue / DLQ rules above -- they
 fire when a message has reached a terminal state per those rules, not
 before.
 
@@ -775,7 +775,7 @@ Opt-in globally:
 opts.PublishFaultEvents();
 ```
 
-Subscribe with a normal Wolverine handler — no special attribute, no
+Subscribe with a normal Wolverine handler -- no special attribute, no
 opt-in registration:
 
 ```csharp
@@ -787,7 +787,7 @@ public static class OrderPlacedFaultHandler
 ```
 
 Whenever `OrderPlacedHandler` fails terminally (retries exhausted, moved
-to error queue, or — if opted in — discarded), Wolverine publishes a
+to error queue, or -- if opted in -- discarded), Wolverine publishes a
 `Fault<OrderPlaced>` envelope through the global routing graph.
 
 ### Anatomy of `Fault<T>`
@@ -806,12 +806,12 @@ public record Fault<T>(
 ) where T : class;
 ```
 
-- `Message` — the original failing message, exactly as it was deserialized.
-- `Exception` — `ExceptionInfo` record with `Type`, `Message`, `StackTrace`, `InnerExceptions` and `TypeHierarchy` (see below). Inner-exception recursion is depth-capped at 32 to bound payload size.
-- `Attempts` — how many delivery attempts the failing envelope went through before the terminal decision.
-- `FailedAt` — the timestamp of the terminal decision (UTC).
-- `CorrelationId`, `ConversationId`, `TenantId`, `Source` — propagated from the failing envelope. **`Source` is the original sender's identity, not the fault publisher's.**
-- `Headers` — copied from the failing envelope with `wolverine.encryption.*` headers stripped (encryption is decided fresh on the outbound fault hop).
+- `Message` -- the original failing message, exactly as it was deserialized.
+- `Exception` -- `ExceptionInfo` record with `Type`, `Message`, `StackTrace`, `InnerExceptions` and `TypeHierarchy` (see below). Inner-exception recursion is depth-capped at 32 to bound payload size.
+- `Attempts` -- how many delivery attempts the failing envelope went through before the terminal decision.
+- `FailedAt` -- the timestamp of the terminal decision (UTC).
+- `CorrelationId`, `ConversationId`, `TenantId`, `Source` -- propagated from the failing envelope. **`Source` is the original sender's identity, not the fault publisher's.**
+- `Headers` -- copied from the failing envelope with `wolverine.encryption.*` headers stripped (encryption is decided fresh on the outbound fault hop).
 
 The static `FaultHeaders` class exposes the header names Wolverine uses for faults:
 
@@ -831,7 +831,7 @@ public static class FaultHeaders
 
 `AutoPublished` is set to `"true"` on auto-published faults only.
 Hand-published faults (`bus.PublishAsync(new Fault<T>(...))`) do not
-carry this header — useful for distinguishing the two in subscribers
+carry this header -- useful for distinguishing the two in subscribers
 and tests. `OriginalId` and `OriginalType` carry the failing envelope's
 ID and Wolverine message-type name so trace consumers can correlate
 without inspecting the fault body.
@@ -880,16 +880,16 @@ no message payload.
 
 A fault is published when:
 
-- **Moved to error queue (DLQ)** — every retry policy that ends in DLQ.
+- **Moved to error queue (DLQ)** -- every retry policy that ends in DLQ.
 - **Discarded** -- only when fault events were turned on with `includeDiscarded: true` (on `PublishFaultEvents()` or a per-type `PublishFault()`).
-- **Expired envelope** — handler entry observes the envelope past its `DeliverBy`; counts as a terminal failure.
+- **Expired envelope** -- handler entry observes the envelope past its `DeliverBy`; counts as a terminal failure.
 
 A fault is **not** published in these bypass paths:
 
-- **Send-side failures** — the broker rejects the outbound publish before it ever reached a handler.
-- **Unknown message type at the receiver** — Wolverine cannot synthesize a `T` to wrap.
+- **Send-side failures** -- the broker rejects the outbound publish before it ever reached a handler.
+- **Unknown message type at the receiver** -- Wolverine cannot synthesize a `T` to wrap.
 - **Pre-handler crypto failures** -- `EncryptionPolicyViolationException`, `EncryptionKeyNotFoundException`, `MessageDecryptionException` short-circuit before the handler runs.
-- **Fault-publish recursion** — a failing `Fault<T>` handler will not trigger a `Fault<Fault<T>>`. The recursion guard logs at Debug and emits a `wolverine.fault.recursion_suppressed` activity event.
+- **Fault-publish recursion** -- a failing `Fault<T>` handler will not trigger a `Fault<Fault<T>>`. The recursion guard logs at Debug and emits a `wolverine.fault.recursion_suppressed` activity event.
 
 #### When the fault is written with its dead letter <Badge type="tip" text="7.0" />
 
@@ -912,7 +912,7 @@ counted when the send itself fails.
 
 ### Subscribing to faults
 
-Standard handler discovery applies — write a method named `Handle` /
+Standard handler discovery applies -- write a method named `Handle` /
 `HandleAsync` / `Consume` / `ConsumeAsync` taking `Fault<T>` for each
 `T` you care about. Routing for the fault envelope uses the global
 routing graph; persistence uses the same outbox/inbox you configured
@@ -996,7 +996,7 @@ opts.Policies.ForMessagesOfType<HighVolumeChatter>()
 
 Override semantics:
 
-- A per-type override is **fully specified** — Mode and redaction never partially inherit from globals. Calling `PublishFault()` with no parameters sets `includeExceptionMessage = true, includeStackTrace = true` (the parameter defaults), even if `PublishFaultEvents(includeExceptionMessage: false)` was set globally. Always pass the redaction flags explicitly when overriding.
+- A per-type override is **fully specified** -- Mode and redaction never partially inherit from globals. Calling `PublishFault()` with no parameters sets `includeExceptionMessage = true, includeStackTrace = true` (the parameter defaults), even if `PublishFaultEvents(includeExceptionMessage: false)` was set globally. Always pass the redaction flags explicitly when overriding.
 - Calls must happen before host startup. `WolverineRuntime.StartAsync` calls `FaultPublishingPolicy.Freeze()`; later attempts to add or change overrides throw `InvalidOperationException`.
 
 ### Fault redaction
@@ -1019,7 +1019,7 @@ What gets redacted:
 - Headers, `Source`, correlation/conversation/tenant IDs are never redacted.
 
 > **Note:** redaction targets `Fault<T>.Exception` only. The original
-> message instance `T` carried as `Fault<T>.Message` is unchanged — that
+> message instance `T` carried as `Fault<T>.Message` is unchanged -- that
 > is what fault events are *for*. If `T` itself is sensitive, the
 > per-type encryption pairing (next section) is the right tool.
 
@@ -1034,7 +1034,7 @@ manual setup. Skipped for value-type `T` because `Fault<T>` requires
 See **[Message Encryption → Fault events](/guide/runtime/encryption#fault-events)**
 for the byte-level mechanics, the `wolverine.encryption.*` header
 strip, and the receive-side `RequireEncryption()` interaction. Note in
-particular that `RequireEncryption()` is a **receive-side guard only** —
+particular that `RequireEncryption()` is a **receive-side guard only** -- 
 it does not constrain the outbound republish of an auto-published
 `Fault<T>` triggered by failures on that listener.
 
@@ -1042,9 +1042,9 @@ it does not constrain the outbound republish of an auto-published
 
 Three Activity events are added to the failing envelope's span:
 
-- `wolverine.fault.published` — when a fault is enqueued for routing.
+- `wolverine.fault.published` -- when a fault is enqueued for routing.
 - `wolverine.fault.no_route` -- when no route exists for `Fault<T>`. Tagged with `messaging.message_type`.
-- `wolverine.fault.recursion_suppressed` — when the recursion guard fires.
+- `wolverine.fault.recursion_suppressed` -- when the recursion guard fires.
 
 One counter:
 
@@ -1073,7 +1073,7 @@ faults.ShouldHaveSingleItem();
 ```
 
 Hand-published `bus.PublishAsync(new Fault<T>(...))` calls do **not**
-appear in `AutoFaultsPublished` — only auto-header'd ones do. This lets
+appear in `AutoFaultsPublished` -- only auto-header'd ones do. This lets
 tests distinguish unintended auto-publishes from intentional manual
 ones.
 
@@ -1081,11 +1081,11 @@ ones.
 
 - **`Fault<T>.ToString()` leaks `Message` plaintext.** Positional records auto-generate a `ToString` that includes every field. Logging `$"Got {fault}"` writes the wrapped `T` plaintext into your log sink. For sensitive `T`, use the encryption pairing AND avoid logging the fault directly.
 - **`RequireEncryption()` does not constrain outbound faults.** Marking a listener `.RequireEncryption()` only rejects unencrypted *inbound* envelopes on that listener; it has no effect on whether a `Fault<T>` triggered by a failure on that listener is encrypted on its outbound hop. Use the per-type `Encrypt()` pairing for outbound protection.
-- **Manual `bus.PublishAsync(new Fault<T>(...))` skips the auto-header.** That is by design — assertions and `ITrackedSession.AutoFaultsPublished` distinguish auto from manual. Filtering on `FaultHeaders.AutoPublished` excludes manual publishes.
+- **Manual `bus.PublishAsync(new Fault<T>(...))` skips the auto-header.** That is by design -- assertions and `ITrackedSession.AutoFaultsPublished` distinguish auto from manual. Filtering on `FaultHeaders.AutoPublished` excludes manual publishes.
 - **Recursion suppression is silent in metrics.** There's no counter for a suppressed recursive fault. Watch for the `wolverine.fault.recursion_suppressed` activity event if you suspect a Fault-handler is faulting.
 - **Per-type override defaults are NOT global defaults.** `Policies.ForMessagesOfType<T>().PublishFault()` with no parameters uses the parameter defaults (`true` / `true`), independent of the global `PublishFaultEvents(...)` redaction settings. Always pass the redaction flags explicitly when overriding.
 
 ### See also
 
-- [Message Encryption → Fault events](/guide/runtime/encryption#fault-events) — byte-level encryption interaction.
-- [`FaultEventsDemo`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/FaultEventsDemo) — runnable single-process sample.
+- [Message Encryption → Fault events](/guide/runtime/encryption#fault-events) -- byte-level encryption interaction.
+- [`FaultEventsDemo`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/FaultEventsDemo) -- runnable single-process sample.

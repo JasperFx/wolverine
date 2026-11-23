@@ -1750,9 +1750,9 @@ using var host = await Host.CreateDefaultBuilder()
 
 ## Multiple Sagas Handling the Same Message Type
 
-There are valid architectural reasons to have multiple, independent saga workflows react to the same event — for example, an `OrderPlaced` event might start both a `ShippingSaga` and a `BillingSaga`. Wolverine supports this with no configuration.
+There are valid architectural reasons to have multiple, independent saga workflows react to the same event -- for example, an `OrderPlaced` event might start both a `ShippingSaga` and a `BillingSaga`. Wolverine supports this with no configuration.
 
-Wolverine creates an independent handler chain for each saga type, routed to its own local queue. Each saga independently manages its own lifecycle — loading, creating, updating, and deleting state — without interfering with the other. A saga and a plain handler class for the same message are separate chains as well.
+Wolverine creates an independent handler chain for each saga type, routed to its own local queue. Each saga independently manages its own lifecycle -- loading, creating, updating, and deleting state -- without interfering with the other. A saga and a plain handler class for the same message are separate chains as well.
 
 ::: info
 Before Wolverine 7.0, several saga types for one message type threw an `InvalidSagaException` at startup unless you set
@@ -1903,7 +1903,7 @@ The [Scatter-Gather](https://www.enterpriseintegrationpatterns.com/patterns/mess
 3. **Complete**: When all responses have arrived (or a timeout fires), emit the aggregated result
 
 In frameworks like Apache Camel or MuleSoft, scatter-gather is a first-class routing pattern with
-dedicated DSL support. In Wolverine, you implement it naturally as a **saga** — the saga state tracks
+dedicated DSL support. In Wolverine, you implement it naturally as a **saga** -- the saga state tracks
 which responses have arrived, and the saga completes when all expected responses are collected.
 
 ### Example: Price Comparison
@@ -1983,20 +1983,20 @@ public class QuoteCollection : Saga
 The key points in this pattern:
 
 - **`Start()` returns `OutgoingMessages`** to fan out individual requests to each supplier. Each
-  `RequestSupplierQuote` message will be handled independently — possibly by different services
+  `RequestSupplierQuote` message will be handled independently -- possibly by different services
   or by different instances of the same service.
 - **`Handle(SupplierQuoteResponse)` collects results** into the saga state. When all expected
   responses arrive, the saga emits the aggregated `AllQuotesCollected` message and marks itself
   complete.
-- **`Handle(QuoteTimeout)` provides a safety net** — if some suppliers are slow or unresponsive,
+- **`Handle(QuoteTimeout)` provides a safety net** -- if some suppliers are slow or unresponsive,
   the timeout fires and the saga completes with whatever quotes it has collected. The `TimeoutMessage`
   base class schedules the message for future delivery automatically.
-- **Returning `null`** from a handler method means "no cascading message" — the saga state is still
+- **Returning `null`** from a handler method means "no cascading message" -- the saga state is still
   persisted, but no downstream work is triggered.
 
 ### Variations
 
-**Fire-and-forget scatter** — If you don't need to collect responses (e.g., sending notifications
+**Fire-and-forget scatter** -- If you don't need to collect responses (e.g., sending notifications
 to multiple channels), the saga can simply fan out messages in `Start()` and immediately
 `MarkCompleted()`:
 
@@ -2016,7 +2016,7 @@ public static (NotificationSaga, OutgoingMessages) Start(
 }
 ```
 
-**Partial results** — If you want to emit intermediate results as responses arrive, return a
+**Partial results** -- If you want to emit intermediate results as responses arrive, return a
 cascading message from each `Handle()` call:
 
 ```cs
@@ -2042,8 +2042,8 @@ same saga instance are processed simultaneously, they can overwrite each other's
 time to understand the strategies below and choose the right one for your workload.
 :::
 
-When multiple messages targeting the same saga arrive at the same time — which is especially common
-in the scatter-gather pattern where multiple responses arrive in quick succession — you need a
+When multiple messages targeting the same saga arrive at the same time -- which is especially common
+in the scatter-gather pattern where multiple responses arrive in quick succession -- you need a
 strategy to prevent lost updates. Wolverine provides several approaches, and you can combine them.
 
 For a deeper discussion of concurrency strategies in Wolverine, see the
@@ -2078,7 +2078,7 @@ public static void Configure(HandlerChain chain)
 }
 ```
 
-This approach works well when conflicts are **infrequent** — each retry re-loads the saga state and
+This approach works well when conflicts are **infrequent** -- each retry re-loads the saga state and
 re-applies the handler, so the second attempt will see the first handler's changes.
 
 ### Partitioned Sequential Messaging
@@ -2145,7 +2145,7 @@ opts.MessagePartitioning.UseInferredMessageGrouping();
 ## Testing Sagas
 
 ::: tip
-Wolverine's [TrackedSession](/guide/testing) support already provides everything you need for saga testing. Unlike NServiceBus (which has a dedicated `SagaScenarioTestingLibrary` with virtual storage) or Rebus (which has `SagaFixture`), Wolverine takes the approach that sagas are just message handlers with persisted state — so the same `TrackedSession` tools you use for all Wolverine integration testing work for sagas too.
+Wolverine's [TrackedSession](/guide/testing) support already provides everything you need for saga testing. Unlike NServiceBus (which has a dedicated `SagaScenarioTestingLibrary` with virtual storage) or Rebus (which has `SagaFixture`), Wolverine takes the approach that sagas are just message handlers with persisted state -- so the same `TrackedSession` tools you use for all Wolverine integration testing work for sagas too.
 :::
 
 ### Setting Up a Saga Test
@@ -2231,7 +2231,7 @@ public async Task saga_is_deleted_after_completion()
 
 ### Testing Cascading Messages from Sagas
 
-Saga handlers frequently return cascading messages — either as return values or through tuple returns. The `ITrackedSession` returned from `InvokeMessageAndWaitAsync()` and `SendMessageAndWaitAsync()` lets you inspect every message that was sent or executed during the test:
+Saga handlers frequently return cascading messages -- either as return values or through tuple returns. The `ITrackedSession` returned from `InvokeMessageAndWaitAsync()` and `SendMessageAndWaitAsync()` lets you inspect every message that was sent or executed during the test:
 
 ```cs
 [Fact]
@@ -2306,7 +2306,7 @@ public async Task play_back_scheduled_timeout()
 }
 ```
 
-The `PlayScheduledMessagesAsync()` method on `ITrackedSession` is the key here — it lets you "fast forward" scheduled messages in tests without waiting for real time to pass.
+The `PlayScheduledMessagesAsync()` method on `ITrackedSession` is the key here -- it lets you "fast forward" scheduled messages in tests without waiting for real time to pass.
 
 When a saga schedules more than one timeout, such as a recurring poll under an overall deadline, play them as time
 passes instead of all at once: `PlayScheduledMessagesAsync(advanceBy: 1.Hours())` plays only what comes due within the
@@ -2367,4 +2367,4 @@ var allMessages = tracked.Sent.AllMessages().ToArray();
 | **State inspection** | Via virtual saga storage | Via `SagaFixture.Data` | Load state directly from persistence (in-memory, Marten, EF Core, etc.) |
 | **External messages** | Separate test transport | Separate fake transport | `DisableAllExternalWolverineTransports()` + `tracked.Sent` inspection |
 
-The key difference is that Wolverine doesn't require a separate saga-specific testing library. Since sagas are just message handlers with persisted state, the same `TrackedSession` tooling that tests any Wolverine handler works identically for sagas — including full visibility into cascading messages, scheduled messages, and saga ID propagation.
+The key difference is that Wolverine doesn't require a separate saga-specific testing library. Since sagas are just message handlers with persisted state, the same `TrackedSession` tooling that tests any Wolverine handler works identically for sagas -- including full visibility into cascading messages, scheduled messages, and saga ID propagation.

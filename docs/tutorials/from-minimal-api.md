@@ -47,7 +47,7 @@ public static class GetOrderEndpoint
 
 **Key differences:**
 - Wolverine endpoints are methods on public classes, decorated with `[WolverineGet]` etc.
-- Route parameters, query strings, and services are bound the same way — by parameter name and type
+- Route parameters, query strings, and services are bound the same way -- by parameter name and type
 - `IResult` return type works identically
 - Wolverine adds `[Entity]` for automatic persistence loading with 404 handling
 
@@ -176,7 +176,7 @@ public static async Task<object> Post(
 }
 ```
 
-File upload binding is identical — `IFormFile` and `IFormFileCollection` work the same way.
+File upload binding is identical -- `IFormFile` and `IFormFileCollection` work the same way.
 
 ## Authentication and Authorization
 
@@ -286,7 +286,7 @@ For a comprehensive filter migration guide, see
 
 ## Publishing Messages (The Wolverine Superpower)
 
-This is where Wolverine fundamentally differs from Minimal APIs — endpoints can trigger
+This is where Wolverine fundamentally differs from Minimal APIs -- endpoints can trigger
 asynchronous messaging with transactional guarantees.
 
 ### Minimal API (Manual)
@@ -329,7 +329,7 @@ public static class CreateOrderEndpoint
 
 **Key differences:**
 - Tuple return values cascade messages through Wolverine's messaging pipeline
-- With transactional middleware, the message is sent via the outbox — guaranteed delivery
+- With transactional middleware, the message is sent via the outbox -- guaranteed delivery
 - No explicit `IMessageBus` injection needed for cascading
 - Multiple cascading messages via additional tuple items or `OutgoingMessages`
 
@@ -367,7 +367,7 @@ app.MapPutToWolverine<UpdateOrder>("/orders");
 app.MapDeleteToWolverine<DeleteOrder>("/orders/{id}");
 ```
 
-These are optimized Minimal API endpoints that delegate to Wolverine's handler pipeline —
+These are optimized Minimal API endpoints that delegate to Wolverine's handler pipeline -- 
 a quick way to integrate Wolverine into an existing Minimal API application without rewriting
 endpoints.
 
@@ -394,7 +394,7 @@ app.MapGet("/api/orders/{id}", GetOrder.Handle)
 public static Order Get([Entity] Order order) => order;
 ```
 
-Wolverine also generates sensible OpenAPI defaults from the method signature — JSON content types,
+Wolverine also generates sensible OpenAPI defaults from the method signature -- JSON content types,
 200/404/500 status codes, and parameter metadata are inferred automatically.
 
 ## Registration
@@ -445,7 +445,7 @@ route attributes. No manual registration needed.
 
 ## Further Reading
 
-- [Wolverine.HTTP Endpoints](/guide/http/endpoints) — full endpoint reference
-- [Publishing Messages from HTTP](/guide/http/messaging) — cascading messages guide
-- [Migrating from MVC/Minimal API Filters](/tutorials/middleware-migration) — filter migration
-- [Railway Programming](/tutorials/railway-programming) — validation and loading patterns
+- [Wolverine.HTTP Endpoints](/guide/http/endpoints) -- full endpoint reference
+- [Publishing Messages from HTTP](/guide/http/messaging) -- cascading messages guide
+- [Migrating from MVC/Minimal API Filters](/tutorials/middleware-migration) -- filter migration
+- [Railway Programming](/tutorials/railway-programming) -- validation and loading patterns

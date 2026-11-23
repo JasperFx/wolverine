@@ -6,9 +6,9 @@ Wolverine uses [Weasel](https://weasel.jasperfx.net/) for schema management of E
 
 When you register a `DbContext` with Wolverine using `AddDbContextWithWolverineIntegration<T>()` and call `UseEntityFrameworkCoreWolverineManagedMigrations()`, Wolverine will:
 
-1. **Read the EF Core model** — Wolverine inspects your `DbContext`'s entity types, properties, and relationships to build a Weasel schema representation
-2. **Compare against the actual database** — Weasel connects to the database and compares the expected schema with the current state
-3. **Apply deltas** — Only the necessary changes (new tables, added columns, foreign keys) are applied
+1. **Read the EF Core model** -- Wolverine inspects your `DbContext`'s entity types, properties, and relationships to build a Weasel schema representation
+2. **Compare against the actual database** -- Weasel connects to the database and compares the expected schema with the current state
+3. **Apply deltas** -- Only the necessary changes (new tables, added columns, foreign keys) are applied
 
 This all happens automatically at application startup when you use `UseResourceSetupOnStartup()`, as a deployment step through
 `dotnet run -- resources setup` (JasperFx's [stateful resource](https://shared-libs.jasperfx.net/cli/resources.html) model) or
@@ -39,11 +39,11 @@ With this in place, Wolverine will create and update your EF Core tables using W
 
 Weasel will manage the following schema elements from your EF Core model:
 
-- **Tables** — Created from entity types registered in `DbSet<T>` properties
-- **Columns** — Mapped from entity properties, including types, nullability, and default values
-- **Primary keys** — Derived from `DbContext` key configuration
-- **Foreign keys** — Including cascade delete behavior
-- **Schema names** — Respects EF Core's `ToSchema()` configuration
+- **Tables** -- Created from entity types registered in `DbSet<T>` properties
+- **Columns** -- Mapped from entity properties, including types, nullability, and default values
+- **Primary keys** -- Derived from `DbContext` key configuration
+- **Foreign keys** -- Including cascade delete behavior
+- **Schema names** -- Respects EF Core's `ToSchema()` configuration
 
 Entity types excluded from migrations via EF Core's `ExcludeFromMigrations()` are also excluded from Weasel management.
 
@@ -70,7 +70,7 @@ If you need to ensure the database itself exists (not just the tables), use:
 await serviceProvider.EnsureDatabaseExistsAsync(dbContext);
 ```
 
-This uses Weasel's provider-specific database creation logic, which only creates the database catalog — it does not create any tables or schema objects.
+This uses Weasel's provider-specific database creation logic, which only creates the database catalog -- it does not create any tables or schema objects.
 
 ## Multi-Tenancy
 
@@ -87,7 +87,7 @@ For multi-tenant setups where each tenant has its own database, Wolverine will a
 | Rollback support | No | Yes, via `Down()` method |
 
 ::: tip
-Weasel migrations are **additive** — they can create tables and add columns, but will not drop columns or tables automatically. This makes them safe for `CreateOrUpdate` scenarios in production.
+Weasel migrations are **additive** -- they can create tables and add columns, but will not drop columns or tables automatically. This makes them safe for `CreateOrUpdate` scenarios in production.
 :::
 
 ::: warning
@@ -109,4 +109,4 @@ dotnet run -- resources list
 dotnet run -- resources clear
 ```
 
-These commands manage both Wolverine's internal tables and your EF Core entity tables together. For the finer-grained Weasel commands (`db-apply`, `db-assert`, `db-patch`, `db-dump`, `db-list`) — useful for CI deploy gates and exporting DDL — see the [Weasel CLI reference](https://weasel.jasperfx.net/cli/).
+These commands manage both Wolverine's internal tables and your EF Core entity tables together. For the finer-grained Weasel commands (`db-apply`, `db-assert`, `db-patch`, `db-dump`, `db-list`) -- useful for CI deploy gates and exporting DDL -- see the [Weasel CLI reference](https://weasel.jasperfx.net/cli/).

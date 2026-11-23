@@ -189,7 +189,7 @@ This applies to queue listeners, queue subscribers, and exchange subscribers ali
 *passive* declaration against the broker at startup to verify that the resource already exists
 (failing fast if it does not), whereas an externally-owned resource never touches the broker for
 declaration at all. As of Wolverine 6.6, a `DeclarePassive` exchange is also left alone during
-resource teardown — Wolverine will not delete a resource it only verified rather than created.
+resource teardown -- Wolverine will not delete a resource it only verified rather than created.
 :::
 
 ## Exchange-to-Exchange Bindings

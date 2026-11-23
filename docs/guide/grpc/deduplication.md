@@ -17,7 +17,7 @@ Wolverine reads the logical id from the call's **request metadata**, under the c
 
 ## Deduplicating an RPC
 
-`[Deduplicated]` goes on the individual RPC method, on any of the three service flavours — proto-first
+`[Deduplicated]` goes on the individual RPC method, on any of the three service flavours -- proto-first
 stubs, code-first contracts, and hand-written service classes:
 
 ```csharp
@@ -44,13 +44,13 @@ With `Durability.MessageDeduplicationMode` turned on (the default since 7.0, unl
   within the [deduplication window](/guide/durability/idempotency#the-deduplication-window)
 - throws `RpcException` with **`StatusCode.InvalidArgument`** for a call carrying no key at all
 
-Both codes come from [AIP-193](https://google.aip.dev/193) — the same table
+Both codes come from [AIP-193](https://google.aip.dev/193) -- the same table
 [`WolverineGrpcExceptionInterceptor`](/guide/grpc/errors) already maps ordinary .NET exceptions
 through, so a client sees deduplication refusals in the shape it already handles every other refusal
 in.
 
 Throwing rather than returning is not a stylistic choice. A unary RPC has to produce a response
-message, and there is no honest response body for "this was already done" — the status is the answer.
+message, and there is no honest response body for "this was already done" -- the status is the answer.
 
 ## Sending the key
 
@@ -68,7 +68,7 @@ the configured header name on the server side for exactly this reason, so `[Dedu
 
 ## Which RPC shapes are supported
 
-The logical id lives in request metadata, which every call shape carries — but the generated method
+The logical id lives in request metadata, which every call shape carries -- but the generated method
 has to be able to *await* the claim before doing any work, and it needs a route to the
 `ServerCallContext`.
 
@@ -95,7 +95,7 @@ read one from.
 
 ## Failed calls do not poison the key
 
-A gRPC service method is never enrolled in a Wolverine transaction of its own — it forwards to the
+A gRPC service method is never enrolled in a Wolverine transaction of its own -- it forwards to the
 bus, and any transaction belongs to the handler on the other side. So the claim is always already
 committed by the time the forward runs, and Wolverine always issues a compensating release when the
 call throws. A retry with the same key gets through.

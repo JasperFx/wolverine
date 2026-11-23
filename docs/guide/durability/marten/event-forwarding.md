@@ -205,7 +205,7 @@ old names, so refer to the core interface through a `using` alias as above.
 
 ## Overriding Side-Effect Message Metadata <Badge type="tip" text="5.x" />
 
-When a Marten projection publishes a Wolverine message from `RaiseSideEffects` via `slice.PublishMessage(...)`, the resulting Wolverine envelope is built by an internal `MessageContext` that has no inherent knowledge of the originating event's metadata. By default the outgoing message ends up with no correlation id, no causation id, and an envelope-level conversation id rooted at its own envelope id — which means the chain Event A → side-effect command → Event B does not naturally share a correlation id.
+When a Marten projection publishes a Wolverine message from `RaiseSideEffects` via `slice.PublishMessage(...)`, the resulting Wolverine envelope is built by an internal `MessageContext` that has no inherent knowledge of the originating event's metadata. By default the outgoing message ends up with no correlation id, no causation id, and an envelope-level conversation id rooted at its own envelope id -- which means the chain Event A → side-effect command → Event B does not naturally share a correlation id.
 
 The metadata-aware overload of `PublishMessage` (JasperFx.Events 1.29+) lets the projection author override the per-message metadata that the side-effect command's envelope (and the Marten session opened for its handler) will inherit:
 
@@ -242,7 +242,7 @@ What the override actually does inside Wolverine:
 |---|---|---|
 | `TenantId` | `envelope.TenantId` (also drives transport routing for tenanted endpoints) | `IMessageContext.TenantId`, scoped `DbContext`/`IDocumentSession` tenant |
 | `CorrelationId` | `envelope.CorrelationId` (passes through `MessageBus.TrackEnvelopeCorrelation` without being clobbered) | `IMessageContext.CorrelationId`, `session.CorrelationId` (Marten) |
-| `CausationId` | Stored as `envelope.Headers["causation-id"]` because Wolverine's native `Envelope.ConversationId` is `Guid`-typed and would lose information | `session.CausationId` (Marten) — `OutboxedSessionFactory` reads the header in preference to the default `ConversationId.ToString()` chain |
+| `CausationId` | Stored as `envelope.Headers["causation-id"]` because Wolverine's native `Envelope.ConversationId` is `Guid`-typed and would lose information | `session.CausationId` (Marten) -- `OutboxedSessionFactory` reads the header in preference to the default `ConversationId.ToString()` chain |
 | `Headers` | Each entry copied onto `envelope.Headers` (string-converted) | Available via `envelope.Headers` on the receiving side |
 
 The metadata-less form (`slice.PublishMessage(message)`) is unchanged and remains the right call when you don't need per-message overrides.
@@ -251,4 +251,4 @@ The metadata-less form (`slice.PublishMessage(message)`) is unchanged and remain
 
 The motivating case is a "todo-list" projection: Event A opens a task keyed by some correlation id, Event B (emitted by the handler of a side-effect command) closes the task with the same key. Without the metadata override, Event B carries a null correlation id and the close never matches.
 
-The same shape applies to anywhere you want a chain of derived events/commands to share a business-meaningful identifier — distributed tracing keyed on `correlation-id`, idempotency keys, tenant-scoped audit threading, etc. Pick the metadata fields that match your business need; you don't have to set all of them.
+The same shape applies to anywhere you want a chain of derived events/commands to share a business-meaningful identifier -- distributed tracing keyed on `correlation-id`, idempotency keys, tenant-scoped audit threading, etc. Pick the metadata fields that match your business need; you don't have to set all of them.

@@ -62,7 +62,7 @@ public class OrdersController : ControllerBase
 ### Wolverine Endpoints
 
 In Wolverine, there is no controller base class. Each endpoint is a plain method on a plain class.
-You can organize endpoints however you like — one class per endpoint, or group related endpoints
+You can organize endpoints however you like -- one class per endpoint, or group related endpoints
 in a single class:
 
 ```csharp
@@ -109,11 +109,11 @@ public static class UpdateOrderEndpoint
 ```
 
 **Key differences:**
-- No `ControllerBase` inheritance, no constructor injection — services are method parameters
+- No `ControllerBase` inheritance, no constructor injection -- services are method parameters
 - `[Entity]` handles loading + 404 in one shot (replaces the manual load-and-check pattern)
 - `Load`/`LoadAsync` methods on the class replace the "fetch then check null" boilerplate
 - `[Required]` on a nullable parameter returns 404 automatically if the loaded value is null
-- `CreationResponse` replaces `CreatedAtAction()` — sets 201 + Location header
+- `CreationResponse` replaces `CreatedAtAction()` -- sets 201 + Location header
 - Returning `int` sets the HTTP status code (e.g. `return 204;`)
 
 ## Dependency Injection
@@ -171,7 +171,7 @@ public static class CreateProductEndpoint
 ```
 
 **Key differences:**
-- No constructor — each method declares exactly the dependencies it needs
+- No constructor -- each method declares exactly the dependencies it needs
 - No field assignments, no `_` prefix convention
 - Validation is handled via FluentValidation middleware or `Validate` methods, not manually
 - Services are resolved per-method, not per-controller-instance
@@ -464,7 +464,7 @@ public static class PlaceOrderEndpoint
 
 The `OrderPlaced` and `NotifyWarehouse` messages are sent through Wolverine's messaging pipeline
 after the HTTP response is committed. With transactional middleware enabled, the messages are
-persisted via the outbox in the same database transaction as the order — guaranteed delivery
+persisted via the outbox in the same database transaction as the order -- guaranteed delivery
 even if the process crashes.
 
 ## Registration
@@ -499,7 +499,7 @@ Wolverine finds methods decorated with `[WolverineGet]`, `[WolverinePost]`, etc.
 
 | Concept | MVC Controller | Wolverine.HTTP |
 |---------|---------------|----------------|
-| **Base class** | `ControllerBase` required | No base class — plain static classes |
+| **Base class** | `ControllerBase` required | No base class -- plain static classes |
 | **DI pattern** | Constructor injection | Method parameter injection |
 | **Route prefix** | `[Route("api/[controller]")]` | Full route in attribute, or `[RoutePrefix]` / `opts.RoutePrefix()` |
 | **Body binding** | `[FromBody]` or `[ApiController]` inferred | First complex param (always inferred) |
@@ -512,8 +512,8 @@ Wolverine finds methods decorated with `[WolverineGet]`, `[WolverinePost]`, etc.
 
 ## Further Reading
 
-- [Wolverine.HTTP Endpoints](/guide/http/endpoints) — full endpoint reference
-- [Wolverine for MediatR Users](/introduction/from-mediatr) — if you're using MediatR with MVC
-- [Migrating from MVC/Minimal API Filters](/tutorials/middleware-migration) — filter migration
-- [Railway Programming](/tutorials/railway-programming) — validation and loading patterns
-- [Publishing Messages from HTTP](/guide/http/messaging) — cascading messages guide
+- [Wolverine.HTTP Endpoints](/guide/http/endpoints) -- full endpoint reference
+- [Wolverine for MediatR Users](/introduction/from-mediatr) -- if you're using MediatR with MVC
+- [Migrating from MVC/Minimal API Filters](/tutorials/middleware-migration) -- filter migration
+- [Railway Programming](/tutorials/railway-programming) -- validation and loading patterns
+- [Publishing Messages from HTTP](/guide/http/messaging) -- cascading messages guide
