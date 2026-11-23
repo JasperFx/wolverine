@@ -167,30 +167,43 @@ Wolverine is wrapping some generated code around your `Saga.Start()` and `Saga.H
 of the generated code for starting the `Order` saga shown above:
 
 ```cs
-public class StartOrderHandler133227374 : MessageHandler
+public sealed class StartOrderHandler133227374 : MessageHandler
 {
+    private readonly ILogger<Order> _loggerOfOrder;
     private readonly OutboxedSessionFactory _outboxedSessionFactory;
-    private readonly ILogger<Order> _logger;
 
-    public StartOrderHandler133227374(OutboxedSessionFactory outboxedSessionFactory, ILogger<Order> logger)
+    public StartOrderHandler133227374(ILogger<Order> loggerOfOrder, OutboxedSessionFactory outboxedSessionFactory)
     {
+        _loggerOfOrder = loggerOfOrder;
         _outboxedSessionFactory = outboxedSessionFactory;
-        _logger = logger;
     }
 
     public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
-        var startOrder = (StartOrder)context.Envelope.Message;
+        // Building the Marten session
         await using var documentSession = _outboxedSessionFactory.OpenSession(context);
-        (var outgoing1, var outgoing2) = Order.Start(startOrder, _logger);
-        
-        // Register the document operation with the current session
-        documentSession.Insert(outgoing1);
-        
+        var startOrder = (StartOrder)context.Envelope.Message;
+
+        // (Open Telemetry tagging omitted)
+
+        // The actual message execution
+        (var outgoing1, var outgoing2) = Order.Start(startOrder, _loggerOfOrder);
+
+        context.SetSagaId(startOrder.OrderId);
+
         // Outgoing, cascaded message
         await context.EnqueueCascadingAsync(outgoing2).ConfigureAwait(false);
-        
-        // Commit the unit of work
+
+        // A saga that completed in its own Start() is never stored
+        if (!outgoing1.IsCompleted())
+        {
+            ((Saga)outgoing1).LastModified = DateTimeOffset.UtcNow;
+
+            // Register the document operation with the current session
+            documentSession.Insert(outgoing1);
+        }
+
+        // Save all pending changes to this Marten session
         await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
     }
 }
@@ -199,53 +212,65 @@ public class StartOrderHandler133227374 : MessageHandler
 And here's the code that's generated for the `CompleteOrder` command from the sample above:
 
 ```cs
-public class CompleteOrderHandler1228388417 : MessageHandler
+public sealed class CompleteOrderHandler1228388417 : MessageHandler
 {
+    private readonly ILogger<Order> _loggerOfOrder;
     private readonly OutboxedSessionFactory _outboxedSessionFactory;
-    private readonly ILogger<Order> _logger;
 
-    public CompleteOrderHandler1228388417(OutboxedSessionFactory outboxedSessionFactory, ILogger<Order> logger)
+    public CompleteOrderHandler1228388417(ILogger<Order> loggerOfOrder, OutboxedSessionFactory outboxedSessionFactory)
     {
+        _loggerOfOrder = loggerOfOrder;
         _outboxedSessionFactory = outboxedSessionFactory;
-        _logger = logger;
     }
-    
+
     public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
+        // Building the Marten session
         await using var documentSession = _outboxedSessionFactory.OpenSession(context);
         var completeOrder = (CompleteOrder)context.Envelope.Message;
-        string sagaId = context.Envelope.SagaId ?? completeOrder.Id;
-        if (string.IsNullOrEmpty(sagaId)) throw new IndeterminateSagaStateIdException(context.Envelope, typeof(Order), "Id");
-        
-        // Try to load the existing saga document
-        var order = await documentSession.LoadAsync<Order>(sagaId, cancellation).ConfigureAwait(false);
-        if (order == null)
-        {
-            throw new UnknownSagaException(typeof(Order), sagaId);
-        }
 
+        // (Open Telemetry tagging omitted)
+
+        string sagaId = completeOrder.Id ?? context.Envelope.SagaId;
+        if (string.IsNullOrEmpty(sagaId)) throw new IndeterminateSagaStateIdException(context.Envelope, typeof(Order), "Id");
+
+        // Try to load the existing saga document
+        var order_sagaId = await documentSession.LoadAsync<Order>(sagaId, cancellation).ConfigureAwait(false);
+        if (order_sagaId == null)
+        {
+            // The Order saga has a NotFound(CompleteOrder) method, so that's called
+            // instead of throwing an UnknownSagaException
+            Order.NotFound(completeOrder, _loggerOfOrder);
+        }
         else
         {
-            order.Handle(completeOrder, _logger);
-            if (order.IsCompleted())
+            context.SetSagaId(sagaId);
+
+            // The actual message execution
+            order_sagaId.Handle(completeOrder, _loggerOfOrder);
+
+            // Delete the saga if completed, otherwise update it
+            if (order_sagaId.IsCompleted())
             {
-                // Register the document operation with the current session
-                documentSession.Delete(order);
+                documentSession.Delete(order_sagaId);
             }
             else
             {
-                
-                // Register the document operation with the current session
-                documentSession.Update(order);
+                ((Saga)order_sagaId).LastModified = DateTimeOffset.UtcNow;
+                documentSession.Update(order_sagaId);
             }
-            
-            // Commit all pending changes
+
+            // Save all pending changes to this Marten session
             await documentSession.SaveChangesAsync(cancellation).ConfigureAwait(false);
         }
-
     }
 }
 ```
+
+::: tip
+That's what Wolverine 7.0 generates for the `OrderSagaSample` project today, lightly trimmed. To see the real thing for your own
+sagas, run `dotnet run -- codegen preview`.
+:::
 
 ## Saga Message Identity
 
@@ -538,14 +563,31 @@ public static void NotFound(CompleteOrder complete, ILogger<Order> logger)
 Note that you will have to explicitly use `IMessageBus` as an argument to a `NotFound` method to send out any messages
 to potentially take action on a missing saga if you so wish.
 
-If you'd rather just drop a late message for a missing saga, logged at Information, without writing a `NotFound`
-method <Badge type="tip" text="7.0" />, you have three choices, in this order of precedence:
+### Dropping Late Messages <Badge type="tip" text="7.0" />
+
+A message for a saga that never existed is usually a real bug, and that's why Wolverine throws by default. But a lot of
+the time, a missing saga just means the message showed up late. A customer cancels their subscription, and a minute
+later a "change my plan" request for that subscription comes in. A reply from some other service arrives after the saga
+has already finished. There's nothing to do with those messages, and writing an empty `NotFound` method for every one of
+them gets old fast.
+
+Instead, you can tell Wolverine to just drop a message for a missing saga, logged at `Information`. You have three
+choices, in this order of precedence:
 
 * `[DiscardIfSagaMissing]` on the message type, or on the saga's `Handle()` method for that message
-* `[SagaMissing(SagaMissingBehavior.Discard)]` on the saga type
+* `[SagaMissing(SagaMissingBehavior.Discard)]` on the saga type, for every message it handles
 * `opts.Policies.WhenSagaIsMissing(SagaMissingBehavior.Discard)` for the whole application
 
-A `NotFound` method for the message always wins, and a message that starts the saga is not affected.
+The `Subscription` saga in [Replacing Earlier Timeouts](#replacing-earlier-timeouts) below uses the saga-wide
+attribute, so a `ChangePlan` or `CancelSubscription` that arrives after the subscription has ended is quietly dropped.
+
+A few rules to know:
+
+* A `NotFound` method for the message always wins
+* A message that *starts* the saga is never affected
+* A completed saga that's [kept around](#keeping-completed-sagas), or a completed event-sourced saga, counts as
+  missing here
+* A saga's [compensation](#compensating-failed-steps) chain isn't affected either
 
 ## When a Message Has No Saga Id <Badge type="tip" text="7.0" />
 
@@ -1337,6 +1379,117 @@ public void Handle(OrderTimeout timeout, ILogger<Order> logger)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L47-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_a_timeout_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Replacing Earlier Timeouts <Badge type="tip" text="7.0" />
+
+Sometimes a saga needs to move its own deadline. Think of a subscription that bills on a timer, where the customer
+changes their plan halfway through a billing period. The new plan starts a fresh billing period right now, so the
+`BillingPeriodEnded` timeout that's already scheduled for the old period should never fire. Rather than making you
+compare a period number in every timeout against the saga's own state, you can just tell Wolverine that a newer timeout
+of that type replaces the older ones with `[ReplacesEarlierTimeouts]`:
+
+<!-- snippet: sample_replaces_earlier_timeouts -->
+<a id='snippet-sample_replaces_earlier_timeouts'></a>
+```cs
+[ReplacesEarlierTimeouts]
+public record BillingPeriodEnded([property: SagaIdentity] Guid SubscriptionId, int Period, TimeSpan Delay)
+    : TimeoutMessage(Delay);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaWorkflows/SagaWorkflows.Specs/Subscriptions/Messages.cs#L25-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_replaces_earlier_timeouts' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Now, any time the saga schedules a new `BillingPeriodEnded`, Wolverine remembers that one as the latest for that saga.
+If an earlier `BillingPeriodEnded` still fires, it's logged at `Debug` and discarded before it ever gets to your
+`Handle()` method, and where the message store can, the superseded scheduled message is deleted outright when its
+replacement is scheduled. Here's the whole saga from the `SagaWorkflows` sample. Note that the `Handle(ChangePlan)`
+method just returns a new `BillingPeriodEnded`, with no "is this the timeout for the current period?" guard anywhere:
+
+<!-- snippet: sample_subscription_saga -->
+<a id='snippet-sample_subscription_saga'></a>
+```cs
+[SagaMissing(SagaMissingBehavior.Discard)]
+public class Subscription : Saga, IRevisioned
+{
+    public Guid Id { get; set; }
+    public string CustomerId { get; set; } = "";
+    public decimal Charge { get; set; }
+    public TimeSpan BillingPeriod { get; set; }
+    public int MaxBillingPeriods { get; set; }
+
+    public int BillingPeriodNumber { get; set; } = 1;
+    public decimal TotalCharged { get; set; }
+
+    public static (Subscription, BillingPeriodEnded) Start(StartSubscription command)
+        => (new Subscription
+            {
+                Id = command.SubscriptionId,
+                CustomerId = command.CustomerId,
+                Charge = command.Charge,
+                BillingPeriod = command.BillingPeriod,
+                MaxBillingPeriods = command.MaxBillingPeriods
+            },
+            new BillingPeriodEnded(command.SubscriptionId, 1, command.BillingPeriod));
+
+    // No "is this the timeout for the current period?" guard: a timeout a later one replaced never gets here
+    public OutgoingMessages Handle(BillingPeriodEnded ended)
+    {
+        var charge = new ChargeCustomer(Id, CustomerId, BillingPeriodNumber, Charge);
+        TotalCharged += Charge;
+        BillingPeriodNumber++;
+
+        if (BillingPeriodNumber > MaxBillingPeriods)
+        {
+            MarkCompleted();
+            return [charge, new SubscriptionEnded(Id, CustomerId, "All billing periods were charged")];
+        }
+
+        return [charge, new BillingPeriodEnded(Id, BillingPeriodNumber, BillingPeriod)];
+    }
+
+    // The new plan's first billing period starts now. The BillingPeriodEnded this returns replaces the pending one
+    public BillingPeriodEnded Handle(ChangePlan change)
+    {
+        Charge = change.Charge;
+        BillingPeriod = change.BillingPeriod;
+        return new BillingPeriodEnded(Id, BillingPeriodNumber, BillingPeriod);
+    }
+
+    public SubscriptionEnded Handle(CancelSubscription cancel)
+    {
+        MarkCompleted();
+        return new SubscriptionEnded(Id, CustomerId, "Cancelled by the customer");
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/SagaWorkflows/SagaWorkflows.Specs/Subscriptions/Subscription.cs#L8-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subscription_saga' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The attribute keys the replacement by the timeout's message type. If you want several timeout types to replace each
+other, or you need to key it by something else, override `TimeoutKey` instead:
+
+```cs
+public record TrialEnded(Guid SubscriptionId) : TimeoutMessage(14.Days())
+{
+    // Any timeout this saga schedules with the "billing" key replaces
+    // the earlier ones with the same key
+    protected override string? TimeoutKey => "billing";
+}
+```
+
+`TimeoutKey` is `protected`, so it's never serialized with the message.
+
+::: info
+Wolverine keeps the id of the latest timeout for each key with the saga's state, in `Saga.LatestTimeoutIds`, or as a
+`SagaTimeoutScheduled` event on an [event-sourced saga's](/guide/durability/event-sourced-sagas) stream. That property
+is marked `[NotMapped]`, so if you're persisting your saga with EF Core and using replacing timeouts, call
+`MapReplacingTimeouts()` from `Wolverine.EntityFrameworkCore` in the saga's entity mapping to store it as a JSON column:
+
+```cs
+modelBuilder.Entity<Subscription>(map => map.MapReplacingTimeouts());
+```
+
+Without that, EF Core doesn't keep the latest timeout ids, and a superseded timeout is handled like any other.
+:::
+
 ## Drawing a Saga's Flow {#drawing-a-sagas-flow} <Badge type="tip" text="7.0" />
 
 A saga's steps are spread across its `Start`, `Handle`, `NotFound` and `Compensate` methods, so you follow it by
@@ -1472,13 +1625,6 @@ messages if you want them in the picture.
 The diagram is built from the same `SagaDescriptor` metadata that CritterWatch draws its saga view from, so the two
 pictures agree. Each `SagaMessageRole` lists the saga's `Methods` with what each returns, and `SagaDescriptor`
 carries `IsEventSourced` and the `Compensations`.
-
-## Saga Concurrency
-
-Both the Marten and EF Core backed saga support has built in support for optimistic concurrency checks on persisting
-a saga after handling a command. See [Dealing with Concurrency](/tutorials/concurrency) and especially the 
-[partitioned sequential messaging](/tutorials/concurrency) and its option for "inferred" message grouping to maybe completely
-side step concurrency issues with saga message handling. 
 
 ## Lightweight Saga Storage <Badge type="tip" text="3.0" />
 

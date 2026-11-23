@@ -235,12 +235,18 @@ What that means for a projection that Wolverine is distributing across your clus
 * The shard reports what it has parked in `ShardState.ParkedCount` and the `{prefix}.{projection}.{shard}.parked`
   family of metrics. Watch those, because a park doesn't make any noise in Wolverine's own agent health.
 
-Not everything can park. An event or flat-table projection, a composite projection, a subscription, a
-multi-stream projection whose identities can only be found by scanning every event, and a systemic database
-failure like a missing column all fall back to *pausing* the shard. So does a shard that hits the cap on parked
-identities, or a batch that would park too many identities at once, which shows up with the
-`ParkedLimitReached` failure category. See [Parking a Failing Projection Identity](https://shared-libs.jasperfx.net/events/parked-identities)
-in the JasperFx documentation for which projections park, the guard rails, and the replay and discard API.
+Not everything can park though. These all fall back to *pausing* the shard instead:
+
+* An event projection or a flat-table projection
+* A composite projection
+* A subscription
+* A multi-stream projection whose identities can only be found by scanning every event
+* A systemic database failure, like a missing column
+* A shard that hits the cap on parked identities, or a batch that would park too many identities at once. Those
+  show up with the `ParkedLimitReached` failure category
+
+See [Parking a Failing Projection Identity](https://shared-libs.jasperfx.net/events/parked-identities) in the JasperFx
+documentation for which projections park, the guard rails, and the replay and discard API.
 
 ::: tip
 If you'd rather have the 9.x behavior back, `StoreOptions.RestoreV9Defaults()` in Marten (`RestoreV5Defaults()`
