@@ -38,7 +38,9 @@ public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : 
             await DbContext.Database.CommitTransactionAsync(token).ConfigureAwait(false);
         }
 
-        await EfCoreOutboxFlushing.FlushOutgoingMessagesAsync(this);
+        // An explicit flush from user code, so MultiFlushMode governs it (GH-5886). Under ServerlessWithOutbox
+        // it sends inline (GH-5016)
+        await FlushOutgoingMessagesAsync();
     }
 
     public async Task SaveChangesAndFlushMessagesAsync(MultiFlushMode multiFlushMode, CancellationToken token = default)
@@ -101,7 +103,9 @@ public class DbContextOutbox : MessageContext, IDbContextOutbox
             await ActiveContext.Database.CommitTransactionAsync(token).ConfigureAwait(false);
         }
 
-        await EfCoreOutboxFlushing.FlushOutgoingMessagesAsync(this);
+        // An explicit flush from user code, so MultiFlushMode governs it (GH-5886). Under ServerlessWithOutbox
+        // it sends inline (GH-5016)
+        await FlushOutgoingMessagesAsync();
     }
 
     public async Task SaveChangesAndFlushMessagesAsync(MultiFlushMode multiFlushMode, CancellationToken token = default)

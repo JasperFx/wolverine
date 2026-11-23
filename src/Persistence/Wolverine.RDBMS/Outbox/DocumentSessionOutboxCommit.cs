@@ -27,12 +27,21 @@ internal sealed class DocumentSessionOutboxCommit
 {
     private readonly MessageContext _context;
     private readonly IMessageDatabase _messageStore;
+    private readonly bool _flushAsPipeline;
     private bool _queuedHandledUpdate;
 
-    public DocumentSessionOutboxCommit(MessageContext context, IMessageDatabase messageStore)
+    /// <param name="flushAsPipeline">
+    /// GH-5886. True for a session Wolverine opened for a handler or HTTP endpoint (OutboxedSessionFactory): its
+    /// commit is part of the pipeline, so every commit sends what was enqueued since the last flush, including a
+    /// commit that follows the handler's own SaveChangesAsync(). False for an outbox user code enrolled itself, whose
+    /// repeated flushes <see cref="MessageContext.MultiFlushMode" /> still governs.
+    /// </param>
+    public DocumentSessionOutboxCommit(MessageContext context, IMessageDatabase messageStore,
+        bool flushAsPipeline = false)
     {
         _context = context;
         _messageStore = messageStore;
+        _flushAsPipeline = flushAsPipeline;
     }
 
     public MessageContext Context => _context;
@@ -95,7 +104,9 @@ internal sealed class DocumentSessionOutboxCommit
         }
 
         // Under ServerlessWithOutbox this sends inline and deletes the outbox rows (GH-5016)
-        return _context.FlushOutgoingMessagesAsync();
+        return _flushAsPipeline
+            ? _context.FlushOutgoingMessagesFromPipelineAsync()
+            : _context.FlushOutgoingMessagesAsync();
     }
 }
 

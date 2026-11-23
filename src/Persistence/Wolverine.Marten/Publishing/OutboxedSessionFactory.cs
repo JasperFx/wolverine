@@ -216,7 +216,9 @@ public class OutboxedSessionFactory
             session.Listeners.Add(new FireConcurrentAppendBeforeSave(context));
         }
 
-        session.Listeners.Add(new FlushOutgoingMessagesOnCommit(context, transaction.Store));
+        // GH-5886: a session opened for a handler or endpoint commits as part of the pipeline, so each commit sends
+        // what was enqueued since the last flush
+        session.Listeners.Add(new FlushOutgoingMessagesOnCommit(context, transaction.Store, true));
     }
 
     /// <summary>Build new instances of IDocumentSession on demand</summary>

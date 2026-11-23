@@ -18,9 +18,12 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
 {
     private readonly DocumentSessionOutboxCommit _commit;
 
-    public FlushOutgoingMessagesOnCommit(MessageContext context, SqliteMessageStore messageStore)
+    /// <param name="flushAsPipeline">GH-5886. See <see cref="DocumentSessionOutboxCommit" />: true for a session
+    /// OutboxedSessionFactory opened for a handler or HTTP endpoint</param>
+    public FlushOutgoingMessagesOnCommit(MessageContext context, SqliteMessageStore messageStore,
+        bool flushAsPipeline = false)
     {
-        _commit = new DocumentSessionOutboxCommit(context, messageStore);
+        _commit = new DocumentSessionOutboxCommit(context, messageStore, flushAsPipeline);
     }
 
     public Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token)

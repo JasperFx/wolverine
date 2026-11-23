@@ -211,7 +211,7 @@ internal class DurabilityPassInboxExecutor : IHandlerPipeline
             if (continuation is MessageSucceededContinuation)
             {
                 // Cascading messages go out inline, before the row is marked as handled
-                await context.SendAllOutgoingMessagesInlineAsync().ConfigureAwait(false);
+                await context.SendAllOutgoingMessagesInlineFromPipelineAsync().ConfigureAwait(false);
                 await context.CompleteAsync().ConfigureAwait(false);
                 context.CompletionTrackerFor(_runtime).MessageSucceeded(envelope);
                 activity?.SetStatus(ActivityStatusCode.Ok);
@@ -222,7 +222,7 @@ internal class DurabilityPassInboxExecutor : IHandlerPipeline
                     .ConfigureAwait(false);
 
                 // A failure acknowledgement or Fault<T> published by the error handling
-                await context.SendAllOutgoingMessagesInlineAsync().ConfigureAwait(false);
+                await context.SendAllOutgoingMessagesInlineFromPipelineAsync().ConfigureAwait(false);
             }
         }
         catch (Exception e)

@@ -100,7 +100,7 @@ internal class TracingExecutor : IExecutor
                 envelope.Attempts++;
             }
 
-            await context.FlushOutgoingMessagesAsync();
+            await context.FlushOutgoingMessagesFromPipelineAsync();
             activity?.SetStatus(ActivityStatusCode.Ok);
             _tracker.ExecutionFinished(envelope);
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
@@ -291,7 +291,7 @@ internal class TracingExecutor : IExecutor
         try
         {
             await InvokeAsync(context, cancellation);
-            await context.FlushOutgoingMessagesAsync();
+            await context.FlushOutgoingMessagesFromPipelineAsync();
             stream = envelope.Response as IAsyncEnumerable<T>;
             activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingStarted));
         }
