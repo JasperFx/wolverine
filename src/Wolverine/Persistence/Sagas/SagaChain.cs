@@ -113,7 +113,7 @@ public class SagaChain : HandlerChain
                 var sagaType = sagaGroup.Key;
 
                 var endpoint = options.Transports.GetOrCreate<LocalTransport>()
-                    .QueueFor(sagaType.FullNameInCode().ToLowerInvariant());
+                    .QueueFor(LocalTransport.QueueNameForHandlerType(sagaType));
 
                 var chain = new SagaChain(sagaCalls, options.HandlerGraph, [endpoint]);
 
