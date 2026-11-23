@@ -16,20 +16,25 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
     // broker's message. See the same constant on RabbitMqChannelCallback.
     private const string UnknownDeliveryTag = "PRECONDITION_FAILED - unknown delivery tag";
 
-    private readonly IChannelCallback _inner;
-    private readonly RetryBlock<Envelope> _sendBlock;
-    private readonly ILogger _logger;
+    /// <summary>
+    /// GH-5797. Pauses between the attempts to publish a dead letter copy, inline. Three attempts in all, the same
+    /// budget and pauses the retry block this replaced had.
+    /// </summary>
+    internal static readonly TimeSpan[] DeadLetterSendPauses =
+        [TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(100)];
 
+    private readonly IChannelCallback _inner;
+    private readonly RabbitMqQueue _deadLetterQueue;
+    private readonly IWolverineRuntime _runtime;
+    private readonly ILogger _logger;
 
     public RabbitMqInteropFriendlyCallback(RabbitMqTransport transport, RabbitMqQueue deadLetterQueue,
         IWolverineRuntime runtime)
     {
         _inner = transport.Callback!;
         _logger = runtime.Logger;
-        var sender = deadLetterQueue.ResolveSender(runtime);
-
-        _sendBlock =
-            new RetryBlock<Envelope>((e, _) => sender.SendAsync(e).AsTask(), runtime.Logger, runtime.Cancellation);
+        _deadLetterQueue = deadLetterQueue;
+        _runtime = runtime;
     }
 
     public IHandlerPipeline? Pipeline => _inner.Pipeline;
@@ -47,7 +52,27 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
         DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
-        await _sendBlock.PostAsync(envelope);
+
+        // GH-5797. The copy has to be on the broker before the original is settled. This used to post the copy to a
+        // retry block and ack the original straight away: the block's PostAsync returns normally when its first
+        // attempt fails (the retries run in the background), and the copy went out on the dead letter queue's
+        // ordinary sender, which by default has no publisher confirms. So the original was acked whether or not the
+        // copy ever reached the broker. Now the copy goes through the dead letter queue's confirmed sender -- confirm
+        // tracking on, mandatory -- and only a confirmed copy lets the original be acked.
+        try
+        {
+            await publishDeadLetterCopyAsync(envelope);
+        }
+        catch (Exception sendFailure)
+        {
+            await handBackAsync(envelope, sendFailure);
+
+            // The caller's contract for "nothing was dead lettered and the broker still has the delivery": the error
+            // continuation then neither completes the envelope nor records it as dead lettered
+            throw new DeadLetterMoveFailedException(
+                $"Envelope {envelope.Id} could not be sent to the Rabbit MQ dead letter queue '{_deadLetterQueue.QueueName}'; the original delivery was handed back to the broker to be delivered again",
+                sendFailure);
+        }
 
         // GH-3706: settle the ORIGINAL delivery. Unlike its sibling
         // RabbitMqChannelCallback.moveToErrorQueueAsync, this method posts a *copy* to the dead letter queue
@@ -76,14 +101,76 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
             }
             catch (AlreadyClosedException closed) when (closed.Message.Contains(UnknownDeliveryTag))
             {
-                // Terminal -- the tag's channel is gone and no retry can succeed. The copy is already on its
-                // way to the dead letter queue, so there is nothing left to do.
+                // Terminal -- the tag's channel is gone and no retry can succeed. The copy is already in the dead
+                // letter queue, so there is nothing left to do.
                 _logger.LogInformation(
                     "Encountered an unknown delivery tag while settling a dead lettered message, discarding the envelope");
 
                 // GH-3950: the broker has already closed that channel. Stop feeding it.
                 e.RabbitMqListener.QuiesceAfterRejectedSettle(e);
             }
+        }
+    }
+
+    // Publishes the copy and returns only once the broker has confirmed it. A nack (a full queue refusing it, say) or a
+    // return (no queue to route it to) throws, as does a channel or connection that drops before the confirm.
+    private async Task publishDeadLetterCopyAsync(Envelope envelope)
+    {
+        for (var attempt = 0;; attempt++)
+        {
+            try
+            {
+                // Resolved per attempt, so a sender disposed underneath us is rebuilt (GH-3955)
+                await _deadLetterQueue.ResolveConfirmedSender(_runtime).SendAsync(envelope);
+                return;
+            }
+            catch (Exception e) when (attempt < DeadLetterSendPauses.Length && !_runtime.Cancellation.IsCancellationRequested)
+            {
+                _logger.LogWarning(e,
+                    "Error sending envelope {EnvelopeId} to the Rabbit MQ dead letter queue {Queue}, attempt {Attempt}; retrying",
+                    envelope.Id, _deadLetterQueue.QueueName, attempt + 1);
+
+                await Task.Delay(DeadLetterSendPauses[attempt], _runtime.Cancellation);
+            }
+        }
+    }
+
+    // The copy is not on the broker, so the original is the only copy left. Give it back to the broker to deliver
+    // again rather than leaving it unacked: an unacked delivery holds its prefetch slot until the channel closes, which
+    // with PreFetchCount(1) stops the listener altogether.
+    private async Task handBackAsync(Envelope envelope, Exception sendFailure)
+    {
+        if (envelope is not RabbitMqEnvelope e || e.Acknowledged)
+        {
+            // Already settled -- a durable listener's delivery is acked once it is in the inbox -- so there is nothing
+            // to hand back. The continuation does not complete the envelope after the exception that follows.
+            _logger.LogError(sendFailure,
+                "Could not send envelope {EnvelopeId} to the Rabbit MQ dead letter queue {Queue}, and its delivery was already settled",
+                envelope.Id, _deadLetterQueue.QueueName);
+            return;
+        }
+
+        _logger.LogError(sendFailure,
+            "Could not send envelope {EnvelopeId} to the Rabbit MQ dead letter queue {Queue}. It was NOT dead lettered, and is handed back to the broker to be delivered again",
+            envelope.Id, _deadLetterQueue.QueueName);
+
+        // A delivery whose channel is gone or replaced is already back on the queue, and its tag means nothing on a
+        // later channel. See RabbitMqListener.CanSettle
+        if (!e.RabbitMqListener.CanSettle(e)) return;
+
+        try
+        {
+            // Marked first, so a CompleteAsync that still follows -- the durable receiver's duplicate path settles
+            // after a failed move -- is a no-op instead of an ack of a tag the broker no longer knows, which closes
+            // the channel
+            e.Acknowledged = true;
+            e.HasBeenAcked = true;
+            await e.DeliveredOn.BasicNackAsync(e.DeliveryTag, false, true, CancellationToken.None);
+        }
+        catch (Exception nackFailure)
+        {
+            // Not settled either way, so the broker delivers it again once the channel closes
+            _logger.LogError(nackFailure, "Could not hand envelope {EnvelopeId} back to Rabbit MQ", envelope.Id);
         }
     }
 
@@ -516,9 +603,17 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     /// GH-5123. Publish a deferred delivery's copy back to this queue, without settling the original. See
     /// <see cref="RabbitMqEnvelope.DeferAsync" /> for why the copy has to land before the original is acked.
     /// </summary>
+    /// <remarks>
+    /// GH-5781. The copy goes through the queue's confirmed sender, not the ordinary one. With publisher confirms off
+    /// (the default) an ordinary publish returns once the frame is written, so a copy the broker refused, could not
+    /// route, or never received because the sending connection dropped looked published, and the original was acked
+    /// with no copy anywhere. This publish only returns once the broker has confirmed the copy, and throws otherwise,
+    /// which leaves the original unacked for the caller's retry or for the broker to redeliver.
+    /// </remarks>
     internal ValueTask PublishDeferredCopyAsync(RabbitMqEnvelope envelope)
     {
-        return _sender.Value.SendAsync(envelope);
+        // Resolved on every requeue rather than cached here, so a sender disposed underneath us is rebuilt (GH-3955)
+        return Queue.ResolveConfirmedSender(_runtime).SendAsync(envelope);
     }
 
     public Task CompleteAsync(RabbitMqEnvelope envelope)

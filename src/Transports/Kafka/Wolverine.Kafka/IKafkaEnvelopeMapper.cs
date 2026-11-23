@@ -13,6 +13,13 @@ public interface IKafkaEnvelopeMapper : IEnvelopeMapper<Message<string, byte[]>,
 /// </summary>
 internal class JsonOnlyMapper : IKafkaEnvelopeMapper
 {
+    /// <summary>
+    /// GH-5803. The key a received record arrived with. <see cref="Envelope.PartitionId" /> marks a received record
+    /// only until the envelope goes through the durable inbox, which does not keep it, so the key rides along in
+    /// this header instead. An empty value stands for a record without a key, because the inbox drops null headers.
+    /// </summary>
+    internal const string ReceivedRecordKeyHeader = "wolverine-kafka-record-key";
+
     private readonly KafkaTopic _topic;
     private readonly string? _messageTypeName;
 
@@ -24,7 +31,19 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
 
     public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
     {
-        outgoing.Key = envelope.GroupId!;
+        // GH-5772. A record received off Kafka -- here as a dead-letter or retry-tier copy -- keeps the key it
+        // arrived with. The GroupId on it is the listener's stamp (the consumer group name by default, or the key
+        // itself under GroupByMessageKey), not something the application set, and keying copies by the consumer
+        // group sent every one of them to a single partition. A message the application sends keeps the GroupId
+        // it set, else its PartitionKey.
+        //
+        // GH-5803. PartitionId is not persisted, so a received record recovered from the durable inbox is known by
+        // the key header MapIncomingToEnvelope stamped instead. Without it, the copy took the consumer group name.
+        outgoing.Key = (envelope.PartitionId.HasValue
+            ? envelope.PartitionKey
+            : tryReadReceivedRecordKey(envelope, out var receivedKey)
+                ? receivedKey
+                : !string.IsNullOrEmpty(envelope.GroupId) ? envelope.GroupId : envelope.PartitionKey)!;
 
         // Sender liveness pings must stay recognizable on the receiving side. A raw-JSON
         // listener identifies pings solely by the message-type header (see the guard in
@@ -87,12 +106,7 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
             envelope.SentAt = incoming.Timestamp.UtcDateTime;
         }
 
-        if (incoming.Headers is null)
-        {
-            return;
-        }
-
-        foreach (var header in incoming.Headers)
+        foreach (var header in incoming.Headers ?? [])
         {
             if (EnvelopeSerializer.ReservedHeaderKeys.Contains(header.Key))
             {
@@ -104,6 +118,22 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
                 envelope.Headers.TryAdd(header.Key, headerValue);
             }
         }
+
+        // GH-5803. Set after the record's own headers, so a header of the same name on the record never stands in
+        // for its key. This mapper writes no headers on the way out, so it is never forwarded from here.
+        envelope.Headers[ReceivedRecordKeyHeader] = incoming.Key ?? string.Empty;
+    }
+
+    private static bool tryReadReceivedRecordKey(Envelope envelope, out string? key)
+    {
+        if (envelope.HasHeaders && envelope.Headers.TryGetValue(ReceivedRecordKeyHeader, out var value) && value != null)
+        {
+            key = value.Length == 0 ? null : value;
+            return true;
+        }
+
+        key = null;
+        return false;
     }
 
     private static bool TryReadHeader(Message<string, byte[]> incoming, string key, out string? value)

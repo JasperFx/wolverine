@@ -14,3 +14,6 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("OracleTests")]
 [assembly: InternalsVisibleTo("Wolverine.ComplianceTests")]
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")] // Castle Core proxies for NSubstitute
+// GH-5814: the NServiceBus interop transports share CaseSensitiveQueueLookup
+[assembly: InternalsVisibleTo("Wolverine.Postgresql")]
+[assembly: InternalsVisibleTo("Wolverine.SqlServer")]

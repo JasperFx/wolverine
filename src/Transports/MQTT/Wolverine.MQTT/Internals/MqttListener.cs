@@ -171,6 +171,29 @@ internal class MqttListener : IListener, IReportConnectionState
         }
     }
 
+    /// <summary>
+    ///     GH-5790. Messages that reached this connection before this listener registered, held unacknowledged by
+    ///     the transport. Received in order, on their own task so registration does not wait on them.
+    /// </summary>
+    internal void ReceiveHeldMessages(IReadOnlyList<MqttApplicationMessageReceivedEventArgs> held)
+    {
+        _ = Task.Run(async () =>
+        {
+            foreach (var args in held)
+            {
+                try
+                {
+                    await ReceiveAsync(args).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Error receiving a held MQTT message for topic {TopicName}",
+                        args.ApplicationMessage.Topic);
+                }
+            }
+        }, CancellationToken.None);
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _stopping.CancelAsync();

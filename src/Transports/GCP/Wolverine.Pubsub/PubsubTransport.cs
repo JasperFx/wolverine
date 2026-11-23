@@ -80,6 +80,12 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     public bool SystemEndpointsEnabled = false;
 
     /// <summary>
+    /// GH-5810. Refuse to start, rather than only log a warning, when a listener outside NativeAck would requeue by
+    /// publishing a copy to its topic. Set by <see cref="PubsubConfiguration.AssertRequeuesDoNotFanOut"/>.
+    /// </summary>
+    internal bool AssertsRequeuesDoNotFanOut { get; set; }
+
+    /// <summary>
     ///     Optional async callback to configure the <see cref="PublisherServiceApiClientBuilder" /> before it is built.
     ///     Applied after <see cref="EmulatorDetection" /> is set, so it may override any transport-level defaults.
     ///     Multiple calls compose in order. Use the async signature when credential construction requires I/O

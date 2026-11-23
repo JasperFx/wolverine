@@ -22,6 +22,11 @@ public class PulsarSender : ISender, IAsyncDisposable
     private readonly ConcurrentDictionary<Guid, ulong>? _sequenceIds;
     private long _sequence;
 
+    /// <summary>
+    ///     GH-5812. Appended to the producer name of a listener's requeue producer under deduplication.
+    /// </summary>
+    internal const string RequeueProducerNameSuffix = "-requeue";
+
     public PulsarSender(IWolverineRuntime runtime, PulsarEndpoint endpoint, PulsarTransport transport,
         CancellationToken cancellation) : this(runtime, endpoint, transport, cancellation, null)
     {
@@ -30,9 +35,13 @@ public class PulsarSender : ISender, IAsyncDisposable
     /// <summary>
     ///     GH-5768. <paramref name="topic" /> overrides the endpoint's primary topic: a listener over several topics
     ///     (<c>Topics()</c> or <c>TopicsPattern()</c>) requeues a message to the topic it came from.
+    ///
+    ///     <para>GH-5812. <paramref name="forRequeue" /> marks the listener's requeue producer. Under deduplication
+    ///     it takes a producer name of its own, so it can sit on the same topic as the application's publishing
+    ///     producer in the same host: Pulsar refuses a second producer with a name already connected to a topic.</para>
     /// </summary>
     internal PulsarSender(IWolverineRuntime runtime, PulsarEndpoint endpoint, PulsarTransport transport,
-        CancellationToken cancellation, string? topic)
+        CancellationToken cancellation, string? topic, bool forRequeue = false)
     {
         var endpoint1 = endpoint;
         _cancellation = cancellation;
@@ -53,7 +62,18 @@ public class PulsarSender : ISender, IAsyncDisposable
 
             // A stable producer name is required: the broker tracks the last sequence id per producer
             // name, so dedup only works if the name is stable across producer sessions.
-            producerBuilder.ProducerName(endpoint.ProducerName ?? $"{runtime.Options.ServiceName}-{endpoint1.TopicName}");
+            var producerName = endpoint.ProducerName ?? $"{runtime.Options.ServiceName}-{endpoint1.TopicName}";
+
+            // GH-5812: the listener's requeue producer and a publishing producer for the same topic used to take
+            // the same name, and the broker refused whichever connected second (ProducerBusy). The requeue
+            // producer's own name also gives it its own sequence space, which suits copies: each one already
+            // takes a fresh sequence id (GH-5768).
+            if (forRequeue)
+            {
+                producerName += RequeueProducerNameSuffix;
+            }
+
+            producerBuilder.ProducerName(producerName);
 
             // Seed the sequence from the clock so a fresh producer session never reuses an id from a prior
             // one (DotPulsar 5.1.2 exposes no broker LastSequenceId to resume from). Ticks dwarfs any
