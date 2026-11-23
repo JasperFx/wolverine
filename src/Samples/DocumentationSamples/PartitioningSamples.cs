@@ -209,6 +209,61 @@ public class PartitioningSamples
 
         #endregion
     }
+
+    public static void global_partitioning_for_modules()
+    {
+        #region sample_global_partitioning_with_one_topology_per_module
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts.UseRabbitMq();
+
+            opts.MessagePartitioning.ByMessage<ParcelShipped>(x => x.OrderId);
+
+            // The Shipping module's own topology
+            opts.MessagePartitioning.GlobalPartitioned(topology =>
+            {
+                topology.UseShardedRabbitQueues("shipping", 4);
+                topology.Message<ParcelShipped>();
+
+                // ParcelShipped is also published through the Billing module's
+                // topology below, so each topology says which handler types it runs
+                topology.HandledBy<ShippingParcelShippedHandler>();
+            });
+
+            // The Billing module's own topology
+            opts.MessagePartitioning.GlobalPartitioned(topology =>
+            {
+                topology.UseShardedRabbitQueues("billing", 4);
+                topology.Message<ParcelShipped>();
+
+                // Use the Type overload for a static handler class
+                topology.HandledBy(typeof(BillingParcelShippedHandler));
+            });
+        });
+
+        #endregion
+    }
+}
+
+public record ParcelShipped(string OrderId);
+
+[WolverineIgnore]
+public class ShippingParcelShippedHandler
+{
+    public void Handle(ParcelShipped message)
+    {
+        // schedule the delivery...
+    }
+}
+
+[WolverineIgnore]
+public static class BillingParcelShippedHandler
+{
+    public static void Handle(ParcelShipped message)
+    {
+        // send the final invoice...
+    }
 }
 
 public record PayInvoice(string Id);

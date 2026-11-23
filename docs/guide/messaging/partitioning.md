@@ -44,7 +44,7 @@ public interface IOrderCommand
 public record ApproveOrder(string OrderId) : IOrderCommand;
 public record CancelOrder(string OrderId) : IOrderCommand;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L230-L239' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_commands_for_partitioning' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L285-L294' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_commands_for_partitioning' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If we were only running our system on a single node so we only care about a single process, we can do this:
@@ -319,7 +319,7 @@ public static IEnumerable<object> Handle(ApproveInvoice command)
     yield return new PayInvoice(command.Id).WithGroupId("aaa");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L219-L225' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_with_group_id_as_cascading_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L274-L280' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_with_group_id_as_cascading_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Partitioned Publishing Locally
@@ -733,7 +733,7 @@ When you configure global partitioning, Wolverine:
 
 2. **Smart routing based on listener ownership** -- When a message is published, Wolverine checks whether the current node owns the exclusive listener for the target shard. If it does, the message is routed directly to the companion local queue (avoiding unnecessary network hops). If the shard is owned by another node, the message is sent through the external transport so it reaches the correct node.
 
-3. **Support for modular monoliths** -- You can configure multiple global partitioning topologies for the same message type in different modules. Each module can have its own set of sharded queues and routing rules, allowing independent sequential processing pipelines within a single application.
+3. **Support for modular monoliths** -- Each module can have its own global partitioning topology with its own set of sharded queues and routing rules, even for the same message type. When more than one topology publishes a message type, each topology runs only the handler types it declares with `HandledBy()`, so every handler runs exactly once per message, sequenced on its own module's topology. See [One Message Type in Several Topologies](#one-message-type-in-several-topologies).
 
 ::: tip
 In single-node mode, global partitioning automatically shortcuts all messages to the companion local queues since the current node owns all listeners. The shortcut is disabled under
@@ -927,6 +927,73 @@ the companion-queue bridge is wired per endpoint, not per message type -- so inb
 unaffected. That asymmetry is the whole point of the feature.
 :::
 
+### One Message Type in Several Topologies <Badge type="tip" text="7.0" />
+
+In a modular monolith, it's perfectly normal for two modules to react to the same message, and for each module to
+want its own global partitioning topology. Here's the catch though. Every topology's slots run *every* handler of
+the message type, so before 7.0 a message type published through two topologies ran every one of its handlers
+twice. Now you tell Wolverine which handler types belong to which topology with `HandledBy()`:
+
+<!-- snippet: sample_global_partitioning_with_one_topology_per_module -->
+<a id='snippet-sample_global_partitioning_with_one_topology_per_module'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts.UseRabbitMq();
+
+    opts.MessagePartitioning.ByMessage<ParcelShipped>(x => x.OrderId);
+
+    // The Shipping module's own topology
+    opts.MessagePartitioning.GlobalPartitioned(topology =>
+    {
+        topology.UseShardedRabbitQueues("shipping", 4);
+        topology.Message<ParcelShipped>();
+
+        // ParcelShipped is also published through the Billing module's
+        // topology below, so each topology says which handler types it runs
+        topology.HandledBy<ShippingParcelShippedHandler>();
+    });
+
+    // The Billing module's own topology
+    opts.MessagePartitioning.GlobalPartitioned(topology =>
+    {
+        topology.UseShardedRabbitQueues("billing", 4);
+        topology.Message<ParcelShipped>();
+
+        // Use the Type overload for a static handler class
+        topology.HandledBy(typeof(BillingParcelShippedHandler));
+    });
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L215-L245' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_global_partitioning_with_one_topology_per_module' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With that in place, Wolverine:
+
+* Routes the message only through the topologies that declare one of its handler types
+* Runs each handler type on the slots of the one topology that declares it, so it's sequenced by group id there
+* Runs a declared handler right on the slot when the topology declares only one handler type for the message, or
+  relays the message to the handler types' own local queues when it declares several
+
+`HandledBy<THandler>()` takes the handler type as a generic argument, and `HandledBy(params Type[])` takes one or
+more handler types, which is what you'll need for a `static` handler class. `PublishToPartitionedLocalMessaging()`
+topologies and the sharded external topologies like `PublishToShardedRabbitQueues()` have the exact same
+`HandledBy()` methods and follow the exact same rules.
+
+A message type that only one topology publishes is not affected at all. All of its handlers run on that topology
+whether or not you declared them, just like before.
+
+Wolverine checks all of this at startup and throws an `InvalidOperationException` if:
+
+* A message type is published through more than one topology and none of them declares any handler types. That's
+  exactly the setup that used to run every handler twice, so no correct application is broken by this
+* A handler of a message type that more than one topology publishes isn't declared on any of those topologies
+* The same handler type is declared on more than one topology
+
+A topology that only publishes, and never listens in this application, doesn't count toward any of these rules,
+and a message type with no handlers in this application is still sent through every topology that matches it.
+
 ### Validation
 
 Wolverine validates global partitioning configuration at startup. It will throw an `InvalidOperationException` if:
@@ -934,6 +1001,8 @@ Wolverine validates global partitioning configuration at startup. It will throw 
 - No message type matching policies are configured
 - No external transport topology is configured
 - The external and local topologies have different shard counts
+- A message type published through more than one topology doesn't have each of its handler types declared on
+  exactly one of them (see [One Message Type in Several Topologies](#one-message-type-in-several-topologies))
 
 The last rule does not apply to a [native ack topology](#native-ack-global-partitioning), which deliberately
 has no companion local topology at all. Calling `LocalQueues()` and `ProcessInParallelWithNativeAcks()`
