@@ -242,7 +242,7 @@ type POST_fsharp_publish(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptio
                 do! this.WriteJsonAsync(httpContext, thingCreated_response, 404)
                 
                 // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-                do! messageContext.FlushOutgoingMessagesAsync()
+                do! Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(messageContext)
 
         }
 

@@ -39,7 +39,7 @@ type CreateProductCommandHandler1629670092(outboxedSessionFactory: Wolverine.Mar
 
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            do! context.FlushOutgoingMessagesAsync()
+            do! Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(context)
 
         }
 
@@ -74,7 +74,7 @@ type RenameProductCommandHandler878548494(loggerForMessage: Microsoft.Extensions
 
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            do! context.FlushOutgoingMessagesAsync()
+            do! Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(context)
 
         }
 
