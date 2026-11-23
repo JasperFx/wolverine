@@ -526,6 +526,10 @@ above, or an exception) and refuses the caller as the duplicate it is. A failure
 key goes out as your endpoint answered it. To make that possible, the response is held back until the
 commit.
 
+An endpoint or `Validate` method that calls `SaveChangesAsync` itself commits its claim with that save.
+On Marten, a failure after that save is the request's own: it goes out as your endpoint answered it, and
+a retry with the same key is refused as a duplicate.
+
 **The claim is compensated.** Everywhere else — a Buffered or Inline endpoint, an HTTP endpoint with no
 transactional middleware, a `[Transactional]` handler on a plain relational message store — the claim
 is written up front on its own connection, and Wolverine gives it back when the chain fails.

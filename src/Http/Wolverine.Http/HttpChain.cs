@@ -27,6 +27,7 @@ using Wolverine.Http.ContentNegotiation;
 using Wolverine.Http.Metadata;
 using Wolverine.Http.Policies;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Partitioning;
 using ServiceContainer = JasperFx.ServiceContainer;
@@ -595,7 +596,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     ///     the up-front check, read the first request's committed work and fail over it before its commit. Hold the
     ///     response back until the commit, so such a failure is answered as the duplicate it is. Idempotent.
     /// </summary>
-    private void watchForDuplicateRefusals()
+    private void watchForDuplicateRefusals(GenerationRules rules, IServiceContainer container)
     {
         if (Deduplication is not { } requirement) return;
         if (!Tags.TryGetValue(TransactionalDeduplicationTag.Key, out var raw) ||
@@ -617,7 +618,18 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         Middleware.Insert(claim + 1,
             new WatchForDuplicateRefusalFrame(tag.DeduplicationId, this.DetermineAncillaryStoreType(), status, detail));
         Postprocessors.Insert(Postprocessors.IndexOf(commit), new MarkDeduplicationCommitStartedFrame());
+
+        // GH-5835: an endpoint that commits the session itself commits this request's claim with it, ahead of the commit
+        // above. A failure after that is the endpoint's own, not a refusal over a concurrent request's work
+        if (rules.GetPersistenceProviders(this, container) is IDatabaseCommitHookProvider commits &&
+            commits.TryBuildDatabaseCommitHook(this, MarkDeduplicationClaimCommittedMethod, out var hook))
+        {
+            Middleware.Insert(claim + 2, hook);
+        }
     }
+
+    private static readonly MethodInfo MarkDeduplicationClaimCommittedMethod =
+        typeof(HttpHandler).GetMethod(nameof(HttpHandler.MarkDeduplicationClaimCommitted))!;
 
     /// <inheritdoc />
     /// <remarks>

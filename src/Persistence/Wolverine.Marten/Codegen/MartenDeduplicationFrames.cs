@@ -490,7 +490,7 @@ internal class EnlistDatabaseCommitHookFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.WriteComment("GH-5165: hear that the database committed before anything inside SaveChangesAsync can still throw");
+        writer.WriteComment("GH-5165: hear that the database committed before anything else in the commit call can still throw");
         writer.Write(
             $"{typeof(DatabaseCommitMarker).FullNameInCode()}.{nameof(DatabaseCommitMarker.Enlist)}({_session!.Usage}, () => {_onCommitted.DeclaringType!.FullNameInCode()}.{_onCommitted.Name}({_argument!.Usage}));");
         Next?.GenerateCode(method, writer);
