@@ -194,12 +194,21 @@ public partial class HttpChain
             // so the member access is valid and the codegen doesn't fail to resolve a body-typed
             // variable that has no standalone binding. See GH-3135.
             Type? auditInputType = null;
+            MemberInfo? auditBodyMember = null;
             if (AsParametersType != null && AuditedMembers.All(x => x.Member.DeclaringType == AsParametersType))
             {
                 auditInputType = AsParametersType;
             }
+            else if (AsParametersType != null && RequestType != AsParametersType &&
+                     findAsParametersBodyMember() is { } bodyMember)
+            {
+                // A [FromBody] member has no standalone variable either, so a member declared on the body's
+                // type is read through the [AsParameters] object's body member.
+                auditInputType = AsParametersType;
+                auditBodyMember = bodyMember;
+            }
 
-            Middleware.Insert(0, new AuditToActivityFrame(this, auditInputType));
+            Middleware.Insert(0, new AuditToActivityFrame(this, auditInputType, auditBodyMember));
         }
 
         bufferRequestForDeduplicatedWithResponse();
@@ -538,5 +547,13 @@ public partial class HttpChain
         }
 
         return char.IsDigit(name[0]) ? "_" + name : name;
+    }
+
+    // The [AsParameters] member the request body binds to. Only one member may be the body, so the one typed as the
+    // request type is it.
+    private PropertyInfo? findAsParametersBodyMember()
+    {
+        return AsParametersType!.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .FirstOrDefault(x => (x.PropertyType.IsNullable() ? x.PropertyType.GetInnerTypeFromNullable() : x.PropertyType) == RequestType);
     }
 }
