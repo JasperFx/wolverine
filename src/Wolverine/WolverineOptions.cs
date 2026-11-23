@@ -380,6 +380,7 @@ public sealed partial class WolverineOptions
         }
 
         Durability = new DurabilitySettings { AssignedNodeNumber = UniqueNodeId.ToString().GetDeterministicHashCode() };
+        RemovedTenants = new RemovedTenants(Durability);
 
         Policies.Add<SagaPersistenceChainPolicy>();
         Policies.Add<SideEffectPolicy>();
@@ -680,6 +681,9 @@ public sealed partial class WolverineOptions
     /// </summary>
     [ChildDescription]
     public DurabilitySettings Durability { get; }
+
+    // GH-5840. Tenants deregistered from this process; see RemovedTenants
+    internal RemovedTenants RemovedTenants { get; }
 
     /// <summary>
     ///     Configuration for the periodic <see cref="Wolverine.Runtime.Heartbeat.WolverineHeartbeat"/>
