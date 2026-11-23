@@ -22,6 +22,18 @@ internal static class DeduplicationWindowRendering
             : string.Empty;
 }
 
+internal static class EmbeddedDeduplicationOutcomeFrame
+{
+    public static void GenerateEmbedded(this Frame frame, GeneratedMethod method, ISourceWriter writer)
+    {
+        frame.Next = null;
+        frame.GenerateCode(method, writer);
+    }
+
+    public static IEnumerable<Variable> FindEmbeddedVariables(this Frame? frame, IMethodVariables chain)
+        => frame?.FindVariables(chain) ?? [];
+}
+
 /// <summary>
 /// GH-4180. Tests whether a required logical deduplication id is absent, producing the
 /// <c>bool</c> that the chain-specific stop condition branches on.
@@ -222,6 +234,8 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
     private string deduplicatorUsage => _deduplicatorUsage ?? _deduplicator!.Usage;
     private string cancellationUsage => _cancellationUsage ?? _cancellation!.Usage;
 
+    public Frame? RecordClaimKept { get; init; }
+
     /// <summary>The claimed id, for a subclass that needs it before the try block.</summary>
     protected Variable DeduplicationId => _deduplicationId;
 
@@ -287,6 +301,14 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
         writer.Write(
             $"await {deduplicatorUsage}.{nameof(IMessageDeduplicator.ReleaseAsync)}({_deduplicationId.Usage}, {marker}, {cancellationUsage}).ConfigureAwait(false);");
         writer.FinishBlock();
+
+        if (RecordClaimKept != null)
+        {
+            writer.Write($"BLOCK:else if (!string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
+            RecordClaimKept.GenerateEmbedded(method, writer);
+            writer.FinishBlock();
+        }
+
         writer.FinishBlock();
     }
 
@@ -307,6 +329,11 @@ internal class ReleaseDeduplicationIdOnFailureFrame : AsyncFrame
         }
 
         foreach (var variable in FindAdditionalVariables(chain))
+        {
+            yield return variable;
+        }
+
+        foreach (var variable in RecordClaimKept.FindEmbeddedVariables(chain))
         {
             yield return variable;
         }

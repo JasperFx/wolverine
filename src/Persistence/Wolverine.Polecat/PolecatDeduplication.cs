@@ -154,6 +154,33 @@ internal class PolecatDeduplicator : IPolecatDeduplicator
 }
 
 /// <summary>
+/// GH-5613. Runs a callback once the claim's commit succeeds, before any session listener such as the outbox flush.
+/// Public only because generated code creates it.
+/// </summary>
+public sealed class DeduplicationClaimCommitted : ITransactionParticipant
+{
+    private Action? _onCommitted;
+
+    public DeduplicationClaimCommitted(Action onCommitted)
+    {
+        _onCommitted = onCommitted;
+    }
+
+    public Task BeforeCommitAsync(SqlConnection connection, SqlTransaction transaction, CancellationToken token)
+        => Task.CompletedTask;
+
+    public Task AfterCommitAsync(CancellationToken token)
+    {
+        // A participant stays enlisted for the session's later saves, and the claim committed with the first
+        var onCommitted = _onCommitted;
+        _onCommitted = null;
+        onCommitted?.Invoke();
+
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
 /// GH-4570. Classification of the one failure the optimistic check cannot prevent: two genuinely
 /// concurrent callers both read "not claimed", both enlist the INSERT, and the second one to commit trips
 /// the deduplication table's primary key.

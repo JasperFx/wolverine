@@ -2,6 +2,8 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Configuration;
+using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Codegen;
 
@@ -32,10 +34,12 @@ namespace Wolverine.Persistence.Codegen;
 internal class HandlerDeduplicationStopFrame : SyncFrame
 {
     private readonly Variable _condition;
+    private readonly Frame? _recordDuplicate;
 
-    public HandlerDeduplicationStopFrame(Variable condition)
+    public HandlerDeduplicationStopFrame(Variable condition, Frame? recordDuplicate = null)
     {
         _condition = condition;
+        _recordDuplicate = recordDuplicate;
         uses.Add(condition);
     }
 
@@ -44,17 +48,56 @@ internal class HandlerDeduplicationStopFrame : SyncFrame
         writer.WriteComment(
             "GH-4180: this logical deduplication id has already been handled, so discard this message");
 
-        if (method.AsyncMode == AsyncMode.AsyncTask)
+        var returnStatement = method.AsyncMode == AsyncMode.AsyncTask
+            ? "return;"
+            : $"return {typeof(Task).FullNameInCode()}.{nameof(Task.CompletedTask)};";
+
+        if (_recordDuplicate == null)
         {
-            writer.Write($"if ({_condition.Usage}) return;");
+            writer.Write($"if ({_condition.Usage}) {returnStatement}");
         }
         else
         {
-            writer.Write(
-                $"if ({_condition.Usage}) return {typeof(Task).FullNameInCode()}.{nameof(Task.CompletedTask)};");
+            writer.Write($"BLOCK:if ({_condition.Usage})");
+            _recordDuplicate.GenerateEmbedded(method, writer);
+            writer.Write(returnStatement);
+            writer.FinishBlock();
         }
 
         Next?.GenerateCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+        => _recordDuplicate.FindEmbeddedVariables(chain);
+}
+
+[FSharpEmit(Skip = true,
+    Reason = "Never placed in a chain: it is written only inside the C# of the deduplication frame that embeds " +
+             "it, none of which emit F#. Its F# belongs with the first of those frames that gets an emitter.")]
+internal class RecordHandlerDeduplicationOutcomeFrame : SyncFrame
+{
+    private readonly DeduplicatedExecutionOutcome _outcome;
+    private readonly string _handlerType;
+    private Variable? _context;
+
+    public RecordHandlerDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome outcome, string handlerType)
+    {
+        _outcome = outcome;
+        _handlerType = handlerType;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write(
+            $"{typeof(MessageDeduplicationOutcomes).FullNameInCode()}.{nameof(MessageDeduplicationOutcomes.Record)}({_context!.Usage}, {typeof(DeduplicatedExecutionOutcome).FullNameInCode()}.{_outcome}, \"{_handlerType}\");");
+
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _context = chain.FindVariable(typeof(MessageContext));
+        yield return _context;
     }
 }
 

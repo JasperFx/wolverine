@@ -83,6 +83,16 @@ public static class AncillaryWolverineOptionsFisherExtensions
         // same store twice - double-counting the ancillary store in everything that enumerates the
         // registered stores. fisher#70 records the correction to fisher#68, which claimed otherwise.
 
+        // GH-5799: the sagas routed to this store live in this store, so the saga diagnostics surface reads
+        // them through this store's own sessions rather than the main store's
+        expression.Services.AddSingleton<Wolverine.Persistence.Sagas.ISagaStoreDiagnostics>(s =>
+            new Wolverine.Persistence.Sagas.DocumentStoreSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                s.GetRequiredService<T>(),
+                typeof(Wolverine.Fisher.Persistence.Sagas.FisherPersistenceFrameProvider),
+                "Fisher",
+                typeof(T)));
+
         expression.Services.AddSingleton<AncillaryMessageStore>(s =>
         {
             var store = s.GetRequiredService<T>();

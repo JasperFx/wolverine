@@ -28,6 +28,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction, ISagaHistoryTrans
     private readonly MessageContext _messaging;
     private readonly IDomainEventScraper[] _scrapers;
     private readonly IMessageDatabase _database = null!;
+    private Action? _onDeduplicationClaimCommitted;
 
     public EfCoreEnvelopeTransaction(DbContext dbContext, MessageContext messaging, IEnumerable<IDomainEventScraper> scrapers)
     {
@@ -306,6 +307,13 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction, ISagaHistoryTrans
         return claimed;
     }
 
+    /// <summary>
+    ///     GH-5613. Called from generated code once this transaction holds a logical deduplication claim:
+    ///     <paramref name="onCommitted" /> runs as soon as the commit carrying the claim succeeds, before the outbox
+    ///     flush that can still fail after it.
+    /// </summary>
+    public void OnDeduplicationClaimCommitted(Action onCommitted) => _onDeduplicationClaimCommitted = onCommitted;
+
     public ValueTask CommitAsync(CancellationToken cancellation) => CommitAsync(cancellation, true);
 
     /// <summary>
@@ -417,6 +425,10 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction, ISagaHistoryTrans
                     throw;
                 }
             }
+
+            var onCommitted = _onDeduplicationClaimCommitted;
+            _onDeduplicationClaimCommitted = null;
+            onCommitted?.Invoke();
         }
 
         // F25: Handled only once the mark has actually committed, as Marten and Polecat do. DurableReceiver skips

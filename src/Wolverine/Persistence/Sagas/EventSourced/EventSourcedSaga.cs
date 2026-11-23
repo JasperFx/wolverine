@@ -81,7 +81,14 @@ public abstract class EventSourcedSaga : CompensatingSaga
 /// among a handler's events to complete the saga, or call <c>MarkCompleted()</c> and Wolverine appends it after the
 /// handler. Registered with the event store as <c>wolverine_saga_completed</c>.
 /// </summary>
-public sealed record SagaCompleted;
+public sealed record SagaCompleted
+{
+    /// <summary>
+    /// GH-5839. Why the saga was completed, when an operator completed it from outside its handlers
+    /// (<see cref="ISagaStoreDiagnostics.CompleteSagaAsync" />). Null when a handler completed it.
+    /// </summary>
+    public string? Reason { get; init; }
+}
 
 /// <summary>
 /// GH-5415. Archive an <see cref="EventSourcedSaga" />'s stream as soon as it completes: Wolverine appends JasperFx.Events'

@@ -76,8 +76,15 @@ internal class ClaimDeduplicationIdInEfCoreTransactionFrame : AsyncFrame, IDedup
 /// </summary>
 internal class EfCoreDeduplicationClaimHeldFrame : SyncFrame
 {
-    public EfCoreDeduplicationClaimHeldFrame(Variable isDuplicate)
+    private readonly Variable _deduplicationId;
+    private readonly Frame? _recordClaimKept;
+    private Variable? _envelopeTransaction;
+
+    public EfCoreDeduplicationClaimHeldFrame(Variable isDuplicate, Variable deduplicationId, Frame? recordClaimKept)
     {
+        _deduplicationId = deduplicationId;
+        _recordClaimKept = recordClaimKept;
+
         // Not read; declared so the arranger emits this after the refusal rather than ahead of the transaction
         uses.Add(isDuplicate);
     }
@@ -86,6 +93,32 @@ internal class EfCoreDeduplicationClaimHeldFrame : SyncFrame
     {
         writer.WriteComment(
             "GH-5108: the claim is held by the EF Core transaction, so it commits or rolls back with this work and needs no release");
+
+        if (_recordClaimKept != null)
+        {
+            writer.Write($"BLOCK:if (!string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
+            writer.Write(
+                $"BLOCK:{_envelopeTransaction!.Usage}.{nameof(EfCoreEnvelopeTransaction.OnDeduplicationClaimCommitted)}(() =>");
+            _recordClaimKept.GenerateEmbedded(method, writer);
+            writer.FinishBlock(");");
+            writer.FinishBlock();
+        }
+
         Next?.GenerateCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        if (_recordClaimKept == null) yield break;
+
+        yield return _deduplicationId;
+
+        _envelopeTransaction = chain.FindVariable(typeof(EfCoreEnvelopeTransaction));
+        yield return _envelopeTransaction;
+
+        foreach (var variable in _recordClaimKept.FindEmbeddedVariables(chain))
+        {
+            yield return variable;
+        }
     }
 }

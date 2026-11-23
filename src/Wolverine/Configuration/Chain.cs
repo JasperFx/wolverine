@@ -60,7 +60,13 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     ///     within the class hierarchy.
     /// </remarks>
     public virtual Frame BuildDeduplicationReleaseFrame(Variable deduplicationId)
-        => new ReleaseDeduplicationIdOnFailureFrame(deduplicationId, AncillaryStoreType);
+        => new ReleaseDeduplicationIdOnFailureFrame(deduplicationId, AncillaryStoreType)
+        {
+            RecordClaimKept = BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome.Claimed)
+        };
+
+    /// <inheritdoc />
+    public virtual Frame? BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome outcome) => null;
 
     /// <inheritdoc />
     /// <remarks>

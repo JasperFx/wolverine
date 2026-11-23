@@ -163,7 +163,16 @@ public interface IChain
     ///     </para>
     /// </summary>
     Frame BuildDeduplicationReleaseFrame(Variable deduplicationId)
-        => new ReleaseDeduplicationIdOnFailureFrame(deduplicationId, AncillaryStoreType);
+        => new ReleaseDeduplicationIdOnFailureFrame(deduplicationId, AncillaryStoreType)
+        {
+            RecordClaimKept = BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome.Claimed)
+        };
+
+    /// <summary>
+    ///     GH-5613. The frame that records how a <c>[Deduplicated]</c> execution ended, or null to record nothing. It must
+    ///     write only synchronous statements with no <c>return</c>: the shared frames put it in an if, a finally and a lambda.
+    /// </summary>
+    Frame? BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome outcome) => null;
 
     /// <summary>
     ///     GH-4180. Find the variable holding this chain's logical deduplication id.

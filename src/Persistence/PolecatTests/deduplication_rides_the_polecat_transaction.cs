@@ -6,14 +6,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Polecat;
 using Polecat.Linq;
+using Polecat.Services;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.EventSourcing;
 using Wolverine.Polecat;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
+using Wolverine.Util;
 using Xunit;
 
 namespace PolecatTests;
@@ -56,10 +59,12 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
                     .IncludeType(typeof(RecordPolecatPaymentHandler))
                     .IncludeType(typeof(FailingPolecatPaymentHandler))
                     .IncludeType(typeof(OptionallyKeyedPolecatHandler))
+                    .IncludeType(typeof(SwallowedCommitPolecatHandler))
                     .IncludeType(typeof(PolecatRacingHandler))
                     .IncludeType(typeof(ShortWindowPolecatPaymentHandler))
                     .IncludeType(typeof(AdjustPolecatLedgerItselfHandler))
-                    .IncludeType(typeof(SelfSavingPolecatPaymentHandler));
+                    .IncludeType(typeof(SelfSavingPolecatPaymentHandler))
+                    .IncludeType(typeof(FailAfterCommitPolecatPaymentHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
@@ -73,6 +78,7 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
                 {
                     m.ConnectionString = Servers.SqlServerConnectionString;
                     m.DatabaseSchemaName = SchemaName;
+                    m.Listeners.Add(new FailAfterCommitPolecatListener());
                 }).IntegrateWithWolverine();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -148,6 +154,73 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
         // and no status-code test to decide whether to run it.
         code.ShouldNotContain("ReleaseAsync");
         code.ShouldNotContain("deduplicatedExecutionThrew");
+    }
+
+    // GH-5613
+    [Fact]
+    public async Task a_committed_claim_counts_as_claimed_and_its_repeat_as_a_duplicate()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+        var id = Guid.NewGuid().ToString();
+
+        await _host.SendMessageAndWaitAsync(new RecordPolecatPayment("first"), new DeliveryOptions { DeduplicationId = id });
+        await _host.SendMessageAndWaitAsync(new RecordPolecatPayment("repeat"), new DeliveryOptions { DeduplicationId = id });
+
+        outcomes.All.Select(x => x.Outcome).ShouldBe(["claimed", "duplicate"]);
+        outcomes.All.ShouldAllBe(x => x.Handler == typeof(RecordPolecatPaymentHandler).FullName &&
+                                      x.MessageType == typeof(RecordPolecatPayment).ToMessageTypeName());
+    }
+
+    [Fact]
+    public async Task a_handler_that_throws_counts_nothing()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+
+        await _host.TrackActivity().DoNotAssertOnExceptionsDetected()
+            .SendMessageAndWaitAsync(new FailingPolecatPayment(), new DeliveryOptions { DeduplicationId = Guid.NewGuid().ToString() });
+
+        outcomes.All.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task a_message_without_an_id_counts_nothing()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+
+        await _host.SendMessageAndWaitAsync(new OptionallyKeyedPolecat("unkeyed"));
+        outcomes.All.ShouldBeEmpty();
+
+        await _host.SendMessageAndWaitAsync(new OptionallyKeyedPolecat("keyed"),
+            new DeliveryOptions { DeduplicationId = Guid.NewGuid().ToString() });
+        outcomes.All.Select(x => x.Outcome).ShouldBe(["claimed"]);
+    }
+
+    [Fact]
+    public async Task a_failed_commit_that_middleware_swallows_counts_nothing()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+
+        await _host.SendMessageAndWaitAsync(new SwallowedCommitPolecat(),
+            new DeliveryOptions { DeduplicationId = Guid.NewGuid().ToString() });
+
+        SwallowedCommitPolecatHandler.Swallowed.ShouldBe(1);
+        outcomes.All.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task a_failure_after_the_database_commit_still_counts_as_claimed()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+        var id = Guid.NewGuid().ToString();
+
+        await _host.TrackActivity().DoNotAssertOnExceptionsDetected()
+            .SendMessageAndWaitAsync(new FailAfterCommitPolecatPayment(), new DeliveryOptions { DeduplicationId = id });
+
+        (await claimCountAsync(id)).ShouldBe(1);
+
+        await _host.SendMessageAndWaitAsync(new FailAfterCommitPolecatPayment(), new DeliveryOptions { DeduplicationId = id });
+
+        outcomes.For(typeof(FailAfterCommitPolecatPaymentHandler)).ShouldBe(["claimed", "duplicate"]);
     }
 
     [Fact]
@@ -235,6 +308,7 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
         // commit-race handling at all, because the optimistic check refuses the second one whenever the
         // first has already committed. PolecatRacingHandler holds BOTH executions past their check before
         // either is allowed to commit, so the collision is forced rather than hoped for.
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
         var bus = _host.MessageBus();
         var command = new PolecatRacingCommand();
 
@@ -252,6 +326,8 @@ public class deduplication_rides_the_polecat_transaction : IAsyncLifetime
 
         written.ShouldBe(1);
         (await claimCountAsync(PolecatRacingHandler.DeduplicationId)).ShouldBe(1);
+
+        outcomes.For(typeof(PolecatRacingHandler)).Order().ShouldBe(["claimed", "duplicate"]);
     }
 
     [Fact]
@@ -454,6 +530,53 @@ public static class FailingPolecatPaymentHandler
 
         throw new DivideByZeroException("nope");
     }
+}
+
+public record SwallowedCommitPolecat;
+
+public static class SwallowedCommitPolecatHandler
+{
+    public static int Swallowed;
+
+    [Deduplicated]
+    [Transactional]
+    public static void Handle(SwallowedCommitPolecat message, IDocumentSession session)
+    {
+        session.Store(new PolecatPaymentRecord { Id = Guid.NewGuid(), Name = "swallowed" });
+        session.QueueSqlCommand("insert into no_such_table_5613 values (1)");
+    }
+
+    public static void OnException(SqlException e) => Interlocked.Increment(ref Swallowed);
+}
+
+public record FailAfterCommitPolecatPayment;
+
+public class FailAfterCommitPolecatMarker
+{
+    public Guid Id { get; set; }
+}
+
+public class FailAfterCommitPolecatListener : IDocumentSessionListener
+{
+    public Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token) => Task.CompletedTask;
+
+    public Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
+    {
+        if (commit.Inserted.OfType<FailAfterCommitPolecatMarker>().Any())
+        {
+            throw new DivideByZeroException("A session listener failed after the database commit");
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
+public static class FailAfterCommitPolecatPaymentHandler
+{
+    [Deduplicated]
+    [Transactional]
+    public static void Handle(FailAfterCommitPolecatPayment message, IDocumentSession session)
+        => session.Insert(new FailAfterCommitPolecatMarker { Id = Guid.NewGuid() });
 }
 
 public static class OptionallyKeyedPolecatHandler
