@@ -1716,8 +1716,6 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StubbingHandlers.cs#L14-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_estimate_delivery' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Using our 
-
 In testing scenarios, maybe the external system isn't available at all, or it's just much more 
 challenging to run tests that also include the external system, or maybe you'd just like to 
 write more isolated tests against your service's behavior before even trying to integrate

@@ -135,7 +135,11 @@ public static Task<IEnumerable<Order>> Get(
 app.MapGet("/api/orders", ([AsParameters] OrderQuery query, IOrderRepository repo) => { ... });
 ```
 
-**Wolverine (v3.12+):**
+**Wolverine:**
+
+Wolverine.HTTP supports the same `[AsParameters]` attribute, so that endpoint can move over as is. See
+[Using AsParameters](/guide/http/as-parameters) for everything it can bind. If the object only binds from the
+query string, Wolverine's `[FromQuery]` on a complex type (v3.12+) works too:
 
 ```csharp
 [WolverineGet("/api/orders")]

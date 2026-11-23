@@ -806,6 +806,11 @@ completely different message storage for its transactional inbox and outbox for 
 Wolverine is able to activate additional durability agents for itself for any tenant databases added at runtime for tenancy modes
 that support dynamic discovery. 
 
+::: info
+If several tenant ids point at the same database, Wolverine still runs just one queue listener (and one durability agent)
+for that database, not one per tenant id.
+:::
+
 To utilize Wolverine managed multi-tenancy, you have a couple main options. The simplest is just using a static configured
 set of tenant id to database connections like so:
 

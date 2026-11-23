@@ -81,6 +81,8 @@ common interoperability scenarios:
 | [Apache Pulsar](/guide/messaging/transports/pulsar) | [IPulsarEnvelopeMapper](/guide/messaging/transports/pulsar.html#interoperability)              | CloudEvents                                     | 
 | [MQTT](/guide/messaging/transports/mqtt) | [IMqttEnvelopeMapper](/guide/messaging/transports/mqtt.html#interoperability)                 | CloudEvents                                     |
 | [Redis](/guide/messaging/transports/redis) | [IRedisEnvelopeMapper](/guide/messaging/transports/redis.html#interoperability) | CloudEvents                                     |
+| [GCP Pub/Sub](/guide/messaging/transports/gcp-pubsub/) | [IPubsubEnvelopeMapper](/guide/messaging/transports/gcp-pubsub/interoperability) | CloudEvents                                     |
+| [NATS](/guide/messaging/transports/nats) | None, the NATS mapping isn't pluggable | None                                            |
 
 ## Writing a Custom Envelope Mapper
 

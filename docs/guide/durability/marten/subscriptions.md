@@ -75,7 +75,8 @@ using var host = await Host.CreateDefaultBuilder()
 ::: tip
 Be careful with this feature if you are using any kind of automatic or conventional message routing that automatically routes
 messages based on the message type names or other criteria. In this case, you may want to filter the subscription to create
-an allow list of 
+an allow list of the event types you actually want published with `relay.PublishEvent<T>()`, or limit it to certain
+streams with `relay.FilterIncomingEventsOnStreamType()`.
 :::
 
 First off, what's a "subscriber?" *That* would mean any event that Wolverine recognizes as having:

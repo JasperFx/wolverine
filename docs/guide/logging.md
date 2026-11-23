@@ -330,7 +330,7 @@ with wire tap noise.
 
 ::: tip
 For production wire taps that write to a database or external system, consider using `System.Threading.Channels`
-(specifically Wolverine's built-in `BatchingChannel`) to batch the recording operations. This keeps the wire tap
+(specifically the `BatchingChannel` from JasperFx's `JasperFx.Blocks` namespace, which Wolverine uses internally) to batch the recording operations. This keeps the wire tap
 mechanics off the hot path of message handling, improving throughput while batching database writes for efficiency.
 :::
 
@@ -1111,6 +1111,16 @@ which sets Wolverine users up for being able to export their system’s performa
 | wolverine.scheduled.count    | Observable Gauge                                                                                          | Current number of persisted scheduled messages. Tagged by `source` and `database`                                                                                                                                                                                                      |
 | wolverine.deduplication.outcomes | Counter | Number of messages handled by a `[Deduplicated]` handler, by outcome: `claimed` or `duplicate`. Tagged by `wolverine.deduplication.outcome`, `wolverine.message.type`, `wolverine.message.handler` and `source` only. See [Logical Message Deduplication](/guide/durability/idempotency#metrics-and-tracing) |
 | wolverine.http.deduplication.outcomes | Counter | Number of requests to a `[Deduplicated]` or `[DeduplicatedWithResponse]` endpoint, by outcome. Tagged by `wolverine.deduplication.outcome`, `http.route`, `http.request.method` and `source` only. See [Idempotency Keys](/guide/http/deduplication#metrics-and-tracing) |
+| wolverine.messages.received | Counter | Number of messages received from external transports |
+| wolverine.fault_publish.failures | Counter | Number of automatic `Fault<T>` publishes that failed (logged and swallowed). Tagged by `wolverine.message.type` and `exception.type` only |
+| wolverine.database.connection.count | Observable Gauge | Connections currently open on a database server. Tagged by `source` and `server`. See [Connection Budgets](/guide/durability/connection-budgets) |
+| wolverine.database.connection.budget | Observable Gauge | Connection budget for a database server, omitted when unknown. Tagged by `source` and `server` |
+| wolverine.leases.renewed | Counter | Number of broker leases renewed while an envelope waited in a [native ack](/guide/messaging/listeners#native-ack-endpoints) execution lane. Tagged by `message.destination` only |
+| wolverine.leases.lost | Counter | Number of broker leases lost on an unsettled envelope. Tagged by `message.destination` and `lease.loss.stage` (`not-started` or `executing`) only |
+| wolverine.lease.ceiling_reached | Counter | Number of envelopes that hit the maximum lease extension and stopped being renewed. Tagged by `message.destination` only |
+| wolverine.duplicates.suppressed | Counter | Number of duplicate deliveries dropped by the [in-memory idempotency guard](/guide/messaging/listeners#in-memory-idempotency-guard). Tagged by `message.destination` only |
+| wolverine.idempotency.early_rotation | Counter | Number of in-memory idempotency guard rotations forced by its `maxTracked` ceiling rather than by the window elapsing. Tagged by `message.destination` only |
+| wolverine.recurring.occurrences_skipped | Counter | Number of occurrences of a `SkipWhileRunning()` [recurring schedule](/guide/messaging/recurring) skipped because the previous occurrence was still running. Tagged by `schedule.name` only |
 
 ::: tip System traffic is not counted <Badge type="tip" text="6.25" />
 Wolverine's own internal traffic — node agent commands on the control queues, acknowledgements, and
@@ -1123,8 +1133,8 @@ message rate (~150/minute was reported) on an otherwise quiet system.
 
 ### Standard Metrics Tags
 
-Every Wolverine metric instrument above is tagged with these dimensions so you can slice the series in your
-observability tooling:
+Wolverine's message-level instruments above are tagged with these dimensions so you can slice the series in your
+observability tooling (the rows above that say "only" list their complete tag set instead):
 
 | Tag                   | Description                                                                            |
 |-----------------------|----------------------------------------------------------------------------------------|
@@ -1150,7 +1160,7 @@ which would make the series unbounded in cardinality. It rides the trace instead
 
 ::: tip The `source` tag <Badge type="tip" text="6.14.1" />
 Before 6.14.1 the `source` (service-name) tag was only present on `wolverine.messages.sent` and
-`wolverine.messages.received`. As of **6.14.1** it is added to **every** instrument, so a shared metrics backend
+`wolverine.messages.received`. As of **6.14.1** it is added to **every** message-level instrument, so a shared metrics backend
 that scrapes many services can slice each series per service — `{source="my-service"}` /
 `sum by (source, ...)` works uniformly across all Wolverine metrics.
 :::

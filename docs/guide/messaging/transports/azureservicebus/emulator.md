@@ -270,11 +270,12 @@ await AzureServiceBusEmulatorExtensions.DeleteAllAzureServiceBusObjectsAsync();
 Integration tests against the emulator are just normal Wolverine tests:
 
 ```cs
+// xUnit v3, where IAsyncLifetime works with ValueTask
 public class when_sending_messages : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -286,12 +287,13 @@ public class when_sending_messages : IAsyncLifetime
                 opts.ListenToAzureServiceBusQueue("send_and_receive");
                 opts.PublishMessage<MyMessage>()
                     .ToAzureServiceBusQueue("send_and_receive");
-            }).StartAsync();
+            }).StartAsync(TestContext.Current.CancellationToken);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

@@ -78,10 +78,13 @@ in memory are first persisted to the underlying Postgresql database, and deleted
 delivery guarantee to local messages and even allow messages to be processed if the current application node fails before the message is processed.
 
 ::: tip
-There are some vague plans to add a little more efficient integration between Wolverine and ASP.Net Core Minimal API, but we're not there yet.
+For a more efficient integration with ASP.Net Core, [Wolverine.HTTP](/guide/http/) lets you write HTTP endpoints that use
+Marten and Wolverine's outbox directly, and `MapPostToWolverine<T>()` maps a Minimal API route straight to a Wolverine
+message handler. See [Optimized Minimal API Integration](/guide/http/mediator#optimized-minimal-api-integration) and
+[Integration with Marten](/guide/http/marten).
 :::
 
-Or finally, it's less code to opt into Wolverine's outbox by delegating to the [command bus](/tutorials/mediator) functionality as in this sample [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0) usage:
+Or finally, it's less code to opt into Wolverine's outbox by delegating to the [command bus](/tutorials/mediator) functionality as in this sample [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis) usage:
 
 <!-- snippet: sample_delegate_to_command_bus_from_minimal_api -->
 <a id='snippet-sample_delegate_to_command_bus_from_minimal_api'></a>

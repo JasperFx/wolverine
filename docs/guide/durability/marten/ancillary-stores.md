@@ -213,6 +213,7 @@ So what's possible so far?
 * Transactional middleware
 * The "aggregate handler workflow"
 * Marten side effects
+* Sagas, as shown below
 * Subscriptions to Marten events
 * Multi-tenancy, both "conjoined" Marten multi-tenancy and multi-tenancy through separate databases
 * [Wolverine managed projection or subscription distribution](/guide/durability/marten/distribution)
@@ -222,6 +223,20 @@ So what's possible so far?
 In the case of the ancillary Marten stores, the `IDocumentSession` objects are "lightweight" sessions without
 any identity map mechanics for better performance. 
 :::
+
+A [saga](/guide/durability/sagas) can live in an ancillary store too. Put the same `[MartenStore]` attribute on the saga
+class, and Wolverine loads and saves that saga through the ancillary store. The saga diagnostics in
+`IWolverineRuntime.SagaStorage` read it from that store as well:
+
+```cs
+[MartenStore(typeof(IGiftSagaStore))]
+public class GiftLedgerSaga : Wolverine.Saga
+{
+    public string Id { get; set; } = string.Empty;
+
+    public static GiftLedgerSaga Start(StartGiftLedger command) => new() { Id = command.Id };
+}
+```
 
 ## What's not (yet) supported
 

@@ -227,10 +227,24 @@ builder.UseWolverine(opts =>
 
 See [Azure Service Bus Multi-Tenancy](/guide/messaging/transports/azureservicebus/multi-tenancy) for details.
 
+### Other Transports
+
+RabbitMQ and Azure Service Bus aren't the only options. These transports support a broker per tenant too, each
+with its own flavor of `AddTenant()`:
+
+* [Kafka](/guide/messaging/transports/kafka#multi-tenancy-with-a-broker-per-tenant)
+* [Amazon SQS](/guide/messaging/transports/sqs/#multi-tenancy-with-a-broker-per-tenant)
+* [Amazon SNS](/guide/messaging/transports/sns#multi-tenancy-with-a-broker-per-tenant)
+* [GCP Pub/Sub](/guide/messaging/transports/gcp-pubsub/#multi-tenancy-with-a-broker-per-tenant)
+* [MQTT](/guide/messaging/transports/mqtt#broker-per-tenant)
+* [NATS](/guide/messaging/transports/nats#per-tenant-connections), with a connection per tenant to its own server or account
+* [Pulsar](/guide/messaging/transports/pulsar#multi-tenancy-broker-per-tenant)
+* [Redis](/guide/messaging/transports/redis#multi-tenancy)
+
 ### Tenant ID Behavior Policies
 
 RabbitMQ, Azure Service Bus, and the other transports with broker-per-tenant support (Kafka, Amazon SQS and SNS,
-GCP Pub/Sub, MQTT, Pulsar, and Redis) support four policies for handling messages with unrecognized tenant ids. A
+GCP Pub/Sub, MQTT, NATS, Pulsar, and Redis) support four policies for handling messages with unrecognized tenant ids. A
 message with no tenant id goes to the default broker under all but `TenantIdRequired`:
 
 | Policy | Behavior |

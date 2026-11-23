@@ -813,15 +813,19 @@ public record Fault<T>(
 - `CorrelationId`, `ConversationId`, `TenantId`, `Source` — propagated from the failing envelope. **`Source` is the original sender's identity, not the fault publisher's.**
 - `Headers` — copied from the failing envelope with `wolverine.encryption.*` headers stripped (encryption is decided fresh on the outbound fault hop).
 
-The static `FaultHeaders` class exposes three constants set on every
-auto-published fault envelope:
+The static `FaultHeaders` class exposes the header names Wolverine uses for faults:
 
 ```csharp
 public static class FaultHeaders
 {
+    // Set on every auto-published fault envelope
     public const string AutoPublished  = "wolverine.fault.auto";
     public const string OriginalId     = "wolverine.fault.original_id";
     public const string OriginalType   = "wolverine.fault.original_type";
+
+    // Set on the outgoing message by the sender, not on the fault (7.0)
+    public const string ReplyTo        = "wolverine.fault.reply-to";
+    public const string ReplyToSender  = "sender";
 }
 ```
 
@@ -831,6 +835,10 @@ carry this header — useful for distinguishing the two in subscribers
 and tests. `OriginalId` and `OriginalType` carry the failing envelope's
 ID and Wolverine message-type name so trace consumers can correlate
 without inspecting the fault body.
+
+`ReplyTo` is different: it goes on the original message, not on the fault, and tells the receiving service where to
+send that message's `Fault<T>` if it fails. `ReplyToSender` is the special value of that header that means "the
+sender's reply address". See [Sending a fault back to the sender](#sending-a-fault-back-to-the-sender).
 
 ### Matching a fault by exception type <Badge type="tip" text="7.0" />
 

@@ -7,7 +7,7 @@ Wolverine recognizes Marten query specifications — either
 (`IQueryPlan<T>` / `IBatchQueryPlan<T>`) — when they appear as handler
 dependencies, executes them automatically, and **batches them into a single
 Marten `IBatchedQuery` whenever possible**, including alongside `[Entity]`
-and `[Aggregate]` loads on the same handler.
+and `[ReadAggregate]` / `[WriteAggregate]` loads on the same handler.
 
 This gives you two ergonomics for the same underlying machinery:
 
@@ -121,9 +121,9 @@ public static void Handle(
 }
 ```
 
-## Batching with `[Entity]`, `[Aggregate]`, and other specs
+## Batching with `[Entity]`, `[ReadAggregate]`, and other specs
 
-Specifications, `[Entity]` loads, and `[Aggregate]` loads all share the
+Specifications, `[Entity]` loads, and `[ReadAggregate]` or `[WriteAggregate]` loads all share the
 same batching machinery. A handler that mixes them loads everything in
 one `IBatchedQuery` round-trip:
 
@@ -138,7 +138,7 @@ public class ApproveOrderHandler
         Note? note,                         // from compiled query
         IReadOnlyList<Note> starred,        // from query plan
         [Entity] Customer customer,         // from [Entity] by id
-        [Aggregate] Order order)            // from [Aggregate] event stream
+        [ReadAggregate] Order order)        // from [ReadAggregate] event stream
     {
         // All four loads executed in a single IBatchedQuery round-trip.
     }
@@ -166,7 +166,7 @@ free.
 | Situation | Recommendation |
 | --------- | -------------- |
 | Load a single entity by primary key | `[Entity]` |
-| Load an event-sourced aggregate | `[Aggregate]` / `[ReadAggregate]` / `[WriteAggregate]` |
+| Load an event-sourced aggregate | `[ReadAggregate]` / `[WriteAggregate]` (or `[Aggregate]` on a Wolverine.HTTP endpoint) |
 | Reusable predicate used in multiple handlers | Extract to an `IQueryPlan<T>` and return from `Load` (or use `[FromQuerySpecification]`) |
 | Hot, repeatedly-executed LINQ query | Extract to `ICompiledQuery<,>` and return from `Load` (or use `[FromQuerySpecification]`) |
 | One-off LINQ that isn't reused elsewhere | Inline in the handler body |

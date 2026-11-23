@@ -192,9 +192,12 @@ goes out again. For callouts that can be republished this way, give them a logic
 enforcement:
 
 ```csharp
-opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
 opts.AddLlmCallouts(ai => ai.DeduplicateCallouts = true);
 ```
+
+The claims live in Wolverine's logical deduplication storage, which is on by default as of 7.0
+(`MessageDeduplicationMode.CompareByHash`). If you've called `RestoreV6Defaults()` or set
+`opts.Durability.MessageDeduplicationMode` to `None`, set it back to `CompareByHash`.
 
 Stream id plus version is usually the natural key, and that's what the sample above uses. The id rides along on
 the message either way; `DeduplicateCallouts` is what makes Wolverine actually claim it before calling the model.

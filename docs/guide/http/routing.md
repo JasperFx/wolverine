@@ -176,7 +176,12 @@ Only one prefix is applied per endpoint -- they do not stack.
 
 ## API Versioning
 
-For API versioning scenarios, Wolverine recommends using route prefixes to version your endpoints. This approach is simple, explicit, and requires no additional packages:
+::: tip
+Wolverine.HTTP has native API versioning support with `[ApiVersion]`, OpenAPI metadata, and `Deprecation` / `Sunset`
+headers. See [HTTP API Versioning](/guide/http/versioning) for that.
+:::
+
+If all you need is a version segment in your URLs, you can also just use route prefixes. This approach is simple, explicit, and requires no additional packages:
 
 ```csharp
 [RoutePrefix("/api/v1")]

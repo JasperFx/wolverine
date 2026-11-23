@@ -155,7 +155,8 @@ default. `[DisableRequestSizeLimit]` or `[RequestSizeLimit(bytes)]` on the endpo
 as in the sample above.
 
 ::: warning
-With [`AutoAntiforgeryOnFormEndpoints()`](/guide/http/antiforgery), a streaming endpoint requires an antiforgery
-token like any other form endpoint. Send the token in the request header. If it is missing there, ASP.NET Core's
-antiforgery middleware looks for it in the form, and reading the form buffers the body you meant to stream.
+A streaming endpoint gets [antiforgery validation](/guide/http/antiforgery) like any other form endpoint, which is
+the default on .NET 11 and opt in with `AutoAntiforgeryOnFormEndpoints()` on .NET 10. Where that validation uses
+tokens (.NET 10, or .NET 11 with `app.UseAntiforgery()`), send the token in the request header. If it is missing there,
+ASP.NET Core's antiforgery middleware looks for it in the form, and reading the form buffers the body you meant to stream.
 :::

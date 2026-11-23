@@ -136,7 +136,7 @@ whichever chains you choose.
 
 ## Multi-tenancy through separate databases
 
-Polecat multi-tenancy is *database per tenant*. An ancillary store can be multi-tenanted, and Wolverine will build a
+An ancillary Polecat store can be multi-tenanted through a separate database per tenant, and Wolverine will build a
 `MultiTenantedMessageStore` for it:
 
 ```cs
@@ -155,8 +155,10 @@ opts.Services.AddPolecatStore<IThingStore>(m =>
 ```
 
 ::: info
-Unlike Marten, Polecat does not support "conjoined" tenant-partitioned events
-(`UseTenantPartitionedEvents`). Multi-tenant ancillary Polecat stores use a separate database per tenant.
+Like Marten, Polecat 6 also supports "conjoined" multi-tenancy and tenant-partitioned events
+(`Events.UseTenantPartitionedEvents`) within a single database. Wolverine decides by the store's database cardinality,
+so a single database store gets one ancillary message store, and only a store with a database per tenant gets the
+`MultiTenantedMessageStore`.
 :::
 
 ## Inline-projection side effects
@@ -184,6 +186,5 @@ As with the ancillary Marten stores, the `IDocumentSession` objects created for 
 ## What's not (yet) supported
 
 * It is not possible to use more than one ancillary store in the same handler with the middleware
-* Conjoined / tenant-partitioned events (Polecat multi-tenancy is database-per-tenant)
 * The SQL Server messaging transport will not span the ancillary databases, but still works when the ancillary store
   targets the same database as the primary store

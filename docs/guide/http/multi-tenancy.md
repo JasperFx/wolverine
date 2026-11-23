@@ -397,8 +397,10 @@ a public constructor whose dependencies are themselves resolvable.
 
 ## Delegating to Wolverine as "Mediator"
 
-To utilize multi-tenancy with Wolverine.HTTP today *and* play nicely with Wolverine's transactional inbox/outbox 
-at the same time, you will have to use Wolverine as a mediator but also pass the tenant id as an argument as shown in this sample project:
+You don't need Wolverine as a mediator to use multi-tenancy with Wolverine.HTTP *and* Wolverine's transactional inbox/outbox
+at the same time. Since Wolverine.HTTP 1.7, the detected tenant id flows straight into the transactional middleware and the
+outbox. You can still delegate to Wolverine as a mediator and pass the tenant id along
+with `IMessageBus.InvokeForTenantAsync()` if you want to, and this sample project shows both styles:
 
 <!-- snippet: sample_invoke_for_tenant -->
 <a id='snippet-sample_invoke_for_tenant'></a>
