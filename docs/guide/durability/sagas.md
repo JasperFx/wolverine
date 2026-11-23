@@ -553,6 +553,35 @@ public void Handle(CompleteOrder complete, ILogger<Order> logger)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L35-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_saga_mark_completed' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Completing a Saga from Outside its Handlers <Badge type="tip" text="6.65" />
+
+Sometimes a saga is never going to finish, say because the partner it waits on went away, and an operator wants to
+end it. The saga diagnostics on `IWolverineRuntime.SagaStorage`, the ones monitoring tools like CritterWatch use,
+can complete one saga instance without sending it a message:
+
+```cs
+var sagas = host.GetRuntime().SagaStorage;
+
+if (sagas.SupportsSagaCompletion(typeof(OrderSaga).FullName!))
+{
+    var result = await sagas.CompleteSagaAsync(typeof(OrderSaga).FullName!, orderId,
+        "The customer cancelled by phone", cancellationToken);
+
+    // Deleted or NotFound
+    Console.WriteLine(result.Outcome);
+}
+```
+
+The saga is deleted, as `MarkCompleted()` would delete it, but none of its handlers run. The reason is required, and
+Wolverine logs it with the saga type and id. A saga that does not exist is left alone and reported as `NotFound`. If a
+handler changes the saga while it is being deleted, the call fails with a concurrency exception and deletes nothing,
+where the storage can tell: the lightweight tables check the saga's version, RavenDB its change vector, CosmosDB its
+ETag, and EF Core whatever concurrency token your mapping has.
+
+This works for the saga storages the saga diagnostics cover: the lightweight tables, Marten, EF Core, RavenDB and
+CosmosDB. Like `ReadSagaAsync()`, it works on the default tenant or main database. An `ISagaStoreDiagnostics` written
+for an older Wolverine keeps working, and says it can't complete sagas.
+
 ## Timeout Messages
 
 You may frequently want to create "timeout" messages as part of a `Saga` to enforce time limitations. This can be done

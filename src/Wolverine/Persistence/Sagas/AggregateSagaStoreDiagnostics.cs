@@ -1,5 +1,6 @@
 using JasperFx.Descriptors;
 using JasperFx.Documents;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration.Capabilities;
 
 namespace Wolverine.Persistence.Sagas;
@@ -31,10 +32,52 @@ internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, IDi
     private readonly IReadOnlyList<ISagaStoreDiagnostics> _children;
     private readonly SemaphoreSlim _routeLock = new(1, 1);
     private Dictionary<string, ISagaStoreDiagnostics>? _routes;
+    private readonly ILogger? _logger;
 
-    public AggregateSagaStoreDiagnostics(IEnumerable<ISagaStoreDiagnostics> children)
+    public AggregateSagaStoreDiagnostics(IEnumerable<ISagaStoreDiagnostics> children, ILogger? logger = null)
     {
         _children = children.Where(c => c is not AggregateSagaStoreDiagnostics).ToArray();
+        _logger = logger;
+    }
+
+    // GH-5839: completing a saga from outside its handlers routes to the storage that owns the saga type, through the
+    // same routes the reads use
+
+    public bool SupportsSagaCompletion(string sagaTypeName)
+    {
+        foreach (var child in _children)
+        {
+            if (child.SupportsSagaCompletion(sagaTypeName)) return true;
+        }
+
+        return false;
+    }
+
+    public async Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new ArgumentException("Say why the saga is being completed.", nameof(reason));
+        }
+
+        var routes = await ensureRoutesAsync(ct).ConfigureAwait(false);
+        if (!routes.TryGetValue(sagaTypeName, out var child))
+        {
+            throw new NotSupportedException($"No saga storage in this service keeps sagas of type {sagaTypeName}.");
+        }
+
+        var result = await child.CompleteSagaAsync(sagaTypeName, identity, reason, ct).ConfigureAwait(false);
+
+        if (result.Terminated)
+        {
+            _logger?.LogInformation(
+                "Saga {SagaType} with identity {SagaId} was completed from outside its handlers ({Outcome}): {Reason}",
+                result.SagaTypeName, identity, result.Outcome, reason);
+        }
+
+        return result;
     }
 
     public async Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)

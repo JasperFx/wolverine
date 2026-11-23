@@ -178,6 +178,60 @@ internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics
         }
     }
 
+    // GH-5839: complete one saga from outside its handlers, through the DbContext that owns the saga's entity
+
+    public bool SupportsSagaCompletion(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var pair) && pair.sagaType.CanBeCastTo<global::Wolverine.Saga>();
+
+    public async Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+    {
+        if (!SupportsSagaCompletion(sagaTypeName))
+        {
+            throw SagaTermination.NotSupported(sagaTypeName, "EF Core saga storage");
+        }
+
+        var pair = sagaIndex()[sagaTypeName];
+
+        using var scope = _services.CreateScope();
+        var dbContext = (DbContext)scope.ServiceProvider.GetRequiredService(pair.dbContextType);
+
+        var id = coerceIdentity(identity, expectedIdType(dbContext, pair.sagaType));
+        if (id is null)
+        {
+            return new SagaTerminationResult(pair.sagaType.FullNameInCode(), identity, SagaTerminationOutcome.NotFound);
+        }
+
+        var task = (Task<SagaTerminationOutcome>)typeof(EFCoreSagaStoreDiagnostics)
+            .GetMethod(nameof(completeAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(pair.sagaType)
+            .Invoke(null, [dbContext, id, ct])!;
+
+        var outcome = await task.ConfigureAwait(false);
+        return new SagaTerminationResult(pair.sagaType.FullNameInCode(), identity, outcome);
+    }
+
+    private static async Task<SagaTerminationOutcome> completeAsync<TSaga>(DbContext dbContext, object id,
+        CancellationToken ct) where TSaga : global::Wolverine.Saga
+    {
+        var saga = await dbContext.Set<TSaga>().FindAsync([id], ct).ConfigureAwait(false);
+        if (saga is null) return SagaTerminationOutcome.NotFound;
+
+        dbContext.Remove(saga);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+        catch (DbUpdateConcurrencyException e)
+        {
+            // Only where the model maps a concurrency token for the saga, as for the saga's own handlers
+            throw SagaTermination.Concurrency(typeof(TSaga), id, e);
+        }
+
+        return SagaTerminationOutcome.Deleted;
+    }
+
     private SagaDescriptor buildDescriptor(Type sagaType)
     {
         return SagaDescriptorBuilder.Build(_runtime.Options.HandlerGraph, sagaType, "EntityFrameworkCore");
