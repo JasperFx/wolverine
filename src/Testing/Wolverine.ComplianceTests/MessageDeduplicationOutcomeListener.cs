@@ -84,7 +84,9 @@ public sealed class MessageDeduplicationOutcomeListener : IDisposable
         {
             _listener = new ActivityListener
             {
-                ShouldListenTo = source => source.Name == WolverineTracing.ActivitySource.Name,
+                // A literal, not WolverineTracing.ActivitySource.Name: ShouldListenTo runs while WolverineTracing's
+                // static initializer is still creating that source, so reading it here throws
+                ShouldListenTo = source => source.Name == "Wolverine",
                 Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
                 ActivityStopped = activity => _stopped.Enqueue(activity)
             };
