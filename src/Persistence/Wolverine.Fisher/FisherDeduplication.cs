@@ -1,5 +1,6 @@
 using System.Reflection;
 using Fisher;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Codegen;
@@ -144,6 +145,33 @@ internal class FisherDeduplicator : IFisherDeduplicator
         // schema.table. DeduplicationFullName renders that through TablePrefixing; hand-built SQL must
         // not assume a qualified shape.
         return database.DeduplicationFullName;
+    }
+}
+
+/// <summary>
+/// GH-5613. Runs a callback once the claim's commit succeeds, before any session listener such as the outbox flush.
+/// Public only because generated code creates it.
+/// </summary>
+public sealed class DeduplicationClaimCommitted : ITransactionParticipant
+{
+    private Action? _onCommitted;
+
+    public DeduplicationClaimCommitted(Action onCommitted)
+    {
+        _onCommitted = onCommitted;
+    }
+
+    public Task BeforeCommitAsync(SqliteConnection connection, SqliteTransaction transaction, CancellationToken token)
+        => Task.CompletedTask;
+
+    public Task AfterCommitAsync(CancellationToken token)
+    {
+        // A participant stays enlisted for the session's later saves, and the claim committed with the first
+        var onCommitted = _onCommitted;
+        _onCommitted = null;
+        onCommitted?.Invoke();
+
+        return Task.CompletedTask;
     }
 }
 

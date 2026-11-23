@@ -33,6 +33,10 @@ public abstract partial class HttpHandler
     // Set just before a [Deduplicated] chain's commit: a failure from there on is the commit race wrapper's to answer
     private static readonly object _deduplicationCommitStarted = new();
 
+    // GH-5835. Set once this request's claim is committed, by the endpoint's own save if not by that commit: the claim
+    // a lookup would find is this request's own
+    private static readonly object _deduplicationClaimCommitted = new();
+
     /// <summary>
     /// GH-5206. Called by the generated code of a <c>[DeduplicatedWithResponse]</c> chain that claims inside its
     /// transaction, once its claim lookup has found nothing: holds back the response until the commit, so a failure
@@ -69,6 +73,15 @@ public abstract partial class HttpHandler
     {
         context.Items[_deduplicationCommitStarted] = true;
         releaseDeduplicatedRefusalWatch(context);
+    }
+
+    /// <summary>
+    /// GH-5835. The transaction a <c>[Deduplicated]</c> chain's claim rides has committed, this request's claim with it.
+    /// The response stays held: this can run inside the endpoint's own save, around a write it has already begun.
+    /// </summary>
+    public static void MarkDeduplicationClaimCommitted(HttpContext context)
+    {
+        context.Items[_deduplicationClaimCommitted] = true;
     }
 
     private static void holdResponseUntilCommit(HttpContext context, RefusalAnswer answer)
@@ -160,6 +173,7 @@ public abstract partial class HttpHandler
         if (context.Items.ContainsKey(_deduplicatedRepeatAnswered)) return false;
         if (context.Items.ContainsKey(_deduplicatedCommitFailed)) return false;
         if (context.Items.ContainsKey(_deduplicationCommitStarted)) return false;
+        if (context.Items.ContainsKey(_deduplicationClaimCommitted)) return false;
         if (context.RequestAborted.IsCancellationRequested || context.Response.HasStarted) return false;
 
         // 400 and up, as CompleteDeduplicatedRequest decides what is a failure
@@ -242,6 +256,8 @@ public abstract partial class HttpHandler
 
         protected override Task answerAsync(HttpContext context)
         {
+            RecordDeduplicationOutcome(context, DeduplicatedExecutionOutcome.Duplicate);
+
             if (Detail == null)
             {
                 context.Response.StatusCode = StatusCode;

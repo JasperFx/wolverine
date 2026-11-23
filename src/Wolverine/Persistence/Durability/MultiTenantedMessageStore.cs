@@ -1327,6 +1327,27 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return false;
     }
 
+    /// <summary>
+    ///     GH-5840. Forget a deregistered tenant: its cached store, and every cache entry and write brake that holds
+    ///     one of the stores no live tenant uses any more. The next lookup for the tenant goes to the source, which
+    ///     refuses it with <see cref="RemovedTenantException" />.
+    /// </summary>
+    internal void EvictTenant(string tenantId, IReadOnlyList<IMessageStore> orphaned)
+    {
+        _byTenant = _byTenant.Remove(tenantId);
+        _resolutionBrakes = _resolutionBrakes.Remove(tenantId);
+
+        foreach (var store in orphaned)
+        {
+            foreach (var entry in _byTenant.Enumerate().Where(x => ReferenceEquals(x.Value, store)).ToArray())
+            {
+                _byTenant = _byTenant.Remove(entry.Key);
+            }
+
+            _brakes = _brakes.Remove(store);
+        }
+    }
+
     public async ValueTask<IMessageStore> GetDatabaseAsync(string? tenantId)
     {
         if (tenantId.IsDefaultTenant())
@@ -1344,6 +1365,10 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             return Main;
         }
 
+        // GH-5840: checked before the cache, so a lookup racing a deregistration cannot hand back a store
+        // that is about to be disposed, or put it back into the cache afterward
+        _runtime.Options.RemovedTenants.AssertNotRemoved(tenantId!);
+
         if (_byTenant.TryFind(tenantId!, out var store))
         {
             return store;
@@ -1355,6 +1380,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
             await store.Admin.MigrateAsync();
         }
 
+        _runtime.Options.RemovedTenants.AssertNotRemoved(tenantId!);
         _byTenant = _byTenant.AddOrUpdate(tenantId!, store!);
 
         return store!;
