@@ -212,7 +212,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
         {
             // GH-5822. There is no topic to publish a copy to, so the native Nack is the requeue: Pub/Sub redelivers
             // the original to this subscription
-            delivery.RequeueFailed();
+            delivery.CopyNotPublished();
             return;
         }
 
