@@ -201,7 +201,7 @@ The dev-time-only pattern above keeps `WolverineFx.RuntimeCompilation` reference
 ```xml
 <!-- Referenced only in Debug, so a Release publish ships without Roslyn. -->
 <ItemGroup Condition="'$(Configuration)' == 'Debug'">
-  <PackageReference Include="WolverineFx.RuntimeCompilation" Version="7.0.0-beta.1" />
+  <PackageReference Include="WolverineFx.RuntimeCompilation" Version="7.0.0-beta.2" />
 </ItemGroup>
 ```
 
