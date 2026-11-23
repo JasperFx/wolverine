@@ -154,6 +154,15 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
     public void MapEnvelopeToOutgoing(Envelope envelope, TOutgoing outgoing)
     {
+        // GH-5889: a serializer may stamp headers onto the envelope while it writes the body, like the claim
+        // check token of an off-loaded payload or the encryption key id. The body is written lazily, on the
+        // first read of Data, and a sender that reads Data after mapping (RabbitMQ, NATS, Pulsar, inline Azure
+        // Service Bus, ...) sent the message without those headers. So serialize first. Once only: Data keeps
+        // the bytes, and an envelope that already has them (durable, forwarded, pooled) is left alone
+        if (envelope.MessagePayloadSize == null && envelope.Message != null && envelope.Serializer != null)
+        {
+            _ = envelope.Data;
+        }
 
         _mapOutgoing.Value(envelope, outgoing);
         writeOutgoingHeader(outgoing, TransportConstants.ProtocolVersion, "1.0"); // fancier later
