@@ -50,7 +50,7 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L27-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_postgresql' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-And instead with [multi-tenanted SQL Server](/guide/durability/sqlserver.html#multi-tenancy) storage:
+And instead with [multi-tenanted SQL Server](/guide/durability/sqlserver.html#multi-tenancy-1) storage:
 
 <!-- snippet: sample_static_tenant_registry_with_sqlserver -->
 <a id='snippet-sample_static_tenant_registry_with_sqlserver'></a>

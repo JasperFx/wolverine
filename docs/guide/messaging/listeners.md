@@ -215,7 +215,7 @@ within a *running* process; it cannot help across a node's death, because the gu
 
 ## In-Memory Idempotency Guard <Badge type="tip" text="6.30" />
 
-The [durable inbox](/guide/durability) deduplicates incoming messages on the primary key of its incoming
+The [durable inbox](/guide/durability/) deduplicates incoming messages on the primary key of its incoming
 table: a redelivery of a message id it has already stored is acked back to the broker and never executed
 again. `NativeAck`, `BufferedInMemory`, and `Inline` endpoints have no such table, and `NativeAck` in
 particular is *at-least-once by design* — every rolling deploy leaves whatever the drain could not finish
@@ -453,7 +453,7 @@ resends one (a closed channel with the ack still in flight, say). The
 ## Durable Endpoints
 
 `Durable` endpoints essentially work the same as `Buffered` endpoints, but utilize Wolverine's [transactional
-inbox support](/guide/durability) for guaranteed delivery and processing.
+inbox support](/guide/durability/) for guaranteed delivery and processing.
 
 With `Durable` endpoints, the basic processing of messages is:
 

@@ -145,7 +145,7 @@ public class OurKafkaJsonMapper<TMessage> : IKafkaEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L246-L281' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourkafkajsonmapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L247-L282' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourkafkajsonmapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which is essentially how the built in "Raw JSON" mapper works in external transport mappers. In the envelope mapper above

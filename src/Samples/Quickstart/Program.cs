@@ -29,8 +29,6 @@ app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeA
 
 app.MapOpenApi();
 
-app.MapGet("/", () => Results.Redirect("/swagger"));
-
 // Opt into using JasperFx for command line parsing
 // to unlock built in diagnostics and utility tools within
 // your Wolverine application

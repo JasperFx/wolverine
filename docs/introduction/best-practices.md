@@ -345,7 +345,7 @@ Consider this an anti-pattern to avoid:
 
 This advice does **not** mean that every follow up step has to be a cascading message, just that the side effects of a message
 should be visible from its handler. If you're using EF Core with the "domain events" pattern where entities collect their own
-events, let Wolverine [scrape those events from the `DbContext`](/guide/durability/efcore) inside the transaction rather than
+events, let Wolverine [scrape those events from the `DbContext`](/guide/durability/efcore/) inside the transaction rather than
 injecting a publisher into your entities. And calling `IMessageBus.InvokeAsync()` from inside another handler to "reuse" logic is
 guilty until proven innocent: it hides a nested transaction, hides the database round trips, and splits one unit of work into two
 that can fail independently.
@@ -408,7 +408,7 @@ A very common pattern in the .NET ecosystem is an MVC Core controller action or 
 to delegate to a mediator, so every HTTP operation is really two things: the endpoint, and the handler behind it. You can
 certainly use Wolverine that way with `IMessageBus.InvokeAsync()`, and it's a reasonable first step when
 [migrating an existing application](/guide/migrating-to-wolverine). For new code though, we believe you can build simpler
-code with "just" a [Wolverine.HTTP](/guide/http) endpoint, where the endpoint method *is* the handler and there's only one
+code with "just" a [Wolverine.HTTP](/guide/http/) endpoint, where the endpoint method *is* the handler and there's only one
 thing to write, read, and test:
 
 ```csharp
@@ -448,7 +448,7 @@ the rest.
 
 Read more:
 
-* [Wolverine.HTTP](/guide/http)
+* [Wolverine.HTTP](/guide/http/)
 * [Migrating from Minimal APIs](/tutorials/from-minimal-api) and [Migrating from MVC Controllers](/tutorials/from-mvc)
 * [HTTP Validation](/guide/http/validation) and [ProblemDetails](/guide/http/problemdetails)
 * [Result Pattern or Exceptions for Errors? Wolverine Lets You Say "Neither"](https://jasperfx.net/news/result-pattern-or-exceptions-wolverine-neither)
@@ -666,7 +666,7 @@ a repeat delivery. The communities around every messaging tool we know of agree 
 * **Prefer naturally idempotent handlers.** A command that sets an absolute state ("set the thermostat to 68") is safe to
   repeat. A command that applies a delta ("raise the thermostat by two degrees") is not. Upserts and unique constraints
   are your friends.
-* **Dedup by message identity when the operation can't be idempotent.** Wolverine's [transactional inbox](/guide/durability)
+* **Dedup by message identity when the operation can't be idempotent.** Wolverine's [transactional inbox](/guide/durability/)
   on durable endpoints tracks handled messages by their envelope identity in the same transaction as your business data, and the
   [idempotency](/tutorials/idempotency) guide covers the options for buffered and inline endpoints. That protects you from the
   same *delivery* being handled twice. It does not protect you from the same *intent* being sent twice: an operator clicking a
@@ -851,7 +851,7 @@ Read more:
 ### Decide on the Transactional Outbox Early
 
 If a message handler or HTTP endpoint changes the database *and* publishes messages, you have a consistency problem the
-moment one of those succeeds and the other doesn't. The [transactional outbox](/guide/durability) solves that by persisting
+moment one of those succeeds and the other doesn't. The [transactional outbox](/guide/durability/) solves that by persisting
 outgoing messages in the same transaction as your business data, and the inbox solves the mirror image problem for incoming
 messages. It's dramatically easier to build on from the start than it is to retrofit, so decide early:
 
@@ -865,7 +865,7 @@ messages. It's dramatically easier to build on from the start than it is to retr
 
 Read more:
 
-* [Durable Messaging](/guide/durability)
+* [Durable Messaging](/guide/durability/)
 * [Build Resilient Systems with Wolverine's Transactional Outbox](https://jeremydmiller.com/2024/12/08/build-resilient-systems-with-wolverines-transactional-outbox/)
 * [Claim Checks](/guide/durability/claim-checks) for payloads too big for your broker
 

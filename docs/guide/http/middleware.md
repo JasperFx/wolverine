@@ -15,7 +15,7 @@ The `[Middleware]` attribute from message handlers works on HTTP endpoint method
 
 For message handlers, you use the [`HandlerContinuation`](/guide/handlers/middleware.html#conditionally-stopping-the-message-handling) 
 to conditionally stop message handling in middleware that executes before the main handler. Likewise, you can do the
-same thing in HTTP endpoints, but instead use the [IResult](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis/responses?view=aspnetcore-7.0)
+same thing in HTTP endpoints, but instead use the [IResult](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis/responses)
 concept from ASP.Net Core Minimal API.
 
 As an example, let's say that you are using some middleware to do custom authentication filtering that stops processing
@@ -38,10 +38,10 @@ public class FakeAuthenticationMiddleware
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L100-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fake_authentication_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L136-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fake_authentication_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Which is registered like this (or as described in [`Registering Middleware by Message Type`](/guide/handlers/middleware.html##registering-middleware-by-message-type)):
+Which is registered like this (or as described in [`Registering Middleware by Message Type`](/guide/handlers/middleware.html#registering-middleware-by-message-type)):
 
 <!-- snippet: sample_register_http_middleware_by_type -->
 <a id='snippet-sample_register_http_middleware_by_type'></a>
@@ -206,7 +206,7 @@ public class StopwatchMiddleware
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L9-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_http_stopwatch_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L10-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_http_stopwatch_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And you want to apply it to a single HTTP endpoint without having to dirty your hands with an attribute. You can use that naming
@@ -235,7 +235,7 @@ public class MeasuredEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L29-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_middleware_programmatically_to_one_chain' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L30-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_middleware_programmatically_to_one_chain' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See [MethodCall](https://shared-libs.jasperfx.net/codegen/method-call) in the JasperFx documentation for more on
@@ -343,7 +343,7 @@ Wolverine 7.0; in 6.x it was opt-in through this setting:
 // Marten, Polecat or Fisher session is opened, so the events an endpoint appends record it too
 opts.ApplyCorrelationIdHeaderToAllEndpoints = true;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Bobcat/Wolverine.Bobcat.Http.Tests/correlation_on_every_endpoint.cs#L70-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_correlation_id_header_to_all_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Bobcat/Wolverine.Bobcat.Http.Tests/correlation_on_every_endpoint.cs#L75-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_correlation_id_header_to_all_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With that setting on, Wolverine applies the header right where each endpoint creates its message context, before

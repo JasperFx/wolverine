@@ -486,7 +486,7 @@ As for the return values from these handler methods, you can use:
 
 * It's legal to have **no** return values if you are directly using `IEventStream<T>` to append events
 * `IEnumerable<object>` or `object[]` to denote that a value is events to append to the current event stream
-* `IAsyncEnumerable<object` will also be treated as a variable enumerable to events to append to the current event stream
+* `IAsyncEnumerable<object>` will also be treated as a variable enumerable to events to append to the current event stream
 * `Wolverine.Marten.Events` to denote a list of events. You *may* find this to lead to more readable code in some cases
 * `OutgoingMessages` to refer to additional command messages to be published that should *not* be captured as events
 * `ISideEffect` objects
@@ -703,7 +703,7 @@ public static Task<Order> update_and_get_latest(IMessageBus bus, MarkItemReady c
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L102-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_updatedaggregate_with_invoke_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Likewise, you can use `UpdatedAggregate` as the response body of an HTTP endpoint with Wolverine.HTTP [as shown here](/guide/http/marten.html#responding-with-the-updated-aggregate~~~~).
+Likewise, you can use `UpdatedAggregate` as the response body of an HTTP endpoint with Wolverine.HTTP [as shown here](/guide/http/marten.html#responding-with-the-updated-aggregate).
 
 ::: info
 This feature has been more or less requested several times, but was finally brought about because of the need
@@ -801,7 +801,7 @@ The aggregate/stream identity is found with the same rules as the `[Entity]` or 
 3. Look for a request body property or route argument named "Id" or "id"
 
 You can override the validation rules for how Wolverine handles an aggregate / event stream not being found
-by setting these properties on `[ReadAttribute]` (which is much more useful for HTTP endpoints):
+by setting these properties on `[ReadAggregate]` (which is much more useful for HTTP endpoints):
 
 <!-- snippet: sample_read_aggregate_fine_grained_validation_control -->
 <a id='snippet-sample_read_aggregate_fine_grained_validation_control'></a>
@@ -1185,7 +1185,7 @@ public class StrongLetterAggregate
     public void Apply(DEvent _) => DCount++;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L187-L210' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_strong_typed_identifier_with_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L227-L250' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_strong_typed_identifier_with_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And now let's use that identifier type in message handlers:
@@ -1201,8 +1201,26 @@ public record IncrementBOnBoth(LetterId Id1, LetterId Id2);
 
 public record FetchCounts(LetterId Id);
 
+public record RaiseStrong(LetterId Id, int A, int B);
+
 public static class StrongLetterHandler
 {
+    public static (UpdatedAggregate, Events) Handle(RaiseStrong command, [WriteAggregate] StrongLetterAggregate aggregate)
+    {
+        var events = new Events();
+        for (int i = 0; i < command.A; i++)
+        {
+            events.Add(new AEvent());
+        }
+
+        for (int i = 0; i < command.B; i++)
+        {
+            events.Add(new BEvent());
+        }
+
+        return (new UpdatedAggregate(), events);
+    }
+
     public static StrongLetterAggregate Handle(FetchCounts counts,
         [ReadAggregate] StrongLetterAggregate aggregate) => aggregate;
 
@@ -1248,7 +1266,7 @@ public static class StrongLetterHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L127-L183' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_identifier_with_aggregate_handler_workflow' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L149-L223' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_identifier_with_aggregate_handler_workflow' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And also in some of the equivalent Wolverine.HTTP endpoints:
@@ -1274,7 +1292,7 @@ legal route argument variables for Wolverine.HTTP now.
 
 ## Natural Keys
 
-Marten supports [natural keys](/events/natural-keys) on aggregates, allowing you to look up event streams by a domain-meaningful identifier (like an order number) instead of the internal stream id. Wolverine's aggregate handler workflow fully supports natural keys, letting you route commands to the correct aggregate using a business identifier.
+Marten supports [natural keys](https://martendb.io/events/natural-keys) on aggregates, allowing you to look up event streams by a domain-meaningful identifier (like an order number) instead of the internal stream id. Wolverine's aggregate handler workflow fully supports natural keys, letting you route commands to the correct aggregate using a business identifier.
 
 ### Defining the Aggregate with a Natural Key
 
@@ -1567,7 +1585,7 @@ Requirements:
 This is only needed for the **identity-less** case. An aggregate that carries an `Id` (or an `[AggregateIdentity]` member) — like the `SubscriptionState` shown above, which keeps an `Id` and is registered as a live single-stream projection — already gets an evolver and needs no marker.
 :::
 
-The `[BoundaryAggregate]` marker comes from JasperFx.Events 2.0.0-alpha.21 / JasperFx.Events.SourceGenerator 2.0.0-alpha.13 ([jasperfx#324](https://github.com/JasperFx/jasperfx/issues/324)). See the [Marten DCB documentation](https://martendb.io/events/dcb) for the canonical attribute reference; the note here covers the Wolverine handler-side workflow.
+The `[BoundaryAggregate]` marker comes from JasperFx.Events / JasperFx.Events.SourceGenerator 2.0 and later ([jasperfx#324](https://github.com/JasperFx/jasperfx/issues/324)). See the [Marten DCB documentation](https://martendb.io/events/dcb) for the canonical attribute reference; the note here covers the Wolverine handler-side workflow.
 
 ### Using the `[BoundaryModel]` Attribute
 

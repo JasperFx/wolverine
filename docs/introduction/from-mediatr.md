@@ -10,7 +10,7 @@ Wolverine's convention-based approach differs from "IHandler of T" frameworks.
 a very limited tool and the Wolverine team frequently fields questions from folks converting to Wolverine from MediatR.
 Offhand, the common reasons to do so are:
 
-1. Wolverine has built in support for the [transactional outbox](/guide/durability), even for its [in memory, local queues](/guide/messaging/transports/local)
+1. Wolverine has built in support for the [transactional outbox](/guide/durability/), even for its [in memory, local queues](/guide/messaging/transports/local)
 2. Many people are using MediatR *and* a separate asynchronous messaging framework like MassTransit or NServiceBus while Wolverine handles the same use cases as MediatR *and* [asynchronous messaging](/guide/messaging/introduction) as well with one single set of rules for message handlers
 3. Wolverine's programming model can easily result in significantly less application code than the same functionality would with MediatR
 
@@ -110,7 +110,7 @@ process fails unexpectedly).
 :::
 
 MediatR's `INotificationHandler` concept is strictly [fire and forget](https://www.enterpriseintegrationpatterns.com/patterns/conversation/FireAndForget.html), 
-which is just not suitable if you need delivery guarantees of that work. Wolverine on the other hand supports both a "fire and forget" (`Buffered` in Wolverine parlance)  or a [durable, transactional inbox/outbox](/guide/durability) approach
+which is just not suitable if you need delivery guarantees of that work. Wolverine on the other hand supports both a "fire and forget" (`Buffered` in Wolverine parlance)  or a [durable, transactional inbox/outbox](/guide/durability/) approach
 with its in memory, local queues such that work will *not* be lost in the case of errors. Moreover, using the Wolverine local queues
 allows you to take advantage of Wolverine's error handling capabilities for a much more resilient system that you'll achieve with MediatR.
 
@@ -334,7 +334,7 @@ public class CartController : ControllerBase
 ```
 
 While the introduction of MediatR probably is a valid way to sidestep the common code bloat from MVC Core Controllers, with
-Wolverine we'd recommend just using the [Wolverine.HTTP](/guide/http) mechanism for writing HTTP endpoints in a much lower ceremony way
+Wolverine we'd recommend just using the [Wolverine.HTTP](/guide/http/) mechanism for writing HTTP endpoints in a much lower ceremony way
 and ditch the "mediator" step altogether. Moreover, we'd even go so far as to drop repository and domain service layers and
 just put the functionality right into an HTTP endpoint method if that code isn't going to be reused any where else in your application.
 

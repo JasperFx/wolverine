@@ -1,6 +1,6 @@
 # Saga Storage
 
-Wolverine can use registered EF Core `DbContext` types for [saga persistence](/guide/durability) as long as the EF Core transactional support
+Wolverine can use registered EF Core `DbContext` types for [saga persistence](/guide/durability/) as long as the EF Core transactional support
 is added to the application. There's absolutely nothing you need to do to enable this except for having a mapping for 
 whatever `Saga` type you need to persist in a registered `DbContext` type. As long as your `DbContext`
 with a mapping for a particular `Saga` type is registered in the IoC container for your application
