@@ -121,6 +121,34 @@ internal class TopologyHandlerScopes
     }
 
     /// <summary>
+    /// GH-5695. Every message type of a global partitioned topology that the topology's slots run in more than one
+    /// handler type. Each handler type runs on its own local queue, so the slot relays the message to those queues and
+    /// moves on, and nothing keeps one group's messages in order in any of them. Logged as a warning at startup rather
+    /// than refused, because applications start with this configuration today (GH-2303's sticky handlers)
+    /// </summary>
+    internal IEnumerable<(GlobalPartitionedMessageTopology Topology, Type MessageType, HandlerChain[] Chains)>
+        GlobalTopologiesThatLoseGroupOrdering(HandlerGraph handlers)
+    {
+        foreach (var group in handlers.Groups)
+        {
+            if (group.Chains.Count < 2) continue;
+
+            foreach (var topology in _partitioning.GlobalPartitionedTopologies)
+            {
+                if (!topology.Matches(group.MessageType)) continue;
+
+                // GH-5916. A topology that is one of several publishing the message type runs only the handler types
+                // it declares, and a single declared handler type runs right on the slot, in order
+                var chains = ChainsRunBy(topology, group);
+                if (chains.Length > 1)
+                {
+                    yield return (topology, group.MessageType, chains);
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Refuses, at startup, a handler type declared on two topologies, and any message type published through more
     /// than one executing topology whose handler types are not each declared on one of them
     /// </summary>

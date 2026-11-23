@@ -994,6 +994,31 @@ Wolverine checks all of this at startup and throws an `InvalidOperationException
 A topology that only publishes, and never listens in this application, doesn't count toward any of these rules,
 and a message type with no handlers in this application is still sent through every topology that matches it.
 
+### A Message Type with Several Handler Types <Badge type="tip" text="7.0" />
+
+::: warning
+Today a global partitioning topology does **not** keep the messages of one group in order when the topology's
+slots run more than one handler type for that message type.
+:::
+
+Since 7.0, every handler type gets its own handler chain and its own local queue. When a global topology's slot
+receives a message type with more than one handler type, all it can do is relay the message to each handler type's
+local queue and move right along to the next message. From there, two messages of the same group can run at the
+same time, and out of order, in any one of those handler types. Applications that start and work with this setup
+today -- like the sticky handler per module pattern -- keep working, so Wolverine doesn't refuse it. Instead,
+Wolverine logs a warning at startup that names the message type, the topology, and the handler types.
+
+To get per-group ordering back today, you can:
+
+* Handle the message type in a single handler type
+* Or, if more than one global topology publishes the message type, declare one handler type on each topology with
+  `HandledBy()` as shown in [One Message Type in Several Topologies](#one-message-type-in-several-topologies). A
+  topology that runs exactly one handler type for a message runs it right on its slots, sequenced by group id, and
+  you won't get the warning
+
+An opt-in for global topologies that runs every handler type of the message on the slot, one after the other, is
+coming in a later release. See [GH-5695](https://github.com/JasperFx/wolverine/issues/5695) for the details.
+
 ### Validation
 
 Wolverine validates global partitioning configuration at startup. It will throw an `InvalidOperationException` if:

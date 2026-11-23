@@ -16,6 +16,7 @@ using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.WorkerQueues;
@@ -1401,6 +1402,28 @@ public partial class WolverineRuntime
 
         // GH-5920
         Handlers.AssertShardedBatchesHaveNoUnboundHandlers(Options.MessagePartitioning);
+
+        // GH-5695
+        warnAboutGlobalPartitionedMessagesWithSeveralHandlerTypes();
+    }
+
+    private void warnAboutGlobalPartitionedMessagesWithSeveralHandlerTypes()
+    {
+        foreach (var (topology, messageType, chains) in
+                 Options.MessagePartitioning.HandlerScopes.GlobalTopologiesThatLoseGroupOrdering(Handlers))
+        {
+            Logger.LogWarning(
+                "Message type {MessageType} belongs to the global partitioned topology {Topology} and is handled by " +
+                "more than one handler type ({HandlerTypes}). Each handler type runs on its own local queue, so the " +
+                "topology's slot relays the message to those queues and moves on, and the messages of one group can " +
+                "run concurrently and out of order in each handler type. Per-group ordering is lost. To keep it, " +
+                "handle this message type in one handler type, or, when several global topologies publish it, declare " +
+                "one handler type on each topology with HandledBy<THandler>() so it runs right on that topology's " +
+                "slots. An opt-in that runs every handler type on the slot, in order, is planned for global " +
+                "topologies (https://github.com/JasperFx/wolverine/issues/5695)",
+                messageType.FullNameInCode(), ((IPartitionedTopology)topology).Name,
+                MessageHandlerGroup.Describe(chains));
+        }
     }
 
     internal Task StartLightweightAsync()
