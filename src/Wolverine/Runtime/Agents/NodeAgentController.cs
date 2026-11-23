@@ -281,6 +281,7 @@ public partial class NodeAgentController
         handlers.RegisterMessageType(typeof(AgentsStopped));
         handlers.RegisterMessageType(typeof(StopAgent));
         handlers.RegisterMessageType(typeof(StopAgents));
+        handlers.RegisterMessageType(typeof(DeregisterTenantOnLeader));
         handlers.RegisterMessageType(typeof(QueryAgentPresence));
         handlers.RegisterMessageType(typeof(AgentPresenceReport));
     }

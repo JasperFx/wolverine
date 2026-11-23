@@ -20,12 +20,17 @@ namespace Wolverine.RDBMS.MultiTenancy;
 ///     the store because JasperFx's <c>IEventDatabase</c> carries no connection or data source today.
 /// </remarks>
 /// <typeparam name="TDatabase">The store's own handle for one of its databases</typeparam>
-internal abstract class TenantedMessageDatabaseSource<TDatabase> : ITenantedMessageSource
+internal abstract class TenantedMessageDatabaseSource<TDatabase> : ITenantedMessageSource, ITenantStoreRemoval
 {
     private readonly List<Func<IMessageDatabase, ValueTask>> _configurations = new();
     private readonly object _locker = new();
     private ImHashMap<string, IMessageStore> _databases = ImHashMap<string, IMessageStore>.Empty;
     private ImHashMap<string, IMessageStore> _stores = ImHashMap<string, IMessageStore>.Empty;
+
+    // GH-5840. Identifiers of databases whose last tenant was deregistered from this process. The store's own
+    // tenancy (Marten's master table, say) keeps listing them, so refresh has to skip them. Only a live tenant
+    // resolving to the database again takes it off.
+    private ImHashMap<string, bool> _removedDatabases = ImHashMap<string, bool>.Empty;
 
     protected TenantedMessageDatabaseSource(AutoCreate autoCreate, IWolverineRuntime runtime)
     {
@@ -60,6 +65,9 @@ internal abstract class TenantedMessageDatabaseSource<TDatabase> : ITenantedMess
 
     public async ValueTask<IMessageStore> FindAsync(string tenantId)
     {
+        // GH-5840: a deregistered tenant is refused, so a stray message cannot rebuild its store
+        Runtime.Options.RemovedTenants.AssertNotRemoved(tenantId);
+
         if (_stores.TryFind(tenantId, out var store))
         {
             return store;
@@ -67,6 +75,15 @@ internal abstract class TenantedMessageDatabaseSource<TDatabase> : ITenantedMess
 
         var database = await findDatabaseAsync(tenantId);
         var identifier = identifierFor(database);
+
+        if (_removedDatabases.Contains(identifier))
+        {
+            // A live tenant of a database whose other tenants were all removed: the database is in use after all
+            lock (_locker)
+            {
+                _removedDatabases = _removedDatabases.Remove(identifier);
+            }
+        }
 
         if (_databases.TryFind(identifier, out store))
         {
@@ -134,9 +151,22 @@ internal abstract class TenantedMessageDatabaseSource<TDatabase> : ITenantedMess
         foreach (var database in databases)
         {
             var identifier = identifierFor(database);
-            if (_databases.Contains(identifier)) continue;
+            if (_databases.Contains(identifier) || _removedDatabases.Contains(identifier)) continue;
 
             var wolverineStore = buildMessageStore(database);
+
+            // GH-5840: a database every one of whose tenants was deregistered here, but which this process never
+            // had a store for, so RemoveTenant could not name it
+            if (wolverineStore.TenantIds.Count > 0 && wolverineStore.TenantIds.All(Runtime.Options.RemovedTenants.Contains))
+            {
+                lock (_locker)
+                {
+                    _removedDatabases = _removedDatabases.AddOrUpdate(identifier, true);
+                }
+
+                continue;
+            }
+
             if (withMigration && Runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
             {
                 await wolverineStore.Admin.MigrateAsync();
@@ -157,36 +187,48 @@ internal abstract class TenantedMessageDatabaseSource<TDatabase> : ITenantedMess
     }
 
     /// <summary>
-    ///     Evict and dispose the cached Wolverine message store for a given tenant.
-    ///     Called when a tenant is disabled or removed from dynamic tenancy.
+    ///     GH-5840. Forget a deregistered tenant. The database's store goes only when no live tenant uses it any
+    ///     more -- the shared-database guard, since one database can hold several tenants -- and then refresh
+    ///     stops re-adding it. Nothing is disposed here: the caller stops the agent and listeners first.
     /// </summary>
-    public async ValueTask RemoveTenantStoreAsync(string tenantId)
+    public TenantStoreRemoval RemoveTenant(string tenantId)
     {
-        IMessageStore? storeToDispose = null;
-
         lock (_locker)
         {
-            if (_stores.TryFind(tenantId, out var store))
+            // A tenant resolved through FindAsync is in _stores. One that only arrived through RefreshAsync --
+            // which is how the durability agent finds a tenant database -- is only in _databases, under the
+            // database identifier, which for master-table tenancy is the tenant id itself.
+            if (!_stores.TryFind(tenantId, out var store) && !_databases.TryFind(tenantId, out store))
             {
-                _stores = _stores.Remove(tenantId);
-
-                // Also remove from _databases if this store is cached there
-                foreach (var entry in _databases.Enumerate())
-                {
-                    if (ReferenceEquals(entry.Value, store))
-                    {
-                        _databases = _databases.Remove(entry.Key);
-                        break;
-                    }
-                }
-
-                storeToDispose = store;
+                store = _databases.Enumerate().Select(x => x.Value)
+                    .FirstOrDefault(x => x.TenantIds.Contains(tenantId));
             }
-        }
 
-        if (storeToDispose != null)
-        {
-            await storeToDispose.DisposeAsync();
+            _stores = _stores.Remove(tenantId);
+
+            if (store == null) return TenantStoreRemoval.Nothing;
+
+            // Still serving another tenant: another tenant id mapped to this store, or another live tenant listed in
+            // its database. Only this tenant's mapping goes.
+            var removed = Runtime.Options.RemovedTenants;
+            if (_stores.Enumerate().Any(x => ReferenceEquals(x.Value, store))
+                || store.TenantIds.Any(x => x != tenantId && !removed.Contains(x)))
+            {
+                return new TenantStoreRemoval([], [], [store]);
+            }
+
+            foreach (var entry in _databases.Enumerate().Where(x => ReferenceEquals(x.Value, store)).ToArray())
+            {
+                _databases = _databases.Remove(entry.Key);
+                _removedDatabases = _removedDatabases.AddOrUpdate(entry.Key, true);
+            }
+
+            // Another store over the same database: Marten's master table gives two tenants with one connection
+            // string a store each. This one goes; the database's agent and listener carry on through the other.
+            var replacement = _databases.Enumerate().Select(x => x.Value).FirstOrDefault(x => x.Uri == store.Uri);
+            return replacement == null
+                ? new TenantStoreRemoval([store], [], [])
+                : new TenantStoreRemoval([], [new DetachedStore(store, replacement)], []);
         }
     }
 

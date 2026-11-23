@@ -25,6 +25,10 @@ internal class ClaimDeduplicationIdParticipant : ITransactionParticipant
     private readonly DateTimeOffset _expires;
     private readonly MessageDeduplicationMode _mode;
 
+    // GH-5834. The participant stays enlisted for the session's later saves. Set after a commit, not in
+    // BeforeCommitAsync, which a retried SQLITE_BUSY runs again for an attempt that rolled back.
+    private bool _committed;
+
     public ClaimDeduplicationIdParticipant(string table, string deduplicationId, DateTimeOffset expires,
         MessageDeduplicationMode mode)
     {
@@ -37,6 +41,8 @@ internal class ClaimDeduplicationIdParticipant : ITransactionParticipant
     public async Task BeforeCommitAsync(SqliteConnection connection, SqliteTransaction transaction,
         CancellationToken token)
     {
+        if (_committed) return;
+
         await using var cmd = connection.CreateCommand();
         cmd.Transaction = transaction;
 
@@ -59,5 +65,11 @@ internal class ClaimDeduplicationIdParticipant : ITransactionParticipant
         cmd.Parameters.AddWithValue("@expires", _expires);
 
         await cmd.ExecuteNonQueryAsync(token);
+    }
+
+    public Task AfterCommitAsync(CancellationToken token)
+    {
+        _committed = true;
+        return Task.CompletedTask;
     }
 }

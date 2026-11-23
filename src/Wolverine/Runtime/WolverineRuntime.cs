@@ -189,6 +189,10 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         _receivedCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesReceived, MetricsConstants.Messages,
             "Number of messages received from external transports");
 
+        _deduplicationOutcomes = Meter.CreateCounter<int>(MetricsConstants.MessageDeduplicationOutcomes,
+            MetricsConstants.Messages,
+            "Number of messages handled by a [Deduplicated] handler, by how they ended: claimed or duplicate");
+
         _effectiveTime = Meter.CreateHistogram<double>(MetricsConstants.EffectiveMessageTime,
             MetricsConstants.Milliseconds,
             "Effective time between a message being sent and being completely handled in milliseconds",

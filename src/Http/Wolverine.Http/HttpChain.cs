@@ -27,6 +27,7 @@ using Wolverine.Http.ContentNegotiation;
 using Wolverine.Http.Metadata;
 using Wolverine.Http.Policies;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Partitioning;
 using ServiceContainer = JasperFx.ServiceContainer;
@@ -569,28 +570,33 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         }
 
         var status = effectiveDuplicateStatusCode(requirement);
+        var recordDuplicate = BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome.Duplicate);
 
         // A success code means the application has declared a replayed request benign, so there is
         // nothing to explain and a problem document would be actively wrong. Anything else is a
         // refusal, and a refusal without a reason is a status code the caller has to guess at.
         if (status is >= 200 and < 300)
         {
-            return [new DeduplicationStatusCodeFrame(condition, status)];
+            return [new DeduplicationStatusCodeFrame(condition, status, recordDuplicate)];
         }
 
         return
         [
             new DeduplicationProblemDetailsFrame(condition, status,
-                $"A request with this '{key}' has already been handled")
+                $"A request with this '{key}' has already been handled", recordDuplicate)
         ];
     }
+
+    /// <inheritdoc />
+    public override Frame? BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome outcome)
+        => new RecordHttpDeduplicationOutcomeFrame(outcome);
 
     /// <summary>
     ///     GH-5206. When the <c>[Deduplicated]</c> claim rides the endpoint's own transaction, a concurrent repeat can miss
     ///     the up-front check, read the first request's committed work and fail over it before its commit. Hold the
     ///     response back until the commit, so such a failure is answered as the duplicate it is. Idempotent.
     /// </summary>
-    private void watchForDuplicateRefusals()
+    private void watchForDuplicateRefusals(GenerationRules rules, IServiceContainer container)
     {
         if (Deduplication is not { } requirement) return;
         if (!Tags.TryGetValue(TransactionalDeduplicationTag.Key, out var raw) ||
@@ -612,7 +618,18 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         Middleware.Insert(claim + 1,
             new WatchForDuplicateRefusalFrame(tag.DeduplicationId, this.DetermineAncillaryStoreType(), status, detail));
         Postprocessors.Insert(Postprocessors.IndexOf(commit), new MarkDeduplicationCommitStartedFrame());
+
+        // GH-5835: an endpoint that commits the session itself commits this request's claim with it, ahead of the commit
+        // above. A failure after that is the endpoint's own, not a refusal over a concurrent request's work
+        if (rules.GetPersistenceProviders(this, container) is IDatabaseCommitHookProvider commits &&
+            commits.TryBuildDatabaseCommitHook(this, MarkDeduplicationClaimCommittedMethod, out var hook))
+        {
+            Middleware.Insert(claim + 2, hook);
+        }
     }
+
+    private static readonly MethodInfo MarkDeduplicationClaimCommittedMethod =
+        typeof(HttpHandler).GetMethod(nameof(HttpHandler.MarkDeduplicationClaimCommitted))!;
 
     /// <inheritdoc />
     /// <remarks>
@@ -621,7 +638,10 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     /// </remarks>
     public override Frame BuildDeduplicationReleaseFrame(Variable deduplicationId)
     {
-        return new ReleaseDeduplicationIdOnHttpFailureFrame(deduplicationId, AncillaryStoreType);
+        return new ReleaseDeduplicationIdOnHttpFailureFrame(deduplicationId, AncillaryStoreType)
+        {
+            RecordClaimKept = BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome.Claimed)
+        };
     }
 
     public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)

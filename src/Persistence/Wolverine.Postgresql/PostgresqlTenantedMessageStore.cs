@@ -13,7 +13,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Postgresql;
 
-internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
+internal class PostgresqlTenantedMessageStore : ITenantedMessageSource, ITenantStoreRemoval
 {
     private readonly PostgresqlBackedPersistence _persistence;
     private readonly SagaTableDefinition[] _sagaTables;
@@ -32,6 +32,9 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
                                               _persistence.ConnectionStringTenancy!.Cardinality;
     public async ValueTask<IMessageStore> FindAsync(string tenantId)
     {
+        // GH-5840: a deregistered tenant is refused, so a stray message cannot rebuild its store
+        _runtime.Options.RemovedTenants.AssertNotRemoved(tenantId);
+
         if (_stores.TryFind(tenantId, out var store))
         {
             return store;
@@ -55,6 +58,7 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
             await store.Admin.MigrateAsync();
         }
         
+        _runtime.Options.RemovedTenants.AssertNotRemoved(tenantId);
         _stores = _stores.AddOrUpdate(tenantId, store);
         return store;
     }
@@ -133,7 +137,7 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
             foreach (var assignment in _persistence.ConnectionStringTenancy.AllActiveByTenant())
             {
                 // TODO -- some idempotency
-                if (!_stores.Contains(assignment.TenantId))
+                if (!_stores.Contains(assignment.TenantId) && !_runtime.Options.RemovedTenants.Contains(assignment.TenantId))
                 {
                     var store = buildTenantStoreForConnectionString(assignment.Value);
                     store.TenantIds.Fill(assignment.TenantId);
@@ -154,7 +158,7 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
             foreach (var assignment in _persistence.DataSourceTenancy.AllActiveByTenant())
             {
                 // TODO -- some idempotency
-                if (!_stores.Contains(assignment.TenantId))
+                if (!_stores.Contains(assignment.TenantId) && !_runtime.Options.RemovedTenants.Contains(assignment.TenantId))
                 {
                     var store = buildTenantStoreForDataSource(assignment.Value);
                     store.TenantIds.Fill(assignment.TenantId);
@@ -168,6 +172,14 @@ internal class PostgresqlTenantedMessageStore : ITenantedMessageSource
                 }
             }
         }
+    }
+
+    /// <summary>
+    ///     GH-5840. Forget a deregistered tenant's store; see <see cref="TenantStoreRemoval.FromPerTenantCache{T}" />
+    /// </summary>
+    public TenantStoreRemoval RemoveTenant(string tenantId)
+    {
+        return TenantStoreRemoval.FromPerTenantCache(ref _stores, tenantId);
     }
 
     public IReadOnlyList<IMessageStore> AllActive()

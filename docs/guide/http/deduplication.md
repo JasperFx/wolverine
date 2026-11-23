@@ -360,9 +360,16 @@ Each request that carries a key is counted once on the `wolverine.http.deduplica
 | `replayed` | a repeat, answered with the stored response |
 | `mismatched` | a different request under a key already used, refused with 422 |
 | `in_progress` | a repeat while the first is still running, or of a claim with no stored response, refused with 409 |
+| `duplicate` | a repeat to a `[Deduplicated]` endpoint, refused with its duplicate status code |
 
 A request without a key is not counted, and neither is a first request that fails and gives its claim back. The
 same outcome is added to the request's span as a `wolverine.deduplication.{outcome}` event.
+
+A `[Deduplicated]` endpoint counts on the same counter with two outcomes, `claimed` and `duplicate`. An endpoint
+can have only one of the two attributes, so each request is still counted once. When the claim is written inside
+the endpoint's transaction, `claimed` is counted once that transaction commits, even if something after the commit
+fails. Message handlers count on a counter of their own, described in
+[Logical Message Deduplication](/guide/durability/idempotency#metrics-and-tracing).
 
 ### The window
 

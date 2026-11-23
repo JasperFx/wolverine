@@ -80,6 +80,12 @@ public class MetricsConstants
     // counted.
     public const string DeduplicationOutcomes = "wolverine.http.deduplication.outcomes";
     public const string DeduplicationOutcomeKey = "wolverine.deduplication.outcome";
+
+    // GH-5613. One measurement per message a [Deduplicated] handler chain refused as a duplicate or kept the claim of,
+    // per chain, since each chain claims its own id (GH-5133).
+    public const string MessageDeduplicationOutcomes = "wolverine.deduplication.outcomes";
+
+    public const string MessageHandlerKey = "wolverine.message.handler";
     public const string DatabaseKey = "database";
     public const string ServerKey = "server";
 }

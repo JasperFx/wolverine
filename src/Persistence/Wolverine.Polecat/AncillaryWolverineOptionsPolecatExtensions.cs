@@ -76,6 +76,16 @@ public static class AncillaryWolverineOptionsPolecatExtensions
         // projections never distribute) and downstream tooling like CritterWatch's projection explorer.
         expression.Services.AddSingleton<IEventStore>(s => (IEventStore)s.GetRequiredService<T>());
 
+        // GH-5799: the sagas routed to this store live in this store, so the saga diagnostics surface reads
+        // them through this store's own sessions rather than the main store's
+        expression.Services.AddSingleton<Wolverine.Persistence.Sagas.ISagaStoreDiagnostics>(s =>
+            new Wolverine.Persistence.Sagas.DocumentStoreSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                s.GetRequiredService<T>(),
+                typeof(Wolverine.Polecat.Persistence.Sagas.PolecatPersistenceFrameProvider),
+                "Polecat",
+                typeof(T)));
+
         expression.Services.AddSingleton<AncillaryMessageStore>(s =>
         {
             var store = s.GetRequiredService<T>();

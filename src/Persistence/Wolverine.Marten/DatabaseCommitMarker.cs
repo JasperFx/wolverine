@@ -1,5 +1,7 @@
 using Marten;
 using Marten.Services;
+using Npgsql;
+using Weasel.Storage;
 
 namespace Wolverine.Marten;
 
@@ -15,10 +17,17 @@ namespace Wolverine.Marten;
 /// </para>
 ///
 /// <para>
+/// GH-5835. Before the listeners, Marten runs the transaction participants' <c>AfterCommitAsync</c> and then the
+/// inline projection message batch's, and either can throw too. So the marker is also a transaction participant,
+/// enlisted ahead of any the handler adds, and hears the commit straight after it. The listener stays for a session
+/// whose commit runs no participants, such as one in an ambient transaction.
+/// </para>
+///
+/// <para>
 /// Public only because generated code creates it.
 /// </para>
 /// </summary>
-public sealed class DatabaseCommitMarker : DocumentSessionListenerBase
+public sealed class DatabaseCommitMarker : DocumentSessionListenerBase, ITransactionParticipant
 {
     private readonly Action? _onCommitted;
 
@@ -26,7 +35,7 @@ public sealed class DatabaseCommitMarker : DocumentSessionListenerBase
     {
     }
 
-    /// <param name="onCommitted">Called once the database commit has succeeded, before any other listener runs</param>
+    /// <param name="onCommitted">Called once, when the database commit has succeeded and before any other listener runs</param>
     public DatabaseCommitMarker(Action onCommitted)
     {
         _onCommitted = onCommitted;
@@ -49,27 +58,42 @@ public sealed class DatabaseCommitMarker : DocumentSessionListenerBase
 
     public override Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {
-        Committed = true;
-        _onCommitted?.Invoke();
+        markCommittedOnce();
         return Task.CompletedTask;
     }
 
-    /// <summary>Creates a marker and puts it ahead of every other listener on <paramref name="session" />.</summary>
-    public static DatabaseCommitMarker Enlist(IDocumentSession session)
+    Task ITransactionParticipant<NpgsqlConnection, NpgsqlTransaction>.BeforeCommitAsync(NpgsqlConnection connection,
+        NpgsqlTransaction transaction, CancellationToken token) => Task.CompletedTask;
+
+    Task ITransactionParticipant<NpgsqlConnection, NpgsqlTransaction>.AfterCommitAsync(CancellationToken token)
     {
-        var marker = new DatabaseCommitMarker();
-        session.Listeners.Insert(0, marker);
-        return marker;
+        markCommittedOnce();
+        return Task.CompletedTask;
+    }
+
+    private void markCommittedOnce()
+    {
+        if (Committed) return;
+
+        Committed = true;
+        _onCommitted?.Invoke();
     }
 
     /// <summary>
-    /// Creates a marker that calls <paramref name="onCommitted" /> once the database commit succeeds, and puts it
-    /// ahead of every other listener on <paramref name="session" />.
+    /// Creates a marker, first among the listeners on <paramref name="session" /> and appended to its participants.
+    /// </summary>
+    public static DatabaseCommitMarker Enlist(IDocumentSession session) => enlist(session, new DatabaseCommitMarker());
+
+    /// <summary>
+    /// As <see cref="Enlist(IDocumentSession)" />, calling <paramref name="onCommitted" /> once the commit succeeds.
     /// </summary>
     public static DatabaseCommitMarker Enlist(IDocumentSession session, Action onCommitted)
+        => enlist(session, new DatabaseCommitMarker(onCommitted));
+
+    private static DatabaseCommitMarker enlist(IDocumentSession session, DatabaseCommitMarker marker)
     {
-        var marker = new DatabaseCommitMarker(onCommitted);
         session.Listeners.Insert(0, marker);
+        if (session is ITransactionParticipantRegistrar participants) participants.AddTransactionParticipant(marker);
         return marker;
     }
 }

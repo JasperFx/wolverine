@@ -3,6 +3,8 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Configuration;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Codegen;
 
 namespace Wolverine.Http.Policies;
@@ -29,13 +31,16 @@ internal class DeduplicationProblemDetailsFrame : AsyncFrame
     private readonly Variable _condition;
     private readonly int _statusCode;
     private readonly string _message;
+    private readonly Frame? _recordDuplicate;
     private Variable? _httpContext;
 
-    public DeduplicationProblemDetailsFrame(Variable condition, int statusCode, string message)
+    public DeduplicationProblemDetailsFrame(Variable condition, int statusCode, string message,
+        Frame? recordDuplicate = null)
     {
         _condition = condition;
         _statusCode = statusCode;
         _message = message;
+        _recordDuplicate = recordDuplicate;
         uses.Add(condition);
     }
 
@@ -43,6 +48,7 @@ internal class DeduplicationProblemDetailsFrame : AsyncFrame
     {
         writer.WriteComment($"GH-4180: {_statusCode} for a failed logical deduplication check");
         writer.Write($"BLOCK:if ({_condition.Usage})");
+        _recordDuplicate?.GenerateEmbedded(method, writer);
 
         var constant = Constant.For(_message);
         writer.Write(
@@ -58,6 +64,11 @@ internal class DeduplicationProblemDetailsFrame : AsyncFrame
     {
         _httpContext = chain.FindVariable(typeof(HttpContext));
         yield return _httpContext;
+
+        foreach (var variable in _recordDuplicate.FindEmbeddedVariables(chain))
+        {
+            yield return variable;
+        }
     }
 }
 
@@ -132,12 +143,14 @@ internal class DeduplicationStatusCodeFrame : SyncFrame
 {
     private readonly Variable _condition;
     private readonly int _statusCode;
+    private readonly Frame? _recordDuplicate;
     private Variable? _httpResponse;
 
-    public DeduplicationStatusCodeFrame(Variable condition, int statusCode)
+    public DeduplicationStatusCodeFrame(Variable condition, int statusCode, Frame? recordDuplicate = null)
     {
         _condition = condition;
         _statusCode = statusCode;
+        _recordDuplicate = recordDuplicate;
         uses.Add(condition);
     }
 
@@ -145,6 +158,7 @@ internal class DeduplicationStatusCodeFrame : SyncFrame
     {
         writer.WriteComment($"GH-4180: {_statusCode} for an already-handled logical deduplication id");
         writer.Write($"BLOCK:if ({_condition.Usage})");
+        _recordDuplicate?.GenerateEmbedded(method, writer);
         writer.Write($"{_httpResponse!.Usage}.{nameof(HttpResponse.StatusCode)} = {_statusCode};");
 
         if (method.AsyncMode == AsyncMode.ReturnCompletedTask)
@@ -165,5 +179,38 @@ internal class DeduplicationStatusCodeFrame : SyncFrame
     {
         _httpResponse = chain.FindVariable(typeof(HttpResponse));
         yield return _httpResponse;
+
+        foreach (var variable in _recordDuplicate.FindEmbeddedVariables(chain))
+        {
+            yield return variable;
+        }
+    }
+}
+
+[FSharpEmit(Skip = true,
+    Reason = "Never placed in a chain: it is written only inside the C# of the deduplication frame that embeds " +
+             "it, none of which emit F#. Its F# belongs with the first of those frames that gets an emitter.")]
+internal class RecordHttpDeduplicationOutcomeFrame : SyncFrame
+{
+    private readonly DeduplicatedExecutionOutcome _outcome;
+    private Variable? _httpContext;
+
+    public RecordHttpDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome outcome)
+    {
+        _outcome = outcome;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write(
+            $"{typeof(HttpHandler).FullNameInCode()}.{nameof(HttpHandler.RecordDeduplicationOutcome)}({_httpContext!.Usage}, {typeof(DeduplicatedExecutionOutcome).FullNameInCode()}.{_outcome});");
+
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _httpContext = chain.FindVariable(typeof(HttpContext));
+        yield return _httpContext;
     }
 }

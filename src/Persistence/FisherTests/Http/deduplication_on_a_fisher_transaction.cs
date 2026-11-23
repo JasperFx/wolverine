@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.Fisher;
 using Wolverine.Http;
 using Wolverine.Runtime;
@@ -65,6 +66,7 @@ public class deduplication_on_a_fisher_transaction : IAsyncLifetime
             {
                 m.Connection(theDatabase.ConnectionString);
                 m.AutoCreateSchemaObjects = AutoCreate.All;
+                m.Listeners.Add(new FailAfterCommitFisherListener());
             })
             .ApplyAllDatabaseChangesOnStartup()
             .IntegrateWithWolverine();
@@ -74,7 +76,8 @@ public class deduplication_on_a_fisher_transaction : IAsyncLifetime
         theHost = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a transactional deduplication test endpoint",
-                    type => type != typeof(FisherDeduplicatedEndpoint)))));
+                    type => type != typeof(FisherDeduplicatedEndpoint)
+                            && type != typeof(SelfSavingFisherDeduplicatedEndpoint)))));
 
         // No ResetResourceState and no document cleanup: the database file is new per fixture, so there
         // is nothing to carry over into the counts below.
@@ -84,6 +87,88 @@ public class deduplication_on_a_fisher_transaction : IAsyncLifetime
     {
         await theHost.DisposeAsync();
         theDatabase.Dispose();
+    }
+
+    // GH-5613
+    [Fact]
+    public async Task a_committed_claim_counts_as_claimed_and_its_repeat_as_a_duplicate()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(theHost, MetricsConstants.DeduplicationOutcomes);
+        var key = Guid.NewGuid().ToString();
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("counted")).ToUrl("/fisher-dedup/create");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBeOk();
+        });
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("counted-again")).ToUrl("/fisher-dedup/create");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(409);
+        });
+
+        outcomes.OnRoute("/fisher-dedup/create").ShouldBe(["claimed", "duplicate"]);
+    }
+
+    [Fact]
+    public async Task a_non_2xx_answer_counts_nothing_and_its_retry_claims()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(theHost, MetricsConstants.DeduplicationOutcomes);
+        var key = Guid.NewGuid().ToString();
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("missing")).ToUrl("/fisher-dedup/create");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(404);
+        });
+
+        outcomes.OnRoute("/fisher-dedup/create").ShouldBeEmpty();
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("counted-retry")).ToUrl("/fisher-dedup/create");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBeOk();
+        });
+
+        outcomes.OnRoute("/fisher-dedup/create").ShouldBe(["claimed"]);
+    }
+
+    [Fact]
+    public async Task a_failure_after_the_database_commit_still_counts_as_claimed()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(theHost, MetricsConstants.DeduplicationOutcomes);
+        var key = Guid.NewGuid().ToString();
+
+        // A 500 under the developer exception page, else the listener's exception straight through the test server
+        try
+        {
+            var failed = await theHost.Scenario(x =>
+            {
+                x.Post.Json(new FisherDedupRequest("after-commit")).ToUrl("/fisher-dedup/after-commit-failure");
+                x.WithRequestHeader("Idempotency-Key", key);
+                x.IgnoreStatusCode();
+            });
+            failed.Context.Response.StatusCode.ShouldBeGreaterThanOrEqualTo(500);
+        }
+        catch (DivideByZeroException)
+        {
+        }
+
+        (await claimCountAsync(key)).ShouldBe(1);
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("after-commit-again")).ToUrl("/fisher-dedup/after-commit-failure");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(409);
+        });
+
+        outcomes.OnRoute("/fisher-dedup/after-commit-failure").ShouldBe(["claimed", "duplicate"]);
     }
 
     [Fact]
@@ -148,7 +233,7 @@ public class deduplication_on_a_fisher_transaction : IAsyncLifetime
         });
 
         var chain = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.Chains
-            .Single(x => x.Method.HandlerType == typeof(FisherDeduplicatedEndpoint));
+            .Single(x => x.RoutePattern!.RawText == "/fisher-dedup/create");
 
         var source = chain.SourceCode.ShouldNotBeNull();
 
@@ -164,6 +249,53 @@ public class deduplication_on_a_fisher_transaction : IAsyncLifetime
         source.ShouldContain(nameof(HttpHandler.WatchForDuplicateRefusal));
         source.IndexOf(nameof(HttpHandler.MarkDeduplicationCommitStarted), StringComparison.Ordinal)
             .ShouldBeLessThan(source.IndexOf("SaveChangesAsync", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task an_endpoint_that_saves_its_own_session_succeeds_and_its_replay_is_refused()
+    {
+        var first = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("self-saved")).ToUrl("/fisher-dedup/save-then-return");
+            x.WithRequestHeader("Idempotency-Key", "self-save-1");
+            x.StatusCodeShouldBeOk();
+        });
+        (await first.ReadAsTextAsync()).ShouldBe("saved");
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("self-saved-again")).ToUrl("/fisher-dedup/save-then-return");
+            x.WithRequestHeader("Idempotency-Key", "self-save-1");
+            x.StatusCodeShouldBe(409);
+        });
+
+        (await countAsync("self-saved")).ShouldBe(1);
+        (await countAsync("self-saved-again")).ShouldBe(0);
+        (await claimCountAsync("self-save-1")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task an_endpoint_that_saves_its_own_session_then_stores_more_commits_both()
+    {
+        var first = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("self-saved")).ToUrl("/fisher-dedup/save-then-store-more");
+            x.WithRequestHeader("Idempotency-Key", "self-save-2");
+            x.StatusCodeShouldBeOk();
+        });
+        (await first.ReadAsTextAsync()).ShouldBe("saved");
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("self-saved-again")).ToUrl("/fisher-dedup/save-then-store-more");
+            x.WithRequestHeader("Idempotency-Key", "self-save-2");
+            x.StatusCodeShouldBe(409);
+        });
+
+        (await countAsync("self-saved")).ShouldBe(1);
+        (await countAsync("self-saved-after")).ShouldBe(1);
+        (await countAsync("self-saved-again")).ShouldBe(0);
+        (await claimCountAsync("self-save-2")).ShouldBe(1);
     }
 
     private async Task<int> claimCountAsync(string key)
@@ -331,6 +463,39 @@ public static class FisherDeduplicatedEndpoint
     {
         session.Store(new FisherDedupDocument { Id = Guid.NewGuid(), Name = request.Name });
         return "ok";
+    }
+
+    [Deduplicated]
+    [WolverinePost("/fisher-dedup/after-commit-failure")]
+    public static string PostAfterCommitFailure(FisherDedupRequest request, IDocumentSession session)
+    {
+        session.Insert(new FailAfterCommitFisherMarker { Id = Guid.NewGuid() });
+        return "ok";
+    }
+}
+
+public static class SelfSavingFisherDeduplicatedEndpoint
+{
+    [Deduplicated]
+    [WolverinePost("/fisher-dedup/save-then-return")]
+    public static async Task<string> SaveThenReturn(FisherDedupRequest request, IDocumentSession session,
+        CancellationToken cancellation)
+    {
+        session.Store(new FisherDedupDocument { Id = Guid.NewGuid(), Name = request.Name });
+        await session.SaveChangesAsync(cancellation);
+        return "saved";
+    }
+
+    [Deduplicated]
+    [WolverinePost("/fisher-dedup/save-then-store-more")]
+    public static async Task<string> SaveThenStoreMore(FisherDedupRequest request, IDocumentSession session,
+        CancellationToken cancellation)
+    {
+        session.Store(new FisherDedupDocument { Id = Guid.NewGuid(), Name = request.Name });
+        await session.SaveChangesAsync(cancellation);
+
+        session.Store(new FisherDedupDocument { Id = Guid.NewGuid(), Name = request.Name + "-after" });
+        return "saved";
     }
 }
 

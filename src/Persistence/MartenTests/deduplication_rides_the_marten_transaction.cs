@@ -2,16 +2,20 @@ using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Events;
 using JasperFx.Resources;
+using JasperFx.Core.Reflection;
 using Marten;
+using Marten.Services;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
+using Wolverine.Util;
 using Xunit;
 
 namespace MartenTests;
@@ -58,7 +62,8 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
                     .IncludeType(typeof(AdjustLedgerItselfHandler))
                     .IncludeType(typeof(RacingHandler))
                     .IncludeType(typeof(NothingElseHandler))
-                    .IncludeType(typeof(ShortWindowPaymentHandler));
+                    .IncludeType(typeof(ShortWindowPaymentHandler))
+                    .IncludeType(typeof(FailAfterCommitPaymentHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.MessageDeduplicationMode = MessageDeduplicationMode.CompareByHash;
@@ -73,6 +78,7 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
                     m.DisableNpgsqlLogging = true;
                     m.Connection(Servers.PostgresConnectionString);
                     m.DatabaseSchemaName = SchemaName;
+                    m.Listeners.Add(new FailAfterCommitPaymentListener());
                 }).IntegrateWithWolverine().UseLightweightSessions();
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
@@ -231,6 +237,7 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
         // whenever the first has already committed -- which, on a two-message local queue, it almost always
         // has. RacingHandler holds BOTH executions past their check before either is allowed to commit, so
         // the collision is forced rather than hoped for.
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
         var bus = _host.MessageBus();
         var command = new RacingCommand();
 
@@ -249,6 +256,8 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
 
         written.ShouldBe(1);
         (await claimCountAsync(RacingHandler.DeduplicationId)).ShouldBe(1);
+
+        outcomes.For(typeof(RacingHandler)).Order().ShouldBe(["claimed", "duplicate"]);
     }
 
     [Fact]
@@ -307,6 +316,61 @@ public class deduplication_rides_the_marten_transaction : IAsyncLifetime
 
         ShortWindowPaymentHandler.Received.ShouldBe(["first", "second"]);
         RecordPaymentHandler.Received.ShouldHaveSingleItem().ShouldBe("first");
+    }
+
+    // GH-5613
+    [Fact]
+    public async Task a_committed_claim_counts_as_claimed_and_its_repeat_as_a_duplicate()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+        var id = Guid.NewGuid().ToString();
+
+        await _host.SendMessageAndWaitAsync(new RecordPayment("first"), new DeliveryOptions { DeduplicationId = id });
+        await _host.SendMessageAndWaitAsync(new RecordPayment("repeat"), new DeliveryOptions { DeduplicationId = id });
+
+        outcomes.All.Select(x => x.Outcome).ShouldBe(["claimed", "duplicate"]);
+        outcomes.All.ShouldAllBe(x => x.Handler == typeof(RecordPaymentHandler).FullNameInCode() &&
+                                      x.MessageType == typeof(RecordPayment).ToMessageTypeName());
+    }
+
+    [Fact]
+    public async Task a_handler_that_throws_counts_nothing()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+
+        await _host.TrackActivity().DoNotAssertOnExceptionsDetected()
+            .SendMessageAndWaitAsync(new FailingPayment(), new DeliveryOptions { DeduplicationId = Guid.NewGuid().ToString() });
+
+        outcomes.All.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task a_message_without_an_id_counts_nothing()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+
+        await _host.SendMessageAndWaitAsync(new OptionallyKeyed("unkeyed"));
+        outcomes.All.ShouldBeEmpty();
+
+        await _host.SendMessageAndWaitAsync(new OptionallyKeyed("keyed"),
+            new DeliveryOptions { DeduplicationId = Guid.NewGuid().ToString() });
+        outcomes.For(typeof(OptionallyKeyedHandler)).ShouldBe(["claimed"]);
+    }
+
+    [Fact]
+    public async Task a_failure_after_the_database_commit_still_counts_as_claimed()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+        var id = Guid.NewGuid().ToString();
+
+        await _host.TrackActivity().DoNotAssertOnExceptionsDetected()
+            .SendMessageAndWaitAsync(new FailAfterCommitPayment(), new DeliveryOptions { DeduplicationId = id });
+
+        (await claimCountAsync(id)).ShouldBe(1);
+
+        await _host.SendMessageAndWaitAsync(new FailAfterCommitPayment(), new DeliveryOptions { DeduplicationId = id });
+
+        outcomes.For(typeof(FailAfterCommitPaymentHandler)).ShouldBe(["claimed", "duplicate"]);
     }
 
     private static async Task<DateTimeOffset> expiresAsync(string key)
@@ -451,6 +515,34 @@ public static class RacingHandler
 }
 
 public record NothingElse;
+
+public record FailAfterCommitPayment;
+
+public class FailAfterCommitMarker
+{
+    public Guid Id { get; set; }
+}
+
+public class FailAfterCommitPaymentListener : DocumentSessionListenerBase
+{
+    public override Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
+    {
+        if (commit.Inserted.OfType<FailAfterCommitMarker>().Any())
+        {
+            throw new DivideByZeroException("A session listener failed after the database commit");
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
+public static class FailAfterCommitPaymentHandler
+{
+    [Deduplicated]
+    [Transactional]
+    public static void Handle(FailAfterCommitPayment message, IDocumentSession session)
+        => session.Insert(new FailAfterCommitMarker { Id = Guid.NewGuid() });
+}
 
 /// <summary>
 /// Queues nothing but the deduplication claim, so the commit has only that one operation in its unit of
