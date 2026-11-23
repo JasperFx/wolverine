@@ -81,9 +81,15 @@ public class partitioned_local_queue_inbox_recovery : IAsyncLifetime
 
         var succeeded = await waitForAsync(() => expected.All(tracking.Contains), 30.Seconds());
 
-        succeeded.ShouldBeTrue(
-            $"Expected the durability agent to recover all {seeded.Length} dormant inbox rows for the " +
-            $"partitioned local queue {queue.Uri}, but only saw {tracking.CountOf(expected)}");
+        if (!succeeded)
+        {
+            // GH-5760: this failed on CI three times with nothing handled, and never locally. Say which stage the
+            // seeded rows stopped at: never claimed (still owner 0), claimed but never handled, or dead lettered
+            throw new ShouldAssertException(
+                $"Expected the durability agent to recover all {seeded.Length} dormant inbox rows for the " +
+                $"partitioned local queue {queue.Uri}, but only saw {tracking.CountOf(expected)}. " +
+                await describeAsync(store, runtime, queue.Uri, expected));
+        }
 
         (await store.LoadPageOfGloballyOwnedIncomingAsync(queue.Uri, 100)).ShouldBeEmpty();
     }
@@ -115,6 +121,19 @@ public class partitioned_local_queue_inbox_recovery : IAsyncLifetime
         await store.Inbox.StoreIncomingAsync(envelopes);
 
         return envelopes;
+    }
+
+    private static async Task<string> describeAsync(IMessageStore store, IWolverineRuntime runtime, Uri destination,
+        Guid[] expected)
+    {
+        var rows = (await store.Admin.AllIncomingAsync()).Where(x => expected.Contains(x.Id)).ToArray();
+        var counts = await store.Admin.FetchCountsAsync();
+        var circuit = runtime.Endpoints.FindListenerCircuit(destination);
+
+        return $"Seeded rows: [{rows.Select(x => $"{x.Id} {x.Status} owner={x.OwnerId} attempts={x.Attempts}").Join("; ")}]. " +
+               $"Store counts: incoming={counts.Incoming}, handled={counts.Handled}, dead letter={counts.DeadLetter}. " +
+               $"Circuit: {(circuit == null ? "none" : $"{circuit.Status}, queued {circuit.QueueCount}")}. " +
+               $"Assigned node number: {runtime.DurabilitySettings.AssignedNodeNumber}.";
     }
 
     private static async Task<bool> waitForAsync(Func<bool> condition, TimeSpan timeout)
