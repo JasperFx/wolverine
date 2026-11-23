@@ -229,6 +229,11 @@ internal class AsParametersBindingFrame : SyncFrame
         // 404'd. See GH-3630.
         chain.IsFormData = _hasForms;
         chain.ReadsRequestBody = _hasForms || _hasJsonBody;
+
+        // GH-5892: this frame writes the frames it absorbed inline, so the arranger never sees them. When one of
+        // them awaits, like the [FromBody] read of a constructor parameter, this frame has to say it is async
+        // itself, or a synchronous endpoint generates a Handle that awaits without being async.
+        IsAsync = _parameterFrames.Concat(_props).Any(x => x.IsAsync);
     }
     
     /// <summary>
