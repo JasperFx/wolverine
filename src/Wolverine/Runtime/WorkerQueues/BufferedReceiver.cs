@@ -51,7 +51,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private BatchMemberInbox? _batchMembers;
 
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
-        : this(endpoint, runtime, pipeline, endpoint.BufferedReceiverCapacity)
+        : this(endpoint, runtime, pipeline, Block<Envelope>.DefaultBoundedCapacity)
     {
     }
 

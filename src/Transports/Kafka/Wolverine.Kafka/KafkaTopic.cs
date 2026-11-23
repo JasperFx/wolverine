@@ -118,26 +118,6 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// </summary>
     public bool NativeDeadLetterQueueEnabled { get; set; }
 
-    /// <summary>
-    /// GH-5926. A buffered Kafka listener only completes a record's offset once the record finishes, so the
-    /// back pressure agent's answer to a full buffer -- stop and close the consumer -- would hand the whole backlog
-    /// back to the group, to another member right away or to this node when it resumes, while this node is still
-    /// working through it. The buffered receiver's bounded queue holds the consume loop back instead (see
-    /// <see cref="BufferedReceiverCapacity"/>): the loop waits to queue the next record until a handler frees a slot,
-    /// and the consumer stays in the group.
-    /// </summary>
-    public override bool ShouldEnforceBackPressure()
-    {
-        return Mode != EndpointMode.BufferedInMemory && base.ShouldEnforceBackPressure();
-    }
-
-    /// <summary>
-    /// GH-5926. With no back pressure agent, <see cref="Endpoint.BufferingLimits"/>' maximum bounds a buffered
-    /// listener's queue directly: the consume loop waits once that many records are queued.
-    /// </summary>
-    internal override int BufferedReceiverCapacity =>
-        Mode == EndpointMode.BufferedInMemory ? BufferingLimits.Maximum : base.BufferedReceiverCapacity;
-
     // Inherited by KafkaTopicGroup, which shares the same NativeDeadLetterQueueEnabled flag.
     public override DeadLetterStorageMode DeadLetterStorage => NativeDeadLetterQueueEnabled
         ? DeadLetterStorageMode.Native
