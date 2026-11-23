@@ -6,6 +6,7 @@ using Wolverine.ErrorHandling.Matches;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Partitioning;
 using Wolverine.Transports;
 
 namespace Wolverine.ErrorHandling;
@@ -39,6 +40,12 @@ internal class CircuitBreakerTrackedExecutorFactory : IExecutorFactory
         if (executor is Executor e)
         {
             return e.WrapWithMessageTracking(Breaker);
+        }
+
+        // GH-5695. Each copy a partitioned slot runs counts toward the breaker
+        if (executor is PartitionedGroupExecutor group)
+        {
+            return group.WrapWithMessageTracking(Breaker);
         }
 
         return executor;

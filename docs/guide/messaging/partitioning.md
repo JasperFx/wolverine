@@ -364,12 +364,92 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L44-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_local_partitioned_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-::: warning
-A message type in a partitioned topology can only be handled by one handler type. Since 7.0 every handler type
-gets its own handler chain and local queue, so the topology could not keep a group's messages in order across
-them. Wolverine refuses that combination at startup. Handle the message type in one handler type, or leave it
-out of the topology.
+A message type in the topology can have more than one handler type. See
+[Several Handler Types for One Message Type](#several-handler-types-for-one-message-type) for how Wolverine keeps a
+group's messages in order across all of them.
+
+## Several Handler Types for One Message Type <Badge type="tip" text="7.0" />
+
+Since 7.0, every handler type of a message type gets its own handler chain, and by default its own local queue.
+That's great for isolation, but it's a problem for a partitioned topology. If the topology's slot simply relayed the
+message to each handler type's own queue, nothing would keep the messages of one group in order across them.
+
+Instead, when a slot of a `PublishToPartitionedLocalMessaging()` topology, or of an external sharded topology like
+`PublishToShardedRabbitQueues()`, receives a message whose type has more than one handler type, Wolverine:
+
+1. Expands the message into one copy per handler type, right there in the slot's execution lane
+2. Runs the copies one after the other, in handler discovery order -- the same order `IMessageBus.InvokeAsync()`
+   runs several handler types in
+3. Finishes every copy before the lane takes the next message
+
+A lane only ever runs one message at a time, so the copies of message 1 always run before any copy of message 2 in
+the same group, no matter how many publishers there are. Messages from other applications, older nodes during a
+rolling deploy, and messages relayed in from an external listener all arrive as a single message and get expanded
+the very same way.
+
+Each copy is a real envelope of its own:
+
+* It gets its own envelope id, derived from the original envelope id and the handler type, so expanding the same
+  message again always produces the same ids
+* It carries a `wolverine-handler-type` header with the full name of the handler type it runs, and the original
+  envelope id as its `ParentId`
+* It keeps the group id, tenant id, saga id, correlation id and conversation id of the original
+
+There's nothing to configure. This is the default for buffered slots. A durable or native ack slot still refuses a
+message type with more than one handler type at startup for now, and so does an external sharded topology that also
+batches the message type with `BatchMessagesOf<T>()`.
+
+::: tip
+The original message and every copy show up in a tracked session and in Wolverine's message metrics, so a message
+with three handler types is recorded as four envelopes.
 :::
+
+### Ordering and failures
+
+Each copy runs in its own handler chain, with its own scope, its own transaction, and its own error handling, just
+as it would on its own queue. The rules from [When a Message in a Group Fails](#when-a-message-in-a-group-fails)
+apply to each copy:
+
+* **An inline retry holds the group.** The next copy, and the group's next message, wait until the failing copy
+  succeeds or gives up
+* **A dead lettered copy lets the next one run.** Only that handler type's copy goes to the dead letter queue, so
+  replaying it later runs just that one handler type
+* **A scheduled retry or a requeue takes the copy out of line**, so the group's next messages run in that handler
+  type first
+* **Each handler type commits on its own.** If the second handler type fails, the first one's work and its cascaded
+  messages have already been committed and sent. That's different from the Wolverine 6 days of combining every
+  handler into one chain, where one failure rolled back everything and a replay ran every handler again
+
+A copy that names a handler type the slot doesn't run -- usually a handler type that was renamed or removed after
+the copy was dead lettered -- is moved to the dead letter queue with an `UnknownPartitionedHandlerTypeException`.
+
+### Sticky handlers
+
+A [sticky handler](/guide/handlers/sticky) keeps running on its own endpoint, so it is *not* sequenced with the
+message type's other handler types. The slot still relays the message to it. If you want a sticky handler sequenced
+on the slot with the rest, opt in with the `[RunOnPartitionSlot]` attribute:
+
+```cs
+[StickyHandler("shipping")]
+[RunOnPartitionSlot]
+public class ShippingOrderPlacedHandler
+{
+    public void Handle(OrderPlaced message)
+    {
+        // runs on the partitioned topology's slot, in order with
+        // OrderPlaced's other handler types
+    }
+}
+```
+
+A handler type running on the slot uses the slot's settings, not the settings of its sticky endpoint.
+
+### Several topologies
+
+When more than one partitioned topology publishes the message type, each topology runs only the handler types it
+declares with `HandledBy()`, as described in
+[One Message Type in Several Topologies](#one-message-type-in-several-topologies). A topology that declares several
+handler types for the message runs all of them on its slots, one after the other, exactly as above.
 
 ## Grouping Rules Scoped to a Topology <Badge type="tip" text="6.41" />
 
@@ -973,8 +1053,11 @@ With that in place, Wolverine:
 
 * Routes the message only through the topologies that declare one of its handler types
 * Runs each handler type on the slots of the one topology that declares it, so it's sequenced by group id there
-* Runs a declared handler right on the slot when the topology declares only one handler type for the message, or
-  relays the message to the handler types' own local queues when it declares several
+* Runs a declared handler right on the slot when the topology declares only one handler type for the message. When
+  it declares several, a `PublishToPartitionedLocalMessaging()` or sharded external topology runs all of them on the
+  slot, one after the other (see
+  [Several Handler Types for One Message Type](#several-handler-types-for-one-message-type)), while a global topology
+  relays the message to the handler types' own local queues
 
 `HandledBy<THandler>()` takes the handler type as a generic argument, and `HandledBy(params Type[])` takes one or
 more handler types, which is what you'll need for a `static` handler class. `PublishToPartitionedLocalMessaging()`

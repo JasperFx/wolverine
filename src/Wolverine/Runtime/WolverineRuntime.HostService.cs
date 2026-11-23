@@ -956,6 +956,10 @@ public partial class WolverineRuntime
 
         validateListenerConfiguration();
 
+        // GH-5695. After the listeners are compiled, because whether a slot runs every handler type of a message itself
+        // depends on its final mode, which endpoint policies and delayed configuration settle in Endpoint.Compile()
+        Handlers.AssertPartitionedMessagesHaveOneHandlerType(Options.MessagePartitioning);
+
         foreach (var transport in Options.Transports)
         {
             // A transport that failed to initialize under ContinueOnFailures has no usable endpoints
@@ -1392,9 +1396,6 @@ public partial class WolverineRuntime
 
         // GH-5916. Ahead of GH-5695's check, which counts only the handler types each topology declares
         Options.MessagePartitioning.HandlerScopes.AssertValid(Handlers);
-
-        // GH-5695
-        Handlers.AssertPartitionedMessagesHaveOneHandlerType(Options.MessagePartitioning);
 
         // GH-5917
         Handlers.AssertGlobalPartitionedBatchesHaveNoOtherHandlers(Options.MessagePartitioning);

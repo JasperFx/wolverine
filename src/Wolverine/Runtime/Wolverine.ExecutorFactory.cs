@@ -45,6 +45,17 @@ public partial class WolverineRuntime : IExecutorFactory
         var handler = Handlers.ResolveBatchMember(messageType, endpoint, Options.Transports.GetOrCreate<LocalTransport>(),
             batch => batch.BuildHandler(this));
 
+        // GH-5695. On a buffered slot of a local or external sharded topology, a message type with several handler
+        // types is expanded into one copy per handler type, which run on the slot one after the other
+        if (handler == null &&
+            PartitionedSlotExpansion.MembersFor(Options.MessagePartitioning, Handlers, messageType, endpoint) is { } members)
+        {
+            var memberTracker = trackerFor(messageType, endpoint);
+            return new PartitionedGroupExecutor(this, members,
+                chain => Executor.Build(this, ExecutionPool, Handlers, Handlers.HandlerForChain(chain), memberTracker),
+                memberTracker);
+        }
+
         // GH-5916. On a slot of one of several topologies that publish this message type, run only the handler types
         // that topology declares
         if (handler == null &&
