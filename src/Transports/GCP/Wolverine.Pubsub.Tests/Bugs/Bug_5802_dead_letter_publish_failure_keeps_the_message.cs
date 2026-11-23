@@ -15,12 +15,14 @@ namespace Wolverine.Pubsub.Tests.Bugs;
 /// GH-5802. An Inline endpoint whose dead-letter topic is unavailable used to ack the original as soon as the first
 /// dead-letter publish failed, so once the background retries ran out the message was gone from both the
 /// subscription and the dead-letter topic. Now the original is nacked and Pub/Sub keeps redelivering it, and the
-/// message reaches the dead-letter topic once that topic is back.
+/// message reaches the dead-letter topic once that topic is back. GH-5843 is the same gap on a NativeAck endpoint.
 /// </summary>
 public class Bug_5802_dead_letter_publish_failure_keeps_the_message
 {
-    [Fact]
-    public async Task a_message_is_dead_lettered_once_the_dead_letter_topic_comes_back()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task a_message_is_dead_lettered_once_the_dead_letter_topic_comes_back(bool nativeAck)
     {
         if (!await TestingExtensions.IsEmulatorAvailable()) return;
 
@@ -33,10 +35,18 @@ public class Bug_5802_dead_letter_publish_failure_keeps_the_message
             {
                 opts.UsePubsubTesting().AutoProvision();
 
-                opts.ListenToPubsubTopic(topicName)
+                var listener = opts.ListenToPubsubTopic(topicName)
                     .DefaultIncomingMessage<PoisonPing5802>()
-                    .ConfigureDeadLettering(deadLetterName)
-                    .ProcessInline();
+                    .ConfigureDeadLettering(deadLetterName);
+
+                if (nativeAck)
+                {
+                    listener.ProcessInParallelWithNativeAcks();
+                }
+                else
+                {
+                    listener.ProcessInline();
+                }
 
                 opts.Policies.OnException<PoisonFailure5802>().MoveToErrorQueue();
 
