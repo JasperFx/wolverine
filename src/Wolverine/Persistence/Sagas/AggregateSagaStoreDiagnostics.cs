@@ -2,6 +2,7 @@ using JasperFx.Descriptors;
 using JasperFx.Documents;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration.Capabilities;
+using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Sagas;
@@ -127,6 +128,46 @@ internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, ISa
 
         var (pageNumber, pageSize) = SagaQueryCriteria.Page(options);
         return SagaQueryResult.Empty(pageNumber, pageSize);
+    }
+
+    // GH-5839: completing a saga from outside its handlers routes to the storage that owns the saga type, through the
+    // same routes the reads use
+
+    public bool SupportsSagaCompletion(string sagaTypeName)
+    {
+        foreach (var child in _children)
+        {
+            if (child.SupportsSagaCompletion(sagaTypeName)) return true;
+        }
+
+        return false;
+    }
+
+    public async Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new ArgumentException("Say why the saga is being completed.", nameof(reason));
+        }
+
+        var routes = await ensureRoutesAsync(ct).ConfigureAwait(false);
+        if (!routes.TryGetValue(sagaTypeName, out var child))
+        {
+            throw new NotSupportedException($"No saga storage in this service keeps sagas of type {sagaTypeName}.");
+        }
+
+        var result = await child.CompleteSagaAsync(sagaTypeName, identity, reason, ct).ConfigureAwait(false);
+
+        if (result.Terminated && _runtime != null)
+        {
+            _runtime.Logger.LogInformation(
+                "Saga {SagaType} with identity {SagaId} was completed from outside its handlers ({Outcome}): {Reason}",
+                result.SagaTypeName, identity, result.Outcome, reason);
+        }
+
+        return result;
     }
 
     // GH-5558: idle diagnostics route like everything else, to the storage that owns the saga type

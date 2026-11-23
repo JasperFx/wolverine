@@ -101,6 +101,32 @@ internal sealed partial class DocumentStoreSagaStoreDiagnostics : ISagaHistoryDi
         => new(e.Version, e.Timestamp, e.EventTypeName, e.EventType.FullName ?? e.DotNetTypeName,
             JsonSerializer.SerializeToElement(e.Data, e.EventType));
 
+    // GH-5839: an operator completes an event-sourced saga with the same SagaCompleted event MarkCompleted() appends,
+    // carrying the reason, and with the Archived event too for an [ArchiveWhenCompleted] saga. FetchForWriting makes the
+    // append optimistic: a saga that gained an event since it was read is refused with the store's concurrency error
+    private static async Task<SagaTerminationOutcome> completeEventSourcedAsync<TSaga>(IDocumentSessionFactory sessions,
+        object streamId, string reason, CancellationToken ct) where TSaga : EventSourcedSaga
+    {
+        await using var session = sessions.LightweightSession();
+        var events = EventSessionAccess.EventOperationsOf(session);
+
+        var stream = streamId is Guid guid
+            ? await events.FetchForWriting<TSaga>(guid, ct).ConfigureAwait(false)
+            : await events.FetchForWriting<TSaga>(streamId.ToString()!, ct).ConfigureAwait(false);
+
+        if (stream.Aggregate is null) return SagaTerminationOutcome.NotFound;
+        if (stream.Aggregate.IsCompleted()) return SagaTerminationOutcome.AlreadyCompleted;
+
+        stream.AppendOne(new SagaCompleted { Reason = reason });
+        if (typeof(TSaga).HasAttribute<ArchiveWhenCompletedAttribute>())
+        {
+            stream.AppendOne(new Archived(ArchiveWhenCompletedAttribute.Reason));
+        }
+
+        await session.SaveChangesAsync(ct).ConfigureAwait(false);
+        return SagaTerminationOutcome.CompletionAppended;
+    }
+
     // GH-5415 / GH-5572: a completed event-sourced saga past its retention period has its stream archived with
     // JasperFx.Events' Archived event, and its snapshot removed. Events are never deleted
     [UnconditionalSuppressMessage("AOT", "IL3050",
