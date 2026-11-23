@@ -63,6 +63,7 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
                     .IncludeType(typeof(FisherRacingHandler))
                     .IncludeType(typeof(ShortWindowFisherPaymentHandler))
                     .IncludeType(typeof(AdjustFisherLedgerItselfHandler))
+                    .IncludeType(typeof(SelfSavingFisherPaymentHandler))
                     .IncludeType(typeof(FailAfterCommitFisherPaymentHandler));
 
                 opts.Durability.Mode = DurabilityMode.Solo;
@@ -85,6 +86,7 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
         OptionallyKeyedFisherHandler.Received.Clear();
         ShortWindowFisherPaymentHandler.Received.Clear();
         FailingFisherPaymentHandler.Attempts = 0;
+        SelfSavingFisherPaymentHandler.Attempts = 0;
         FisherRacingHandler.Arrived = 0;
     }
 
@@ -386,6 +388,66 @@ public class deduplication_rides_the_fisher_transaction : IAsyncLifetime
         RecordFisherPaymentHandler.Received.ShouldHaveSingleItem().ShouldBe("first");
     }
 
+    [Fact]
+    public async Task a_handler_that_saves_its_own_session_is_not_a_duplicate_of_itself()
+    {
+        await _host.SendMessageAndWaitAsync(new SelfSavingFisherPayment("self-saving"),
+            new DeliveryOptions { DeduplicationId = "self-saving" });
+
+        SelfSavingFisherPaymentHandler.Attempts.ShouldBe(1);
+        (await recordCountAsync("self-saving-saved")).ShouldBe(1);
+        (await recordCountAsync("self-saving-after")).ShouldBe(1);
+        (await claimCountAsync("self-saving")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task a_claim_rolled_back_with_its_save_is_written_by_the_next_save_and_only_by_that_one()
+    {
+        var store = _host.Services.GetRequiredService<IDocumentStore>();
+        await using var session = store.LightweightSession();
+        _host.Services.GetRequiredService<IFisherDeduplicator>().QueueClaim(session, "rolled-back", null);
+
+        // Participants run in the order they were enlisted, so the claim's INSERT has run when this throws
+        session.AddTransactionParticipant(new FailsOnceFisherParticipant());
+
+        await Should.ThrowAsync<DivideByZeroException>(() =>
+            session.SaveChangesAsync(TestContext.Current.CancellationToken));
+        (await claimCountAsync("rolled-back")).ShouldBe(0);
+
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        (await claimCountAsync("rolled-back")).ShouldBe(1);
+
+        session.Store(new FisherPaymentRecord { Id = Guid.NewGuid(), Name = "after-the-claim" });
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        (await recordCountAsync("after-the-claim")).ShouldBe(1);
+        (await claimCountAsync("rolled-back")).ShouldBe(1);
+    }
+
+    private async Task<int> recordCountAsync(string name)
+    {
+        await using var query = _host.Services.GetRequiredService<IDocumentStore>().QuerySession();
+        var matches = await query.Query<FisherPaymentRecord>()
+            .Where(x => x.Name == name)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        return matches.Count;
+    }
+
+    private class FailsOnceFisherParticipant : ITransactionParticipant
+    {
+        private bool _failed;
+
+        public Task BeforeCommitAsync(SqliteConnection connection, SqliteTransaction transaction,
+            CancellationToken token)
+        {
+            if (_failed) return Task.CompletedTask;
+
+            _failed = true;
+            throw new DivideByZeroException("fails the first save");
+        }
+    }
+
     private async Task<int> claimCountAsync(string key)
     {
         await using var conn = new SqliteConnection(theDatabase.ConnectionString);
@@ -455,6 +517,25 @@ public static class RecordFisherPaymentHandler
     {
         Received.Add(message.Name);
         session.Store(new FisherPaymentRecord { Id = Guid.NewGuid(), Name = message.Name });
+    }
+}
+
+public record SelfSavingFisherPayment(string Name);
+
+public static class SelfSavingFisherPaymentHandler
+{
+    public static int Attempts;
+
+    [Deduplicated]
+    [Transactional]
+    public static async Task Handle(SelfSavingFisherPayment message, IDocumentSession session)
+    {
+        Attempts++;
+
+        session.Store(new FisherPaymentRecord { Id = Guid.NewGuid(), Name = message.Name + "-saved" });
+        await session.SaveChangesAsync();
+
+        session.Store(new FisherPaymentRecord { Id = Guid.NewGuid(), Name = message.Name + "-after" });
     }
 }
 

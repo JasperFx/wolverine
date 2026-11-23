@@ -76,7 +76,8 @@ public class deduplication_on_a_fisher_transaction : IAsyncLifetime
         theHost = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a transactional deduplication test endpoint",
-                    type => type != typeof(FisherDeduplicatedEndpoint)))));
+                    type => type != typeof(FisherDeduplicatedEndpoint)
+                            && type != typeof(SelfSavingFisherDeduplicatedEndpoint)))));
 
         // No ResetResourceState and no document cleanup: the database file is new per fixture, so there
         // is nothing to carry over into the counts below.
@@ -248,6 +249,53 @@ public class deduplication_on_a_fisher_transaction : IAsyncLifetime
         source.ShouldContain(nameof(HttpHandler.WatchForDuplicateRefusal));
         source.IndexOf(nameof(HttpHandler.MarkDeduplicationCommitStarted), StringComparison.Ordinal)
             .ShouldBeLessThan(source.IndexOf("SaveChangesAsync", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task an_endpoint_that_saves_its_own_session_succeeds_and_its_replay_is_refused()
+    {
+        var first = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("self-saved")).ToUrl("/fisher-dedup/save-then-return");
+            x.WithRequestHeader("Idempotency-Key", "self-save-1");
+            x.StatusCodeShouldBeOk();
+        });
+        (await first.ReadAsTextAsync()).ShouldBe("saved");
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("self-saved-again")).ToUrl("/fisher-dedup/save-then-return");
+            x.WithRequestHeader("Idempotency-Key", "self-save-1");
+            x.StatusCodeShouldBe(409);
+        });
+
+        (await countAsync("self-saved")).ShouldBe(1);
+        (await countAsync("self-saved-again")).ShouldBe(0);
+        (await claimCountAsync("self-save-1")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task an_endpoint_that_saves_its_own_session_then_stores_more_commits_both()
+    {
+        var first = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("self-saved")).ToUrl("/fisher-dedup/save-then-store-more");
+            x.WithRequestHeader("Idempotency-Key", "self-save-2");
+            x.StatusCodeShouldBeOk();
+        });
+        (await first.ReadAsTextAsync()).ShouldBe("saved");
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FisherDedupRequest("self-saved-again")).ToUrl("/fisher-dedup/save-then-store-more");
+            x.WithRequestHeader("Idempotency-Key", "self-save-2");
+            x.StatusCodeShouldBe(409);
+        });
+
+        (await countAsync("self-saved")).ShouldBe(1);
+        (await countAsync("self-saved-after")).ShouldBe(1);
+        (await countAsync("self-saved-again")).ShouldBe(0);
+        (await claimCountAsync("self-save-2")).ShouldBe(1);
     }
 
     private async Task<int> claimCountAsync(string key)
@@ -423,6 +471,31 @@ public static class FisherDeduplicatedEndpoint
     {
         session.Insert(new FailAfterCommitFisherMarker { Id = Guid.NewGuid() });
         return "ok";
+    }
+}
+
+public static class SelfSavingFisherDeduplicatedEndpoint
+{
+    [Deduplicated]
+    [WolverinePost("/fisher-dedup/save-then-return")]
+    public static async Task<string> SaveThenReturn(FisherDedupRequest request, IDocumentSession session,
+        CancellationToken cancellation)
+    {
+        session.Store(new FisherDedupDocument { Id = Guid.NewGuid(), Name = request.Name });
+        await session.SaveChangesAsync(cancellation);
+        return "saved";
+    }
+
+    [Deduplicated]
+    [WolverinePost("/fisher-dedup/save-then-store-more")]
+    public static async Task<string> SaveThenStoreMore(FisherDedupRequest request, IDocumentSession session,
+        CancellationToken cancellation)
+    {
+        session.Store(new FisherDedupDocument { Id = Guid.NewGuid(), Name = request.Name });
+        await session.SaveChangesAsync(cancellation);
+
+        session.Store(new FisherDedupDocument { Id = Guid.NewGuid(), Name = request.Name + "-after" });
+        return "saved";
     }
 }
 

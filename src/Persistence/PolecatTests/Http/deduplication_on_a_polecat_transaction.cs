@@ -75,7 +75,8 @@ public class deduplication_on_a_polecat_transaction : IAsyncLifetime
         theHost = await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts =>
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a transactional deduplication test endpoint",
-                    type => type != typeof(PolecatDeduplicatedEndpoint)))));
+                    type => type != typeof(PolecatDeduplicatedEndpoint)
+                            && type != typeof(SelfSavingPolecatDeduplicatedEndpoint)))));
 
         await ((IHost)theHost).ResetResourceState();
 
@@ -252,6 +253,53 @@ public class deduplication_on_a_polecat_transaction : IAsyncLifetime
             .ShouldBeLessThan(source.IndexOf("SaveChangesAsync", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task an_endpoint_that_saves_its_own_session_succeeds_and_its_replay_is_refused()
+    {
+        var first = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new PolecatDedupRequest("self-saved")).ToUrl("/polecat-dedup/save-then-return");
+            x.WithRequestHeader("Idempotency-Key", "self-save-1");
+            x.StatusCodeShouldBeOk();
+        });
+        (await first.ReadAsTextAsync()).ShouldBe("saved");
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new PolecatDedupRequest("self-saved-again")).ToUrl("/polecat-dedup/save-then-return");
+            x.WithRequestHeader("Idempotency-Key", "self-save-1");
+            x.StatusCodeShouldBe(409);
+        });
+
+        (await countAsync("self-saved")).ShouldBe(1);
+        (await countAsync("self-saved-again")).ShouldBe(0);
+        (await claimCountAsync("self-save-1")).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task an_endpoint_that_saves_its_own_session_then_stores_more_commits_both()
+    {
+        var first = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new PolecatDedupRequest("self-saved")).ToUrl("/polecat-dedup/save-then-store-more");
+            x.WithRequestHeader("Idempotency-Key", "self-save-2");
+            x.StatusCodeShouldBeOk();
+        });
+        (await first.ReadAsTextAsync()).ShouldBe("saved");
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new PolecatDedupRequest("self-saved-again")).ToUrl("/polecat-dedup/save-then-store-more");
+            x.WithRequestHeader("Idempotency-Key", "self-save-2");
+            x.StatusCodeShouldBe(409);
+        });
+
+        (await countAsync("self-saved")).ShouldBe(1);
+        (await countAsync("self-saved-after")).ShouldBe(1);
+        (await countAsync("self-saved-again")).ShouldBe(0);
+        (await claimCountAsync("self-save-2")).ShouldBe(1);
+    }
+
     private static async Task<int> claimCountAsync(string key)
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
@@ -398,6 +446,31 @@ public static class PolecatDeduplicatedEndpoint
     {
         session.Insert(new FailAfterCommitPolecatMarker { Id = Guid.NewGuid() });
         return "ok";
+    }
+}
+
+public static class SelfSavingPolecatDeduplicatedEndpoint
+{
+    [Deduplicated]
+    [WolverinePost("/polecat-dedup/save-then-return")]
+    public static async Task<string> SaveThenReturn(PolecatDedupRequest request, IDocumentSession session,
+        CancellationToken cancellation)
+    {
+        session.Store(new PolecatDedupDocument { Id = Guid.NewGuid(), Name = request.Name });
+        await session.SaveChangesAsync(cancellation);
+        return "saved";
+    }
+
+    [Deduplicated]
+    [WolverinePost("/polecat-dedup/save-then-store-more")]
+    public static async Task<string> SaveThenStoreMore(PolecatDedupRequest request, IDocumentSession session,
+        CancellationToken cancellation)
+    {
+        session.Store(new PolecatDedupDocument { Id = Guid.NewGuid(), Name = request.Name });
+        await session.SaveChangesAsync(cancellation);
+
+        session.Store(new PolecatDedupDocument { Id = Guid.NewGuid(), Name = request.Name + "-after" });
+        return "saved";
     }
 }
 
