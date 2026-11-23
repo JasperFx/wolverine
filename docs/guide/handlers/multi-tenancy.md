@@ -101,7 +101,7 @@ public static class SomeCommandHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/multi_tenancy.cs#L121-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_injecting_tenant_id' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/multi_tenancy.cs#L147-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_injecting_tenant_id' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In tests, you can create that `TenantId` value just by:

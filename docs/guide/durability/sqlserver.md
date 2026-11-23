@@ -185,7 +185,7 @@ startup with a single error that lists every missing connection string the appli
 There's also an overload of `PersistMessagesWithSqlServerUsingNamedConnection()` that takes the same
 `optimizeEnvelopeIdsForSqlServer` flag described in [Optimized Envelope IDs for SQL Server](#optimized-envelope-ids-for-sql-server).
 
-If you're using [multi-tenancy with a database per tenant](#multi-tenancy), the static tenant databases can be
+If you're using [multi-tenancy with a database per tenant](#multi-tenancy-1), the static tenant databases can be
 resolved by name too:
 
 <!-- snippet: sample_sqlserver_static_tenants_using_named_connections -->
@@ -794,7 +794,7 @@ is maintained in Wolverine's interop test suite. See the [interop tutorial](/tut
 #### Dedicated interop database under multi-tenanted storage <Badge type="tip" text="6.16" />
 
 The NServiceBus header-based tenancy above is about NServiceBus' *own* persistence. A different situation arises
-when **Wolverine's** message storage is multi-tenanted with [a separate database per tenant](#multi-tenancy): there,
+when **Wolverine's** message storage is multi-tenanted with [a separate database per tenant](#multi-tenancy-1): there,
 the NServiceBus interop queue tables still live on the **one shared database** NServiceBus reads from — they must
 *not* be replicated into each tenant database.
 
@@ -885,9 +885,9 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L58-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-::: warning
-Wolverine is not yet able to dynamically tear down tenants yet. That's long planned, and honestly probably only happens
-when an outside company sponsors that work.
+::: tip
+Taking a tenant out of a running system works the same way as it does for PostgreSQL. See
+[Removing a Tenant from a Running System](/guide/durability/postgresql#removing-a-tenant-from-a-running-system).
 :::
 
 If you need to be able to add new tenants at runtime or just have more tenants than is comfortable living in static configuration

@@ -27,7 +27,7 @@ public class TodoDbContext : DbContext
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/using_storage_return_types_and_entity_attributes.cs#L47-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tododbcontext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/using_storage_return_types_and_entity_attributes.cs#L197-L218' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tododbcontext' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can use storage operations in Wolverine message handlers or HTTP endpoints like these samples from the Wolverine

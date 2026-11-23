@@ -28,11 +28,11 @@ public class NoCascadingHandler
         _bus = bus;
     }
 
-    public void Consume(MyMessage message)
+    public ValueTask Consume(MyMessage message)
     {
         // do whatever work you need to for MyMessage,
         // then send out a new MyResponse
-        _bus.SendAsync(new MyResponse());
+        return _bus.SendAsync(new MyResponse());
     }
 }
 ```
@@ -192,7 +192,7 @@ Let's say that we have two running service bus nodes named "Sender" and "Receive
 is called from the "Sender" node:
 
 <!-- snippet: sample_Request/Replay_with_cascading -->
-<a id='snippet-sample_request/replay_with_cascading'></a>
+<a id='snippet-sample_Request/Replay_with_cascading'></a>
 ```cs
 public class Requester
 {
@@ -209,7 +209,7 @@ public class Requester
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L41-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_request/replay_with_cascading' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CascadingSamples.cs#L41-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_Request/Replay_with_cascading' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and inside Receiver we have this code:
@@ -233,8 +233,9 @@ Assuming that `MyMessage` is configured to be sent to "Receiver," the following 
 1. Sender sends a `MyMessage` message to the Receiver node with the "reply-requested" header value of "MyResponse"
 1. Receiver handles the `MyMessage` message by calling the `CascadingHandler.Consume(MyMessage)` method
 1. Receiver sees the value of the "reply-requested" header matches the response, so it sends the `MyResponse` object back to Sender
-1. When Sender receives the matching `MyResponse` message that corresponds to the original `MyMessage`, it sets the completion back
-   to the Task returned by the `IMessageContext.Request<TResponse>()` method
+1. When Sender receives the matching `MyResponse` message that corresponds to the original `MyMessage`, it handles it like any other
+   incoming message. If Sender had used `IMessageBus.InvokeAsync<MyResponse>()` instead, the response would complete the `Task`
+   returned by that call
 
 
 ## Conditional Responses

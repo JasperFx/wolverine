@@ -30,7 +30,7 @@ By marking this local queue as persistent, any messages sent to this queue
 in memory are first persisted to the underlying SQL Server database, and deleted when the message is successfully processed. This allows Wolverine to grant a stronger
 delivery guarantee to local messages and even allow messages to be processed if the current application node fails before the message is processed.
 
-Or finally, it's less code to opt into Wolverine's outbox by delegating to the [command bus](/guide/in-memory-bus) functionality:
+Or finally, it's less code to opt into Wolverine's outbox by delegating to the [command bus](/tutorials/mediator) functionality:
 
 ```cs
 // Delegate directly to Wolverine commands

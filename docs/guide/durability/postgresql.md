@@ -888,9 +888,9 @@ var host = Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L151-L159' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_our_fancy_postgresql_multi_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-::: warning
-Neither Marten nor Wolverine is able to dynamically tear down tenants yet. That's long planned, and honestly probably only happens
-when an outside company sponsors that work.
+::: tip
+Taking a tenant out of a running system is covered in
+[Removing a Tenant from a Running System](#removing-a-tenant-from-a-running-system) below.
 :::
 
 If you need to be able to add new tenants at runtime or just have more tenants than is comfortable living in static configuration

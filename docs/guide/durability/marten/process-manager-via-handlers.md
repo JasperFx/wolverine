@@ -56,7 +56,7 @@ public interface IEventStream<out T> where T : notnull
 }
 ```
 
-`Aggregate` is null and `StartingVersion` is null when the stream does not exist yet. That is important and returns in [Section 3](#the-recipe) when you look at the start handler.
+`Aggregate` is null and `StartingVersion` is null when the stream does not exist yet. That is important and returns in [Section 3](#_3-the-recipe) when you look at the start handler.
 
 ### `[AggregateHandler]`
 
@@ -81,7 +81,7 @@ If `[AggregateHandler]` works for your handler, prefer it. `[WriteAggregate]` is
 
 ### `MartenOps.StartStream<T>`
 
-`FetchForWriting` is how you attach handlers to an existing stream. To **create** the stream in the first place, you return a result built by `MartenOps.StartStream<TState>(id, events...)` from a plain handler. Wolverine recognizes the return value, writes the stream-start and the initial events in one transaction, and you are off to the races. The start handler has a different shape from continue handlers, and [Section 3](#the-recipe) is specific about why.
+`FetchForWriting` is how you attach handlers to an existing stream. To **create** the stream in the first place, you return a result built by `MartenOps.StartStream<TState>(id, events...)` from a plain handler. Wolverine recognizes the return value, writes the stream-start and the initial events in one transaction, and you are off to the races. The start handler has a different shape from continue handlers, and [Section 3](#_3-the-recipe) is specific about why.
 
 ### `Apply` methods on the state type
 
@@ -121,7 +121,7 @@ public static IEnumerable<object> Handle(PaymentConfirmed @event, OrderFulfillme
 
 `Events` (from `Wolverine.Marten`) is a `List<object>` with the same codegen recognition. It is the natural choice when returning a tuple alongside `OutgoingMessages`, since both legs of the tuple are explicit collections. For a single unconditional event, returning the event directly is also valid.
 
-Avoid nullable single-event returns (`TEvent?`): the codegen emits `stream.AppendOne(variable)` with no null check, so `return null` calls `AppendOne(null)`. Use `IEnumerable<object>` with `yield break` or an empty `Events` for the no-op path.
+A nullable single-event return (`TEvent?`) works too: the generated code only appends the event when it isn't null, so `return null` is a no-op. `IEnumerable<object>` reads better once a handler can append more than one event.
 
 ### How these pieces combine
 
@@ -135,7 +135,7 @@ Taken together, the ingredients look like this:
 - A terminal event that every continue handler guards against, so late-arriving messages are no-ops instead of corruption.
 - A Marten configuration that registers the state type as an inline snapshot projection.
 
-[Section 3](#the-recipe) walks through each of those in order, using the order fulfillment sample as the worked example.
+[Section 3](#_3-the-recipe) walks through each of those in order, using the order fulfillment sample as the worked example.
 
 ## 3. The Recipe
 
@@ -870,10 +870,6 @@ One related trap worth flagging: the `JasperFx.Events.ExistingStreamIdCollisionE
 ### Silent failure mode if you misapply `[AggregateHandler]` to a start handler
 
 If you forget and put `[AggregateHandler]` on a start handler, the middleware short-circuits before your handler runs. No events are appended. No exception is thrown. The test "passes" the build and the handler signature, then fails your assertion on event count with no useful diagnostic. The first time you hit this, expect to spend an hour before you realize the handler body never ran.
-
-### Nullable single-event returns are unsafe
-
-Returning `TEvent?` from a continue handler is ergonomic for the "sometimes no event" case but the aggregate-handler codegen emits `stream.AppendOne(variable)` unconditionally with no null check. A `return null;` will call `AppendOne(null)`. Use `IEnumerable<object>` with `yield break` for the no-op path instead.
 
 ### Inline snapshot projection is a silent correctness dependency
 

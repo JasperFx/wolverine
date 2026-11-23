@@ -175,7 +175,7 @@ _host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L19-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_with_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-and after that, the calls to [InvokeForTenantAsync()]() "just work" as you can see if you squint hard enough reading this test:
+and after that, the calls to `InvokeForTenantAsync()` "just work" as you can see if you squint hard enough reading this test:
 
 <!-- snippet: sample_using_conjoined_tenancy -->
 <a id='snippet-sample_using_conjoined_tenancy'></a>
@@ -199,21 +199,21 @@ public async Task execute_with_tenancy()
     // Check the first tenant
     using (var session = store.LightweightSession("one"))
     {
-        var document = await session.LoadAsync<TenantedDocument>(id);
+        var document = await session.LoadAsync<TenantedDocument>(id, TestContext.Current.CancellationToken);
         document!.Location.ShouldBe("Andor");
     }
 
     // Check the second tenant
     using (var session = store.LightweightSession("two"))
     {
-        var document = await session.LoadAsync<TenantedDocument>(id);
+        var document = await session.LoadAsync<TenantedDocument>(id, TestContext.Current.CancellationToken);
         document!.Location.ShouldBe("Tear");
     }
 
     // Check the third tenant
     using (var session = store.LightweightSession("three"))
     {
-        var document = await session.LoadAsync<TenantedDocument>(id);
+        var document = await session.LoadAsync<TenantedDocument>(id, TestContext.Current.CancellationToken);
         document!.Location.ShouldBe("Illian");
     }
 }

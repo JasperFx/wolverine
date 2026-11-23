@@ -9,5 +9,6 @@ IoC container.
 
 ## Optimistic Concurrency
 
-Polecat will automatically apply numeric revisioning to Wolverine `Saga` storage, and will increment
+When your saga type implements `IRevisioned`, Polecat applies numeric revisioning to it, and Wolverine will increment
 the `Version` while handling `Saga` commands to use Polecat's native optimistic concurrency protection.
+`IRevisioned.Version` is `Saga.Version`, so there is nothing else to declare.

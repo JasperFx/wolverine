@@ -873,14 +873,14 @@ no message payload.
 A fault is published when:
 
 - **Moved to error queue (DLQ)** — every retry policy that ends in DLQ.
-- **Discarded** — only when the failure rule was configured with `discardWithFaultPublish: true`.
+- **Discarded** -- only when fault events were turned on with `includeDiscarded: true` (on `PublishFaultEvents()` or a per-type `PublishFault()`).
 - **Expired envelope** — handler entry observes the envelope past its `DeliverBy`; counts as a terminal failure.
 
 A fault is **not** published in these bypass paths:
 
 - **Send-side failures** — the broker rejects the outbound publish before it ever reached a handler.
 - **Unknown message type at the receiver** — Wolverine cannot synthesize a `T` to wrap.
-- **Pre-handler crypto failures** — `EncryptionPolicyViolationException`, `EncryptionMissingHeaderException`, `EncryptionDecryptionException` short-circuit before the handler runs.
+- **Pre-handler crypto failures** -- `EncryptionPolicyViolationException`, `EncryptionKeyNotFoundException`, `MessageDecryptionException` short-circuit before the handler runs.
 - **Fault-publish recursion** — a failing `Fault<T>` handler will not trigger a `Fault<Fault<T>>`. The recursion guard logs at Debug and emits a `wolverine.fault.recursion_suppressed` activity event.
 
 #### When the fault is written with its dead letter <Badge type="tip" text="7.0" />
@@ -1035,16 +1035,16 @@ it does not constrain the outbound republish of an auto-published
 Three Activity events are added to the failing envelope's span:
 
 - `wolverine.fault.published` — when a fault is enqueued for routing.
-- `wolverine.fault.no_route` — when no route exists for `Fault<T>`. Tagged with `wolverine.fault.message_type`.
+- `wolverine.fault.no_route` -- when no route exists for `Fault<T>`. Tagged with `messaging.message_type`.
 - `wolverine.fault.recursion_suppressed` — when the recursion guard fires.
 
 One counter:
 
-- `wolverine.fault.events_published` — `Counter<int>`, incremented per fault enqueued. Suppressed (recursion-guarded) faults do **not** increment this counter.
+- `wolverine.fault_publish.failures` -- `Counter<int>`, incremented per auto-published fault that failed to publish, tagged with the message type and the exception type.
 
 On publish failure (the `MUST NOT throw` contract): the publisher
 catches, logs at Error, sets the activity status to Error, and emits a
-`wolverine.fault.publish_failed` activity event.
+`wolverine.fault.publish.failed` activity event.
 
 Outbound `Fault<T>` envelopes inherit `ConversationId`, `CorrelationId`,
 and `TraceParent` from the failing envelope, so distributed traces stay
@@ -1074,7 +1074,7 @@ ones.
 - **`Fault<T>.ToString()` leaks `Message` plaintext.** Positional records auto-generate a `ToString` that includes every field. Logging `$"Got {fault}"` writes the wrapped `T` plaintext into your log sink. For sensitive `T`, use the encryption pairing AND avoid logging the fault directly.
 - **`RequireEncryption()` does not constrain outbound faults.** Marking a listener `.RequireEncryption()` only rejects unencrypted *inbound* envelopes on that listener; it has no effect on whether a `Fault<T>` triggered by a failure on that listener is encrypted on its outbound hop. Use the per-type `Encrypt()` pairing for outbound protection.
 - **Manual `bus.PublishAsync(new Fault<T>(...))` skips the auto-header.** That is by design — assertions and `ITrackedSession.AutoFaultsPublished` distinguish auto from manual. Filtering on `FaultHeaders.AutoPublished` excludes manual publishes.
-- **Recursion suppression is silent in metrics.** A suppressed recursive fault does NOT increment `wolverine.fault.events_published`. Watch for the `wolverine.fault.recursion_suppressed` activity event if you suspect a Fault-handler is faulting.
+- **Recursion suppression is silent in metrics.** There's no counter for a suppressed recursive fault. Watch for the `wolverine.fault.recursion_suppressed` activity event if you suspect a Fault-handler is faulting.
 - **Per-type override defaults are NOT global defaults.** `Policies.ForMessagesOfType<T>().PublishFault()` with no parameters uses the parameter defaults (`true` / `true`), independent of the global `PublishFaultEvents(...)` redaction settings. Always pass the redaction flags explicitly when overriding.
 
 ### See also

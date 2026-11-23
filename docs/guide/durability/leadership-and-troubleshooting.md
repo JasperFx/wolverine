@@ -17,7 +17,7 @@ election failing to start or to fail over from the previous leader dropping off.
 There is no harm in deleting rows from this table. It is strictly a log
 :::
 
-As of Wolverine 1.10, there is a table in the PostgreSQL or Sql Server backed message storage called `wolverine_node_records`
+There is a table in the relational message stores (PostgreSQL, SQL Server, MySQL, SQLite, and Oracle) called `wolverine_node_records`
 that just has a record of detected events relevant to the leader election. All of this information is also logged
 through the standard .Net `ILogger`, but it might be easier to understand the data in this table. 
 
@@ -115,7 +115,7 @@ running in a debugger.
 
 To alleviate the issues that developers have had in the past with this mode, Wolverine 1.10 introduced the "Solo" mode
 where the system can be optimized to run as if there's never more than one running node:
-[..](..%2F..)
+
 <!-- snippet: sample_configuring_the_solo_mode -->
 <a id='snippet-sample_configuring_the_solo_mode'></a>
 ```cs
@@ -143,7 +143,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L53-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L54-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Running your Wolverine application like this means that Wolverine is able to more quickly start the transactional inbox

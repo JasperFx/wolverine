@@ -7,7 +7,7 @@ IoC service registrations to "decide" if middleware applies to the current HTTP 
 :::
 
 Wolverine supports the "Russian Doll" model of middleware, similar in concept to ASP.NET Core but very different in implementation. 
-Wolverine's middleware uses runtime code generation and compilation with [JasperFx.CodeGeneration](https://github.com/jasperfx/jasperfx.codegeneration) (which is also used by [Marten](https://martendb.io)). 
+Wolverine's middleware uses runtime code generation and compilation with [JasperFx](https://github.com/JasperFx/jasperfx) (which is also used by [Marten](https://martendb.io)). 
 What this means is that "middleware" in Wolverine is code that is woven right into the message and route handlers. The end result is a much more efficient runtime pipeline
 than most other frameworks that adopt the "Russian Doll" middleware approach that suffer performance issues because of the sheer number of object allocations. It also hopefully means
 that the exception stack traces from failures in Wolverine message handlers will be far less noisy than competitor tools and Wolverine's own predecessors.
@@ -546,7 +546,7 @@ public class Wolverine_Testing_Samples_ClockedEndpoint_get_clocked : Wolverine.H
 }
 ```
 
-`ModifyChainAttribute` is a generic way to add middleware or post processing frames, but if you need to configure things specific to routes or message handlers, you can also use `ModifyHandlerChainAttribute` for message handlers or `ModifyRouteAttribute` for http routes.
+`ModifyChainAttribute` is a generic way to add middleware or post processing frames, but if you need to configure things specific to routes or message handlers, you can also use `ModifyHandlerChainAttribute` for message handlers or `ModifyHttpChainAttribute` for HTTP endpoints.
 
 
 ## Policies
@@ -615,13 +615,13 @@ There's one last option for configuring chains by a naming convention. If you wa
 you can implement a method with one of these signatures:
 
 ```csharp
-public static void Configure(IChain)
+public static void Configure(IChain chain)
 {
     // gets called for each endpoint or message handling method
     // on just this class
 }
 
-public static void Configure(RouteChain chain)
+public static void Configure(HttpChain chain)
 {
     // gets called for each endpoint method on this class
 }

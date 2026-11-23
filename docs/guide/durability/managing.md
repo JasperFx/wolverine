@@ -236,7 +236,7 @@ The available commands are:
   help        List all the available commands
   resources   Check, setup, or teardown stateful resources of this system
   run         Start and run this .Net application
-  storage     Administer the envelope storage
+  storage     Administer the Wolverine message storage
 ```
 
 There's admittedly some duplication here with different options coming from [JasperFx](https://github.com/JasperFx/jasperfx) itself, the [Weasel.CommandLine](https://weasel.jasperfx.net/cli/) library,

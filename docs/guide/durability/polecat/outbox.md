@@ -68,7 +68,7 @@ public class CreateOrderController : ControllerBase
     public async Task Create(
         [FromBody] CreateOrder command,
         [FromServices] IDocumentSession session,
-        [FromServices] IMessageBus bus)
+        [FromServices] IPolecatOutbox outbox)
     {
         var order = new Order
         {
@@ -80,7 +80,7 @@ public class CreateOrderController : ControllerBase
 
         // Don't worry, this message doesn't go out until
         // after the Polecat transaction succeeds
-        await bus.PublishAsync(new OrderCreated(order.Id));
+        await outbox.PublishAsync(new OrderCreated(order.Id));
 
         // Commit the Polecat transaction
         await session.SaveChangesAsync();
@@ -91,7 +91,7 @@ public class CreateOrderController : ControllerBase
 From a Minimal API:
 
 ```cs
-app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession session, IMessageBus bus) =>
+app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession session, IPolecatOutbox outbox) =>
 {
     var order = new Order
     {
@@ -100,7 +100,7 @@ app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession sess
 
     session.Store(order);
 
-    await bus.PublishAsync(new OrderCreated(order.Id));
+    await outbox.PublishAsync(new OrderCreated(order.Id));
 
     await session.SaveChangesAsync();
 });

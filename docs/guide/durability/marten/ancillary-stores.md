@@ -216,7 +216,7 @@ So what's possible so far?
 * Subscriptions to Marten events
 * Multi-tenancy, both "conjoined" Marten multi-tenancy and multi-tenancy through separate databases
 * [Wolverine managed projection or subscription distribution](/guide/durability/marten/distribution)
-* * The ["Event Forwarding"](/guide/durability/marten/event-forwarding) from Marten to Wolverine, but that is either 100% enabled for all Marten stores through the main Marten store registration or not at all
+* The ["Event Forwarding"](/guide/durability/marten/event-forwarding) from Marten to Wolverine, but that is either 100% enabled for all Marten stores through the main Marten store registration or not at all
 
 ::: tip
 In the case of the ancillary Marten stores, the `IDocumentSession` objects are "lightweight" sessions without

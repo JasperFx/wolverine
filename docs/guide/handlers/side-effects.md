@@ -229,7 +229,7 @@ In your method signatures, you can:
 * Return null values, in which case Wolverine is smart enough to do nothing
 
 ::: info
-As of now, this usage is supported by Wolverine's [Marten](/guide/durability/marten/), [EF Core](/guide/durability/efcore), and [RavenDb](/guide/durability/ravendb) integrations.
+As of now, this usage is supported by Wolverine's [Marten](/guide/durability/marten/), [Polecat](/guide/durability/polecat/), [Fisher](/guide/durability/fisher/), [EF Core](/guide/durability/efcore), [RavenDb](/guide/durability/ravendb), [CosmosDb](/guide/durability/cosmosdb), [Amazon S3](/guide/durability/amazon-s3) and [Azure Blob Storage](/guide/durability/azure-blob-storage) integrations.
 Do note that not every persistence integration supports the `Store()` ["upsert"](https://en.wiktionary.org/wiki/upsert) capability (EF Core does not). 
 :::
 

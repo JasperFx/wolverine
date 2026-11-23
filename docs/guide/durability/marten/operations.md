@@ -7,7 +7,7 @@ handlers
 
 ::: info
 This integration also includes full support for the [storage action side effects](/guide/handlers/side-effects.html#storage-side-effects)
-model when using Marten~~~~ with Wolverine.
+model when using Marten with Wolverine.
 :::
 
 The `Wolverine.Marten` library includes some helpers for Wolverine [side effects](/guide/handlers/side-effects) using

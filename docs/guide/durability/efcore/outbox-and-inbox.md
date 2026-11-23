@@ -106,9 +106,9 @@ public async Task Post(
 ### Multiple Flushes in Batching Loops
 
 `IDbContextOutbox<T>` and `IDbContextOutbox` use the same `MessageContext` mechanics as Wolverine's
-handler pipeline. By default, `MultiFlushMode` is `OnlyOnce`. That default prevents accidental duplicate
-outgoing messages when Wolverine's generated handler pipeline reaches the flush step more than once for
-the same incoming message.
+handler pipeline. By default, `MultiFlushMode` is `OnlyOnce`. That setting only governs explicit flushes from
+your own code, like a second `SaveChangesAndFlushMessagesAsync()` call. Wolverine's own pipeline flushes always
+send whatever is outstanding, and every flush clears what it sent, so nothing goes out twice.
 
 If you are using the EF Core outbox directly from application code and intentionally call
 `SaveChangesAndFlushMessagesAsync()` more than once on the same scoped outbox instance, opt into multiple
