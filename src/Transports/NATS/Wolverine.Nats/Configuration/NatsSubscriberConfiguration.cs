@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Wolverine.Configuration;
 using Wolverine.Nats.Internal;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Nats.Configuration;
 
@@ -7,10 +9,32 @@ namespace Wolverine.Nats.Configuration;
 /// Configuration for NATS publishers/subscribers
 /// </summary>
 public class NatsSubscriberConfiguration
-    : SubscriberConfiguration<NatsSubscriberConfiguration, NatsEndpoint>
+    : InteroperableSubscriberConfiguration<NatsSubscriberConfiguration, NatsEndpoint, INatsEnvelopeMapper, NatsEnvelopeMapper>
 {
     public NatsSubscriberConfiguration(NatsEndpoint endpoint)
         : base(endpoint) { }
+
+    /// <summary>
+    /// Publish only the serialized JSON of each message to this subject, with none of Wolverine's headers, for
+    /// subscribers that are not Wolverine. Headers added with <see cref="AddOutgoingHeader"/> are still written.
+    /// Request/reply and the tenant-id header need Wolverine's headers, so they do not work through such an endpoint.
+    /// </summary>
+    /// <param name="options">
+    /// When supplied, becomes this endpoint's default JSON serialization settings for outgoing message bodies.
+    /// When omitted, Wolverine's default System.Text.Json settings apply.
+    /// </param>
+    /// <returns></returns>
+    public NatsSubscriberConfiguration PublishRawJson(JsonSerializerOptions? options = null)
+    {
+        if (options != null)
+        {
+            add(e => e.DefaultSerializer = new SystemTextJsonSerializer(options));
+        }
+
+        // The parameter order matters: (e, _) would bind to the Action<TEndpoint, TConcreteMapper> customization
+        // overload of UseInterop and leave the built in mapper in place. See GH-3407.
+        return UseInterop((_, e) => new JsonOnlyMapper(e));
+    }
 
     /// <summary>
     /// Use JetStream for durable message publishing

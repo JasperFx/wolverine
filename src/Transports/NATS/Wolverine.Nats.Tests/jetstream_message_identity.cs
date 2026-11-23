@@ -134,11 +134,13 @@ public class jetstream_message_identity
     [Fact]
     public void an_id_from_a_custom_mapping_wins()
     {
-        var mapper = theMapper();
+        var endpoint = new NatsTransport().EndpointForSubject("orders");
+        var mapper = new NatsEnvelopeMapper(endpoint);
         var custom = Guid.NewGuid();
         mapper.MapIncomingProperty(x => x.Id, (envelope, _) => envelope.Id = custom);
 
-        var envelope = mapper.CreateEnvelope(message(streamSequence: 7), theIdentity);
+        var envelope = new NatsIncomingMapping(endpoint, mapper, null).CreateEnvelope(message(streamSequence: 7),
+            theIdentity);
 
         envelope.Id.ShouldBe(custom);
     }
@@ -179,9 +181,11 @@ public class jetstream_message_identity
         JetStreamMessageIdentity.AppliesTo(endpoint).ShouldBe(derives);
     }
 
-    private static JetStreamEnvelopeMapper theMapper()
+    // GH-5924: a JetStream listener maps with the endpoint's own mapper, the one core NATS uses
+    private static NatsIncomingMapping theMapper()
     {
-        return new JetStreamEnvelopeMapper(new NatsTransport().EndpointForSubject("orders"));
+        var endpoint = new NatsTransport().EndpointForSubject("orders");
+        return new NatsIncomingMapping(endpoint, new NatsEnvelopeMapper(endpoint), null);
     }
 
     private static INatsJSMsg<byte[]> message(ulong streamSequence, ulong deliveries = 1, string? idHeader = null,

@@ -1066,6 +1066,200 @@ carries its own reply subject on the wire — the node's reply subject plus a pe
 `wolverine.response.{service}.{node}.>`. A Wolverine responder answers on exactly the reply subject the request
 carried, so it keeps working when its NATS user may only publish responses (`allow_responses`).
 
+## Interoperability <Badge type="tip" text="7.0" />
+
+::: tip
+Also see the more generic [Wolverine Guide on Interoperability](/tutorials/interop)
+:::
+
+Not everything on the other end of a NATS subject is going to be a Wolverine application. The NATS transport supports
+interoperability through the `INatsEnvelopeMapper` interface, the same way the other broker transports do. One mapper
+covers both core NATS and JetStream, so the same `UseInterop()` configuration works whichever way an endpoint is
+set up. By default, Wolverine uses its own `NatsEnvelopeMapper`, which writes Wolverine's headers onto every NATS
+message, and none of the options below change anything for an endpoint that doesn't opt in.
+
+If necessary, you can build your own mapper like this one for an upstream system that puts plain JSON on a subject
+and names the message in a header of its own:
+
+<!-- snippet: sample_nats_custom_envelope_mapper -->
+<a id='snippet-sample_nats_custom_envelope_mapper'></a>
+```cs
+/// <summary>
+/// For an upstream system that puts plain JSON on a NATS subject and names
+/// the message in a header of its own
+/// </summary>
+public class KindHeaderNatsMapper : INatsEnvelopeMapper
+{
+    public const string KindHeader = "x-message-kind";
+
+    public void MapEnvelopeToOutgoing(Envelope envelope, NatsHeaders outgoing)
+    {
+        // The message body is Envelope.Data, written by the endpoint's
+        // serializer. The mapper only decides the headers
+        if (envelope.MessageType != null)
+        {
+            outgoing[KindHeader] = envelope.MessageType;
+        }
+
+        if (envelope.CorrelationId != null)
+        {
+            outgoing["x-correlation-id"] = envelope.CorrelationId;
+        }
+    }
+
+    public void MapIncomingToEnvelope(Envelope envelope, NatsMsg<byte[]> incoming)
+    {
+        envelope.Data = incoming.Data;
+        envelope.ContentType = "application/json";
+
+        if (incoming.Headers == null) return;
+
+        // Wolverine finds the message type by this name or by an alias
+        // registered with opts.RegisterMessageType()
+        if (incoming.Headers.TryGetValue(KindHeader, out var kind))
+        {
+            envelope.MessageType = kind.ToString();
+        }
+
+        if (incoming.Headers.TryGetValue("x-correlation-id", out var correlationId))
+        {
+            envelope.CorrelationId = correlationId.ToString();
+        }
+
+        // Keep everything else for the handlers to see
+        foreach (var header in incoming.Headers)
+        {
+            envelope.Headers[header.Key] = header.Value.ToString();
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/NATS/Wolverine.Nats.Tests/DocumentationSamples.cs#L100-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nats_custom_envelope_mapper' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The mapper only decides the headers on the way out. The message body is `Envelope.Data`, which is written by the
+endpoint's serializer. On the way in, a message consumed from JetStream reaches the mapper as the `NatsMsg<byte[]>`
+it was delivered as, and its JetStream metadata is already on `Envelope.Headers` as the `nats-stream`,
+`nats-consumer`, `nats-delivered`, `nats-pending`, `nats-stream-seq` and `nats-consumer-seq` headers.
+
+And plug it, or a customization of the built in mapper, into any listener or subscriber:
+
+<!-- snippet: sample_nats_use_interop -->
+<a id='snippet-sample_nats_use_interop'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseNats("nats://localhost:4222");
+
+        // A completely custom mapper for everything received on this subject
+        opts.ListenToNatsSubject("orders.incoming")
+            .UseInterop(new KindHeaderNatsMapper());
+
+        // Or built lazily from the running application and the endpoint
+        opts.PublishAllMessages().ToNatsSubject("orders.outgoing")
+            .UseInterop((runtime, endpoint) => new KindHeaderNatsMapper());
+
+        // Or keep Wolverine's own mapping, and just change how some of it
+        // goes over the wire
+        opts.ListenToNatsSubject("invoices")
+            .UseJetStream("INVOICES")
+            .UseInterop((endpoint, mapper) =>
+            {
+                mapper.MapPropertyToHeader(x => x.CorrelationId!, "x-correlation-id");
+            });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/NATS/Wolverine.Nats.Tests/DocumentationSamples.cs#L11-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nats_use_interop' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A few things Wolverine still does for you with a custom mapper:
+
+* The tenant id is still read from where the message arrived for a tenant aware listener (see
+  [Multi-Tenancy](#multi-tenancy)), so subject based tenancy keeps working.
+* A durable JetStream listener still gives a message the mapper didn't give an id the id of its place in the stream,
+  so a redelivery of it is recognized as a duplicate by the durable inbox.
+* Wolverine's own built in mapping skips a message it can't find a message type for, like a NATS protocol
+  message. A custom mapper owns that decision, so everything it maps is handed on to the handlers.
+
+### CloudEvents
+
+To read or write [CloudEvents](/tutorials/interop#interop-with-cloudevents) JSON on a NATS subject, core NATS or
+JetStream:
+
+<!-- snippet: sample_nats_interop_with_cloudevents -->
+<a id='snippet-sample_nats_interop_with_cloudevents'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseNats("nats://localhost:4222");
+
+        // CloudEvents needs a message type alias to know what the
+        // "type" of an incoming CloudEvent means
+        opts.RegisterMessageType(typeof(NatsInteropColor), "nats.interop.color");
+
+        // Read CloudEvents JSON from a core NATS subject...
+        opts.ListenToNatsSubject("colors")
+
+            // Just note that you *can* override the STJ serialization
+            // settings for messages coming in with the CloudEvents
+            // wrapper
+            .InteropWithCloudEvents(new JsonSerializerOptions());
+
+        // ...or from a JetStream stream
+        opts.ListenToNatsSubject("colors.durable")
+            .UseJetStream("COLORS")
+            .InteropWithCloudEvents();
+
+        // And publish CloudEvents JSON to a subject
+        opts.PublishMessage<NatsInteropColor>().ToNatsSubject("colors.outgoing")
+            .InteropWithCloudEvents();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/NATS/Wolverine.Nats.Tests/DocumentationSamples.cs#L41-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nats_interop_with_cloudevents' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A CloudEvents message needs no headers at all, as everything Wolverine needs is in the JSON document, so a
+publisher that is not Wolverine can just publish the document to the subject. Request/reply, scheduled delivery and
+the tenant id all keep working between two Wolverine applications that both use CloudEvents on a subject.
+
+### Raw JSON
+
+The most common NATS interop case is probably a service that isn't .NET putting plain JSON on a subject. You can
+send or receive raw JSON with no Wolverine headers through NATS with the options shown below:
+
+<!-- snippet: sample_nats_raw_json -->
+<a id='snippet-sample_nats_raw_json'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseNats("nats://localhost:4222");
+
+        opts.ListenToNatsSubject("colors.raw")
+
+            // You do have to tell Wolverine what the message type
+            // is that you'll receive here so that it can deserialize the
+            // incoming data
+            .ReceiveRawJson<NatsInteropColor>();
+
+        opts.PublishMessage<NatsInteropColor>().ToNatsSubject("colors.raw.outgoing")
+
+            // Just publish the outgoing information as pure JSON
+            // and no other Wolverine metadata
+            .PublishRawJson(new JsonSerializerOptions());
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/NATS/Wolverine.Nats.Tests/DocumentationSamples.cs#L75-L96' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nats_raw_json' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`ReceiveRawJson()` ignores any of Wolverine's own reserved header names on the incoming message, so a publisher
+can't set the tenant id or saga identity of your messages with a header, and copies every other header into
+`Envelope.Headers`. `PublishRawJson()` writes no Wolverine headers at all. Headers added with `AddOutgoingHeader()`
+are still written. Request/reply and the tenant id header need Wolverine's headers, so neither works through a
+`PublishRawJson()` endpoint.
+
 ## Error Handling
 
 ### JetStream
