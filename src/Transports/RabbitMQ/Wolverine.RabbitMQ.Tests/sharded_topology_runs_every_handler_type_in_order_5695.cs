@@ -119,15 +119,15 @@ public class sharded_topology_runs_every_handler_type_in_order_5695
     }
 
     [Fact]
-    public async Task a_durable_slot_still_refuses_a_message_type_with_several_handler_types()
+    public async Task a_native_ack_slot_still_refuses_a_message_type_with_several_handler_types()
     {
         var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
         {
-            using var host = await startHost("shardeddurable5695", listening: x => x.UseDurableInbox());
+            using var host = await startHost("shardednativeack5695", listening: x => x.ProcessInParallelWithNativeAcks());
         });
 
         ex.Message.ShouldContain(nameof(ShardedOrdered));
-        ex.Message.ShouldContain("Durable");
+        ex.Message.ShouldContain("NativeAck");
     }
 
     [Fact]

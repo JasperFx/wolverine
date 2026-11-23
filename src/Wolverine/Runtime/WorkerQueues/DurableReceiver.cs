@@ -387,6 +387,101 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     public bool ShouldPersistBeforeProcessing { get; set; }
 
     /// <summary>
+    /// GH-5695. Writes the copies a partitioned slot expanded <paramref name="original" /> into as ordinary inbox rows,
+    /// owned by this node at this receiver's address, and then marks the original handled. Answers the copies this
+    /// execution should run, each taken into this receiver's custody until <see cref="LeaveExpandedCopy" />.
+    /// <list type="bullet">
+    /// <item>The two writes are separate, and need no new message store operation. A crash between them leaves the
+    /// original Incoming beside its copies. The copies' ids are derived from the original's, so when the recovered
+    /// original is expanded again every copy is a duplicate: the copies are already expanded, their own rows are
+    /// recovered and run like any other, and only the original is marked handled</item>
+    /// <item>The batch insert is all or nothing. When it reports a duplicate, the copies are written one at a time, and
+    /// only the ones written now run here. The others already have a row, which is either still queued or running here
+    /// after a recovery, or settled</item>
+    /// <item>A failed mark of the original does not stop the copies: the original is marked again by its ordinary
+    /// completion once they have run</item>
+    /// </list>
+    /// </summary>
+    internal async Task<IReadOnlyList<Envelope>> StoreExpandedCopiesAsync(Envelope original, IReadOnlyList<Envelope> copies)
+    {
+        foreach (var copy in copies)
+        {
+            copy.Status = EnvelopeStatus.Incoming;
+            copy.OwnerId = _settings.AssignedNodeNumber;
+            copy.Destination ??= original.Destination ?? Uri;
+            assignAncillaryStoreToWrittenRowIfNeeded(copy);
+        }
+
+        IReadOnlyList<Envelope> written = copies;
+        try
+        {
+            await _inbox.StoreIncomingAsync(copies).ConfigureAwait(false);
+        }
+        catch (DuplicateIncomingEnvelopeException)
+        {
+            var fresh = new List<Envelope>(copies.Count);
+            foreach (var copy in copies)
+            {
+                try
+                {
+                    await _inbox.StoreIncomingAsync(copy).ConfigureAwait(false);
+                    fresh.Add(copy);
+                }
+                catch (DuplicateIncomingEnvelopeException)
+                {
+                    _logger.LogDebug(
+                        "Copy {CopyId} of envelope {EnvelopeId} ({MessageType}) for handler type {HandlerType} already has an inbox row at {Uri}, so it was expanded before. Leaving it to that row",
+                        copy.Id, original.Id, original.MessageType,
+                        copy.Headers.GetValueOrDefault(EnvelopeConstants.PartitionedHandlerTypeKey), Uri);
+                }
+            }
+
+            written = fresh;
+        }
+
+        foreach (var copy in written)
+        {
+            copy.WasPersistedInInbox = true;
+            enterCustody(copy);
+        }
+
+        if (original.WasPersistedInInbox && original.Status != EnvelopeStatus.Handled)
+        {
+            try
+            {
+                await _inbox.MarkIncomingEnvelopeAsHandledAsync(original).ConfigureAwait(false);
+                original.Status = EnvelopeStatus.Handled;
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e,
+                    "Could not mark envelope {EnvelopeId} ({MessageType}) as handled at {Uri} after storing its partitioned copies. It is marked again once they have run",
+                    original.Id, original.MessageType, Uri);
+            }
+        }
+
+        return written;
+    }
+
+    /// <summary>
+    /// GH-5695. A copy stored by <see cref="StoreExpandedCopiesAsync" /> that will not run here, because the host is
+    /// stopping: its row is handed back with this receiver's other abandoned rows, as one skipped by the latch is
+    /// </summary>
+    internal void AbandonExpandedCopy(Envelope copy)
+    {
+        abandon(copy);
+    }
+
+    /// <summary>
+    /// GH-5695. A copy stored by <see cref="StoreExpandedCopiesAsync" /> has finished its run here
+    /// </summary>
+    internal void LeaveExpandedCopy(Envelope copy)
+    {
+        // As the block's own execution does: the next heartbeat tick stops the heartbeat if custody is empty
+        _custody.Leave(copy);
+    }
+
+    /// <summary>
     /// If the handler for this message type targets an ancillary store on a
     /// different database, set envelope.Store so that the DelegatingMessageInbox
     /// persists it in the correct store for transactional atomicity. The

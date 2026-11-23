@@ -9,6 +9,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime.Partitioning;
@@ -41,11 +42,12 @@ internal static class PartitionedSlotExpansion
     internal static string KeyFor(HandlerChain chain) => KeyFor(MessageHandlerGroup.HandlerTypeOf(chain));
 
     /// <summary>
-    /// Whether a slot in this mode runs every handler type of a message type itself. A buffered slot does. A durable
-    /// slot needs the copies stored as inbox rows first, and a native-ack slot would have to hold the broker delivery
-    /// until every copy settled, so both still refuse a message type with several handler types at startup
+    /// Whether a slot in this mode runs every handler type of a message type itself. A buffered slot does, and so does a
+    /// durable slot, which stores the copies as inbox rows before it runs them. A native-ack slot would have to hold the
+    /// broker delivery until every copy settled, and an inline endpoint doesn't shard by group at all, so both still
+    /// refuse a message type with several handler types at startup
     /// </summary>
-    internal static bool Supports(Endpoint slot) => slot.Mode == EndpointMode.BufferedInMemory;
+    internal static bool Supports(Endpoint slot) => slot.Mode is EndpointMode.BufferedInMemory or EndpointMode.Durable;
 
     /// <summary>
     /// A handler type runs on the slot unless it is sticky to an endpoint of its own. A sticky handler type keeps
@@ -238,14 +240,39 @@ internal class PartitionedGroupExecutor : IExecutor
 
             var pipeline = channel.Pipeline ?? _runtime.Pipeline;
 
-            foreach (var (chain, _) in _ordered)
-            {
-                var copy = PartitionedSlotExpansion.CopyFor(envelope, chain);
-                _tracker.Sent(copy);
+            IReadOnlyList<Envelope> copies = _ordered.Select(x => PartitionedSlotExpansion.CopyFor(envelope, x.Chain)).ToArray();
 
-                // Awaited, in the lane: nothing else in this lane runs until the copy has settled -- succeeded, been
-                // dead-lettered or discarded, or left the line to be retried later. An inline retry holds the lane
-                await pipeline.InvokeAsync(copy, channel).ConfigureAwait(false);
+            // A durable slot stores the copies as inbox rows, and marks the original handled, before any of them runs.
+            // A copy that already had a row was expanded before a crash, and is left to that row
+            var durable = channel as DurableReceiver;
+            if (durable != null)
+            {
+                copies = await durable.StoreExpandedCopiesAsync(envelope, copies).ConfigureAwait(false);
+            }
+
+            foreach (var copy in copies)
+            {
+                try
+                {
+                    // The pipeline runs nothing once the host is stopping. A durable copy's row is still owned here, so
+                    // it is handed back to be recovered rather than left behind
+                    if (_runtime.Cancellation.IsCancellationRequested)
+                    {
+                        durable?.AbandonExpandedCopy(copy);
+                        continue;
+                    }
+
+                    _tracker.Sent(copy);
+
+                    // Awaited, in the lane: nothing else in this lane runs until the copy has settled -- succeeded,
+                    // been dead-lettered or discarded, or left the line to be retried later. An inline retry holds the
+                    // lane
+                    await pipeline.InvokeAsync(copy, channel).ConfigureAwait(false);
+                }
+                finally
+                {
+                    durable?.LeaveExpandedCopy(copy);
+                }
             }
 
             _tracker.ExecutionFinished(envelope);

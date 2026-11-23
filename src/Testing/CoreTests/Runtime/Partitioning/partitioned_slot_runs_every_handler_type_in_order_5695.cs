@@ -334,22 +334,6 @@ public class partitioned_slot_runs_every_handler_type_in_order_5695
         ((IExecutorFactory)runtime).BuildFor(typeof(SingleSlot5695), slot).ShouldNotBeOfType<PartitionedGroupExecutor>();
         ((IExecutorFactory)runtime).BuildFor(typeof(SlotOrdered5695), slot).ShouldBeOfType<PartitionedGroupExecutor>();
     }
-
-    [Fact]
-    public async Task a_durable_slot_still_refuses_a_message_type_with_several_handler_types()
-    {
-        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
-        {
-            using var host = await startHost(
-                opts => localTopology<SlotOrdered5695>(opts, "slotdurable5695", x => x.GroupId,
-                    t => t.ConfigureQueues(q => q.UseDurableInbox())),
-                typeof(FirstSlotOrderedHandler), typeof(SecondSlotOrderedHandler));
-        });
-
-        ex.Message.ShouldContain(nameof(SlotOrdered5695));
-        ex.Message.ShouldContain("Durable");
-        ex.Message.ShouldContain(nameof(FirstSlotOrderedHandler));
-    }
 }
 
 public record SlotOrdered5695(string GroupId, int Sequence);

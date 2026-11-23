@@ -395,13 +395,32 @@ Each copy is a real envelope of its own:
   envelope id as its `ParentId`
 * It keeps the group id, tenant id, saga id, correlation id and conversation id of the original
 
-There's nothing to configure. This is the default for buffered slots. A durable or native ack slot still refuses a
-message type with more than one handler type at startup for now, and so does an external sharded topology that also
-batches the message type with `BatchMessagesOf<T>()`.
+There's nothing to configure. This is the default for both buffered and durable slots. A native ack slot still
+refuses a message type with more than one handler type at startup for now, and so does an external sharded topology
+that also batches the message type with `BatchMessagesOf<T>()`.
 
 ::: tip
 The original message and every copy show up in a tracked session and in Wolverine's message metrics, so a message
 with three handler types is recorded as four envelopes.
+:::
+
+### Durable slots
+
+On a durable slot, the copies are real inbox rows. Before any copy runs, Wolverine writes every copy to the inbox as
+an ordinary incoming row owned by the current node, and then marks the original message as handled. From there each
+copy is retried, rescheduled, dead lettered, or recovered through its own row, exactly like any other durable
+message.
+
+Those are two separate writes, and that's on purpose. If the node dies right between them, the original is
+recovered later still sitting beside its copies. Because the copy ids are derived from the original id, expanding
+the recovered original again runs into the copies that are already there. Wolverine takes that as "already
+expanded": it marks the original handled, and leaves each copy to its own row, so no handler type runs twice. This
+works the same whether the inbox identifies messages by id alone or by id and destination, and it doesn't need
+anything new from the message store.
+
+::: info
+Inbox recovery doesn't load rows in any particular order, so the order of a group's messages after a crash is best
+effort. That's true for any partitioned message, not just this.
 :::
 
 ### Ordering and failures
