@@ -462,6 +462,11 @@ Two consequences of this being automatic:
       batching.ExecuteOnDedicatedLocalQueue();
   });
   ```
+- **The element type can have an ordinary handler as well.** Under `PublishToPartitionedLocalMessaging`, Wolverine
+  sends the batch its own copy of every published message, so both run. `GlobalPartitioned` refuses that combination
+  at startup for now. See
+  [Partitioned Processing with Batched Handlers](/guide/messaging/partitioning#partitioned-processing-with-batched-handlers)
+  and [GH-5917](https://github.com/JasperFx/wolverine/issues/5917).
 
 ::: warning
 This covers the configurations where the unbatched handlers run on a **local queue** -- `GlobalPartitioned` and
