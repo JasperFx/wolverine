@@ -149,6 +149,55 @@ internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
         }
     }
 
+    // GH-5839: complete one saga from outside its handlers. The session uses optimistic concurrency, so a saga a handler
+    // changed after it was loaded here is refused by its change vector
+
+    public bool SupportsSagaCompletion(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var sagaType) && sagaType.CanBeCastTo<global::Wolverine.Saga>();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+    {
+        if (!SupportsSagaCompletion(sagaTypeName))
+        {
+            throw SagaTermination.NotSupported(sagaTypeName, "RavenDB saga storage");
+        }
+
+        var sagaType = sagaIndex()[sagaTypeName];
+        var task = (Task<SagaTerminationOutcome>)typeof(RavenDbSagaStoreDiagnostics)
+            .GetMethod(nameof(completeAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sagaType)
+            .Invoke(null, [_store, identity.ToString()!, ct])!;
+
+        var outcome = await task.ConfigureAwait(false);
+        return new SagaTerminationResult(sagaType.FullNameInCode(), identity, outcome);
+    }
+
+    private static async Task<SagaTerminationOutcome> completeAsync<TSaga>(IDocumentStore store, string id,
+        CancellationToken ct) where TSaga : global::Wolverine.Saga
+    {
+        using var session = store.OpenAsyncSession();
+        session.Advanced.UseOptimisticConcurrency = true;
+
+        var saga = await session.LoadAsync<TSaga>(id, ct).ConfigureAwait(false);
+        if (saga is null) return SagaTerminationOutcome.NotFound;
+
+        session.Delete(saga);
+
+        try
+        {
+            await session.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+        catch (Raven.Client.Exceptions.ConcurrencyException e)
+        {
+            throw SagaTermination.Concurrency(typeof(TSaga), id, e);
+        }
+
+        return SagaTerminationOutcome.Deleted;
+    }
+
     private SagaDescriptor buildDescriptor(Type sagaType)
     {
         return SagaDescriptorBuilder.Build(_runtime.Options.HandlerGraph, sagaType, "RavenDb");

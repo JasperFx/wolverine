@@ -720,8 +720,37 @@ both times, and reusing its id would have the broker drop the second copy.
 The producer name is the one you pass to `EnableDeduplication()`, or `{ServiceName}-{topic name}` when you
 pass none. When the same application also listens to that topic, the listener's requeue producer uses the
 same name with `-requeue` appended, because Pulsar refuses a second producer with a name that is already
-connected to the topic. Pulsar producer names must be unique per topic, so several running instances of a
-service that publish to the same deduplicated topic each need their own producer name.
+connected to the topic.
+
+### Several running instances of one service
+
+Pulsar allows only one connected producer per name on a topic. By default, every running instance of a service
+asks for the same `{ServiceName}-{topic name}`, so the broker refuses every instance after the first. To give
+each instance its own producer name, append an instance id:
+
+```cs
+opts.UsePulsar(c => c.ServiceUrl(new Uri("pulsar://localhost:6650")))
+    // A stable id for this instance, e.g. a StatefulSet pod name from the environment
+    .ProducerNamePerInstance(Environment.GetEnvironmentVariable("POD_NAME"));
+
+opts.PublishMessage<OrderPlaced>()
+    .ToPulsarTopic("persistent://public/default/orders")
+    .EnableDeduplication();
+```
+
+The id is appended to every deduplicating producer's name, including a name you pass to
+`EnableDeduplication()`. A requeue producer gets `-requeue` after the id. Deduplication then works **per
+instance**. The broker tracks the last sequence id for each producer name, so deduplication only carries across a
+restart when the instance comes back with the same id. With no argument, `ProducerNamePerInstance()` uses the
+machine name. That stays the same across restarts on one host, but every pod of a Kubernetes Deployment gets a
+new name, and two processes on the same machine get the same one. Pass your own id in those cases. You can also
+set a distinct name per instance with `EnableDeduplication(producerName)` or `ConfigureProducer()`.
+
+If the broker keeps refusing a Wolverine producer because its name is already connected (`ProducerBusy`),
+Wolverine stops retrying after 30 seconds, logs an error that names the topic and the producer, and fails that
+producer's sends with `PulsarProducerNameInUseException`. Before this, those sends hung while the client retried
+forever. A refusal that clears within the 30 seconds is retried as normal: the broker can briefly hold on to the
+producer of a process that has just died.
 
 You must also enable deduplication on the broker side (it is off by default), e.g.:
 

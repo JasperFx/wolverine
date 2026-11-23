@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
-public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime, IDisposable
+public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime
 {
     private IHost _receiver = null!;
     private IHost _sender = null!;
@@ -45,12 +45,12 @@ public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime, 
         });
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
-
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _sender?.Dispose();
-        _receiver?.Dispose();
+        await _sender.StopAsync();
+        _sender.Dispose();
+        await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 
     [Fact]

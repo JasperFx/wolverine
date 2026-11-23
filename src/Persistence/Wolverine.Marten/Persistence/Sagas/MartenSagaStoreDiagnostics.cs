@@ -6,6 +6,7 @@ using JasperFx.Descriptors;
 using JasperFx.Documents;
 using Marten;
 using Wolverine.Configuration.Capabilities;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 
@@ -31,13 +32,23 @@ internal sealed class MartenSagaStoreDiagnostics : ISagaStoreDiagnostics
 {
     private readonly IWolverineRuntime _runtime;
     private readonly IDocumentStore _store;
+    private readonly Type? _ancillaryStoreType;
     private readonly object _gate = new();
     private Dictionary<string, Type>? _sagaIndex;
 
-    public MartenSagaStoreDiagnostics(IWolverineRuntime runtime, IDocumentStore store)
+    /// <param name="runtime">The Wolverine runtime, for the handler graph and persistence providers.</param>
+    /// <param name="store">The store these diagnostics read sagas from.</param>
+    /// <param name="ancillaryStoreType">
+    ///     GH-5799. The marker type of the ancillary store <paramref name="store" /> is, such as <c>IOtherStore</c>
+    ///     in <c>[MartenStore(typeof(IOtherStore))]</c>, or null for the main store. A saga type belongs to the
+    ///     store its handler chains are routed to, so the main store no longer claims an ancillary store's sagas
+    ///     and then reads them from the wrong database.
+    /// </param>
+    public MartenSagaStoreDiagnostics(IWolverineRuntime runtime, IDocumentStore store, Type? ancillaryStoreType = null)
     {
         _runtime = runtime;
         _store = store;
+        _ancillaryStoreType = ancillaryStoreType;
     }
 
     public Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)
@@ -78,6 +89,55 @@ internal sealed class MartenSagaStoreDiagnostics : ISagaStoreDiagnostics
         if (saga is null) return null;
 
         return buildInstance(sagaType, identity, saga);
+    }
+
+    // GH-5839: complete one saga from outside its handlers, through the same store and saga index the reads use
+
+    public bool SupportsSagaCompletion(string sagaTypeName)
+        => sagaIndex().TryGetValue(sagaTypeName, out var sagaType) && sagaType.CanBeCastTo<Saga>();
+
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Saga state types are classes rooted by handler discovery, and a generic method closed over a reference type shares canonical code.")]
+    public async Task<SagaTerminationResult> CompleteSagaAsync(string sagaTypeName, object identity, string reason,
+        CancellationToken ct)
+    {
+        if (!SupportsSagaCompletion(sagaTypeName)) throw SagaTermination.NotSupported(sagaTypeName, "Marten");
+        var sagaType = sagaIndex()[sagaTypeName];
+
+        var idType = _store.Options.FindOrResolveDocumentType(sagaType).IdType;
+        var coercedId = coerceIdentity(identity, idType);
+        if (coercedId is null)
+        {
+            return new SagaTerminationResult(sagaType.FullNameInCode(), identity, SagaTerminationOutcome.NotFound);
+        }
+
+        var task = (Task<SagaTerminationOutcome>)typeof(MartenSagaStoreDiagnostics)
+            .GetMethod(nameof(completeAsync), BindingFlags.Static | BindingFlags.NonPublic)!
+            .MakeGenericMethod(sagaType)
+            .Invoke(null, [_store, coercedId, ct])!;
+
+        var outcome = await task.ConfigureAwait(false);
+        return new SagaTerminationResult(sagaType.FullNameInCode(), identity, outcome);
+    }
+
+    private static async Task<SagaTerminationOutcome> completeAsync<TSaga>(IDocumentStore store, object id,
+        CancellationToken ct) where TSaga : Saga
+    {
+        await using var session = store.LightweightSession();
+        var saga = id switch
+        {
+            Guid guid => await session.LoadAsync<TSaga>(guid, ct).ConfigureAwait(false),
+            string text => await session.LoadAsync<TSaga>(text, ct).ConfigureAwait(false),
+            int number => await session.LoadAsync<TSaga>(number, ct).ConfigureAwait(false),
+            long number => await session.LoadAsync<TSaga>(number, ct).ConfigureAwait(false),
+            _ => await session.LoadAsync<TSaga>(id, ct).ConfigureAwait(false)
+        };
+
+        if (saga is null) return SagaTerminationOutcome.NotFound;
+
+        session.Delete(saga);
+        await session.SaveChangesAsync(ct).ConfigureAwait(false);
+        return SagaTerminationOutcome.Deleted;
     }
 
     public async Task<IReadOnlyList<SagaInstanceState>> ListSagaInstancesAsync(string sagaTypeName, int count, CancellationToken ct)
@@ -221,16 +281,19 @@ internal sealed class MartenSagaStoreDiagnostics : ISagaStoreDiagnostics
             }
 
             var container = _runtime.Options.HandlerGraph.Container;
-            var sagaTypes = _runtime.Options.HandlerGraph.SagaChains() // GH-5133: includes Separated saga chains
-                .Select(c => c.SagaType)
-                .Distinct();
+            var sagaChains = _runtime.Options.HandlerGraph.SagaChains() // GH-5133: includes Separated saga chains
+                .GroupBy(c => c.SagaType);
 
-            foreach (var sagaType in sagaTypes)
+            foreach (var group in sagaChains)
             {
+                var sagaType = group.Key;
                 bool canPersist;
                 try
                 {
-                    canPersist = marten.CanPersist(sagaType, container, out _);
+                    // GH-5799: only the sagas whose chains the codegen routes to this store
+                    var chain = group.FirstOrDefault(c => c.DetermineAncillaryStoreType() != null) ?? group.First();
+                    canPersist = ownsStore(chain.DetermineAncillaryStoreType(), container) &&
+                                 marten.CanPersist(sagaType, container, out _);
                 }
                 catch
                 {
@@ -248,5 +311,19 @@ internal sealed class MartenSagaStoreDiagnostics : ISagaStoreDiagnostics
             _sagaIndex = index;
             return index;
         }
+    }
+
+    /// <summary>
+    ///     GH-5799. Whether a saga chain routed to <paramref name="chainStoreType" /> (its
+    ///     <c>DetermineAncillaryStoreType()</c>) commits to this store. An ancillary store owns exactly the chains
+    ///     routed to it. The main store owns the rest, including a chain routed to a store type the container
+    ///     cannot resolve to a Marten store, because the saga codegen falls back to the main store for those too.
+    /// </summary>
+    private bool ownsStore(Type? chainStoreType, JasperFx.IServiceContainer container)
+    {
+        if (_ancillaryStoreType != null) return chainStoreType == _ancillaryStoreType;
+        if (chainStoreType == null) return true;
+
+        return container.Services.GetService(chainStoreType) is not IDocumentStore;
     }
 }

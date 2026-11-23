@@ -413,7 +413,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         if (options.MultipleHandlerBehavior == MultipleHandlerBehavior.Separated && !foundSticky)
         {
             var endpoint = options.Transports.GetOrCreate<LocalTransport>()
-                .QueueFor(call.HandlerType.FullNameInCode().ToLowerInvariant());
+                .QueueFor(LocalTransport.QueueNameForHandlerType(call.HandlerType));
             yield return endpoint;
         }
     }
