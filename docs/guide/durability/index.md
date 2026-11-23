@@ -146,7 +146,7 @@ using var host = await Host.CreateDefaultBuilder()
 ### Bumping out Stale Inbox/Outbox Messages <Badge type="tip" text="5.2" />
 
 ::: warning
-Do **not** make the inbox timeout too low are you could accidentally make Wolverine try to replay messages that are happily floating
+Do **not** make the inbox timeout too low or you could accidentally make Wolverine try to replay messages that are happily floating
 around in retries or just plain slow. Make the `InboxStaleTime` be at least longer than your longest expected message execution time
 with a couple retries for good measure. Ask us how we know this is a potential problem...
 
@@ -178,7 +178,7 @@ Since 7.0 both thresholds default to 1 hour (outside `ServerlessWithOutbox`, whi
 for the 6.x behaviour, where they were off and opting in required a database migration.
 :::
 
-You also have this setting to force Wolverine to automatically "bump" and older messages that seem to be stalled in
+You also have this setting to force Wolverine to automatically "bump" any older messages that seem to be stalled in
 the outbox table or the inbox table:
 
 <!-- snippet: sample_configuring_outbox_stale_timeout -->
@@ -259,8 +259,8 @@ under load. Wolverine coalesces both into short micro-batches:
 The result is that under load the inbox cost is paid per batch rather than per message on both the
 way in and the way out. `MaximumMessagesToReceive(1)` on a RabbitMQ or Kafka endpoint gives strict
 one-at-a-time persistence on arrival; `opts.Durability.MarkAsHandledBatchSize = 1` does the same for
-completion. The 6.x line only: none of this batching exists on 5.x, so a user reporting durable-inbox
-overhead on 5.x may simply need to upgrade.
+completion. None of this batching exists on 5.x, so if you're seeing durable inbox overhead on 5.x, upgrading may be
+all you need.
 
 ### Bounding Broker Redeliveries <Badge type="tip" text="6.30" />
 
@@ -543,41 +543,3 @@ var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 This might be an important setting for [modular monolith architectures](/tutorials/modular-monolith). 
-
-## Stale Inbox and Outbox Thresholds
-
-::: info
-This is more a "defense in depth" feature than a common problem with the inbox/outbox mechanics. Since 7.0 both
-thresholds default to 1 hour (outside `ServerlessWithOutbox`), and the `timestamp` columns they need are always created.
-:::
-
-It should not ever be possible for messages to get "stuck" in the transactional inbox or outbox, but it's an 
-imperfect world and occasionally there are hiccups that might lead to that situation. To that end, you have
-these settings to tell Wolverine to "bump" apparently stalled or stale messages back into play *just in case*:
-
-<!-- snippet: sample_using_inbox_outbox_stale_time -->
-<a id='snippet-sample_using_inbox_outbox_stale_time'></a>
-```cs
-using var host = await Host.CreateDefaultBuilder()
-    .UseWolverine(opts =>
-    {
-        // configure the actual message persistence...
-
-        // This directs Wolverine to "bump" any messages marked
-        // as being owned by a specific node but older than
-        // these thresholds as  being open to any node pulling 
-        // them in
-        
-        // TL;DR: make Wolverine go grab stale messages and make
-        // sure they are processed or sent to the messaging brokers
-        opts.Durability.InboxStaleTime = 5.Minutes();
-        opts.Durability.OutboxStaleTime = 5.Minutes();
-    }).StartAsync();
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/InboxOutboxSettings.cs#L11-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_inbox_outbox_stale_time' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
-
-::: info
-Both settings default to 1 hour in 7.0. Set either one to `null` to turn it off, or call `opts.RestoreV6Defaults()`
-to go back to the 6.x behaviour where they had no default value.
-:::

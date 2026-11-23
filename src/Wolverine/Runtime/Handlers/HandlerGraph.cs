@@ -417,13 +417,21 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         foreach (var group in Groups)
         {
             if (group.Chains.Count < 2) continue;
-            if (!partitioning.TryFindTopology(group.MessageType, out var topology)) continue;
 
-            var handlerTypes = group.Chains.Select(x => MessageHandlerGroup.HandlerTypeOf(x).FullNameInCode()).Join(", ");
+            // GH-5916. When several topologies publish the message type, each one runs only the handler types it
+            // declares, so count those
+            var topology = partitioning.ShardedMessageTopologies
+                .Where(x => x.Matches(group.MessageType))
+                .Select(x => (Topology: x, Chains: partitioning.HandlerScopes.ChainsRunBy(x, group)))
+                .FirstOrDefault(x => x.Chains.Length > 1);
+
+            if (topology.Topology == null) continue;
+
+            var handlerTypes = topology.Chains.Select(x => MessageHandlerGroup.HandlerTypeOf(x).FullNameInCode()).Join(", ");
 
             throw new InvalidOperationException(
                 $"Message type '{group.MessageType.FullNameInCode()}' belongs to the partitioned message topology " +
-                $"'{topology!.Uri}' and is handled by more than one handler type ({handlerTypes}). Each handler type " +
+                $"'{topology.Topology.Uri}' and is handled by more than one handler type ({handlerTypes}). Each handler type " +
                 "runs on its own local queue, so the topology cannot keep the messages of one group in order across " +
                 "them. Handle this message type in one handler type, or leave it out of the partitioned topology.");
         }
@@ -456,6 +464,40 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
                 $"BatchMessagesOf<{batch.ElementType.Name}>(). The topology's local queues run the handler and never " +
                 "hand the message to the batch, so the batch would never run. Handle the message in the batch handler " +
                 $"alone, leave it out of the topology with Except<{batch.ElementType.Name}>(), or remove the batch.");
+        }
+    }
+
+    /// <summary>
+    /// GH-5920. A message type of a sharded topology over an external transport that has a
+    /// <c>BatchMessagesOf&lt;T&gt;()</c> batch and a handler chain bound to no endpoint is refused at startup. The slot
+    /// listener relays the message to the message type's own local queue and to the batch's queue (GH-5138), and the
+    /// message type's own queue is not a slot, so it re-routed the message straight back to a slot, forever, without
+    /// ever running the handler. Running the handler on the slot and still feeding the batch needs a copy of the message
+    /// per member (#5695). A topology this application only publishes to never listens here and is not affected
+    /// </summary>
+    internal void AssertShardedBatchesHaveNoUnboundHandlers(MessagePartitioningRules partitioning)
+    {
+        foreach (var batch in _allBatches)
+        {
+            var group = GroupFor(batch.ElementType);
+            if (group == null || !group.UnboundChains().Any()) continue;
+
+            var topology = partitioning.ShardedMessageTopologies.FirstOrDefault(x =>
+                x is not LocalPartitionedMessageTopology && x.Matches(batch.ElementType) &&
+                x.Slots.Any(slot => slot.IsListener));
+
+            if (topology == null) continue;
+
+            var elementType = batch.ElementType.FullNameInCode();
+            var handlerTypes = MessageHandlerGroup.Describe(group.UnboundChains());
+
+            throw new InvalidOperationException(
+                $"Message type '{elementType}' belongs to the sharded message topology '{topology.Uri}', is handled by " +
+                $"{handlerTypes}, and is also batched with BatchMessagesOf<{batch.ElementType.Name}>(). The topology " +
+                "can't run the handler on its slots and still hand the message to the batch, so the message would be " +
+                "relayed back and forth between the slots and the handler's local queue without the handler ever " +
+                "running. Handle the message in the batch handler alone, leave it out of the topology, or remove the " +
+                "batch.");
         }
     }
 

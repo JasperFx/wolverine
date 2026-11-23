@@ -28,7 +28,7 @@ using var host = await Host.CreateDefaultBuilder()
             o => { o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L304-L318' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L331-L345' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Likewise, to send raw JSON to external systems, you have this option:
@@ -49,7 +49,7 @@ using var host = await Host.CreateDefaultBuilder()
             o => { o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L358-L372' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L385-L399' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Advanced Interoperability
@@ -90,7 +90,7 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L433-L464' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L460-L491' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And apply this to any or all of your SQS endpoints with the configuration fluent interface as shown in this sample:
@@ -108,7 +108,7 @@ using var host = await Host.CreateDefaultBuilder()
             .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
     }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L380-L391' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_custom_sqs_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L407-L418' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_custom_sqs_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Receive messages from Amazon SNS
@@ -129,7 +129,7 @@ using var host = await Host.CreateDefaultBuilder()
             .ReceiveSnsTopicMessage();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L324-L335' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_sns_topic_metadata_in_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L351-L362' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_sns_topic_metadata_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 It's possible for the original message that was sent to SNS to be in a different format. 
@@ -150,5 +150,41 @@ using var host = await Host.CreateDefaultBuilder()
                 new RawJsonSqsEnvelopeMapper(typeof(Message1), new JsonSerializerOptions()));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L340-L353' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_sns_topic_metadata_with_custom_mapper_in_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L367-L380' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_sns_topic_metadata_with_custom_mapper_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Interoperability with NServiceBus and MassTransit
+
+Amazon SQS has built in recipes for exchanging messages with NServiceBus and MassTransit applications. Opt into
+either one endpoint by endpoint:
+
+<!-- snippet: sample_sqs_interop_with_nservicebus_and_masstransit -->
+<a id='snippet-sample_sqs_interop_with_nservicebus_and_masstransit'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAmazonSqsTransport();
+
+        // Send to and receive from an NServiceBus application. The optional
+        // queue name tells NServiceBus where to send replies back to this application
+        opts.PublishMessage<OrderPlaced>().ToSqsQueue("nsb-orders")
+            .UseNServiceBusInterop("wolverine-replies");
+
+        opts.ListenToSqsQueue("wolverine-replies")
+            .UseNServiceBusInterop();
+
+        // Send to and receive from a MassTransit application
+        opts.PublishMessage<OrderShipped>().ToSqsQueue("masstransit-orders")
+            .UseMassTransitInterop();
+
+        opts.ListenToSqsQueue("from-masstransit")
+            .UseMassTransitInterop()
+            .DefaultIncomingMessage<OrderShipped>();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L19-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_interop_with_nservicebus_and_masstransit' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+See [Interop with NServiceBus](/tutorials/interop#interop-with-nservicebus) and
+[Interop with MassTransit](/tutorials/interop#interop-with-masstransit) for the details and caveats.

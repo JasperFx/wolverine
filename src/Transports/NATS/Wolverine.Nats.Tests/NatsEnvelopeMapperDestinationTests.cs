@@ -6,6 +6,9 @@ using Shouldly;
 using Wolverine.Nats.Internal;
 using Xunit;
 
+// JetStreamEnvelopeMapper is obsolete (GH-5924) but stays public, so these tests keep checking it
+#pragma warning disable CS0618
+
 namespace Wolverine.Nats.Tests;
 
 /// <summary>

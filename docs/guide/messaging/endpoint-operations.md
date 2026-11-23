@@ -46,3 +46,10 @@ await bus.EndpointFor(new Uri("rabbitmq://queue/rabbit-one"))
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L72-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accessing_endpoint_by_uri' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+::: tip
+On some transports, like Amazon SQS and SNS, two queue or topic names that differ only in case (`Orders` and `orders`)
+end up as the same endpoint `Uri`, and Wolverine 7.0 refuses to start with such a pair. See
+[Endpoint Names That Differ Only in Case](/guide/messaging/transports/#endpoint-names-that-differ-only-in-case) for
+which transports are affected.
+:::

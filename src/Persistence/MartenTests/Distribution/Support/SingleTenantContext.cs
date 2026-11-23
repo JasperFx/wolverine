@@ -2,6 +2,7 @@ using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Events.Projections;
+using JasperFx.MultiTenancy;
 using Marten;
 using MartenTests.Distribution.TripDomain;
 using Microsoft.Extensions.DependencyInjection;
@@ -157,6 +158,40 @@ public abstract class SingleTenantContext(ITestOutputHelper output) : IAsyncLife
                         // bound memory. 4 is the default for both
                         m.Projections.MaxConcurrentEventLoadsPerDatabase = 4;
                         m.Projections.MaxConcurrentBatchWritesPerDatabase = 4;
+                    })
+                    .IntegrateWithWolverine(m => m.UseWolverineManagedEventSubscriptionDistribution = true);
+            }).StartAsync();
+
+        #endregion
+    }
+
+    // Documentation sample only
+    public static async Task budget_what_tenant_agents_can_load()
+    {
+        #region sample_budget_what_tenant_agents_can_load
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddMarten(m =>
+                    {
+                        m.Connection(Servers.PostgresConnectionString);
+
+                        // One agent per projection per tenant
+                        m.Events.TenancyStyle = TenancyStyle.Conjoined;
+                        m.Events.UseTenantPartitionedEvents = true;
+
+                        m.Projections.Add<TripProjection>(ProjectionLifecycle.Async);
+                        m.Projections.Add<DayProjection>(ProjectionLifecycle.Async);
+
+                        // The most events this node's tenant agents may hold
+                        // loaded, but not yet committed, across every projection
+                        // and database of this store. 0, the default, is unbounded
+                        m.Projections.TenantLoadBudget = 50_000;
+
+                        // Stop handing out new pages at 90% of the GC's high
+                        // memory load threshold, whatever the budget still allows.
+                        // 0.9 is the default, and null turns it off
+                        m.Projections.TenantLoadMemoryThreshold = 0.9;
                     })
                     .IntegrateWithWolverine(m => m.UseWolverineManagedEventSubscriptionDistribution = true);
             }).StartAsync();

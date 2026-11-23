@@ -1,6 +1,6 @@
 # Topics
 
-Wolverine supports publishing to [Rabbit MQ topic exchanges](https://www.rabbitmq.com/tutorials/tutorial-one-dotnet.html)
+Wolverine supports publishing to [Rabbit MQ topic exchanges](https://www.rabbitmq.com/tutorials/tutorial-five-dotnet)
 with this usage:
 
 <!-- snippet: sample_publishing_to_rabbit_mq_topics_exchange -->
@@ -184,8 +184,8 @@ application to get the message, because the conventional local routing to that h
 like it would if the exchange routing weren't there at all.
 
 ::: tip
-The original overload without the `additive` parameter is unchanged, and the exchange is the only route that
-explicit publishing rules or local routing will leave those messages. If you're ever unsure what Wolverine is going
+The original overload without the `additive` parameter is unchanged. With that overload, the exchange is the only route those
+messages take, and explicit publishing rules or local routing to a handler for that message type are skipped. If you're ever unsure what Wolverine is going
 to do with a message type, `IWolverineRuntime.ExplainRoutingFor(type)` will walk you through every routing rule it
 consulted. The additive routing shows up there as `[additive, pass-through]`. See
 [message routing diagnostics](/guide/messaging/subscriptions#diagnostics) for more.

@@ -27,7 +27,7 @@ public class core_nats_requeue_counts_one_attempt_5773
 
         var endpoint = new NatsTransport().EndpointForSubject("requeue5773");
         var subscriber = new CoreNatsSubscriber(endpoint, connection, NullLogger<NatsEndpoint>.Instance,
-            new NatsEnvelopeMapper(endpoint));
+            new NatsIncomingMapping(endpoint, new NatsEnvelopeMapper(endpoint), null));
 
         var envelope = new NatsEnvelope(null, null) { Data = [1, 2, 3], Attempts = 1 };
 
@@ -61,7 +61,7 @@ public class core_nats_requeue_counts_one_attempt_on_the_wire_5773(NatsContainer
 
         var endpoint = new NatsTransport().EndpointForSubject(subject);
         var subscriber = new CoreNatsSubscriber(endpoint, connection, NullLogger<NatsEndpoint>.Instance,
-            new NatsEnvelopeMapper(endpoint));
+            new NatsIncomingMapping(endpoint, new NatsEnvelopeMapper(endpoint), null));
 
         var envelope = new NatsEnvelope(null, null) { Data = [1, 2, 3], Attempts = 1 };
 

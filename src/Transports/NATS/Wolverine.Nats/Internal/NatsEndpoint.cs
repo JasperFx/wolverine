@@ -12,12 +12,12 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Nats.Internal;
 
-public class NatsEndpoint : Endpoint, IBrokerEndpoint
+public class NatsEndpoint : Endpoint<INatsEnvelopeMapper, NatsEnvelopeMapper>, IBrokerEndpoint
 {
     private readonly NatsTransport _transport;
     private NatsConnection? _connection;
     private ILogger<NatsEndpoint>? _logger;
-    private NatsEnvelopeMapper? _mapper;
+    private INatsEnvelopeMapper? _mapper;
 
     public NatsEndpoint(string subject, NatsTransport transport, EndpointRole role)
         : base(new Uri($"{transport.Protocol}://subject/{subject}"), role)
@@ -36,6 +36,16 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     /// in the constructor. See GH-2601.
     /// </summary>
     public override string BrokerRole => UseJetStream ? "stream" : "subject";
+
+    protected override NatsEnvelopeMapper buildMapper(IWolverineRuntime runtime)
+    {
+        return new NatsEnvelopeMapper(this);
+    }
+
+    /// <summary>
+    /// GH-5924. True when <c>UseInterop(...)</c> replaced the built in mapping with a mapper of its own
+    /// </summary>
+    internal bool UsesCustomEnvelopeMapper => HasCustomEnvelopeMapper;
 
     public string Subject { get; }
     [IgnoreDescription]
@@ -490,12 +500,8 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     {
         _connection = _transport.Connection;
         _logger ??= runtime.LoggerFactory.CreateLogger<NatsEndpoint>();
-        _mapper = new NatsEnvelopeMapper(this);
-
-        if (MessageType != null)
-        {
-            _mapper.ReceivesMessage(MessageType);
-        }
+        // GH-5924: the endpoint's mapper, the built in one unless UseInterop(...) replaced or customized it
+        _mapper = BuildMapper(runtime);
 
         var jetStreamContext = useJetStream ? _transport.CreateJetStreamContext() : null;
 

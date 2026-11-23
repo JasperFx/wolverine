@@ -17,7 +17,7 @@ internal class JetStreamSubscriber : INatsSubscriber
     private readonly NatsEndpoint _endpoint;
     private readonly NatsConnection _connection;
     private readonly ILogger<NatsEndpoint> _logger;
-    private readonly JetStreamEnvelopeMapper _mapper;
+    private readonly NatsIncomingMapping _mapping;
     private readonly string _subscriptionPattern;
     private readonly INatsJSContext _jetStreamContext;
     private readonly string? _connectionTenantId;
@@ -45,7 +45,7 @@ internal class JetStreamSubscriber : INatsSubscriber
         NatsConnection connection,
         INatsJSContext jetStreamContext,
         ILogger<NatsEndpoint> logger,
-        JetStreamEnvelopeMapper mapper,
+        NatsIncomingMapping mapping,
         string? subscriptionPattern = null,
         string? connectionTenantId = null
     )
@@ -54,7 +54,7 @@ internal class JetStreamSubscriber : INatsSubscriber
         _endpoint = endpoint;
         _connection = connection;
         _logger = logger;
-        _mapper = mapper;
+        _mapping = mapping;
         _subscriptionPattern = subscriptionPattern ?? endpoint.Subject;
         _jetStreamContext = jetStreamContext;
     }
@@ -195,9 +195,11 @@ internal class JetStreamSubscriber : INatsSubscriber
                             continue;
                         }
 
-                        // Skip messages without headers or without message-type header.
-                        // These are typically NATS protocol messages that should not be processed by Wolverine.
-                        if (_endpoint.MessageType == null && (msg.Headers == null || !msg.Headers.ContainsKey("message-type")))
+                        // Skip a message the mapping cannot name a message type for: one without the message-type
+                        // header, typically a NATS protocol message, unless the endpoint's serializer reads the
+                        // type out of the body (GH-5924)
+                        var envelope = _mapping.TryMap(msg, _messageIdentity);
+                        if (envelope == null)
                         {
                             _logger.LogDebug(
                                 "Skipping NATS message without message-type header from subject {Subject}. DataLength={DataLength}, HasHeaders={HasHeaders}",
@@ -208,7 +210,6 @@ internal class JetStreamSubscriber : INatsSubscriber
                             await msg.AckAsync(cancellationToken: cancellation);
                             continue;
                         }
-                        var envelope = _mapper.CreateEnvelope(msg, _messageIdentity);
 
                         if (_batching != null)
                         {

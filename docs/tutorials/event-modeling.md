@@ -32,9 +32,9 @@ Event Modeling support cuts across most of the Critter Stack, so it's worth know
 | Tool | What it contributes |
 |------|---------------------|
 | [JasperFx.Events](https://shared-libs.jasperfx.net/event-modeling/declaring) | `EventModelDefinition` and the fluent `EventModelBuilder` for declaring a model in code, the provenance rules for merging several sources into one model, and the source generators |
-| Wolverine | The model *derived* from your message handlers, HTTP endpoints and gRPC services, the `event-model`, `describe-event-model` and `scaffold` commands, and the `[Emits]` and `[SlicePattern]` attributes |
+| Wolverine | The model *derived* from your message handlers, HTTP endpoints and gRPC services, the `event-model`, `describe-event-model` and `scaffold` commands, the `write-specs` command (WolverineFx.Bobcat.EventModel) that writes a specification for every example on a board, and the `[Emits]` and `[SlicePattern]` attributes |
 | Marten, Polecat and Fisher | A *derived* View slice for every projection registered in the event store, with no extra configuration |
-| [Bobcat](https://bobcat.jasperfx.net) | `bobcat import-event-model` to turn an [eventmodelers.ai](https://eventmodelers.ai) board into C#, and the generated specifications (WolverineFx.Bobcat) that bind back to their slices |
+| [Bobcat](https://bobcat.jasperfx.net) | `bobcat import-event-model` to turn an [eventmodelers.ai](https://eventmodelers.ai) board into C#, and the specification vocabulary (WolverineFx.Bobcat) that the generated specifications use to bind back to their slices |
 | [Stoat](https://stoat.jasperfx.net) | `stoat plan-from-model` to turn a model into a coordination plan, and the agents that work through that plan slice by slice |
 | [CritterWatch](https://critterwatch.jasperfx.net/) | Renders the same Event Model live from a running service |
 

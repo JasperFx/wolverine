@@ -29,6 +29,19 @@ public class MessagePartitioningRules
 
     internal List<GlobalPartitionedMessageTopology> GlobalPartitionedTopologies { get; } = new();
 
+    /// <summary>
+    /// Every partitioned topology, sharded ones first and then global ones, which is the order routing visits them in
+    /// </summary>
+    internal IEnumerable<IPartitionedTopology> AllTopologies =>
+        ShardedMessageTopologies.Cast<IPartitionedTopology>().Concat(GlobalPartitionedTopologies);
+
+    /// <summary>
+    /// GH-5916. Which handler types each topology runs for a message type published through more than one topology
+    /// </summary>
+    internal TopologyHandlerScopes HandlerScopes => _handlerScopes ??= new TopologyHandlerScopes(this);
+
+    private TopologyHandlerScopes? _handlerScopes;
+
     public void AddPublishingTopology(Func<WolverineOptions, MessagePartitioningRules, PartitionedMessageTopology> factory)
     {
         ShardedMessageTopologies.Add(factory(_options, this));

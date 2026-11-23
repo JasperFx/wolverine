@@ -240,9 +240,8 @@ it does not.
 
 The setters read exactly like EF Core's own, including the computed form
 `SetProperty(x => x.Tally, x => x.Tally + 1)`, but the type you are chaining calls on is Wolverine's
-`EfCoreSetters<T>` rather than EF's. That is what lets the same handler code compile against both
-EF Core 9 and EF Core 10, which spell their setter builders differently, and it is what lets
-Wolverine read back what an update is about to touch -- see the multi-tenancy rules below.
+`EfCoreSetters<T>` rather than EF's. That is what lets Wolverine read back what an update is about
+to touch -- see the multi-tenancy rules below.
 
 ::: tip
 Notice that the handler above never takes a `DbContext` at all. When your application registers

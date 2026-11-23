@@ -232,9 +232,10 @@ opts.PublishAllMessages()
 
 ## Error Handling and Resilience
 
-All of Wolverine's error handling policies apply to messages received through the HTTP transport.
-You can configure retry policies, circuit breakers, and dead letter queues just as you would with
-any other transport:
+All of Wolverine's error handling policies apply to messages received through the HTTP transport,
+just as they would with any other transport. On the sending side, you can put a circuit breaker on an
+HTTP endpoint subscription so Wolverine stops trying to send to a service that keeps failing, then
+pings it until it can resume:
 
 ```cs
 opts.PublishAllMessages().ToHttpEndpoint(url)

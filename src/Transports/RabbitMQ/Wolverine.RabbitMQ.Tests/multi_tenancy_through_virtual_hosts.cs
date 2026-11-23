@@ -383,9 +383,10 @@ public static class MultiTenantedRabbitMqSamples
                 // broker connection
                 .GlobalListener();
 
-            // More on this in the docs....
+            // This sender is tenant aware, so a message sent with a tenant id
+            // goes to the "outgoing" queue on that tenant's virtual host
             opts.PublishMessage<Message1>()
-                .ToRabbitQueue("outgoing").GlobalSender();
+                .ToRabbitQueue("outgoing");
         });
 
         #endregion

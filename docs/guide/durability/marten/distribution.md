@@ -26,7 +26,7 @@ opts.Services.AddMarten(m =>
         m.UseWolverineManagedEventSubscriptionDistribution = true;
     });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L59-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opt_into_wolverine_managed_subscription_distribution' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L60-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opt_into_wolverine_managed_subscription_distribution' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -212,7 +212,7 @@ var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 
-## When a Projection Fails <Badge type="tip" text="6.x" />
+## When a Projection Fails <Badge type="tip" text="7.0" />
 
 Starting with Marten 10, Polecat 6 and Fisher 2, an async projection that throws while applying an event
 *parks* the identity that failed instead of skipping the event or pausing the whole shard. The daemon drops
@@ -235,12 +235,18 @@ What that means for a projection that Wolverine is distributing across your clus
 * The shard reports what it has parked in `ShardState.ParkedCount` and the `{prefix}.{projection}.{shard}.parked`
   family of metrics. Watch those, because a park doesn't make any noise in Wolverine's own agent health.
 
-Not everything can park. An event or flat-table projection, a composite projection, a subscription, a
-multi-stream projection whose identities can only be found by scanning every event, and a systemic database
-failure like a missing column all fall back to *pausing* the shard. So does a shard that hits the cap on parked
-identities, or a batch that would park too many identities at once, which shows up with the
-`ParkedLimitReached` failure category. See [Parking a Failing Projection Identity](https://shared-libs.jasperfx.net/events/parked-identities)
-in the JasperFx documentation for which projections park, the guard rails, and the replay and discard API.
+Not everything can park though. These all fall back to *pausing* the shard instead:
+
+* An event projection or a flat-table projection
+* A composite projection
+* A subscription
+* A multi-stream projection whose identities can only be found by scanning every event
+* A systemic database failure, like a missing column
+* A shard that hits the cap on parked identities, or a batch that would park too many identities at once. Those
+  show up with the `ParkedLimitReached` failure category
+
+See [Parking a Failing Projection Identity](https://shared-libs.jasperfx.net/events/parked-identities) in the JasperFx
+documentation for which projections park, the guard rails, and the replay and discard API.
 
 ::: tip
 If you'd rather have the 9.x behavior back, `StoreOptions.RestoreV9Defaults()` in Marten (`RestoreV5Defaults()`
@@ -458,7 +464,7 @@ warm-up node, so you'll want to walk through this checklist yourself:
 * **Inline side effects in an `EventProjection`.** Rebuild mode stops `RaiseSideEffects()`, but anything your own
   projection code does directly inside an `Apply()` method runs regardless of the mode.
 
-## Memory at Scale: Tenants x Projections <Badge type="tip" text="6.x" />
+## Memory at Scale: Tenants x Projections <Badge type="tip" text="7.0" />
 
 If you combine this distribution with per-tenant event partitioning or lots of tenant databases, Wolverine ends
 up running one agent per projection per tenant. 2,000 tenants times 20 async projections is 40,000 agents spread
@@ -469,25 +475,84 @@ is Wolverine's own bookkeeping. The rest is the async daemon's per-shard machine
 distribution and Marten's own `AddAsyncDaemon()` use the same memory for the same set of shards.
 
 What costs real memory is a shard that is *behind*. A shard that's behind keeps loading pages of events ahead of
-itself until it holds `MaximumHopperSize` events in memory, and that's **2 x `BatchSize` by default**, or 1,000
-events with the default `BatchSize` of 500. Those pages sit in the shard's queue while it waits for one of the per-database batch write
-slots (`MaxConcurrentBatchWritesPerDatabase`, 4 by default). Nothing caps the total across shards, so the rough math
-for your peak memory is:
+itself until it holds `MaximumHopperSize` events in memory, and that's 2 x `BatchSize` by default, or 1,000 events
+with the default `BatchSize` of 500. That's a perfectly sensible bound for one shard, but it's a bound *per shard*,
+so the rough math for your peak memory is:
 
 ```
 (number of shards behind) x MaximumHopperSize x (size of one deserialized event)
 ```
 
 The easiest way to get a lot of shards behind at the same time is to bump the version of a projection in a
-multi-tenant system, because the new version starts over from zero for *every* tenant at once. As one example, a
-test with 100 tenants rebuilding one projection while database writes were the bottleneck peaked at about 1.2 GB
-of live heap. That's roughly 12 MB per rebuilding shard, or 5,000 events of about 2.4 KB each. More tenants or
-bigger events scale that up linearly.
+multi-tenant system, because the new version starts over from zero for *every* tenant at once.
 
-### Set MaximumHopperSize to about 2 x BatchSize
+### Put a budget on what the tenant agents can load
 
-The fix is to bound the prefetch on every async projection. Setting `MaximumHopperSize` to about twice the
-`BatchSize` gives each shard one page being worked and one page ready to go:
+If you're using per-tenant event partitioning (`UseTenantPartitionedEvents`), you can cap the total instead with
+`TenantLoadBudget`:
+
+<!-- snippet: sample_budget_what_tenant_agents_can_load -->
+<a id='snippet-sample_budget_what_tenant_agents_can_load'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Services.AddMarten(m =>
+            {
+                m.Connection(Servers.PostgresConnectionString);
+
+                // One agent per projection per tenant
+                m.Events.TenancyStyle = TenancyStyle.Conjoined;
+                m.Events.UseTenantPartitionedEvents = true;
+
+                m.Projections.Add<TripProjection>(ProjectionLifecycle.Async);
+                m.Projections.Add<DayProjection>(ProjectionLifecycle.Async);
+
+                // The most events this node's tenant agents may hold
+                // loaded, but not yet committed, across every projection
+                // and database of this store. 0, the default, is unbounded
+                m.Projections.TenantLoadBudget = 50_000;
+
+                // Stop handing out new pages at 90% of the GC's high
+                // memory load threshold, whatever the budget still allows.
+                // 0.9 is the default, and null turns it off
+                m.Projections.TenantLoadMemoryThreshold = 0.9;
+            })
+            .IntegrateWithWolverine(m => m.UseWolverineManagedEventSubscriptionDistribution = true);
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L171-L199' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_budget_what_tenant_agents_can_load' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`TenantLoadBudget` is how many events the store's tenant agents may hold in memory on one node, loaded but not yet
+committed, across every projection and every database of that store. Each agent reserves a page against the budget
+before it loads. While there's room, loads go straight through. When there isn't, the agents get in line and are
+let in one page at a time, in turn, so every tenant keeps moving and none of them falls behind indefinitely. A
+waiting agent stays running and assigned to its node -- it just doesn't load anything until it's its turn.
+
+`TenantLoadMemoryThreshold` watches the process itself. Once memory use reaches that fraction of the GC's high
+memory load threshold (0.9 by default), no new pages are handed out until the events already in flight drain, no
+matter how much of the budget is left. Set it to `null` if you only want the event count.
+
+::: tip
+The budget is off by default. There's no magic number here, because it depends on how big your events are and how
+much memory your nodes have, but you can't set it so low that you stop the daemon. A load is always allowed when
+nothing else is in flight, so a budget that's too small just slows things down.
+:::
+
+::: warning
+The budget only covers per-tenant agents, which is what you get with `UseTenantPartitionedEvents`. With database
+per tenant multi-tenancy and no tenant partitioning, Wolverine runs one agent per projection per *database*, and
+each of those is bounded by its own `MaximumHopperSize` and the per-database settings below. Also, set the budget
+in your `AddMarten()` configuration. It's read when the store's first daemon is built, and changing it later does
+nothing.
+:::
+
+### Sizing the hopper
+
+Since JasperFx 3.0, `MaximumHopperSize` defaults to 2 x `BatchSize` instead of a flat 5,000
+([jasperfx#1076](https://github.com/JasperFx/jasperfx/issues/1076)), which gives each shard one page being worked
+and one page ready to go. That's usually what you want, but you can still tune either one per projection:
 
 <!-- snippet: sample_size_the_projection_hopper_for_many_tenants -->
 <a id='snippet-sample_size_the_projection_hopper_for_many_tenants'></a>
@@ -521,7 +586,7 @@ using var host = await Host.CreateDefaultBuilder()
             .IntegrateWithWolverine(m => m.UseWolverineManagedEventSubscriptionDistribution = true);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L134-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_size_the_projection_hopper_for_many_tenants' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L135-L165' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_size_the_projection_hopper_for_many_tenants' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you'd rather keep that next to the projection itself, the same `AsyncOptions` are available as `Options` inside
@@ -538,19 +603,11 @@ public class TripProjection : SingleStreamProjection<Trip, Guid>
 }
 ```
 
-In the same test from above, a hopper of 1,000 took the peak from about 1.2 GB down to about 340 MB, and a batch
-size of 100 with a hopper of 200 brought it under 200 MB. We didn't see any throughput cost in the write-bound case
-either. When the writes are the bottleneck, a deeper prefetch doesn't buy you anything anyway.
-
 ::: warning
 If you've set `MaximumHopperSize` explicitly, don't just shrink `BatchSize` by itself. The hopper stays where you
-set it, so a shard holds 50 small pages instead of 10 big ones, and it drains more slowly with the extra per-page overhead. In our testing, dropping `BatchSize` to
-100 without touching `MaximumHopperSize` actually *raised* peak memory.
-:::
-
-::: info
-Since JasperFx 3.0, the default `MaximumHopperSize` is derived from `BatchSize` (2 x `BatchSize`) instead of a flat
-5,000 ([jasperfx#1076](https://github.com/JasperFx/jasperfx/issues/1076)). Earlier releases needed it set explicitly.
+set it, so a shard holds 50 small pages instead of 10 big ones, and it drains more slowly with the extra per-page
+overhead. In our testing, dropping `BatchSize` to 100 without touching `MaximumHopperSize` actually *raised* peak
+memory.
 :::
 
 ### The other knobs, and what they do and don't bound
@@ -562,11 +619,15 @@ Most of the other daemon settings pace the work rather than cap how much of it s
   cluster. Raising it only helps if your database server can keep up, and it doesn't bound memory
 * `MaxConcurrentEventLoadsPerDatabase` (default 4) bounds how many loads run at once, not how many loaded pages a
   shard keeps. Lowering it slows down how fast the hoppers fill, but they still fill
+* `SerializeTenantProjectionBatches` (on `StoreOptions.Projections`, default false) is the other half of the
+  tenant budget. The budget covers events that are loaded, while this covers batches that are *built* and waiting
+  to be written. With it on, the tenant agents of one projection build and commit their batches one at a time on
+  each node, so you hold one built batch per projection instead of one per tenant. The price is throughput,
+  because one projection's tenants no longer build in parallel. Like the budget, it only applies to per-tenant
+  agents
 * `MaxConcurrentSideEffectGateWarmupsPerDatabase` (default 0, meaning unbounded) only applies to projections that
   have `GateSideEffectsBehindPriorVersion` on in their `AsyncOptions`, which is the default since JasperFx 3.0. With
-  that on, it caps how many
-  new-version shards per database warm up and load at the same time, which is the closest thing today to "only
-  keep N rebuilding shards in memory at once"
+  that on, it caps how many new-version shards per database warm up and load at the same time
 * `CacheLimitPerTenant` (per projection, default 0) turns on an aggregate cache per tenant. Keep it at 0 or very
   small, because whatever you set gets multiplied by tenants times projections
 * `RebuildFlushThreshold` (per projection, default 0) only matters in rebuild mode, and it defers writes by

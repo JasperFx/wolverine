@@ -844,6 +844,11 @@ completely different message storage for its transactional inbox and outbox for 
 Wolverine is able to activate additional durability agents for itself for any tenant databases added at runtime for tenancy modes
 that support dynamic discovery.
 
+::: info
+If several tenant ids point at the same database, Wolverine still runs just one queue listener (and one durability agent)
+for that database, not one per tenant id.
+:::
+
 To utilize Wolverine managed multi-tenancy, you have a couple main options. The simplest is just using a static configured
 set of tenant id to database connections like so:
 
@@ -886,8 +891,8 @@ builder.UseWolverine(opts =>
 <!-- endSnippet -->
 
 ::: tip
-Taking a tenant out of a running system works the same way as it does for PostgreSQL. See
-[Removing a Tenant from a Running System](/guide/durability/postgresql#removing-a-tenant-from-a-running-system).
+Taking a tenant out of a running system is covered in
+[Removing a Tenant from a Running System](#removing-a-tenant-from-a-running-system) below.
 :::
 
 If you need to be able to add new tenants at runtime or just have more tenants than is comfortable living in static configuration
@@ -939,14 +944,16 @@ Here's some more important background on the multi-tenancy support:
   or utilize the tenant id detection in Wolverine.HTTP as well
 * You can "plug in" a custom implementation of `ITenantSource<string>` to manage tenant id to connection string assignments in whatever way works for your deployed system
 
+### Removing a Tenant from a Running System <Badge type="tip" text="7.0" />
 
+Deleting a tenant's row from the master table does not stop running nodes from using that tenant's database: every node
+keeps its durability agent and any queue listener for that database until it restarts, and once the database is dropped
+those poll it with errors. Taking a tenant out of a running fleet is an operator action in
+[CritterWatch](https://github.com/JasperFx/CritterWatch), which first has every node deregister the tenant (stop its
+database's durability agent and listeners and forget its message store), then removes the tenancy entry, and only then
+drops the database. The same applies to Polecat master table tenancy. If other tenant ids still use the same database,
+its durability agent and listeners keep running and only the removed tenant's mapping goes.
 
-
-
-
-
-
-
-
-
-
+After a tenant is deregistered, a message or lookup for it fails with `RemovedTenantException`, an
+`UnknownTenantIdException`. Adding the tenant again through Wolverine's `AddTenantAsync` admits it again on that node;
+a tenant re-added only through Polecat's own tenancy is not picked up until the process restarts.

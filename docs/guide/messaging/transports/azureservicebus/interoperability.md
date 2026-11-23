@@ -55,5 +55,52 @@ using var host = await Host.CreateDefaultBuilder()
             .ConfigureSenders(s => s.InteropWith(new CustomAzureServiceBusMapper()));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L110-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L111-L123' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Interoperability with NServiceBus and MassTransit
+
+Azure Service Bus has built in recipes for exchanging messages with NServiceBus and MassTransit applications. Opt into
+NServiceBus interoperability endpoint by endpoint:
+
+<!-- snippet: sample_opting_into_nservicebus -->
+<a id='snippet-sample_opting_into_nservicebus'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // One way or another, you're probably pulling the Azure Service Bus
+    // connection string out of configuration
+    var azureServiceBusConnectionString = builder
+        .Configuration
+        .GetConnectionString("azure-service-bus")!;
+
+    // Connect to the broker in the simplest possible way
+    opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+    opts.ListenToAzureServiceBusQueue("incoming")
+        .UseNServiceBusInterop();
+    
+    // This facilitates messaging from NServiceBus (or MassTransit) sending as interface
+    // types, whereas Wolverine only wants to deal with concrete types
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L807-L828' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_nservicebus' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+MassTransit works the same way with `UseMassTransitInterop()`:
+
+```cs
+opts.PublishMessage<OrderShipped>().ToAzureServiceBusQueue("masstransit-orders")
+    .UseMassTransitInterop();
+
+opts.ListenToAzureServiceBusQueue("from-masstransit")
+    // Use System.Text.Json for the message inside the MassTransit envelope
+    .UseMassTransitInterop(mt => mt.UseSystemTextJsonForSerialization())
+    .DefaultIncomingMessage<OrderShipped>();
+```
+
+`UseNServiceBusInterop()` and `UseMassTransitInterop()` are available on queue and topic subscriber endpoints and on
+queue and subscription listener endpoints. See [Interop with NServiceBus](/tutorials/interop#interop-with-nservicebus)
+and [Interop with MassTransit](/tutorials/interop#interop-with-masstransit) for the details and caveats.

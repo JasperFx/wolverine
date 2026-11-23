@@ -1,14 +1,56 @@
+using System.Text.Json;
 using NATS.Client.JetStream.Models;
 using Wolverine.Configuration;
 using Wolverine.Nats.Internal;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Nats.Configuration;
 
 public class NatsListenerConfiguration
-    : ListenerConfiguration<NatsListenerConfiguration, NatsEndpoint>
+    : InteroperableListenerConfiguration<NatsListenerConfiguration, NatsEndpoint, INatsEnvelopeMapper, NatsEnvelopeMapper>
 {
     public NatsListenerConfiguration(NatsEndpoint endpoint)
         : base(endpoint) { }
+
+    /// <summary>
+    /// Configure this endpoint to receive messages of type T from plain JSON message bodies with no Wolverine
+    /// headers, the way a publisher that is not Wolverine usually writes them. Works for core NATS and JetStream.
+    /// </summary>
+    /// <param name="options">
+    /// When supplied, becomes this endpoint's default JSON serialization settings. When omitted, Wolverine's
+    /// default System.Text.Json settings apply.
+    /// </param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public NatsListenerConfiguration ReceiveRawJson<T>(JsonSerializerOptions? options = null)
+    {
+        return ReceiveRawJson(typeof(T), options);
+    }
+
+    /// <summary>
+    /// Configure this endpoint to receive messages of the message type from plain JSON message bodies with no
+    /// Wolverine headers, the way a publisher that is not Wolverine usually writes them. Works for core NATS and
+    /// JetStream.
+    /// </summary>
+    /// <param name="messageType"></param>
+    /// <param name="options">
+    /// When supplied, becomes this endpoint's default JSON serialization settings. When omitted, Wolverine's
+    /// default System.Text.Json settings apply.
+    /// </param>
+    /// <returns></returns>
+    public NatsListenerConfiguration ReceiveRawJson(Type messageType, JsonSerializerOptions? options = null)
+    {
+        DefaultIncomingMessage(messageType);
+
+        if (options != null)
+        {
+            add(e => e.DefaultSerializer = new SystemTextJsonSerializer(options));
+        }
+
+        // The parameter order matters: (e, _) would bind to the Action<TEndpoint, TConcreteMapper> customization
+        // overload of UseInterop and leave the built in mapper in place. See GH-3407.
+        return UseInterop((_, e) => new JsonOnlyMapper(e));
+    }
 
     /// <summary>
     /// For a Durable JetStream listener: the most consumed messages the subscriber coalesces (for at

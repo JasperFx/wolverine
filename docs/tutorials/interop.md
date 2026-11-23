@@ -81,6 +81,8 @@ common interoperability scenarios:
 | [Apache Pulsar](/guide/messaging/transports/pulsar) | [IPulsarEnvelopeMapper](/guide/messaging/transports/pulsar.html#interoperability)              | CloudEvents                                     | 
 | [MQTT](/guide/messaging/transports/mqtt) | [IMqttEnvelopeMapper](/guide/messaging/transports/mqtt.html#interoperability)                 | CloudEvents                                     |
 | [Redis](/guide/messaging/transports/redis) | [IRedisEnvelopeMapper](/guide/messaging/transports/redis.html#interoperability) | CloudEvents                                     |
+| [GCP Pub/Sub](/guide/messaging/transports/gcp-pubsub/) | [IPubsubEnvelopeMapper](/guide/messaging/transports/gcp-pubsub/interoperability) | CloudEvents                                     |
+| [NATS](/guide/messaging/transports/nats) | [INatsEnvelopeMapper](/guide/messaging/transports/nats.html#interoperability) | CloudEvents, Raw Json                           |
 
 ## Writing a Custom Envelope Mapper
 
@@ -171,8 +173,6 @@ builder.UseWolverine(opts =>
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
-    // I overrode the buffering limits just to show
-    // that they exist for "back pressure"
     opts.ListenToAzureServiceBusQueue("incoming")
         .UseInterop((queue, mapper) =>
         {
@@ -196,7 +196,7 @@ builder.UseWolverine(opts =>
 
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L763-L801' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_envelope_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L763-L799' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_envelope_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That code isn't necessarily for the feint of heart, but that will sometimes be an easier recipe than trying to write
@@ -412,8 +412,6 @@ builder.UseWolverine(opts =>
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
-    // I overrode the buffering limits just to show
-    // that they exist for "back pressure"
     opts.ListenToAzureServiceBusQueue("incoming")
         .UseNServiceBusInterop();
     
@@ -422,7 +420,7 @@ builder.UseWolverine(opts =>
     opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L809-L832' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_nservicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L807-L828' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_nservicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And some details that you will need to know:

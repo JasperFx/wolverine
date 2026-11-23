@@ -39,7 +39,8 @@ builder.Host.UseWolverine(opts =>
 
 When a handler receives a message carrying any of the named headers, Wolverine will copy those headers onto every outgoing message cascaded within that handler context. Headers not present on the incoming message are silently skipped — no errors are thrown.
 
-This works across all transports — Kafka, RabbitMQ, Azure Service Bus, or any other.
+Copying the headers onto outgoing messages works the same on every transport. Whether a custom header arrives on the
+incoming message in the first place depends on the transport, as the warning below explains.
 
 ::: tip
 If an endpoint uses [CloudEvents interoperability](/tutorials/interop.html#interop-with-cloudevents), only headers with
@@ -48,7 +49,11 @@ lower case names like `x-user` are carried along in the CloudEvents document. Se
 :::
 
 ::: warning
-The headers must be present on the incoming `Envelope` at the point the handler runs. Wolverine's default envelope mappers only carry Wolverine's own metadata headers, so if you need to propagate custom headers from an external producer you will need a custom envelope mapper that explicitly reads those headers from the transport message and sets them on the envelope.
+The headers must be present on the incoming `Envelope` at the point the handler runs. The default envelope mappers for
+RabbitMQ, Kafka, Azure Service Bus (application properties), NATS, Pulsar (message properties) and GCP Pub/Sub
+(attributes) copy every incoming header onto the envelope, so custom headers from an external producer just come
+along. For any other transport, check what its mapper reads, and if your custom header isn't carried, you will need a
+custom envelope mapper that explicitly reads that header from the transport message and sets it on the envelope.
 :::
 
 ## Custom Envelope Rules

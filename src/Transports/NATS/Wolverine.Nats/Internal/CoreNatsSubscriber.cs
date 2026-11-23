@@ -11,7 +11,7 @@ internal class CoreNatsSubscriber : INatsSubscriber
     private readonly NatsEndpoint _endpoint;
     private readonly NatsConnection _connection;
     private readonly ILogger<NatsEndpoint> _logger;
-    private readonly NatsEnvelopeMapper _mapper;
+    private readonly NatsIncomingMapping _mapping;
     private readonly string _subscriptionPattern;
     private readonly List<IAsyncDisposable> _subscriptions = new();
     private readonly List<Task> _consumerTasks = new();
@@ -20,14 +20,14 @@ internal class CoreNatsSubscriber : INatsSubscriber
         NatsEndpoint endpoint,
         NatsConnection connection,
         ILogger<NatsEndpoint> logger,
-        NatsEnvelopeMapper mapper,
+        NatsIncomingMapping mapping,
         string? subscriptionPattern = null
     )
     {
         _endpoint = endpoint;
         _connection = connection;
         _logger = logger;
-        _mapper = mapper;
+        _mapping = mapping;
         _subscriptionPattern = subscriptionPattern ?? endpoint.Subject;
     }
 
@@ -139,10 +139,11 @@ internal class CoreNatsSubscriber : INatsSubscriber
                                     continue;
                                 }
 
-                                // Skip messages without headers or without message-type header.
-                                // These are typically NATS protocol messages (JetStream acks, etc.)
-                                // that should not be processed by Wolverine.
-                                if (_endpoint.MessageType == null && (msg.Headers == null || !msg.Headers.ContainsKey("message-type")))
+                                // Skip a message the mapping cannot name a message type for: one without the
+                                // message-type header, typically a NATS protocol message (JetStream acks, etc.),
+                                // unless the endpoint's serializer reads the type out of the body (GH-5924)
+                                var envelope = _mapping.TryMap(msg);
+                                if (envelope == null)
                                 {
                                     _logger.LogDebug(
                                         "Skipping NATS message without message-type header from subject {Subject}. DataLength={DataLength}, HasHeaders={HasHeaders}",
@@ -152,9 +153,6 @@ internal class CoreNatsSubscriber : INatsSubscriber
                                     );
                                     continue;
                                 }
-
-                                var envelope = new NatsEnvelope(msg, null);
-                                _mapper.MapIncoming(envelope, msg);
 
                                 // A request's reply has to go to its exact wire reply subject, which is all a
                                 // responder limited to allow_responses may publish to
@@ -263,7 +261,7 @@ internal class CoreNatsSubscriber : INatsSubscriber
         // drop a tenant prefix -- and with it the tenant, when the tenant-id header is not trusted -- and can be a
         // wildcard nothing can be published to
         var headers = new NatsHeaders();
-        _mapper.MapEnvelopeToOutgoing(envelope, headers);
+        _mapping.Mapper.MapEnvelopeToOutgoing(envelope, headers);
 
         await _connection.PublishAsync(
             envelope.CoreMsg?.Subject ?? _endpoint.Subject,
