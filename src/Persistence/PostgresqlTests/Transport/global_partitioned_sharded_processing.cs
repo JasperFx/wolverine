@@ -4,6 +4,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
+using Wolverine.ComplianceTests.Partitioning;
 using Wolverine.Configuration;
 using Wolverine.Postgresql;
 using Wolverine.Postgresql.Transport;
@@ -49,16 +50,17 @@ public class global_partitioned_sharded_processing : IAsyncLifetime
         _host.Dispose();
     }
 
-    private static async Task pumpOutMessages(IMessageContext bus)
+    private static async Task pumpOutMessages(IMessageContext bus, Guid[] ids)
     {
         var tasks = new Task[5];
         for (var i = 0; i < tasks.Length; i++)
         {
+            var batch = i;
             tasks[i] = Task.Run(async () =>
             {
                 for (var j = 0; j < 5; j++)
                 {
-                    var id = Guid.NewGuid();
+                    var id = ids[batch * 5 + j];
 
                     await bus.PublishAsync(new PgLogA(id));
                     await bus.PublishAsync(new PgLogB(id));
@@ -94,11 +96,15 @@ public class global_partitioned_sharded_processing : IAsyncLifetime
     [Fact]
     public async Task hammer_it_with_lots_of_messages_global_partitioned()
     {
+        // GH-5736: ids that land on every shard, so the assertions below are not a dice roll
+        var ids = ShardCoveringGroupIds.CoveringEveryShard(_host.GetRuntime().Options.MessagePartitioning, 4, 25,
+            id => new PgLogA(id));
+
         var tracked = await _host
             .TrackActivity()
             .IncludeExternalTransports()
             .Timeout(120.Seconds())
-            .ExecuteAndWaitAsync(pumpOutMessages);
+            .ExecuteAndWaitAsync(c => pumpOutMessages(c, ids));
 
         var envelopes = tracked.Executed.Envelopes().ToArray();
 
@@ -156,11 +162,10 @@ public class sharded_publishing_through_postgresql_queues : IAsyncLifetime
         _host.Dispose();
     }
 
-    private static async Task publishOneRoundOfLetters(IMessageContext bus)
+    private static async Task publishOneRoundOfLetters(IMessageContext bus, Guid[] ids)
     {
-        for (var i = 0; i < 25; i++)
+        foreach (var id in ids)
         {
-            var id = Guid.NewGuid();
             await bus.PublishAsync(new PgLogA(id));
             await bus.PublishAsync(new PgLogB(id));
             await bus.PublishAsync(new PgLogC(id));
@@ -171,11 +176,15 @@ public class sharded_publishing_through_postgresql_queues : IAsyncLifetime
     [Fact]
     public async Task messages_round_trip_through_every_shard_queue()
     {
+        // GH-5736: ids that land on every shard, so the assertions below are not a dice roll
+        var ids = ShardCoveringGroupIds.CoveringEveryShard(_host.GetRuntime().Options.MessagePartitioning, 4, 25,
+            id => new PgLogA(id));
+
         var tracked = await _host
             .TrackActivity()
             .IncludeExternalTransports()
             .Timeout(120.Seconds())
-            .ExecuteAndWaitAsync(publishOneRoundOfLetters);
+            .ExecuteAndWaitAsync(c => publishOneRoundOfLetters(c, ids));
 
         var envelopes = tracked.Executed.Envelopes().ToArray();
 
