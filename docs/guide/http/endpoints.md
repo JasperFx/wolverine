@@ -25,7 +25,7 @@ public static ArithmeticResults PostJson(Question question)
     };
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L118-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L120-L131' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the method signature above, `Question` is the "request" type (the payload sent from the client to the server) and `ArithmeticResults` is the "resource" type (what is being returned to the client).
@@ -46,7 +46,7 @@ public static Task<ArithmeticResults> PostJsonAsync(Question question)
     return Task.FromResult(results);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L131-L144' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L137-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_wolverine_http_endpoint_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The resource type is still `ArithmeticResults`. Likewise, if an endpoint returns `ValueTask<ArithmeticResults>`, the resource type
@@ -107,7 +107,7 @@ In terms of the response type, you can use:
 
 | Type                           | Body         | Status Code       | Notes                                                                     |
 |--------------------------------|--------------|-------------------|---------------------------------------------------------------------------|
-| `void` / `Task` / `ValueTask`  | Empty        | 200               |                                                                           |
+| `void` / `Task` / `ValueTask`  | Empty        | 204               | Unless the endpoint already set another status code                       |
 | `string`                       | "text/plain" | 200               | Writes the result to the response                                         |
 | `int`                          | Empty        | Value of response | **Note**, this must be a valid HTTP status code or bad things may happen! |
 | Type that implements `IResult` | Varies       | Varies            | The `IResult.ExecuteAsync()` method is executed                           |
@@ -119,7 +119,7 @@ In all cases up above, if the endpoint method is asynchronous using either `Task
 response type. In other words, a response of `Task<string>` has the same rules as a response of `string` and `ValueTask<int>`
 behaves the same as a response of `int`. 
 
-And now to complicate *everything*, but I promise this is potentially valuable, you can also use [Tuples](https://learn.microsoft.com/en-us/dotnet/api/system.tuple?view=net-7.0) as the return
+And now to complicate *everything*, but I promise this is potentially valuable, you can also use [Tuples](https://learn.microsoft.com/en-us/dotnet/api/system.tuple?view=net-10.0) as the return
 type of an HTTP endpoint. In this case, the first item in the tuple is the official response type that is treated by the 
 rules above. To make that concrete, consider this sample that we wrote in the introduction to Wolverine.Http:
 
@@ -185,7 +185,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L122-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L125-L137' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## The HTTP QUERY Method <Badge type="tip" text="6.17" />
@@ -468,7 +468,7 @@ and register that strategy within our `MapWolverineEndpoints()` set up like so:
 // Customizing parameter handling
 opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L375-L379' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L393-L397' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_custom_parameter_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, here's the application within an HTTP endpoint for extra context:

@@ -7,8 +7,8 @@ There's a handful of predictable rules about metadata for Wolverine endpoints:
 
 * `application/json` is assumed for any request body type or any response body type
 * `text/plain` is the content type for any endpoint that returns a string as the response body
-* `200` and `500` are always assumed as valid status codes by default
-* `404` is also part of the metadata in most cases
+* `200` is assumed for an endpoint with a response body, and `204` for an endpoint without one
+* `404` is also part of the metadata for an endpoint that returns a JSON response body
 
 That aside, there's plenty of ways to modify the OpenAPI metadata for Wolverine endpoints for whatever you need. First off,
 all the attributes from ASP.Net Core that you use for MVC controller methods happily work on Wolverine endpoints:

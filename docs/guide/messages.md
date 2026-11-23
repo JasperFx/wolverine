@@ -10,7 +10,7 @@ to the proper handler that can handle that message. Here's some facts about mess
 * Have a string identity for the message type that Wolverine will use as an identification when storing messages
   in either durable message storage or within external transports
 
-The default serialization option is [System.Text.Json](https://learn.microsoft.com/en-us/dotnet/api/system.text.json?view=net-8.0), as this is now mature, seems to work with just about anything now, and sets you up
+The default serialization option is [System.Text.Json](https://learn.microsoft.com/en-us/dotnet/api/system.text.json), as this is now mature, seems to work with just about anything now, and sets you up
 for relatively easy integration with a range of external non-Wolverine applications. You also have the option to fall back
 to Newtonsoft.JSON or to use higher performance [MemoryPack](/guide/messages.html#memorypack-serialization) or [MessagePack](/guide/messages.html#messagepack-serialization) or [Protobuf](/guide/messages.html#protobuf-serialization) integrations with Wolverine.
 
@@ -169,7 +169,7 @@ Just in time for 1.0, Wolverine switched to using System.Text.Json as the defaul
 :::
 
 Wolverine needs to be able to serialize and deserialize your message objects when sending messages with external transports like Rabbit MQ or when using the inbox/outbox message storage.
-To that end, the default serialization is performed with [System.Text.Json](https://docs.microsoft.com/en-us/dotnet/api/system.text.json?view=net-6.0). You may also opt into using
+To that end, the default serialization is performed with [System.Text.Json](https://docs.microsoft.com/en-us/dotnet/api/system.text.json). You may also opt into using
 the battle-tested Newtonsoft.Json by installing the separate `WolverineFx.Newtonsoft` NuGet package (see below).
 
 To opt into using System.Text.Json with different defaults — which can give you better performance but with
@@ -464,7 +464,7 @@ opts.RegisterMessageForwarder<PersonBorn, PersonBornV2>();
 ```
 
 The 6.x `opts.UseAutomaticForwarderDiscovery()` opt-in back into the assembly scan was removed in 7.0, so register
-each forwarder with `RegisterMessageForwarder<TFrom, TTo>()`. See `docs/guide/migration.md` and issue #2757.
+each forwarder with `RegisterMessageForwarder<TFrom, TTo>()`. See the [migration guide](/guide/migration) and issue [#2757](https://github.com/JasperFx/wolverine/issues/2757).
 :::
 
 ## "Self Serializing" Messages

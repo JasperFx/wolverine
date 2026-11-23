@@ -53,7 +53,7 @@ var app = builder.Build();
 // the message storage
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L158-L183' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L174-L199' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_postgresql_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 or by SQL Server:
@@ -85,7 +85,7 @@ var app = builder.Build();
 // the message storage
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L128-L153' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_sqlserver_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L144-L169' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_sqlserver_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 or through the Marten integration:
@@ -144,7 +144,7 @@ send messages to "control" agent assignments.
 If you're using any of the message persistence options above, there's a fallback mechanism using the associated
 databases to act as a simplistic message queue between nodes. For better results though, some of the transports in Wolverine
 can instead use a non-durable queue for each node that will probably provide for better results. At the time this guide
-was written, the [Rabbit MQ transport](/guide/messaging/transports/rabbitmq/) and the [Azure Service Bus transport](/guide/messaging/transports/azureservicebus/) support this feature. 
+was written, the [Rabbit MQ transport](/guide/messaging/transports/rabbitmq/), the [Azure Service Bus transport](/guide/messaging/transports/azureservicebus/), and the [Amazon SQS transport](/guide/messaging/transports/sqs/) support this feature. 
 
 ## Disabling Leader Election
 
@@ -179,7 +179,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L53-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L54-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For testing, you also have this helper:
@@ -261,95 +261,10 @@ public interface IAgent : IHostedService, IHealthCheck
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L9-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_iagent-1'></a>
-```cs
-/// <summary>
-///     Models a constantly running background process within a Wolverine
-///     node cluster
-/// </summary>
-public interface IAgent : IHostedService, IHealthCheck
-{
-    /// <summary>
-    ///     Unique identification for this agent within the Wolverine system
-    /// </summary>
-    Uri Uri { get; }
-
-    /// <summary>
-    ///     Current status of this agent
-    /// </summary>
-    AgentStatus Status { get; }
-
-    /// <summary>
-    ///     Human-readable description of what this agent does on a given
-    ///     node. Surfaced in monitoring tools (e.g. CritterWatch) so
-    ///     operators don't have to recognise an agent purely by its URI
-    ///     scheme. The default implementation returns a generic
-    ///     "{scheme} agent: {Uri}" string; override in concrete agent
-    ///     types to provide more specific text. Kept as a default
-    ///     interface member so existing <see cref="IAgent"/>
-    ///     implementations stay source-compatible.
-    /// </summary>
-    string Description => $"{Uri.Scheme} agent: {Uri}";
-
-    /// <summary>
-    ///     Default health check implementation based on agent status.
-    ///     Override in implementations for more specific health reporting.
-    /// </summary>
-    Task<HealthCheckResult> IHealthCheck.CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken)
-    {
-        return Task.FromResult(Status == AgentStatus.Running
-            ? HealthCheckResult.Healthy()
-            : HealthCheckResult.Unhealthy($"Agent {Uri} is {Status}"));
-    }
-}
-
-public class CompositeAgent : IAgent
-{
-    private readonly List<IAgent> _agents;
-    public Uri Uri { get; }
-
-    public CompositeAgent(Uri uri, IEnumerable<IAgent> agents)
-    {
-        Uri = uri;
-        _agents = agents.ToList();
-    }
-
-    /// <summary>
-    /// The agents that this composite delegates to. Exposed read-only so diagnostics
-    /// and tests can inspect the underlying agents without reflection.
-    /// </summary>
-    public IReadOnlyList<IAgent> InnerAgents => _agents;
-
-    public async Task StartAsync(CancellationToken cancellationToken)
-    {
-        foreach (var agent in _agents)
-        {
-            await agent.StartAsync(cancellationToken);
-        }
-
-        Status = AgentStatus.Running;
-    }
-
-    public async Task StopAsync(CancellationToken cancellationToken)
-    {
-        foreach (var agent in _agents)
-        {
-            await agent.StopAsync(cancellationToken);
-        }
-
-        Status = AgentStatus.Running ;
-    }
-
-    public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L8-L94' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L8-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Note that you could use [BackgroundService](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-9.0&tabs=visual-studio) as a base class. 
+Note that you could use [BackgroundService](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services) as a base class. 
 
 The `Uri` property just needs to be unique and match up with our next service interface. Wolverine uses that `Uri` as a
 unique identifier to track where and whether the known agents are executing.
@@ -496,16 +411,15 @@ public class SimpleSingularAgent : SingularAgent
     }
 
     // This template method should be used to cleanly stop up your background service
-    protected override Task stopAsync(CancellationToken cancellationToken)
+    protected override async Task stopAsync(CancellationToken cancellationToken)
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         _cancellation.Dispose();
         _timer.SafeDispose();
-        return Task.CompletedTask;
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/SimpleSingularAgent.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplesingularagent' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/SimpleSingularAgent.cs#L1-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplesingularagent' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To add that to your Wolverine system, we've added this convenience method:
@@ -517,7 +431,7 @@ To add that to your Wolverine system, we've added this convenience method:
 // SingularAgent
 opts.Services.AddSingularAgent<SimpleSingularAgent>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/LeadershipElectionCompliance.cs#L90-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_singular_agent' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/LeadershipSteps.cs#L157-L162' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_singular_agent' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the end, what you need is an `IAgentFamily` that can assign a singular `IAgent` to one and only

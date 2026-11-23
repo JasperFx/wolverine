@@ -55,7 +55,7 @@ public static string UsingQueryString(string name) // name is from the query str
     return name.IsEmpty() ? "Name is missing" : $"Name is {name}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L46-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_value_as_query_string' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L48-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_value_as_query_string' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the corresponding tests:
@@ -72,7 +72,8 @@ public async Task use_string_querystring_hit()
         x.Header("content-type").SingleValueShouldEqual("text/plain");
     });
 
-    body.ReadAsText().ShouldBe("Name is Magic");
+    var text = await body.ReadAsTextAsync();
+    text.ShouldBe("Name is Magic");
 }
 
 [Fact]
@@ -84,7 +85,8 @@ public async Task use_string_querystring_miss()
         x.Header("content-type").SingleValueShouldEqual("text/plain");
     });
 
-    body.ReadAsText().ShouldBe("Name is missing");
+    var text = await body.ReadAsTextAsync();
+    text.ShouldBe("Name is missing");
 }
 
 [Fact]
@@ -97,10 +99,99 @@ public async Task use_decimal_querystring_hit()
         x.Header("content-type").SingleValueShouldEqual("text/plain");
     });
 
-    body.ReadAsText().ShouldBe("Amount is 42.1");
+    var text = await body.ReadAsTextAsync();
+    text.ShouldBe("Amount is 42.1");
+}
+
+[Fact]
+public async Task use_decimal_fromquery_hit()
+{
+    // GH-3586 follow-up: an explicit [FromQuery] on a scalar decimal used to throw at endpoint
+    // discovery ("System.Decimal has multiple constructors"). It now binds from its own key.
+    var body = await Scenario(x =>
+    {
+        x.Get.Url("/querystring/decimal2?value=42.1");
+        x.Header("content-type").SingleValueShouldEqual("text/plain");
+    });
+
+    (await body.ReadAsTextAsync()).ShouldBe("42.1");
+}
+
+[Fact]
+public async Task use_nullable_decimal_fromquery_hit()
+{
+    var body = await Scenario(x =>
+    {
+        x.Get.Url("/querystring/decimal2/nullable?value=42.1");
+        x.Header("content-type").SingleValueShouldEqual("text/plain");
+    });
+
+    (await body.ReadAsTextAsync()).ShouldBe("42.1");
+}
+
+[Fact]
+public async Task use_nullable_decimal_fromquery_miss()
+{
+    var body = await Scenario(x =>
+    {
+        x.Get.Url("/querystring/decimal2/nullable");
+        x.Header("content-type").SingleValueShouldEqual("text/plain");
+    });
+
+    (await body.ReadAsTextAsync()).ShouldBe("Value is missing");
+}
+
+[Fact]
+public async Task use_enum_fromquery_hit_with_string_name()
+{
+    // Enum values arrive as their string name on the wire, not as an integer.
+    var body = await Scenario(x =>
+    {
+        x.Get.Url("/querystring/enum2?value=North");
+        x.Header("content-type").SingleValueShouldEqual("text/plain");
+    });
+
+    (await body.ReadAsTextAsync()).ShouldBe("North");
+}
+
+[Fact]
+public async Task use_enum_fromquery_hit_with_lowercase_string_name()
+{
+    // ...and the name parse is case-insensitive.
+    var body = await Scenario(x =>
+    {
+        x.Get.Url("/querystring/enum2?value=west");
+        x.Header("content-type").SingleValueShouldEqual("text/plain");
+    });
+
+    (await body.ReadAsTextAsync()).ShouldBe("West");
+}
+
+[Fact]
+public async Task use_nullable_enum_fromquery_hit_with_string_name()
+{
+    var body = await Scenario(x =>
+    {
+        x.Get.Url("/querystring/enum2/nullable?value=South");
+        x.Header("content-type").SingleValueShouldEqual("text/plain");
+    });
+
+    (await body.ReadAsTextAsync()).ShouldBe("South");
+}
+
+[Fact]
+public async Task use_nullable_enum_fromquery_miss()
+{
+    var body = await Scenario(x =>
+    {
+        x.Get.Url("/querystring/enum2/nullable");
+        x.Header("content-type").SingleValueShouldEqual("text/plain");
+    });
+
+    (await body.ReadAsTextAsync()).ShouldBe("Value is missing");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_querystring_parameters.cs#L450-L488' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_query_string_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_querystring_parameters.cs#L616-L745' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_query_string_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -112,7 +203,7 @@ it would be convenient to have Wolverine just let you declare a single .NET type
 will be filled with any of the matching query string parameters like this sample:
 
 <!-- snippet: sample_using_[FromQuery]_binding -->
-<a id='snippet-sample_using_[fromquery]_binding'></a>
+<a id='snippet-sample_using_[FromQuery]_binding'></a>
 ```cs
 // If you want every value to be optional, use public, settable
 // properties and a no-arg public constructor
@@ -151,7 +242,7 @@ public static class QueryOrdersEndpoint
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L360-L400' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_[fromquery]_binding' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L421-L461' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_[FromQuery]_binding' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Because we've used the `[FromQuery]` attribute on a parameter argument that's not a simple type, Wolverine is trying to bind
@@ -220,7 +311,7 @@ Note there are some limitations of this approach in Wolverine:
 * The types marked as `[FromQuery]` must be public, as well as any properties you want to bind
 * The binding supports array types, but know that you will always get an empty array as the value even with no matching query string values
 * Likewise, `string` values will be null if there is no query string
-* For any kind of parsed data (`Guid`, numbers, dates, boolean values, enums), Wolverine will not set any value on public setters if there is either no matching querystring value or the querystring value cannot be parsed
+* For any kind of parsed data (`Guid`, numbers, dates, boolean values, enums), Wolverine will not set any value on public setters if there is no matching querystring value. A value that is present but cannot be parsed answers a `400` by default from Wolverine 7.0, or is skipped the same way if you turn `RejectUnparseableQueryValues` off
 
 ## [AsParameters] Binding <Badge type="tip" text="3.13" />
 

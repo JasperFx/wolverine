@@ -602,7 +602,7 @@ strategies, and actions are chainable (retry inline, then schedule, then dead le
 | `ConfigureHowToFindSaga()` | Convention: `[SagaIdentity]`, `{SagaType}Id`, `SagaId`, or `Id` |
 | `MarkAsComplete()` | `MarkCompleted()` |
 | `IHandleTimeouts<T>` | Scheduled messages (use `ScheduleAsync()`) |
-| `RequestTimeout<T>()` | Return a `DelayedMessage<T>` from handler |
+| `RequestTimeout<T>()` | Return a `TimeoutMessage` subclass from the handler |
 
 ### Pipeline Behaviors
 
@@ -907,14 +907,14 @@ If your current framework uses one of these transports, here's how they map to W
 
 | Transport | MassTransit Package | NServiceBus Package | Wolverine Package | Interop Support |
 |-----------|-------------------|-------------------|-----------------|-----------------|
-| RabbitMQ | `MassTransit.RabbitMQ` | `NServiceBus.Transport.RabbitMQ` | `Wolverine.RabbitMQ` | MassTransit, NServiceBus |
-| Azure Service Bus | `MassTransit.Azure.ServiceBus.Core` | `NServiceBus.Transport.AzureServiceBus` | `Wolverine.AzureServiceBus` | MassTransit, NServiceBus |
-| Amazon SQS | `MassTransit.AmazonSQS` | `NServiceBus.Transport.SQS` | `Wolverine.AmazonSqs` | MassTransit, NServiceBus |
-| Amazon SNS | (via SQS) | (via SQS) | `Wolverine.AmazonSns` | MassTransit, NServiceBus |
-| Kafka | `MassTransit.Kafka` | N/A | `Wolverine.Kafka` | CloudEvents |
+| RabbitMQ | `MassTransit.RabbitMQ` | `NServiceBus.Transport.RabbitMQ` | `WolverineFx.RabbitMQ` | MassTransit, NServiceBus |
+| Azure Service Bus | `MassTransit.Azure.ServiceBus.Core` | `NServiceBus.Transport.AzureServiceBus` | `WolverineFx.AzureServiceBus` | MassTransit, NServiceBus |
+| Amazon SQS | `MassTransit.AmazonSQS` | `NServiceBus.Transport.SQS` | `WolverineFx.AmazonSqs` | MassTransit, NServiceBus |
+| Amazon SNS | (via SQS) | (via SQS) | `WolverineFx.AmazonSns` | MassTransit, NServiceBus |
+| Kafka | `MassTransit.Kafka` | N/A | `WolverineFx.Kafka` | CloudEvents |
 | In-memory | `MassTransit.InMemory` | `LearningTransport` | Built-in [local queues](/guide/messaging/transports/local) | N/A |
-| SQL Server | `MassTransit.SqlTransport` | `NServiceBus.Transport.SqlServer` | `Wolverine.SqlServer` | N/A |
-| PostgreSQL | `MassTransit.PostgreSql` | `NServiceBus.Transport.PostgreSql` | `Wolverine.Postgresql` | N/A |
+| SQL Server | `MassTransit.SqlTransport` | `NServiceBus.Transport.SqlServer` | `WolverineFx.SqlServer` | NServiceBus |
+| PostgreSQL | `MassTransit.PostgreSql` | `NServiceBus.Transport.PostgreSql` | `WolverineFx.Postgresql` | MassTransit, NServiceBus |
 
 See the full list of [Wolverine transports](/guide/messaging/introduction) and the
 [interoperability tutorial](/tutorials/interop) for configuration details.

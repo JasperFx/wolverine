@@ -196,6 +196,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Listening Endpoints', link: '/guide/messaging/listeners'},
                         {
                             text: 'Transports',
+                            link: '/guide/messaging/transports/',
                             collapsed: true,
                             items: [
                                 {text: 'Local Queues', link: '/guide/messaging/transports/local'},
@@ -222,7 +223,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Session Identifiers and FIFO Queues', link: '/guide/messaging/transports/azureservicebus/session-identifiers'},
                                         {text: 'Scheduled Delivery', link: '/guide/messaging/transports/azureservicebus/scheduled'},
                                         {text: 'Multi-Tenancy', link: '/guide/messaging/transports/azureservicebus/multi-tenancy'},
-                                        {text: 'Using the Emulator', link: '/guide/messaging/transports/azureservicebus/emulator'}
+                                        {text: 'Using the Emulator', link: '/guide/messaging/transports/azureservicebus/emulator'},
+                                        {text: 'Performance Tuning', link: '/guide/messaging/transports/azureservicebus/performance'}
                                     ]},
                                 {text: 'Amazon SQS', link: '/guide/messaging/transports/sqs/', items:[
                                         {text: 'Publishing', link:'/guide/messaging/transports/sqs/publishing'},
@@ -235,7 +237,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'MessageAttributes', link:'/guide/messaging/transports/sqs/message-attributes'},
                                         {text: 'FIFO Queues', link:'/guide/messaging/transports/sqs/fifo-queues'},
                                         {text: 'Fair Queues', link:'/guide/messaging/transports/sqs/fair-queues'},
-                                        {text: 'Large Messages', link:'/guide/messaging/transports/sqs/large-messages'}
+                                        {text: 'Large Messages', link:'/guide/messaging/transports/sqs/large-messages'},
+                                        {text: 'Performance Tuning', link:'/guide/messaging/transports/sqs/performance'}
                                     ]},
                                 {text: 'Amazon SNS', link: '/guide/messaging/transports/sns'},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
@@ -258,10 +261,12 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'SignalR', link: '/guide/messaging/transports/signalr'},
                                 {text: 'Redis', link: '/guide/messaging/transports/redis'},
                                 {text: 'External Database Tables', link: '/guide/messaging/transports/external-tables'},
+                                {text: 'Broker Health Probes', link: '/guide/messaging/transports/broker-health-probes'},
                                 {text: 'Salesforce Pub/Sub (community)', link: 'https://github.com/meyc-v1/wolverinefxcontrib-salesforcepubsub'}
                             ]
                         },
                         {text: 'Partitioned Sequential Messaging', link: '/guide/messaging/partitioning'},
+                        {text: 'Exclusive Node Processing', link: '/guide/messaging/exclusive-node-processing'},
                         {text: 'Unknown Messages', link: '/guide/messaging/unknown'},
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
                         {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},

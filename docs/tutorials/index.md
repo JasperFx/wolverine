@@ -4,10 +4,13 @@
 |--------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | [Wolverine as Mediator](/tutorials/mediator)                 | Learn how to use Wolverine as a mediator tool within an ASP.Net Core or other application                  |
 | [Ping/Pong Messaging with TCP](/tutorials/ping-pong)         | Basic tutorial on asynchronous messaging with the lightweight TCP transport                                |
+| [Custom Middleware](./middleware) | Build your own conventional middleware to load data and stop processing early |
 | [Vertical Slice Architecture](./vertical-slice-architecture) | How Wolverine can be used for more effective vertical slice architecture style development                 |
 | [Modular Monolith Architecture](./modular-monolith)          | Learn how best to use Wolverine inside of "Modular Monolith" architectures                                 |
 | [CQRS and Event Sourcing with Marten](./cqrs-with-marten)    | Utilize the full "Critter Stack" for a very productive development experience                              |
+| [CQRS and Event Sourcing with Polecat](./cqrs-with-polecat) | The same CQRS with Event Sourcing walkthrough using Polecat and SQL Server |
 | [Event Modeling with the Critter Stack](./event-modeling) | The whole Event Modeling workflow, from a board to declared slices, specifications, scaffolded handlers and back |
+| [Using Wolverine with F#](./fsharp) | Author handlers in F# and run on pre-generated F# code |
 | [Railway Programming](./railway-programming)                 | Wolverine builds in some very light weight Railway Programming inspired abilities                          |
 | [Interoperability with Non-Wolverine Systems](./interop)     | Everything you need to know to make Wolverine play nicely and exchange messages with non-Wolverine systems |
 | [Leader Election and Agents](./leader-election)              | Learn about Wolverine's internal leader election and how to write your own "sticky" agent family           |
@@ -15,6 +18,7 @@
 | [Dead Letter Queues](./dead-letter-queues)| Understand how dead letter queueing works in Wolverine and how to manage message failures                  |
 | [Idempotency in Messaging](./idempotency) | Find out how best to use Wolverine's built in support for messaging idempotency                            |
 | [Multi-Tenancy](./multi-tenancy) | A holistic guide to multi-tenancy across HTTP, messaging, and persistence in Wolverine                     |
+| [Command Line Diagnostics](./command-line-diagnostics) | A guided tour of the command line tools for diagnosing a Wolverine application |
 | [Migrating from Minimal APIs](./from-minimal-api) | Side-by-side conversions from ASP.NET Core Minimal API endpoints to Wolverine.HTTP         |
 | [Migrating from MVC Controllers](./from-mvc) | Side-by-side conversions from MVC/Web API controllers to Wolverine.HTTP                    |
 | [Migrating from MVC/Minimal API Filters](./middleware-migration) | Map MVC filters and Minimal API endpoint filters to Wolverine.HTTP middleware              |

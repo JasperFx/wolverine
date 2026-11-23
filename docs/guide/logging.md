@@ -201,7 +201,7 @@ for better searching within your logs.
 ## Contextual Logging with Audited Members
 
 ::: tip
-As of verion 5.5, Wolverine will automatically audit any property that refers to a [saga identity](/guide/durability/sagas) or to an event stream
+As of version 5.5, Wolverine will automatically audit any property that refers to a [saga identity](/guide/durability/sagas) or to an event stream
 identity within the [aggregate handler workflow](/guide/durability/marten/event-sourcing) with Marten event sourcing.
 :::
 
@@ -1083,7 +1083,7 @@ the message and all the metadata for the message within Wolverine handling.
 | TenantId       | `string`            | Assigned by user on IMessageBus, but transmitted across messages | User defined tenant identifier for multi-tenancy strategies |
 
 Correlation is a little bit complicated. The correlation id is originally owned at the `IMessageBus` or `IMessageContext` level. By default,
-the `IMessageBus.CorrelationId` is set to be the [root id of the current System.Diagnostics.Activity](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.activity.rootid?view=net-7.0#system-diagnostics-activity-rootid).
+the `IMessageBus.CorrelationId` is set to be the [root id of the current System.Diagnostics.Activity](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.activity.rootid#system-diagnostics-activity-rootid).
 That's convenient, because it would hopefully, automatically tie your Wolverine behavior to outside activity like ASP.Net Core HTTP requests. 
 
 If you are publishing messages within the context of a Wolverine handler -- either with `IMessageBus` / `IMessageContext` or through cascading messages -- the correlation id of any outgoing
@@ -1095,13 +1095,8 @@ as a `Guid` value converted to a string.
 
 ## Metrics
 
-Wolverine is automatically tracking several performance related metrics through the [System.Diagnostics.Metrics](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.metrics?view=net-8.0) types, 
+Wolverine is automatically tracking several performance related metrics through the [System.Diagnostics.Metrics](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.metrics) types, 
 which sets Wolverine users up for being able to export their system’s performance metrics to third party observability tools like Honeycomb or Datadog that support Open Telemetry metrics. The current set of metrics in Wolverine are shown below:
-
-::: warning
-The metrics for the inbox, outbox, and scheduled message counts were unfortunately lost when Wolverine introduced multi-tenancy. They
-will be added back to Wolverine in 4.0.
-:::
 
 | Metric Name                  | Metric Type                                                                                               | Description                                                                                                                                                                                                                                                                            |
 |------------------------------|-----------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

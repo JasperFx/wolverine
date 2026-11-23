@@ -26,6 +26,7 @@ into `RpcException` with the canonical status code from the table below. See
 |-------------------------------|-------------------------|
 | `OperationCanceledException`  | `Cancelled`             |
 | `TimeoutException`            | `DeadlineExceeded`      |
+| `IndeterminateSagaStateIdException` | `InvalidArgument` (see [Sagas](./sagas#saga-identity-must-ride-on-the-message)) |
 | `ArgumentException` (& subclasses) | `InvalidArgument`  |
 | `KeyNotFoundException`        | `NotFound`              |
 | `FileNotFoundException`       | `NotFound`              |

@@ -93,7 +93,7 @@ var result = await Host.Scenario(x => x
     .QueryString("IntegerNotUsed", "3")
     .ToUrl("/api/asparameters1")
 );
-var response = result.ReadAsJson<AsParametersQuery>();
+var response = await result.ReadAsJsonAsync<AsParametersQuery>();
 response.EnumFromForm.ShouldBe(Direction.East);
 response.StringFromForm.ShouldBe("string2");
 response.IntegerFromForm.ShouldBe(2);
@@ -110,7 +110,7 @@ response.IntegerNotUsed.ShouldBe(default);
 response.FloatNotUsed.ShouldBe(default);
 response.BooleanNotUsed.ShouldBe(default);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/asparameters_binding.cs#L18-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_asparameters_test' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/asparameters_binding.cs#L20-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_asparameters_test' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine.HTTP is also able to support `[FromServices]`, `[FromBody]`, and `[FromRoute]` bindings as well
@@ -283,7 +283,7 @@ String collections are unaffected in both modes, as there is nothing to parse.
 ::: warning
 `RejectUnparseableQueryValues` was opt-in (defaulting to `false`) throughout Wolverine 6.x, and the
 default flipped to `true` (strict) in Wolverine 7.0. If you depend on the lenient behavior, set the
-flag to `false` explicitly, or call `opts.RestoreV6Defaults()`. See the
+flag to `false` explicitly, or call `RestoreV6Defaults()` on `WolverineOptions` in `UseWolverine()`. See the
 [migration guide](/guide/migration#wolverine-http-defaults-that-changed-in-7-0).
 :::
 

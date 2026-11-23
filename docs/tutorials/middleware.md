@@ -129,7 +129,7 @@ Now, some notes about the code above:
 * Wolverine has a convention that generates a call to the middleware's `LoadAsync()` method before the actual message handler method (`CreditAccountHandler.Handle()`)
 * The `ILogger` would be the `ILogger<T>` for the message type that is currently being handled. So in the case of the `CreditAccount`, the logger would be `ILogger<CreditAccount>`
 * Wolverine can wire up the `Account` object returned from the middleware method to the actual `Handle()` method's `Account` argument
-* By returning `HandleContinuation` from the `LoadAsync()` method, we can conditionally tell Wolverine to abort the message processing
+* By returning `HandlerContinuation` from the `LoadAsync()` method, we can conditionally tell Wolverine to abort the message processing
 
 Lastly, let's apply the newly built middleware to only the message handlers that work against some kind of `IAccountCommand` message:
 

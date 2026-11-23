@@ -6,7 +6,6 @@ using Microsoft.Extensions.Hosting;
 namespace Wolverine.Runtime.Agents;
 
 #region sample_iagent
-#region sample_iagent
 /// <summary>
 ///     Models a constantly running background process within a Wolverine
 ///     node cluster
@@ -90,5 +89,3 @@ public class CompositeAgent : IAgent
 
     public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
 }
-
-#endregion

@@ -122,7 +122,7 @@ Wolverine endpoints come in three basic flavors, with the first being **Inline**
 // an Azure Service Bus queue with the "Inline" mode
 opts.ListenToAzureServiceBusQueue(queueName, q => q.Options.AutoDeleteOnIdle = 5.Minutes()).ProcessInline();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/InlineSendingAndReceivingCompliance.cs#L29-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_process_inline' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/InlineSendingAndReceivingCompliance.cs#L30-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_process_inline' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With inline endpoints, as the name implies, calling `IMessageBus.SendAsync()` immediately sends the message to the external
@@ -148,7 +148,7 @@ To opt into buffering, you use this syntax:
 opts.ListenToAzureServiceBusQueue("incoming")
     .BufferedInMemory(new BufferingLimits(1000, 200));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L136-L142' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_buffered_in_memory' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L448-L454' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_buffered_in_memory' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At runtime, you have a local, in memory queue (built on [System.Threading.Channels](https://learn.microsoft.com/en-us/dotnet/core/extensions/channels)) between the Wolverine callers and the broker:
@@ -181,7 +181,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
 opts.PublishAllMessages().ToAzureServiceBusQueue("outgoing")
     .UseDurableOutbox();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L229-L238' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L541-L550' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or use policies to do this in one fell swoop (which may not be what you actually want, but you could do this!):
@@ -191,7 +191,7 @@ Or use policies to do this in one fell swoop (which may not be what you actually
 ```cs
 opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L145-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_all_outgoing_are_durable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L457-L460' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_all_outgoing_are_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As shown below, the `Durable` endpoint option adds an extra step to the `Buffered` behavior to add database storage of the 
@@ -283,92 +283,7 @@ public interface IAgent : IHostedService, IHealthCheck
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L9-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_iagent-1'></a>
-```cs
-/// <summary>
-///     Models a constantly running background process within a Wolverine
-///     node cluster
-/// </summary>
-public interface IAgent : IHostedService, IHealthCheck
-{
-    /// <summary>
-    ///     Unique identification for this agent within the Wolverine system
-    /// </summary>
-    Uri Uri { get; }
-
-    /// <summary>
-    ///     Current status of this agent
-    /// </summary>
-    AgentStatus Status { get; }
-
-    /// <summary>
-    ///     Human-readable description of what this agent does on a given
-    ///     node. Surfaced in monitoring tools (e.g. CritterWatch) so
-    ///     operators don't have to recognise an agent purely by its URI
-    ///     scheme. The default implementation returns a generic
-    ///     "{scheme} agent: {Uri}" string; override in concrete agent
-    ///     types to provide more specific text. Kept as a default
-    ///     interface member so existing <see cref="IAgent"/>
-    ///     implementations stay source-compatible.
-    /// </summary>
-    string Description => $"{Uri.Scheme} agent: {Uri}";
-
-    /// <summary>
-    ///     Default health check implementation based on agent status.
-    ///     Override in implementations for more specific health reporting.
-    /// </summary>
-    Task<HealthCheckResult> IHealthCheck.CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken)
-    {
-        return Task.FromResult(Status == AgentStatus.Running
-            ? HealthCheckResult.Healthy()
-            : HealthCheckResult.Unhealthy($"Agent {Uri} is {Status}"));
-    }
-}
-
-public class CompositeAgent : IAgent
-{
-    private readonly List<IAgent> _agents;
-    public Uri Uri { get; }
-
-    public CompositeAgent(Uri uri, IEnumerable<IAgent> agents)
-    {
-        Uri = uri;
-        _agents = agents.ToList();
-    }
-
-    /// <summary>
-    /// The agents that this composite delegates to. Exposed read-only so diagnostics
-    /// and tests can inspect the underlying agents without reflection.
-    /// </summary>
-    public IReadOnlyList<IAgent> InnerAgents => _agents;
-
-    public async Task StartAsync(CancellationToken cancellationToken)
-    {
-        foreach (var agent in _agents)
-        {
-            await agent.StartAsync(cancellationToken);
-        }
-
-        Status = AgentStatus.Running;
-    }
-
-    public async Task StopAsync(CancellationToken cancellationToken)
-    {
-        foreach (var agent in _agents)
-        {
-            await agent.StopAsync(cancellationToken);
-        }
-
-        Status = AgentStatus.Running ;
-    }
-
-    public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L8-L94' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L8-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With related groups of agents built and assigned by IoC-registered implementations of this interface:

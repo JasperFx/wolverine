@@ -23,7 +23,7 @@ dotnet add package WolverineFx.HTTP
 The [sample project for this page is on GitHub](https://github.com/JasperFx/wolverine/tree/main/src/Samples/TodoWebService/TodoWebService).
 :::
 
-From there, let's jump into the application bootstrapping. Stealing the [sample "Todo" project idea from the Minimal API documentation](https://learn.microsoft.com/en-us/aspnet/core/tutorials/min-web-api?view=aspnetcore-7.0&tabs=visual-studio) (and
+From there, let's jump into the application bootstrapping. Stealing the [sample "Todo" project idea from the Minimal API documentation](https://learn.microsoft.com/en-us/aspnet/core/tutorials/min-web-api?view=aspnetcore-10.0&tabs=visual-studio) (and
 shifting to [Marten](https://martendb.io) for persistence just out of personal preference), this is the application bootstrapping:
 
 <!-- snippet: sample_bootstrapping_wolverine_http -->
@@ -113,10 +113,11 @@ public async Task hello_world()
         x.Header("content-type").SingleValueShouldEqual("text/plain");
     });
 
-    result.ReadAsText().ShouldBe("Hello.");
+    var text = await result.ReadAsTextAsync();
+    text.ShouldBe("Hello.");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebServiceTests/end_to_end.cs#L29-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_hello_world_for_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/TodoWebService/TodoWebServiceTests/end_to_end.cs#L29-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_testing_hello_world_for_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Moving on to the actual `Todo` problem domain, let's assume we've got a class like this:
@@ -286,6 +287,7 @@ are decorated with one of Wolverine's HTTP method attributes:
 - `[WolverinePatch]`
 - `[WolverineOptions]`
 - `[WolverineHead]`
+- `[WolverineQuery]`
 
 The usage is suspiciously similar to the older `[HttpGet]` type attributes in MVC Core.
 

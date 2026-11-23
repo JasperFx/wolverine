@@ -34,7 +34,7 @@ generated handler source code. The result is:
 | `IResourceFilter.OnResourceExecuting` | `Before` with early `IResult` return |
 | `IActionFilter.OnActionExecuted` | `After` / `AfterAsync` method |
 | `IResultFilter` | `After` / `AfterAsync` method |
-| `IExceptionFilter` | `Finally` / `FinallyAsync` method |
+| `IExceptionFilter` | `OnException` / `OnExceptionAsync` method (and `Finally` for cleanup) |
 | `[TypeFilter]` / `[ServiceFilter]` | `[Middleware(typeof(...))]` attribute |
 | Global filters (`MvcOptions.Filters`) | `IHttpPolicy` |
 | `AddEndpointFilter()` on route groups | `IHttpPolicy` with namespace/type filtering |
@@ -382,8 +382,8 @@ public class StopwatchMiddleware
 
 ::: warning
 Note that `Finally` methods do not receive the exception — they are cleanup hooks, not exception
-handlers. For exception-to-response mapping, see [issue #2410](https://github.com/JasperFx/wolverine/issues/2410)
-which is tracking a dedicated exception handling convention.
+handlers. For exception-to-response mapping, use the `OnException` / `OnExceptionAsync` convention
+described in [Exception Handling](/guide/http/exception-handling).
 :::
 
 ## Applying Middleware Per-Endpoint

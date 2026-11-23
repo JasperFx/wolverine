@@ -138,7 +138,7 @@ value out of it), and before C# 14 an expression tree cannot leave out an option
 assertion has (`customMessage`). The error is **CS0854**, "An expression tree may not contain a call or invocation
 that uses optional arguments".
 
-On C# 12 or 13 (net9.0, or a pinned `LangVersion`; Wolverine's own tests pin C# 12) either write every optional
+On C# 12 or 13 (a pinned `LangVersion`; Wolverine's own tests pin C# 12) either write every optional
 argument out positionally, `x => x.Age.ShouldBe(4, null)`, or use the `.With(…)` chain or a table instead.
 [The full table is in Expected Objects](https://bobcat.jasperfx.net/expected-objects#member-checks-and-the-c-version-they-need).
 :::

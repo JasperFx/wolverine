@@ -27,7 +27,7 @@ events and triggering commands might be something like this:
 We're going to start with a simple, headless ASP.Net Core project like so (and delete the silly weather forecast stuff):
 
 ```bash
-dotnet add webapi
+dotnet new webapi
 ```
 
 Next, add the `WolverineFx.Http.Marten` Nuget to get Marten, Wolverine itself, and the full Wolverine + Marten integration
@@ -66,7 +66,7 @@ The IoC service registrations are separate from the addition of the Wolverine
 endpoints because Wolverine uses the built in .NET `ServiceProvider`.
 :::
 
-Next, let's add support for [Wolverine.HTTP]() endpoints:
+Next, let's add support for [Wolverine.HTTP](/guide/http/) endpoints:
 
 ```csharp
 app.MapWolverineEndpoints();
@@ -325,7 +325,7 @@ through end to end, integration tests
 ## Creating an Integration Test Harness
 
 ::: info
-This section was a request from a user, hope it makes sense. Alba is part of the same [JasperFx GitHub organization]()
+This section was a request from a user, hope it makes sense. Alba is part of the same [JasperFx GitHub organization](https://github.com/JasperFx)
 as Wolverine and Marten. In case your curious, the company [JasperFx Software](https://github.com/JasperFx) was named after the
 GitHub organization which in turn is named after one of our core team's ancestral hometown. 
 :::
@@ -359,7 +359,7 @@ public class AppFixture : IAsyncLifetime
 {
     public IAlbaHost? Host { get; private set; }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // This is bootstrapping the actual application using
         // its implied Program.Main() set up
@@ -377,19 +377,23 @@ public class AppFixture : IAsyncLifetime
                 /// THIS IS IMPORTANT!
                 services.MartenDaemonModeIsSolo();
                 services.RunWolverineInSoloMode();
+
+                // Under xUnit v3 the test project is the entry assembly, which Wolverine would
+                // otherwise adopt as the application assembly -- and find no endpoints or handlers in
+                services.ConfigureWolverine(opts => opts.ApplicationAssembly = typeof(Program).Assembly);
             });
 
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Host!.StopAsync();
         Host.Dispose();
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L12-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appfixture_in_incident_service_testing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L12-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_appfixture_in_incident_service_testing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And I like to add a base class for integration tests with some convenience methods that have
@@ -417,7 +421,7 @@ public abstract class IntegrationContext : IAsyncLifetime
     public IAlbaHost Host => _fixture.Host!;
     public IDocumentStore Store => _fixture.Host!.Services.GetRequiredService<IDocumentStore>();
 
-    async Task IAsyncLifetime.InitializeAsync()
+    async ValueTask IAsyncLifetime.InitializeAsync()
     {
         // Using Marten, wipe out all data and reset the state
         // back to exactly what we described in InitialAccountData
@@ -430,9 +434,9 @@ public abstract class IntegrationContext : IAsyncLifetime
     // This is required because of the IAsyncLifetime
     // interface. Note that I do *not* tear down database
     // state after the test. That's purposeful
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     public Task<IScenarioResult> Scenario(Action<Scenario> configure)
@@ -462,7 +466,7 @@ public abstract class IntegrationContext : IAsyncLifetime
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L49-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrationcontext_for_integration_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/IncidentService/IncidentService.Tests/IntegrationContext.cs#L53-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrationcontext_for_integration_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With all of that in place (and if you're using Docker for your infrastructure, a quick `docker compose up -d` command),
@@ -485,7 +489,7 @@ public async Task happy_path_end_to_end()
     });
 
     // Read the response body by deserialization
-    var response = initial.ReadAsJson<CreationResponse<Guid>>();
+    var response = await initial.ReadAsJsonAsync<CreationResponse<Guid>>();
 
     // Reaching into Marten to build the current state of the new Incident
     // just to check the expected outcome
@@ -494,7 +498,7 @@ public async Task happy_path_end_to_end()
     
     
     // This wallpapers over the exact projection lifecycle....
-    var incident = await session.Events.FetchLatest<Incident>(response.Value);
+    var incident = await session.Events.FetchLatest<Incident>(response.Value, TestContext.Current.CancellationToken);
     
     incident!.Status.ShouldBe(IncidentStatus.Pending);
 }

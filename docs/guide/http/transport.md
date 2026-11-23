@@ -240,10 +240,11 @@ any other transport:
 opts.PublishAllMessages().ToHttpEndpoint(url)
     .CircuitBreaking(cb =>
     {
-        cb.MinimumThreshold = 10;
-        cb.PauseTime = TimeSpan.FromSeconds(30);
-        cb.TrackingPeriod = TimeSpan.FromMinutes(1);
-        cb.FailurePercentageThreshold = 20;
+        // Trip the sending circuit after 10 failed sends in a row
+        cb.FailuresBeforeCircuitBreaks = 10;
+
+        // Then try to resume sending every 30 seconds
+        cb.PingIntervalForCircuitResume = TimeSpan.FromSeconds(30);
     });
 ```
 
@@ -433,10 +434,8 @@ opts.PublishAllMessages()
     .UseDurableOutbox()
     .CircuitBreaking(cb =>
     {
-        cb.MinimumThreshold = 5;
-        cb.PauseTime = TimeSpan.FromMinutes(1);
-        cb.TrackingPeriod = TimeSpan.FromMinutes(5);
-        cb.FailurePercentageThreshold = 50;
+        cb.FailuresBeforeCircuitBreaks = 5;
+        cb.PingIntervalForCircuitResume = TimeSpan.FromMinutes(1);
     });
 ```
 

@@ -1,12 +1,13 @@
 # JSON Serialization
 
 ::: warning
-At this point WolverineFx.Http **only** supports `System.Text.Json` as the default for the HTTP endpoints,
-with the JSON settings coming from the application's Minimal API configuration.
+WolverineFx.Http uses `System.Text.Json` by default for the HTTP endpoints,
+with the JSON settings coming from the application's Minimal API configuration. Newtonsoft.Json is available
+through a separate package, see [Using Newtonsoft.Json](#using-newtonsoft-json).
 :::
 
 ::: tip
-You can tell Wolverine to ignore all return values as the request body by decorating either the endpoint
+You can tell Wolverine to ignore all return values as the response body by decorating either the endpoint
 method or the whole endpoint class with `[EmptyResponse]`
 :::
 
@@ -45,7 +46,7 @@ public async Task post_json_happy_path()
     result.Sum.ShouldBe(7);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/posting_json.cs#L12-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_post_json_happy_path' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/posting_json.cs#L14-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_post_json_happy_path' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Optional Request Bodies <Badge type="tip" text="6.49" />

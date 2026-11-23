@@ -5,7 +5,7 @@ breaking existing clients. Versioned endpoints coexist at separate URL prefixes 
 carry the correct OpenAPI metadata, and can emit RFC 9745 `Deprecation` and RFC 8594 `Sunset` response headers to
 signal planned end-of-life to callers.
 
-The feature depends on the `Asp.Versioning.Abstractions` 10.x NuGet package — the thin, framework-neutral abstraction
+The feature depends on the `Asp.Versioning.Abstractions` NuGet package (10.x or 11.x) — the thin, framework-neutral abstraction
 layer. It does **not** require `Asp.Versioning.Http` (the ASP.NET Core-specific middleware pack). Wolverine drives
 versioning entirely through its own `IHttpPolicy` pipeline, so there is no conflict with an existing
 `AddApiVersioning()` registration, and no additional ASP.NET Core middleware is needed.
