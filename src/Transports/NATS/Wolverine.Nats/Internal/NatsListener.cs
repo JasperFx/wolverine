@@ -390,26 +390,14 @@ public class NatsListener : IListener, ISupportDeadLetterQueue, IReportConnectio
         string? connectionTenantId = null
     )
     {
-        INatsSubscriber subscriber;
-        if (useJetStream)
-        {
-            var jsMapper = new JetStreamEnvelopeMapper(endpoint, tenantMapper);
-            if (endpoint.MessageType != null)
-            {
-                jsMapper.ReceivesMessage(endpoint.MessageType);
-            }
-            subscriber = new JetStreamSubscriber(endpoint, connection, jetStreamContext!, logger, jsMapper, subscriptionPattern,
-                connectionTenantId);
-        }
-        else
-        {
-            var mapper = new NatsEnvelopeMapper(endpoint, tenantMapper);
-            if (endpoint.MessageType != null)
-            {
-                mapper.ReceivesMessage(endpoint.MessageType);
-            }
-            subscriber = new CoreNatsSubscriber(endpoint, connection, logger, mapper, subscriptionPattern);
-        }
+        // GH-5924: the endpoint's mapper, the built in one unless UseInterop(...) replaced or customized it, for
+        // core NATS and JetStream alike
+        var mapping = new NatsIncomingMapping(endpoint, endpoint.BuildMapper(runtime), tenantMapper);
+
+        INatsSubscriber subscriber = useJetStream
+            ? new JetStreamSubscriber(endpoint, connection, jetStreamContext!, logger, mapping, subscriptionPattern,
+                connectionTenantId)
+            : new CoreNatsSubscriber(endpoint, connection, logger, mapping, subscriptionPattern);
 
         return new NatsListener(
             endpoint,

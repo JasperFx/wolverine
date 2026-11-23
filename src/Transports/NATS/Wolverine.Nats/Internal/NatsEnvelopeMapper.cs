@@ -5,28 +5,26 @@ using Wolverine.Transports;
 
 namespace Wolverine.Nats.Internal;
 
-public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
+/// <summary>
+/// The default <see cref="INatsEnvelopeMapper"/>: Wolverine's own headers on the NATS message, for core NATS and
+/// JetStream alike. Customize it per endpoint with <c>UseInterop((endpoint, mapper) => ...)</c>, or replace it
+/// with <c>UseInterop(...)</c>.
+/// </summary>
+public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>, INatsEnvelopeMapper
 {
     private readonly Uri _destination;
     private readonly ITenantSubjectMapper? _tenantMapper;
-    private readonly IncomingTenancy _tenancy;
-    
+
+    /// <param name="endpoint"></param>
+    /// <param name="tenantMapper">
+    /// Not used by <see cref="NatsEndpoint"/>, which reads the tenant from where a message arrived outside of the
+    /// mapper so that a custom mapper gets the same tenancy
+    /// </param>
     public NatsEnvelopeMapper(NatsEndpoint endpoint, ITenantSubjectMapper? tenantMapper = null)
         : base(endpoint)
     {
         _destination = endpoint.Uri;
         _tenantMapper = tenantMapper;
-        _tenancy = new IncomingTenancy(endpoint, tenantMapper);
-    }
-
-    /// <summary>
-    /// <see cref="EnvelopeMapper{TIncoming,TOutgoing}.MapIncomingToEnvelope"/>, and then -- unless the transport
-    /// trusts the <c>tenant-id</c> header -- the tenant id from where the message arrived
-    /// </summary>
-    internal void MapIncoming(Envelope envelope, NatsMsg<byte[]> incoming)
-    {
-        MapIncomingToEnvelope(envelope, incoming);
-        _tenancy.Apply(envelope, incoming.Subject);
     }
 
     protected override void writeOutgoingHeader(NatsHeaders headers, string key, string value)
@@ -100,6 +98,11 @@ public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
     }
 }
 
+/// <summary>
+/// The JetStream mapping of earlier versions. <see cref="NatsEndpoint"/> no longer uses it: a JetStream listener
+/// maps its messages with the endpoint's <see cref="INatsEnvelopeMapper"/>, the same one core NATS uses, so that
+/// <c>UseInterop(...)</c> covers both. Kept so code that builds one keeps compiling.
+/// </summary>
 public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHeaders>
 {
     private readonly Uri _destination;

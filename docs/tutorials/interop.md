@@ -82,7 +82,7 @@ common interoperability scenarios:
 | [MQTT](/guide/messaging/transports/mqtt) | [IMqttEnvelopeMapper](/guide/messaging/transports/mqtt.html#interoperability)                 | CloudEvents                                     |
 | [Redis](/guide/messaging/transports/redis) | [IRedisEnvelopeMapper](/guide/messaging/transports/redis.html#interoperability) | CloudEvents                                     |
 | [GCP Pub/Sub](/guide/messaging/transports/gcp-pubsub/) | [IPubsubEnvelopeMapper](/guide/messaging/transports/gcp-pubsub/interoperability) | CloudEvents                                     |
-| [NATS](/guide/messaging/transports/nats) | None, the NATS mapping isn't pluggable | None                                            |
+| [NATS](/guide/messaging/transports/nats) | [INatsEnvelopeMapper](/guide/messaging/transports/nats.html#interoperability) | CloudEvents, Raw Json                           |
 
 ## Writing a Custom Envelope Mapper
 
