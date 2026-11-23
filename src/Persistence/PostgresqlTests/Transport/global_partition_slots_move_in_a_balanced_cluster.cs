@@ -401,10 +401,20 @@ public class global_partition_slots_move_in_a_balanced_cluster : IAsyncLifetime
         await waitForSettledOwnershipAsync(30.Seconds());
         slotsOwnedBy(nodeA).Length.ShouldBe(SlotCount, "A lone node owns every slot");
 
-        // A backlog on every slot, both ways in. Slow enough to outlast the join + reassignment.
+        // A backlog on every slot, both ways in. The companion path runs on node A from the start. The shard queue
+        // path is held in its PostgreSQL table until the slot has moved: node A takes nothing from its slots' queue
+        // tables until the test lets it. A backlog that only had to be slow enough to outlast the join was a race
+        // with the join itself (GH-5760): 8 groups of 20 at 250ms each drain in about 5 seconds, and starting node B
+        // plus a settled reassignment took longer than that on a loaded CI runner, so the slot moved after the
+        // backlog was gone. Held in the table, the moved slot's shard queue backlog is still there when node B takes
+        // the slot, whatever the timing, and node B has to pick it up.
+        var heldQueues = slotsOf(nodeA);
+        var maximumToReceive = heldQueues[0].MaximumMessagesToReceive;
+        foreach (var queue in heldQueues) queue.MaximumMessagesToReceive = 0;
+
         ClusterStepHandler.Delay = 250.Milliseconds();
         var expected = new List<(Guid, int[])>();
-        foreach (var slot in slotsOf(nodeA))
+        foreach (var slot in heldQueues)
         {
             expected.AddRange(await loadSlotBothWaysAsync(nodeA, slot.Uri, 20));
         }
@@ -420,7 +430,10 @@ public class global_partition_slots_move_in_a_balanced_cluster : IAsyncLifetime
         var handledAtHandoff = ClusterStepHandler.Handled.Count;
         handledAtHandoff.ShouldBeLessThan(expected.Sum(x => x.Item2.Length),
             "Precondition: the backlog has to still exist when the slot moves, or the handoff is never exercised. " +
-            "Raise the per-group count or the delay if this trips.");
+            "Node A should not have taken anything from its shard queue tables yet.");
+
+        // Node A works off the shard queue backlog of the slots it kept. Node B's queues were never held.
+        foreach (var queue in heldQueues) queue.MaximumMessagesToReceive = maximumToReceive;
 
         // New traffic on the moved slots from their new owner, while the old owner may still be finishing
         var busB = nodeB.MessageBus();
