@@ -41,7 +41,7 @@ namespace Internal.Generated.WolverineHandlers
 
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            await context.FlushOutgoingMessagesAsync().ConfigureAwait(false);
+            await Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(context).ConfigureAwait(false);
         }
     }
 
