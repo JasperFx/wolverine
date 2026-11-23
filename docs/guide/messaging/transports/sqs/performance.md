@@ -96,7 +96,7 @@ opts.ListenToSqsQueue("slow-work", q => q.VisibilityTimeout = 60)
     // handlers run, extending by the visibility timeout every half timeout
     .ExtendVisibilityWhileHandling();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_extend_visibility_while_handling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L228-L234' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_extend_visibility_while_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `ExtendVisibilityWhileHandling()` (inline endpoints only — Durable and Buffered have already

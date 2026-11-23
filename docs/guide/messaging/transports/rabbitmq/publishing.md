@@ -76,8 +76,9 @@ using var host = await Host.CreateDefaultBuilder()
             // control the Rabbit MQ object lifecycle
             .DeclareExchange("exchange1", ex => { ex.BindQueue("queue1", "key1"); })
 
-            // Lets Wolverine create any missing declared Rabbit MQ objects
-            // on demand when it needs them
+            // This will direct Wolverine to create any missing Rabbit MQ exchanges,
+            // queues, or binding keys declared in the application at application
+            // start up time
             .AutoProvision();
 
         opts.PublishAllMessages().ToRabbitExchange("exchange1");

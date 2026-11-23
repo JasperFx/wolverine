@@ -147,8 +147,11 @@ Three consequences follow from never acking at receipt, and all three are the po
 **Transport support is opt-in and default-closed.** A transport must settle each delivery individually *and*
 tolerate settling out of order, because the execution block completes messages in handler-completion order
 rather than delivery order. RabbitMQ queues, [Pulsar](/guide/messaging/transports/pulsar.html#native-ack-processing)
-topics and [Amazon SQS](/guide/messaging/transports/sqs/listening.html#native-ack-processing) queues qualify and
-are supported today. Kafka cannot and is out of scope: a cumulative offset commit has no
+topics, [Amazon SQS](/guide/messaging/transports/sqs/listening.html#native-ack-processing) queues,
+[Azure Service Bus](/guide/messaging/transports/azureservicebus/performance.html#native-ack-endpoints) queues and
+subscriptions, [NATS JetStream](/guide/messaging/transports/nats.html#native-acks-with-parallel-processing),
+Google Cloud Pub/Sub subscriptions and [Redis Streams](/guide/messaging/transports/redis.html#native-acks-with-parallel-processing)
+qualify and are supported today. Kafka cannot and is out of scope: a cumulative offset commit has no
 way to express a gap. Calling `ProcessInParallelWithNativeAcks()` on a transport that has not opted in throws
 at configuration time rather than degrading silently.
 
@@ -360,8 +363,8 @@ If the broker refuses a renewal — or no renewal succeeds for a full lease dura
 delivery again and is going to redeliver it. Wolverine's response depends on where the envelope had got to:
 
 * **Still queued, not yet executing.** The queued copy is **dropped: neither completed nor deferred.** That
-  looks harsh and is the only non-amplifying option. Every transport's defer path is *settle-then-republish*,
-  so deferring after the lease is gone would put a second copy on the queue on top of the redelivery already
+  looks harsh and is the only non-amplifying option. Every transport's defer path *republishes a copy and
+  settles the original* (as of 7.0 the brokers' requeue paths send or confirm that copy before they settle the original), so deferring after the lease is gone would put a second copy on the queue on top of the redelivery already
   coming. Dropping turns "handled twice" into "handled once, later".
 * **Already executing.** A running handler cannot be un-run. This one stays at-least-once — NativeAck's
   documented contract — and Wolverine's only job is to not compound it, so its defer is suppressed too.
@@ -455,8 +458,9 @@ inbox support](/guide/durability) for guaranteed delivery and processing.
 With `Durable` endpoints, the basic processing of messages is:
 
 1. A message -- or batch of messages for transports like AWS SQS or Azure Service Bus that support batching --
-   arrives from the listener and is immediately "ack-ed" to the message broker
-2. Each message -- or message batch -- is persisted to Wolverine's message storage
+   arrives from the listener
+2. Each message -- or message batch -- is persisted to Wolverine's message storage, and only then "ack-ed" to
+   the message broker
 3. The message is placed into an in memory queue where it will be handled one at a time
 4. When a message is successfully handled or moved to a dead letter queue, the message in the database
    is marked as "Handled"
@@ -554,7 +558,7 @@ accepted the circuit breaker and then quietly kept processing every message. See
 
 That normalization also removes an order dependency: `.MaximumParallelMessages(20).ProcessInline()` and
 `.ProcessInline().MaximumParallelMessages(20)` now leave the endpoint in exactly the same state. The
-`wolverine describe` and `wolverine diagnose` listener tables likewise print `n/a (Inline)` for parallelism
+`describe` and `wolverine-diagnostics describe-routing --all` listener tables likewise print `n/a (Inline)` for parallelism
 rather than a number the endpoint never reads.
 
 How many messages an `Inline` listener actually handles at once is up to the transport's own listener — for
@@ -601,7 +605,7 @@ var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         .ListenWithStrictOrdering();
 }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/exclusive_listeners.cs#L34-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_utilizing_listenwithstrictordering' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/exclusive_listeners.cs#L32-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_utilizing_listenwithstrictordering' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This option does a couple things:
@@ -642,7 +646,7 @@ transports like Rabbit MQ or AWS SQS. To do that, simply set:
     // This could never, ever work
     opts.UseRabbitMq().AutoProvision();
     opts.ListenToRabbitQueue("incoming");
-}).StartAsync();
+}).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/disable_external_listeners.cs#L16-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_listeners' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

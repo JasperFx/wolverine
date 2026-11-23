@@ -364,7 +364,7 @@ public ValueTask SendMessage(IMessageContext bus)
     return bus.SendAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L189-L205' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L188-L204' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That by itself will send the `InvoiceCreated` message to whatever subscribers are interested in
@@ -392,7 +392,7 @@ public ValueTask PublishMessage(IMessageContext bus)
     return bus.PublishAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L208-L224' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L207-L223' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publishing_message_with_servicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Scheduling Message Delivery or Execution
@@ -609,7 +609,8 @@ without changing any endpoint-wide configuration.
   envelope for just this message.
 * **Acknowledgements** — set `AckRequested` to request an acknowledgement from the receiver.
 * **Transport-specific routing** — `GroupId` (AMQP 1.0 group id / Azure Service Bus session id / Amazon SQS FIFO
-  `MessageGroupId`), `DeduplicationId` (Amazon SQS FIFO), and `PartitionKey` (Kafka) map onto the corresponding
+  `MessageGroupId`), `DeduplicationId` (Amazon SQS and SNS FIFO, GCP Pub/Sub, and Wolverine's own `[Deduplicated]`
+  handlers), and `PartitionKey` (Kafka) map onto the corresponding
   native broker concepts.
 
 Here's an example exercising several of these options at once:
@@ -679,7 +680,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L145-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_rabbit_mq_setup_for_raw_messages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L143-L169' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_rabbit_mq_setup_for_raw_messages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And some more context for the subsequent sample usages:
@@ -697,7 +698,7 @@ IMessageBus bus = host.MessageBus();
 byte[] messageData 
     = Encoding.UTF8.GetBytes("{\"Name\": \"George Karlaftis\"}");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L173-L184' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_context_for_raw_message_sending' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L171-L182' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_context_for_raw_message_sending' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The simplest possible usage is when you can assume that the receiving Wolverine
@@ -725,7 +726,7 @@ await bus
     .EndpointFor(new Uri("rabbitmq://queue/batches"))
     .SendRawMessageAsync(messageData);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L187-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_usage_of_sending_by_raw_data' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L185-L204' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_usage_of_sending_by_raw_data' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that in this case, you'll have to help Wolverine out by explicitly choosing
@@ -762,5 +763,5 @@ await bus
         env.Headers["user"] = "jack";
     });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L208-L234' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_more_advanced_usage_of_raw_message_sending' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/sending_raw_messages.cs#L206-L232' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_more_advanced_usage_of_raw_message_sending' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

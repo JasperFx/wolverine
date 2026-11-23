@@ -1,8 +1,9 @@
 # Using Kafka
 
 ::: warning
-The Kafka transport does not really support the "Requeue" error handling policy in Wolverine. "Requeue" in this case becomes
-effectively an inline "Retry"
+The Kafka transport does not really support the "Requeue" error handling policy in Wolverine. Kafka has no way to
+hand a message back to the broker, so "Requeue" in this case becomes effectively a "Retry": the listener offers the
+message to its handlers again in memory after a one second pause, without committing its offset
 :::
 
 ## Installing
@@ -66,9 +67,9 @@ opts.UseKafkaUsingNamedConnection("kafka",
     .AutoProvision();
 ```
 
-```warning
+::: warning
 The configuration in `ConfigureConsumer()` for each topic completely overwrites any previous configuration
-```
+:::
 
 To connect to Kafka, use this syntax:
 
@@ -80,7 +81,7 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts.UseKafka(KafkaContainerFixture.ConnectionString)
 
-            // See https://github.com/confluentinc/confluent-kafka-dotnet for the exact options here
+            // These are Wolverine's own option types, named after Dekaf's client options. See https://thomhurst.github.io/Dekaf/
             .ConfigureClient(client =>
             {
                 // configure both producers and consumers
@@ -139,14 +140,14 @@ using var host = await Host.CreateDefaultBuilder()
                 // You do have full access to the IAdminClient to do
                 // whatever you need to do
 
-                await client.CreateTopicsAsync([topic.Specification]);
+                await client.CreateTopicsAsync([topic.Specification.ToNewTopic()],
+                    new Dekaf.Admin.CreateTopicsOptions(), CancellationToken.None);
             })
-            
+
             // Override the producer configuration for just this topic
             .ConfigureProducer(config =>
             {
                 config.BatchSize = 100;
-                config.EnableGaplessGuarantee = true;
                 config.EnableIdempotence = true;
             });
 
@@ -223,24 +224,22 @@ processes messages. Understanding these settings is important for getting the de
 
 ### How Endpoint Mode Affects Consumer Configuration
 
-When an endpoint uses `EndpointMode.Durable` (i.e., you've called `.UseDurableInbox()` or applied durable inbox
-globally), Wolverine overrides the following consumer setting before building the listener:
+The endpoint mode doesn't change the consumer's commit settings. Those come from the listener's
+[commit strategy](#commit-strategy), and the default, `StoreThenAutoFlush`, sets up every listener the same way,
+durable or not:
 
-| Consumer Setting | Durable (`UseDurableInbox`) | Non-Durable (`BufferedInMemory` / `Inline`) |
+| Consumer Setting | Default (`StoreThenAutoFlush`) | `PerMessage`, `CommitOffsetsAfterCount()` or `CommitOffsetsAfterInterval()` |
 |---|---|---|
-| `OffsetCommitMode` | `Manual` | `Auto` (Kafka default) |
-| `EnableAutoOffsetStore` | `true` (Kafka default) | `true` (Kafka default) |
+| `OffsetCommitMode` | `Auto` | `Manual` |
+| `EnableAutoOffsetStore` | `false` | unchanged |
 
-In **durable mode**, Wolverine disables Kafka's automatic offset *commit* so that offsets are only committed
-when Wolverine explicitly calls `Commit()` after a message has been successfully persisted to the transactional
-inbox. The Kafka client still auto-stores the offset on each `Consume()` call (the default behavior), which
-tracks the consumer's position. However, the stored offset is not pushed to the broker until `Commit()` is
-called. This gives correct at-least-once semantics -- if the application shuts down unexpectedly before
-committing, unprocessed messages will be re-delivered when the consumer rejoins the group.
+What the endpoint mode does change is *when* a message counts as finished, and so when its offset can be stored or
+committed. A **durable** listener (`UseDurableInbox()`) finishes a message once it's been persisted to the
+transactional inbox. That gives you at-least-once semantics -- if the application shuts down unexpectedly before
+then, the message is re-delivered when the consumer rejoins the group.
 
-In **non-durable mode** (`BufferedInMemory` or `ProcessInline`), Kafka's default auto-commit behavior is left
-in place. The Kafka client library periodically commits offsets automatically, which provides higher throughput
-at the cost of potential message loss during an ungraceful shutdown.
+A **non-durable** listener (`BufferedInMemory` or `ProcessInline`) trades some of that for throughput, and can lose
+messages during an ungraceful shutdown. See the end of [Commit Strategy](#commit-strategy) for exactly when.
 
 ### Offset Commit Behavior in the Listener
 
@@ -355,7 +354,7 @@ concurrently (extra nodes sit idle as hot standbys). Size your partition count f
 and node count.
 
 Rebalancing itself needs no configuration — the transport always runs on Kafka's next-generation
-consumer rebalance protocol ([KIP-848](#rebalance-protocol-kip-848), below), so a rebalance keeps each
+consumer rebalance protocol ([KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol)), so a rebalance keeps each
 consumer's unaffected partitions instead of a stop-the-world revoke-everything cycle. One **opt-in**
 consumer setting makes the assignment even more stable in production:
 
@@ -613,7 +612,7 @@ The default is `read_uncommitted`.
 ### Handler idempotency
 
 Because delivery is at-least-once, **design your handlers to tolerate redelivery** — especially if you
-don't use the durable inbox, and always when using [retry topics](#) or [replay](#replaying-a-topic). Make
+don't use the durable inbox, and always when using [retry topics](#non-blocking-retry-topics) or [replay](#replaying-a-topic). Make
 writes idempotent (upserts keyed by a business id, conditional updates, dedupe tables), so reprocessing the
 same message is harmless.
 
@@ -875,7 +874,7 @@ public static class KafkaInstrumentation
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L232-L244' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L233-L245' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting to Multiple Brokers 
@@ -930,8 +929,9 @@ using var host = await Host.CreateDefaultBuilder()
         opts.UseKafka(KafkaContainerFixture.ConnectionString)
             .AutoProvision()
 
-            // How should Wolverine route a message whose TenantId is null or
-            // unknown? FallbackToDefault (the 6.x default) uses the shared cluster;
+            // How should Wolverine route a message whose TenantId is unknown?
+            // DeadLetterUnknownTenants (the 7.0 default) dead letters it;
+            // FallbackToDefault (the 6.x default) uses the shared cluster;
             // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
             .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
@@ -956,7 +956,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.ListenToKafkaTopic("colors");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L195-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafka_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L195-L229' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafka_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To route a specific message to a tenant's cluster, stamp the tenant id on the send:
@@ -994,7 +994,7 @@ tenants by subject prefix on a *shared* connection.)
 
 ### Auto-provisioning per cluster
 
-When [`AutoProvision()`](#) is enabled, Wolverine provisions the shared topic topology — including the dead letter
+When `AutoProvision()` is enabled, Wolverine provisions the shared topic topology — including the dead letter
 queue topic — on **every** tenant cluster, not just the default one, since each is an independent broker. A tenant
 listener's dead-lettered messages are likewise produced to the DLQ topic on that tenant's own cluster.
 
@@ -1260,13 +1260,11 @@ using var host = await Host.CreateDefaultBuilder()
 When publishing to Kafka through the default (buffered) sender, Wolverine coalesces outgoing envelopes into batches before handing each batch to the Dekaf producer in a single `ProduceAllAsync` call. A batch is flushed when **either** of two thresholds is hit:
 
 - the batch reaches `MessageBatchSize` envelopes (default **100**), or
-- the `MessageBatchTimeout` elapses since the **most recent** envelope entered the batch (default **250 ms**).
+- the `MessageBatchTimeout` elapses since the **first** envelope entered the batch (default **250 ms**).
 
-Note that the timeout is a *debounce* — every new envelope resets the timer. A lone message
-always waits the full timeout before hitting the wire, and a steady trickle of messages arriving
-faster than the timeout will keep postponing the flush until `MessageBatchSize` accumulates. If
-you have a low-rate stream where per-message latency matters, shrink `MessageBatchTimeout` (or
-`MessageBatchSize`) rather than assuming the timeout bounds total wait.
+The timeout is the maximum age of a batch, not a debounce, so a steady trickle of messages can't postpone the
+flush. A lone message still waits the full timeout before hitting the wire though, so if you have a low-rate
+stream where per-message latency matters, shrink `MessageBatchTimeout` (or `MessageBatchSize`).
 
 The relevant settings on a publisher route:
 

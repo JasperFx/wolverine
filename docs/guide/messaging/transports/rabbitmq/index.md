@@ -245,7 +245,7 @@ processing, add `builder.Services.AddResourceSetupOnStartup()` to the service pr
 If you are using Wolverine in a cluster of running nodes -- and it's more likely that you are than not if you have any
 kind of non trivial load -- Wolverine needs to communicate between its running nodes for various reasons if you are using
 any kind of message persistence. Normally that communication is done through little, specialized database queueing (crude polling),
-but there's an option to use more efficient Rabbit MQ queues for that inter-node communication with a non-durable Rabbit MQ
+but there's an option to use more efficient Rabbit MQ queues for that inter-node communication with an auto-delete Rabbit MQ
 queue for each node with this option:
 
 <!-- snippet: sample_using_rabbit_mq_control_queues -->
@@ -273,7 +273,7 @@ The response queues (and system queues) are now created as durable Rabbit MQ que
 after there is no connection for these queues. 
 :::
 
-By default, Wolverine creates an in memory queue in the Rabbit MQ broker for each individual node that is used by Wolverine
+By default, Wolverine creates a queue in the Rabbit MQ broker for each individual node that is used by Wolverine
 for request/reply invocations (`IMessageBus.InvokeAsync<T>()` when used remotely). Great, but if your process does not
 have permissions with your Rabbit MQ broker to create queues, you may encounter errors. Not to worry, you can disable
 that Wolverine system queue creation with:
@@ -313,7 +313,7 @@ against a Rabbit MQ endpoint need that per-node queue for the reply (or acknowle
 
 ## Configuring Channel Creation <Badge type="tip" text="5.10" />
 
-You now have the ability to fine tune how the [Rabbit MQ channels](https://www.rabbitmq.com/docs/channels~~~~) are created by Wolverine through
+You now have the ability to fine tune how the [Rabbit MQ channels](https://www.rabbitmq.com/docs/channels) are created by Wolverine through
 this syntax:
 
 <!-- snippet: sample_configuring_rabbit_mq_channel_creation -->

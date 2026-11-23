@@ -72,7 +72,7 @@ public static class Bootstrapping
                     // The primary key column for this table, default is "id"
                     table.IdColumnName = "id";
 
-                    // What column has the actual JSON data? Default is "json"
+                    // What column has the actual JSON data? Default is "body"
                     table.JsonBodyColumnName = "body";
 
                     // Optionally tell Wolverine that the message type name is this

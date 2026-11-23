@@ -1,7 +1,7 @@
 # Scheduled Delivery
 
 ::: info
-This functionality as introduced in Wolverine 1.6.0
+This functionality was introduced in Wolverine 1.6.0
 :::
 
 WolverineFx.AzureServiceBus now supports [native Azure Service Bus scheduled delivery](https://learn.microsoft.com/en-us/azure/service-bus-messaging/message-sequencing).
@@ -27,10 +27,10 @@ private async Task SendScheduledMessage(IMessageContext bus, Guid invoiceId)
     await bus.ScheduleAsync(message, DateTimeOffset.Now.AddDays(30));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L153-L169' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_delayed_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L152-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_delayed_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-And also use Azure Service Bus scheduled delivery for scheduled retries (assuming that the listening endpoint was an **inline** Azure Service Bus listener):
+And also use Azure Service Bus scheduled delivery for scheduled retries (assuming that the listening endpoint was an **inline** or [native ack](/guide/messaging/listeners#native-ack-endpoints) Azure Service Bus listener):
 
 <!-- snippet: sample_using_scheduled_retry -->
 <a id='snippet-sample_using_scheduled_retry'></a>

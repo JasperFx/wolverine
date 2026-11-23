@@ -24,7 +24,7 @@ var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L105-L125' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subscriber_rules_for_pubsub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L187-L207' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subscriber_rules_for_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Ordering keys

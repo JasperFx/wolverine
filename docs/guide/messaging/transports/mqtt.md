@@ -71,12 +71,13 @@ await host.StartAsync();
 ```
 
 ::: info
-The MQTT transport *at this time* only supports endpoints that are either `Buffered` or `Durable`. 
+The MQTT transport supports endpoints that are `Inline`, `Buffered` or `Durable`.
 :::
 
 ::: warning
-The MQTT transport does not really support the "Requeue" error handling policy in Wolverine. "Requeue" in this case becomes
-effectively an inline "Retry"
+MQTT has no way to hand a message back to the broker, so the "Requeue" error handling policy keeps the message
+unacknowledged and offers it to the listener again in memory. See [Requeued and Deferred Messages](#requeued-and-deferred-messages)
+for what that means at each quality of service level.
 :::
 
 ## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
@@ -240,7 +241,7 @@ public class FirstMessage
     public Guid Id { get; set; } = Guid.NewGuid();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L498-L505' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L509-L516' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_topic_attribute-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publishing by Topic Rules
@@ -611,9 +612,10 @@ message's [tenant id](/guide/handlers/multi-tenancy), typically set through `Del
 ```csharp
 opts.UseMqtt(mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("shared-broker")))
 
-    // How should Wolverine route a message whose TenantId is null or unknown?
-    // FallbackToDefault (the 6.x default) uses the shared connection; TenantIdRequired
-    // throws; IgnoreUnknownTenants silently drops it.
+    // How should Wolverine route a message whose TenantId is unknown?
+    // DeadLetterUnknownTenants (the 7.0 default) dead letters it; FallbackToDefault
+    // (the 6.x default) uses the shared connection; TenantIdRequired throws on a
+    // missing tenant id; IgnoreUnknownTenants silently drops it.
     .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
     // Each tenant gets its OWN dedicated MQTT connection, but shares the
@@ -640,7 +642,7 @@ Wolverine wraps the outbound endpoint in a `TenantedSender` that dispatches on `
 compound listener that runs one subscription per tenant connection — each inbound envelope is stamped with the
 tenant id of the connection it was consumed from. This mirrors the
 [RabbitMQ](/guide/messaging/transports/rabbitmq/multi-tenancy) and
-[Azure Service Bus](/guide/messaging/transports/azureservicebus/multitenancy) broker-per-tenant support.
+[Azure Service Bus](/guide/messaging/transports/azureservicebus/multi-tenancy) broker-per-tenant support.
 
 ::: warning Unique ClientId per tenant (mandatory)
 MQTT brokers forcibly disconnect a second connection that shares a `ClientId`. Wolverine therefore always gives

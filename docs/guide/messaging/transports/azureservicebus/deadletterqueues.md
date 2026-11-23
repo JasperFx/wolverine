@@ -37,7 +37,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L756-L777' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_inline_dlq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L840-L861' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_inline_dlq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Buffered Endpoints
@@ -69,7 +69,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L782-L804' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_buffered_dlq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L866-L888' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_buffered_dlq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Durable Endpoints
@@ -100,7 +100,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L809-L830' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_durable_dlq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L893-L914' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_durable_dlq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Overriding the Default Dead Letter Queue Name <Badge type="tip" text="6.34" />
@@ -181,7 +181,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L835-L855' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_asb_dlq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L919-L939' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_asb_dlq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Recovering Native Dead Letters to Durable Storage <Badge type="tip" text="6.9" />

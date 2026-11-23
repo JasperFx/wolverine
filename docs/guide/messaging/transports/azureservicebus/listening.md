@@ -1,9 +1,9 @@
 # Listening for Messages
 
-::: warning
-The Azure Service Bus transport uses batching to both send and receive messages. As such,
-the listeners or senders can only be configured to use buffered or durable mechanics. I.e., there
-is no current option for inline senders or listeners.
+::: tip
+Buffered and durable Azure Service Bus listeners and senders work in batches. Inline listeners (`ProcessInline()`)
+run on an Azure Service Bus `ServiceBusProcessor` instead, and inline senders (`SendInline()`) send one message per
+call. See [Configuring the ServiceBusProcessor](#configuring-the-servicebusprocessor) below.
 :::
 
 You can configure explicit queue listening with this syntax:
@@ -42,12 +42,12 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L244-L276' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_an_azure_service_bus_listener' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L328-L360' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_an_azure_service_bus_listener' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Configuring the ServiceBusProcessor
 
-When a listener runs [inline](/guide/messaging/endpoints.html#endpoint-types) (`ProcessInline()`), Wolverine
+When a listener runs [inline](/guide/messaging/listeners#inline-endpoints) (`ProcessInline()`), Wolverine
 creates an Azure Service Bus `ServiceBusProcessor` for the queue or subscription. You can customize the
 underlying `ServiceBusProcessorOptions` with `ConfigureProcessor()` on either a queue or a subscription
 listener.
@@ -90,7 +90,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L281-L311' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_processor_options' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L365-L395' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_processor_options' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -147,7 +147,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L316-L347' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_prefetch_count' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L400-L431' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_prefetch_count' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The configured prefetch count is applied to the `ServiceBusReceiver` used by buffered and durable
@@ -169,7 +169,7 @@ queue's lock duration:
 - A good starting point is the Azure guidance of a small multiple (1-3x) of `MaximumMessagesToReceive`
   (Wolverine's default is 20), rather than some huge number.
 - Estimate `(PrefetchCount + MaximumMessagesToReceive) * average handler latency` and keep that
-  figure well under the queue's or subscription's lock duration (30 seconds by default).
+  figure well under the queue's or subscription's lock duration (one minute by default).
 - Fast handlers (a few milliseconds) can profitably use large prefetch buffers; slow handlers
   (hundreds of milliseconds or more) should use a small prefetch count or leave prefetch disabled.
 :::
@@ -202,7 +202,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L534-L555' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_listener_configuration_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L618-L639' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_listener_configuration_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that any of these settings would be overridden by specific configuration to

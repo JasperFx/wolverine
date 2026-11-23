@@ -1,8 +1,9 @@
 # Getting Started with Wolverine as Message Bus
 
 ::: tip
-As of Wolverine 3.0, you can now connect to multiple Rabbit MQ brokers from one application. We will extend this support
-to other message broker types in the future.
+As of Wolverine 3.0, you can now connect to multiple Rabbit MQ brokers from one application. That support has since
+been extended to the other message broker types through their `AddNamed*Broker()` methods, like `AddNamedKafkaBroker()`
+or `AddNamedAzureServiceBusBroker()`.
 :::
 
 There's certainly some value in Wolverine just being a command bus running inside of a single process, but now

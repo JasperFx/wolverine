@@ -156,7 +156,8 @@ Wolverine is the new kid on the block, and it's quite likely that many folks wil
 Fortunately, Wolverine has some ability to exchange messages with NServiceBus applications, so both tools can live and
 work together.
 
-At this point, the interoperability is only built and tested for the [Rabbit MQ transport](./index.md).
+NServiceBus interoperability isn't just for Rabbit MQ. Azure Service Bus, Amazon SQS, and the SQL Server and PostgreSQL
+queues support it too. See [Interop with NServiceBus](/tutorials/interop#interop-with-nservicebus) for the other transports.
 
 Here's a sample:
 

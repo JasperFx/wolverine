@@ -63,7 +63,7 @@ the most recent successful connect (initial or recovered).
 
 | Transport             | Probe support              |
 |-----------------------|----------------------------|
-| RabbitMQ              | Yes (since this release)   |
+| RabbitMQ              | Yes (since 5.38)           |
 | Azure Service Bus     | Pending                    |
 | Amazon SQS / SNS      | Pending                    |
 | Apache Kafka          | Pending                    |

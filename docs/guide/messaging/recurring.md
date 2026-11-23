@@ -161,7 +161,7 @@ scheduled-job poller cannot honour it. `UseScheduledMessages()` on such a schedu
 opts.Schedules.ScheduleRecurring(ScheduleName, "*/5 * * * * *",
     occurrence => new TimerOccurrence(occurrence));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/recurring_timer_agents_across_nodes.cs#L78-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_short_cadence_recurring_schedule' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/recurring_timer_agents_across_nodes.cs#L79-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_short_cadence_recurring_schedule' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### What changes on the timer path
@@ -266,8 +266,8 @@ on a [timer agent](#short-cadences-timer-agents), because durable scheduled mess
 
 ## Durable tracking: record and verify
 
-When the message store supports it (every relational database provider — PostgreSQL, SQL Server,
-MySQL, SQLite), the recurring feature keeps a small tracking table
+When the message store supports it (the PostgreSQL, SQL Server, MySQL and SQLite providers -- the
+Oracle provider does not), the recurring feature keeps a small tracking table
 (`wolverine_recurring_messages`) beside the inbox: one row per registered schedule, mapping the
 schedule's name to the envelope id(s) of its pre-scheduled next occurrence. The scheduled inbox
 row is still the materialized occurrence — the tracking table is bookkeeping, never a delivery
@@ -401,7 +401,7 @@ and Wolverine warns about both at startup:
 * There is no store-backed occurrence deduplication, so an agent restart can double-publish an
   occurrence where a broker's native deduplication does not cover it.
 
-`DurabilityMode.Serverless` and `DurabilityMode.MediatorOnly` are different: those modes run no
+`DurabilityMode.Serverless`, `DurabilityMode.ServerlessWithOutbox` and `DurabilityMode.MediatorOnly` are different: those modes run no
 agents at all, so a registered schedule would be accepted and then silently never fire. Wolverine
 **refuses to start** in those modes with schedules registered, naming the schedules in the
 exception — a schedule that quietly never happens is exactly the failure this feature exists to

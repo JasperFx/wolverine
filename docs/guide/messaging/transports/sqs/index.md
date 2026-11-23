@@ -24,7 +24,7 @@ var host = await Host.CreateDefaultBuilder()
             .AutoPurgeOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L109-L125' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sqs_setup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L110-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sqs_setup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -54,7 +54,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L130-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L131-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -72,7 +72,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.UseAmazonSqsTransportLocally();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L95-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sqs_and_localstack' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L96-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sqs_and_localstack' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, if you want to explicitly supply an access and secret key for your credentials to SQS, you can use this syntax:
@@ -106,7 +106,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L159-L186' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L160-L187' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
@@ -324,8 +324,9 @@ using var host = await Host.CreateDefaultBuilder()
         })
             .AutoProvision()
 
-            // How should Wolverine route a message whose TenantId is null or
-            // unknown? FallbackToDefault (the 6.x default) uses the shared connection;
+            // How should Wolverine route a message whose TenantId is unknown?
+            // DeadLetterUnknownTenants (the 7.0 default) dead letters it;
+            // FallbackToDefault (the 6.x default) uses the shared connection;
             // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
             .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
@@ -351,7 +352,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.ListenToSqsQueue("colors");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L52-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L52-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To route a specific message to a tenant's connection, stamp the tenant id on the send:
@@ -363,7 +364,7 @@ await bus.SendAsync(new ColorMessage("blue"), new DeliveryOptions { TenantId = "
 Wolverine wraps the outbound endpoint in a `TenantedSender` that dispatches on `Envelope.TenantId`, and builds a
 compound listener that runs one poller per tenant connection — each inbound envelope is stamped with the tenant id
 of the connection it was consumed from. This mirrors the
-[RabbitMQ](/guide/messaging/transports/rabbitmq/multi-tenancy) and [Azure Service Bus](/guide/messaging/transports/azureservicebus/multitenancy)
+[RabbitMQ](/guide/messaging/transports/rabbitmq/multi-tenancy) and [Azure Service Bus](/guide/messaging/transports/azureservicebus/multi-tenancy)
 broker-per-tenant support.
 
 ::: tip Named broker vs. broker-per-tenant
@@ -391,7 +392,7 @@ tenant only re-points the axes it actually sets and inherits everything else.
 
 ### Auto-provisioning per connection
 
-When [`AutoProvision()`](#) is enabled, Wolverine provisions the shared queue topology — including each queue's dead
+When `AutoProvision()` is enabled, Wolverine provisions the shared queue topology — including each queue's dead
 letter queue — on **every** tenant connection, not just the default one, since each is an independent broker. A tenant
 listener's dead-lettered messages are likewise sent to the dead letter queue on that tenant's own connection.
 

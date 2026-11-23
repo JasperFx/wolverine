@@ -49,7 +49,7 @@ public ValueTask EnqueueToQueue(IMessageContext bus)
     return bus.EndpointFor("highpriority").SendAsync(@event);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L134-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IServiceBus.Enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L133-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_IServiceBus.Enqueue_to_specific_worker_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Scheduling Local Execution
@@ -78,7 +78,7 @@ private async Task ScheduleLocally(IMessageContext bus, Guid invoiceId)
     await bus.ScheduleAsync(message, DateTimeOffset.Now.AddDays(30));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L171-L187' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedule_job_locally' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PublishingSamples.cs#L170-L186' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_schedule_job_locally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -200,7 +200,7 @@ public static async Task disable_queue_routing()
 
 ::: warning
 The current default is for local queues to allow for parallel processing with the maximum number of parallel threads
-set at the number of processors for the current machine. Likewise, the queues are unordered by default.
+set at the number of processors for the current machine or 5, whichever is greater. Likewise, the queues are unordered by default.
 :::
 
 You can configure durability or parallelization rules on single queues or conventional

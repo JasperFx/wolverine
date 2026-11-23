@@ -28,7 +28,7 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L332-L346' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_all_message_attributes' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L396-L410' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_all_message_attributes' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or just the attributes you actually care about:
@@ -49,14 +49,15 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L351-L365' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_specific_message_attributes' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L415-L429' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_specific_message_attributes' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Once you’ve opted in, those attributes are available in the dictionary passed to `ISqsEnvelopeMapper.ReadEnvelopeData`. From there, you can stash them in `Envelope.Headers`, set correlation IDs, or just ignore them.
 
 ## Things to know
 
-* If `MessageAttributeNames` is `null` or empty, nothing changes (this is the default).  
+* If `MessageAttributeNames` is `null` or empty (the default), Wolverine only asks for the attributes its own
+  [message fragmentation](/guide/messaging/transports/sqs/large-messages#message-fragmentation) uses.  
 * `"All"` asks SQS for every user-defined attribute.  
 * Pulling in lots of attributes increases your payload size. Use this only when you need it.  
 * This affects **receiving only**. Sending attributes is still a job for your custom mapper.  

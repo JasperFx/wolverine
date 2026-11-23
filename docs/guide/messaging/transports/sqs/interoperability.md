@@ -28,7 +28,7 @@ using var host = await Host.CreateDefaultBuilder()
             o => { o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L242-L256' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L304-L318' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Likewise, to send raw JSON to external systems, you have this option:
@@ -49,7 +49,7 @@ using var host = await Host.CreateDefaultBuilder()
             o => { o.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L296-L310' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L358-L372' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_raw_json_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Advanced Interoperability
@@ -90,7 +90,7 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L369-L400' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L433-L464' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_sqs_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And apply this to any or all of your SQS endpoints with the configuration fluent interface as shown in this sample:
@@ -106,9 +106,9 @@ using var host = await Host.CreateDefaultBuilder()
             .DisableAllNativeDeadLetterQueues()
             .ConfigureListeners(l => l.InteropWith(new CustomSqsMapper()))
             .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
-    }).StartAsync();
+    }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L316-L327' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_custom_sqs_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L380-L391' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_apply_custom_sqs_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Receive messages from Amazon SNS
@@ -129,7 +129,7 @@ using var host = await Host.CreateDefaultBuilder()
             .ReceiveSnsTopicMessage();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L262-L273' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_sns_topic_metadata_in_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L324-L335' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_sns_topic_metadata_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 It's possible for the original message that was sent to SNS to be in a different format. 
@@ -150,5 +150,5 @@ using var host = await Host.CreateDefaultBuilder()
                 new RawJsonSqsEnvelopeMapper(typeof(Message1), new JsonSerializerOptions()));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L278-L291' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_sns_topic_metadata_with_custom_mapper_in_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L340-L353' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_sns_topic_metadata_with_custom_mapper_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

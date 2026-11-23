@@ -60,8 +60,9 @@ public class Bootstrapping
                 })
                     .AutoProvision()
 
-                    // How should Wolverine route a message whose TenantId is null or
-                    // unknown? FallbackToDefault (the 6.x default) uses the shared connection;
+                    // How should Wolverine route a message whose TenantId is unknown?
+                    // DeadLetterUnknownTenants (the 7.0 default) dead letters it;
+                    // FallbackToDefault (the 6.x default) uses the shared connection;
                     // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
                     .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
