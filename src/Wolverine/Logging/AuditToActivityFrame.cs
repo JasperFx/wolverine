@@ -59,7 +59,7 @@ public class AuditToActivityFrame : SyncFrame
         foreach (var member in _members)
         {
             writer.WriteLine(
-                $"{activity}?.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {usageOf(member, _input!.Usage, "?.")});");
+                $"{activity}?.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {usageOf(member, _input!.Usage, false)});");
         }
 
         Next?.GenerateCode(method, writer);
@@ -79,7 +79,7 @@ public class AuditToActivityFrame : SyncFrame
             foreach (var member in _members)
             {
                 writer.Write(
-                    $"{current}.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {usageOf(member, _input!.FSharpUsage, ".")}) |> ignore");
+                    $"{current}.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {usageOf(member, _input!.FSharpUsage, true)}) |> ignore");
             }
 
             writer.FinishBlock();
@@ -89,14 +89,28 @@ public class AuditToActivityFrame : SyncFrame
     }
 
     // A member of the body's type is read through the body member, which may be null when the body is optional
-    private string usageOf(AuditedMember member, string input, string bodyAccess)
+    private string usageOf(AuditedMember member, string input, bool fsharp)
     {
         if (_bodyMember == null || member.Member.DeclaringType!.IsAssignableFrom(_inputType))
         {
             return $"{input}.{member.Member.Name}";
         }
 
-        var access = _bodyMember.GetMemberType()!.IsValueType && !_bodyMember.GetMemberType()!.IsNullable() ? "." : bodyAccess;
-        return $"{input}.{_bodyMember.Name}{access}{member.Member.Name}";
+        // The declared type, so a Nullable<T> body stays nullable
+        var bodyType = _bodyMember is PropertyInfo property ? property.PropertyType : ((FieldInfo)_bodyMember).FieldType;
+        var bodyIsNullableStruct = Nullable.GetUnderlyingType(bodyType) != null;
+        var body = $"{input}.{_bodyMember.Name}";
+
+        if (fsharp)
+        {
+            // F# has no ?. operator, and a Nullable<T> body's members are only reachable through its Value
+            return bodyIsNullableStruct
+                ? $"(if {body}.HasValue then box {body}.Value.{member.Member.Name} else null)"
+                : $"{body}.{member.Member.Name}";
+        }
+
+        return bodyType.IsValueType && !bodyIsNullableStruct
+            ? $"{body}.{member.Member.Name}"
+            : $"{body}?.{member.Member.Name}";
     }
 }

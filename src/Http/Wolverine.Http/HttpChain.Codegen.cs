@@ -575,11 +575,20 @@ public partial class HttpChain
         return char.IsDigit(name[0]) ? "_" + name : name;
     }
 
-    // The [AsParameters] member the request body binds to. Only one member may be the body, so the one typed as the
-    // request type is it.
+    // The [AsParameters] member the request body binds to: the one marked [FromBody], read the way
+    // AsParametersBindingFrame reads it, from the single public constructor's parameters or a writable property.
+    // Matching on the request type instead could pick a [FromServices] member of the same type.
     private PropertyInfo? findAsParametersBodyMember()
     {
-        return AsParametersType!.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .FirstOrDefault(x => (x.PropertyType.IsNullable() ? x.PropertyType.GetInnerTypeFromNullable() : x.PropertyType) == RequestType);
+        var type = AsParametersType!;
+        var constructors = type.GetConstructors();
+        if (constructors.Length == 1 &&
+            constructors[0].GetParameters().FirstOrDefault(x => x.HasAttribute<FromBodyAttribute>()) is { } parameter)
+        {
+            return type.GetProperty(parameter.Name!, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+        }
+
+        return type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .FirstOrDefault(x => x is { CanWrite: true, IsSpecialName: false } && x.HasAttribute<FromBodyAttribute>());
     }
 }
