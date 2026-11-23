@@ -9,15 +9,17 @@ namespace Wolverine.AmazonSqs.Tests;
 
 public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetime
 {
-    public static int Number;
-
     public InlineComplianceFixture() : base(new Uri("sqs://buffered-receiver"), 120)
     {
     }
 
     public async ValueTask InitializeAsync()
     {
-        var number = ++Number;
+        // GH-5736: names of this fixture's own. A per-class counter starting at 1 gave the Inline and Durable fixtures
+        // the same receiver-1/sender-1 queues, and the next process on the same LocalStack did too. A disposed host's
+        // receive loop leaves its long poll open at the broker for up to WaitTimeSeconds, and the broker hands the next
+        // message sent to that queue to the dead poll, where it sits invisible for the visibility timeout
+        var number = Guid.NewGuid().ToString("N");
 
         OutboundAddress = new Uri("sqs://receiver-" + number);
 
