@@ -261,6 +261,19 @@ public partial class AssignmentGrid
     internal bool HasAgent(Uri agentUri) => _agents.ContainsKey(agentUri);
 
     /// <summary>
+    ///     GH-5840. Take an agent out of placement for good, the way a pause does: it is skipped by every
+    ///     distribution, and detaching it makes the grid issue a stop wherever it still runs (or is starting).
+    /// </summary>
+    internal void Drop(Uri agentUri, UnplacedReason reason)
+    {
+        if (!_agents.TryGetValue(agentUri, out var agent)) return;
+
+        agent.IsPaused = true;
+        agent.UnplacedReason = reason;
+        agent.Detach();
+    }
+
+    /// <summary>
     ///     Find information about a single agent by its Uri
     /// </summary>
     /// <param name="agentUri"></param>

@@ -27,7 +27,7 @@ internal class PolecatMessageDatabaseSource<T> : PolecatMessageDatabaseSource wh
     }
 }
 
-internal class PolecatMessageDatabaseSource : ITenantedMessageSource
+internal class PolecatMessageDatabaseSource : ITenantedMessageSource, ITenantStoreRemoval
 {
     private readonly AutoCreate _autoCreate;
     private readonly List<Func<IMessageDatabase, ValueTask>> _configurations = new();
@@ -38,6 +38,10 @@ internal class PolecatMessageDatabaseSource : ITenantedMessageSource
     private readonly ITenancy _tenancy;
     private ImHashMap<string, IMessageStore> _databases = ImHashMap<string, IMessageStore>.Empty;
     private ImHashMap<string, IMessageStore> _stores = ImHashMap<string, IMessageStore>.Empty;
+
+    // GH-5840. Identifiers of databases whose last tenant was deregistered from this process. Polecat's tenancy keeps
+    // listing them, so refresh skips them. Only a live tenant resolving to the database again takes it off.
+    private ImHashMap<string, bool> _removedDatabases = ImHashMap<string, bool>.Empty;
 
     public PolecatMessageDatabaseSource(
         string schemaName,
@@ -60,6 +64,9 @@ internal class PolecatMessageDatabaseSource : ITenantedMessageSource
 
     public async ValueTask<IMessageStore> FindAsync(string tenantId)
     {
+        // GH-5840: a deregistered tenant is refused, so a stray message cannot rebuild its store
+        _runtime.Options.RemovedTenants.AssertNotRemoved(tenantId);
+
         if (_stores.TryFind(tenantId, out var store))
         {
             return store;
@@ -68,6 +75,15 @@ internal class PolecatMessageDatabaseSource : ITenantedMessageSource
         var factory = _tenancy.GetConnectionFactory(tenantId);
         var database = _tenancy.GetDatabase(tenantId);
         var identifier = database.Identifier;
+
+        if (_removedDatabases.Contains(identifier))
+        {
+            // A live tenant of a database whose other tenants were all removed: the database is in use after all
+            lock (_locker)
+            {
+                _removedDatabases = _removedDatabases.Remove(identifier);
+            }
+        }
 
         if (_databases.TryFind(identifier, out store))
         {
@@ -133,7 +149,7 @@ internal class PolecatMessageDatabaseSource : ITenantedMessageSource
         var polecatDatabases = _tenancy.AllDatabases();
         foreach (var polecatDatabase in polecatDatabases)
         {
-            if (!_databases.Contains(polecatDatabase.Identifier))
+            if (!_databases.Contains(polecatDatabase.Identifier) && !_removedDatabases.Contains(polecatDatabase.Identifier))
             {
                 var connectionString = polecatDatabase.ConnectionString ?? _store.Options.ConnectionString!;
 
@@ -145,6 +161,18 @@ internal class PolecatMessageDatabaseSource : ITenantedMessageSource
 
                 _databases = _databases.AddOrUpdate(polecatDatabase.Identifier, wolverineStore);
             }
+        }
+    }
+
+    /// <summary>
+    ///     GH-5840. Forget a deregistered tenant. Nothing is disposed here: the caller stops the agent and listeners first.
+    /// </summary>
+    public TenantStoreRemoval RemoveTenant(string tenantId)
+    {
+        lock (_locker)
+        {
+            return DatabaseCacheRemoval.RemoveTenant(ref _stores, ref _databases, ref _removedDatabases, tenantId,
+                _runtime.Options.RemovedTenants);
         }
     }
 

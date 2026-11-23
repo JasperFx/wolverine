@@ -28,7 +28,7 @@ internal class MartenMessageDatabaseSource<T> : MartenMessageDatabaseSource wher
     }
 }
 
-internal class MartenMessageDatabaseSource : ITenantedMessageSource
+internal class MartenMessageDatabaseSource : ITenantedMessageSource, ITenantStoreRemoval
 {
     private readonly AutoCreate _autoCreate;
 
@@ -39,6 +39,10 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
     private readonly IDocumentStore _store;
     private ImHashMap<string, IMessageStore> _databases = ImHashMap<string, IMessageStore>.Empty;
     private ImHashMap<string, IMessageStore> _stores = ImHashMap<string, IMessageStore>.Empty;
+
+    // GH-5840. Identifiers of databases whose last tenant was deregistered from this process. Marten's tenancy keeps
+    // listing them, so refresh skips them. Only a live tenant resolving to the database again takes it off.
+    private ImHashMap<string, bool> _removedDatabases = ImHashMap<string, bool>.Empty;
 
     public MartenMessageDatabaseSource(
         string schemaName,
@@ -56,6 +60,9 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
 
     public async ValueTask<IMessageStore> FindAsync(string tenantId)
     {
+        // GH-5840: a deregistered tenant is refused, so a stray message cannot rebuild its store
+        _runtime.Options.RemovedTenants.AssertNotRemoved(tenantId);
+
         if (_stores.TryFind(tenantId, out var store))
         {
             return store;
@@ -64,6 +71,15 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
         // Remember, Marten makes it legal to store multiple tenants in one database
         // so it's not 1 to 1 on tenant to database
         var database = await _store.Storage.FindOrCreateDatabase(tenantId);
+
+        if (_removedDatabases.Contains(database.Identifier))
+        {
+            // A live tenant of a database whose other tenants were all removed: the database is in use after all
+            lock (_locker)
+            {
+                _removedDatabases = _removedDatabases.Remove(database.Identifier);
+            }
+        }
 
         if (_databases.TryFind(database.Identifier, out store))
         {
@@ -131,9 +147,22 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
         var martenDatabases = await _store.Storage.AllDatabases();
         foreach (var martenDatabase in martenDatabases)
         {
-            if (!_databases.Contains(martenDatabase.Identifier))
+            if (!_databases.Contains(martenDatabase.Identifier) && !_removedDatabases.Contains(martenDatabase.Identifier))
             {
                 var wolverineStore = createTenantWolverineStore(martenDatabase);
+
+                // GH-5840: a database every one of whose tenants was deregistered here, but which this process
+                // never had a store for, so RemoveTenant could not name it
+                if (wolverineStore.TenantIds.Count > 0 && wolverineStore.TenantIds.All(_runtime.Options.RemovedTenants.Contains))
+                {
+                    lock (_locker)
+                    {
+                        _removedDatabases = _removedDatabases.AddOrUpdate(martenDatabase.Identifier, true);
+                    }
+
+                    continue;
+                }
+
                 if (withMigration && _runtime.Options.AutoBuildMessageStorageOnStartup != AutoCreate.None)
                 {
                     await wolverineStore.Admin.MigrateAsync();
@@ -155,36 +184,14 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
     }
 
     /// <summary>
-    /// Evict and dispose the cached Wolverine message store for a given tenant.
-    /// Called when a tenant is disabled or removed from dynamic tenancy.
+    ///     GH-5840. Forget a deregistered tenant. Nothing is disposed here: the caller stops the agent and listeners first.
     /// </summary>
-    public async ValueTask RemoveTenantStoreAsync(string tenantId)
+    public TenantStoreRemoval RemoveTenant(string tenantId)
     {
-        IMessageStore? storeToDispose = null;
-
         lock (_locker)
         {
-            if (_stores.TryFind(tenantId, out var store))
-            {
-                _stores = _stores.Remove(tenantId);
-
-                // Also remove from _databases if this store is cached there
-                foreach (var entry in _databases.Enumerate())
-                {
-                    if (ReferenceEquals(entry.Value, store))
-                    {
-                        _databases = _databases.Remove(entry.Key);
-                        break;
-                    }
-                }
-
-                storeToDispose = store;
-            }
-        }
-
-        if (storeToDispose != null)
-        {
-            await storeToDispose.DisposeAsync();
+            return DatabaseCacheRemoval.RemoveTenant(ref _stores, ref _databases, ref _removedDatabases, tenantId,
+                _runtime.Options.RemovedTenants);
         }
     }
 
