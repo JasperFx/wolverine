@@ -41,10 +41,6 @@ type POST_fsharp_points(wolverineHttpOptions: Wolverine.Http.WolverineHttpOption
                 // Save all pending changes to this Marten session
                 do! documentSession.SaveChangesAsync(httpContext.RequestAborted)
 
-                
-                // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-                do! messageContext.FlushOutgoingMessagesAsync()
-
 
                 // [WaitForProjection]: wait for PointsView to process the events this session appended
                 let! projectionWait = Wolverine.Persistence.EventSourcing.ReadYourWrites.WaitForAppendedEventsAsync(_documentStore, documentSession, [| typeof<Wolverine.Http.FSharpContracts.PointsView> |], 5000, messageContext, httpContext.RequestAborted)
@@ -52,6 +48,10 @@ type POST_fsharp_points(wolverineHttpOptions: Wolverine.Http.WolverineHttpOption
                 // Wolverine automatically sets the status code to 204 for empty responses
                 if not httpContext.Response.HasStarted && httpContext.Response.StatusCode = 200 then
                     httpContext.Response.StatusCode <- 204
+                
+                // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+                do! Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(messageContext)
+
         }
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]

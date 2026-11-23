@@ -48,7 +48,7 @@ type IncrementCounterHandler805386214(documentStore: Marten.IDocumentStore, outb
 
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            do! context.FlushOutgoingMessagesAsync()
+            do! Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(context)
 
 
             // [WaitForProjection]: wait for Counter to process the events this session appended
