@@ -148,7 +148,7 @@ the write is durable, use `AfterCommit` instead.
 :::
 
 This trips people up because the name reads the other way around. When a chain is transactional, the commit
-itself is a postprocessor contributed by the persistence provider — Marten's `SaveChangesAsync`, EF Core's
+itself is a postprocessor contributed by the persistence provider -- Marten's `SaveChangesAsync`, EF Core's
 `SaveChangesAsync`, and so on. `After` methods are inserted at the *front* of the postprocessors, so they run
 **before** that commit:
 
@@ -194,7 +194,7 @@ Two behaviours worth knowing:
   `AfterCommit` method is therefore sent through the normal end-of-pipeline flush rather than the transaction
   that just committed. If a message has to be atomic with the write, cascade it from the handler instead.
 
-`After`'s position is unchanged and will stay that way — plenty of post-handler work has nothing to do with
+`After`'s position is unchanged and will stay that way -- plenty of post-handler work has nothing to do with
 durability, and moving it would silently change behaviour for existing applications.
 
 
@@ -418,7 +418,7 @@ on an individual handler method or apply to all handler methods on the same hand
 
 ## Custom Code Generation
 
-For more advanced usage, you can drop down to the JasperFx.CodeGeneration `Frame` model to directly inject code. The `Frame` model itself — plus `Variable`, `MethodCall`, and the built-in frames Wolverine composes with — is documented in depth at [shared-libs.jasperfx.net/codegen](https://shared-libs.jasperfx.net/codegen/).
+For more advanced usage, you can drop down to the JasperFx.CodeGeneration `Frame` model to directly inject code. The `Frame` model itself -- plus `Variable`, `MethodCall`, and the built-in frames Wolverine composes with -- is documented in depth at [shared-libs.jasperfx.net/codegen](https://shared-libs.jasperfx.net/codegen/).
 
 The first step is to create a JasperFx.CodeGeneration `Frame` class that generates that code around the inner message or HTTP handler:
 

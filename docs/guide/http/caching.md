@@ -1,6 +1,6 @@
 # Caching <Badge type="tip" text="5.9" />
 
-For caching HTTP responses, Wolverine can simply work with the [Response Caching Middleware in ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/middleware?view=aspnetcore-10.0).
+For caching HTTP responses, Wolverine can simply work with the [Response Caching Middleware in ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/performance/caching/middleware).
 
 Wolverine.HTTP *will* respect your usage of the `[ResponseCache]` attribute on either the endpoint handler or method to write out both the `vary` and `cache-control` HTTP headers --
 with an attribute on the method taking precedence. 

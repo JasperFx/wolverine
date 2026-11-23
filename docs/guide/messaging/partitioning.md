@@ -375,7 +375,7 @@ out of the topology.
 
 A partitioned topology can declare its own grouping rules with `GroupByTenantId()`, `GroupBy<T>()` or
 `GroupBy(IGroupingRule)`. Those rules reach only the message types that topology publishes, and they are tried
-**before** the application-wide `MessagePartitioning` rules — so a topology rule wins for its own messages no
+**before** the application-wide `MessagePartitioning` rules -- so a topology rule wins for its own messages no
 matter what order the two were declared in:
 
 <!-- snippet: sample_topology_scoped_grouping -->
@@ -419,13 +419,13 @@ message in hand, the application-wide rules still get their say. So the full ord
 
 ::: tip
 Falling through matters most for `UseInferredMessageGrouping()`. The saga and aggregate identities it infers land
-in the application-wide list, so they stay available to every topology. Giving one topology a narrower rule — say
-`GroupByTenantId()` for messages that carry a tenant id — never costs its other messages the inferred identity they
+in the application-wide list, so they stay available to every topology. Giving one topology a narrower rule -- say
+`GroupByTenantId()` for messages that carry a tenant id -- never costs its other messages the inferred identity they
 would otherwise have been grouped by.
 :::
 
 A message type can be published to more than one partitioned topology, but an envelope has only one `GroupId`, so
-at most one of those topologies may declare grouping rules for it — otherwise which topology goes first at step 2
+at most one of those topologies may declare grouping rules for it -- otherwise which topology goes first at step 2
 would matter, which is the very thing this feature exists to remove. Wolverine checks this for every handled message
 type at startup and refuses to start otherwise; a type the application only publishes fails on its first send instead.
 
@@ -469,7 +469,7 @@ The example above uses the listener's default mode. Note what each mode costs yo
 * **Durable** gives you no-loss partitioned processing, but every message pays an inbox insert and a
   mark-as-handled update.
 * **BufferedInMemory** removes the database cost, but acknowledges each message to the broker *before* the
-  handler runs — so a node that dies mid-flight loses whatever was buffered.
+  handler runs -- so a node that dies mid-flight loses whatever was buffered.
 * **`ProcessInParallelWithNativeAcks()`** gives you partitioned processing with neither cost: the broker
   delivery is held unacknowledged until the handler succeeds, so a dying node loses nothing and no database is
   involved. See [Native Ack Endpoints](/guide/messaging/listeners#native-ack-endpoints).
@@ -489,7 +489,7 @@ with the same database-free ack behaviour -- is
 
 `PartitionProcessingByGroupId()` routes **every** message on the listener through a GroupId-keyed slot. That's
 exactly right for the message types that need per-group ordering, but when one GroupId dominates the traffic, the
-whole listener collapses toward sequential processing for *all* message types — including high-volume types
+whole listener collapses toward sequential processing for *all* message types -- including high-volume types
 (metrics, telemetry, counters) that never needed any ordering at all.
 
 You can exempt those message types from partitioned processing. Exempted types skip the GroupId slots entirely and
@@ -531,7 +531,7 @@ additive.
 Two things to be aware of:
 
 * This changes **only the in-process execution lane**. Durable inbox/outbox handling, message routing, sender-side
-  queue sharding, and GroupId stamping are all unaffected — an exempted message on a durable endpoint is persisted
+  queue sharding, and GroupId stamping are all unaffected -- an exempted message on a durable endpoint is persisted
   to the inbox before execution exactly as before.
 * An exempted message may execute concurrently with a non-exempted message carrying the same GroupId. Only exempt
   message types that truly require no ordering relative to the partitioned types.

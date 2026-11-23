@@ -157,7 +157,7 @@ The Wolverine `WebSocketMessage` marker interface does have a little bit of impa
 
 1. It implements the `IMessage` interface that's just a helper for [Wolverine to discover message types](/guide/messages.html#message-discovery)
    in your application upfront for diagnostics or upfront resource creation
-2. By marking your message types as `WebSocketMessage`, it changes [Wolverine's message type name](/guide/messages.html#message-type-name-or-alias) rules to using a [Kebab-cased version of the message type name](https://developer.mozilla.org/en-US/docs/Glossary/Kebab_case) 
+2. By marking your message types as `WebSocketMessage`, it changes [Wolverine's message type name](/guide/messages.html#message-type-name-or-alias) rules to using a [snake_case version of the message type name](https://developer.mozilla.org/en-US/docs/Glossary/Snake_case) 
 
 For example, these three message types:
 
@@ -387,8 +387,8 @@ Both settings are optional and default to the values above. `MaxBatchSize` flush
 messages have accumulated, so the flush interval is a ceiling on latency rather than a fixed cadence.
 
 ::: tip
-This is a **sender side** buffer, and that is the point. The alternative — routing outbound messages through a
-local queue to get them batched — makes that queue a cascade target for its own handlers, so a handler that
+This is a **sender side** buffer, and that is the point. The alternative -- routing outbound messages through a
+local queue to get them batched -- makes that queue a cascade target for its own handlers, so a handler that
 forwards with `SendAsync` can re-send onto the very queue it was read from. Nothing round-trips a queue here.
 
 It also sits **after** the outbox, unlike an application-level accumulator, so it is safe for messages that tell
@@ -401,14 +401,14 @@ Buffers are keyed by destination, so a message bound for one connection is never
 bound for another connection or group.
 
 A coalesced batch is delivered on the **`ReceiveCoalescedMessages`** client operation, carrying the individual
-CloudEvents documents in arrival order. Each item is a complete CloudEvents document — that is what preserves
+CloudEvents documents in arrival order. Each item is a complete CloudEvents document -- that is what preserves
 the per-item message type, since the CloudEvents envelope is per-outer-message.
 
 A batch that turns out to hold a single message is sent on the normal `ReceiveMessage` operation instead, so
 the common trickle case still reaches a client that knows nothing about coalescing.
 
 ::: warning
-Browser clients must handle `ReceiveCoalescedMessages` to receive coalesced batches — a client that only
+Browser clients must handle `ReceiveCoalescedMessages` to receive coalesced batches -- a client that only
 listens for `ReceiveMessage` will simply not see them. The operation is deliberately distinct rather than
 wrapped into `ReceiveMessage`, so an un-updated client fails obviously instead of receiving a payload it tries
 to read as a single document and fails on per message.
@@ -423,7 +423,7 @@ connection.on("ReceiveCoalescedMessages", json => {
 ```
 :::
 
-Wolverine's own [SignalR client transport](#signalr-client-transport) handles this automatically — it registers
+Wolverine's own [SignalR client transport](#signalr-client-transport) handles this automatically -- it registers
 the unwrap unconditionally, so turning coalescing on at the server needs no client change.
 
 Anything still buffered is flushed when the host shuts down.
@@ -649,9 +649,6 @@ public async Task receive_message_from_a_client()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/simple_end_to_end.cs#L27-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_end_to_end_test_with_signalr' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
-
-*Conveniently enough as I write this documentation today using existing test code, Hollywood Brown had a huge
-game last night. Go Chiefs!*
 
 ### Authorization
 

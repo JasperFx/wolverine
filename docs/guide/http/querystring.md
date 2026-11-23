@@ -17,7 +17,7 @@ proceeds**:
 | `?ids=1,x,3` | `int[] ids` | runs with the bad element dropped |
 
 Nothing is logged for the individual request, so the server sees what looks like a perfectly valid
-call — which is what makes "the API returned the wrong page" so hard to chase. Wolverine logs one
+call -- which is what makes "the API returned the wrong page" so hard to chase. Wolverine logs one
 warning at startup when an application binds parsed query parameters and the flag is off.
 
 ```csharp
@@ -197,7 +197,7 @@ public async Task use_nullable_enum_fromquery_miss()
 
 ## [FromQuery] Binding <Badge type="tip" text="3.12" />
 
-Wolverine can support the [FromQueryAttribute](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.fromqueryattribute?view=aspnetcore-9.0) binding similar to MVC Core or Minimal API. 
+Wolverine can support the [FromQueryAttribute](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.fromqueryattribute) binding similar to MVC Core or Minimal API. 
 Let's say that you have a GET endpoint where you may want to use a series of non-mandatory querystring values for a query, and
 it would be convenient to have Wolverine just let you declare a single .NET type for all the optional query string values that
 will be filled with any of the matching query string parameters like this sample:

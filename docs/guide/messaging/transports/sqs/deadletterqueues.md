@@ -36,7 +36,7 @@ Resolution order, per listener:
 
 The supplied name is sanitized via the same SQS-name normalization (`SanitizeSqsName`) used by per-listener config, so dots and other illegal SQS characters get the same treatment everywhere. `DisableAllNativeDeadLetterQueues()` (covered below) still overrides everything; the global kill-switch takes precedence over both the transport default and any per-listener config.
 
-Wolverine system queues (response and control queues, when `EnableSystemQueues()` is on) explicitly opt out of dead-lettering and are unaffected by the transport default — they still resolve to "no DLQ" regardless of `DefaultDeadLetterQueueName`.
+Wolverine system queues (response and control queues, when `EnableSystemQueues()` is on) explicitly opt out of dead-lettering and are unaffected by the transport default -- they still resolve to "no DLQ" regardless of `DefaultDeadLetterQueueName`.
 
 ## Per-listener overrides
 
@@ -93,7 +93,7 @@ This would force Wolverine to use any persistent envelope storage for dead lette
 
 ## Recovering Native Dead Letters to Durable Storage <Badge type="tip" text="6.9" />
 
-By default an Amazon SQS dead letter queue is just another SQS queue — its messages are only visible
+By default an Amazon SQS dead letter queue is just another SQS queue -- its messages are only visible
 through the AWS console or SDK, and tools that manage Wolverine's *durable* dead letters (for example
 [CritterWatch](https://critterwatch.jasperfx.net)) can't see or replay them.
 
@@ -121,7 +121,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 With no arguments, every distinct dead letter queue used by a listening SQS queue is drained. Pass
 explicit names when the dead letter queues you want to recover from aren't directly attached to a
-Wolverine listener — for example, queues fed by an SQS [native redrive policy](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html)
+Wolverine listener -- for example, queues fed by an SQS [native redrive policy](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html)
 that you manage yourself:
 
 ```csharp

@@ -165,7 +165,7 @@ using var host = await Host.CreateDefaultBuilder()
 
 ## Trimming / AOT
 
-Applying the validation middleware is trim/AOT-safe: `FluentValidationPolicy` decides which handlers to wrap by querying the IoC container per message type, not by scanning assemblies. The one trim-hostile seam is validator **discovery** — `UseFluentValidation()` defaults to `RegistrationBehavior.DiscoverAndRegisterValidators`, which runs FluentValidation's `AssemblyScanner` at bootstrap. For trim/AOT publishing, opt out of the scan and register validators explicitly:
+Applying the validation middleware is trim/AOT-safe: `FluentValidationPolicy` decides which handlers to wrap by querying the IoC container per message type, not by scanning assemblies. The one trim-hostile seam is validator **discovery** -- `UseFluentValidation()` defaults to `RegistrationBehavior.DiscoverAndRegisterValidators`, which runs FluentValidation's `AssemblyScanner` at bootstrap. For trim/AOT publishing, opt out of the scan and register validators explicitly:
 
 ```csharp
 opts.UseFluentValidation(RegistrationBehavior.ExplicitRegistration);

@@ -14,7 +14,7 @@ Wolverine supports the ASP.Net Core AsParameters attribute usage for complex bin
 including headers, form data elements, route arguments, the request body, IoC services to a single input model using
 the ASP.Net Core ``[AsParameters]`` attribute as a marker.
 
-See the [Microsoft documentation on AsParameters](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis/parameter-binding?view=aspnetcore-9.0) for more background.
+See the [Microsoft documentation on AsParameters](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis/parameter-binding) for more background.
 
 Below is a sample from our test suite showing what is possible for query string and header values:
 
@@ -159,7 +159,7 @@ public static class AsParametersEndpoints2{
 
 A common shape is an endpoint whose route carries the identity (say, an aggregate id) while the JSON
 body carries the rest of the command. If you bind the body to a single plain type that *also* has a
-property matching the route token, that property is duplicated — it shows up **both** as a route
+property matching the route token, that property is duplicated -- it shows up **both** as a route
 parameter and as a property of the request body in the generated OpenAPI:
 
 ```cs
@@ -171,7 +171,7 @@ public record AddPassengerCommand(Guid JourneyId, string PassengerName);
 public static string Post(AddPassengerCommand command) => "ok";
 ```
 
-This is the same behavior as ASP.NET Core's own minimal APIs — neither framework strips a
+This is the same behavior as ASP.NET Core's own minimal APIs -- neither framework strips a
 body property just because its name happens to match a route token. The idiomatic way to avoid the
 duplication is to bind with `[AsParameters]` and explicitly source the id from the route and the rest
 from the body:
@@ -190,7 +190,7 @@ public static string Post([AsParameters] AddPassengerCommand command)
 ```
 
 Now `journeyId` is described only as a route parameter (with its real type/format, e.g. `uuid`), and
-the request body schema is just the `Payload` type — the route id is not duplicated in the body. This
+the request body schema is just the `Payload` type -- the route id is not duplicated in the body. This
 works the same way when the route id also feeds a Marten/Polecat `[WriteAggregate]`/`[Aggregate]`
 parameter on the same endpoint.
 
@@ -225,7 +225,7 @@ public static class AsParameterRecordEndpoint
 ## Strict Query String Binding <Badge type="tip" text="6.18" />
 
 By default in Wolverine 6.x, a query string value that is *present* but cannot be parsed to the
-target member type (an enum, `int`, `Guid`, etc.) is silently ignored — the member simply keeps
+target member type (an enum, `int`, `Guid`, etc.) is silently ignored -- the member simply keeps
 its default or property initializer value. ASP.NET Core's own minimal API `[AsParameters]` binder
 returns `400 Bad Request` for the same input, and the lenient behavior makes a typo'd query value
 indistinguishable from an absent one (not even FluentValidation can catch it downstream, because
@@ -249,9 +249,9 @@ The behavior matrix for a bound query string member (for example
 
 | Request | Flag off | Flag on (default) |
 | --- | --- | --- |
-| `GET /search?SortBy=Name` | `200` — binds `Name` | `200` — binds `Name` |
-| `GET /search` (missing) | `200` — keeps the initializer (`Date`) | `200` — keeps the initializer (`Date`) |
-| `GET /search?SortBy=bogus` (malformed) | `200` — keeps the initializer (`Date`) | `400` — ProblemDetails naming `SortBy` |
+| `GET /search?SortBy=Name` | `200` -- binds `Name` | `200` -- binds `Name` |
+| `GET /search` (missing) | `200` -- keeps the initializer (`Date`) | `200` -- keeps the initializer (`Date`) |
+| `GET /search?SortBy=bogus` (malformed) | `200` -- keeps the initializer (`Date`) | `400` -- ProblemDetails naming `SortBy` |
 
 Only a *present but unparseable* value triggers the `400`; a *missing* query string value keeps the
 member's default / initializer in both modes. The flag applies to query string binding for
@@ -266,17 +266,17 @@ silently dropped, which is especially dangerous for an optional filter: the endp
 (or a partial collection) and quietly returns an *unfiltered* `200` while the caller believes the
 results were filtered.
 
-With the flag on, binding a collection is **all or nothing** — a single unparseable element
+With the flag on, binding a collection is **all or nothing** -- a single unparseable element
 rejects the whole request with a `400` naming the parameter, rather than silently dropping the bad
 element and keeping the good ones. For
 `[FromQuery] public Colour[]? Colours { get; set; }` on `GET /widgets`:
 
 | Request | Flag off | Flag on (default) |
 | --- | --- | --- |
-| `GET /widgets?Colours=Red&Colours=Blue` | `200` — binds `[Red, Blue]` | `200` — binds `[Red, Blue]` |
-| `GET /widgets` (missing) | `200` — keeps the initializer (`null`) | `200` — keeps the initializer (`null`) |
-| `GET /widgets?Colours=Purple` | `200` — `Colours` is `null` | `400` — ProblemDetails naming `Colours` |
-| `GET /widgets?Colours=Red&Colours=Purple` | `200` — binds only `[Red]` | `400` — ProblemDetails naming `Colours` |
+| `GET /widgets?Colours=Red&Colours=Blue` | `200` -- binds `[Red, Blue]` | `200` -- binds `[Red, Blue]` |
+| `GET /widgets` (missing) | `200` -- keeps the initializer (`null`) | `200` -- keeps the initializer (`null`) |
+| `GET /widgets?Colours=Purple` | `200` -- `Colours` is `null` | `400` -- ProblemDetails naming `Colours` |
+| `GET /widgets?Colours=Red&Colours=Purple` | `200` -- binds only `[Red]` | `400` -- ProblemDetails naming `Colours` |
 
 String collections are unaffected in both modes, as there is nothing to parse.
 

@@ -143,5 +143,5 @@ More likely though, to both protect against concurrent access against resources 
 
 If you are on **Kafka**, the idiomatic way to scale out concurrency is to run more nodes in the same
 consumer group and let Kafka assign partitions across them (one consumer per partition at a time), rather
-than reaching for in-process parallelism. See [Kafka — Scaling Out / Concurrency](/guide/messaging/transports/kafka#scaling-out-concurrency)
+than reaching for in-process parallelism. See [Kafka -- Scaling Out / Concurrency](/guide/messaging/transports/kafka#scaling-out-concurrency)
 for the recommended cooperative-sticky + static-membership configuration.

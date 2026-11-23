@@ -3,10 +3,10 @@
 ::: tip
 `WolverineFx.AzureBlobStorage` does two independent things, and this page is about the first.
 
-1. **Document and saga persistence** — registered entity types are read and written as blobs, so
+1. **Document and saga persistence** -- registered entity types are read and written as blobs, so
    `[Entity]` and the `Storage.Store()` / `Storage.Delete()` return values work against a container,
    and a saga can live in one too. That is the rest of this page.
-2. **[Claim check](/guide/durability/claim-checks) storage** — off-loading a large *message payload* to
+2. **[Claim check](/guide/durability/claim-checks) storage** -- off-loading a large *message payload* to
    a container and shipping a token through the broker. Different feature, different problem; see the
    [Azure Blob Storage claim check section](/guide/durability/claim-checks#azure-blob-storage).
 
@@ -21,7 +21,7 @@ The types and their namespace are unchanged, so swapping the package reference i
 Plenty of real entities are not in any database. An invoice's rendered content, a generated report, a
 document scan: they live in a container, addressed by a name the application decides. Without a
 persistence provider for that, handlers drop out of Wolverine's [declarative
-persistence](/guide/handlers/persistence) entirely — inject a client, `await` it, and re-implement the
+persistence](/guide/handlers/persistence) entirely -- inject a client, `await` it, and re-implement the
 "what if it is not there" half by hand in every handler that reads it.
 
 This package teaches Wolverine to read and write registered types as blobs, so a plain `[Entity]`
@@ -50,8 +50,8 @@ builder.Host.UseWolverine(opts =>
 });
 ```
 
-`BlobServiceClient` comes from your own registration — directly, or through
-`services.AddAzureClients(x => x.AddBlobServiceClient(...))` — so the client keeps whatever credential
+`BlobServiceClient` comes from your own registration -- directly, or through
+`services.AddAzureClients(x => x.AddBlobServiceClient(...))` -- so the client keeps whatever credential
 pipeline, endpoint and retry policy the rest of your application uses. Wolverine never creates the
 container.
 
@@ -67,7 +67,7 @@ claims only what you registered, and is otherwise invisible.
 
 ### The blob name function
 
-`BlobNameFor` receives a `BlobNameContext` — the entity type, the resolved identity, and the tenant —
+`BlobNameFor` receives a `BlobNameContext` -- the entity type, the resolved identity, and the tenant -- 
 and returns the blob name. That is enough for the layouts real containers actually use:
 
 ```csharp
@@ -86,7 +86,7 @@ Documents are written as `System.Text.Json` by default. Ask for compression, and
 x.Serializer = new BlobDocumentSerializer(compression: BlobCompression.Brotli);
 ```
 
-For anything else — a different format, an envelope around the payload, a checksum, encryption —
+For anything else -- a different format, an envelope around the payload, a checksum, encryption -- 
 implement `IBlobDocumentSerializer` and set it on the mapping.
 
 ## Reading a document
@@ -102,7 +102,7 @@ public static InvoiceContent Get(
     InvoiceContent content) => content;
 ```
 
-The identity is discovered exactly as it is for any other store — the route argument, query string or
+The identity is discovered exactly as it is for any other store -- the route argument, query string or
 message member named `Id` or `{TypeName}Id`. Its type comes from the document's own identity member,
 or from `IdentityType` on the mapping if you set it.
 
@@ -144,13 +144,13 @@ opts.UseAzureBlobStoragePersistence(blobs =>
 **Saga writes are conditional; document writes are not.** A document is last-write-wins, because an
 unconditional upload overwrites whatever is at the blob name. A saga is a read-modify-write, so two
 messages for the same saga arriving at once would silently lose one update. Wolverine writes a saga
-with Blob Storage's conditional upload instead — `If-None-Match: *` when starting one, `If-Match`
-against the ETag it read when updating one — and turns the failure into `SagaConcurrencyException`,
+with Blob Storage's conditional upload instead -- `If-None-Match: *` when starting one, `If-Match`
+against the ETag it read when updating one -- and turns the failure into `SagaConcurrencyException`,
 which is the same exception Marten, EF Core and CosmosDB raise for the same situation. A single
 `OnException<ConcurrencyException>().RetryTimes(...)` policy covers all of them.
 
-Blob Storage reports the two failures with different statuses — a refused `If-None-Match: *` is `409
-BlobAlreadyExists`, a refused `If-Match` is `412 ConditionNotMet` — and both are translated. A saga
+Blob Storage reports the two failures with different statuses -- a refused `If-None-Match: *` is `409
+BlobAlreadyExists`, a refused `If-Match` is `412 ConditionNotMet` -- and both are translated. A saga
 another message completed while this one held it is also a `412` rather than a `404`, so completing a
 saga twice concurrently is a concurrency failure rather than a resurrection.
 
@@ -159,7 +159,7 @@ two are not interchangeable: a saga registered as a document would be claimed fo
 for its *chain*, so Wolverine would keep it in the in-memory saga persistor while the container and
 blob name function sat unused.
 
-Everything else about sagas is unchanged — `[SagaIdentity]`, `MarkCompleted()`, timeout messages, and
+Everything else about sagas is unchanged -- `[SagaIdentity]`, `MarkCompleted()`, timeout messages, and
 identities of `string`, `Guid`, `int` or `long` all behave exactly as they do on any other store.
 
 ## Alongside another store
@@ -185,8 +185,8 @@ order the two integrations were registered in.
 
 Two consequences worth knowing:
 
-- **Sagas belong to whoever was asked for them.** Saga chains resolve on a different question — which
-  provider owns this *chain* rather than which owns this *type* — and this provider claims a chain only
+- **Sagas belong to whoever was asked for them.** Saga chains resolve on a different question -- which
+  provider owns this *chain* rather than which owns this *type* -- and this provider claims a chain only
   for a saga you registered with `Saga<T>()`. A saga you did not register that way is persisted by
   Marten or your database exactly as before.
 - **There is no atomicity across the two.** The Marten write commits in its transaction; the blob write

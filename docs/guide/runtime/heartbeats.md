@@ -41,7 +41,7 @@ a node:
 | `SentAt`      | UTC timestamp captured at publish                    |
 | `Uptime`      | Elapsed time since the heartbeat service started     |
 
-The publish goes through Wolverine's normal routing pipeline — apply
+The publish goes through Wolverine's normal routing pipeline -- apply
 `PublishMessage`, `Publish().To*`, or any other publish rule the same way you
 would for any application event.
 

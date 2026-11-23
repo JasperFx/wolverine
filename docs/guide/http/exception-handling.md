@@ -36,13 +36,13 @@ public static class OnExceptionEndpoints
 <!-- endSnippet -->
 
 Key behaviors:
-- The exception is **swallowed** after `OnException` handles it — no re-throw
+- The exception is **swallowed** after `OnException` handles it -- no re-throw
 - Returning `ProblemDetails` writes a proper `application/problem+json` response
 - If no `OnException` method matches the thrown exception type, the exception propagates normally
 
 ## Multiple Exception Types
 
-You can define multiple `OnException` methods for different exception types. Wolverine automatically orders catch blocks by specificity — the most derived exception types are matched first:
+You can define multiple `OnException` methods for different exception types. Wolverine automatically orders catch blocks by specificity -- the most derived exception types are matched first:
 
 <!-- snippet: sample_on_exception_specific -->
 <a id='snippet-sample_on_exception_specific'></a>
@@ -471,7 +471,7 @@ finally
 }
 ```
 
-Catch blocks are ordered by inheritance depth, with the most specific exception types first. This is computed at build time — there is no runtime reflection or if/else branching.
+Catch blocks are ordered by inheritance depth, with the most specific exception types first. This is computed at build time -- there is no runtime reflection or if/else branching.
 
 ## Using the Attribute
 
@@ -494,4 +494,4 @@ public static class MyMiddleware
 
 ## Interaction with Error Handling Policies
 
-The `OnException` convention is separate from Wolverine's policy-based error handling (`opts.OnException().Retry()`, etc.). The convention-based `OnException` handlers run first — if they catch the exception, it is swallowed and policy-based retries never fire. If no `OnException` handler matches the thrown exception type, the exception propagates normally and policy-based error handling kicks in.
+The `OnException` convention is separate from Wolverine's policy-based error handling (`opts.OnException().Retry()`, etc.). The convention-based `OnException` handlers run first -- if they catch the exception, it is swallowed and policy-based retries never fire. If no `OnException` handler matches the thrown exception type, the exception propagates normally and policy-based error handling kicks in.

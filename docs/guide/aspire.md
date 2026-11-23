@@ -297,17 +297,17 @@ Each service then calls `builder.AddServiceDefaults()` and `app.MapDefaultEndpoi
 ## Dashboard Integration
 
 The [JasperFx.Aspire](https://www.nuget.org/packages/JasperFx.Aspire) package surfaces a Wolverine
-application's [command line verbs](/guide/command-line) — `check-env`, `describe`, `codegen`,
-`resources`, and your own — as **clickable custom commands** on the resource tile in the
+application's [command line verbs](/guide/command-line) -- `check-env`, `describe`, `codegen`,
+`resources`, and your own -- as **clickable custom commands** on the resource tile in the
 [.NET Aspire](https://learn.microsoft.com/en-us/dotnet/aspire/) dashboard, and can run provisioning
 verbs as **startup gates** that finish before the service boots.
 
 Wolverine applications get this for free: because your `Program.cs` ends in `RunJasperFxCommands(args)`
 (see [Command Line Integration](/guide/command-line)), the app already answers every verb. JasperFx.Aspire
-just wires those verbs to the dashboard — there is no Wolverine-specific code to write.
+just wires those verbs to the dashboard -- there is no Wolverine-specific code to write.
 
 ::: info
-This page covers the Wolverine-relevant usage. The full `JasperFx.Aspire` reference — every option, how buttons and gates run, and dynamic discovery — lives at
+This page covers the Wolverine-relevant usage. The full `JasperFx.Aspire` reference -- every option, how buttons and gates run, and dynamic discovery -- lives at
 [shared-libs.jasperfx.net/cli/aspire](https://shared-libs.jasperfx.net/cli/aspire.html).
 :::
 
@@ -338,7 +338,7 @@ confirmation prompt:
 | Button                     | Verb              | What it does for a Wolverine app                                   |
 |----------------------------|-------------------|--------------------------------------------------------------------|
 | **Check environment**      | `check-env`       | Runs the app's environment checks.                                 |
-| **Describe**               | `describe`        | Dumps Wolverine's configuration — listeners, message routing, sending endpoints, error handling, HTTP endpoints — into the logs. |
+| **Describe**               | `describe`        | Dumps Wolverine's configuration -- listeners, message routing, sending endpoints, error handling, HTTP endpoints -- into the logs. |
 | **Preview generated code** | `codegen preview` | Previews the handler/runtime code Wolverine generates (read-only). |
 
 #### Mutating verbs
@@ -356,7 +356,7 @@ builder.AddProject<Projects.Api>("api")
 
 | Button                   | Verb            | What it does for a Wolverine app                                               |
 |--------------------------|-----------------|---------------------------------------------------------------------------------|
-| **Apply resources**      | `resources setup` | Provisions Wolverine's stateful infrastructure — message broker queues/exchanges/topics and the durable inbox/outbox database tables. |
+| **Apply resources**      | `resources setup` | Provisions Wolverine's stateful infrastructure -- message broker queues/exchanges/topics and the durable inbox/outbox database tables. |
 | **Write generated code** | `codegen write` | Generates Wolverine's handler/runtime code ahead of time and writes it to disk. |
 
 ### Surfacing Wolverine's own verbs
@@ -373,7 +373,7 @@ builder.AddProject<Projects.Api>("api")
 ```
 
 …or turn on **dynamic discovery**, which asks the running build of the app what verbs it actually has
-(via `help --json`) and renders a button per verb — picking up `storage`, `wolverine-diagnostics`, and
+(via `help --json`) and renders a button per verb -- picking up `storage`, `wolverine-diagnostics`, and
 any [custom commands](https://shared-libs.jasperfx.net/cli/writing-commands.html) automatically:
 
 ```cs
@@ -415,7 +415,7 @@ builder.AddProject<Projects.Api>("api")
 Each gate is a first-class Aspire resource pointing at the **same project** with the verb as
 arguments, so Aspire injects connection strings/environment natively. Declare `WithReference`/`WaitFor`
 on the service **before** `WithJasperFxStartup` so each gate inherits them. A gate that exits non-zero
-**blocks the service from starting** (fail fast) — you never start Wolverine against un-provisioned
+**blocks the service from starting** (fail fast) -- you never start Wolverine against un-provisioned
 infrastructure. Gates run sequentially in declaration order unless marked `Parallel`.
 
 ### Relationship to Wolverine's command line
@@ -440,6 +440,6 @@ ordering several gates and the opt-in `check-env` gate.
 
 ### See also
 
-- [Command Line Integration](/guide/command-line) — the full Wolverine CLI surface
-- [Code Generation](/guide/codegen) — what `codegen preview`/`write` produce
-- [JasperFx.Aspire reference](https://shared-libs.jasperfx.net/cli/aspire.html) — every option and the underlying mechanics
+- [Command Line Integration](/guide/command-line) -- the full Wolverine CLI surface
+- [Code Generation](/guide/codegen) -- what `codegen preview`/`write` produce
+- [JasperFx.Aspire reference](https://shared-libs.jasperfx.net/cli/aspire.html) -- every option and the underlying mechanics

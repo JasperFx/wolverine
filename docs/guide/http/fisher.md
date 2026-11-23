@@ -10,7 +10,7 @@ dotnet add package WolverineFx.Http.Fisher
 ```
 
 This is the Fisher counterpart to [Wolverine.Http.Marten](/guide/http/marten) and
-[Wolverine.Http.Polecat](/guide/http/polecat) — the three packages carry the same attributes over
+[Wolverine.Http.Polecat](/guide/http/polecat) -- the three packages carry the same attributes over
 their respective stores, so the usage below will look familiar if you have used either sibling.
 
 ## Passing Fisher Documents to Endpoint Parameters
@@ -62,7 +62,7 @@ public static IFisherOp Approve([Entity("number")] Invoice invoice)
 ```
 
 If the `Invoice` document does not exist, the route stops and returns a 404. Set `Required` to
-`false` to have your handler execute anyway, or use the `OnMissing` property for any other answer —
+`false` to have your handler execute anyway, or use the `OnMissing` property for any other answer -- 
 a `ProblemDetails` body, a thrown exception, or an empty `204` with `OnMissing.EmptyContentWith204`.
 See [the full `OnMissing` table](/guide/handlers/persistence#automatically-loading-entities-to-method-parameters).
 

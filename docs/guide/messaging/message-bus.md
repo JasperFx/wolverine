@@ -267,22 +267,22 @@ public static async Task stream_price_feed(IMessageBus bus, CancellationToken ct
 
 A few things worth knowing about `StreamAsync<T>`:
 
-- **Locally-handled messages only.** Unlike `InvokeAsync<T>`, there is no remote-streaming fallback — if the message
+- **Locally-handled messages only.** Unlike `InvokeAsync<T>`, there is no remote-streaming fallback -- if the message
   doesn't resolve to a local handler, the call fails. Streaming is an in-process or adapter-level concern (see
   [gRPC Services](/guide/grpc/streaming) for exposing a streaming handler over the wire).
 - **Cancellation propagates into the handler.** Pass a `CancellationToken` into `StreamAsync<T>` and Wolverine
-  forwards it to the handler method — iterators that respect the token via `ThrowIfCancellationRequested` or
+  forwards it to the handler method -- iterators that respect the token via `ThrowIfCancellationRequested` or
   `[EnumeratorCancellation]` will cleanly unwind mid-stream.
 - **Partial results surface before an exception.** If the handler yields N items and then throws, the caller
   sees those N items on the enumerator, then observes the exception on the next `MoveNextAsync`. Nothing is
   swallowed.
-- **Middleware still runs.** Streaming calls go through the same Wolverine pipeline as `InvokeAsync` —
+- **Middleware still runs.** Streaming calls go through the same Wolverine pipeline as `InvokeAsync` -- 
   activities, middleware, and error-handling rules apply.
 - **`DeliveryOptions` is supported** for headers, tenant id, and correlation metadata via the overload
   `StreamAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation)`.
 
 ::: tip
-Handlers that return a typed `IAsyncEnumerable<T>` are also compatible with regular `InvokeAsync` — in that case
+Handlers that return a typed `IAsyncEnumerable<T>` are also compatible with regular `InvokeAsync` -- in that case
 Wolverine iterates the sequence and cascades each item as a new message. `StreamAsync<T>` is the explicit opt-in
 when the caller wants to consume the items directly.
 :::
@@ -290,7 +290,7 @@ when the caller wants to consume the items directly.
 ## Streaming Requests
 
 `StreamAsync` also has an inverse overload: `StreamAsync<TRequest, TResponse>` sends a **stream of
-request messages** to one handler invocation and awaits a **single** `Task<TResponse>` — the arity
+request messages** to one handler invocation and awaits a **single** `Task<TResponse>` -- the arity
 tells the two apart (one type argument streams responses out; two stream requests in). The handler
 declares `IAsyncEnumerable<TRequest>` as its message type and folds the stream however it likes:
 
@@ -326,7 +326,7 @@ A few things worth knowing about `StreamAsync<TRequest, TResponse>`:
   accepts `IAsyncEnumerable<TRequest>`, the call fails fast with a `NotSupportedException` naming the
   expected handler signature.
 - **Consumption is incremental.** Wolverine hands the live stream to the handler without materializing
-  it — memory stays constant no matter how many items the caller streams. An empty stream still invokes
+  it -- memory stays constant no matter how many items the caller streams. An empty stream still invokes
   the handler, which returns its response from a zero-item drain.
 - **Cancellation propagates into the handler** through the handler's `CancellationToken` parameter, and
   from there into the stream via `WithCancellation`.
@@ -335,7 +335,7 @@ A few things worth knowing about `StreamAsync<TRequest, TResponse>`:
 - **`DeliveryOptions` is supported** for headers, tenant id, and correlation metadata via the overload
   `StreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages, DeliveryOptions options, ...)`.
 
-This is the primitive behind gRPC client streaming — see
+This is the primitive behind gRPC client streaming -- see
 [gRPC Services / Streaming](/guide/grpc/streaming#client-streaming) for exposing a
 stream-folding handler over the wire.
 
@@ -589,26 +589,26 @@ Some things to know:
 
 ## Customizing Message Delivery
 
-When you publish or send a message you can optionally pass a `DeliveryOptions` object to override how — and
-when — that particular message is delivered. Every overload of `IMessageBus.PublishAsync()` and
+When you publish or send a message you can optionally pass a `DeliveryOptions` object to override how -- and
+when -- that particular message is delivered. Every overload of `IMessageBus.PublishAsync()` and
 `IMessageBus.SendAsync()` accepts an optional `DeliveryOptions` argument, so you can tailor a single message
 without changing any endpoint-wide configuration.
 
 `DeliveryOptions` lets you control things like:
 
-* **Custom headers** — add arbitrary string metadata that travels with the message, either through the
+* **Custom headers** -- add arbitrary string metadata that travels with the message, either through the
   `Headers` dictionary or the fluent `WithHeader(key, value)` method.
-* **Expiration** — `DeliverBy` (an absolute time) or the `DeliverWithin` convenience setter (a `TimeSpan` from
+* **Expiration** -- `DeliverBy` (an absolute time) or the `DeliverWithin` convenience setter (a `TimeSpan` from
   now) tell Wolverine to discard the message if it hasn't been delivered and processed in time. See
   [Message Expiration](/guide/messaging/expiration).
-* **Scheduled delivery** — `ScheduledTime` (an absolute time) or `ScheduleDelay` (a `TimeSpan` from now) defer
+* **Scheduled delivery** -- `ScheduledTime` (an absolute time) or `ScheduleDelay` (a `TimeSpan` from now) defer
   processing until later.
-* **Request/response** — set `ResponseType` (or use the static `DeliveryOptions.RequireResponse<T>()` helper) to
+* **Request/response** -- set `ResponseType` (or use the static `DeliveryOptions.RequireResponse<T>()` helper) to
   ask the receiver to send a reply message of that type back to you.
-* **Tenancy and tracing** — override the `TenantId`, `CorrelationId`, or `CausationId` stamped onto the outgoing
+* **Tenancy and tracing** -- override the `TenantId`, `CorrelationId`, or `CausationId` stamped onto the outgoing
   envelope for just this message.
-* **Acknowledgements** — set `AckRequested` to request an acknowledgement from the receiver.
-* **Transport-specific routing** — `GroupId` (AMQP 1.0 group id / Azure Service Bus session id / Amazon SQS FIFO
+* **Acknowledgements** -- set `AckRequested` to request an acknowledgement from the receiver.
+* **Transport-specific routing** -- `GroupId` (AMQP 1.0 group id / Azure Service Bus session id / Amazon SQS FIFO
   `MessageGroupId`), `DeduplicationId` (Amazon SQS and SNS FIFO, GCP Pub/Sub, and Wolverine's own `[Deduplicated]`
   handlers), and `PartitionKey` (Kafka) map onto the corresponding
   native broker concepts.

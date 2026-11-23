@@ -5,7 +5,7 @@
 ::: tip
 This is the HTTP half of Wolverine's [logical message
 deduplication](/guide/durability/idempotency#logical-message-deduplication). Read that page first
-for the storage, the retention window, and how to turn it off — everything here builds on it.
+for the storage, the retention window, and how to turn it off -- everything here builds on it.
 :::
 
 A `POST` that creates something is the classic at-most-once problem. The user double-clicks; the
@@ -13,7 +13,7 @@ client retries after a timeout it could not distinguish from a failure; a mobile
 request when connectivity returns. Each is a separate HTTP request that means the same thing, and
 without an identity for that *meaning*, all of them create a record.
 
-Wolverine's answer is the conventional `Idempotency-Key` request header — the same header Stripe,
+Wolverine's answer is the conventional `Idempotency-Key` request header -- the same header Stripe,
 Adyen, and the
 [IETF draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/) already
 use, so a client that already sends one gets this for free.
@@ -42,7 +42,7 @@ from exactly the people who have to handle it.
 
 ## When a replay is benign
 
-409 is the right default — it tells the caller plainly that this request was not the one that did the
+409 is the right default -- it tells the caller plainly that this request was not the one that did the
 work. But some endpoints are genuinely safe to replay, and the caller would rather see success:
 
 ```csharp
@@ -108,7 +108,7 @@ The header name and the source are both configurable, exactly as for message han
 ## Optional keys
 
 `Required` defaults to `true`, so an unkeyed request is a 400. Set it to `false` when some clients
-send a key and some do not — the ones that do are protected, and the ones that do not are handled
+send a key and some do not -- the ones that do are protected, and the ones that do not are handled
 exactly as if the feature were off:
 
 ```csharp
@@ -124,7 +124,7 @@ response and replay it to the second caller; it tells the second caller that the
 done. That is enough to make a create endpoint safe to retry, and it is considerably less machinery
 than storing and versioning response bodies.
 
-If a client genuinely needs the original response body back, it has to fetch the created resource —
+If a client genuinely needs the original response body back, it has to fetch the created resource -- 
 which is why returning a `Location` header from the first request is worth doing.
 Or use [`[DeduplicatedWithResponse]`](#answering-a-repeat-with-the-first-response), which does store it.
 
@@ -138,8 +138,8 @@ transaction and rolls back with it; otherwise Wolverine issues a compensating re
 
 A claimed key is global: it is not tied to the endpoint, the tenant or the user that claimed it. Anyone
 who knows or can guess another caller's key can claim it first, and the real request is then refused as
-a duplicate. With client-generated UUIDs that is impractical. With a guessable key source — a route
-value, a body member, or a client that reuses simple keys — it is not, so only use one where every
+a duplicate. With client-generated UUIDs that is impractical. With a guessable key source -- a route
+value, a body member, or a client that reuses simple keys -- it is not, so only use one where every
 caller who could present the key is trusted.
 
 `[DeduplicatedWithResponse]` answers a repeat with a stored response, which would turn that into one
@@ -173,8 +173,8 @@ For a given `Idempotency-Key`:
 | The same request while the first is still running | **409** with a `ProblemDetails` body. With [`ClaimInTransaction`](#claiming-inside-the-transaction), it runs too ([see below](#claiming-inside-the-transaction)) |
 | No key | **400**, unless `Required = false` |
 
-A request that ends before the endpoint's work is done — it throws, answers 400 or above, or is stopped
-early by middleware, even successfully — gives the key back, so a retry runs. Once the work is done the
+A request that ends before the endpoint's work is done -- it throws, answers 400 or above, or is stopped
+early by middleware, even successfully -- gives the key back, so a retry runs. Once the work is done the
 key is kept. The refusal codes are registered as endpoint metadata.
 
 The key comes from the `Idempotency-Key` header unless `Source` and `Key` say otherwise, as for
@@ -196,7 +196,7 @@ decides whose requests share a key:
 could present a key is trusted to see the others' responses.
 
 Because anonymous callers all share one empty user, `User` on an endpoint with no authorization (no
-`[Authorize]`, and no fallback authorization policy) scopes by nothing — exactly what refusing `None`
+`[Authorize]`, and no fallback authorization policy) scopes by nothing -- exactly what refusing `None`
 prevents. The host logs a warning naming the route at startup; it is only a warning because the caller
 may already be authenticated by an upstream gateway.
 
@@ -206,8 +206,8 @@ reconsider the attribute or the scope rather than to add authorization.
 
 ### What counts as the same request
 
-The request is compared by a SHA-256 of the bytes sent — the method and path, the query string and the
-body — never by the bound message, and the key itself is always the caller's. So a retry must resend the
+The request is compared by a SHA-256 of the bytes sent -- the method and path, the query string and the
+body -- never by the bound message, and the key itself is always the caller's. So a retry must resend the
 same bytes: a client that reorders JSON properties, changes whitespace or reserializes the body gets
 a 422. A key reused on another endpoint is a different request even when the scope leaves the endpoint
 out.
@@ -272,7 +272,7 @@ opts.DeduplicateWithResponse(DeduplicationScope.User | DeduplicationScope.Endpoi
 <!-- endSnippet -->
 
 That covers every POST endpoint. Pass a filter over the `HttpChain` to choose others, and set the rest of
-the attribute's options — `Source` and `Key`, `Required`, `Window`, `ClaimInTransaction` and `StoreBody` — in
+the attribute's options -- `Source` and `Key`, `Required`, `Window`, `ClaimInTransaction` and `StoreBody` -- in
 the last argument:
 
 <!-- snippet: sample_deduplicate_with_response_with_a_filter -->
@@ -422,8 +422,8 @@ request's claim and answers from it.
   response is only produced after the commit, such as one returning `UpdatedAggregate`, keeps
   claim-and-release.
 
-An endpoint that asks for `ClaimInTransaction` but cannot take it — another store, database per tenant, a
-message store in another database, no commit through the middleware — keeps claim-and-release, and
+An endpoint that asks for `ClaimInTransaction` but cannot take it -- another store, database per tenant, a
+message store in another database, no commit through the middleware -- keeps claim-and-release, and
 Wolverine logs a warning naming it once its code is generated. The database check is repeated at runtime,
 so pre-generated code built against a different configuration fails loudly rather than writing claims
 where they are never read.

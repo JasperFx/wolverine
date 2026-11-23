@@ -650,7 +650,7 @@ Besides the broker transports above, Wolverine can interoperate with NServiceBus
 [SQL Server **and** PostgreSQL transports](https://docs.particular.net/transports/sql/) by reading and writing the
 NServiceBus queue tables directly. Rather than a custom envelope mapper layered onto a shared broker, these are
 dedicated transports that speak Particular's documented
-[native integration](https://docs.particular.net/transports/sql/native-integration) contract — one table per queue
+[native integration](https://docs.particular.net/transports/sql/native-integration) contract -- one table per queue
 with a JSON `Headers` column and a raw `Body` column. The SQL Server flavor is shown below; PostgreSQL is identical
 with `UseNServiceBusPostgresqlInterop()` / `ListenToNServiceBusPostgresqlQueue()` / `ToNServiceBusPostgresqlQueue()`
 from `Wolverine.Postgresql.Transport.NServiceBus`.
@@ -702,7 +702,7 @@ Wolverine can also interoperate with MassTransit over its
 [PostgreSQL SQL transport](https://masstransit.io/documentation/transports/sql). This is quite different from the
 NServiceBus database interop above: MassTransit's SQL transport is a function-driven, two-table model
 (`transport.message` + `transport.message_delivery`) that MassTransit owns and migrates itself. Rather than reading and
-writing a table, Wolverine calls MassTransit's stored functions — `send_message` to publish, `fetch_messages` to lease
+writing a table, Wolverine calls MassTransit's stored functions -- `send_message` to publish, `fetch_messages` to lease
 a batch, and `delete_message` / `unlock_message` to ack / nack.
 
 ```cs
@@ -725,7 +725,7 @@ builder.UseWolverine(opts =>
 A few things to note:
 
 * MassTransit owns and migrates its `transport` schema, so it must be running (or have run) to create it. Wolverine
-  never provisions that schema — `autoProvision: true` only calls `create_queue_v2` for the queues Wolverine listens to.
+  never provisions that schema -- `autoProvision: true` only calls `create_queue_v2` for the queues Wolverine listens to.
 * Wolverine writes the **bare** message JSON to the `body` column plus the envelope fields as columns, and emits the
   MassTransit `urn:message:{Namespace}:{TypeName}` message type. This is *not* the wrapped
   `application/vnd.masstransit+json` envelope used by the broker transports above.

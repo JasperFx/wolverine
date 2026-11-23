@@ -2,7 +2,7 @@
 
 Wolverine's existing [error handling](/guide/handlers/error-handling) policies apply to failures that happen while *processing* incoming messages in handlers. But what about failures that happen while *sending* outgoing messages to external transports?
 
-When an outgoing message fails to send — maybe the message broker is temporarily unavailable, a message is too large for the transport, or a network error occurs — Wolverine's default behavior is to retry and eventually trip a circuit breaker on the sending endpoint. Starting in Wolverine 5.x, you can now configure **sending failure policies** to take fine-grained action on these outgoing send failures, using the same fluent API you already know from handler error handling.
+When an outgoing message fails to send -- maybe the message broker is temporarily unavailable, a message is too large for the transport, or a network error occurs -- Wolverine's default behavior is to retry and eventually trip a circuit breaker on the sending endpoint. Starting in Wolverine 5.x, you can now configure **sending failure policies** to take fine-grained action on these outgoing send failures, using the same fluent API you already know from handler error handling.
 
 ## Why Use Sending Failure Policies?
 
@@ -152,4 +152,4 @@ Sending failure policies are evaluated *before* the existing circuit breaker log
 4. If a matching policy is found, its continuation is executed (discard, dead letter, retry, custom action, etc.)
 5. If no policy matches, the existing retry/circuit breaker behavior proceeds as before
 
-This means sending failure policies are purely additive — they only change behavior when explicitly configured and when a rule matches.
+This means sending failure policies are purely additive -- they only change behavior when explicitly configured and when a rule matches.

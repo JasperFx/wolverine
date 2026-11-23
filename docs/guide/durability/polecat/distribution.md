@@ -68,7 +68,7 @@ event-subscriptions://[event store type]/[event store name]/[database server].[d
 For an example from the tests: `event-subscriptions://sqlserver/main/localhost.mydb/day/all` where:
 
 * "sqlserver" is the event store *type*. Polecat reports its `IEventStore.Identity.Type` as its underlying
-  storage engine — `"SqlServer"`, lowercased by the URI — rather than "polecat", so this is where the
+  storage engine -- `"SqlServer"`, lowercased by the URI -- rather than "polecat", so this is where the
   authority differs from the Marten page's `marten` example
 * "main" refers to this projection being in the primary Polecat store added from `AddPolecat()`. Otherwise
   this value would be the type name of an ancillary store type in all lower case
@@ -84,7 +84,7 @@ Other requirements:
 
 * `WolverineOptions.Durability.Mode` must be `Balanced` **to spread the work across multiple nodes**, since that is
   what enables leader election and the control queue. In `Solo` mode every projection and subscription agent still
-  runs — just all of them on the single node. `Serverless` and `MediatorOnly` start no agents at all.
+  runs -- just all of them on the single node. `Serverless` and `MediatorOnly` start no agents at all.
 * In `Balanced` mode you cannot disable external transports with `StubAllExternalTransports()`, because the nodes
   need the control queue to communicate
 

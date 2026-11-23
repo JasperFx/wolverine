@@ -36,9 +36,9 @@ transactional middleware for handlers that have a dependency on `IDocumentSessio
 some dependency that itself depends on `IDocumentSession`) as long as the `IntegrateWithWolverine()` call was used in application bootstrapping.
 
 ::: danger
-If a handler takes in `IDocumentSession` and writes to it (appending events, `Store`, `Insert`, etc.) but the chain has **no** transactional middleware — i.e. `AutoApplyTransactions()` is not enabled, the method has no `[Transactional]` attribute, it does not return an [`IMartenOp`](/guide/durability/marten/operations), and it is not a saga — then Wolverine opens the managed `IDocumentSession` to satisfy the parameter but **never calls `SaveChangesAsync()`**. The session is disposed at the end of the handler and **all writes are silently discarded with no exception**.
+If a handler takes in `IDocumentSession` and writes to it (appending events, `Store`, `Insert`, etc.) but the chain has **no** transactional middleware -- i.e. `AutoApplyTransactions()` is not enabled, the method has no `[Transactional]` attribute, it does not return an [`IMartenOp`](/guide/durability/marten/operations), and it is not a saga -- then Wolverine opens the managed `IDocumentSession` to satisfy the parameter but **never calls `SaveChangesAsync()`**. The session is disposed at the end of the handler and **all writes are silently discarded with no exception**.
 
-This is the most common cause of "my event/document was not persisted and I got no error" reports. If you inject `IDocumentSession` and rely on Wolverine to commit, you **must** opt into the transactional middleware via `AutoApplyTransactions()` or `[Transactional]` (or return an `IMartenOp`). Alternatively, if you intend to own the lifecycle, call `IDocumentSession.SaveChangesAsync()` yourself — but note the outbox caveat in the warning at the top of this page.
+This is the most common cause of "my event/document was not persisted and I got no error" reports. If you inject `IDocumentSession` and rely on Wolverine to commit, you **must** opt into the transactional middleware via `AutoApplyTransactions()` or `[Transactional]` (or return an `IMartenOp`). Alternatively, if you intend to own the lifecycle, call `IDocumentSession.SaveChangesAsync()` yourself -- but note the outbox caveat in the warning at the top of this page.
 :::
 
 ### Opting Out with [NonTransactional]

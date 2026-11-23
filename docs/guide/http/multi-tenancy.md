@@ -23,7 +23,7 @@ and part of that is assuming that tenants are identified with a `string`.
 
 ::: tip
 Wolverine has no direct or special security integration, but should be usable with (we think) any existing
-[ASP.Net Core authentication and authorization support](https://learn.microsoft.com/en-us/aspnet/core/security/authorization/claims?view=aspnetcore-7.0) including the `[Authorize]` attribute usage that declares
+[ASP.Net Core authentication and authorization support](https://learn.microsoft.com/en-us/aspnet/core/security/authorization/claims) including the `[Authorize]` attribute usage that declares
 required claims.
 :::
 
@@ -270,7 +270,7 @@ app.MapWolverineEndpoints(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/MultiTenancy.cs#L67-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_assert_tenant_id_exists' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-At runtime, this is going to return a status code of 400 with a [ProblemDetails](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails?view=aspnetcore-7.0) specification 
+At runtime, this is going to return a status code of 400 with a [ProblemDetails](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails) specification 
 response stating that the tenant id was missing. 
 
 But of course, you will frequently have *some* endpoints within your system that do **not** use any kind

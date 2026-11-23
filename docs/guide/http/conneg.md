@@ -47,7 +47,7 @@ public static class ConnegWriteEndpoints
 
 Key points:
 - Methods must have the `[Writes("content-type")]` attribute to specify which content type they handle
-- The method name can be anything — it's the `[Writes]` attribute that matters
+- The method name can be anything -- it's the `[Writes]` attribute that matters
 - Methods receive the `HttpContext` and the response resource as parameters
 - Methods can be sync (`void`) or async (`Task`)
 - Multiple `[Writes]` methods can coexist on the same class for different content types
@@ -105,7 +105,7 @@ Per-endpoint configuration (via `[StrictConneg]` attribute) overrides the global
 
 ## Loose Mode Fallback
 
-In the default **Loose** mode, when no `[Writes]` method matches the `Accept` header, the response falls back to JSON serialization — exactly the same as an endpoint without any content negotiation:
+In the default **Loose** mode, when no `[Writes]` method matches the `Accept` header, the response falls back to JSON serialization -- exactly the same as an endpoint without any content negotiation:
 
 <!-- snippet: sample_conneg_loose_fallback -->
 <a id='snippet-sample_conneg_loose_fallback'></a>
@@ -158,7 +158,7 @@ else
 }
 ```
 
-This means there is **zero runtime reflection** — the content type dispatching is compiled at startup.
+This means there is **zero runtime reflection** -- the content type dispatching is compiled at startup.
 
 ## Request Content Type Negotiation
 
@@ -185,6 +185,6 @@ This allows the same route and HTTP method to handle different request body form
 
 A request whose `Content-Type` none of the endpoints on the route declares gets a `415 Unsupported Media Type`.
 That includes a request that sends **no** `Content-Type` header at all, which returned a `404` before Wolverine
-6.23 — the route exists, so a media-type status is the honest answer. Matching compares only the media type, so
+6.23 -- the route exists, so a media-type status is the honest answer. Matching compares only the media type, so
 parameters such as `charset=utf-8` do not defeat it, but it is otherwise exact: `application/json` does **not**
 match a declared `application/vnd.item.v1+json`, and a wildcard in the attribute never matches anything.

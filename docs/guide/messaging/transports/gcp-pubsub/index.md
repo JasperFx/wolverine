@@ -53,7 +53,7 @@ var host = await Host.CreateDefaultBuilder()
 
 ### Authentication / Credentials
 
-By default, Wolverine uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials). If you need to supply a specific `GoogleCredential` — for example when running on Azure with Workload Identity Federation — use `UseCredential`:
+By default, Wolverine uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials). If you need to supply a specific `GoogleCredential` -- for example when running on Azure with Workload Identity Federation -- use `UseCredential`:
 
 ```csharp
 opts.UsePubsub("your-project-id")
@@ -237,9 +237,9 @@ var host = await Host.CreateDefaultBuilder()
 
 ## Multi-Tenancy with a Broker Per Tenant
 
-Named brokers (above) are a *static* topology: you pin specific endpoints to a specific broker at configuration time. **Broker-per-tenant** is different — it is *runtime* routing. You declare one shared topic topology, and each tenant is served by its **own dedicated GCP project**. Which project a message goes to (and which project an inbound message came from) is decided at runtime by the message's [tenant id](/guide/handlers/multi-tenancy), typically set through `DeliveryOptions.TenantId`.
+Named brokers (above) are a *static* topology: you pin specific endpoints to a specific broker at configuration time. **Broker-per-tenant** is different -- it is *runtime* routing. You declare one shared topic topology, and each tenant is served by its **own dedicated GCP project**. Which project a message goes to (and which project an inbound message came from) is decided at runtime by the message's [tenant id](/guide/handlers/multi-tenancy), typically set through `DeliveryOptions.TenantId`.
 
-Project-id-per-tenant is the natural isolation axis for Pub/Sub: the topic and subscription names embed the project id, so the *same* logical topic under a *different* project is already a physically distinct Pub/Sub resource — "shared by name, isolated by project".
+Project-id-per-tenant is the natural isolation axis for Pub/Sub: the topic and subscription names embed the project id, so the *same* logical topic under a *different* project is already a physically distinct Pub/Sub resource -- "shared by name, isolated by project".
 
 <!-- snippet: sample_pubsub_broker_per_tenant -->
 <a id='snippet-sample_pubsub_broker_per_tenant'></a>
@@ -286,10 +286,10 @@ To route a specific message to a tenant's project, stamp the tenant id on the se
 await bus.SendAsync(new ColorMessage("blue"), new DeliveryOptions { TenantId = "tenant1" });
 ```
 
-Wolverine wraps the outbound endpoint in a `TenantedSender` that dispatches on `Envelope.TenantId`, and builds a compound listener that runs one listener per tenant project — each inbound envelope is stamped with the tenant id of the project it was consumed from. When `AutoProvision()` is enabled, Wolverine provisions the shared topology (topics and subscriptions) on **every** tenant project, not just the default one.
+Wolverine wraps the outbound endpoint in a `TenantedSender` that dispatches on `Envelope.TenantId`, and builds a compound listener that runs one listener per tenant project -- each inbound envelope is stamped with the tenant id of the project it was consumed from. When `AutoProvision()` is enabled, Wolverine provisions the shared topology (topics and subscriptions) on **every** tenant project, not just the default one.
 
 ::: tip The emulator caveat
-The GCP Pub/Sub emulator ignores credentials and accepts arbitrary project ids with no auth, so per-tenant *projects* are trivially testable on a single emulator (just use distinct project id strings). Per-tenant *credentials*, however, cannot be exercised against the emulator — test that path against real GCP.
+The GCP Pub/Sub emulator ignores credentials and accepts arbitrary project ids with no auth, so per-tenant *projects* are trivially testable on a single emulator (just use distinct project id strings). Per-tenant *credentials*, however, cannot be exercised against the emulator -- test that path against real GCP.
 :::
 
 ## Request/Reply

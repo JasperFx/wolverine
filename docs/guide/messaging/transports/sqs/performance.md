@@ -5,14 +5,14 @@ transport, and the factors behind them.
 
 ## The receive side: batches in, singles out
 
-Wolverine receives from SQS in batches — each poll asks for up to `MaxNumberOfMessages`
+Wolverine receives from SQS in batches -- each poll asks for up to `MaxNumberOfMessages`
 (default **10**, the SQS maximum) with long polling enabled by default (`WaitTimeSeconds` = 5).
 Durable endpoints benefit doubly: the whole received batch is written to the database inbox in
 a **single** batched insert, so durable SQS endpoints are considerably cheaper per message than
 push-based transports.
 
 Message *completion* is batched too. Completed messages accumulate for up to 50 milliseconds and
-are deleted with a single `DeleteMessageBatch` call of up to 10 — so a full 10-message receive is
+are deleted with a single `DeleteMessageBatch` call of up to 10 -- so a full 10-message receive is
 settled with one round trip instead of ten. Since SQS bills per API call, this is a cost lever as
 much as a latency one. The practical levers:
 
@@ -68,11 +68,11 @@ depends on the endpoint mode, because each mode deletes the message from SQS at 
 point:
 
 - **Durable** endpoints delete the message as soon as it has been written to the durable
-  inbox — *before* the handler runs. The local backlog lives in your database, not under an
+  inbox -- *before* the handler runs. The local backlog lives in your database, not under an
   SQS timer, so the visibility timeout only has to cover the receive-to-insert round trip.
   If that insert is ever slower than the timeout (an overloaded database), SQS redelivers and
-  the inbox deduplicates the copy — wasted work, not duplicate side effects.
-- **Buffered** endpoints delete messages *as soon as they are buffered*, before handling — so
+  the inbox deduplicates the copy -- wasted work, not duplicate side effects.
+- **Buffered** endpoints delete messages *as soon as they are buffered*, before handling -- so
   the visibility timeout is moot, and instead of duplicates you get at-most-once semantics: an
   ungraceful crash loses the buffered backlog.
 - **Inline** endpoints delete only after successful handling, so the visibility timeout must
@@ -99,7 +99,7 @@ opts.ListenToSqsQueue("slow-work", q => q.VisibilityTimeout = 60)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L255-L261' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_extend_visibility_while_handling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-`ExtendVisibilityWhileHandling()` (inline endpoints only — Durable and Buffered have already
+`ExtendVisibilityWhileHandling()` (inline endpoints only -- Durable and Buffered have already
 deleted the message by the time a handler runs) issues a `ChangeMessageVisibilityBatch` for
 every message of the batch that is still in flight at each half-timeout tick, so a batch that
 finishes inside half the timeout costs no extra API calls at all. Each message is kept
@@ -122,8 +122,8 @@ opts.ListenToSqsQueue("fast-work")
 `opts.RestoreV6Defaults()` turns it off for every listener that doesn't call
 `ExtendVisibilityWhileHandling()` itself.
 
-- **NativeAck** endpoints hold the message longest of all — for lane queue time *plus* handler
-  time — and that queue time is unbounded by design. Renewal there is therefore **mandatory and
+- **NativeAck** endpoints hold the message longest of all -- for lane queue time *plus* handler
+  time -- and that queue time is unbounded by design. Renewal there is therefore **mandatory and
   does not consult `ExtendVisibilityWhileHandling()`**, so neither `DoNotExtendVisibilityWhileHandling()`
   nor `RestoreV6Defaults()` can turn it off for the one mode that cannot survive it being off. `MaximumVisibilityExtension`
   is still the ceiling, and idle lanes still cost nothing. See
@@ -152,13 +152,13 @@ endpoint. Since SQS bills per API call, batching efficiency is also directly a c
 ## Payload size
 
 The default envelope mapper embeds the serialized Wolverine envelope in the message body as
-Base64, which inflates the wire size by roughly a third — budget against the 256 KB SQS message
+Base64, which inflates the wire size by roughly a third -- budget against the 256 KB SQS message
 limit accordingly. For large or high-volume payloads where you control both ends, the raw JSON
 mapper (or a custom `ISqsEnvelopeMapper`) avoids the Base64 wrapping.
 
 SQS also caps an entire `SendMessageBatch` *request* at 256 KB, not just each message in it, so
 ten individually legal 30 KB messages would bounce the whole request. Wolverine chunks outgoing
-batches on both limits — ten entries and the request payload budget — so large messages simply
+batches on both limits -- ten entries and the request payload budget -- so large messages simply
 produce smaller batches.
 
 ## FIFO queues
@@ -166,7 +166,7 @@ produce smaller batches.
 FIFO queues give broker-side ordering per `MessageGroupId` (mapped automatically from
 Wolverine's `Envelope.GroupId`), but two caveats:
 
-1. FIFO throughput is limited **per message group** — total throughput scales with the number
+1. FIFO throughput is limited **per message group** -- total throughput scales with the number
    of distinct group ids, so a workload funneled into a few groups will hit SQS's FIFO caps
    long before the transport is the bottleneck.
 2. Broker-side ordering does not by itself serialize *processing*: Buffered/Durable endpoints

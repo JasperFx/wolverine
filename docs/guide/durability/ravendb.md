@@ -180,7 +180,7 @@ public static class RecordTeamHandler
 Wolverine uses a "control queue" for low latency communication between running nodes to coordinate
 [agent assignments](/guide/durability/leadership-and-troubleshooting) such as leader election and exclusive
 listeners when running in the `Balanced` durability mode. The RavenDb integration
-ships with a **native, database-backed control queue** that requires no additional configuration —
+ships with a **native, database-backed control queue** that requires no additional configuration -- 
 simply calling `opts.UseRavenDbPersistence()` (as shown at the top of this page) is enough.
 
 When running in `Balanced` mode (the default), Wolverine automatically registers a RavenDb-backed control

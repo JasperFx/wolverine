@@ -80,7 +80,7 @@ also includes a separate *message relay* process that will send the persisted ou
 
 If any node of a Wolverine system that uses durable messaging goes down before all the messages are processed, the persisted messages will be loaded from
 storage and processed when the system is restarted. Wolverine does this through its [DurabilityAgent](https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.RDBMS/DurabilityAgent.cs) that will run within your application through Wolverine's
-[IHostedService](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-6.0&tabs=visual-studio) runtime that is automatically registered in your system through the `UseWolverine()` extension method.
+[IHostedService](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?tabs=visual-studio) runtime that is automatically registered in your system through the `UseWolverine()` extension method.
 
 ::: tip
 Wolverine supports PostgreSQL, Sql Server, MySQL, SQLite, Oracle, RavenDb, and CosmosDB as the underlying message storage,
@@ -244,15 +244,15 @@ under load. Wolverine coalesces both into short micro-batches:
 
 - **Arrival**: transports that receive in batches (SQS, Azure Service Bus, Pub/Sub) hand the whole
   batch to the inbox in one round trip, and the one-at-a-time push transports (RabbitMQ, Kafka)
-  accumulate deliveries for up to 5ms — or `MaximumMessagesToReceive` (default 100), whichever comes
-  first — before one batched insert.
+  accumulate deliveries for up to 5ms -- or `MaximumMessagesToReceive` (default 100), whichever comes
+  first -- before one batched insert.
 - **Completion**: concurrent handler completions share one batched mark-as-handled `UPDATE` (up to
   `DurabilitySettings.MarkAsHandledBatchSize` of them, default 100). One flush is in flight at a
   time and everything that completes while it runs joins the next one, so batches form from
   concurrency alone: a lone completion is flushed immediately, nothing waits on a timer, and every
-  completion still waits for its own `UPDATE` to land before the message counts as handled — a
+  completion still waits for its own `UPDATE` to land before the message counts as handled -- a
   tracked session finishing still means the inbox row is `Handled`. A batch that fails for any
-  reason falls back to marking each message individually, with retries, so nothing is lost — only
+  reason falls back to marking each message individually, with retries, so nothing is lost -- only
   the round trip is shared. A message already marked handled inside a transactional middleware's own
   transaction is skipped.
 
@@ -265,7 +265,7 @@ all you need.
 ### Bounding Broker Redeliveries <Badge type="tip" text="6.30" />
 
 There is one failure the inbox's own deduplication cannot get you out of on its own. Suppose a delivery
-reaches Wolverine, is written to the inbox, and then the *settle* back to the broker fails — a dropped
+reaches Wolverine, is written to the inbox, and then the *settle* back to the broker fails -- a dropped
 connection, an expired lock, a channel that closed underneath the ack. The broker never heard the
 acknowledgement, so it redelivers. The inbox correctly recognizes the redelivery as a duplicate and refuses
 it, Wolverine tries to settle it again, that settle fails again, and the broker delivers it once more.
@@ -282,7 +282,7 @@ dead letter queue instead of being settled one more time:
 opts.Durability.MaximumBrokerRedeliveries = 5;
 ```
 
-The default is **0, meaning off** — the broker's own redelivery limit stays in charge and nothing changes.
+The default is **0, meaning off** -- the broker's own redelivery limit stays in charge and nothing changes.
 That default is why this is additive for every existing application.
 
 **It reads whatever native signal the transport already carries:**
@@ -291,8 +291,8 @@ That default is why this is additive for every existing application.
 | --- | --- | --- |
 | Azure Service Bus | `DeliveryCount` | Yes |
 | Amazon SQS | `ApproximateReceiveCount` | Yes |
-| RabbitMQ | the `x-death` count header | **No** — see below |
-| Everything else | — | No signal, so the setting has no effect |
+| RabbitMQ | the `x-death` count header | **No** -- see below |
+| Everything else | n/a | No signal, so the setting has no effect |
 
 A transport that reports no count leaves `Envelope.BrokerDeliveryCount` null and is simply unaffected.
 Wolverine does not guess a count from anything else.
@@ -307,7 +307,7 @@ is rejected through a dead-letter exchange; a plain `nack`-with-requeue does not
 endpoint that is requeueing rather than dead-lettering, there is no count to bound and this setting does
 nothing.
 
-**It only applies where the loop actually turns** — the durable inbox's duplicate path. This is not a general
+**It only applies where the loop actually turns** -- the durable inbox's duplicate path. This is not a general
 purpose retry limit, and it does not bound ordinary handler failures; that is what
 [error handling policies](/guide/handlers/error-handling) are for. It also needs the listener to support a
 native dead letter queue, since dead-lettering is the escape. Without one, Wolverine falls through to the
@@ -320,8 +320,8 @@ ordinary settle and behaves exactly as it did before.
 will retry a single settle before giving up and letting the broker redeliver.
 
 The reason it is a budget carried on the envelope rather than a per-block retry count is that the durable
-completion path stacks two retry blocks — the receiver's complete block, then the transport's own channel
-callback — and each one bounded its own attempts independently. Their budgets multiplied rather than
+completion path stacks two retry blocks -- the receiver's complete block, then the transport's own channel
+callback -- and each one bounded its own attempts independently. Their budgets multiplied rather than
 combined, so what read as "three attempts" was really nine broker round trips, with neither block able to
 see the other's count.
 
@@ -336,7 +336,7 @@ after that effort was abandoned. Neither one substitutes for the other, which is
 ### Who Recovers the Inbox <Badge type="tip" text="6.22" />
 
 An incoming envelope in durable storage is either owned by a specific node (its `owner_id` is that node's
-assigned number) or it is *unowned* — `owner_id = 0`, meaning "any node may claim this". Messages become
+assigned number) or it is *unowned* -- `owner_id = 0`, meaning "any node may claim this". Messages become
 unowned when the node that owned them dies ungracefully and another node releases its ownership, and when
 replayed dead letter messages are moved back into the inbox. Getting those unowned messages back into a
 running listener is what "inbox recovery" means.
@@ -359,7 +359,7 @@ would never look. (That was [GH-3590](https://github.com/JasperFx/wolverine/issu
 So for single node listeners, Wolverine inverts the ownership:
 
 * The per-database durability agents **never claim** inbox messages for endpoints whose `ListenerScope` is not
-  `CompetingConsumers`. They keep doing everything else for those endpoints — releasing a dead node's
+  `CompetingConsumers`. They keep doing everything else for those endpoints -- releasing a dead node's
   ownership, [bumping stale inbox rows](#bumping-out-stale-inbox-outbox-messages), expiring messages.
 * The node that currently holds the listener recovers them itself, starting the moment the listener reaches
   `Accepting` and then re-checking on the `Durability.ScheduledJobPollingTime` cadence for as long as it stays
@@ -370,7 +370,7 @@ So for single node listeners, Wolverine inverts the ownership:
   database when you use a separate database per tenant (including tenant databases provisioned at runtime), and
   any [ancillary stores](/guide/durability/marten/ancillary-stores).
 * A listener that is latched, paused, or already at its `BufferingLimits` recovers nothing, exactly as with the
-  durability agent — circuit breaking behaves the way it always has.
+  durability agent -- circuit breaking behaves the way it always has.
 
 None of this is configurable, and it works the same in `Solo` mode as in `Balanced`. The practical consequence
 worth remembering: **if no node in the cluster is running an exclusive endpoint's listener, that endpoint's

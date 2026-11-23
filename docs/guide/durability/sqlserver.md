@@ -375,7 +375,7 @@ This setting changes the physical schema of the queue tables. Setting it explici
 transaction, Wolverine copies the rows out, recreates the table in the new layout and inserts the rows
 back in queue order, so messages already waiting keep their order and the new `seq` (or `queue_order`)
 identity follows it. The table is locked for the duration. Queue tables are normally transient, so this
-is usually cheap, but you should switch during a maintenance window — ideally with the queues drained —
+is usually cheap, but you should switch during a maintenance window -- ideally with the queues drained -- 
 and on every application that shares the queue tables. Two applications that disagree would rebuild the
 tables back and forth, which is why the 7.0 *default* never rebuilds anything.
 
@@ -513,7 +513,7 @@ _listener = await Host.CreateDefaultBuilder()
 
 Sql Server queues can be used as the external transport for
 [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This gives you
-cluster-wide sequential processing by group id with **no extra infrastructure** — the shards are
+cluster-wide sequential processing by group id with **no extra infrastructure** -- the shards are
 just more tables in the database you already have.
 
 Use `UseShardedSqlServerQueues()` inside a `GlobalPartitioned()` configuration:
@@ -537,13 +537,13 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 ```
 
-That creates queues named `orders1` through `orders4` — each backed by its own
-`wolverine_queue_orders{n}` / `wolverine_queue_orders{n}_scheduled` table pair — with companion
+That creates queues named `orders1` through `orders4` -- each backed by its own
+`wolverine_queue_orders{n}` / `wolverine_queue_orders{n}_scheduled` table pair -- with companion
 local queues `global-orders1` through `global-orders4`. Each shard queue is marked exclusive, so
 only one node in the cluster listens to it at a time.
 
-If you only want the *publishing* half — sharded queues with no companion local queues, so every
-message really does round-trip through the database — use the `MessagePartitioningRules` variant
+If you only want the *publishing* half -- sharded queues with no companion local queues, so every
+message really does round-trip through the database -- use the `MessagePartitioningRules` variant
 instead:
 
 ```cs
@@ -570,13 +570,13 @@ set explicitly.
 
 ::: warning Multi-tenancy
 Under [database-per-tenant storage](#multi-tenancy-1) the shard queue tables are provisioned in
-**every** tenant database and slot routing is unchanged — a group id maps to the same slot number
+**every** tenant database and slot routing is unchanged -- a group id maps to the same slot number
 regardless of tenant.
 :::
 
 ### Resetting in Tests
 
-`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only — they leave
+`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only -- they leave
 this transport's queue and scheduled-message tables alone. To wipe both in an integration test
 harness, call [`IHost.ClearAllWolverineStorageAsync()`](/guide/testing.html#resetting-all-wolverine-storage-in-tests),
 which leaves the queue tables built but empty across every tenant database.
@@ -795,7 +795,7 @@ is maintained in Wolverine's interop test suite. See the [interop tutorial](/tut
 
 The NServiceBus header-based tenancy above is about NServiceBus' *own* persistence. A different situation arises
 when **Wolverine's** message storage is multi-tenanted with [a separate database per tenant](#multi-tenancy-1): there,
-the NServiceBus interop queue tables still live on the **one shared database** NServiceBus reads from — they must
+the NServiceBus interop queue tables still live on the **one shared database** NServiceBus reads from -- they must
 *not* be replicated into each tenant database.
 
 By default the interop transport binds to Wolverine's `Main` SQL Server message store. To pin it instead to a single,
@@ -822,7 +822,7 @@ builder.UseWolverine(opts =>
 ```
 
 With the explicit connection string set, the interop queue tables are created, sent to, and listened on against
-that one database only — regardless of which tenant a message is sent under. (This is independent of the per-message
+that one database only -- regardless of which tenant a message is sent under. (This is independent of the per-message
 `tenant_id` header mapping above, which you can still apply if the receiving NServiceBus endpoint is itself
 tenant-partitioned.)
 

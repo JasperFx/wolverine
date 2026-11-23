@@ -2,14 +2,14 @@
 
 gRPC services can start and continue [Wolverine sagas](/guide/durability/sagas), and doing so takes
 no gRPC-specific code at all: the service shim forwards the request to `IMessageBus.InvokeAsync<T>`,
-and the saga on the other side is an ordinary Wolverine saga handler. Everything saga-related —
-identity resolution, persistence, `MarkCompleted()` — happens in the same handler pipeline an HTTP
+and the saga on the other side is an ordinary Wolverine saga handler. Everything saga-related -- 
+identity resolution, persistence, `MarkCompleted()` -- happens in the same handler pipeline an HTTP
 endpoint or a message listener would use.
 
 There is one difference from [Wolverine.HTTP's saga integration](/guide/http/sagas) worth
 understanding up front. HTTP endpoints can *create* a saga by returning a `Saga`-derived value from
 the endpoint method, because Wolverine generates the endpoint chain itself and applies return-value
-mechanics to it. A gRPC service method is a thin shim in front of `Bus.InvokeAsync<T>` — the chain
+mechanics to it. A gRPC service method is a thin shim in front of `Bus.InvokeAsync<T>` -- the chain
 that runs is the *handler's* chain, so the saga is started the way any message starts a saga: by a
 `Start`/`Starts` method on the saga type, with the saga identity resolved **from the message body**.
 
@@ -49,7 +49,7 @@ public class ReservationSaga : Saga
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine.Grpc.Tests/SagaOverGrpc/ReservationSaga.cs#L10-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_grpc_reservation_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Note that there is nothing gRPC-flavored here — this is exactly the saga you would write for
+Note that there is nothing gRPC-flavored here -- this is exactly the saga you would write for
 messaging or HTTP usage.
 
 ## The contracts
@@ -129,7 +129,7 @@ public class ReservationSagaGrpcService : WolverineGrpcServiceBase, IReservation
 
 ## Putting it together
 
-Starting the saga, observing its persisted state, continuing it, and completing it — all through
+Starting the saga, observing its persisted state, continuing it, and completing it -- all through
 gRPC calls:
 
 <!-- snippet: sample_starting_and_continuing_saga_over_grpc -->
@@ -170,14 +170,14 @@ state durably with no change to the saga, the contracts, or the service shim.
 
 Wolverine has two ways to resolve which saga state a message belongs to:
 
-1. **Message-identified** — the identity is a member on the message body (`Id`,
+1. **Message-identified** -- the identity is a member on the message body (`Id`,
    `ReservationId` for a `ReservationSaga`, or any member marked with `[SagaIdentity]`). This is
    what the samples above use, and it works over gRPC exactly like it works over HTTP and messaging.
-2. **Header-identified** — the message carries no identity member, and Wolverine falls back to the
+2. **Header-identified** -- the message carries no identity member, and Wolverine falls back to the
    envelope's `saga-id` header.
 
 **Only message-identified sagas are supported over a gRPC service hop.** The `saga-id` envelope
-header does not cross the hop — neither the client nor server propagation interceptor carries it —
+header does not cross the hop -- neither the client nor server propagation interceptor carries it -- 
 so a header-identified saga invoked through a gRPC service cannot resolve an id at all.
 
 As of 6.18.0 that fails with an explicit diagnostic rather than an opaque one: the caller gets a
@@ -190,14 +190,14 @@ As of 6.18.0 that fails with an explicit diagnostic rather than an opaque one: t
 > `[SagaIdentity]`).
 
 `InvalidArgument` rather than `Internal` is deliberate ([AIP-193](https://google.aip.dev/193)): the
-request cannot succeed as sent, and no amount of retrying will change that — it is a contract
+request cannot succeed as sent, and no amount of retrying will change that -- it is a contract
 problem, not a transient server fault.
 
 The practical guidance is simple, and is the better design anyway:
 
 ::: tip
 Put the saga identity on the request DTO. It makes the contract self-describing for non-Wolverine
-gRPC clients too — a Go or Java caller can start or continue the saga without knowing anything
+gRPC clients too -- a Go or Java caller can start or continue the saga without knowing anything
 about Wolverine envelope headers.
 :::
 

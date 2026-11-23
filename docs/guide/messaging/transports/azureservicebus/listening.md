@@ -55,7 +55,7 @@ listener.
 The most common reason to reach for this is a long-running inline handler. The Azure SDK only renews a
 message's lock for five minutes by default (`MaxAutoLockRenewalDuration`). Any inline handler that runs
 longer than that loses the lock, so the completion acknowledgement silently fails and Azure Service Bus
-redelivers the message — resulting in duplicate work until the message is finally dead-lettered. Raising
+redelivers the message -- resulting in duplicate work until the message is finally dead-lettered. Raising
 `MaxAutoLockRenewalDuration` keeps the lock alive for the length of your handler:
 
 <!-- snippet: sample_configuring_azure_service_bus_processor_options -->
@@ -153,14 +153,14 @@ await host.StartAsync();
 The configured prefetch count is applied to the `ServiceBusReceiver` used by buffered and durable
 listeners, to the `ServiceBusSessionReceiver` used by session-based (`RequireSessions()`) listeners,
 and as the initial `ServiceBusProcessorOptions.PrefetchCount` for inline (`ProcessInline()`)
-listeners — where `ConfigureProcessor()` can still override it.
+listeners -- where `ConfigureProcessor()` can still override it.
 
 ::: warning
 Prefetched messages are locked for this consumer the moment the client buffers them, and their lock
 duration keeps ticking while they sit in the client-side buffer waiting for your handlers. If the
 prefetch buffer is oversized relative to how fast the endpoint actually processes messages, messages
 at the back of the buffer expire their locks before they are ever handled, and Azure Service Bus
-redelivers them — producing duplicate processing and, eventually, dead-lettered messages that were
+redelivers them -- producing duplicate processing and, eventually, dead-lettered messages that were
 never really failing.
 
 Size `PrefetchCount` so that the *entire* prefetched batch can be processed comfortably within the

@@ -4,7 +4,7 @@ Eight end-to-end samples live under
 [`src/Samples/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples). Most follow the
 classic trio shape (server, client, shared messages); `OrderChainWithGrpc` is a quartet because its
 proof-point is a **chain** between two Wolverine servers. Each sample is a real Kestrel HTTP/2
-host plus separate client / service projects — `dotnet run` them side by side.
+host plus separate client / service projects -- `dotnet run` them side by side.
 
 For each Wolverine sample below you'll find a pointer to the **closest equivalent** in the official
 [grpc-dotnet examples](https://github.com/grpc/grpc-dotnet/tree/master/examples), so you can
@@ -13,7 +13,7 @@ contrast how the same shape looks with and without Wolverine's handler pipeline.
 ::: tip How to read the comparisons
 The official grpc-dotnet examples put business logic **inside** the gRPC service method (an
 override on `{Service}Base`). Wolverine's samples instead keep the service method as a one-line
-forwarder and put the logic in a plain Wolverine handler. The wire protocol is identical — what
+forwarder and put the logic in a plain Wolverine handler. The wire protocol is identical -- what
 changes is whether your business code knows about gRPC.
 :::
 
@@ -26,14 +26,14 @@ changes is whether your business code knows about gRPC.
 | [GreeterCodeFirstGrpc](#greetercodefirstgrpc)             | Unary + server streaming + client streaming | Code-first (generated) | [Coder](https://github.com/grpc/grpc-dotnet/tree/master/examples#coder) |
 | [GreeterProtoFirstGrpc](#greeterprotofirstgrpc)           | Unary + server streaming + client streaming + exception mapping | Proto-first | [Greeter](https://github.com/grpc/grpc-dotnet/tree/master/examples#greeter) |
 | [RacerWithGrpc](#racerwithgrpc)                           | Bidirectional streaming | Code-first (hand-written) | [Racer](https://github.com/grpc/grpc-dotnet/tree/master/examples#racer) |
-| [GreeterWithGrpcErrors](#greeterwithgrpcerrors)           | Unary + rich error details | Code-first (hand-written) | (no direct equivalent — closest is Greeter + a custom interceptor) |
+| [GreeterWithGrpcErrors](#greeterwithgrpcerrors)           | Unary + rich error details | Code-first (hand-written) | (no direct equivalent -- closest is Greeter + a custom interceptor) |
 | [ProgressTrackerWithGrpc](#progresstrackerwithgrpc)       | Server streaming + cancellation | Code-first (generated) | [Progressor](https://github.com/grpc/grpc-dotnet/tree/master/examples#progressor) |
-| [OrderChainWithGrpc](#orderchainwithgrpc)                 | Wolverine → Wolverine chain via typed client | Code-first (hand-written) | (no direct equivalent — grpc-dotnet assumes users hand-write propagation) |
+| [OrderChainWithGrpc](#orderchainwithgrpc)                 | Wolverine → Wolverine chain via typed client | Code-first (hand-written) | (no direct equivalent -- grpc-dotnet assumes users hand-write propagation) |
 
 ## PingPongWithGrpc
 
 Layout: [`src/Samples/PingPongWithGrpc/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpc)
-with three projects — `Messages`, `Ponger` (server), `Pinger` (client).
+with three projects -- `Messages`, `Ponger` (server), `Pinger` (client).
 
 The minimal unary case. A `Pinger` client sends a `PingRequest`; the `Ponger` server replies with a
 `PongReply`. The gRPC service is **one line** because the handler does all the work:
@@ -44,7 +44,7 @@ public Task<PongReply> Ping(PingRequest request, CallContext context = default)
 ```
 
 The handler (`public static PongReply Handle(PingRequest)`) lives in the server project and knows
-nothing about gRPC — it's exactly the same handler you'd write for messaging or HTTP.
+nothing about gRPC -- it's exactly the same handler you'd write for messaging or HTTP.
 
 **What to copy**: `[ServiceContract]` + `WolverineGrpcServiceBase` with a one-line forward to
 `Bus.InvokeAsync<T>`. This is the canonical pattern for every code-first unary RPC.
@@ -59,7 +59,7 @@ wire. The difference:
 - Wolverine PingPong: business code is on a plain handler; the gRPC service is a forwarder.
 
 That separation is what lets the same handler back HTTP, messaging, and gRPC surfaces
-simultaneously — Wolverine's core value proposition applied to gRPC.
+simultaneously -- Wolverine's core value proposition applied to gRPC.
 
 ## PingPongWithGrpcStreaming
 
@@ -81,7 +81,7 @@ one-line `Bus.StreamAsync<T>` forward, and a handler with `[EnumeratorCancellati
 
 grpc-dotnet's **Counter** example overrides `Counter.CounterBase.Count(Request, responseStream,
 context)`, writing to the `IServerStreamWriter<T>` inside a loop. The Wolverine sample's handler
-is a plain `async IAsyncEnumerable<T> Handle(...)` method — no `IServerStreamWriter<T>` reference,
+is a plain `async IAsyncEnumerable<T> Handle(...)` method -- no `IServerStreamWriter<T>` reference,
 no `WriteAsync` call. Wolverine's adapter does the `WriteAsync` for you under the hood.
 
 The upshot: the exact same handler can also be invoked in-process via `IMessageBus.StreamAsync<T>`
@@ -90,7 +90,7 @@ for testing or for non-gRPC consumers.
 ## GreeterCodeFirstGrpc
 
 Layout: [`src/Samples/GreeterCodeFirstGrpc/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)
-with three projects — `Messages`, `Server`, `Client`.
+with three projects -- `Messages`, `Server`, `Client`.
 
 The generated-implementation showcase. The only artifacts in the server project are handlers and
 one registration line. No concrete service class is written, and the interface in `Messages`
@@ -107,7 +107,7 @@ public interface IGreeterCodeFirstService
 }
 ```
 
-All three generated shapes are exercised: unary, server streaming, and client streaming — the
+All three generated shapes are exercised: unary, server streaming, and client streaming -- the
 `CollectGreetings` method mirrors the proto-first sample's RPC of the same name, but the client
 side is just an `IAsyncEnumerable<GreetRequest>` handed to the interface proxy (no
 request-stream writer plumbing).
@@ -135,14 +135,14 @@ contracts project a `WolverineFx.Grpc` reference. See
 
 grpc-dotnet's **Coder** example is also code-first (protobuf-net.Grpc), but the service author
 writes a concrete class that inherits from a base class and implements each method by hand. The
-Wolverine sample produces the identical wire protocol with zero service class code — the generated
+Wolverine sample produces the identical wire protocol with zero service class code -- the generated
 `GreeterCodeFirstServiceGrpcHandler` plays the role that the hand-written class plays in the
 official example.
 
 ## ProgressTrackerWithGrpc
 
 Layout: [`src/Samples/ProgressTrackerWithGrpc/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProgressTrackerWithGrpc)
-with three projects — `Messages`, `Server`, `Client`.
+with three projects -- `Messages`, `Server`, `Client`.
 
 A realistic server-streaming sample built on the generated-implementation path. The client submits
 a job description; the server streams back one `JobProgress` update per completed step. The handler
@@ -196,7 +196,7 @@ catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled)
 ### Compared to grpc-dotnet's Progressor
 
 grpc-dotnet's **Progressor** example writes to `IServerStreamWriter<T>` directly inside the service
-override to report a countdown. The Wolverine sample keeps the service layer invisible — the handler
+override to report a countdown. The Wolverine sample keeps the service layer invisible -- the handler
 is a plain `IAsyncEnumerable<T>` method that knows nothing about gRPC. The progress stream and the
 cancellation story are identical on the wire; only the authoring model differs.
 
@@ -216,10 +216,10 @@ public abstract class GreeterGrpcService : Greeter.GreeterBase;
 ```
 
 That's the whole service. Wolverine generates the concrete `GreeterGrpcHandler` wrapper at
-startup, and the `Handle` methods on `GreeterHandler` supply the behaviour — including the
+startup, and the `Handle` methods on `GreeterHandler` supply the behaviour -- including the
 client-streaming handler, which receives the whole inbound stream as
 `IAsyncEnumerable<HelloRequest>` and folds it into one `GreetingSummary` (see
-[Streaming — Client streaming](./streaming#client-streaming)).
+[Streaming -- Client streaming](./streaming#client-streaming)).
 
 **What to copy**: the abstract-stub pattern for proto-first, the
 `IAsyncEnumerable<TRequest> → Task<TResponse>` handler shape for client streaming, plus how
@@ -230,10 +230,10 @@ yields the matching gRPC `StatusCode` on the client (see [Error Handling](./erro
 
 grpc-dotnet's Greeter is also proto-first, and it's the textbook comparison point. The delta:
 
-- grpc-dotnet: `public class GreeterService : Greeter.GreeterBase { override Task<HelloReply> SayHello(...) { ... } }` — override is where the logic lives.
+- grpc-dotnet: `public class GreeterService : Greeter.GreeterBase { override Task<HelloReply> SayHello(...) { ... } }` -- override is where the logic lives.
 - Wolverine: abstract stub + plain `GreeterHandler.Handle`. No override, no gRPC types in the handler.
 
-Additionally, the Wolverine sample demonstrates the exception-mapping layer — throwing a regular
+Additionally, the Wolverine sample demonstrates the exception-mapping layer -- throwing a regular
 .NET exception and watching the client receive the correct `RpcException.StatusCode`. The
 grpc-dotnet Greeter doesn't show this because there's no handler pipeline to map from.
 
@@ -261,7 +261,7 @@ public async IAsyncEnumerable<RacePosition> RaceAsync(
 ```
 
 **What to copy**: the "one Wolverine stream per incoming command" shape. It's still the path to
-bidi — `IMessageBus.StreamAsync<TRequest, TResponse>` exists, but it's the *client-streaming*
+bidi -- `IMessageBus.StreamAsync<TRequest, TResponse>` exists, but it's the *client-streaming*
 primitive (a stream of requests folded into a **single** response), not a bidi loop.
 
 ### Compared to grpc-dotnet's Racer
@@ -275,7 +275,7 @@ grpc-dotnet's **Racer** is also bidi and is where this sample's name comes from.
 
 The Wolverine version makes sense when **each incoming message has its own reactive stream of
 responses** (start → progress → finished). If your bidi is truly peer-to-peer with no per-item
-correlation, grpc-dotnet's direct pattern may be a better fit — or, better yet, a Wolverine saga
+correlation, grpc-dotnet's direct pattern may be a better fit -- or, better yet, a Wolverine saga
 with outbound streaming.
 
 ## GreeterWithGrpcErrors
@@ -295,14 +295,14 @@ The "rich errors" showcase. Demonstrates both halves of the `google.rpc.Status` 
 The client catches `RpcException`, calls `GetRpcStatus()`, and unpacks each `Any` to render the
 field-level errors or the precondition violation.
 
-**What to copy**: the full opt-in pipeline — `UseGrpcRichErrorDetails` +
+**What to copy**: the full opt-in pipeline -- `UseGrpcRichErrorDetails` +
 `UseFluentValidationGrpcErrorDetails` + inline `MapException` + client-side `GetRpcStatus` /
 `Any.Unpack<T>`. Mirrors how you'd wire `ProblemDetails` / `ValidationProblemDetails` on the HTTP
 side.
 
 ### Compared to grpc-dotnet examples
 
-There's no direct equivalent in the grpc-dotnet repo — the official examples demonstrate `Status`
+There's no direct equivalent in the grpc-dotnet repo -- the official examples demonstrate `Status`
 via a **custom interceptor** that the service author writes from scratch. The Wolverine sample
 shows the same outcome with no custom interceptor code in the service project: the opt-in
 pipeline, a bridge package, and per-exception declarative mapping do the work.
@@ -310,14 +310,14 @@ pipeline, a bridge package, and per-exception declarative mapping do the work.
 ## OrderChainWithGrpc
 
 Layout: [`src/Samples/OrderChainWithGrpc/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderChainWithGrpc)
-with four projects — `Contracts`, `OrderServer` (upstream, port 5006), `InventoryServer`
+with four projects -- `Contracts`, `OrderServer` (upstream, port 5006), `InventoryServer`
 (downstream, port 5007), and `OrderClient` (a plain grpc-dotnet console that kicks the chain off).
 
 The sample's purpose is to prove two things that none of the other samples can show:
 
 1. **Envelope-header propagation across a Wolverine-to-Wolverine hop, with zero user plumbing.**
    The upstream handler injects `IInventoryService` (registered via
-   `AddWolverineGrpcClient<IInventoryService>()`) and calls it like any other collaborator — no
+   `AddWolverineGrpcClient<IInventoryService>()`) and calls it like any other collaborator -- no
    `Metadata` assembly, no `CallOptions`, no custom interceptor. The downstream handler sees
    `IMessageContext.CorrelationId`, `IMessageContext.TenantId`, and `Envelope.ParentId` populated
    with the upstream values, echoes them back on the reply, and the client prints the
@@ -347,8 +347,8 @@ builder.Services.AddWolverineGrpcClient<IInventoryService>(o =>
 <!-- endSnippet -->
 
 **What to copy**: `AddWolverineGrpcClient<T>()` in the calling service + an ordinary Wolverine
-handler that takes the typed client as a method parameter. The rest — envelope propagation,
-exception mapping, channel management — Wolverine and `Grpc.Net.ClientFactory` handle for you.
+handler that takes the typed client as a method parameter. The rest -- envelope propagation,
+exception mapping, channel management -- Wolverine and `Grpc.Net.ClientFactory` handle for you.
 
 ### Running the sample
 
@@ -364,7 +364,7 @@ failure path prints the `NotFound` surfaced by the upstream server.
 
 ### Compared to grpc-dotnet examples
 
-There's no direct equivalent in the grpc-dotnet repo — the official examples assume users
+There's no direct equivalent in the grpc-dotnet repo -- the official examples assume users
 hand-write client interceptors for anything they want stamped on outgoing calls, and none of the
 shipped examples chain one service's handler into another service's RPC. The Wolverine sample
 collapses that entire surface area into a single registration line, because ambient context and
@@ -373,10 +373,10 @@ provide.
 
 ## Related
 
-- [Index](./) — overview + getting started.
-- [How gRPC Handlers Work](./handlers) — why the samples can keep their service classes tiny.
-- [Code-First and Proto-First Contracts](./contracts) — pick the style each sample uses.
-- [Streaming](./streaming) — the streaming shapes two of these samples implement.
-- [Error Handling](./errors) — the pipeline `GreeterWithGrpcErrors` exercises end-to-end.
-- [Typed gRPC Clients](./client) — full reference for the `AddWolverineGrpcClient<T>()` extension
+- [Index](./) -- overview + getting started.
+- [How gRPC Handlers Work](./handlers) -- why the samples can keep their service classes tiny.
+- [Code-First and Proto-First Contracts](./contracts) -- pick the style each sample uses.
+- [Streaming](./streaming) -- the streaming shapes two of these samples implement.
+- [Error Handling](./errors) -- the pipeline `GreeterWithGrpcErrors` exercises end-to-end.
+- [Typed gRPC Clients](./client) -- full reference for the `AddWolverineGrpcClient<T>()` extension
   `OrderChainWithGrpc` demonstrates.

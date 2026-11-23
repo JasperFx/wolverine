@@ -19,8 +19,8 @@ Wolverine-managed gRPC service (proto-first, code-first, and hand-written delega
 alike), and the detected tenant id:
 
 1. Is assigned to the scoped `IMessageBus.TenantId` **before** the RPC forwards to
-   `InvokeAsync`/`StreamAsync`, so the envelope — and any Marten/Polecat tenant-scoped session the
-   handler uses — carries the right tenant.
+   `InvokeAsync`/`StreamAsync`, so the envelope -- and any Marten/Polecat tenant-scoped session the
+   handler uses -- carries the right tenant.
 2. Declares the same `tenantId` code-generation variable that Marten's and Polecat's
    session-opening frames look for, so persistence middleware woven into the gRPC chain itself
    gets the tenant structurally, without relying on the ambient `IMessageContext`.
@@ -55,9 +55,9 @@ The built-in strategies are:
 |-----------------------------------|-----------------------------------------------------------------------------------------------|
 | `IsRequestHeaderValue(headerKey)` | Inbound request metadata (`ServerCallContext.RequestHeaders`), case-insensitive               |
 | `IsClaimTypeNamed(claimType)`     | The authenticated `ClaimsPrincipal` (`context.GetHttpContext().User`, where grpc-aspnetcore surfaces authentication results) |
-| `DefaultIs(tenantId)`             | Nothing — always returns the fallback value. Register it last.                                |
+| `DefaultIs(tenantId)`             | Nothing -- always returns the fallback value. Register it last.                                |
 
-There are no gRPC equivalents of HTTP's route-argument, query-string, or sub-domain strategies —
+There are no gRPC equivalents of HTTP's route-argument, query-string, or sub-domain strategies -- 
 those concepts don't exist on a gRPC call. Metadata headers and claims are the idiomatic carriers,
 and anything else can be plugged in with a custom strategy.
 
@@ -104,7 +104,7 @@ builder.Services.AddWolverineGrpc(grpc =>
 
 When the header is trusted (`TrustTenantIdHeader`, above), you never configure `TenantId`, and
 `WolverineGrpcOptions.PropagateEnvelopeHeaders` is `true` (its default), Wolverine automatically detects the tenant
-from the `tenant-id` request metadata header — the exact header that
+from the `tenant-id` request metadata header -- the exact header that
 [`AddWolverineGrpcClient<T>()`](./client)'s propagation interceptor stamps on outgoing calls from
 `IMessageContext.TenantId`. In other words, a Wolverine-to-Wolverine gRPC hop round-trips the tenant id with no other
 server configuration:
@@ -124,7 +124,7 @@ Note that the zero-config default overlaps with the runtime
 [`WolverineGrpcServicePropagationInterceptor`](./client#envelope-header-propagation), which, when the header is
 trusted, also copies the `tenant-id` header onto the scoped `IMessageContext`. The two are complementary: the
 interceptor covers *every* mapped gRPC service (including services Wolverine did not generate)
-at runtime, while the detection frame makes the tenant a structural part of the generated code —
+at runtime, while the detection frame makes the tenant a structural part of the generated code -- 
 visible in `codegen preview`, available to persistence frames as the `tenantId` variable, and
 independent of the ambient message context.
 
@@ -177,7 +177,7 @@ When no strategy detects a tenant id, the generated service throws an `RpcExcept
 `InvalidArgument` and the detail message
 `"No mandatory tenant id could be detected for this gRPC call"` before the call ever reaches a
 Wolverine handler. `InvalidArgument` is the [canonical gRPC mapping](https://google.aip.dev/193)
-of the **400 Bad Request** that Wolverine.HTTP's `AssertExists()` returns for the same condition —
+of the **400 Bad Request** that Wolverine.HTTP's `AssertExists()` returns for the same condition -- 
 the caller sent a structurally incomplete request. If your security model treats a missing tenant
 as an authentication failure instead, skip `AssertExists()` and enforce the claim through ASP.NET
 Core authorization, which will surface as `Unauthenticated`/`PermissionDenied`.
@@ -188,13 +188,13 @@ Core authorization, which will surface as `Unauthenticated`/`PermissionDenied`.
   code-first `[WolverineGrpcService]` contracts, and hand-written service classes that receive a
   generated delegation wrapper. Services you map directly with `MapGrpcService<T>()` (without a
   Wolverine wrapper) are still covered by the runtime propagation interceptor for the `tenant-id`
-  header, but do not run custom detection strategies — read the header yourself there.
+  header, but do not run custom detection strategies -- read the header yourself there.
 - For **code-first and hand-written** services, detection requires the RPC method to declare a
-  `CallContext` parameter — that's the only route to the underlying `ServerCallContext` and its
+  `CallContext` parameter -- that's the only route to the underlying `ServerCallContext` and its
   request metadata. Methods without one fall back to the runtime interceptor.
 - Code-first **server-streaming** methods (returning `IAsyncEnumerable<T>` directly) can't host
   the async detection step. Code-first **unary and client-streaming** methods return
   `Task<TResponse>`, so detection is woven whenever they declare a `CallContext` parameter.
-  Proto-first server-streaming, client-streaming, and bidirectional methods are fully covered —
+  Proto-first server-streaming, client-streaming, and bidirectional methods are fully covered -- 
   every proto-first RPC shape ends with a `ServerCallContext` parameter, which is all detection
   needs.

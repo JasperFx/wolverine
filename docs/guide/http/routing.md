@@ -232,7 +232,7 @@ public string Post()
 
 Wolverine generates a C# type for each HTTP endpoint, and it derives that type's name from the route
 template. A route can legally contain characters that are valid in a URL path but not in a C# identifier
-— for example a `$` used to mark an RPC-style action:
+ -- for example a `$` used to mark an RPC-style action:
 
 ```csharp
 [WolverinePut("/assets/$action")]
@@ -247,8 +247,8 @@ short deterministic suffix so they stay unique.
 
 ### Overriding the generated type name
 
-If you'd rather control the generated type name explicitly — for a nicer name, or to disambiguate an
-edge case yourself — every route attribute exposes a `TypeName` property as an escape hatch:
+If you'd rather control the generated type name explicitly -- for a nicer name, or to disambiguate an
+edge case yourself -- every route attribute exposes a `TypeName` property as an escape hatch:
 
 ```csharp
 [WolverinePut("/assets/$action", TypeName = "TriggerAssetAction")]

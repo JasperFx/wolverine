@@ -203,7 +203,7 @@ overload that takes explicit connection strings, and the opt in namespace cleanu
 
 [Request/reply](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RequestReply.html) mechanics (`IMessageBus.InvokeAsync<T>()`) are possible with the Azure Service Bus transport *if* Wolverine has the ability to auto-provision
 a specific response queue for each node. That queue would be named like `wolverine.response.[service name].[application node id]` if you happen
-to notice that in the Azure Portal — or `[prefix].wolverine.response.[service name].[application node id]` if you opted into
+to notice that in the Azure Portal -- or `[prefix].wolverine.response.[service name].[application node id]` if you opted into
 [prefixing the system queues](#prefixing-system-queues).
 
 And also see the next section. 
@@ -292,7 +292,7 @@ token:
 | Dead letter queue | `wolverine-dead-letter-queue` |
 
 Only the first two carry the service name. The control queue and the dead letter queue do not, so several unrelated
-applications sharing one Azure Service Bus namespace will happily collide on them — and if you turned on
+applications sharing one Azure Service Bus namespace will happily collide on them -- and if you turned on
 [dead letter queue recovery](/guide/messaging/transports/azureservicebus/deadletterqueues), one application's recovery
 listener will merrily drain another application's dead letters into its own storage.
 
@@ -338,7 +338,7 @@ await host.StartAsync();
 <!-- endSnippet -->
 
 The prefix is joined with the Azure Service Bus identifier delimiter (`.`), and the `wolverine` token is kept so the
-queues are still recognizable as Wolverine's in the Azure Portal. Without a prefix — the default — every one of these
+queues are still recognizable as Wolverine's in the Azure Portal. Without a prefix -- the default -- every one of these
 names is exactly what it has always been, so this is safe to leave alone in an existing application.
 
 ::: tip
@@ -346,7 +346,7 @@ This is a different thing than [`PrefixIdentifiers()`](/guide/messaging/transpor
 which renames your *application* queues, topics, and subscriptions and deliberately leaves Wolverine's system queues
 alone. That distinction matters: two cooperating applications that send messages to each other have to keep addressing
 the same application queue names, so `PrefixIdentifiers()` is not usable there, while each still needs its own control,
-response, retry, and dead letter queues. The two can also be combined when you want full isolation — say, per developer
+response, retry, and dead letter queues. The two can also be combined when you want full isolation -- say, per developer
 against a shared namespace.
 :::
 
@@ -363,7 +363,7 @@ Three of those are self-healing and need nothing from you. The control queue car
 reaps the old one within minutes, and the response and retry queues hold no lasting state.
 
 The **dead letter queue is the exception**, because it is the one that holds messages somebody wanted. Whatever is
-sitting in `wolverine-dead-letter-queue` stays there, and nothing points at it any more — if you are using
+sitting in `wolverine-dead-letter-queue` stays there, and nothing points at it any more -- if you are using
 [dead letter queue recovery](/guide/messaging/transports/azureservicebus/deadletterqueues), the recovery listener
 resolves its sources from the names that resolve *now*, so those older dead letters stop being drained into durable
 storage and disappear from your monitoring.
