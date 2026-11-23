@@ -86,7 +86,7 @@ type DepositByCodeHandler491942371(outboxedSessionFactory: Wolverine.Marten.Publ
 
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            do! context.FlushOutgoingMessagesAsync()
+            do! Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(context)
 
         }
 
@@ -121,7 +121,7 @@ type DepositExclusivelyHandler313223480(outboxedSessionFactory: Wolverine.Marten
 
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            do! context.FlushOutgoingMessagesAsync()
+            do! Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(context)
 
         }
 
@@ -157,7 +157,7 @@ type DepositByOptionalCodeHandler1025805385(outboxedSessionFactory: Wolverine.Ma
 
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            do! context.FlushOutgoingMessagesAsync()
+            do! Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(context)
 
         }
 
@@ -187,7 +187,7 @@ type AuditLedgerHandler239245779(outboxedSessionFactory: Wolverine.Marten.Publis
 
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            do! context.FlushOutgoingMessagesAsync()
+            do! Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(context)
 
         }
 
@@ -217,7 +217,7 @@ type AuditLedgerByOptionalCodeHandler1937762059(outboxedSessionFactory: Wolverin
 
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            do! context.FlushOutgoingMessagesAsync()
+            do! Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(context)
 
         }
 
