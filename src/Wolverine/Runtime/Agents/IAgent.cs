@@ -84,7 +84,7 @@ public class CompositeAgent : IAgent
             await agent.StopAsync(cancellationToken);
         }
 
-        Status = AgentStatus.Running ;
+        Status = AgentStatus.Stopped;
     }
 
     public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
