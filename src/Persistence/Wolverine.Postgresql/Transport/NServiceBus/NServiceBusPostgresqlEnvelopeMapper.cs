@@ -38,6 +38,13 @@ internal class NServiceBusPostgresqlEnvelopeMapper
     public const string TimeSentHeader = "NServiceBus.TimeSent";
     public const string EnclosedMessageTypesHeader = NServiceBusInterop.EnclosedMessageTypesHeader;
 
+    /// <summary>
+    /// GH-5830. Wolverine's attempt count for a message put back into its own queue table. NServiceBus keeps no count
+    /// of immediate retries on the wire (NServiceBus.Retries counts its delayed retries only), so a requeued message
+    /// used to come back as attempt 1 and an attempt-bounded error policy never reached its limit.
+    /// </summary>
+    public const string AttemptsHeader = "Wolverine.Attempts";
+
     // NServiceBus formats NServiceBus.TimeSent with this exact pattern.
     private const string TimeSentFormat = "yyyy-MM-dd HH:mm:ss:ffffff Z";
 
@@ -53,7 +60,11 @@ internal class NServiceBusPostgresqlEnvelopeMapper
     /// <summary>
     /// Build the row values written to the NServiceBus queue table for an outgoing envelope.
     /// </summary>
-    public OutgoingRow MapOutgoing(Envelope envelope)
+    /// <param name="envelope">The envelope to write</param>
+    /// <param name="includeAttempts">
+    /// GH-5830. Carry the envelope's attempt count, for a message being put back into the queue it was received from
+    /// </param>
+    public OutgoingRow MapOutgoing(Envelope envelope, bool includeAttempts = false)
     {
         var serializer = envelope.Serializer ?? _endpoint.DefaultSerializer
             ?? throw new InvalidOperationException("No serializer is configured for this endpoint");
@@ -95,6 +106,15 @@ internal class NServiceBusPostgresqlEnvelopeMapper
         else if (envelope.MessageType.IsNotEmpty())
         {
             headers[EnclosedMessageTypesHeader] = envelope.MessageType!;
+        }
+
+        if (includeAttempts && envelope.Attempts > 0)
+        {
+            headers[AttemptsHeader] = envelope.Attempts.ToString(CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            headers.Remove(AttemptsHeader);
         }
 
         var json = JsonSerializer.Serialize(headers, NServiceBusPostgresqlJsonContext.Default.DictionaryStringString);
@@ -147,6 +167,14 @@ internal class NServiceBusPostgresqlEnvelopeMapper
             && NServiceBusInterop.ResolveMessageType(enclosed) is string messageType)
         {
             envelope.MessageType = messageType;
+        }
+
+        // GH-5830. A message Wolverine put back into this queue carries the attempts it has already had
+        if (headers.TryGetValue(AttemptsHeader, out var attemptsValue)
+            && int.TryParse(attemptsValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var attempts)
+            && attempts > 0)
+        {
+            envelope.Attempts = attempts;
         }
 
         envelope.Serializer = _endpoint.TryFindSerializer(envelope.ContentType) ?? _endpoint.DefaultSerializer;
