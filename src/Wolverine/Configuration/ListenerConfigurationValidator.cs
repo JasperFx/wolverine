@@ -72,6 +72,12 @@ internal static class ListenerConfigurationValidator
             yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Fatal, message);
         }
 
+        // GH-5809. And the transport-specific warnings, over the same final state
+        foreach (var message in endpoint.listenerConfigurationWarnings())
+        {
+            yield return new ListenerConfigurationProblem(endpoint, ListenerConfigurationSeverity.Warning, message);
+        }
+
         // GH-4060. Deliberately ahead of the Inline-only gate below: a listener with no cursor to redeliver from
         // ignores requeue policies in EVERY mode, not just Inline.
         if (requeuePoliciesConfigured && !endpoint.supportsRedelivery)

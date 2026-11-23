@@ -9,6 +9,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Attributes;
 using Wolverine.Marten;
+using Wolverine.Persistence;
 using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Xunit;
@@ -301,40 +302,52 @@ public class send_by_topics_durable : IAsyncLifetime
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
 
+                // GH-5807. This class's own envelope storage. It used to share the "sender" schema with a dozen
+                // other suites (the SQS, GCP, Kafka and MQTT compliance tests among them), and any of them running
+                // at the same time against the same database rebuilt that storage or claimed its due scheduled
+                // rows. Either way the delayed send in this class's two scheduled tests never left, and they timed
+                // out waiting for a message that no longer existed.
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
-                    .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "sender");
+                    .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "send_by_topics_durable");
 
                 opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 
-                opts.UseRabbitMq("host=localhost;port=5672").AutoProvision();
-                opts.PublishAllMessages().ToRabbitTopics("wolverine.topics", exchange =>
+                opts.UseRabbitMq("host=localhost;port=5672").AutoProvision().AutoPurgeOnStartup();
+                // GH-5807. Its own exchange and queues too. The non-durable send_by_topics class above binds
+                // "wolverine.topics" to the same "green", "blue" and "all" queues, so a message either class left
+                // behind was delivered into the other's tracked sessions.
+                opts.PublishAllMessages().ToRabbitTopics("wolverine.topics.durable", exchange =>
                 {
-                    exchange.BindTopic("color.green").ToQueue("green");
-                    exchange.BindTopic("color.blue").ToQueue("blue");
-                    exchange.BindTopic("color.*").ToQueue("all");
+                    exchange.BindTopic("color.green").ToQueue("durable.green");
+                    exchange.BindTopic("color.blue").ToQueue("durable.blue");
+                    exchange.BindTopic("color.*").ToQueue("durable.all");
                 });
 
-                opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics", m => m.TopicName);
+                opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics.durable", m => m.TopicName);
             }).StartAsync();
+
+        // GH-5807. Start every test from empty envelope storage, so a scheduled row left behind by an earlier
+        // aborted run is not sent into this test's tracked session
+        await theSender.ClearAllPersistedWolverineDataAsync();
 
         theGreenReceiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Green";
-            opts.ListenToRabbitQueue("green");
+            opts.ListenToRabbitQueue("durable.green");
             opts.UseRabbitMq();
         });
 
         theBlueReceiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Blue";
-            opts.ListenToRabbitQueue("blue");
+            opts.ListenToRabbitQueue("durable.blue");
             opts.UseRabbitMq();
         });
 
         theThirdReceiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Third";
-            opts.ListenToRabbitQueue("all");
+            opts.ListenToRabbitQueue("durable.all");
             opts.UseRabbitMq();
         });
     }

@@ -473,6 +473,17 @@ Two things to know that are specific to Redis:
   read until its handler finishes, including time spent queued in a lane. A `minIdle` shorter than the worst-case lane
   residency lets a consumer re-claim an entry it is still working on, and process it twice.
 
+A requeue, whether from a `Requeue()` error policy or from a listener handing back entries while it stops, adds a copy
+of the entry to the tail of the stream with `XADD` and only then acknowledges the original. If the `XADD` fails, the
+original stays pending and the failure is retried, so a failed requeue costs at most a duplicate, never the message.
+The copy is a new entry on the stream itself, so Wolverine addresses it to the consumer group that requeued it with a
+`wolverine-requeue-group` field. A Wolverine listener in any other consumer group on that stream acknowledges an entry
+addressed to a different group without handling it (`XACKDEL` under `DeleteStreamEntryOnAck`, which only deletes the
+entry once every group has settled it). A Redis-native scheduled retry is addressed the same way when it goes back on
+the stream. Entries without the field, including messages scheduled by a sender, still go to every consumer group.
+Consumers that are not Wolverine, or that run a Wolverine version without this field, do not know about it and still
+receive the copy.
+
 The read batch size is this transport's prefetch equivalent, and in this mode it defaults to twice the number of lanes
 that can be busy at once — the partition slot count when `PartitionProcessingByGroupId()` is used, otherwise
 `MaximumParallelMessages()` — instead of the usual 10. `BatchSize()` still overrides it. Note that unlike RabbitMQ's
@@ -555,6 +566,16 @@ using var host = await builder.UseWolverine(opts =>
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/Samples/RedisTransportWithScheduling.cs#L18-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dead_letter_queue_for_redis' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Disabling System Queues
+
+By default, Wolverine creates a reply stream for each node, named like `wolverine.response.[service name].[node]`.
+`SystemQueuesEnabled(false)` on the Redis transport configuration turns that off, as in the dead letter queue sample above.
+
+::: warning
+Without the reply stream there is **no request/reply through Redis**: `InvokeAsync<T>()` and `SendAndWaitAsync()`
+against a Redis endpoint need that per-node stream for the reply (or acknowledgement) to come back to.
+:::
 
 ## Resetting in Tests
 

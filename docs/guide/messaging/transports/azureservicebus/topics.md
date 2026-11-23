@@ -43,9 +43,11 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 To fully utilize subscription listening, be careful with using [Requeue error handling](/guide/handlers/error-handling) actions. In order to truly make
-that work, Wolverine tries to build out a queue called `wolverine.response.[Your Wolverine service name]` specifically for
+that work, Wolverine tries to build out a queue called `wolverine.retries.[Your Wolverine service name]` specifically for
 requeues from subscription listening. If your Wolverine application doesn't have permissions to create queues at runtime,
-you may want to build that queue manually or forgo using "Requeue" as an error handling technique.
+you may want to build that queue manually or forgo using "Requeue" as an error handling technique. Without that queue
+(system queues disabled), a requeued message is published back to the topic and every subscription receives it again.
+See [How a Requeue Works](/guide/messaging/transports/azureservicebus/listening#how-a-requeue-works).
 
 ## Topics Owned by Another Application <Badge type="tip" text="6.62" />
 

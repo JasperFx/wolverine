@@ -31,12 +31,18 @@ internal class OracleQueueListener : IListener
     private readonly string _schemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
+    private readonly TimeSpan _scheduledPollingInterval;
     private bool _deterministicQueueOrdering;
     private string _queueOrderBy = null!;
     private string _scheduledOrderBy = null!;
 
     // GH-5015: ids of a durable pop whose COMMIT failed with an unknown outcome and could not be released yet
     private UnconfirmedPop? _unconfirmedPop;
+
+    /// <summary>
+    ///     The resolved interval between passes of the scheduled message loop
+    /// </summary>
+    internal TimeSpan ScheduledPollingInterval => _scheduledPollingInterval;
 
     public OracleQueueListener(OracleQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         OracleDataSource dataSource, string? databaseName)
@@ -49,6 +55,7 @@ internal class OracleQueueListener : IListener
         _logger = runtime.LoggerFactory.CreateLogger<OracleQueueListener>();
         _settings = runtime.DurabilitySettings;
         _pollingInterval = queue.PollingInterval ?? _settings.ScheduledJobPollingTime;
+        _scheduledPollingInterval = queue.ScheduledMessagePollingInterval ?? _pollingInterval;
 
         _sender = new OracleQueueSender(queue, _dataSource, databaseName);
 
@@ -213,7 +220,7 @@ internal class OracleQueueListener : IListener
                 continue;
             }
 
-            if (!await pauseAsync(_pollingInterval))
+            if (!await pauseAsync(_scheduledPollingInterval))
             {
                 break;
             }

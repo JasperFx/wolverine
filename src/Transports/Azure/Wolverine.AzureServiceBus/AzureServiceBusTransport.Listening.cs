@@ -5,6 +5,7 @@ using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.AzureServiceBus;
 
@@ -117,7 +118,8 @@ public partial class AzureServiceBusTransport
     public async ValueTask<IListener> BuildListenerForSubscription(IWolverineRuntime runtime, IReceiver receiver, AzureServiceBusSubscription subscription)
     {
         var mapper = subscription.BuildMapper(runtime);
-        var listener = await buildListenerForSubscription(runtime, receiver, subscription, mapper);
+        var listener = await buildListenerForSubscription(runtime, receiver, subscription, mapper,
+            buildSubscriptionRequeueSender(runtime, subscription));
         if (Tenants.Any() && subscription.TenancyBehavior == TenancyBehavior.TenantAware)
         {
             // GH-5196: dead letter a received message for a tenant id no registered tenant matches
@@ -130,7 +132,8 @@ public partial class AzureServiceBusTransport
             {
                 var rule = new TenantIdRule(tenant.TenantId);
                 var wrapped = new ReceiverWithRules(receiver, [rule]);
-                var tenantListener = await tenant.Transport.buildListenerForSubscription(runtime, wrapped, subscription, mapper);
+                var tenantListener = await tenant.Transport.buildListenerForSubscription(runtime, wrapped, subscription,
+                    mapper, buildTenantSubscriptionRequeueSender(runtime, tenant, subscription));
                 compound.Inner.Add(tenantListener);
             }
 
@@ -140,14 +143,36 @@ public partial class AzureServiceBusTransport
         return listener;
     }
 
+    // Where a requeue or native scheduled retry from a subscription in the main namespace sends its copy: the retry
+    // queue, or the topic when system queues are disabled and there is no retry queue (see GH-5809)
+    private ISender buildSubscriptionRequeueSender(IWolverineRuntime runtime, AzureServiceBusSubscription subscription)
+    {
+        return RetryQueue != null
+            ? BuildInlineSenderForQueue(runtime, RetryQueue)
+            : BuildInlineSenderForTopic(runtime, subscription.Topic);
+    }
+
+    // GH-5827. The same for the listener on a tenant's namespace. The retry queue belongs to this (the main) transport,
+    // and a tenant's transport never has one of its own, so asking the tenant's transport sent every tenant requeue to
+    // the tenant's topic -- where every subscription on it received the copy again -- even with system queues enabled.
+    // A tenant aware retry queue is provisioned and listened to in every tenant namespace, so the copy goes to the
+    // retry queue in the tenant's own namespace. A retry queue made global is only listened to in the main namespace.
+    private ISender buildTenantSubscriptionRequeueSender(IWolverineRuntime runtime, AzureServiceBusTenant tenant,
+        AzureServiceBusSubscription subscription)
+    {
+        if (RetryQueue == null) return tenant.Transport.BuildInlineSenderForTopic(runtime, subscription.Topic);
+
+        return RetryQueue.TenancyBehavior == TenancyBehavior.TenantAware
+            ? tenant.Transport.BuildInlineSenderForQueue(runtime, RetryQueue)
+            : buildInlineSenderForQueue(runtime, RetryQueue, RetryQueue.BuildMapper(runtime));
+    }
+
     private async Task<IListener> buildListenerForSubscription(IWolverineRuntime runtime, IReceiver receiver,
-        AzureServiceBusSubscription subscription, IAzureServiceBusEnvelopeMapper mapper)
+        AzureServiceBusSubscription subscription, IAzureServiceBusEnvelopeMapper mapper, ISender requeue)
     {
         // GH-4049: see buildListenerForQueue — native acks and sessions cannot be combined, and this branch
         // is taken ahead of the mode check.
         subscription.AssertSessionsAreCompatibleWithMode();
-
-        var requeue = RetryQueue != null ? BuildInlineSenderForQueue(runtime, RetryQueue) : BuildInlineSenderForTopic(runtime, subscription.Topic);
 
         if (subscription.Options.RequiresSession)
         {
