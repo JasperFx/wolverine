@@ -162,8 +162,8 @@ public class pubsub_inline_dead_letter_settles_after_the_copy_5802 : IAsyncDispo
 }
 
 /// <summary>
-/// Stands in for the handler pipeline of an Inline receiver whose error policy moves every message to the native
-/// dead-letter topic while the subscriber callback is still waiting on <c>ReceivedAsync</c>.
+/// Stands in for the handler pipeline of an Inline (or NativeAck) receiver whose error policy moves every message to
+/// the native dead-letter topic while the subscriber callback is still holding the delivery.
 /// </summary>
 internal class DeadLetteringReceiver5802 : IReceiver
 {
@@ -178,6 +178,10 @@ internal class DeadLetteringReceiver5802 : IReceiver
             try
             {
                 await Listener.MoveToErrorsAsync(envelope, new InvalidOperationException("handler failed"));
+
+                // MoveToErrorQueue completes the envelope once the move succeeded. A no-op on Inline, the Ack of
+                // the held delivery on NativeAck
+                await Listener.CompleteAsync(envelope);
             }
             catch (DeadLetterMoveFailedException e)
             {

@@ -266,19 +266,30 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
     {
         DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
 
-        if (_deadLetterTopic != null && _inline.TryGetValue(envelope, out var inline))
+        if (_deadLetterTopic != null)
         {
-            return deadLetterInsideCallbackAsync(envelope, inline, _deadLetterTopic);
+            if (_inline.TryGetValue(envelope, out var inline))
+            {
+                return deadLetterInsideCallbackAsync(envelope, inline.CopyNotPublished, _deadLetterTopic);
+            }
+
+            // GH-5843. A NativeAck delivery is held the same way, and MoveToErrorQueue acks it through
+            // CompleteAsync as soon as this returns, so the copy has to be published first here too
+            if (holdsUntilSettled && _held.TryFind(envelope, out var held))
+            {
+                return deadLetterInsideCallbackAsync(envelope, () => held.Failed(), _deadLetterTopic);
+            }
         }
 
         return _deadLetter.PostAsync(envelope);
     }
 
     /// <summary>
-    /// GH-5802. The original is still held by its subscriber callback, which settles it the moment it returns, so
-    /// the dead-letter copy has to be published before then. Retry it inline a fixed number of times rather than
-    /// through the fire-and-forget <c>RetryBlock</c>, and when it never succeeds -- or the host starts stopping --
-    /// have the callback Nack the original so Pub/Sub keeps it.
+    /// GH-5802 (Inline) and GH-5843 (NativeAck). The original is still held by its subscriber callback, whose reply
+    /// settles it, so the dead-letter copy has to be published before that reply is decided. Retry it inline a fixed
+    /// number of times rather than through the fire-and-forget <c>RetryBlock</c>, and when it never succeeds -- or the
+    /// host starts stopping -- <paramref name="keepOriginal" /> makes the callback Nack the original so Pub/Sub keeps
+    /// it.
     /// </summary>
     /// <remarks>
     /// The budget is a fixed <see cref="DeadLetterPublishAttempts" /> attempts over roughly a second and a half
@@ -287,7 +298,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
     /// shutdown budget sized for slow handlers, not for one publish. A short budget rides out a transient blip;
     /// past it the message is safest left with Pub/Sub, which redelivers it.
     /// </remarks>
-    private async Task deadLetterInsideCallbackAsync(Envelope envelope, PubsubInlineDelivery delivery,
+    private async Task deadLetterInsideCallbackAsync(Envelope envelope, Action keepOriginal,
         PubsubEndpoint deadLetterTopic)
     {
         var cancellation = _runtime.Cancellation;
@@ -321,7 +332,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
             }
         }
 
-        delivery.CopyNotPublished();
+        keepOriginal();
 
         _logger.LogError(failure,
             "{Uri}: Could not publish envelope {EnvelopeId} to the dead-letter topic {DeadLetterTopic} within {MaxAttempts} attempts{Stopping}. The Google Cloud Platform Pub/Sub delivery will be nacked so that Pub/Sub keeps the original and redelivers it.",

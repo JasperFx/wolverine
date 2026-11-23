@@ -72,10 +72,9 @@ publish fails depends on the endpoint mode:
 
 | Mode | Failed dead letter publish |
 |------|----------------------------|
-| `ProcessInline()` | The publish is retried inline, 4 attempts over about 1.5 seconds. If none succeeds, or the host is stopping, the original is nacked and Pub/Sub redelivers it, so the handler runs again |
+| `ProcessInline()` and `NativeAck` | The publish is retried inline, 4 attempts over about 1.5 seconds. If none succeeds, or the host is stopping, the original is nacked and Pub/Sub redelivers it, so the handler runs again |
 | `BufferedInMemory()` / `UseDurableInbox()` | The original was already acknowledged on receipt. The publish is retried in the background, at most 3 attempts, and none once the host is stopping |
-| `NativeAck` | The first publish attempt runs before the original is acknowledged, but the original is acknowledged even if that attempt failed. The publish is then retried in the background, as in the buffered row |
 
-On an inline endpoint a dead letter topic that stays unavailable therefore means repeated redelivery of the
+On an inline or `NativeAck` endpoint a dead letter topic that stays unavailable therefore means repeated redelivery of the
 failing message, and each redelivery counts toward the subscription's own `max_delivery_attempts` if you
 configured a Pub/Sub dead letter policy on it.
