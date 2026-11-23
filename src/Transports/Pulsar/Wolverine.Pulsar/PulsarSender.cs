@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using DotPulsar.Extensions;
+using Wolverine.Pulsar.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports.Sending;
 
@@ -21,6 +22,13 @@ public class PulsarSender : ISender, IAsyncDisposable
     private readonly bool _deduplicationEnabled;
     private readonly ConcurrentDictionary<Guid, ulong>? _sequenceIds;
     private long _sequence;
+
+    // GH-5847: a named producer the broker keeps refusing is failed by the transport's PulsarProducerNameGuard.
+    // DotPulsar leaves a send already waiting on a faulted producer waiting, so the sender watches for the fault.
+    private readonly PulsarProducerNameGuard? _producerNames;
+    private readonly string? _producerName;
+    private readonly string _topic;
+    private readonly TaskCompletionSource? _faulted;
 
     /// <summary>
     ///     GH-5812. Appended to the producer name of a listener's requeue producer under deduplication.
@@ -55,6 +63,7 @@ public class PulsarSender : ISender, IAsyncDisposable
                 ? transport.Client!.NewProducer(endpoint.Schema)
                 : transport.Client!.NewProducer())
             .Topic(topic ?? endpoint1.PulsarTopic());
+        _topic = topic ?? endpoint1.PulsarTopic();
 
         if (endpoint.DeduplicationEnabled)
         {
@@ -62,18 +71,11 @@ public class PulsarSender : ISender, IAsyncDisposable
 
             // A stable producer name is required: the broker tracks the last sequence id per producer
             // name, so dedup only works if the name is stable across producer sessions.
-            var producerName = endpoint.ProducerName ?? $"{runtime.Options.ServiceName}-{endpoint1.TopicName}";
-
-            // GH-5812: the listener's requeue producer and a publishing producer for the same topic used to take
-            // the same name, and the broker refused whichever connected second (ProducerBusy). The requeue
-            // producer's own name also gives it its own sequence space, which suits copies: each one already
-            // takes a fresh sequence id (GH-5768).
-            if (forRequeue)
-            {
-                producerName += RequeueProducerNameSuffix;
-            }
-
+            var producerName = ProducerNameFor(runtime.Options.ServiceName, endpoint, forRequeue);
             producerBuilder.ProducerName(producerName);
+            _producerName = producerName;
+            _producerNames = transport.ProducerNames;
+            _producerNames.Register(producerName, _topic);
 
             // Seed the sequence from the clock so a fresh producer session never reuses an id from a prior
             // one (DotPulsar 5.1.2 exposes no broker LastSequenceId to resume from). Ticks dwarfs any
@@ -85,8 +87,42 @@ public class PulsarSender : ISender, IAsyncDisposable
         endpoint.ConfigureProducer?.Invoke(producerBuilder);
         _producer = producerBuilder.Create();
 
+        if (_producerNames != null)
+        {
+            _faulted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _ = watchForFaultAsync(_faulted);
+        }
+
         Destination = endpoint1.Uri;
         _mapper = endpoint.BuildMapper(runtime);
+    }
+
+    /// <summary>
+    ///     The stable producer name of a deduplicating producer: the name passed to <c>EnableDeduplication()</c>, or
+    ///     <c>{ServiceName}-{topic name}</c>.
+    ///
+    ///     <para>GH-5812: the listener's requeue producer and a publishing producer for the same topic used to take
+    ///     the same name, and the broker refused whichever connected second (ProducerBusy). The requeue producer's
+    ///     own name also gives it its own sequence space, which suits copies: each one already takes a fresh
+    ///     sequence id (GH-5768).</para>
+    /// </summary>
+    internal static string ProducerNameFor(string serviceName, PulsarEndpoint endpoint, bool forRequeue)
+    {
+        var producerName = endpoint.ProducerName ?? $"{serviceName}-{endpoint.TopicName}";
+
+        // GH-5847: Pulsar allows one connected producer per name on a topic, so with ProducerNamePerInstance()
+        // every running instance of the service gets a name of its own
+        if (endpoint.Parent.ProducerNameInstanceId is { } instanceId)
+        {
+            producerName += "-" + instanceId;
+        }
+
+        if (forRequeue)
+        {
+            producerName += RequeueProducerNameSuffix;
+        }
+
+        return producerName;
     }
 
     public ValueTask DisposeAsync()
@@ -197,18 +233,81 @@ public class PulsarSender : ISender, IAsyncDisposable
         return message;
     }
 
+    private async Task watchForFaultAsync(TaskCompletionSource faulted)
+    {
+        try
+        {
+            // Completes on a final state too, so a closed producer ends the watch
+            var changed = await _producer.StateChangedTo(ProducerState.Faulted, _cancellation);
+            if (changed?.ProducerState == ProducerState.Faulted)
+            {
+                faulted.TrySetResult();
+            }
+        }
+        catch (Exception)
+        {
+            // Shutting down
+        }
+    }
+
     private async ValueTask sendAsync(Envelope envelope, MessageMetadata message)
+    {
+        if (_faulted == null)
+        {
+            await sendToProducerAsync(envelope, message, _cancellation);
+            return;
+        }
+
+        if (_faulted.Task.IsCompleted)
+        {
+            throw producerFailed(null);
+        }
+
+        // GH-5847: a send waiting on a producer that is then failed would wait forever
+        using var sending = CancellationTokenSource.CreateLinkedTokenSource(_cancellation);
+        var send = sendToProducerAsync(envelope, message, sending.Token).AsTask();
+        if (await Task.WhenAny(send, _faulted.Task) != send)
+        {
+            await sending.CancelAsync();
+            throw producerFailed(null);
+        }
+
+        try
+        {
+            await send;
+        }
+        catch (Exception e) when (_producerNames!.ErrorFor(_producerName!, _topic) is not null)
+        {
+            throw producerFailed(e);
+        }
+    }
+
+    private Exception producerFailed(Exception? inner)
+    {
+        // A new exception per failed send, so concurrent throws never share one instance
+        if (_producerNames?.ErrorFor(_producerName!, _topic) is { } refused)
+        {
+            return new PulsarProducerNameInUseException(refused.ProducerName, refused.Topic, refused.RefusedFor,
+                inner ?? refused.InnerException);
+        }
+
+        return new InvalidOperationException(
+            $"The Pulsar producer '{_producerName}' for topic '{_topic}' has faulted and cannot send", inner);
+    }
+
+    private async ValueTask sendToProducerAsync(Envelope envelope, MessageMetadata message,
+        CancellationToken cancellation)
     {
         // GH-3213: for a schema that owns the encoding (Avro), encode the message object directly so the
         // body is genuine schema-encoded bytes. Non-codec messages (e.g. a ping) on the same endpoint fall
         // back to Wolverine's serialized body.
         if (_codec != null && envelope.Message != null && _codec.MessageType.IsInstanceOfType(envelope.Message))
         {
-            await _producer.Send(message, _codec.Encode(envelope.Message), _cancellation);
+            await _producer.Send(message, _codec.Encode(envelope.Message), cancellation);
             return;
         }
 
-        await _producer.Send(message, new ReadOnlySequence<byte>(envelope.Data!), _cancellation);
+        await _producer.Send(message, new ReadOnlySequence<byte>(envelope.Data!), cancellation);
     }
 
     /// <summary>

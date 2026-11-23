@@ -19,6 +19,8 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     public const string Public = "public";
     private readonly PulsarTransport _parent;
 
+    internal PulsarTransport Parent => _parent;
+
     public PulsarEndpoint(Uri uri, PulsarTransport parent) : base(uri, EndpointRole.Application)
     {
         _parent = parent;
