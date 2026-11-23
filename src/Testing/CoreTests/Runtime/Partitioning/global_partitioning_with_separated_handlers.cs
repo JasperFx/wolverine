@@ -36,6 +36,10 @@ public class global_partitioning_with_separated_handlers
                     gp.SetExternalTopology(external, "partition-a");
                     gp.Message<PartitionedCommand>();
                     gp.Message<CascadedFromPartition>();
+
+                    // GH-5916. With two topologies publishing the same message types, each one runs only the
+                    // handler types it declares
+                    gp.HandledBy(typeof(PartitionHandlerOne), typeof(CascadeHandlerOne));
                 });
 
                 // Second global partition for the same messages
@@ -45,6 +49,7 @@ public class global_partitioning_with_separated_handlers
                     gp.SetExternalTopology(external, "partition-b");
                     gp.Message<PartitionedCommand>();
                     gp.Message<CascadedFromPartition>();
+                    gp.HandledBy(typeof(PartitionHandlerTwo), typeof(CascadeHandlerTwo));
                 });
 
                 opts.MessagePartitioning
@@ -69,6 +74,12 @@ public class global_partitioning_with_separated_handlers
         CascadeHandlerTwo.Handled.ShouldBeTrue(
             "CascadeHandlerTwo should have handled CascadedFromPartition");
 
+        // GH-5916. Each handler ran exactly once, not once per topology
+        PartitionHandlerOne.Count.ShouldBe(1);
+        PartitionHandlerTwo.Count.ShouldBe(1);
+        CascadeHandlerOne.Count.ShouldBe(1);
+        CascadeHandlerTwo.Count.ShouldBe(1);
+
         // Verify the cascaded message carried the correct payload
         CascadeHandlerOne.LastPayload.ShouldBe("test-payload");
         CascadeHandlerTwo.LastPayload.ShouldBe("test-payload");
@@ -85,6 +96,12 @@ public record CascadedFromPartition(string GroupId, string Payload);
 public static class PartitionHandlerOne
 {
     private static bool _handled;
+    private static int _count;
+
+    public static int Count
+    {
+        get { lock (_lock) return _count; }
+    }
     private static readonly object _lock = new();
 
     public static bool Handled
@@ -94,13 +111,21 @@ public static class PartitionHandlerOne
 
     public static void Reset()
     {
-        lock (_lock) _handled = false;
+        lock (_lock)
+        {
+            _handled = false;
+            _count = 0;
+        }
     }
 
     // Returns a cascaded message
     public static CascadedFromPartition Handle(PartitionedCommand command)
     {
-        lock (_lock) _handled = true;
+        lock (_lock)
+        {
+            _handled = true;
+            _count++;
+        }
         return new CascadedFromPartition(command.GroupId, command.Payload);
     }
 }
@@ -108,6 +133,12 @@ public static class PartitionHandlerOne
 public static class PartitionHandlerTwo
 {
     private static bool _handled;
+    private static int _count;
+
+    public static int Count
+    {
+        get { lock (_lock) return _count; }
+    }
     private static readonly object _lock = new();
 
     public static bool Handled
@@ -117,12 +148,20 @@ public static class PartitionHandlerTwo
 
     public static void Reset()
     {
-        lock (_lock) _handled = false;
+        lock (_lock)
+        {
+            _handled = false;
+            _count = 0;
+        }
     }
 
     public static void Handle(PartitionedCommand command)
     {
-        lock (_lock) _handled = true;
+        lock (_lock)
+        {
+            _handled = true;
+            _count++;
+        }
     }
 }
 
@@ -131,6 +170,12 @@ public static class PartitionHandlerTwo
 public static class CascadeHandlerOne
 {
     private static bool _handled;
+    private static int _count;
+
+    public static int Count
+    {
+        get { lock (_lock) return _count; }
+    }
     private static string? _lastPayload;
     private static readonly object _lock = new();
 
@@ -149,6 +194,7 @@ public static class CascadeHandlerOne
         lock (_lock)
         {
             _handled = false;
+            _count = 0;
             _lastPayload = null;
         }
     }
@@ -158,6 +204,7 @@ public static class CascadeHandlerOne
         lock (_lock)
         {
             _handled = true;
+            _count++;
             _lastPayload = message.Payload;
         }
     }
@@ -166,6 +213,12 @@ public static class CascadeHandlerOne
 public static class CascadeHandlerTwo
 {
     private static bool _handled;
+    private static int _count;
+
+    public static int Count
+    {
+        get { lock (_lock) return _count; }
+    }
     private static string? _lastPayload;
     private static readonly object _lock = new();
 
@@ -184,6 +237,7 @@ public static class CascadeHandlerTwo
         lock (_lock)
         {
             _handled = false;
+            _count = 0;
             _lastPayload = null;
         }
     }
@@ -193,6 +247,7 @@ public static class CascadeHandlerTwo
         lock (_lock)
         {
             _handled = true;
+            _count++;
             _lastPayload = message.Payload;
         }
     }
