@@ -455,7 +455,7 @@ public class StopwatchFrame : SyncFrame
 
         writer.Write("stopwatch.Stop();");
         writer.Write(
-            $"{_logger.Usage}.Log(Microsoft.Extensions.Logging.LogLevel.Information, \"{_chain.Description} ran in \" + {_stopwatch.Usage}.{nameof(Stopwatch.ElapsedMilliseconds)});)");
+            $"{_logger.Usage}.Log(Microsoft.Extensions.Logging.LogLevel.Information, \"{_chain.Description} ran in \" + {_stopwatch.Usage}.{nameof(Stopwatch.ElapsedMilliseconds)});");
 
         writer.FinishBlock();
     }
@@ -512,39 +512,42 @@ public class ClockedEndpoint
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/Middleware.cs#L207-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clockedendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Now, when the application is bootstrapped, this is the code that would be generated to handle the "GET /clocked" route:
+`ClockedEndpoint` isn't hosted in a runnable sample, so for the real generated code look at its closest cousin, the
+`GET /timed` route of the `MeasuredEndpoint` shown in [Using Configure(chain) Methods](/guide/http/middleware#using-configure-chain-methods).
+That endpoint wraps the same kind of stopwatch around the endpoint method through a `StopwatchMiddleware` class with
+`Before()` and `Finally()` methods, and this is the code Wolverine generates for it:
 
-```csharp
-public class Wolverine_Testing_Samples_ClockedEndpoint_get_clocked : Wolverine.Http.Model.RouteHandler
+```cs
+public sealed class GET_timed : HttpHandler
 {
-    private readonly Microsoft.Extensions.Logging.ILogger<Wolverine.Configuration.IChain> _logger;
+    private readonly WolverineHttpOptions _wolverineHttpOptions;
+    private readonly ILogger<MeasuredEndpoint> _loggerForMessage;
 
-    public Wolverine_Testing_Samples_ClockedEndpoint_get_clocked(Microsoft.Extensions.Logging.ILogger<Wolverine.Configuration.IChain> logger)
+    public GET_timed(WolverineHttpOptions wolverineHttpOptions, ILogger<MeasuredEndpoint> loggerForMessage) : base(wolverineHttpOptions)
     {
-        _logger = logger;
+        _wolverineHttpOptions = wolverineHttpOptions;
+        _loggerForMessage = loggerForMessage;
     }
 
-    public override Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext, System.String[] segments)
+    public override async Task Handle(HttpContext httpContext)
     {
-        var clockedEndpoint = new Wolverine.Testing.Samples.ClockedEndpoint();
-        var stopwatch = new System.Diagnostics.Stopwatch();
-        stopwatch.Start();
-        try
-        {
-            var result_of_get_clocked = clockedEndpoint.get_clocked();
-            return WriteText(result_of_get_clocked, httpContext.Response);
-        }
+        var stopwatchMiddleware = new StopwatchMiddleware();
+        // (Open Telemetry tagging omitted)
+        stopwatchMiddleware.Before();
+        var measuredEndpoint = new MeasuredEndpoint();
+        
+        // The actual HTTP request handler execution
+        var result_of_Get = await measuredEndpoint.Get().ConfigureAwait(false);
 
-        finally
-        {
-            stopwatch.Stop();
-            _logger.Log(Microsoft.Extensions.Logging.LogLevel.Information, "Route 'GET: clocked' ran in " + stopwatch.ElapsedMilliseconds);)
-        }
-
+        stopwatchMiddleware.Finally(((ILogger)_loggerForMessage), httpContext);
+        await WriteString(httpContext, result_of_Get, 404);
     }
-
 }
 ```
+
+::: tip
+That's what Wolverine 7.0 generates for this endpoint today, lightly trimmed. To see the real thing for your own endpoints, run `dotnet run -- codegen preview`.
+:::
 
 `ModifyChainAttribute` is a generic way to add middleware or post processing frames, but if you need to configure things specific to routes or message handlers, you can also use `ModifyHandlerChainAttribute` for message handlers or `ModifyHttpChainAttribute` for HTTP endpoints.
 

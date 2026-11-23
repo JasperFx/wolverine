@@ -307,7 +307,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Integration with Polecat', link: '/guide/http/polecat'},
                         {text: 'Integration with Fisher', link: '/guide/http/fisher'},
                         {text: 'Validation', link: '/guide/http/validation'},
-                        {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
+                        {text: 'Fluent Validation', link: '/guide/http/validation#fluent-validation-middleware'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},
                         {text: 'Idempotency Keys', link: '/guide/http/deduplication'},
                         {text: 'Caching', link: '/guide/http/caching'},
