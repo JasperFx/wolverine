@@ -143,10 +143,16 @@ builder.UseWolverine(opts =>
     opts.UsePulsarUsingNamedConnection("pulsar");
 
     opts.PublishMessage<Ping>().ToPulsarTopic("persistent://public/default/pings");
-    opts.ListenToPulsarTopic("persistent://public/default/pings");
+
+    // This service publishes to the topic it listens to. A brand-new subscription starts at the
+    // latest message by default, so a ping published before the subscription is established on
+    // the broker would never be delivered to it. Wolverine waits a bounded 10 seconds for that at
+    // startup, and a broker that has only just come up can take longer, so start from the earliest
+    // retained message instead. This only matters the first time the subscription is created.
+    opts.ListenToPulsarTopic("persistent://public/default/pings").BeginAtEarliest();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithPulsar/Pinger/Program.cs#L5-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_pulsar_service_setup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/AspireWithPulsar/Pinger/Program.cs#L5-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_aspire_pulsar_service_setup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The broker runs the same `apachepulsar/pulsar` image Wolverine's own tests use, on random host ports unless you pass
