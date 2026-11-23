@@ -60,6 +60,31 @@ public class PulsarConfiguration
     }
 
     /// <summary>
+    /// GH-5847. Append a per-instance identifier to the producer names Wolverine gives deduplicating producers
+    /// (<c>EnableDeduplication()</c>), so several running instances of one service can publish to the same
+    /// deduplicated topic. Pulsar allows one connected producer per name on a topic, and without this every
+    /// instance asks for <c>{ServiceName}-{topic name}</c>, so all but the first are refused.
+    ///
+    /// <para>Deduplication then works per instance: the broker tracks the last sequence id per producer name, so
+    /// it carries across a restart only when the instance comes back with the same id. Pass an id that is stable for
+    /// the instance, such as a StatefulSet pod name or an id from configuration. When <paramref name="instanceId" />
+    /// is null, the machine name (<see cref="Environment.MachineName" />) is used: stable across restarts on the
+    /// same host, but a new value for every pod of a Kubernetes Deployment, and the same value for two processes on
+    /// one machine.</para>
+    /// </summary>
+    /// <param name="instanceId">A stable identifier for this running instance, or null for the machine name</param>
+    public PulsarConfiguration ProducerNamePerInstance(string? instanceId = null)
+    {
+        if (instanceId is not null && string.IsNullOrWhiteSpace(instanceId))
+        {
+            throw new ArgumentOutOfRangeException(nameof(instanceId), "The instance id cannot be empty");
+        }
+
+        _transport.ProducerNameInstanceId = instanceId ?? Environment.MachineName;
+        return this;
+    }
+
+    /// <summary>
     /// Register a Wolverine tenant that is served by its own dedicated Pulsar <b>cluster</b> (GH-3308), while
     /// sharing the topic topology declared on this transport. Outbound messages whose
     /// <see cref="Envelope.TenantId"/> matches <paramref name="tenantId"/> are routed to that cluster; inbound

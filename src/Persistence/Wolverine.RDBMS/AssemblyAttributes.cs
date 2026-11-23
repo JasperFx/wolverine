@@ -19,3 +19,6 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Polecat")]
 [assembly: InternalsVisibleTo("Wolverine.Fisher")]
 [assembly: InternalsVisibleTo("FisherTests")]
+// GH-5814: the NServiceBus interop transports share CaseSensitiveQueueLookup
+[assembly: InternalsVisibleTo("Wolverine.Postgresql")]
+[assembly: InternalsVisibleTo("Wolverine.SqlServer")]

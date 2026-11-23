@@ -687,6 +687,12 @@ A few things to note about NServiceBus database interop:
   binds. Incoming `EnclosedMessageTypes` are resolved against the assemblies you register with
   `RegisterInteropMessageAssembly`.
 * Request/reply works: Wolverine stamps `NServiceBus.ReplyToAddress` from the endpoint you mark `UseForReplies()`.
+* By default the listener receives with a destructive delete that commits right away. In the default
+  `BufferedInMemory` mode that's at-most-once delivery, and in `Inline` mode a process that crashes mid-handler loses
+  the message it was handling. Add `ProcessInline().UseReceiveTransaction()` to the listener to receive the way
+  NServiceBus does, inside a transaction that stays open until the handler is done. That costs a database connection
+  and an open transaction per message in flight, one message at a time. See
+  [Delivery Guarantees and the Receive Transaction](/guide/durability/sqlserver.html#delivery-guarantees-and-the-receive-transaction).
 
 See the [SQL Server](/guide/durability/sqlserver.html#nservicebus-interoperability) and
 [PostgreSQL](/guide/durability/postgresql.html#nservicebus-interoperability) transport guides for the full set of
