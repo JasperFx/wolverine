@@ -131,6 +131,16 @@ public static class AncillaryWolverineOptionsMartenExtensions
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MessageDatabaseDiscovery),
             ServiceLifetime.Singleton);
 
+        // GH-5799: the sagas routed to this store ([MartenStore(typeof(T))]) live in this store, so the saga
+        // diagnostics surface reads them through this store's own sessions rather than the main store's
+        expression.Services.AddSingleton<Wolverine.Persistence.Sagas.ISagaStoreDiagnostics>(s =>
+            new Wolverine.Persistence.Sagas.DocumentStoreSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                s.GetRequiredService<T>(),
+                typeof(Persistence.Sagas.MartenPersistenceFrameProvider),
+                "Marten",
+                typeof(T)));
+
         // The concrete family already takes IEnumerable<IEventStore>, so one instance manages every
         // registered store including the ancillaries.
         expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
