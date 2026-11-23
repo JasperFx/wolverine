@@ -736,6 +736,38 @@ changed is what they do:
 * New store-agnostic side effects on `Storage`: `Storage.DeleteById<T>(id)`, `Storage.DeleteWhere<T>(filter)`,
   `Storage.ArchiveStream(id)` and `Storage.TombstoneStream(id)`.
 
+### Natural keys in the aggregate handler workflow
+
+7.0 brings natural keys in the aggregate handler workflow closer to stream ids: reads by key, mapped and nullable
+keys, naming the key type, batching and exclusive loads (see [Natural Keys](/guide/durability/marten/event-sourcing#natural-keys)).
+It needs the JasperFx and Marten releases that ship the same work. Several things that used to pass now behave
+differently:
+
+* **A version is checked on a write by natural key (BREAKING).** A command with a `Version` member loaded by its
+  natural key now fails with a `ConcurrencyException` when the stream has moved on, as a load by stream id always
+  has. This comes from the shared store code, so it applies to Polecat and Fisher too.
+* **An exclusive load by natural key locks the stream (BREAKING).** With `LoadStyle = ModelConcurrencyStyle.Exclusive`,
+  a load by natural key now calls `FetchForExclusiveWriting<T, TKey>` and can fail with a `StreamLockedException`.
+  Marten takes a row lock, as Polecat already did for every load by natural key. Fisher's exclusive fetch does not
+  lock yet.
+* **`[Identity]` on a natural key member needs the key type (BREAKING).** A member of one of the aggregate's natural
+  key types marked with `[Identity]` used to be read as the stream id. It is now refused when the handler is
+  generated, unless the attribute names the key type, as in `[WriteAggregate<OrderNumber>]`, or names the stream id
+  itself.
+* **`DuplicateNaturalKeyException` answers 409.** `MapConcurrencyFailuresToConflict()` maps it to a conflict, also
+  when the commit wraps it in an `AggregateException`.
+* **`UpdatedAggregate` after a load by natural key** reads the stream the handler wrote to. It used to read the key's
+  value as a stream id, which found nothing or another aggregate, and a nullable key member did not compile.
+* **Build-time diagnostics.** JasperFx's `JFXEVT016` and `JFXEVT017` report a key type in `[WriteAggregate<TKey>]`,
+  `[ReadAggregate<TKey>]`, `[WriteModel<TKey>]`, `[ReadModel<TKey>]` or `NaturalKey = typeof(TKey)` that the aggregate
+  doesn't have, or that is `TKey?`. They are errors.
+* **Custom event store integrations.** `IEventSourcingFrameProvider` has two new members,
+  `BuildFetchLatestByNaturalKeyFrame` and `DetermineMappedNaturalKeyTypes`. Both have default implementations
+  (no natural key reads, no mapped keys), so an existing provider still compiles.
+
+Natural key reads (`[ReadAggregate<TKey>]` and `[ReadModel<TKey>]`) and mapped keys are Marten only in 7.0. Polecat
+and Fisher load by owned natural keys for writing, as before.
+
 ### `Saga.LastModified` is set by every saga store
 
 The base `Wolverine.Saga` type has a new `public DateTimeOffset LastModified { get; set; }` next to `Version`

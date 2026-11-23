@@ -94,13 +94,15 @@ public static class ConflictMapping
     public const int ConflictStatusCode = 409;
 
     /// <summary>
-    /// True when the aggregate is non-empty and every leaf exception, however deeply nested, is a
-    /// <see cref="ConcurrencyException"/>.
+    /// True when the aggregate is non-empty and every leaf exception, however deeply nested, is one this mapping
+    /// answers with a 409 on its own: a <see cref="ConcurrencyException"/>, an
+    /// <see cref="ExistingStreamIdCollisionException"/> or a <see cref="DuplicateNaturalKeyException"/>.
     /// </summary>
     public static bool IsConflict(AggregateException ex)
     {
         var inner = ex.Flatten().InnerExceptions;
-        return inner.Count > 0 && inner.All(x => x is ConcurrencyException);
+        return inner.Count > 0 && inner.All(x =>
+            x is ConcurrencyException or ExistingStreamIdCollisionException or DuplicateNaturalKeyException);
     }
 
     /// <summary>

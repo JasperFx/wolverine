@@ -171,6 +171,40 @@ public class natural_key_explicit_key_type : PostgresqlContext, IAsyncLifetime
     }
 
     [Fact]
+    public async Task identity_on_a_natural_key_member_is_fine_beside_a_named_stream_id()
+    {
+        // The attribute names the stream id, so the [Identity] member is never read and is no reason to refuse
+        var streamId = await placeShelf(new NkSku("EXPLICIT-7"), new NkShelfCode("A-7"));
+
+        var source = sourceFor<AuditNkShelfByStreamIdBesideIdentity>();
+        source.ShouldContain($"FetchForWriting<{typeof(NkShelf).FullNameInCode()}>(");
+        source.ShouldNotContain(fetchFor<NkShelfCode>());
+
+        await _host.InvokeMessageAndWaitAsync(
+            new AuditNkShelfByStreamIdBesideIdentity(streamId, new NkShelfCode("NOPE")));
+        (await loadShelf(streamId))!.Audits.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task updated_aggregate_after_a_load_by_natural_key_reads_the_stream_written_to()
+    {
+        // A nullable member of a mapped key: the response used to read the key's inner value as a stream id, and
+        // generated .Value on the Nullable<T>, which did not compile
+        var streamId = await placeShelf(new NkSku("EXPLICIT-8"), new NkShelfCode("A-8"));
+
+        var source = sourceFor<AuditAndShowNkShelfBySku>();
+        source.ShouldContain($"FetchLatest<{typeof(NkShelf).FullNameInCode()}>(");
+        source.ShouldContain(".Id");
+
+        var shelf = await _host.MessageBus().InvokeAsync<NkShelf>(new AuditAndShowNkShelfBySku(new NkSku("EXPLICIT-8")),
+            TestContext.Current.CancellationToken);
+
+        shelf.ShouldNotBeNull();
+        shelf.Id.ShouldBe(streamId);
+        shelf.Audits.ShouldBe(1);
+    }
+
+    [Fact]
     public void identity_on_a_natural_key_member_needs_the_key_type()
     {
         // Without the key type, [Identity] would be taken as the stream id
@@ -268,6 +302,10 @@ public record AuditNkShelfWithoutCode(string Note);
 
 public record AuditNkShelfSkuIdentityOnly([property: Identity] NkSku Sku);
 
+public record AuditAndShowNkShelfBySku(NkSku? Sku);
+
+public record AuditNkShelfByStreamIdBesideIdentity(Guid ShelfStreamId, [property: Identity] NkShelfCode Code);
+
 public record ViewNkShelfByNamedSkuWithoutKeyReads(NkSku Sku);
 
 public record ViewNkShelfBySkuWithoutKeyReads(NkSku Sku);
@@ -296,6 +334,14 @@ public static class NkExplicitHandler
         => new();
 
     public static void Handle(ViewNkShelfBySku query, [ReadAggregate<NkSku>] NkShelf shelf) => LastShelf = shelf;
+
+    public static (UpdatedAggregate, NkShelfAudited) Handle(AuditAndShowNkShelfBySku command,
+        [WriteAggregate<NkSku>] NkShelf shelf)
+        => (new UpdatedAggregate(), new NkShelfAudited());
+
+    public static NkShelfAudited Handle(AuditNkShelfByStreamIdBesideIdentity command,
+        [WriteAggregate(nameof(AuditNkShelfByStreamIdBesideIdentity.ShelfStreamId))] NkShelf shelf)
+        => new();
 }
 
 public static class NkRefusedHandler

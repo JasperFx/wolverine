@@ -47,7 +47,9 @@ internal class NaturalKeyArgument
 
     public string FSharpUsage => _isNullableStruct ? $"{_member.FSharpUsage}.Value" : _member.FSharpUsage;
 
-    public string IsNullCheck => $"{_member.Usage} == null";
+    // "is null", not "== null": a key class with its own operator == would otherwise be called with the null,
+    // or be ambiguous (CS0121) if it declares more than one
+    public string IsNullCheck => $"{_member.Usage} is null";
 
     public string FSharpIsNullCheck => $"isNull (box {_member.FSharpUsage})";
 

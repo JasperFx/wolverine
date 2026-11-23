@@ -88,7 +88,11 @@ public interface IEventSourcingFrameProvider
     /// the latest state by natural key, in which case <c>[ReadModel]</c> reports that it could not determine an
     /// identity.
     /// </summary>
-    Frame? BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey);
+    /// <remarks>
+    /// Defaults to null, so a provider written before this member keeps compiling and simply has no natural key
+    /// reads.
+    /// </remarks>
+    Frame? BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey) => null;
 
     /// <summary>
     /// Build the frame that opens a Dynamic Consistency Boundary for writing — the store's
@@ -187,9 +191,10 @@ public interface IEventSourcingFrameProvider
     /// <remarks>
     /// Resolve the store the same way as <see cref="TryDetermineNaturalKeyType"/> (GH-4439). Every type is the
     /// key's own type, never <c>Nullable&lt;T&gt;</c>; the workflow also matches a <c>T?</c> command member.
+    /// Defaults to none, so a provider written before this member keeps compiling and simply has no mapped keys.
     /// </remarks>
     IReadOnlyList<Type> DetermineMappedNaturalKeyTypes(Type aggregateType, IChain chain,
-        IServiceContainer container);
+        IServiceContainer container) => [];
 }
 
 internal static class EventSourcingFrameProviderExtensions

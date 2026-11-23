@@ -1484,7 +1484,9 @@ Naming a type the aggregate doesn't have is an error at build time (`JFXEVT016`)
 (`JFXEVT017`). Wolverine checks both again when it generates the handler.
 
 Without a key type, `[Identity]` on a member of one of the aggregate's natural key types is refused when the
-handler is generated: it would otherwise be taken as the stream id.
+handler is generated: it would otherwise be taken as the stream id. When the attribute names the stream id itself,
+as in `[WriteAggregate("orderId")]` or with a `FromRoute`-style value source, that member is never read, and the
+handler is accepted.
 
 #### Natural Keys over HTTP
 
@@ -1507,7 +1509,8 @@ public static NkGadgetRenamed Rename(RenameNkGadget command, [WriteAggregate<Gad
   must be a value type wrapping a single value, like `readonly record struct Sku(string Value)`.
 - An unknown key on a required load answers 404.
 - `MapConcurrencyFailuresToConflict()` (and the Marten and Polecat versions of it) also answers 409 for a
-  `DuplicateNaturalKeyException`: a second stream claiming a key that another stream already has.
+  `DuplicateNaturalKeyException`: a second stream claiming a key that another stream already has. That holds when
+  the commit wraps it in an `AggregateException` too, alone or beside other conflicts.
 
 ### Reading by Natural Key
 

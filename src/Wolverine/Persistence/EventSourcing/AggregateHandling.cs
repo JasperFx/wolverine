@@ -43,6 +43,12 @@ internal record AggregateHandling(IDataRequirement Requirement)
     public ParameterInfo? Parameter { get; set; }
     public bool IsNaturalKey { get; init; }
 
+    /// <summary>
+    ///     The type the store identifies the aggregate's stream by (or a strong typed identifier wrapping it), as
+    ///     the attribute resolved it. With a natural key, <see cref="AggregateId" /> is the key, not this.
+    /// </summary>
+    public Type? StreamIdType { get; init; }
+
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "Handler/command/model types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
     public Variable Apply(IChain chain, IServiceContainer container)

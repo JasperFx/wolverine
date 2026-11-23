@@ -161,8 +161,6 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
         }
         else
         {
-            NaturalKeyIdentity.AssertIdentityIsNotANaturalKey(provider, aggregateType, idType, chain, container);
-
             // If a specific ValueSource has been set (e.g. via FromMethod, FromRoute, FromHeader, FromClaim),
             // use the base class identity resolution which respects that ValueSource
             if (ValueSource != ValueSource.InputMember && ArgumentName.IsNotEmpty())
@@ -170,8 +168,21 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
                 tryFindIdentityVariable(chain, parameter, idType, out identity);
             }
 
-            // Fall back to WriteModel's standard identity resolution
-            identity ??= FindIdentity(aggregateType, idType, chain);
+            // A stream id named in the attribute comes ahead of [Identity] in FindIdentity too
+            if (identity == null && RouteOrParameterName.IsNotEmpty() &&
+                chain.TryFindVariable(RouteOrParameterName, ValueSource.Anything, idType, out var named))
+            {
+                identity = named;
+            }
+
+            // Fall back to WriteModel's standard identity resolution. Only now could an [Identity] member be taken
+            // as the stream id, so only now is one of a natural key type refused: with the stream id named above,
+            // that member is never read, and the handler is fine as it is.
+            if (identity == null)
+            {
+                NaturalKeyIdentity.AssertIdentityIsNotANaturalKey(provider, aggregateType, idType, chain, container);
+                identity = FindIdentity(aggregateType, idType, chain);
+            }
         }
 
         // If standard identity resolution failed, check for natural key support
@@ -204,7 +215,8 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
             Version = version,
             AlwaysEnforceConsistency = AlwaysEnforceConsistency,
             Parameter = parameter,
-            IsNaturalKey = isNaturalKey
+            IsNaturalKey = isNaturalKey,
+            StreamIdType = idType
         };
 
         return handling.Apply(chain, container);
