@@ -36,6 +36,9 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
     /// </summary>
     internal TimeSpan ScheduledPollingInterval => _scheduledPollingInterval;
 
+    // GH-5893: lets a test see whether StopAsync waited for the scheduled-message worker
+    internal Task? ScheduledWorker => _scheduledTask;
+
     public SqlServerQueueListener(SqlServerQueue queue, IWolverineRuntime runtime, IReceiver receiver)
         : this(queue, runtime, receiver, queue.Parent.Settings.ConnectionString!, null)
     {
@@ -97,7 +100,8 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
         {
             await _loop.DisposeAsync();
         }
-        _scheduledTask?.SafeDispose();
+
+        await stopScheduledWorkerAsync();
     }
 
     public Uri Address { get; }
@@ -109,7 +113,56 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
         {
             await _loop.StopAsync(_settings.DrainTimeout);
         }
-        _scheduledTask?.SafeDispose();
+
+        await stopScheduledWorkerAsync();
+    }
+
+    /// <summary>
+    /// GH-5893. Waits for the scheduled-message worker to finish, up to <see cref="DurabilitySettings.DrainTimeout" />,
+    /// as the MySQL, Oracle and Sqlite listeners do (GH-5087). <c>SafeDispose()</c> on a Task joins nothing, so
+    /// StopAsync used to return while that worker could still be using the database.
+    /// </summary>
+    private async Task stopScheduledWorkerAsync()
+    {
+        if (_scheduledTask == null) return;
+
+        try
+        {
+            // We own this task (created in StartAsync)
+#pragma warning disable VSTHRD003
+            await _scheduledTask.WaitAsync(_settings.DrainTimeout);
+#pragma warning restore VSTHRD003
+        }
+        catch (TimeoutException)
+        {
+            _logger.LogWarning(
+                "The scheduled message worker for Sql Server queue {Queue} did not stop within {Timeout} during shutdown",
+                _queue.Name, _settings.DrainTimeout);
+        }
+        catch (OperationCanceledException)
+        {
+            // The worker was cancelled before Task.Run ever started it
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "The scheduled message worker for Sql Server queue {Queue} terminated unexpectedly", _queue.Name);
+        }
+    }
+
+    /// <summary>
+    /// A pause that ends early when the listener stops. Returns false once it is stopping.
+    /// </summary>
+    private async Task<bool> pauseAsync(TimeSpan time)
+    {
+        try
+        {
+            await Task.Delay(time, _cancellation.Token);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
     }
 
     public async Task StartAsync()
@@ -128,7 +181,10 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
     {
         // Little bit of randomness to keep each node from hammering the
         // table at the exact same time
-        await Task.Delay(_settings.ScheduledJobFirstExecution);
+        if (!await pauseAsync(_settings.ScheduledJobFirstExecution))
+        {
+            return;
+        }
 
         var failedCount = 0;
 
@@ -144,26 +200,33 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
                         _queue.Name);
                 }
 
-                await DeleteExpiredAsync(CancellationToken.None);
+                await DeleteExpiredAsync(_cancellation.Token);
 
                 failedCount = 0;
-
-                await Task.Delay(_scheduledPollingInterval);
+            }
+            catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception e)
             {
-                if (e is TaskCanceledException && _cancellation.IsCancellationRequested)
-                {
-                    break;
-                }
-
                 failedCount++;
                 var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
 
                 _logger.LogError(e, "Error while trying to propagate scheduled messages from Sql Server Queue {Name}",
                     _queue.Name);
 
-                await Task.Delay(pauseTime);
+                if (!await pauseAsync(pauseTime))
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            if (!await pauseAsync(_scheduledPollingInterval))
+            {
+                break;
             }
         }
     }

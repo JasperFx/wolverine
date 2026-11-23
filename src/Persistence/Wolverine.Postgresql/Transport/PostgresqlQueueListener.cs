@@ -47,6 +47,9 @@ internal class PostgresqlQueueListener : IListener, IReportReceiveLoopHealth
     /// </summary>
     internal TimeSpan ScheduledPollingInterval => _scheduledPollingInterval;
 
+    // GH-5893: lets a test see whether StopAsync waited for the scheduled-message worker
+    internal Task? ScheduledWorker => _scheduledTask;
+
     public PostgresqlQueueListener(PostgresqlQueue queue, IWolverineRuntime runtime, IReceiver receiver,
         NpgsqlDataSource dataSource, string? databaseName)
     {
