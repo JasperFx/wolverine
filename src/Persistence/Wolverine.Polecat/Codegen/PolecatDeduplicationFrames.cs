@@ -97,6 +97,7 @@ internal class QueuePolecatDeduplicationClaimFrame : SyncFrame, IDeduplicationCl
     private readonly Variable _deduplicationId;
     private readonly Type? _ancillaryStoreMarker;
     private readonly TimeSpan? _window;
+    private readonly Frame? _recordClaimKept;
     private Variable? _session;
     private Variable? _deduplicator;
 
@@ -110,11 +111,12 @@ internal class QueuePolecatDeduplicationClaimFrame : SyncFrame, IDeduplicationCl
     /// The chain's <see cref="Wolverine.Persistence.DeduplicationRequirement.Window" />, or null for the host-wide window.
     /// </param>
     public QueuePolecatDeduplicationClaimFrame(Variable deduplicationId, Variable isDuplicate,
-        Type? ancillaryStoreMarker, TimeSpan? window)
+        Type? ancillaryStoreMarker, TimeSpan? window, Frame? recordClaimKept)
     {
         _deduplicationId = deduplicationId;
         _ancillaryStoreMarker = ancillaryStoreMarker;
         _window = window;
+        _recordClaimKept = recordClaimKept;
         uses.Add(isDuplicate);
     }
 
@@ -124,6 +126,15 @@ internal class QueuePolecatDeduplicationClaimFrame : SyncFrame, IDeduplicationCl
         writer.Write($"BLOCK:if (!string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
         writer.Write(
             $"{_deduplicator!.Usage}.{nameof(IPolecatDeduplicator.QueueClaim)}({_session!.Usage}, {_deduplicationId.Usage}, {DeduplicationWindowRendering.ArgumentFor(_window)}{PolecatDeduplicationRendering.MarkerUsage(_ancillaryStoreMarker)});");
+
+        if (_recordClaimKept != null)
+        {
+            writer.Write(
+                $"BLOCK:{_session.Usage}.{nameof(IDocumentSession.AddTransactionParticipant)}(new {typeof(DeduplicationClaimCommitted).FullNameInCode()}(() =>");
+            _recordClaimKept.GenerateEmbedded(method, writer);
+            writer.FinishBlock("));");
+        }
+
         writer.FinishBlock();
 
         Next?.GenerateCode(method, writer);
@@ -138,5 +149,10 @@ internal class QueuePolecatDeduplicationClaimFrame : SyncFrame, IDeduplicationCl
 
         _deduplicator = chain.FindVariable(typeof(IPolecatDeduplicator));
         yield return _deduplicator;
+
+        foreach (var variable in _recordClaimKept.FindEmbeddedVariables(chain))
+        {
+            yield return variable;
+        }
     }
 }

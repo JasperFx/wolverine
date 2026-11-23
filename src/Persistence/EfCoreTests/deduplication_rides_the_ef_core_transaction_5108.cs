@@ -1,15 +1,19 @@
 using IntegrationTests;
 using JasperFx;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.Data.SqlClient;
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence;
@@ -17,6 +21,7 @@ using Wolverine.Postgresql;
 using Wolverine.Runtime;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
+using Wolverine.Util;
 
 namespace EfCoreTests;
 
@@ -202,6 +207,7 @@ public abstract class deduplication_rides_the_ef_core_transaction_5108 : IAsyncL
     {
         // The second claim blocks on the first one's uncommitted row, then finds it committed and refuses.
         // Neither copy may surface as an exception: InvokeAsync rethrows.
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
         var bus = _host.MessageBus();
         var command = new RacingPayment5108();
 
@@ -212,6 +218,65 @@ public abstract class deduplication_rides_the_ef_core_transaction_5108 : IAsyncL
         Handler5108.RacingRuns.ShouldBe(1);
         (await paymentCountAsync("racing")).ShouldBe(1);
         (await committedClaimCountAsync(RacingPayment5108.Key)).ShouldBe(1);
+
+        outcomes.All.Select(x => x.Outcome).Order().ShouldBe(["claimed", "duplicate"]);
+    }
+
+    // GH-5613
+    [Fact]
+    public async Task a_committed_claim_counts_as_claimed_and_its_repeat_as_a_duplicate()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+        var id = Guid.NewGuid().ToString();
+
+        await _host.SendMessageAndWaitAsync(new RecordPayment5108("counted"), new DeliveryOptions { DeduplicationId = id });
+        await _host.SendMessageAndWaitAsync(new RecordPayment5108("counted"), new DeliveryOptions { DeduplicationId = id });
+
+        outcomes.All.Select(x => x.Outcome).ShouldBe(["claimed", "duplicate"]);
+        outcomes.All.ShouldAllBe(x => x.Handler == typeof(Handler5108).FullNameInCode() &&
+                                      x.MessageType == typeof(RecordPayment5108).ToMessageTypeName());
+    }
+
+    [Fact]
+    public async Task a_handler_that_throws_counts_nothing()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+
+        await _host.TrackActivity().DoNotAssertOnExceptionsDetected()
+            .SendMessageAndWaitAsync(new FailingPayment5108(),
+                new DeliveryOptions { DeduplicationId = Guid.NewGuid().ToString() });
+
+        outcomes.All.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task a_message_without_an_id_counts_nothing()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+
+        await _host.SendMessageAndWaitAsync(new OptionallyKeyedPayment5108("unkeyed"));
+        outcomes.All.ShouldBeEmpty();
+
+        await _host.SendMessageAndWaitAsync(new OptionallyKeyedPayment5108("keyed"),
+            new DeliveryOptions { DeduplicationId = Guid.NewGuid().ToString() });
+        outcomes.All.Select(x => x.Outcome).ShouldBe(["claimed"]);
+    }
+
+    [Fact]
+    public async Task a_commit_that_applied_but_failed_on_the_client_still_counts_as_claimed()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(_host);
+        var id = Guid.NewGuid().ToString();
+        var thrownBefore = FailAfterCommit5108.Thrown;
+
+        await _host.SendMessageAndWaitAsync(new RecordPayment5108(FailAfterCommit5108.Name),
+            new DeliveryOptions { DeduplicationId = id });
+        FailAfterCommit5108.Thrown.ShouldBeGreaterThan(thrownBefore);
+
+        await _host.SendMessageAndWaitAsync(new RecordPayment5108(FailAfterCommit5108.Name),
+            new DeliveryOptions { DeduplicationId = id });
+
+        outcomes.All.Select(x => x.Outcome).ShouldBe(["claimed", "duplicate"]);
     }
 }
 
@@ -225,7 +290,7 @@ public class deduplication_rides_the_ef_core_transaction_on_postgresql_5108
     protected override void configurePersistence(WolverineOptions opts)
     {
         opts.Services.AddDbContextWithWolverineIntegration<Payment5108DbContext>(x =>
-            x.UseNpgsql(Servers.PostgresConnectionString));
+            x.UseNpgsql(Servers.PostgresConnectionString).AddInterceptors(new FailAfterCommit5108()));
         opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, SchemaName);
     }
 
@@ -252,7 +317,7 @@ public class deduplication_rides_the_ef_core_transaction_on_sql_server_5108
     protected override void configurePersistence(WolverineOptions opts)
     {
         opts.Services.AddDbContextWithWolverineIntegration<Payment5108DbContext>(x =>
-            x.UseSqlServer(Servers.SqlServerConnectionString));
+            x.UseSqlServer(Servers.SqlServerConnectionString).AddInterceptors(new FailAfterCommit5108()));
         opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, SchemaName);
     }
 
@@ -267,6 +332,25 @@ public class deduplication_rides_the_ef_core_transaction_on_sql_server_5108
             $"select count(*) from {SchemaName}.wolverine_deduplication_hashed with (readpast) where deduplication_id = @id";
         cmd.Parameters.AddWithValue("@id", id);
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+}
+
+public class FailAfterCommit5108 : DbTransactionInterceptor
+{
+    public const string Name = "fail-after-commit";
+
+    public static int Thrown;
+
+    public override Task TransactionCommittedAsync(DbTransaction transaction, TransactionEndEventData eventData,
+        CancellationToken cancellationToken = default)
+    {
+        if (eventData.Context!.ChangeTracker.Entries<Payment5108>().Any(x => x.Entity.Name == Name))
+        {
+            Interlocked.Increment(ref Thrown);
+            throw new TimeoutException("The commit applied, and its reply was lost");
+        }
+
+        return Task.CompletedTask;
     }
 }
 

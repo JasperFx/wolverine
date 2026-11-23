@@ -279,9 +279,16 @@ public static class WolverineTracing
 
     /// <summary>
     /// ActivityEvent marking that the first request with an idempotency key did its work, and its claim on the key
-    /// is kept for repeats to be answered from
+    /// is kept for repeats to be answered from. GH-5613: or that a message or request with a
+    /// <c>[Deduplicated]</c> id was let through, and its claim is kept
     /// </summary>
     public const string DeduplicationClaimed = "wolverine.deduplication.claimed";
+
+    /// <summary>
+    /// GH-5613. ActivityEvent marking that a message or request was refused by <c>[Deduplicated]</c>, because its id
+    /// is already claimed
+    /// </summary>
+    public const string DeduplicationDuplicate = "wolverine.deduplication.duplicate";
 
     /// <summary>
     /// ActivityEvent marking that a repeat of a request was answered with the first request's stored response

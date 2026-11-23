@@ -366,14 +366,16 @@ internal class RefuseDuplicateMartenClaimAtCommitFrame : Frame
     private readonly Variable _deduplicationId;
     private readonly Type? _ancillaryStoreMarker;
     private readonly Frame[] _refusal;
+    private readonly Frame? _recordClaimKept;
     private Variable? _session;
     private Variable? _deduplicator;
 
     public RefuseDuplicateMartenClaimAtCommitFrame(Variable deduplicationId, Type? ancillaryStoreMarker,
-        Func<Variable, Frame[]> buildRefusal) : base(true)
+        Func<Variable, Frame[]> buildRefusal, Frame? recordClaimKept = null) : base(true)
     {
         _deduplicationId = deduplicationId;
         _ancillaryStoreMarker = ancillaryStoreMarker;
+        _recordClaimKept = recordClaimKept;
         LostTheRace = new Variable(typeof(bool), "duplicateClaimLostTheRace", this);
         CommitMarker = new Variable(typeof(DatabaseCommitMarker), "deduplicationCommit", this);
         _refusal = buildRefusal(LostTheRace);
@@ -418,6 +420,16 @@ internal class RefuseDuplicateMartenClaimAtCommitFrame : Frame
         writer.Write($"{LostTheRace.Usage} = true;");
         writer.FinishBlock();
 
+        if (_recordClaimKept != null)
+        {
+            writer.Write("BLOCK:finally");
+            writer.Write(
+                $"BLOCK:if ({CommitMarker.Usage}.{nameof(DatabaseCommitMarker.Committed)} && !string.IsNullOrWhiteSpace({_deduplicationId.Usage}))");
+            _recordClaimKept.GenerateEmbedded(method, writer);
+            writer.FinishBlock();
+            writer.FinishBlock();
+        }
+
         for (var i = 0; i < _refusal.Length - 1; i++)
         {
             _refusal[i].Next = _refusal[i + 1];
@@ -443,6 +455,11 @@ internal class RefuseDuplicateMartenClaimAtCommitFrame : Frame
             {
                 yield return variable;
             }
+        }
+
+        foreach (var variable in _recordClaimKept.FindEmbeddedVariables(chain))
+        {
+            yield return variable;
         }
     }
 }

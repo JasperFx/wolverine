@@ -303,6 +303,84 @@ public class deduplication_on_a_marten_transaction : IAsyncLifetime
         (await refused.ReadAsJsonAsync<ProblemDetails>())!.Detail.ShouldBe("An account with this name is already open");
     }
 
+    // GH-5613
+    [Fact]
+    public async Task a_committed_claim_counts_as_claimed_and_its_repeat_as_a_duplicate()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+        var key = Guid.NewGuid().ToString();
+
+        (await postAnyAsync("/marten-dedup/create", new MartenDedupRequest("counted-" + key), key))
+            .Context.Response.StatusCode.ShouldBe(200);
+        (await postAnyAsync("/marten-dedup/create", new MartenDedupRequest("counted-again-" + key), key))
+            .Context.Response.StatusCode.ShouldBe(409);
+
+        outcomes.On("/marten-dedup/create").ShouldBe(["claimed", "duplicate"]);
+    }
+
+    [Fact]
+    public async Task a_non_2xx_answer_counts_nothing_and_its_retry_claims()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+        var key = Guid.NewGuid().ToString();
+
+        (await postAnyAsync("/marten-dedup/create", new MartenDedupRequest("missing"), key))
+            .Context.Response.StatusCode.ShouldBe(404);
+        outcomes.On("/marten-dedup/create").ShouldBeEmpty();
+
+        (await postAnyAsync("/marten-dedup/create", new MartenDedupRequest("counted-retry-" + key), key))
+            .Context.Response.StatusCode.ShouldBe(200);
+        outcomes.On("/marten-dedup/create").ShouldBe(["claimed"]);
+    }
+
+    [Fact]
+    public async Task a_failure_after_the_database_commit_still_counts_as_claimed()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+        var key = Guid.NewGuid().ToString();
+        var name = "counted-after-commit-" + key;
+
+        await failingPostAsync("/marten-dedup/after-commit-failure", new MartenDedupRequest(name), key);
+        (await postAnyAsync("/marten-dedup/after-commit-failure", new MartenDedupRequest(name), key))
+            .Context.Response.StatusCode.ShouldBe(409);
+
+        outcomes.On("/marten-dedup/after-commit-failure").ShouldBe(["claimed", "duplicate"]);
+    }
+
+    [Fact]
+    public async Task a_commit_that_fails_with_no_concurrent_claim_counts_nothing()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+        var key = Guid.NewGuid().ToString();
+
+        await failingPostAsync("/marten-dedup/failing-commit", new MartenDedupRequest("counted-failing-" + key), key);
+
+        outcomes.On("/marten-dedup/failing-commit").ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task a_repeat_refused_over_the_first_requests_committed_work_counts_as_a_duplicate(bool throws)
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+        var key = Guid.NewGuid().ToString();
+        var command = new OpenDeduplicatedAccount("counted-admission-" + key, throws);
+
+        var requests = new[]
+        {
+            postAnyAsync("/marten-dedup/accounts", command, key),
+            postAnyAsync("/marten-dedup/accounts", command, key)
+        };
+
+        await Task.WhenAny(requests);
+        MartenDeduplicatedAdmissionDedupEndpoint.Release(command.Name);
+        await Task.WhenAll(requests);
+
+        MartenDeduplicatedAdmissionDedupEndpoint.Arrivals(command.Name).ShouldBe(2);
+        outcomes.On("/marten-dedup/accounts").ShouldBe(["claimed", "duplicate"]);
+    }
+
     private async Task<Guid> startCounterAsync()
     {
         var counterId = Guid.NewGuid();

@@ -985,6 +985,18 @@ public abstract partial class HttpHandler
         => context.RequestServices.GetService<DeduplicatedResponses>()?.RecordOutcome(context, outcome);
 
     /// <summary>
+    /// GH-5613. Records how a <c>[Deduplicated]</c> endpoint's request ended. Public only because generated code calls
+    /// it.
+    /// </summary>
+    public static void RecordDeduplicationOutcome(HttpContext context, DeduplicatedExecutionOutcome outcome)
+        => recordDeduplicationOutcome(context, outcome switch
+        {
+            DeduplicatedExecutionOutcome.Claimed => ClaimOutcome.Claimed,
+            DeduplicatedExecutionOutcome.Duplicate => ClaimOutcome.Duplicate,
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, null)
+        });
+
+    /// <summary>
     /// GH-5165. The database commit of a claim-and-release <c>[DeduplicatedWithResponse]</c> endpoint succeeded. Called
     /// by the persistence provider as soon as it does, before anything else inside the commit call can still throw.
     /// </summary>

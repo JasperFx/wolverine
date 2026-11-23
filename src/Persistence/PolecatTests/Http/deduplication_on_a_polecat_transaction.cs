@@ -12,6 +12,7 @@ using Polecat.Linq;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.Http;
 using Wolverine.Polecat;
 using Wolverine.Runtime;
@@ -66,6 +67,7 @@ public class deduplication_on_a_polecat_transaction : IAsyncLifetime
         {
             m.ConnectionString = Servers.SqlServerConnectionString;
             m.DatabaseSchemaName = SchemaName;
+            m.Listeners.Add(new FailAfterCommitPolecatListener());
         }).IntegrateWithWolverine().UseLightweightSessions();
 
         builder.Services.AddWolverineHttp();
@@ -86,6 +88,88 @@ public class deduplication_on_a_polecat_transaction : IAsyncLifetime
     public async ValueTask DisposeAsync()
     {
         await theHost.DisposeAsync();
+    }
+
+    // GH-5613
+    [Fact]
+    public async Task a_committed_claim_counts_as_claimed_and_its_repeat_as_a_duplicate()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(theHost, MetricsConstants.DeduplicationOutcomes);
+        var key = Guid.NewGuid().ToString();
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new PolecatDedupRequest("counted")).ToUrl("/polecat-dedup/create");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBeOk();
+        });
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new PolecatDedupRequest("counted-again")).ToUrl("/polecat-dedup/create");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(409);
+        });
+
+        outcomes.OnRoute("/polecat-dedup/create").ShouldBe(["claimed", "duplicate"]);
+    }
+
+    [Fact]
+    public async Task a_non_2xx_answer_counts_nothing_and_its_retry_claims()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(theHost, MetricsConstants.DeduplicationOutcomes);
+        var key = Guid.NewGuid().ToString();
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new PolecatDedupRequest("missing")).ToUrl("/polecat-dedup/create");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(404);
+        });
+
+        outcomes.OnRoute("/polecat-dedup/create").ShouldBeEmpty();
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new PolecatDedupRequest("counted-retry")).ToUrl("/polecat-dedup/create");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBeOk();
+        });
+
+        outcomes.OnRoute("/polecat-dedup/create").ShouldBe(["claimed"]);
+    }
+
+    [Fact]
+    public async Task a_failure_after_the_database_commit_still_counts_as_claimed()
+    {
+        using var outcomes = new MessageDeduplicationOutcomeListener(theHost, MetricsConstants.DeduplicationOutcomes);
+        var key = Guid.NewGuid().ToString();
+
+        // A 500 under the developer exception page, else the listener's exception straight through the test server
+        try
+        {
+            var failed = await theHost.Scenario(x =>
+            {
+                x.Post.Json(new PolecatDedupRequest("after-commit")).ToUrl("/polecat-dedup/after-commit-failure");
+                x.WithRequestHeader("Idempotency-Key", key);
+                x.IgnoreStatusCode();
+            });
+            failed.Context.Response.StatusCode.ShouldBeGreaterThanOrEqualTo(500);
+        }
+        catch (DivideByZeroException)
+        {
+        }
+
+        (await claimCountAsync(key)).ShouldBe(1);
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new PolecatDedupRequest("after-commit-again")).ToUrl("/polecat-dedup/after-commit-failure");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(409);
+        });
+
+        outcomes.OnRoute("/polecat-dedup/after-commit-failure").ShouldBe(["claimed", "duplicate"]);
     }
 
     [Fact]
@@ -150,7 +234,7 @@ public class deduplication_on_a_polecat_transaction : IAsyncLifetime
         });
 
         var chain = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.Chains
-            .Single(x => x.Method.HandlerType == typeof(PolecatDeduplicatedEndpoint));
+            .Single(x => x.RoutePattern!.RawText == "/polecat-dedup/create");
 
         var source = chain.SourceCode.ShouldNotBeNull();
 
@@ -305,6 +389,14 @@ public static class PolecatDeduplicatedEndpoint
     public static string Post(PolecatDedupRequest request, IDocumentSession session)
     {
         session.Store(new PolecatDedupDocument { Id = Guid.NewGuid(), Name = request.Name });
+        return "ok";
+    }
+
+    [Deduplicated]
+    [WolverinePost("/polecat-dedup/after-commit-failure")]
+    public static string PostAfterCommitFailure(PolecatDedupRequest request, IDocumentSession session)
+    {
+        session.Insert(new FailAfterCommitPolecatMarker { Id = Guid.NewGuid() });
         return "ok";
     }
 }

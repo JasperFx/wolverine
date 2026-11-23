@@ -580,6 +580,34 @@ A couple of things you might want to know about this:
   relational store, and the same thing an idempotent handler already has to cope with.
 * HTTP endpoints and gRPC methods have no envelope, so they keep the original behaviour.
 
+### Metrics and tracing
+
+Each message with an id that a `[Deduplicated]` handler claims or refuses is counted on the
+`wolverine.deduplication.outcomes` counter, tagged by `wolverine.deduplication.outcome`, `wolverine.message.type`,
+`wolverine.message.handler` and `source` (the service name):
+
+| Outcome | The message was |
+|---|---|
+| `claimed` | let through, and its claim on the id is kept |
+| `duplicate` | refused, because its id is already claimed |
+
+`wolverine.message.handler` names the handler type, the same value as the `message.handler` span tag. When a message
+type is handled by several separate handler chains, each chain claims the id for itself and counts its own outcome.
+
+A message without an id is not counted, and neither is one missing a required id, or one whose handler fails and
+gives its claim back. When the claim rides your transaction, `claimed` is counted once that transaction commits, even
+when something after the commit fails, such as the outbox flush.
+
+`claimed` means the claim is kept, not that the handler ran. When the claim doesn't ride your transaction, middleware
+that stops the message without throwing, such as a `Before` method that returns `HandlerContinuation.Stop`, keeps the
+claim, so the message counts as `claimed`. A copy of an envelope that takes its claim over, as described above, counts
+as `claimed` too, so one message can be counted more than once.
+
+The same outcome is added to the message's span as a `wolverine.deduplication.{outcome}` event. Handlers generated
+ahead of time with `codegen write` start counting once they're generated again. HTTP endpoints count on
+`wolverine.http.deduplication.outcomes` instead, as described in
+[Idempotency Keys](/guide/http/deduplication#metrics-and-tracing). gRPC methods aren't counted.
+
 ### Why a separate table
 
 ::: info
