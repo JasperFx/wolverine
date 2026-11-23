@@ -64,3 +64,17 @@ var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L195-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_dead_lettering_for_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## When the dead letter topic can't be published to
+
+Moving a message to the dead letter topic publishes a copy there. What happens to the original when that
+publish fails depends on the endpoint mode:
+
+| Mode | Failed dead letter publish |
+|------|----------------------------|
+| `ProcessInline()` and `NativeAck` | The publish is retried inline, 4 attempts over about 1.5 seconds. If none succeeds, or the host is stopping, the original is nacked and Pub/Sub redelivers it, so the handler runs again |
+| `BufferedInMemory()` / `UseDurableInbox()` | The original was already acknowledged on receipt. The publish is retried in the background, at most 3 attempts, and none once the host is stopping |
+
+On an inline or `NativeAck` endpoint a dead letter topic that stays unavailable therefore means repeated redelivery of the
+failing message, and each redelivery counts toward the subscription's own `max_delivery_attempts` if you
+configured a Pub/Sub dead letter policy on it.
