@@ -430,6 +430,36 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     }
 
     /// <summary>
+    /// GH-5917. A message type of a global partitioned topology that has a <c>BatchMessagesOf&lt;T&gt;()</c> batch and
+    /// handler chains of its own is refused at startup. The topology's companion local queues run the handler chains
+    /// (or relay to their queues) and never hand the message to the batch, so the batch would silently never run. A
+    /// local topology sends the batch a copy when the message is published, but a global topology cannot: the copy
+    /// would be batched on the publishing node, not on the node that owns the group's slot. A native-ack topology has
+    /// no companion queues and is not affected
+    /// </summary>
+    internal void AssertGlobalPartitionedBatchesHaveNoOtherHandlers(MessagePartitioningRules partitioning)
+    {
+        foreach (var batch in _allBatches)
+        {
+            var group = GroupFor(batch.ElementType);
+            if (group is not { Chains.Count: > 0 }) continue;
+
+            if (!partitioning.TryFindGlobalTopology(batch.ElementType, out var topology)) continue;
+            if (topology!.LocalTopology == null) continue;
+
+            var elementType = batch.ElementType.FullNameInCode();
+            var handlerTypes = group.Chains.Select(x => MessageHandlerGroup.HandlerTypeOf(x).FullNameInCode()).Join(", ");
+
+            throw new InvalidOperationException(
+                $"Message type '{elementType}' belongs to the global partitioned topology " +
+                $"'{topology.ExternalTopology?.Uri}', is handled by {handlerTypes}, and is also batched with " +
+                $"BatchMessagesOf<{batch.ElementType.Name}>(). The topology's local queues run the handler and never " +
+                "hand the message to the batch, so the batch would never run. Handle the message in the batch handler " +
+                $"alone, leave it out of the topology with Except<{batch.ElementType.Name}>(), or remove the batch.");
+        }
+    }
+
+    /// <summary>
     /// GH-5137. The invariant every executor relies on: at most one handler chain of a message type is bound to
     /// any one endpoint, so the chain that runs a message received there is never a matter of discovery order.
     /// Checked at startup, once the routing conventions have bound their listeners to chains

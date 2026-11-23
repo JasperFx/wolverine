@@ -569,6 +569,18 @@ opts.BatchMessagesOf<OrderPlaced>(batching => batching.TriggerTime = 1.Seconds()
 Setting `LocalExecutionQueueName`, or calling `ExecuteOnDedicatedLocalQueue()`, opts back out and runs the batches
 on their own queue.
 
+A message type can have an ordinary handler *and* a `BatchMessagesOf<T>()` batch. With a
+`PublishToPartitionedLocalMessaging` topology, Wolverine sends the batch its own copy of each published message, just
+like it does without a topology, so the ordinary handler runs on the slot for the message's group id and the batch
+gets every message too. The assembled batches still run on the topology slots by group id. Just know that a batch
+waits for its trigger time or batch size, so it is sequenced on the slot, but not in publish order against the
+ordinary handler.
+
+A [`GlobalPartitioned`](#global-partitioning) topology can't do that today, because the copy would be batched on the
+publishing node rather than on the node that owns the group's slot. Wolverine refuses that combination at startup
+instead of silently never running the batch. Handle the message in the batch handler alone, take it out of the
+topology with `Except<T>()`, or drop the batch. See [GH-5917](https://github.com/JasperFx/wolverine/issues/5917).
+
 Outside a topology -- a plain listener with only `PartitionProcessingByGroupId` applied -- there is no queue to
 place the batch on, because the unbatched handlers execute inside the listener's own execution block. The most you
 can get there is sequencing the batches for a group id against *each other*, by stamping the group id and sharding

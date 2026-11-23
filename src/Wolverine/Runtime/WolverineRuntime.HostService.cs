@@ -1392,6 +1392,9 @@ public partial class WolverineRuntime
 
         // GH-5695
         Handlers.AssertPartitionedMessagesHaveOneHandlerType(Options.MessagePartitioning);
+
+        // GH-5917
+        Handlers.AssertGlobalPartitionedBatchesHaveNoOtherHandlers(Options.MessagePartitioning);
     }
 
     internal Task StartLightweightAsync()

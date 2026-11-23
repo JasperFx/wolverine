@@ -120,11 +120,21 @@ internal class ExplicitRouting : IMessageRouteSource
             }
         }
 
+        var routedToBatch = false;
         foreach (var topology in runtime.Options.MessagePartitioning.ShardedMessageTopologies)
         {
             if (topology.TryMatch(messageType, runtime, out var route))
             {
                 yield return route!;
+
+                // GH-5917. This route is terminating, so local routing never sends the message to its batch's queue,
+                // and the slot only runs the message's handler. Send the batch its own copy, as local routing does
+                if (!routedToBatch && topology is Partitioning.LocalPartitionedMessageTopology &&
+                    batchRouteBesideHandlers(messageType, runtime) is { } batchRoute)
+                {
+                    routedToBatch = true;
+                    yield return batchRoute;
+                }
             }
         }
 
@@ -135,6 +145,22 @@ internal class ExplicitRouting : IMessageRouteSource
                 yield return globalRoute!;
             }
         }
+    }
+
+    /// <summary>
+    /// GH-5917. The route to the <c>BatchMessagesOf&lt;T&gt;()</c> batch's queue of a message type that has handler
+    /// chains of its own as well, or null. A message type with a batch and no handler chain needs nothing here: the
+    /// slot it is routed to puts it into the batch itself. The assembled batches still go back to the topology's slots
+    /// by group id (GH-3867)
+    /// </summary>
+    private static IMessageRoute? batchRouteBesideHandlers(Type messageType, IWolverineRuntime runtime)
+    {
+        var handlers = runtime.Options.HandlerGraph;
+        if (handlers.BatchFor(messageType) is not { LocalExecutionQueueName: { } queueName }) return null;
+        if (handlers.GroupFor(messageType) is not { Chains.Count: > 0 }) return null;
+
+        var queue = runtime.Options.Transports.GetOrCreate<LocalTransport>().QueueFor(queueName);
+        return MessageRoute.For(messageType, queue, runtime);
     }
 
     public bool IsAdditive => false;
