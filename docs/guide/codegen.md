@@ -239,70 +239,25 @@ To resolve it: reference `WolverineFx.RuntimeCompilation` (Dynamic/Auto mode), o
 
 ## Embedding Codegen in Docker
 
-The sweet spot for production deployments is `Dynamic` codegen at development time, then pre-generated code artifacts baked into the production image so cold start never pays the runtime-codegen cost. A multi-stage Dockerfile that runs `dotnet run -- codegen write` in the build stage gets you there.
-The JasperFx documentation covers the same ground for any Critter Stack application in
+The sweet spot for production deployments is `Dynamic` codegen at development time, then pre-generated code baked into
+the production image so cold start never pays the runtime codegen cost. You get there by running
+`dotnet run -- codegen write` in the build stage of a multi-stage Dockerfile. The JasperFx documentation has the
+Dockerfile and the whole story for any Critter Stack application in
 [Pre-generating Codegen in Docker](https://shared-libs.jasperfx.net/codegen/docker).
 
-### Wire up the CLI command
+What's specific to Wolverine:
 
-`dotnet run -- codegen write` is provided by the JasperFx command-line integration that ships with Wolverine. The last line of your `Program.cs` needs to hand control to it:
+* `codegen write` writes the generated code for your message handlers and HTTP endpoints under `Internal/Generated/`.
+  In any environment other than `Development`, Wolverine 7.0 already runs with `TypeLoadMode.Static` and expects
+  that code to be there
+* The build stage can't reach your database or message broker, but Wolverine's own message persistence and transport
+  registrations don't touch them until the host actually starts, so they're already safe. If you have code of your own
+  in `Program.cs` that connects eagerly, skip it during the build stage with the same `IsRunningGeneration()` check
+  shown in [the Aspire section](#handling-code-generation-with-wolverine-when-using-aspire-or-microsoft-extensions-apidescription-server) below
+* Wolverine 7.0 targets `net10.0` and `net11.0`, so use the `10.0` or `11.0` .NET SDK and runtime images to match
 
-```csharp
-return await app.RunJasperFxCommands(args);
-```
-
-Without this, the `codegen write` verb is unreachable and the build-stage step below will fail.
-
-### A multi-stage Dockerfile
-
-```dockerfile
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
-WORKDIR /src
-
-COPY ["Application/Application.csproj", "Application/"]
-
-# Add more COPY lines for any project references your app needs
-# COPY ["Shared/Shared.csproj", "Shared/"]
-
-COPY . .
-WORKDIR "/src/Application"
-
-# Pre-generate Wolverine handler / endpoint adapter code into
-# Application/Internal/Generated/ so the production image ships static C#
-# instead of compiling at boot. Pair with TypeLoadMode.Static in production.
-RUN dotnet run -- codegen write
-RUN dotnet publish "Application.csproj" -c Release -o /app/publish /p:UseAppHost=false
-
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
-ENV DOTNET_RUNNING_IN_CONTAINER=1
-ENV DOTNET_NOLOGO=1
-ENV DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
-RUN addgroup -g 1001 -S nonroot && adduser -u 1001 -S nonroot -G nonroot
-RUN mkdir /app
-RUN chown nonroot:nonroot /app
-WORKDIR /app
-COPY --chown=nonroot:nonroot --from=build /app/publish .
-
-FROM runtime
-EXPOSE 5000
-USER nonroot
-ENTRYPOINT ["dotnet", "Application.dll"]
-```
-
-The base image tags above (`10.0-alpine`) match Wolverine 7.0's minimum TFM (`net10.0`); use `11.0-alpine` on `net11.0`.
-
-### The `codegen write` step has no runtime resources
-
-This is the constraint that bites people: `dotnet run -- codegen write` boots the host far enough to discover handlers and HTTP endpoints, then exits before serving traffic. If anything in your `Program.cs` reaches out to a database, broker, or other external resource _before_ control reaches `RunJasperFxCommands(args)`, the build-stage step will block or fail because none of that infrastructure is reachable from inside the Dockerfile's build container.
-
-Two ways to dodge it:
-
-1. **Defer infrastructure to hosted services / DI factories.** Things like `PersistMessagesWithPostgresql(...)`, transport listener registrations, and resource-setup-on-startup all defer their actual I/O to host startup — they're already safe. The trap is custom code in `Program.cs` that eagerly connects (e.g. an inline `await dataSource.OpenConnectionAsync()` before `app.Run()` / `RunJasperFxCommands`).
-2. **Detect the codegen verb and short-circuit external wiring.** Same pattern that works for Aspire — see [the Aspire / OpenAPI codegen section](#handling-code-generation-with-wolverine-when-using-aspire-or-microsoft-extensions-apidescription-server) below — wrap conditionally-disabled transports / persistence inside `if (CodeGeneration.IsRunningGeneration())` so the build-stage run skips them.
-
-### Beyond Static: Native AOT
-
-Pre-generated codegen is the prerequisite for publishing the app with Native AOT (`dotnet publish /p:PublishAot=true`). Once the Dockerfile above is producing a `Static`-mode image, the [AOT publishing guide](/guide/aot.md) covers the additional `IsAotCompatible` / trimmer-annotation pieces needed to shrink the production image further and skip the runtime-compilation pipeline entirely.
+Pre-generated code is also the first step toward publishing with Native AOT. See the [AOT publishing guide](/guide/aot.md)
+for the rest.
 
 ## Troubleshooting Code Generation Issues
 

@@ -337,7 +337,7 @@ public static class CustomHeaderMiddleware
 }
 ```
 
-## Finally Methods: Replacing IExceptionFilter
+## Exception Handling: Replacing IExceptionFilter
 
 ### MVC IExceptionFilter
 
@@ -358,8 +358,50 @@ public class ErrorHandlingFilter : IExceptionFilter
 
 ### Wolverine Equivalent
 
-Use a `Finally` method. It runs in a `try/finally` block, guaranteeing execution even when
-exceptions occur:
+In Wolverine, you write an `OnException` method whose first argument is the exception type you want to catch. No
+`if (context.Exception is ...)` checks, and no `ExceptionHandled` flag to remember to set. Wolverine generates a
+`catch` block for that exception type, and whatever your method returns becomes the response:
+
+<!-- snippet: sample_not_found_exception_middleware -->
+<a id='snippet-sample_not_found_exception_middleware'></a>
+```cs
+public static class NotFoundMiddleware
+{
+    public static IResult OnException(NotFoundException ex)
+    {
+        return Results.NotFound();
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L254-L262' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_not_found_exception_middleware' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Just like a global MVC filter, you can apply that to every endpoint, or just a subset of them:
+
+```csharp
+app.MapWolverineEndpoints(opts =>
+{
+    opts.AddMiddleware(typeof(NotFoundMiddleware));
+});
+```
+
+Or put the `OnException` method right on the endpoint class itself if it only matters for that one endpoint. A few
+things worth knowing as you move over:
+
+* You can have several `OnException` methods for different exception types, and Wolverine orders the `catch` blocks
+  from the most specific exception type to the least, so you don't have to
+* `OnException` methods can return `ProblemDetails`, an `IResult`, or nothing at all, the same as `Before` methods.
+  They can also take any services they need as extra arguments, and there's an `OnExceptionAsync` flavor too
+* An exception that no `OnException` method matches just propagates like it would without the middleware
+
+See [Exception Handling](/guide/http/exception-handling) for the details, including what happens when two middleware
+types both catch the same exception type.
+
+### Cleanup with Finally Methods
+
+If what your old filter really did was clean up or record something whether or not the request failed, that's a
+`Finally` method instead. It runs in the `finally` block of the generated code, so it always runs, but it doesn't see
+the exception:
 
 ```csharp
 public class StopwatchMiddleware
@@ -380,11 +422,8 @@ public class StopwatchMiddleware
 }
 ```
 
-::: warning
-Note that `Finally` methods do not receive the exception — they are cleanup hooks, not exception
-handlers. For exception-to-response mapping, use the `OnException` / `OnExceptionAsync` convention
-described in [Exception Handling](/guide/http/exception-handling).
-:::
+When an exception is thrown and an `OnException` method handles it, the order is the endpoint (throws), then
+`OnException`, then `Finally`.
 
 ## Applying Middleware Per-Endpoint
 

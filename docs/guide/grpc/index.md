@@ -135,14 +135,6 @@ and comparisons to the official `grpc-dotnet` examples.
   both an `IAsyncEnumerable<TRequest>` parameter and an `IAsyncEnumerable<TResponse>` return is
   skipped. Implement bidi methods on a hand-written service class against
   `IMessageBus.StreamAsync` — see [Streaming](./streaming).
-
-## Roadmap
-
-The gRPC integration has a handful of deferred items that are known-good fits but haven't shipped
-yet. They're listed here so contributors can plan around them and consumers know what's coming.
-
-- **Hybrid handler shape (HTTP + gRPC + messaging on one type)** — open design question. The
-  [hybrid HTTP/message handler](/guide/http/endpoints#http-endpoint-message-handler-combo) pattern
-  works today for two protocols; extending it to three raises naming and scoping questions
-  (`MiddlewareScoping` only permits one value per `[Middleware]` attribute, and the handler method
-  name conventions overlap). No concrete plan yet — feedback welcome on the tracking issue.
+- **One type can't be an HTTP endpoint, a gRPC service and a message handler all at once.** The
+  [hybrid HTTP/message handler](/guide/http/endpoints#http-endpoint-message-handler-combo) shape works for HTTP and
+  messaging today, but not with gRPC as a third protocol on the same type.

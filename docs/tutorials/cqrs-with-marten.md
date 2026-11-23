@@ -215,58 +215,60 @@ public static class LogIncidentEndpoint
 And maybe there's a few details to unpack. It might help to [see the code](/guide/codegen) that Wolverine generates for this HTTP
 endpoint: 
 
-```csharp
-    public class POST_api_incidents : Wolverine.Http.HttpHandler
+```cs
+public sealed class POST_api_incidents : HttpHandler
+{
+    private readonly WolverineHttpOptions _wolverineHttpOptions;
+    private readonly OutboxedSessionFactory _outboxedSessionFactory;
+    private readonly IWolverineRuntime _wolverineRuntime;
+
+    public POST_api_incidents(WolverineHttpOptions wolverineHttpOptions, OutboxedSessionFactory outboxedSessionFactory, IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
-
-        public POST_api_incidents(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
-        {
-            _wolverineHttpOptions = wolverineHttpOptions;
-            _wolverineRuntime = wolverineRuntime;
-            _outboxedSessionFactory = outboxedSessionFactory;
-        }
-
-
-
-        public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
-        {
-            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
-            // Building the Marten session
-            await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            // Reading the request body via JSON deserialization
-            var (command, jsonContinue) = await ReadJsonAsync<IncidentService.LogIncident>(httpContext);
-            if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            
-            // The actual HTTP request handler execution
-            (var creationResponse_response, var startStream) = IncidentService.LogIncidentEndpoint.Post(command);
-
-            if (startStream != null)
-            {
-                
-                // Placed by Wolverine's ISideEffect policy
-                startStream.Execute(documentSession);
-
-            }
-
-            // This response type customizes the HTTP response
-            ApplyHttpAware(creationResponse_response, httpContext);
-            
-            // Save all pending changes to this Marten session
-            await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
-
-            
-            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            await messageContext.FlushOutgoingMessagesAsync().ConfigureAwait(false);
-
-            // Writing the response body to JSON because this was the first 'return variable' in the method signature
-            await WriteJsonAsync(httpContext, creationResponse_response);
-        }
-
+        _wolverineHttpOptions = wolverineHttpOptions;
+        _outboxedSessionFactory = outboxedSessionFactory;
+        _wolverineRuntime = wolverineRuntime;
     }
+
+    public override async Task Handle(HttpContext httpContext)
+    {
+        var messageContext = new MessageContext(_wolverineRuntime);
+        UserNameMiddleware.Apply(httpContext, messageContext);
+        RequestIdMiddleware.Apply(httpContext, messageContext);
+        // Building the Marten session
+        await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
+        // (Open Telemetry tagging omitted)
+        // Reading the request body via JSON deserialization
+        var (command, jsonContinue) = await ReadJsonAsync<LogIncident>(httpContext);
+        if (jsonContinue == HandlerContinuation.Stop) return;
+        
+        // The actual HTTP request handler execution
+        (var creationResponseOfGuid_response, var startStream) = LogIncidentEndpoint.Post(command);
+
+        if (startStream != null)
+        {
+            
+            // Placed by Wolverine's ISideEffect policy
+            startStream.Execute(documentSession);
+        }
+
+        // This response type customizes the HTTP response
+        ApplyHttpAware(creationResponseOfGuid_response, httpContext);
+        
+        // Save all pending changes to this Marten session
+        await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
+
+        // Writing the response body to JSON because this was the first 'return variable' in the method signature
+        await WriteJsonAsync(httpContext, creationResponseOfGuid_response, 404);
+        
+        // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+        await FlushOutgoingMessages.FlushOutgoingMessagesAsync(messageContext).ConfigureAwait(false);
+    }
+}
 ```
+
+::: tip
+That's what Wolverine 7.0 generates for this endpoint today, lightly trimmed. To see the real thing for your own endpoints, run `dotnet run -- codegen preview`.
+:::
 
 
 Just to rewind from the bootstrapping code up above, we had
@@ -572,67 +574,133 @@ the identity with the [[Aggregate] attribute usage](/guide/http/marten.html#mart
 specific to the `WolverineFx.Http.Marten` usage. Behind the scenes, Wolverine is using
 Marten's [`FetchForWriting` API](https://martendb.io/scenarios/command_handler_workflow.html#fetchforwriting).
 
-It's ugly, but the full generated code from Wolverine is:
+It's ugly, but here's the generated code from Wolverine, lightly trimmed:
 
-```csharp
-    public class POST_api_incidents_incidentId_category : Wolverine.Http.HttpHandler
+```cs
+public sealed class POST_api_incidents_incidentId_category : HttpHandler
+{
+    private readonly WolverineHttpOptions _wolverineHttpOptions;
+    private readonly OutboxedSessionFactory _outboxedSessionFactory;
+    private readonly IWolverineRuntime _wolverineRuntime;
+
+    public POST_api_incidents_incidentId_category(WolverineHttpOptions wolverineHttpOptions, OutboxedSessionFactory outboxedSessionFactory, IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-        private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
-        private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+        _wolverineHttpOptions = wolverineHttpOptions;
+        _outboxedSessionFactory = outboxedSessionFactory;
+        _wolverineRuntime = wolverineRuntime;
+    }
 
-        public POST_api_incidents_incidentId_category(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
+    public override async Task Handle(HttpContext httpContext)
+    {
+        string incidentId_rawValue = (string?)httpContext.GetRouteValue("incidentId");
+        Guid incidentId = default;
+
+        if (incidentId_rawValue != null && Guid.TryParse(incidentId_rawValue, CultureInfo.InvariantCulture, out incidentId))
         {
-            _wolverineHttpOptions = wolverineHttpOptions;
-            _wolverineRuntime = wolverineRuntime;
-            _outboxedSessionFactory = outboxedSessionFactory;
+        }
+        else
+        {
+            httpContext.Response.StatusCode = 404;
+            return;
         }
 
-
-
-        public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
+        var messageContext = new MessageContext(_wolverineRuntime);
+        UserNameMiddleware.Apply(httpContext, messageContext);
+        RequestIdMiddleware.Apply(httpContext, messageContext);
+        // Building the Marten session
+        await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
+        // (Open Telemetry tagging omitted)
+        try
         {
             // Reading the request body via JSON deserialization
-            var (command, jsonContinue) = await ReadJsonAsync<IncidentService.CategoriseIncident>(httpContext);
-            if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            var version = command.Version;
-            var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
-            if (!System.Guid.TryParse((string)httpContext.GetRouteValue("incidentId"), out var incidentId))
+            var (command, jsonContinue) = await ReadJsonAsync<CategoriseIncident>(httpContext);
+            if (jsonContinue == HandlerContinuation.Stop) return;
+            var batchedQuery = documentSession.CreateBatchQuery();
+
+            var stream_incident_BatchItem = batchedQuery.Events.FetchForWriting<Incident>(incidentId, command.Version);
+
+            await batchedQuery.Execute(httpContext.RequestAborted);
+
+            // Loading Marten aggregate as part of the aggregate handler workflow
+            var stream_incident = await stream_incident_BatchItem.ConfigureAwait(false);
+
+            // (Open Telemetry tagging omitted)
+            // 404 if this required object is null
+            if (stream_incident.Aggregate == null)
             {
                 httpContext.Response.StatusCode = 404;
                 return;
             }
 
-
-            await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
-            var eventStore = documentSession.Events;
-            var eventStream = await documentSession.Events.FetchForWriting<IncidentService.Incident>(incidentId, version,httpContext.RequestAborted);
-            if (eventStream.Aggregate == null)
-            {
-                await Microsoft.AspNetCore.Http.Results.NotFound().ExecuteAsync(httpContext);
-                return;
-            }
-
-            var problemDetails1 = IncidentService.CategoriseIncidentEndpoint.Validate(eventStream.Aggregate);
+            var problemDetails1 = CategoriseIncidentEndpoint.Validate(stream_incident.Aggregate);
             // Evaluate whether the processing should stop if there are any problems
-            if (!(ReferenceEquals(problemDetails1, Wolverine.Http.WolverineContinue.NoProblems)))
+            if (!(ReferenceEquals(problemDetails1, WolverineContinue.NoProblems)))
             {
                 await WriteProblems(problemDetails1, httpContext).ConfigureAwait(false);
                 return;
             }
 
-
             
             // The actual HTTP request handler execution
-            var incidentCategorised = IncidentService.CategoriseIncidentEndpoint.Post(command, eventStream.Aggregate);
+            var incidentCategorised = CategoriseIncidentEndpoint.Post(command, stream_incident.Aggregate);
 
-            eventStream.AppendOne(incidentCategorised);
+            if (incidentCategorised != null)
+            {
+                stream_incident.AppendOne(incidentCategorised);
+            }
+
+            
+            // Save all pending changes to this Marten session
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
-            // Wolverine automatically sets the status code to 204 for empty responses
-            if (!httpContext.Response.HasStarted) httpContext.Response.StatusCode = 204;
-        }
 
+            // Wolverine automatically sets the status code to 204 for empty responses
+            if (httpContext.Response is { HasStarted: false, StatusCode: 200 }) httpContext.Response.StatusCode = 204;
+            
+            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+            await FlushOutgoingMessages.FlushOutgoingMessagesAsync(messageContext).ConfigureAwait(false);
+        }
+        catch (StreamLockedException streamLockedException)
+        {
+            var onExceptionProblemDetails = ConcurrencyExceptionMiddleware.OnException(streamLockedException, _wolverineHttpOptions);
+            // Evaluate whether the processing should stop if there are any problems
+            if (!(ReferenceEquals(onExceptionProblemDetails, WolverineContinue.NoProblems)))
+            {
+                await WriteProblems(onExceptionProblemDetails, httpContext).ConfigureAwait(false);
+                return;
+            }
+        }
+        catch (AggregateException aggregateException) when (ConcurrencyExceptionMiddleware.OnExceptionFilter(aggregateException))
+        {
+            var onExceptionProblemDetails = ConcurrencyExceptionMiddleware.OnException(aggregateException, _wolverineHttpOptions);
+            // Evaluate whether the processing should stop if there are any problems
+            if (!(ReferenceEquals(onExceptionProblemDetails, WolverineContinue.NoProblems)))
+            {
+                await WriteProblems(onExceptionProblemDetails, httpContext).ConfigureAwait(false);
+                return;
+            }
+        }
+        catch (ConcurrencyException concurrencyException)
+        {
+            var onExceptionProblemDetails = ConcurrencyExceptionMiddleware.OnException(concurrencyException, _wolverineHttpOptions);
+            // Evaluate whether the processing should stop if there are any problems
+            if (!(ReferenceEquals(onExceptionProblemDetails, WolverineContinue.NoProblems)))
+            {
+                await WriteProblems(onExceptionProblemDetails, httpContext).ConfigureAwait(false);
+                return;
+            }
+        }
+        catch (ExistingStreamIdCollisionException existingStreamIdCollisionException)
+        {
+            var onExceptionProblemDetails = ConcurrencyExceptionMiddleware.OnException(existingStreamIdCollisionException, _wolverineHttpOptions);
+            // Evaluate whether the processing should stop if there are any problems
+            if (!(ReferenceEquals(onExceptionProblemDetails, WolverineContinue.NoProblems)))
+            {
+                await WriteProblems(onExceptionProblemDetails, httpContext).ConfigureAwait(false);
+                return;
+            }
+        }
     }
+}
 ```
 
 The usage of the `FetchForWriting()` API under the covers sets us up for both appending the events
