@@ -111,7 +111,7 @@ Wolverine:
    variables in scope — the canonical Marten compiled-query pattern where
    parameters are properties
 
-On .NET 7+ you can use the generic variant for less ceremony:
+You can also use the generic variant for less ceremony:
 
 ```csharp
 public static void Handle(

@@ -3,7 +3,7 @@
 
 ::: tip
 There is also an HTTP specific middleware for WolverineFx.Http that uses the `ProblemDetails` specification. See
-[DataAnnotations Validation Middleware for HTTP](/guide/http/dataannotationsvalidation) for more information.
+[DataAnnotations Validation Middleware for HTTP](/guide/http/validation#data-annotations) for more information.
 :::
 
 ::: warning
@@ -26,7 +26,7 @@ using var host = await Host.CreateDefaultBuilder()
     {
         // Apply the validation middleware
         opts.UseDataAnnotationsValidation();
-    }).StartAsync();
+    }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.DataAnnotationsValidation.Tests/Samples.cs#L13-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_dataannotations_validation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

@@ -84,7 +84,7 @@ message id. With no message store configured, the message is discarded, and the 
 
 ::: tip
 You could see poor performance over time if the dead letter queue storage in the database gets excessively large,
-so Wolverine does have an "opt in" feature to let old messages expire and be expunged from the storage.
+so Wolverine lets old messages expire and be expunged from the storage.
 :::
 
 Since 7.0 it's on by default: Wolverine assigns an expiration time to every dead letter it persists to durable storage,

@@ -211,6 +211,21 @@ afterward. That commit sends what was published before it, the transactional mid
 what was published after it, and Wolverine sends those messages once the handler is done:
 
 <!-- snippet: sample_save_then_publish_in_a_transactional_handler -->
+<a id='snippet-sample_save_then_publish_in_a_transactional_handler'></a>
+```cs
+[Transactional]
+public static async Task Handle(SaveThenPublishToLocalQueue message, IDocumentSession session, IMessageBus bus)
+{
+    session.Store(new SaveThenPublishDoc { Id = message.Id });
+
+    // The handler commits its own session...
+    await session.SaveChangesAsync();
+
+    // ...and then publishes. Wolverine still sends this message once the handler is done
+    await bus.PublishAsync(new SaveThenPublishLocalTarget(message.Id));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/save_then_publish_5886.cs#L150-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_save_then_publish_in_a_transactional_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Before Wolverine 7.0, the default `MultiFlushMode.OnlyOnce` stopped Wolverine from sending the messages

@@ -81,7 +81,7 @@ delivery guarantee to local messages and even allow messages to be processed if 
 There are some vague plans to add a little more efficient integration between Wolverine and ASP.Net Core Minimal API, but we're not there yet.
 :::
 
-Or finally, it's less code to opt into Wolverine's outbox by delegating to the [command bus](/guide/in-memory-bus) functionality as in this sample [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0) usage:
+Or finally, it's less code to opt into Wolverine's outbox by delegating to the [command bus](/tutorials/mediator) functionality as in this sample [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0) usage:
 
 <!-- snippet: sample_delegate_to_command_bus_from_minimal_api -->
 <a id='snippet-sample_delegate_to_command_bus_from_minimal_api'></a>

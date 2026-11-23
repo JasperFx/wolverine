@@ -124,7 +124,7 @@ using var host = await Host.CreateDefaultBuilder()
             .UseDurableOutbox();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L66-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_specific_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L82-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_specific_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or globally through a built in policy:
@@ -140,7 +140,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L52-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L68-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Bumping out Stale Inbox/Outbox Messages <Badge type="tip" text="5.2" />
@@ -200,7 +200,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.InboxStaleTime = 10.Minutes();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L271-L288' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_outbox_stale_timeout' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L281-L298' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_outbox_stale_timeout' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this will still respect the "deliver by" semantics. This is part of the polling that Wolverine normally does
@@ -233,7 +233,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.UseDurableInboxOnAllListeners();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L82-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_durable_inbox' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L98-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_durable_inbox' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Batched Inbox Writes <Badge type="tip" text="6.30" />
@@ -504,7 +504,7 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L102-L123' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L118-L139' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Message Identity <Badge type="tip" text="3.7" />
@@ -539,7 +539,7 @@ var host = await Host.CreateDefaultBuilder()
     })
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L34-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L54-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This might be an important setting for [modular monolith architectures](/tutorials/modular-monolith). 
@@ -547,13 +547,13 @@ This might be an important setting for [modular monolith architectures](/tutoria
 ## Stale Inbox and Outbox Thresholds
 
 ::: info
-This is more a "defense in depth" feature than a common problem with the inbox/outbox mechanics. These
-flags are "opt in" only because they require database schema changes.
+This is more a "defense in depth" feature than a common problem with the inbox/outbox mechanics. Since 7.0 both
+thresholds default to 1 hour (outside `ServerlessWithOutbox`), and the `timestamp` columns they need are always created.
 :::
 
 It should not ever be possible for messages to get "stuck" in the transactional inbox or outbox, but it's an 
 imperfect world and occasionally there are hiccups that might lead to that situation. To that end, you have
-these "opt in" settings to tell Wolverine to "bump" apparently stalled or stale messages back into play *just in case*:
+these settings to tell Wolverine to "bump" apparently stalled or stale messages back into play *just in case*:
 
 <!-- snippet: sample_using_inbox_outbox_stale_time -->
 <a id='snippet-sample_using_inbox_outbox_stale_time'></a>
@@ -578,5 +578,6 @@ using var host = await Host.CreateDefaultBuilder()
 <!-- endSnippet -->
 
 ::: info
-These settings are opt-in; they have no default value unless you set them explicitly.
+Both settings default to 1 hour in 7.0. Set either one to `null` to turn it off, or call `opts.RestoreV6Defaults()`
+to go back to the 6.x behaviour where they had no default value.
 :::

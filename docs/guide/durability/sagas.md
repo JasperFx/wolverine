@@ -514,10 +514,9 @@ methods to try to head off confusion.
 ## When Sagas are Not Found
 
 ::: warning
-You need to explicitly use the `NotFound()` convention for Wolverine to quietly ignore messages related to a `Saga`
-that cannot be found. As an example, if you receive a "timeout" message for an active `Saga` that has been completed and
-deleted, you will need to implement `NotFound(message)` **even if it is an empty, do nothing method** just so Wolverine
-will not blow up with an exception (not) helpfully telling you the requested `Saga` cannot be found.
+By default, a message for a `Saga` that cannot be found fails with an `UnknownSagaException`. A `TimeoutMessage` for a
+missing saga is the exception: Wolverine quietly drops it. For any other message, you either implement `NotFound(message)`
+**even if it is an empty, do nothing method**, or tell Wolverine to drop it (see below).
 :::
 
 If you receive a command message against a `Saga` that no longer exists, Wolverine will throw an `Exception` unless
@@ -538,6 +537,15 @@ public static void NotFound(CompleteOrder complete, ILogger<Order> logger)
 
 Note that you will have to explicitly use `IMessageBus` as an argument to a `NotFound` method to send out any messages
 to potentially take action on a missing saga if you so wish.
+
+If you'd rather just drop a late message for a missing saga, logged at Information, without writing a `NotFound`
+method <Badge type="tip" text="7.0" />, you have three choices, in this order of precedence:
+
+* `[DiscardIfSagaMissing]` on the message type, or on the saga's `Handle()` method for that message
+* `[SagaMissing(SagaMissingBehavior.Discard)]` on the saga type
+* `opts.Policies.WhenSagaIsMissing(SagaMissingBehavior.Discard)` for the whole application
+
+A `NotFound` method for the message always wins, and a message that starts the saga is not affected.
 
 ## When a Message Has No Saga Id <Badge type="tip" text="7.0" />
 

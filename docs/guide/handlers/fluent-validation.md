@@ -41,7 +41,7 @@ using var host = await Host.CreateDefaultBuilder()
 
         // Just a prerequisite for some of the test validators
         opts.Services.AddSingleton<IDataService, DataService>();
-    }).StartAsync();
+    }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L14-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_fluent_validation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -158,7 +158,7 @@ using var host = await Host.CreateDefaultBuilder()
         
         // Just a prerequisite for some of the test validators
         opts.Services.AddSingleton<IDataService, DataService>();
-    }).StartAsync();
+    }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L60-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_fluent_validation_and_custom_failure_condition' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

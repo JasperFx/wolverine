@@ -484,9 +484,9 @@ deduplication.
 Wolverine gets there two different ways, and which one you get depends on where the claim can be
 written.
 
-**The claim rides your transaction.** On a chain that commits through a Marten session — an
+**The claim rides your transaction.** On a chain that commits through a Marten, Polecat or Fisher session -- an
 `[Aggregate]`/`[WriteAggregate]` handler, an endpoint with `AutoApplyTransactions`, anything with a
-`SaveChangesAsync` — the claim is queued onto that same unit of work. It is written if and only if your
+`SaveChangesAsync` -- the claim is queued onto that same unit of work. It is written if and only if your
 transaction commits. A handler that throws never commits, so it never claimed; an HTTP endpoint that
 answers a `ProblemDetails` 404 returns before the commit, so it never claimed either. There is nothing
 to undo, which also means there is no window in which a prompt retry could see a claim for work that
@@ -618,7 +618,8 @@ ahead of time with `codegen write` start counting once they're generated again. 
 This section does not apply to RavenDb or CosmosDb backed message persistence.
 :::
 
-The claims live in `wolverine_deduplication` rather than as a column on
+The claims live in their own table (`wolverine_deduplication_hashed`, or `wolverine_deduplication` under
+`CompareByString`) rather than as a column on
 `wolverine_incoming_envelopes`, for three reasons:
 
 1. **Partitioning.** With `EnableInboxPartitioning` the inbox is `PARTITION BY LIST (status)`, and
@@ -638,7 +639,7 @@ The claims live in `wolverine_deduplication` rather than as a column on
 - **Supported on:** message handlers, [Wolverine.HTTP endpoints](/guide/http/deduplication), and
   [Wolverine gRPC services](/guide/grpc/deduplication).
 - **Storage:** the RDBMS message stores — PostgreSQL, SQL Server, MySQL and SQLite (and therefore
-  Marten-backed applications). Other stores report themselves as unsupported and fail loudly rather
+  Marten, Polecat and Fisher backed applications). Other stores report themselves as unsupported and fail loudly rather
   than passing every duplicate through.
 - **Scope:** logical ids are unique per message store, not per tenant. With a database per tenant the
   claims are kept in the main database, as `[DeduplicatedWithResponse]` claims are, and under

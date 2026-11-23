@@ -26,7 +26,7 @@ public static void Post(RywAddPoints command, IDocumentSession session)
 public static Task<RywPointsView?> Get(Guid id, IQuerySession session)
     => session.LoadAsync<RywPointsView>(id);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/read_your_writes_with_wait_for_projection.cs#L345-L361' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wait_for_projection_on_an_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/read_your_writes_with_wait_for_projection.cs#L367-L383' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wait_for_projection_on_an_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the same thing in a message handler:
@@ -40,7 +40,7 @@ public static void Handle(RywAddPointsMessage command, IDocumentSession session)
     session.Events.Append(command.Id, new RywPointsAdded(command.Points));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/read_your_writes_with_wait_for_projection.cs#L377-L385' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wait_for_projection_in_a_message_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/read_your_writes_with_wait_for_projection.cs#L400-L408' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wait_for_projection_in_a_message_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can use the attribute more than once to wait on several projections.

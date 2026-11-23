@@ -157,6 +157,7 @@ All Wolverine document types are stored in the same container, differentiated by
 - `agent-assignment` - Agent assignment documents
 - `agent-restriction` - Agent restriction documents
 - `lock` - Distributed lock documents
+- `control-message` - Wolverine's internal control messages between nodes
 
 ### How Incoming Envelopes Are Partitioned
 

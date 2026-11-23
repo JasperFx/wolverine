@@ -8,7 +8,7 @@ and Wolverine's EF Core transactional support is active, Wolverine will be able 
 the correct `DbContext` type for your `Saga` at runtime.
 
 You do *not* need to use the `WolverineOptions.AddSagaType<T>()` option with EF Core saga, that option
-is strictly for the [lightweight saga storage](/guide/durability/sagas.html#lightweight-saga-storage) with SQL Server or PostgreSQL. 
+is strictly for the [lightweight saga storage](/guide/durability/sagas.html#lightweight-saga-storage) with the database-backed message stores. 
 
 To make that concrete, let's say you've got a simplistic `Order` saga type like this:
 

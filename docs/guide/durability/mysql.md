@@ -252,7 +252,7 @@ builder.UseWolverine(opts =>
 
     // User queue poll frequency
     opts.Durability.ScheduledJobPollingTime = TimeSpan.FromSeconds(5);
-}
+});
 ```
 
 You can also override the polling interval for a specific queue:
@@ -430,8 +430,9 @@ var host = Host.CreateDefaultBuilder()
 ```
 
 ::: warning
-Wolverine is not able to dynamically tear down tenants yet. That's long planned, and honestly probably only happens
-when an outside company sponsors that work.
+Deleting a tenant's connection information does not stop running nodes from using that tenant's database. Taking a
+tenant out of a running system is an operator action in [CritterWatch](https://github.com/JasperFx/CritterWatch). See
+[Removing a Tenant from a Running System](/guide/durability/postgresql#removing-a-tenant-from-a-running-system).
 :::
 
 If you need to be able to add new tenants at runtime or just have more tenants than is comfortable living in static configuration
