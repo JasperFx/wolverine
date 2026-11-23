@@ -293,7 +293,7 @@ with EF Core query filters:
 
 * Every `ITenanted` entity is mapped with a `tenant_id` column (defaulted to Wolverine's `*DEFAULT*` tenant sentinel) and an index on that column
 * A global query filter binds every query to the tenant of the current message or HTTP request — there are no named filters for your team to remember, and no "one forgotten `IgnoreQueryFilters()`" data leakage from ad hoc LINQ
-* On `SaveChanges`, inserted entities are stamped with the ambient tenant id (after any `TenantIdStyle` correction)
+* On `SaveChanges`, inserted entities are stamped with the ambient tenant id (after any [`TenantIdStyle`](https://shared-libs.jasperfx.net/configuration/tenant-id-case) correction)
 * Updates or deletes against an entity belonging to a *different* tenant throw `CrossTenantWriteException` instead of quietly crossing tenant boundaries
 * The `tenant_id` column is also mapped as an EF Core concurrency token, so `tenant_id = @currentTenant` joins the `where` clause of every update and delete. That covers the case the `CrossTenantWriteException` check cannot see: a *detached* entity (`Update(new Invoice { Id = someId })`, or anything built from a message or a request body) has no `TenantId` of its own to compare, so the guarantee has to come from the SQL. A detached write aimed at another tenant's row matches nothing, and EF Core reports that the way it reports any zero-row write, with `DbUpdateConcurrencyException`
 * Sagas implementing `ITenanted` get tenant-scoped loads — the same saga id in two different tenants are two different sagas as far as loading is concerned

@@ -119,7 +119,7 @@ recommends using the `Static` mode where all types are assumed to be pre-generat
 thinks is the application assembly (more on this in the troubleshooting guide below).
 
 ::: tip
-Most of the facilities shown here will require the [Oakton command line integration](./command-line).
+Most of the facilities shown here will require the [JasperFx command line integration](./command-line).
 :::
 
 ## The `WolverineFx.RuntimeCompilation` Package <Badge type="tip" text="5.34" />
@@ -240,6 +240,8 @@ To resolve it: reference `WolverineFx.RuntimeCompilation` (Dynamic/Auto mode), o
 ## Embedding Codegen in Docker
 
 The sweet spot for production deployments is `Dynamic` codegen at development time, then pre-generated code artifacts baked into the production image so cold start never pays the runtime-codegen cost. A multi-stage Dockerfile that runs `dotnet run -- codegen write` in the build stage gets you there.
+The JasperFx documentation covers the same ground for any Critter Stack application in
+[Pre-generating Codegen in Docker](https://shared-libs.jasperfx.net/codegen/docker).
 
 ### Wire up the CLI command
 
@@ -574,8 +576,7 @@ await host.StartAsync();
 Do note that you would have to opt into using the environment checks on application startup, and maybe even force .NET
 to make hosted service failures stop the application. 
 
-See [Oakton's Environment Check functionality](https://jasperfx.github.io/oakton/guide/host/environment.html) for more information (the old Oakton documentation is still relevant for
-JasperFx). 
+See [JasperFx's Environment Check functionality](https://shared-libs.jasperfx.net/cli/environment-checks) for more information.
 
 ## Previewing the Generated Code
 
@@ -812,7 +813,7 @@ builder.Services.AddMarten(opts =>
 
 ### 2. Implement `IVariableSource`
 
-`IVariableSource` lives in `JasperFx.CodeGeneration.Model`. It advertises which types it can materialize (`Matches`) and emits the code fragment that produces them (`Create`):
+`IVariableSource` lives in `JasperFx.CodeGeneration.Model`. It advertises which types it can materialize (`Matches`) and emits the code fragment that produces them (`Create`): See [Variable resolution](https://shared-libs.jasperfx.net/codegen/variables#variable-resolution) in the JasperFx documentation for where a custom `IVariableSource` sits in the resolution order.
 
 ```csharp
 using JasperFx.CodeGeneration.Frames;

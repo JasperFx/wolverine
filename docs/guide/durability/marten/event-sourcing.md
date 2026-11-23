@@ -1560,14 +1560,14 @@ public partial class SubscriptionState
 
 Requirements:
 
-- The aggregate must be `partial` and live in an assembly that references the `JasperFx.Events.SourceGenerator` analyzer.
+- The aggregate must be `partial` and live in an assembly that references the `JasperFx.Events.SourceGenerator` analyzer. See [Making sure the generator ran](https://shared-libs.jasperfx.net/codegen/diagnostics#making-sure-the-generator-ran-at-all) for the `JFXEVT900` build error that catches a missing generator at build time instead of at runtime.
 - The `[BoundaryAggregate]` attribute must sit on the type **in its own defining assembly** — that is the compilation the generator emits into and the assembly the runtime scans (`typeof(T).Assembly`) when resolving the evolver.
 
 ::: tip
 This is only needed for the **identity-less** case. An aggregate that carries an `Id` (or an `[AggregateIdentity]` member) — like the `SubscriptionState` shown above, which keeps an `Id` and is registered as a live single-stream projection — already gets an evolver and needs no marker.
 :::
 
-The `[BoundaryAggregate]` marker comes from JasperFx.Events 2.0.0-alpha.21 / JasperFx.Events.SourceGenerator 2.0.0-alpha.13 ([jasperfx#324](https://github.com/JasperFx/jasperfx/issues/324)). See the [Marten DCB documentation](https://github.com/JasperFx/marten/issues/4513) for the canonical attribute reference; the note here covers the Wolverine handler-side workflow.
+The `[BoundaryAggregate]` marker comes from JasperFx.Events 2.0.0-alpha.21 / JasperFx.Events.SourceGenerator 2.0.0-alpha.13 ([jasperfx#324](https://github.com/JasperFx/jasperfx/issues/324)). See the [Marten DCB documentation](https://martendb.io/events/dcb) for the canonical attribute reference; the note here covers the Wolverine handler-side workflow.
 
 ### Using the `[BoundaryModel]` Attribute
 

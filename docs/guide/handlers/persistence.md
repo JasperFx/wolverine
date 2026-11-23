@@ -489,6 +489,10 @@ Because it is the *current session's* operations, the appended events commit wit
 handler's work through the outbox — no `[Transactional]` needed. A handler marked
 `[Storage(typeof(IMyStore))]` gets that ancillary store's session instead.
 
+See [Event Store Abstractions](https://shared-libs.jasperfx.net/events/) in the JasperFx documentation for the whole
+operations surface, what's portable across the stores and what isn't, and `AddInMemoryStoreForPrototyping()` for
+trying out a model before you've picked a store.
+
 ::: tip
 Returning [`Storage.AppendEvents()` / `Storage.StartStream()`](/guide/handlers/side-effects#event-side-effects)
 is the lower ceremony option and keeps the handler a pure function. Reach for the injected operations when
@@ -502,6 +506,8 @@ counterparts for an *event sourced* model are `[WriteModel]` and `[ReadModel]`, 
 same way: you say what the parameter is for, and Wolverine works out which store owns it from the
 persistence you already registered. The same handler code is valid whether that store is Marten or
 Polecat.
+The [Event Store Abstractions](https://shared-libs.jasperfx.net/events/) page in the JasperFx documentation explains
+why that works on any store, and where that portability stops.
 
 Use `[WriteModel]` when the handler is going to emit events. Wolverine loads the model's event
 stream with concurrency protection, hands the current state to your method, and appends whatever

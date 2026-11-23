@@ -621,6 +621,9 @@ dotnet run -- describe-event-model --chapter BookingAppointments
 dotnet run -- describe-event-model --hotspots-only > open-questions.txt
 ```
 
+See [Hotspots](https://shared-libs.jasperfx.net/event-modeling/hotspots) in the JasperFx documentation for what each
+kind of hotspot means.
+
 In a terminal you get a tree by domain and chapter. Each slice shows its pattern, its trigger, the aggregate and *why* it
 has that aggregate, the events it emits, the code that handles it, its specifications and its hotspots, with a summary table of implemented and
 specified slices per chapter at the bottom. Redirect it to a file and you get plain text you can paste into a GitHub
@@ -638,6 +641,9 @@ happens at all. If they *don't* agree -- say the definition says `ConfirmAppoint
 the handler returns something else -- the merge keeps the code's answer and records yours as a `SourceDisagreement`
 hotspot on the slice. Slice names, trigger labels, chapters and domains only ever come from declarations, so those
 stay yours.
+
+The full merge and provenance rules are in [The Overlay](https://shared-libs.jasperfx.net/event-modeling/overlay) in
+the JasperFx documentation.
 
 That gives you a very practical to-do list while you build. Early on, every slice is declared and grey. As you fill in
 handlers, slices pick up derived claims, and any hotspot is either a design question somebody needs to answer or a

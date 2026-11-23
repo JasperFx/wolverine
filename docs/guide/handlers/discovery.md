@@ -74,6 +74,11 @@ Wolverine logs a **warning at startup** when a host adopts an application assemb
 actually registered, naming both assemblies. If you see that warning (or the routing symptom above), set the
 application assembly explicitly on the affected host, or add the missing assembly to discovery — see just below.
 
+JasperFx also gives you two ways out of the process-wide pin: set `RememberApplicationAssembly = false` on a host's
+`JasperFxOptions` so that host neither records nor reuses the remembered assembly, or call
+`JasperFxOptions.ResetRememberedApplicationAssembly()` between test fixtures. See
+[JasperFxOptions](https://shared-libs.jasperfx.net/configuration/jasperfx-options) in the JasperFx documentation.
+
 This warning only became dependable with GH-3778. Before that fix it could not fire on the
 `RememberedApplicationAssembly` path at all — the very case described here — and elsewhere it frequently named the
 wrong "registered from" assembly, so on older releases neither its presence nor its absence proves much.

@@ -110,24 +110,21 @@ return await Host.CreateDefaultBuilder(args)
         opts.PublishMessage<RabbitMessage2>().ToRabbitQueue(MessagingConstants.Subscriber2Queue);
 
         // Add Open Telemetry tracing
-        opts.Services.AddOpenTelemetryTracing(builder =>
-        {
-            builder
-                .SetResourceBuilder(ResourceBuilder
-                    .CreateDefault()
-                    .AddService("Subscriber1"))
-                .AddJaegerExporter()
-
+        opts.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService("Subscriber1"))
+            .WithTracing(tracing =>
+            {
                 // Add Wolverine as a source
-                .AddSource("Wolverine");
-        });
+                tracing.AddSource("Wolverine");
+            })
+            .UseOtlpExporter();
     })
 
-    // Executing with Oakton as the command line parser to unlock
+    // Executing with JasperFx as the command line parser to unlock
     // quite a few utilities and diagnostics in our Wolverine application
-    .RunOaktonCommands(args);
+    .RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L10-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/Subscriber1/Program.cs#L11-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_headless_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As of Wolverine 3.0, you can also use the `HostApplicationBuilder` mechanism as well:

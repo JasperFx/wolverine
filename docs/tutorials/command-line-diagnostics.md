@@ -210,3 +210,4 @@ dotnet run -- openapi --route "GET /orders/{id}"
 - [Command Line Integration](/guide/command-line) — the full reference, including every flag
 - [Diagnostics](/guide/diagnostics) — handler-discovery troubleshooting and the routing-explanation API
 - [Code Generation](/guide/codegen) — how Wolverine's generated code works
+- [Command Line](https://shared-libs.jasperfx.net/cli/) and [Environment Checks](https://shared-libs.jasperfx.net/cli/environment-checks) in the JasperFx documentation -- the shared command line library underneath all of this

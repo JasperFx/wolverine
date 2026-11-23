@@ -263,6 +263,9 @@ reference the generator package directly, and its copy wins over the bundled one
 <PackageReference Include="JasperFx.Events.SourceGenerator" Version="3.8.0"
                   OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
 ```
+
+See [Build Diagnostics](https://shared-libs.jasperfx.net/codegen/diagnostics) in the JasperFx documentation for the
+`JFXEVT` diagnostics the generator reports at build time.
 :::
 
 ## Snapshots

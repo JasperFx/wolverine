@@ -185,7 +185,9 @@ message handlers, HTTP endpoints, gRPC services and the Marten, Polecat and Fish
 
 Wolverine sets this on JasperFx's `Production` profile only when `UseWolverine()` is present. The shared JasperFx
 default is unchanged, so a Marten, Polecat or Fisher application that doesn't use Wolverine behaves exactly as before.
-Any value you set yourself wins, whether with `CritterStackDefaults()` or on `opts.CodeGeneration.TypeLoadMode`.
+Any value you set yourself wins, whether with [`CritterStackDefaults()`](https://shared-libs.jasperfx.net/configuration/critter-stack-defaults)
+or on `opts.CodeGeneration.TypeLoadMode`. See [Static mode](https://shared-libs.jasperfx.net/codegen/cli#static) in the
+JasperFx documentation for how pre-generated code is loaded.
 
 **Before the first 7.0 deploy**, generate the code as part of the build and compile it into the application:
 
@@ -908,7 +910,8 @@ stack. Upgrade them together; mixing a Wolverine 7 package with Marten 9 or Weas
 | MQTT client (`WolverineFx.MQTT`) | MQTTnet 4.3 + MQTTnet.Extensions.ManagedClient | MQTTnet 5 (see [below](#mqtt-transport-runs-on-mqttnet-5-wolverinefx-mqtt5-retired-breaking)) |
 | NATS client (`WolverineFx.Nats`, `WolverineFx.ClaimCheck.Nats`) | NATS.Net 2.x | NATS.Net 3.x (see [below](#nats-transport-runs-on-nats-net-3)) |
 
-The Marten, Polecat and Fisher majors have their own migration guides; read them alongside this one. The RabbitMQ,
+The JasperFx, Marten, Polecat and Fisher majors have their own migration guides; read them alongside this one. The
+JasperFx 3.0 guide is [here](https://shared-libs.jasperfx.net/migration-guide). The RabbitMQ,
 Azure Service Bus, SQS/SNS, GCP Pub/Sub, Pulsar, Redis and Cosmos DB client libraries are unchanged.
 
 #### Marten 10 changes you can hit through Wolverine
@@ -924,6 +927,13 @@ Azure Service Bus, SQS/SNS, GCP Pub/Sub, Pulsar, Redis and Cosmos DB client libr
   asks for `IsolationLevel.Serializable` now fails when a handler's session is opened, with a `NotSupportedException`
   that says so. Use a weaker isolation level there, or open the session in the handler with
   `IDocumentStore.LightweightSerializableSessionAsync()` and enroll it in the outbox with `IMartenOutbox.Enroll()`.
+- **A failing async projection parks instead of skipping.** Marten 10 (and Polecat 6 and Fisher 2) park the one
+  identity whose events failed and keep the rest of the shard running, where Marten 9 skipped the event and
+  dead-lettered it. A projection that can't park pauses its shard instead. See
+  [When a Projection Fails](/guide/durability/marten/distribution#when-a-projection-fails) for what that means
+  for a Wolverine-distributed projection, and [Turning it on](https://shared-libs.jasperfx.net/events/parked-identities#turning-it-on)
+  in the JasperFx documentation. `StoreOptions.RestoreV9Defaults()` (`RestoreV5Defaults()` in Polecat,
+  `RestoreV1Defaults()` in Fisher) puts skipping back.
 
 #### NATS transport runs on NATS.Net 3
 

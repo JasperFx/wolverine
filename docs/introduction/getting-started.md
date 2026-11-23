@@ -43,6 +43,10 @@ compiler lives:
 dotnet add package WolverineFx.RuntimeCompilation
 ```
 
+See [CritterStackDefaults](https://shared-libs.jasperfx.net/configuration/critter-stack-defaults) and
+[Static mode](https://shared-libs.jasperfx.net/codegen/cli#static) in the JasperFx documentation for more on the
+per-environment profiles and pre-generated code.
+
 See [deploying 7.0 to production](/guide/migration#deploying-7-0-to-production) for pre-generating the code instead.
 
 To start off, we're just going to build two API endpoints that accepts

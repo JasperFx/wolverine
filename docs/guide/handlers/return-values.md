@@ -137,6 +137,9 @@ internal class WriteFilePolicy : IChainPolicy
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L25-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefilepolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+`MethodCall` comes from JasperFx's code generation library. See [MethodCall](https://shared-libs.jasperfx.net/codegen/method-call)
+in the JasperFx documentation for `ReturnAction`, `Arguments`, `DisposalMode` and the rest of its surface.
+
 and lastly, I'll register that policy in my Wolverine application at configuration time:
 
 <!-- snippet: sample_register_writefilepolicy -->

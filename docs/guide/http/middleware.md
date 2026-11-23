@@ -238,6 +238,9 @@ public class MeasuredEndpoint
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MiddlewareEndpoints.cs#L29-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_applying_middleware_programmatically_to_one_chain' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+See [MethodCall](https://shared-libs.jasperfx.net/codegen/method-call) in the JasperFx documentation for more on
+`MethodCall.For<T>()` and the options it gives you over the generated call.
+
 
 ## Apply Middleware by Policy
 
@@ -289,6 +292,8 @@ internal class RequestIdPolicy : IHttpPolicy
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/RequestIdMiddleware.cs#L28-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requestidpolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+`new MethodCall(...)` is JasperFx's [MethodCall](https://shared-libs.jasperfx.net/codegen/method-call) frame.
 
 Lastly, this particular policy is included by default, but if it wasn't, this is the code to apply it explicitly:
 

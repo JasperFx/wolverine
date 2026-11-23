@@ -154,6 +154,9 @@ Even without publishing AOT, `TypeLoadMode.Static` produces meaningful cold-star
 
 `codegen write` also emits a `GeneratedHandlerRegistry` (under `Internal/Generated/WolverineHandlers/`) that captures the discovered handler types as a compile-time `typeof(...)` array. In `TypeLoadMode.Static`, Wolverine consumes this registry at startup and **skips conventional handler discovery's assembly scan** entirely — there's no `Assembly.ExportedTypes` walk and no convention filtering across your assemblies. Handler-method selection still runs over exactly the registry's types, so behavior is identical to a full scan.
 
+The JasperFx side of pre-generated code, including how the generated types are rooted for trimming, is in
+[Publishing AOT](https://shared-libs.jasperfx.net/codegen/aot).
+
 This is on by default in `TypeLoadMode.Static`. Dynamic-mode apps that still want to skip the scan can opt in explicitly:
 
 ```csharp
@@ -205,4 +208,4 @@ If a handler type changes between releases, re-run `codegen write` and commit th
 - [Command Line Integration](/guide/command-line.html) and the [JasperFx command line documentation](https://shared-libs.jasperfx.net/cli/), including its [Native AOT](https://shared-libs.jasperfx.net/cli/#native-aot) section
 - [`Wolverine.AotSmoke`](https://github.com/JasperFx/wolverine/tree/main/src/Testing/Wolverine.AotSmoke) — the regression-guard project this guide references
 - [AOT-pillar tracking](https://github.com/JasperFx/wolverine/issues/2746) — what's annotated, what's left
-- [JasperFx 2.0 AOT pillar](https://github.com/JasperFx/jasperfx/issues/213) — the foundation Wolverine builds on
+- [Publishing AOT](https://shared-libs.jasperfx.net/codegen/aot) in the JasperFx documentation -- the foundation Wolverine builds on
