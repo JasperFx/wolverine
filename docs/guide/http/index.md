@@ -183,7 +183,7 @@ mark it with `[FromBody]` to make that binding explicit.
 The code above will actually generate the exact same OpenAPI documentation as the MVC Controller or Minimal API samples 
 earlier in this post, but there's significantly less boilerplate code needed to expose that information. Instead, Wolverine.Http
 relies on type signatures to "know" what the OpenAPI metadata for an endpoint should be. In conjunction with Wolverine's [Marten
-integration](/guide/durability/marten/) (or Wolverine's [EF Core integration](/guide/durability/efcore) too!),
+integration](/guide/durability/marten/) (or Wolverine's [EF Core integration](/guide/durability/efcore/) too!),
 you potentially get a very low ceremony approach to writing HTTP services that *also* utilizes Wolverine's [durable outbox](/guide/durability/)
 without giving up anything in regards to crafting effective and accurate OpenAPI metadata about your services.
 

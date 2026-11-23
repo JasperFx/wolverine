@@ -156,11 +156,13 @@ For applications using the durable inbox/outbox, the `storage` command administe
 dotnet run -- storage counts     # incoming / outgoing / scheduled / dead-letter / handled
 dotnet run -- storage clear
 dotnet run -- storage rebuild                                   # --file to emit the schema script
-dotnet run -- storage release --exception-type Some.Exception   # replay dead-lettered messages
+dotnet run -- storage release                                   # release ownership of persisted envelopes
+dotnet run -- storage replay --exception-type Some.Exception    # replay dead-lettered messages
 ```
 
-`storage counts` is the quick "is anything backing up?" check, and `release` re-queues dead-lettered
-envelopes (optionally filtered to a single exception type). To purge inbox rows already marked `Handled`:
+`storage counts` is the quick "is anything backing up?" check. `replay` marks dead-lettered envelopes as replayable
+so Wolverine picks them up again (optionally filtered to a single exception type), and `release` releases the node
+ownership of every persisted envelope so any running node can recover them. To purge inbox rows already marked `Handled`:
 
 ```bash
 dotnet run -- clear-handled
@@ -200,7 +202,7 @@ dotnet run -- openapi --route "GET /orders/{id}"
 | `wolverine-diagnostics describe-handlers <TypeName>` | Why is (or isn't) a type discovered as a handler? |
 | `check-env` | Can I connect to my infrastructure? |
 | `resources setup / check / teardown` | Provision or inspect stateful resources |
-| `storage counts / clear / rebuild / release` | Inbox/outbox state and recovery |
+| `storage counts / clear / rebuild / release / replay` | Inbox/outbox state and recovery |
 | `clear-handled` | Purge handled inbox rows |
 | `capabilities <file>.json` | Full machine-readable app snapshot |
 | `openapi` | Generate OpenAPI docs offline (Wolverine.Http) |

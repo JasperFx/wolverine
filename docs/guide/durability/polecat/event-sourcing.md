@@ -163,8 +163,10 @@ event streams in one transaction.
 
 ## Validation on Stream Existence
 
-By default, the "aggregate handler workflow" does no validation on whether or not the identified event stream actually
-exists at runtime. You can protect against missing streams:
+By default, the "aggregate handler workflow" _requires_ the identified event stream to exist at runtime: a
+`[WriteAggregate]` parameter is `Required = true` unless you say otherwise. If the stream is missing, an HTTP endpoint
+returns a 404 status code and a message handler logs that the aggregate was not found and stops processing. You can
+also be explicit about it, and choose what happens when the stream is missing:
 
 ```cs
 public static class ValidatedMarkItemReadyHandler
@@ -557,7 +559,7 @@ public static class StrongLetterHandler
 
 ## Natural Keys
 
-Polecat supports [natural keys](/events/natural-keys) on aggregates, allowing you to look up event streams by a domain-meaningful identifier (like an order number) instead of the internal stream id. Wolverine's aggregate handler workflow fully supports natural keys, letting you route commands to the correct aggregate using a business identifier.
+Polecat supports [natural keys](https://polecat.jasperfx.net/events/natural-keys) on aggregates, allowing you to look up event streams by a domain-meaningful identifier (like an order number) instead of the internal stream id. Wolverine's aggregate handler workflow fully supports natural keys, letting you route commands to the correct aggregate using a business identifier.
 
 ### Defining the Aggregate with a Natural Key
 
@@ -601,7 +603,7 @@ public record PcNkOrderCreated(PcNkOrderNumber OrderNumber, string CustomerName)
 public record PcNkItemAdded(string ItemName, decimal Price);
 public record PcNkOrderCompleted;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L125-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L135-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Using Natural Keys in Command Handlers
@@ -615,7 +617,7 @@ public record AddPcNkOrderItem(PcNkOrderNumber OrderNum, string ItemName, decima
 public record AddPcNkOrderItems(PcNkOrderNumber OrderNum, (string Name, decimal Price)[] Items);
 public record CompletePcNkOrder(PcNkOrderNumber OrderNum);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L163-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_commands' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L173-L178' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_commands' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine uses the natural key type on the command property to call `FetchForWriting<TAggregate, TNaturalKey>()` under the covers, resolving the stream by the natural key in a single database round-trip.
@@ -651,10 +653,10 @@ public static class PcNkOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L170-L195' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_handlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L180-L205' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_handlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-For more details on how natural keys work at the Polecat level, see the [Polecat natural keys documentation](/events/natural-keys).
+For more details on how natural keys work at the Polecat level, see the [Polecat natural keys documentation](https://polecat.jasperfx.net/events/natural-keys).
 
 ## Dynamic Consistency Boundary (DCB)
 
@@ -850,7 +852,7 @@ Requirements:
 This is only needed for the **identity-less** case. An aggregate that carries an `Id` (or an `[AggregateIdentity]` member) — like the `SubscriptionState` shown above, which keeps an `Id` and is registered as a live single-stream projection — already gets an evolver and needs no marker.
 :::
 
-The `[BoundaryAggregate]` marker comes from JasperFx.Events 2.0.0-alpha.21 / JasperFx.Events.SourceGenerator 2.0.0-alpha.13 ([jasperfx#324](https://github.com/JasperFx/jasperfx/issues/324)). See the [Polecat DCB documentation](https://polecat.jasperfx.net/events/dcb) for the canonical attribute reference; the note here covers the Wolverine handler-side workflow.
+The `[BoundaryAggregate]` marker comes from JasperFx.Events / JasperFx.Events.SourceGenerator 2.0 and later ([jasperfx#324](https://github.com/JasperFx/jasperfx/issues/324)). See the [Polecat DCB documentation](https://polecat.jasperfx.net/events/dcb) for the canonical attribute reference; the note here covers the Wolverine handler-side workflow.
 
 ### Using the `[BoundaryModel]` Attribute
 

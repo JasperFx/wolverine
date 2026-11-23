@@ -78,8 +78,8 @@ its input and its `[InjectService]` properties as ordinary code, so in the nativ
 - **Every assembly that contributes commands must be built with the generator.** Wolverine references it with
   `PrivateAssets="none"`, so it flows to your project and covers your own commands. A command from an assembly built without it
   is missing from `help` in the native binary.
-- Weasel's `db-*` commands, used with database-backed message storage, are available natively from Weasel 9.50.0, the first
-  release built with the generator.
+- Weasel's `db-*` commands, used with database-backed message storage, are available natively in the Weasel 10 line that
+  Wolverine 7 references (Weasel 9.50.0 was the first release built with the generator).
 
 `ApplyJasperFxExtensions` and `RunJasperFxCommands` keep their trimming warnings for assemblies built without the generator.
 Suppress them on an explicit `Main`, because a top-level `Program.cs` has nowhere to put the attributes:
@@ -112,7 +112,7 @@ pull request.
 
 ## What `Wolverine.AotSmoke` already guarantees
 
-The [`Wolverine.AotSmoke`](https://github.com/JasperFx/wolverine/tree/main/src/Testing/Wolverine.AotSmoke) project in the Wolverine repo sets `IsAotCompatible=true`, `TrimMode=full`, and promotes the `IL2026/IL2046/IL2055/IL2065/IL2067/IL2070/IL2072/IL2075/IL2090/IL2091/IL2111/IL3050/IL3051` warning codes to errors. Every PR runs it via the [`aot` workflow](https://github.com/JasperFx/wolverine/blob/main/.github/workflows/aot.yml).
+The [`Wolverine.AotSmoke`](https://github.com/JasperFx/wolverine/tree/main/src/Testing/Wolverine.AotSmoke) project in the Wolverine repo sets `IsAotCompatible=true`, `TrimMode=full`, and promotes the `IL2026/IL2046/IL2055/IL2065/IL2067/IL2070/IL2072/IL2075/IL2090/IL2091/IL2111/IL3050/IL3051` warning codes to errors. CI runs it as the `CIAotSmoke` job of the [`tests` workflow](https://github.com/JasperFx/wolverine/blob/main/.github/workflows/tests.yml).
 
 Currently exercised AOT-clean surface (will fail the smoke build if any of these APIs gains a `[RequiresDynamicCode]` / `[RequiresUnreferencedCode]` annotation):
 

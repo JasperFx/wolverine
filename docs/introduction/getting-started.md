@@ -57,11 +57,12 @@ a POST from the client that:
 
 The two *commands* for the POST endpoints are below:
 
-<a id='#region sample_Quickstart_commands_CreateIssue'></a>
+<!-- snippet: sample_quickstart_commands_createissue -->
+<a id='snippet-sample_quickstart_commands_createissue'></a>
 ```cs
 public record CreateIssue(Guid OriginatorId, string Title, string Description);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssue.cs#L3-L7' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_commands' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/CreateIssue.cs#L3-L6' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_commands_createissue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 <!-- snippet: sample_quickstart_commands_assignissue -->
@@ -107,14 +108,12 @@ app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeA
 
 app.MapOpenApi();
 
-app.MapGet("/", () => Results.Redirect("/swagger"));
-
 // Opt into using JasperFx for command line parsing
 // to unlock built in diagnostics and utility tools within
 // your Wolverine application
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -126,7 +125,7 @@ Alright, let's talk about what we wrote up above:
 
 1. We integrated Wolverine into the new system through the call to `IHostBuilder.UseWolverine()`
 2. We registered the `UserRepository` and `IssueRepository` services
-3. We created a couple [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis?view=aspnetcore-6.0) endpoints
+3. We created a couple [Minimal API](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/minimal-apis) endpoints
 
 See also: [Wolverine as Command Bus](/guide/messaging/transports/local.html)
 
@@ -232,7 +231,7 @@ system's underlying IoC container. By supporting [method injection](https://www.
 is able to cut down on even more of the typical cruft code forced upon you by other .NET tools.
 
 *You might be saying that this sounds like the behavior of the conventional method injection
-behavior of Minimal API in .NET 6, and it is. But we'd like to point out that Wolverine had this
+behavior of Minimal API (since .NET 6), and it is. But we'd like to point out that Wolverine had this
 years before the ASP.NET team got around to it. :-)*
 
 This page introduced the basic usage of Wolverine, how to wire Wolverine

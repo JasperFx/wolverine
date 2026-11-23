@@ -18,7 +18,7 @@ Wolverine can integrate with several database engines and persistence tools for:
 
 See the blog post [Transactional Outbox/Inbox with Wolverine and why you care](https://jeremydmiller.com/2022/12/15/transactional-outbox-inbox-with-wolverine-and-why-you-care/) for more context.
 
-One of Wolverine's most important features is durable message persistence using your application's database for reliable "[store and forward](https://en.wikipedia.org/wiki/Store_and_forward)" queueing with all possible Wolverine transport options, including the [lightweight TCP transport](/guide/messaging/transports/tcp) and external transports like the [Rabbit MQ transport](/guide/messaging/transports/rabbitmq).
+One of Wolverine's most important features is durable message persistence using your application's database for reliable "[store and forward](https://en.wikipedia.org/wiki/Store_and_forward)" queueing with all possible Wolverine transport options, including the [lightweight TCP transport](/guide/messaging/transports/tcp) and external transports like the [Rabbit MQ transport](/guide/messaging/transports/rabbitmq/).
 
 It's a chaotic world out when high volume systems need to interact with other systems. Your system may fail, other systems may be down,
 there's network hiccups, occasional failures -- and you still need your systems to get to a consistent state without messages just
@@ -84,8 +84,8 @@ storage and processed when the system is restarted. Wolverine does this through 
 
 ::: tip
 Wolverine supports PostgreSQL, Sql Server, MySQL, SQLite, Oracle, RavenDb, and CosmosDB as the underlying message storage,
-and [Marten](/guide/durability/marten), [Polecat](/guide/durability/polecat/), or
-[Entity Framework Core](/guide/durability/efcore) as the application persistence framework.
+and [Marten](/guide/durability/marten/), [Polecat](/guide/durability/polecat/), or
+[Entity Framework Core](/guide/durability/efcore/) as the application persistence framework.
 :::
 
 There are three things you need to enable for the transactional outbox (and inbox for incoming messages):
@@ -94,7 +94,7 @@ There are three things you need to enable for the transactional outbox (and inbo
 2. Enroll outgoing subscriber or listener endpoints in the durable storage at configuration time
 3. Enable Wolverine's transactional middleware or utilize one of Wolverine's outbox publishing services
 
-The last bullet point varies a little bit between the [Marten integration](/guide/durability/marten) and the [EF Core integration](/guide/durability/efcore), so see the
+The last bullet point varies a little bit between the [Marten integration](/guide/durability/marten/) and the [EF Core integration](/guide/durability/efcore/), so see the
 the specific documentation on each for more details.
 
 

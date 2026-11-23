@@ -4,7 +4,7 @@ Wolverine supports [Entity Framework Core](https://learn.microsoft.com/en-us/ef/
 
 * Transactional middleware - Wolverine will both call `DbContext.SaveChangesAsync()` and flush any persisted messages for you
 * EF Core as a saga storage mechanism - As long as one of your registered `DbContext` services has a mapping for the stateful saga type
-* Outbox integration - Wolverine can use directly use a `DbContext` that has mappings for the Wolverine durable messaging, or at least use the database connection and current database transaction from a `DbContext` as part of durable, outbox message persistence.
+* Outbox integration - Wolverine can directly use a `DbContext` that has mappings for the Wolverine durable messaging, or at least use the database connection and current database transaction from a `DbContext` as part of durable, outbox message persistence.
 * [Multi-Tenancy with EF Core](./multi-tenancy)
 
 ## Getting Started
@@ -93,7 +93,7 @@ Right now, we've tested Wolverine with EF Core using both [SQL Server](/guide/du
 
 ## Combining EF Core with Marten <Badge type="tip" text="6.18" />
 
-It's completely valid to use both the EF Core and [Marten](/guide/durability/marten) integrations in
+It's completely valid to use both the EF Core and [Marten](/guide/durability/marten/) integrations in
 the same application — say, Marten for event sourcing and EF Core for flat relational tables. When
 Wolverine needs a persistence provider for an entity (for [storage side effects](/guide/handlers/side-effects),
 `[Entity]` loading, or [saga](/guide/durability/sagas.html) persistence), the EF Core integration is

@@ -24,8 +24,9 @@ using var host = await Host.CreateDefaultBuilder()
             // control the Rabbit MQ object lifecycle
             .DeclareExchange("exchange1", ex => { ex.BindQueue("queue1", "key1"); })
 
-            // Lets Wolverine create any missing declared Rabbit MQ objects
-            // on demand when it needs them
+            // This will direct Wolverine to create any missing Rabbit MQ exchanges,
+            // queues, or binding keys declared in the application at application
+            // start up time
             .AutoProvision();
 
         opts.PublishAllMessages().ToRabbitExchange("exchange1");
@@ -140,7 +141,7 @@ app.MapGet("/", () => "Hello World!");
 // Actually important to return the exit code here!
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/KitchenSink/MartenAndRabbitIssueService/Program.cs#L11-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kitchen_sink_bootstrapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/KitchenSink/MartenAndRabbitIssueService/Program.cs#L11-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kitchen_sink_bootstrapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this stateful resource model is also available at the command line as well for deploy time
@@ -235,7 +236,7 @@ syntax is shown below:
 var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
 // Declare new Exchanges, Queues, and Bindings at runtime
-runtime.ModifyRabbitMqObjects(o =>
+await runtime.ModifyRabbitMqObjects(o =>
 {
     var queue = o.DeclareQueue(queueName);
     var exchange = o.DeclareExchange(exchangeName);
@@ -243,7 +244,7 @@ runtime.ModifyRabbitMqObjects(o =>
 });
 
 // Unbind a queue from an exchange
-runtime.UnBindRabbitMqQueue(queueName, exchangeName, bindingKey);
+await runtime.UnBindRabbitMqQueue(queueName, exchangeName, bindingKey);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/dynamic_object_creation_smoke_tests.cs#L34-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_dynamic_creation_of_rabbit_mq_objects' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -280,8 +281,7 @@ builder.UseWolverine(opts =>
         // single queue, and the explicit configuration will win
         // out over any policy or convention
         .QueueType(QueueType.quorum);
-    
-    
+
 });
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L568-L594' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_quorum_or_streams_in_rabbit_mq' title='Start of snippet'>anchor</a></sup>
@@ -289,7 +289,7 @@ builder.UseWolverine(opts =>
 
 There are just a few things to know:
 
-* Wolverine's internal reply or control queues will still be declared as "classic" so they can be non-durable
+* Wolverine's internal reply or control queues will still be declared as "classic". They're durable but auto-delete, and quorum queues can't be auto-delete
 * Streams cannot be purged, and Wolverine ignores the `AutoPurgeOnStartup()` setting for streams
 
 ## Quorum Queues and the Durable Inbox
@@ -403,7 +403,7 @@ public class MyModuleExtension : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L641-L655' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_configuration_in_wolverine_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L675-L689' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_configuration_in_wolverine_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Identifier Prefixing for Shared Brokers

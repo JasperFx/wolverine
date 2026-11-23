@@ -53,7 +53,7 @@ approach to bootstrap your application through `Program.Main(args)`, the applica
 `Program.Main()` entrypoint.
 
 ::: tip
-We highly recommend you use [WebApplicationFactory](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests?view=aspnetcore-7.0) or [Alba](https://jasperfx.github.io/alba) (which uses `WebApplicationFactory` behind the covers)
+We highly recommend you use [WebApplicationFactory](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests) or [Alba](https://jasperfx.github.io/alba) (which uses `WebApplicationFactory` behind the covers)
 to bootstrap your application in integration tests to avoid any problems around Wolverine's application assembly determination.
 :::
 
@@ -265,6 +265,7 @@ And also specific to sagas:
 5. StartOrHandle / StartOrHandleAsync
 6. StartsOrHandles / StartsOrHandlesAsync
 7. NotFound / NotFoundAsync
+8. IdNotProvided / IdNotProvidedAsync
 
 See [Stateful Sagas](/guide/durability/sagas) for more information. 
 

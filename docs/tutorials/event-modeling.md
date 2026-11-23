@@ -487,7 +487,7 @@ await ThenReadModel<VolunteerApplicationsQueue>(theQueue, Specify<VolunteerAppli
 it can show the member and the expected value in the specification's report just like it does for `.With()`.
 
 That's also the catch. Before C# 14, an expression tree can't leave out an optional argument, and every Shouldly
-assertion has one, its `customMessage`. On net9.0, or anywhere `LangVersion` is pinned below 14, the member checks above
+assertion has one, its `customMessage`. Anywhere `LangVersion` is pinned below 14, the member checks above
 fail to compile with:
 
 ```
@@ -499,7 +499,7 @@ The fix is to spell out every optional argument, positionally:
 | Language version | What compiles |
 |------------------|---------------|
 | C# 14, the net10.0 default | `x => x.Pending.ShouldBe(1)` |
-| C# 12 or 13 (net9.0, or a pinned `LangVersion`) | `x => x.Pending.ShouldBe(1, null)` |
+| C# 12 or 13 (a pinned `LangVersion`) | `x => x.Pending.ShouldBe(1, null)` |
 
 ::: tip
 If you're on C# 12 or 13, our advice is to use the `.With()` chain or the table for anything that's plain equality, and
@@ -686,7 +686,7 @@ for everything else the export can do.
 To recap the whole loop with CritterCrush:
 
 1. `bobcat import-event-model` turned two chapters of the board into C# stubs, one `EventModelDefinition` per chapter
-   under `Features/{Chapter}/`, and a red specification per example
+   under `Features/{Chapter}/`, and Wolverine's `write-specs` wrote a red specification per example
 2. We corrected Bobcat's reported guesses with one line edits or with `--aggregate` and `--starts-stream`
 3. `wolverine scaffold` wrote a store-agnostic handler skeleton next to every command with no code behind it
 4. We filled in the handlers until the specifications went green

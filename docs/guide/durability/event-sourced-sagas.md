@@ -251,18 +251,10 @@ public class ReturnRequest : EventSourcedSaga
 Wolverine's own events (`SagaCompleted` and the compensation events below) still reach the base type's `Apply` methods:
 an inherited `Apply` runs first, then your `Evolve`. You never forward them by hand.
 
-::: warning
+::: info
 That needs the JasperFx.Events source generator 3.8.0 or later
-([jasperfx#1241](https://github.com/JasperFx/jasperfx/issues/1241)), which Marten 10.0.0-alpha.5, Polecat 6.0.0-alpha.7
-and Fisher 2.0.0-alpha.4 bundle. An older store package bundles an older copy of the generator, and then an `Evolve()`
-saga never sees Wolverine's own events: it never reads as completed, and its compensation status stays `Active`. Only if
-you are on Marten older than 10.0.0-alpha.5, Polecat older than 6.0.0-alpha.7 or Fisher older than 2.0.0-alpha.4,
-reference the generator package directly, and its copy wins over the bundled one:
-
-```xml
-<PackageReference Include="JasperFx.Events.SourceGenerator" Version="3.8.0"
-                  OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
-```
+([jasperfx#1241](https://github.com/JasperFx/jasperfx/issues/1241)). Marten 10, Polecat 6 and Fisher 2, the versions
+Wolverine 7 requires, all bundle it, so you don't need to reference the generator yourself.
 
 See [Build Diagnostics](https://shared-libs.jasperfx.net/codegen/diagnostics) in the JasperFx documentation for the
 `JFXEVT` diagnostics the generator reports at build time.

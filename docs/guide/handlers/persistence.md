@@ -448,7 +448,7 @@ want and leaves the store to satisfy it. This one hands you a provider-specific 
 
 **It is not portable in practice, even though the type is.** Marten, EF Core, RavenDb and CosmosDb LINQ
 providers support very different subsets of LINQ. A query that compiles and runs correctly on one can
-throw at *runtime* on another. The concrete example that will catch you: **Marten 9 refuses synchronous
+throw at *runtime* on another. The concrete example that will catch you: **Marten (since 9.0) refuses synchronous
 LINQ execution outright**, so
 
 ```cs
@@ -807,12 +807,12 @@ public static (IReadOnlyList<object>, OrderShipmentNotice) Handle(
 
 ::: tip
 Every store integration also ships its own name for these — `[WriteAggregate]`, `[ReadAggregate]`,
-`[AggregateHandler]` and `[BoundaryModel]` in both `Wolverine.Marten` and `Wolverine.Polecat`, plus
+`[AggregateHandler]` and `[BoundaryModel]` in `Wolverine.Marten`, `Wolverine.Polecat` and `Wolverine.Fisher`, plus
 `[Aggregate]` in the matching `Wolverine.Http.*` package. As of Wolverine 6.26 (6.27 for
 `[BoundaryModel]`) those all inherit from the attributes above and behave identically, so existing
 code needs no change. Prefer the store-agnostic names in new code.
 
-One thing to know if you mix them: `Wolverine.Marten` and `Wolverine.Polecat` each have their own
+One thing to know if you mix them: `Wolverine.Marten`, `Wolverine.Polecat` and `Wolverine.Fisher` each have their own
 public `ConcurrencyStyle` enum, which is why the core one is `ModelConcurrencyStyle`. A file that
 imports both `Wolverine.Marten` and `Wolverine.Persistence.EventSourcing` sees both names, and they
 do not collide.
@@ -870,7 +870,7 @@ you only meant a subset.
 
 Some other facts to know about `[Entity]` usage:
 
-* Supported by the Marten, EF Core, and RavenDb integration
+* Supported by the Marten, Polecat, Fisher, EF Core, RavenDb and Redis integrations, and by the in-memory store
 * For EF Core usage, Wolverine has to be able to figure out which `DbContext` type persists the entity type of the parameter
 * In all cases, Wolverine is trying to "know" what the identity type for the entity type is (`Guid`? `int`? Something else?) from the underlying persistence tooling and use that to help parse route arguments as needed
 * `[Entity]` cannot support any kind of composite key or identity

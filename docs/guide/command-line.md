@@ -4,7 +4,7 @@
 
 With help from the shared [JasperFx](https://shared-libs.jasperfx.net/cli/) command line library (the successor to Oakton), Wolverine supports quite a few command line diagnostic and resource management
 tools. To get started, apply JasperFx as the command line parser in your applications as shown in the last line of code in this
-sample application bootstrapping from Wolverine's [Getting Started](/tutorials/getting-started):
+sample application bootstrapping from Wolverine's [Getting Started](/introduction/getting-started):
 
 ::: info
 This page covers the Wolverine-specific CLI surface. The underlying JasperFx command-line library that backs `RunJasperFxCommands` — including how to [author your own commands](https://shared-libs.jasperfx.net/cli/writing-commands.html), [argument/flag handling](https://shared-libs.jasperfx.net/cli/arguments-flags.html), and [environment checks](https://shared-libs.jasperfx.net/cli/environment-checks.html) — is documented at [shared-libs.jasperfx.net/cli](https://shared-libs.jasperfx.net/cli/). When a command accepts a generic flag not listed on this page, that's where to look first.
@@ -52,14 +52,12 @@ app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeA
 
 app.MapOpenApi();
 
-app.MapGet("/", () => Results.Redirect("/swagger"));
-
 // Opt into using JasperFx for command line parsing
 // to unlock built in diagnostics and utility tools within
 // your Wolverine application
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 From this project's root in the command line terminal tool of your choice, type:
@@ -122,7 +120,7 @@ in the JasperFx documentation for how to add your own sections to the report wit
 This command:
 
 ```bash
-dotnet run capabilities wolverine.json
+dotnet run -- capabilities wolverine.json
 ```
 
 Will write a JSON file to "wolverine.json" that will completely describe all the configured settings, message types, message store,

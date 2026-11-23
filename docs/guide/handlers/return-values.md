@@ -19,7 +19,7 @@ The valid return values for Wolverine handlers are:
 In all cases up above, if the endpoint method is asynchronous using either `Task<T>` or `ValueTask<T>`, the `T` is the
 return value, with the same behavior as the synchronous `T` would have.
 
-Wolverine also supports [Tuple](https://learn.microsoft.com/en-us/dotnet/api/system.tuple?view=net-7.0) responses, in which case
+Wolverine also supports [Tuple](https://learn.microsoft.com/en-us/dotnet/api/system.tuple) responses, in which case
 every single item in a tuple `(T, T1, T2)` is an individual return value that Wolverine treats independently. Here's
 an example from the saga support of message handler that returns both a new `OrderSaga` to be persisted and a separate
 `OrderTimeout` to be published as a cascaded message:

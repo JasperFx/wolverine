@@ -305,7 +305,7 @@ consistency through asynchronous messaging
 * Or is there a real justification for publishing event messages to other modules to take action later?
 
 Assuming that you do opt for eventual consistency, Wolverine makes that quite simple. Just make
-sure that you are using [durable endpoints](/guide/durability) for communication between any two or more actions that are involved for the implied
+sure that you are using [durable endpoints](/guide/durability/) for communication between any two or more actions that are involved for the implied
 eventual consistency transactional boundary so that the work does not get lost even in the face of transient errors or unexpected
 system shutdowns.
 

@@ -469,8 +469,8 @@ is Wolverine's own bookkeeping. The rest is the async daemon's per-shard machine
 distribution and Marten's own `AddAsyncDaemon()` use the same memory for the same set of shards.
 
 What costs real memory is a shard that is *behind*. A shard that's behind keeps loading pages of events ahead of
-itself until it holds `MaximumHopperSize` events in memory, and that's **5,000 events by default no matter what
-your `BatchSize` is**. Those pages sit in the shard's queue while it waits for one of the per-database batch write
+itself until it holds `MaximumHopperSize` events in memory, and that's **2 x `BatchSize` by default**, or 1,000
+events with the default `BatchSize` of 500. Those pages sit in the shard's queue while it waits for one of the per-database batch write
 slots (`MaxConcurrentBatchWritesPerDatabase`, 4 by default). Nothing caps the total across shards, so the rough math
 for your peak memory is:
 
@@ -543,14 +543,14 @@ size of 100 with a hopper of 200 brought it under 200 MB. We didn't see any thro
 either. When the writes are the bottleneck, a deeper prefetch doesn't buy you anything anyway.
 
 ::: warning
-Don't just shrink `BatchSize` by itself. The hopper stays at 5,000 events, so a shard holds 50 small pages instead
-of 10 big ones, and it drains more slowly with the extra per-page overhead. In our testing, dropping `BatchSize` to
+If you've set `MaximumHopperSize` explicitly, don't just shrink `BatchSize` by itself. The hopper stays where you
+set it, so a shard holds 50 small pages instead of 10 big ones, and it drains more slowly with the extra per-page overhead. In our testing, dropping `BatchSize` to
 100 without touching `MaximumHopperSize` actually *raised* peak memory.
 :::
 
 ::: info
-A future JasperFx release plans to derive the default `MaximumHopperSize` from `BatchSize` instead of using a flat
-5,000 ([jasperfx#1076](https://github.com/JasperFx/jasperfx/issues/1076)). Until then, set it explicitly.
+Since JasperFx 3.0, the default `MaximumHopperSize` is derived from `BatchSize` (2 x `BatchSize`) instead of a flat
+5,000 ([jasperfx#1076](https://github.com/JasperFx/jasperfx/issues/1076)). Earlier releases needed it set explicitly.
 :::
 
 ### The other knobs, and what they do and don't bound
@@ -563,7 +563,8 @@ Most of the other daemon settings pace the work rather than cap how much of it s
 * `MaxConcurrentEventLoadsPerDatabase` (default 4) bounds how many loads run at once, not how many loaded pages a
   shard keeps. Lowering it slows down how fast the hoppers fill, but they still fill
 * `MaxConcurrentSideEffectGateWarmupsPerDatabase` (default 0, meaning unbounded) only applies to projections that
-  opt into `GateSideEffectsBehindPriorVersion = true` on their `AsyncOptions`. With that on, it caps how many
+  have `GateSideEffectsBehindPriorVersion` on in their `AsyncOptions`, which is the default since JasperFx 3.0. With
+  that on, it caps how many
   new-version shards per database warm up and load at the same time, which is the closest thing today to "only
   keep N rebuilding shards in memory at once"
 * `CacheLimitPerTenant` (per projection, default 0) turns on an aggregate cache per tenant. Keep it at 0 or very

@@ -410,7 +410,7 @@ const config: UserConfig<DefaultTheme.Config> = {
             md.use(blockEmbedPlugin)
         }
     },
-    ignoreDeadLinks: true,
+    ignoreDeadLinks: [/^https?:\/\/localhost/, /^https?:\/\//],
     vite: {
         plugins: [llmstxt()]
     }
