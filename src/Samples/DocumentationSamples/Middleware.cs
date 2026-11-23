@@ -177,7 +177,7 @@ public class StopwatchFrame : SyncFrame
 
         writer.Write("stopwatch.Stop();");
         writer.Write(
-            $"{_logger.Usage}.Log(Microsoft.Extensions.Logging.LogLevel.Information, \"{_chain.Description} ran in \" + {_stopwatch.Usage}.{nameof(Stopwatch.ElapsedMilliseconds)});)");
+            $"{_logger.Usage}.Log(Microsoft.Extensions.Logging.LogLevel.Information, \"{_chain.Description} ran in \" + {_stopwatch.Usage}.{nameof(Stopwatch.ElapsedMilliseconds)});");
 
         writer.FinishBlock();
     }

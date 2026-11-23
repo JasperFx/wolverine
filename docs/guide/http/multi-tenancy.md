@@ -195,49 +195,58 @@ public static Task<IReadOnlyList<Todo>> Get(string tenant, IQuerySession session
 
 At runtime, Wolverine is now generating this code around that endpoint method:
 
-```csharp
-public class GET_todoitems_tenant : Wolverine.Http.HttpHandler
+```cs
+public sealed class GET_todoitems_tenant : HttpHandler
 {
-    private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-    private readonly Wolverine.Runtime.IWolverineRuntime _wolverineRuntime;
-    private readonly Wolverine.Marten.Publishing.OutboxedSessionFactory _outboxedSessionFactory;
+    private readonly WolverineHttpOptions _wolverineHttpOptions;
+    private readonly OutboxedSessionFactory _outboxedSessionFactory;
+    private readonly IWolverineRuntime _wolverineRuntime;
 
-    public GET_todoitems_tenant(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions, Wolverine.Runtime.IWolverineRuntime wolverineRuntime, Wolverine.Marten.Publishing.OutboxedSessionFactory outboxedSessionFactory) : base(wolverineHttpOptions)
+    public GET_todoitems_tenant(WolverineHttpOptions wolverineHttpOptions, OutboxedSessionFactory outboxedSessionFactory, IWolverineRuntime wolverineRuntime) : base(wolverineHttpOptions)
     {
         _wolverineHttpOptions = wolverineHttpOptions;
-        _wolverineRuntime = wolverineRuntime;
         _outboxedSessionFactory = outboxedSessionFactory;
+        _wolverineRuntime = wolverineRuntime;
     }
 
-
-
-    public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
+    public override async Task Handle(HttpContext httpContext)
     {
-        var messageContext = new Wolverine.Runtime.MessageContext(_wolverineRuntime);
-
         // Tenant Id detection
         // 1. Tenant Id is route argument named 'tenant'
         var tenantId = await TryDetectTenantId(httpContext);
-        messageContext.TenantId = tenantId;
         if (string.IsNullOrEmpty(tenantId))
         {
             await WriteTenantIdNotFound(httpContext);
             return;
         }
 
+        var messageContext = new MessageContext(_wolverineRuntime);
+        messageContext.TenantId = tenantId;
+        UserNameMiddleware.Apply(httpContext, messageContext);
+        RequestIdMiddleware.Apply(httpContext, messageContext);
         // Building the Marten session using the detected tenant id
-        await using var querySession = _outboxedSessionFactory.QuerySession(messageContext, tenantId);
-        var tenant = (string)httpContext.GetRouteValue("tenant");
+        await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext, tenantId);
+        // (Open Telemetry tagging omitted)
+        var tenant = (string?)httpContext.GetRouteValue("tenant");
+        if(tenant == null)
+        {
+            httpContext.Response.StatusCode = 404;
+            return;
+        }
+
         
         // The actual HTTP request handler execution
-        var todoIReadOnlyList_response = await MultiTenantedTodoWebService.TodoEndpoints.Get(tenant, querySession).ConfigureAwait(false);
+        var todoIReadOnlyList_response = await TodoEndpoints.Get(tenant, ((IQuerySession)documentSession)).ConfigureAwait(false);
 
         // Writing the response body to JSON because this was the first 'return variable' in the method signature
-        await WriteJsonAsync(httpContext, todoIReadOnlyList_response);
+        await WriteJsonAsync(httpContext, todoIReadOnlyList_response, 404);
     }
-
 }
 ```
+
+::: tip
+That's what Wolverine 7.0 generates for this endpoint today, lightly trimmed. To see the real thing for your own endpoints, run `dotnet run -- codegen preview`.
+:::
 
 ## Referencing the Tenant Id in Endpoint Methods
 

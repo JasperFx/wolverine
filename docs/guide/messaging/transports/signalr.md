@@ -714,6 +714,37 @@ Let's say that you have a workflow in your system something like:
 
 The SignalR transport can leverage some of Wolverine's built in saga tracking to be able to route the eventual Web Socket
 response back to the originating caller even if the work required intermediate steps. The easiest way to enroll in this
-behavior today is the usage of the `[EnlistInCurrentConnectionSaga]` that should be on either 
+behavior today is the usage of the `[EnlistInCurrentConnectionSaga]` attribute, which goes on either the handler method
+or the handler class for the message the browser sent:
 
+<!-- snippet: sample_enlist_in_current_connection_saga -->
+<a id='snippet-sample_enlist_in_current_connection_saga'></a>
+```cs
+// Directs Wolverine to track the connection id that
+// originated this incoming message so that any
+// resulting SignalR messages as a response to this
+// original message are sent to only the originating connection
+[EnlistInCurrentConnectionSaga]
+public static DoMath Handle(AddNumbers numbers)
+{
+    return new DoMath(numbers.X, numbers.Y);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/group_mechanics.cs#L94-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enlist_in_current_connection_saga' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
+Here's what's happening with that attribute:
+
+1. The browser sends an `AddNumbers` message over SignalR
+2. Before the handler runs, Wolverine stamps the originating connection id onto the incoming envelope as its saga id
+3. Wolverine carries that saga id along on every message cascaded from there, so the `DoMath` message, and then the
+   `MathAnswer` that `DoMath`'s handler returns, both carry it too. It's an ordinary envelope header, so it travels
+   across your other Wolverine services as well
+4. `MathAnswer` is published to SignalR with `opts.PublishMessage<MathAnswer>().ToSignalR()`, and since nothing else
+   says which connection or group it's for, the SignalR transport reads the connection out of the saga id and sends
+   `MathAnswer` to only the browser that started the whole thing
+
+::: tip
+If the handler of the original message can answer directly, you don't need any of this. Just return the answer with
+`RespondToCallingWebSocket()` as shown in [Sending Messages to SignalR](#sending-messages-to-signalr).
+:::

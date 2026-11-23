@@ -244,3 +244,19 @@ public static class VoidExceptionEndpoints
 }
 
 #endregion
+
+// Used by the middleware migration tutorial's IExceptionFilter comparison
+public class NotFoundException : Exception
+{
+    public NotFoundException(string message) : base(message) { }
+}
+
+#region sample_not_found_exception_middleware
+public static class NotFoundMiddleware
+{
+    public static IResult OnException(NotFoundException ex)
+    {
+        return Results.NotFound();
+    }
+}
+#endregion

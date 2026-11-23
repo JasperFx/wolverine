@@ -1,10 +1,10 @@
 ## Using ProblemDetails
 
-Wolverine has some first class support for the [ProblemDetails](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails?view=aspnetcore-7.0) specification in its [HTTP middleware model](./middleware).
-Wolverine also has a [Fluent Validation middleware package](./fluentvalidation) for HTTP endpoints, but it's frequently valuable to write one
+Wolverine has some first class support for the [ProblemDetails](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails) specification in its [HTTP middleware model](./middleware).
+Wolverine also has a [Fluent Validation middleware package](./validation#fluent-validation-middleware) for HTTP endpoints, but it's frequently valuable to write one
 off, explicit validation for certain endpoints. 
 
-Consider this contrived sample endpoint with explicit validation being done in a "Before" middleware method:
+Consider this contrived sample endpoint with explicit validation being done in a `Validate()` middleware method:
 
 <!-- snippet: sample_problemdetailsusageendpoint -->
 <a id='snippet-sample_problemdetailsusageendpoint'></a>
@@ -46,35 +46,43 @@ Wolverine.Http now (as of 1.2.0) has a convention that sees a return value of `P
 
 To make that clearer, here's the generated code:
 
-```csharp
-    public class POST_problems : Wolverine.Http.HttpHandler
+```cs
+public sealed class POST_problems : HttpHandler
+{
+    private readonly WolverineHttpOptions _wolverineHttpOptions;
+
+    public POST_problems(WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
     {
-        private readonly Wolverine.Http.WolverineHttpOptions _wolverineHttpOptions;
-
-        public POST_problems(Wolverine.Http.WolverineHttpOptions wolverineHttpOptions) : base(wolverineHttpOptions)
-        {
-            _wolverineHttpOptions = wolverineHttpOptions;
-        }
-
-        public override async System.Threading.Tasks.Task Handle(Microsoft.AspNetCore.Http.HttpContext httpContext)
-        {
-            var problemDetailsUsageEndpoint = new WolverineWebApi.ProblemDetailsUsageEndpoint();
-            var (message, jsonContinue) = await ReadJsonAsync<WolverineWebApi.NumberMessage>(httpContext);
-            if (jsonContinue == Wolverine.HandlerContinuation.Stop) return;
-            
-            var problemDetails = problemDetailsUsageEndpoint.Before(message);
-            if (!(ReferenceEquals(problemDetails, Wolverine.Http.WolverineContinue.NoProblems)))
-            {
-                await Microsoft.AspNetCore.Http.Results.Problem(problemDetails).ExecuteAsync(httpContext).ConfigureAwait(false);
-                return;
-            }
-
-            var result_of_Post = WolverineWebApi.ProblemDetailsUsageEndpoint.Post(message);
-            await WriteString(httpContext, result_of_Post);
-        }
-
+        _wolverineHttpOptions = wolverineHttpOptions;
     }
+
+    public override async Task Handle(HttpContext httpContext)
+    {
+        var problemDetailsUsageEndpoint = new ProblemDetailsUsageEndpoint();
+        // (Open Telemetry tagging omitted)
+        // Reading the request body via JSON deserialization
+        var (message, jsonContinue) = await ReadJsonAsync<NumberMessage>(httpContext);
+        if (jsonContinue == HandlerContinuation.Stop) return;
+        var problemDetails1 = problemDetailsUsageEndpoint.Validate(message);
+        // Evaluate whether the processing should stop if there are any problems
+        if (!(ReferenceEquals(problemDetails1, WolverineContinue.NoProblems)))
+        {
+            await WriteProblems(problemDetails1, httpContext).ConfigureAwait(false);
+            return;
+        }
+
+        
+        // The actual HTTP request handler execution
+        var result_of_Post = ProblemDetailsUsageEndpoint.Post(message);
+
+        await WriteString(httpContext, result_of_Post, 404);
+    }
+}
 ```
+
+::: tip
+That's what Wolverine 7.0 generates for this endpoint today, lightly trimmed. To see the real thing for your own endpoints, run `dotnet run -- codegen preview`.
+:::
 
 And for more context, here's the matching "happy path" and "sad path" tests for the endpoint above:
 
@@ -138,6 +146,33 @@ public static ProblemDetails Before(IShipOrder command, Order order)
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L106-L120' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_before_on_http_aggregate' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+## Using Lightweight Validation with String Messages
+
+Instead of using `ProblemDetails` directly, you can also use one of the [Lightweight Validation](../handlers/index.md#lightweight-validation-with-string-messages) types: `IEnumerable<string>`, `string[]`, `Task<string[]>`, `ValueTask<string[]>` or `ValidationOutcome`. If the returned collection is not empty, Wolverine will create a `ProblemDetails` response with a 400 status code containing the validation messages.
+
+
+<!-- snippet: sample_simple_validation_http_ienumerable -->
+<a id='snippet-sample_simple_validation_http_ienumerable'></a>
+```cs
+public record SimpleValidateHttpEnumerableMessage(int Number);
+
+public static class SimpleValidationHttpEnumerableEndpoint
+{
+    public static IEnumerable<string> Validate(SimpleValidateHttpEnumerableMessage message)
+    {
+        if (message.Number > 10)
+        {
+            yield return "Number must be 10 or less";
+        }
+    }
+
+    [WolverinePost("/simple-validation/ienumerable")]
+    public static string Post(SimpleValidateHttpEnumerableMessage message) => "Ok";
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SimpleValidationUsage.cs#L6-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_validation_http_ienumerable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Within Message Handlers <Badge type="tip" text="3.0" />
