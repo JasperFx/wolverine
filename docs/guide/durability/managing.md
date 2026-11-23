@@ -222,22 +222,38 @@ that you can discover from typing `dotnet run -- help` at the command line at th
 ```bash
 The available commands are:
 
-  Alias       Description
+  Alias                   Description
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  check-env   Execute all environment checks against the application
-  codegen     Utilities for working with JasperFx.CodeGeneration and JasperFx.RuntimeCompiler
-  db-apply    Applies all outstanding changes to the database(s) based on the current configuration
-  db-assert   Assert that the existing database(s) matches the current configuration
-  db-dump     Dumps the entire DDL for the configured Marten database
-  db-list     List all the databases as configured for this application
-  db-patch    Evaluates the current configuration against the database and writes a patch and drop file if there are
-              any differences
-  describe    Writes out a description of your running application to either the console or a file
-  help        List all the available commands
-  resources   Check, setup, or teardown stateful resources of this system
-  run         Start and run this .Net application
-  storage     Administer the Wolverine message storage
+  capabilities            Write the Wolverine capabilities of this application as JSON, to wolverine.json by default
+  check-env               Execute all environment checks against the application
+  clear-handled           Clear out all persisted inbox messages marked as `Handled`
+  codegen                 Utilities for working with JasperFx.CodeGeneration and JasperFx.RuntimeCompiler
+  db-apply                Applies all outstanding changes to the database(s) based on the current configuration
+  db-assert               Assert that the existing database(s) matches the current configuration
+  db-dump                 Dumps the entire DDL for the configured Marten database
+  db-list                 List all database(s) based on the current configuration
+  db-patch                Evaluates the current configuration against the database and writes a patch and drop file if there are any differences
+  describe                Writes out a description of your running application to either the console or a file
+  describe-event-model    Describe the application's Event Model -- every slice by domain and chapter, with its trigger, aggregate, events, code, specifications and hotspots
+  event-model             Write the application's Event Model -- the roles every handler, HTTP and gRPC chain derives about itself, plus any registered overlay -- as JSON, without a running fleet
+  event-query             Query events across all streams with filters, ordered by sequence ascending, paged
+  help                    List all the available commands
+  marten                  Advanced Marten operations to 'heal' event store projection issues or reset data
+  projection-run          Replay a projection over a stream, stream slice, or tag query and show the per-event before/after state
+  projections             Asynchronous projection and projection rebuilds
+  resources               Check, setup, or teardown stateful resources of this system
+  run                     Start and run this .Net application
+  saga-flow               Draw each saga's flow -- messages in, the methods that handle them, what they send, schedule and append, NotFound and Compensate -- as a Mermaid diagram
+  scaffold                Write implementation skeletons for the Event Model slices that are declared but have no code yet
+  storage                 Administer the Wolverine message storage
+  stream-query            Query event stream metadata (version, aggregate type, compaction watermark, archive flag) with filters and paging
+  wolverine-diagnostics   Wolverine diagnostics tools for inspecting generated code and runtime behavior
 ```
+
+That's the list from a Wolverine application using Marten, the `OrderSagaSample` in the Wolverine codebase. The exact
+list depends on what you have installed. The `marten`, `projections`, `projection-run`, `event-query` and
+`stream-query` commands come with Marten's event store, and other Wolverine packages bring their own, like `openapi`
+from `WolverineFx.Http`, `kafka-replay` from `WolverineFx.Kafka` and `write-specs` from `WolverineFx.Bobcat.EventModel`.
 
 There's admittedly some duplication here with different options coming from [JasperFx](https://github.com/JasperFx/jasperfx) itself, the [Weasel.CommandLine](https://weasel.jasperfx.net/cli/) library,
 and the `storage` command from Wolverine itself. To build out the schema objects for [message persistence](/guide/durability/), you

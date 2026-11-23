@@ -4,7 +4,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Persistence;
 
-[Description("Clear out all peristed inbox messages marked as `Handled`", Name = "clear-handled")]
+[Description("Clear out all persisted inbox messages marked as `Handled`", Name = "clear-handled")]
 public class ClearHandledCommand : JasperFxAsyncCommand<NetCoreInput>
 {
     public override async Task<bool> Execute(NetCoreInput input)
