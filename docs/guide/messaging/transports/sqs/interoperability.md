@@ -152,3 +152,31 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L340-L353' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_receive_sns_topic_metadata_with_custom_mapper_in_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Interoperability with NServiceBus and MassTransit
+
+Amazon SQS has built in recipes for exchanging messages with NServiceBus and MassTransit applications. Opt into
+either one endpoint by endpoint:
+
+```cs
+opts.UseAmazonSqsTransport();
+
+// Send to and receive from an NServiceBus application. The optional
+// queue name tells NServiceBus where to send replies back to this application
+opts.PublishMessage<OrderPlaced>().ToSqsQueue("nsb-orders")
+    .UseNServiceBusInterop("wolverine-replies");
+
+opts.ListenToSqsQueue("wolverine-replies")
+    .UseNServiceBusInterop();
+
+// Send to and receive from a MassTransit application
+opts.PublishMessage<OrderShipped>().ToSqsQueue("masstransit-orders")
+    .UseMassTransitInterop();
+
+opts.ListenToSqsQueue("from-masstransit")
+    .UseMassTransitInterop()
+    .DefaultIncomingMessage<OrderShipped>();
+```
+
+See [Interop with NServiceBus](/tutorials/interop#interop-with-nservicebus) and
+[Interop with MassTransit](/tutorials/interop#interop-with-masstransit) for the details and caveats.

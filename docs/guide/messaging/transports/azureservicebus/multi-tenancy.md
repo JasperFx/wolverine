@@ -89,8 +89,10 @@ In the code sample above, I'm setting up the Azure Service Bus transport to "kno
 with separate Azure Service Bus fully qualified namespaces. 
 
 ::: tip
-Note that Wolverine uses the credentials specified for the default Azure Service
-Bus connection for all tenant specific connections
+A tenant registered with `AddTenantByNamespace()` connects with the token, named key or SAS credential you gave the
+default connection, so in that case set up the default connection with one of the
+`UseAzureServiceBus(fullyQualifiedNamespace, credential)` overloads. A tenant registered with
+`AddTenantByConnectionString()` uses whatever credentials are in its own connection string.
 :::
 
 At runtime, if we send a message like so:

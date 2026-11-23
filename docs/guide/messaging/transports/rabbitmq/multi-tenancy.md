@@ -112,8 +112,11 @@ public static async Task send_message_to_specific_tenant(IMessageBus bus)
 In the case above, in the Wolverine internals, it:
 
 1. Routes the message to a Rabbit MQ queue named "outgoing"
-2. Within the sender for that queue, Wolverine sees that `TenantId == "two"`, so it sends the message to the "outgoing" queue
-   on the "vh2" virtual host
+2. Because the "outgoing" queue is marked with `GlobalSender()`, Wolverine opts it out of the per-tenant topology and
+   sends the message to the "outgoing" queue on the default broker connection, even though `TenantId == "two"`
+
+Without that `GlobalSender()` call, the sender for "outgoing" would be tenant aware instead. Wolverine would see that
+`TenantId == "two"` and send the message to the "outgoing" queue on the "vh2" virtual host.
 
 Likewise, see the listening set up against the "incoming" queue above. At runtime, this Wolverine application will be
 listening to a queue named "incoming" on the default Rabbit MQ broker and a separate queue named "incoming" on the separate

@@ -72,6 +72,13 @@ await host.StartAsync();
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L866-L888' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_buffered_dlq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: info
+A buffered endpoint has already completed the message with Azure Service Bus when it received it, so if Wolverine can't
+send a failed message to the dead letter queue after a few retries (or the host stops first), it writes the message to
+the message store's dead letter storage instead. With no message store configured, the message is discarded with an
+error log. See [When a Native Dead Letter Queue Can't Be Reached](/guide/durability/dead-letter-storage#when-a-native-dead-letter-queue-can-t-be-reached).
+:::
+
 ### Durable Endpoints
 
 Durable endpoints behave similarly to buffered endpoints, with dead lettering to the configured dead letter queue, while leveraging Wolverine's persistence for reliability.

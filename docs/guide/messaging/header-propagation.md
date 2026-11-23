@@ -48,7 +48,11 @@ lower case names like `x-user` are carried along in the CloudEvents document. Se
 :::
 
 ::: warning
-The headers must be present on the incoming `Envelope` at the point the handler runs. Wolverine's default envelope mappers only carry Wolverine's own metadata headers, so if you need to propagate custom headers from an external producer you will need a custom envelope mapper that explicitly reads those headers from the transport message and sets them on the envelope.
+The headers must be present on the incoming `Envelope` at the point the handler runs. The default envelope mappers for
+RabbitMQ, Kafka, Azure Service Bus (application properties), NATS, Pulsar (message properties) and GCP Pub/Sub
+(attributes) copy every incoming header onto the envelope, so custom headers from an external producer just come
+along. For any other transport, check what its mapper reads, and if your custom header isn't carried, you will need a
+custom envelope mapper that explicitly reads that header from the transport message and sets it on the envelope.
 :::
 
 ## Custom Envelope Rules

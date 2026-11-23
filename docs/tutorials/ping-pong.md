@@ -159,36 +159,6 @@ public class PingHandler
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/PingHandler.cs#L1-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler' title='Start of snippet'>anchor</a></sup>
-<a id='snippet-sample_pinghandler-1'></a>
-```cs
-public static class PingHandler
-{
-    // Simple message handler for the PingMessage message type
-    public static ValueTask Handle(
-        // The first argument is assumed to be the message type
-        PingMessage message,
-
-        // Wolverine supports method injection similar to ASP.Net Core MVC
-        // In this case though, IMessageContext is scoped to the message
-        // being handled
-        IMessageContext context)
-    {
-        AnsiConsole.MarkupLine($"[blue]Got ping #{message.Number}[/]");
-
-        var response = new PongMessage
-        {
-            Number = message.Number
-        };
-
-        // This usage will send the response message
-        // back to the original sender. Wolverine uses message
-        // headers to embed the reply address for exactly
-        // this use case
-        return context.RespondToSenderAsync(response);
-    }
-}
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L6-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If I start up first the *Ponger* service, then the *Pinger* service, I'll see console output like this from *Pinger*:

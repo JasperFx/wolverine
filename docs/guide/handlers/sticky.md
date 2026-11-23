@@ -90,8 +90,11 @@ In both cases, the message is tracked separately in terms of queueing, failures,
 
 ::: tip
 If there are multiple handlers for the same message and only some of the handlers have explicit "sticky" rules, the 
-handlers with no configured "sticky" rules will be executed if that message is published to any other endpoint. Call these
-the "leftovers"
+handlers with no configured "sticky" rules will still get that message when it is published or received anywhere else. Call these
+the "leftovers". As of Wolverine 7.0, each leftover handler type is its own handler chain on its own local queue
+(`local://{handler type's full name, lower case}`), so a message received at some other endpoint is relayed to each of those
+queues, and the leftovers no longer run together in one transaction. See
+[one handler chain per handler type](/guide/migration#one-handler-chain-per-handler-type-breaking).
 :::
 
 It's also possible -- and maybe advantageous -- to define the stickiness with the fluent interface directly against

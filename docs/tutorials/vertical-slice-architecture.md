@@ -110,6 +110,7 @@ public class Order
     public string Id { get; set; }
     public string CustomerId { get; set; }
     public decimal Amount { get; set; }
+    public bool HasShipped { get; set; }
 
     public class Validator : AbstractValidator<PlaceOrder>
     {
@@ -416,6 +417,36 @@ And honestly, that's it for many cases. I would of course place closely related 
 in the same namespace. That's the easy part, so let's move on to what might be controversial. Let's step into a quick, simplistic example
 that's using [Marten](https://martendb.io) for persistence:
 
+```csharp
+// PlaceOrder.cs
+public record PlaceOrder(string OrderId, string CustomerId, decimal Amount)
+{
+    public class Validator : AbstractValidator<PlaceOrder>
+    {
+        public Validator()
+        {
+            RuleFor(x => x.OrderId).NotNull();
+            RuleFor(x => x.CustomerId).NotNull();
+            RuleFor(x => x.Amount).NotNull();
+        }
+    }
+}
+
+public static class PlaceOrderHandler
+{
+    public static Insert<Order> Handle(PlaceOrder command)
+    {
+        var order = new Order
+        {
+            Id = command.OrderId, 
+            CustomerId = command.CustomerId, 
+            Amount = command.Amount
+        };
+
+        return Storage.Insert(order);
+    }
+}
+```
 
 Or for an HTTP endpoint, just swap out `PlaceOrderHandler` for this:
 

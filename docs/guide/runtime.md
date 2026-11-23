@@ -107,13 +107,13 @@ During the listening process, Wolverine has to:
 ## Endpoint Types
 
 ::: info
-Not all transports support all three types of endpoint modes, and will helpfully assert when you try to choose
+Not all transports support every endpoint mode, and will helpfully assert when you try to choose
 an invalid option.
 :::
 
 ### Inline Endpoints
 
-Wolverine endpoints come in three basic flavors, with the first being **Inline** endpoints:
+Wolverine endpoints come in four basic flavors, with the first being **Inline** endpoints:
 
 <!-- snippet: sample_using_process_inline -->
 <a id='snippet-sample_using_process_inline'></a>
@@ -204,6 +204,13 @@ incoming messages are also deleted from the durable inbox upon successful messag
 
 The `Durable` endpoint option makes Wolverine's [local queueing](/guide/messaging/transports/local) robust enough to use for cases where you need 
 guaranteed processing of messages, but don't want to use an external broker.
+
+### Native Ack Endpoints
+
+The fourth option, `EndpointMode.NativeAck`, processes messages in memory like **Buffered** endpoints, but holds the broker
+delivery unacknowledged until the handler finishes. The broker message is then acked on success, or nacked or dead lettered
+natively on a terminal failure. That's Buffered's throughput with Inline's no-loss guarantee and no database involved.
+Only some transports opt into this mode. See [Native Ack Endpoints](/guide/messaging/listeners#native-ack-endpoints) for the details.
 
 ## How Wolverine Calls Your Message Handlers
 

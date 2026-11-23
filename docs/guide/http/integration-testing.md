@@ -15,20 +15,20 @@ You'll need `Alba` and your test framework of choice. Wolverine's tracking suppo
 
 ```xml
 <PackageReference Include="Alba" Version="9.*" />
-<PackageReference Include="xunit" Version="2.*" />
+<PackageReference Include="xunit.v3" Version="4.*" />
 <PackageReference Include="Shouldly" Version="4.*" />
 ```
 
 ### Bootstrap Your Application with Alba
 
-The recommended pattern is to share a single `IAlbaHost` across your test collection using xUnit's `ICollectionFixture`. This avoids the expensive startup cost of building the host for every test.
+The recommended pattern is to share a single `IAlbaHost` across your test collection using xUnit's `ICollectionFixture`. This avoids the expensive startup cost of building the host for every test. The samples on this page use xUnit v3, where `IAsyncLifetime.InitializeAsync()` and `DisposeAsync()` return `ValueTask`.
 
 ```cs
 public class AppFixture : IAsyncLifetime
 {
     public IAlbaHost Host { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Required when using JasperFx command line integration
         JasperFxEnvironment.AutoStartHost = true;
@@ -49,7 +49,7 @@ public class AppFixture : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Host.StopAsync();
         await Host.DisposeAsync();
@@ -85,7 +85,7 @@ public abstract class IntegrationContext : IAsyncLifetime
 
     public IAlbaHost Host => _fixture.Host;
 
-    async Task IAsyncLifetime.InitializeAsync()
+    async ValueTask IAsyncLifetime.InitializeAsync()
     {
         // Reset database state before each test.
         // How you do this depends on your persistence provider:
@@ -100,7 +100,7 @@ public abstract class IntegrationContext : IAsyncLifetime
         // await db.Database.EnsureCreatedAsync();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     // Simple Alba-only HTTP call (no message tracking)
     public Task<IScenarioResult> Scenario(Action<Scenario> configure)
@@ -436,7 +436,7 @@ If you're using Wolverine with [Marten](https://martendb.io), the `Wolverine.Mar
 
 ```cs
 // Reset all Marten data before each test
-async Task IAsyncLifetime.InitializeAsync()
+async ValueTask IAsyncLifetime.InitializeAsync()
 {
     await Host.ResetAllMartenDataAsync();
 }

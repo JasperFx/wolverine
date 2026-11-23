@@ -3,7 +3,7 @@ using Wolverine;
 
 namespace Ponger;
 
-#region sample_pinghandler
+#region sample_pinghandler_rabbitmq
 public static class PingHandler
 {
     // Simple message handler for the PingMessage message type

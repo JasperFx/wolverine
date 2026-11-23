@@ -460,6 +460,8 @@ app.MapDeadLettersEndpoints()
   - `ExceptionMessage` (string?): Filter by exception message.
   - `ExceptionMessageMatch` (`Exact` / `Contains`?): How `ExceptionMessage` is matched. Omit for the original `LIKE` pattern behavior.
   - `FailureGroup` (string?): Only dead letters in this [failure group](#failure-groups).
+  - `SagaId` (string?): Only the dead letters of one saga instance. See [Finding a saga's dead letters](#finding-a-saga-s-dead-letters).
+  - `Tag` (string?): Only the dead letters with this tag. See [Dead letter tags](#dead-letter-tags).
   - `Archived` (`Exclude` / `Only` / `Any`?): Which dead letters to return by [archived state](#archiving-and-restoring). Archived dead letters are excluded by default.
   - `Replayable` (bool?): Filter by the replayable flag. Omit (or `null`) for no filtering; `false` returns only envelopes not yet marked replayable; `true` returns only those already queued for replay. Filtering happens in the database so `TotalCount` and paging stay coherent for the subset.
   - `From` (DateTimeOffset?): Start date for fetching records.

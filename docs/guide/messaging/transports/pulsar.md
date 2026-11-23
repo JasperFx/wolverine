@@ -823,8 +823,11 @@ pulsar-admin topics set-deduplication-status persistent://public/default/orders 
 ::: warning Producer→broker only — not end-to-end exactly-once
 This suppresses duplicates on the **produce** side; it is not a transactional read-process-write
 exactly-once engine (a deliberate non-goal for the transport — and Pulsar transactions are not exposed by
-the DotPulsar client). Deduplication keys on `(producer name, sequence id)`, so pass a fixed
-`EnableDeduplication("my-producer")` name if you need it to hold across process restarts.
+the DotPulsar client). Deduplication keys on `(producer name, sequence id)`, so it only holds across a
+process restart when the instance comes back with the same producer name. Don't share one fixed
+`EnableDeduplication("my-producer")` name across several running instances though -- the broker refuses every
+instance after the first. Give each instance its own stable id with `ProducerNamePerInstance()` as shown in
+[Several running instances of one service](#several-running-instances-of-one-service).
 :::
 
 ## Interoperability

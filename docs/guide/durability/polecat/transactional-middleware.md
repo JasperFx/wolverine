@@ -129,6 +129,30 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 ```
 
+## Committing the Session Yourself <Badge type="tip" text="7.0" />
+
+A transactional handler can still call `IDocumentSession.SaveChangesAsync()` itself and publish more messages
+afterward. That commit sends what was published before it, the transactional middleware's own commit stores
+what was published after it, and Wolverine sends those messages once the handler is done:
+
+```cs
+[Transactional]
+public static async Task Handle(SaveThenPublishToLocalQueue message, IDocumentSession session, IMessageBus bus)
+{
+    session.Store(new SaveThenPublishDoc { Id = message.Id });
+
+    // The handler commits its own session...
+    await session.SaveChangesAsync();
+
+    // ...and then publishes. Wolverine still sends this message once the handler is done
+    await bus.PublishAsync(new SaveThenPublishLocalTarget(message.Id));
+}
+```
+
+Before Wolverine 7.0, the default `MultiFlushMode.OnlyOnce` stopped Wolverine from sending the messages
+published after the handler's own commit, so they were left in the outbox. `MultiFlushMode` now applies
+only to the extra calls to `FlushOutgoingMessagesAsync()` your own code makes.
+
 ## Using IDocumentOperations
 
 When using the transactional middleware with Polecat, it's best to **not** directly call `IDocumentSession.SaveChangesAsync()`
