@@ -59,11 +59,10 @@ namespace Internal.Generated.WolverineHandlers
             // Save all pending changes to this Marten session
             await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
 
+            await result.ExecuteAsync(httpContext).ConfigureAwait(false);
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            await messageContext.FlushOutgoingMessagesAsync().ConfigureAwait(false);
-
-            await result.ExecuteAsync(httpContext).ConfigureAwait(false);
+            await Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(messageContext).ConfigureAwait(false);
         }
     }
 
