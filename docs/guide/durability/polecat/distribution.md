@@ -105,8 +105,10 @@ on the Marten page for the details and the rest of the knobs.
 
 ## When a Projection Fails <Badge type="tip" text="6.x" />
 
-The failure handling for a paused projection or subscription shard — the classified `ShardFailure` on
-`IEventSubscriptionAgent`, the `IWolverineObserver.AgentPaused` hook, the `NodeRecordType.AgentPaused`
-record, and the rule that only a self-healing failure is auto-restarted — is shared by both event store
-integrations. See [When a Projection Fails](/guide/durability/marten/distribution#when-a-projection-fails)
-on the Marten page for the details; everything there applies identically to Polecat.
+Polecat 6 parks a failing projection identity by default instead of pausing the shard, the same as Marten 10,
+and `StoreOptions.RestoreV5Defaults()` puts skipping back. The failure handling for a shard that does pause --
+the classified `ShardFailure` on `IEventSubscriptionAgent`, the `IWolverineObserver.AgentPaused` hook, the
+`NodeRecordType.AgentPaused` record, and the rule that only a self-healing failure is auto-restarted -- is shared
+by both event store integrations. See [When a Projection Fails](/guide/durability/marten/distribution#when-a-projection-fails)
+on the Marten page for the details; everything there applies identically to Polecat. The JasperFx documentation
+covers parking itself in [Parking a Failing Projection Identity](https://shared-libs.jasperfx.net/events/parked-identities).

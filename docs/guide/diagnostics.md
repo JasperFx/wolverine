@@ -60,6 +60,9 @@ including discovered handlers, messaging endpoints, and error handling through t
 dotnet run -- describe
 ```
 
+See [Describe Command](https://shared-libs.jasperfx.net/cli/describe) in the JasperFx documentation for adding your
+own sections to that report.
+
 ## Previewing Generated Code
 
 If you ever have any question about the applicability of Wolverine (or custom) conventions or the middleware that
@@ -89,7 +92,7 @@ Wolverine 4.0 will embrace the new [IHealthCheck](https://learn.microsoft.com/en
 environment check model in this section. 
 :::
 
-Wolverine's external messaging transports and the durable inbox/outbox support expose [Oakton's environment checks](https://jasperfx.github.io/oakton/guide/host/environment.html)
+Wolverine's external messaging transports and the durable inbox/outbox support expose [JasperFx's environment checks](https://shared-libs.jasperfx.net/cli/environment-checks)
 facility to help make your Wolverine applications be self diagnosing on configuration or connectivity issues like:
 
 * Can the application connect to its configured database?

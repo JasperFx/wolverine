@@ -281,6 +281,8 @@ every project that references it (directly or through any Wolverine extension/tr
 assembly attributes at **compile time** and emits a small `JasperFx.Generated.DiscoveredExtensions` manifest into
 the assembly listing the declared extension type(s). At startup Wolverine reads those generated manifests from the
 loaded assemblies instead of scanning the filesystem and speculatively `Assembly.Load`-ing candidates.
+See [Source-generated extension manifest](https://shared-libs.jasperfx.net/codegen/aot#source-generated-extension-manifest)
+in the JasperFx documentation for the reference on `DiscoveredExtensions`.
 
 A few consequences worth knowing:
 

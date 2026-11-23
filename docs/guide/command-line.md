@@ -114,6 +114,9 @@ will describe:
 * "Wolverine Error Handling" - a preview of the active message failure policies active within the system
 * "Wolverine Http Endpoints" - shows all Wolverine HTTP endpoints. This is only active if WolverineFx.HTTP is used within the system
 
+The `describe` command itself comes from JasperFx. See [Describe Command](https://shared-libs.jasperfx.net/cli/describe)
+in the JasperFx documentation for how to add your own sections to the report with a custom `ISystemPart`.
+
 ## Exporting System Capabilities <Badge type="tip" text="5.8" />
 
 This command:
@@ -348,7 +351,7 @@ flows out through the `ServiceCapabilities` snapshot CritterWatch already consum
 `IEventModelDefinitionSource` seam.
 
 The `event-model` command writes that whole picture — Wolverine's derived slices, Wolverine.HTTP's, and any
-[overlay](https://github.com/JasperFx/jasperfx/issues/687) the application registered with
+[overlay](https://shared-libs.jasperfx.net/event-modeling/overlay) the application registered with
 `services.AddEventModel(...)` — as one JSON `EventModelDescriptor`, **without a running fleet**:
 
 To read the model rather than export it, `describe-event-model` (GH-4917) prints it by domain and chapter: each
@@ -362,6 +365,9 @@ dotnet run -- describe-event-model
 dotnet run -- describe-event-model --chapter BookingAppointments
 dotnet run -- describe-event-model --hotspots-only > open-questions.txt
 ```
+
+See [Hotspots](https://shared-libs.jasperfx.net/event-modeling/hotspots) in the JasperFx documentation for what each
+kind of hotspot means.
 
 Every `EventModelDefinition` subclass in the application's assemblies is registered for you (GH-4916), from the
 manifest JasperFx's source generator writes at compile time, so one definition per chapter needs no
@@ -424,6 +430,8 @@ runtime compiler is needed — a `TypeLoadMode.Dynamic` application without `Wol
 still exports. The JSON is written camelCase with enums as strings, exactly as CritterWatch puts the descriptor
 on the wire, so the file round-trips through `EventModelDescriptor` and renders in the shared Event Modeling
 component with the same output CritterWatch shows for the same host.
+See [Descriptors & the Wire](https://shared-libs.jasperfx.net/event-modeling/descriptors) in the JasperFx
+documentation for that wire contract.
 
 What is deliberately *not* visible here: imperative `session.Events.Append(...)` inside a handler body. That is
 invisible at runtime, so only declarative returns are reported; CritterWatch's source generator covers the
@@ -612,6 +620,9 @@ slice).
 Once a model is declared over stub types, the `scaffold` command writes an implementation skeleton for every slice
 that is declared but has **no code behind it yet** — something only the running application can tell, because it
 takes the declared model and the derived chains assembled together:
+
+See [Declaring the Model in Code](https://shared-libs.jasperfx.net/event-modeling/declaring) in the JasperFx
+documentation for how to write the stub model this command needs.
 
 ```bash
 dotnet run -- scaffold                         # write into the current directory

@@ -435,6 +435,9 @@ Nothing about your Wolverine configuration changes -- the only requirement is th
 standard `RunJasperFxCommands(args)` bootstrap, which lets the app execute a verb and exit instead of
 starting the long-running host.
 
+See [Startup gates](https://shared-libs.jasperfx.net/cli/aspire#startup-gates) in the JasperFx documentation for
+ordering several gates and the opt-in `check-env` gate.
+
 ### See also
 
 - [Command Line Integration](/guide/command-line) — the full Wolverine CLI surface

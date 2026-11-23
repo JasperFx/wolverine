@@ -214,11 +214,43 @@ var host = await Host.CreateDefaultBuilder()
 
 ## When a Projection Fails <Badge type="tip" text="6.x" />
 
-A projection or subscription shard that throws while applying an event is *paused* by the Marten/Polecat
-daemon rather than skipped, unless you have opted into skipping through `ErrorHandlingOptions`
-(`SkipApplyErrors` and friends). A paused shard makes no further progress, and Wolverine deliberately does
-not restart it — restarting would fail on the exact same event, so the shard would thrash instead of
-advance.
+Starting with Marten 10, Polecat 6 and Fisher 2, an async projection that throws while applying an event
+*parks* the identity that failed instead of skipping the event or pausing the whole shard. The daemon drops
+that one identity's slice from the batch, writes a parked row for it in the same transaction that moves the
+shard's progression, and keeps right on going with every other identity. Any later events for the parked
+identity are held back until you replay or discard it, and its document stays at its last good state. Nothing
+is lost, because the held events are still sitting in the event store. The same goes for an event the store
+can't deserialize, which parks its stream for a single-stream projection.
+
+What that means for a projection that Wolverine is distributing across your cluster:
+
+* A park is not a failure of the agent. The shard keeps running, so Wolverine's health check stays healthy and
+  none of the paused shard machinery below kicks in. One bad document no longer stops every other document the
+  projection builds.
+* The parked rows live in the database, not in the node's memory, so a parked identity stays parked when
+  Wolverine moves the shard to another node, and the shard's new owner is the one that replays it.
+* Replaying or discarding a parked identity has to happen inside the shard that runs it. With Wolverine deciding
+  which node that is, the easiest way in is the `projections parked` command, or a durable
+  `RequestParkedActionAsync()` request that whichever node owns the shard picks up on its next heartbeat.
+* The shard reports what it has parked in `ShardState.ParkedCount` and the `{prefix}.{projection}.{shard}.parked`
+  family of metrics. Watch those, because a park doesn't make any noise in Wolverine's own agent health.
+
+Not everything can park. An event or flat-table projection, a composite projection, a subscription, a
+multi-stream projection whose identities can only be found by scanning every event, and a systemic database
+failure like a missing column all fall back to *pausing* the shard. So does a shard that hits the cap on parked
+identities, or a batch that would park too many identities at once, which shows up with the
+`ParkedLimitReached` failure category. See [Parking a Failing Projection Identity](https://shared-libs.jasperfx.net/events/parked-identities)
+in the JasperFx documentation for which projections park, the guard rails, and the replay and discard API.
+
+::: tip
+If you'd rather have the 9.x behavior back, `StoreOptions.RestoreV9Defaults()` in Marten (`RestoreV5Defaults()`
+in Polecat, `RestoreV1Defaults()` in Fisher) puts skipping back: the failing event is dead-lettered and the shard
+moves on. You can also set the error actions yourself through `opts.Projections.Errors`, for example
+`opts.Projections.Errors.ApplyErrors = ProjectionErrorAction.Pause;` if you want the shard to stop cold.
+:::
+
+A paused shard makes no further progress, and Wolverine deliberately does not restart it -- restarting would
+fail on the exact same event, so the shard would thrash instead of advance.
 
 Wolverine surfaces the paused shard so it does not simply go quiet:
 

@@ -68,7 +68,7 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L354-L363' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_autopurge_selective_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-To force setup at application startup, use the [JasperFx stateful resource](https://jasperfx.github.io/oakton/guide/host/resources.html)
+To force setup at application startup, use the [JasperFx stateful resource](https://shared-libs.jasperfx.net/cli/resources#setting-up-resources-at-application-startup)
 model instead. `AddResourceSetupOnStartup()` registers an `IHostedService` that
 sets up every known JasperFx resource when the application starts. That includes
 Marten database objects, Wolverine durability database objects, and Wolverine
@@ -178,7 +178,7 @@ using var host = await Host.CreateDefaultBuilder()
 When an endpoint is marked `ExternallyOwned()`, Wolverine will:
 
 * Skip declaring the queue or exchange at startup, regardless of `AutoProvision()`
-* Skip deleting it during a `resources teardown` (or the Oakton/JasperFx resource commands)
+* Skip deleting it during a `resources teardown` (or the JasperFx resource commands)
 * Skip setting up or tearing down any bindings for that resource
 
 This applies to queue listeners, queue subscribers, and exchange subscribers alike.

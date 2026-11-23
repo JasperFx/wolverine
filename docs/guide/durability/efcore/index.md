@@ -174,6 +174,6 @@ The underlying `DatabaseCleaner<T>` is registered automatically by `UseEntityFra
 
 **Global — `host.ResetResourceState()`**
 
-Resets every `IStatefulResource` registered with the host — Wolverine's message store, every broker, every `DbContext` cleaner. Bigger hammer; right when a test writes to multiple stores or you've seen cross-test contamination you can't isolate.
+Resets every `IStatefulResource` registered with the host — Wolverine's message store, every broker, every `DbContext` cleaner. Bigger hammer; right when a test writes to multiple stores or you've seen cross-test contamination you can't isolate. See [Working with resources in tests](https://shared-libs.jasperfx.net/cli/resources#working-with-resources-in-tests) in the JasperFx documentation.
 
 **Recommendation:** use the finest-grained mechanism the test actually needs. Resetting the world on every test multiplies your suite runtime for no benefit.
