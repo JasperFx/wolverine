@@ -397,10 +397,15 @@ a public constructor whose dependencies are themselves resolvable.
 
 ## Delegating to Wolverine as "Mediator"
 
-You don't need Wolverine as a mediator to use multi-tenancy with Wolverine.HTTP *and* Wolverine's transactional inbox/outbox
-at the same time. Since Wolverine.HTTP 1.7, the detected tenant id flows straight into the transactional middleware and the
-outbox. You can still delegate to Wolverine as a mediator and pass the tenant id along
-with `IMessageBus.InvokeForTenantAsync()` if you want to, and this sample project shows both styles:
+::: tip
+The Wolverine team's recommendation is to just use Wolverine.HTTP endpoints with its built in multi-tenancy support.
+Wolverine.HTTP [detects the tenant id](#tenant-id-detection) from each request, and that tenant id flows straight into
+Wolverine's transactional middleware and the transactional outbox with no extra work on your part.
+:::
+
+If you'd still rather delegate from an HTTP endpoint to a Wolverine message handler, you can pass the tenant id along
+yourself with `IMessageBus.InvokeForTenantAsync()`. Here's the same endpoint both ways, in a sample project that detects
+the tenant id with `opts.TenantId.IsRouteArgumentNamed("tenant")`. The second, shorter version is the one we recommend:
 
 <!-- snippet: sample_invoke_for_tenant -->
 <a id='snippet-sample_invoke_for_tenant'></a>
@@ -432,7 +437,8 @@ public static void Delete(
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L72-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_for_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-and with an expected result:
+Tenant detection works just the same for an endpoint that returns a response. In this one, the `tenant` argument is
+only there to build the location of the newly created `Todo`:
 
 <!-- snippet: sample_calling_invoke_for_tenant_async_with_expected_result -->
 <a id='snippet-sample_calling_invoke_for_tenant_async_with_expected_result'></a>

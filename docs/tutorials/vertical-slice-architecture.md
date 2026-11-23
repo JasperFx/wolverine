@@ -103,15 +103,8 @@ command. With this example, I'm going to use [Marten](/guide/durability/marten/)
 I'll do that in a single C# file named `PlaceOrder.cs`:
 
 ```csharp
-public record PlaceOrder(string OrderId, string CustomerId, decimal Amount);
-
-public class Order
+public record PlaceOrder(string OrderId, string CustomerId, decimal Amount)
 {
-    public string Id { get; set; }
-    public string CustomerId { get; set; }
-    public decimal Amount { get; set; }
-    public bool HasShipped { get; set; }
-
     public class Validator : AbstractValidator<PlaceOrder>
     {
         public Validator()
@@ -121,6 +114,14 @@ public class Order
             RuleFor(x => x.Amount).NotNull();
         }
     }
+}
+
+public class Order
+{
+    public string Id { get; set; }
+    public string CustomerId { get; set; }
+    public decimal Amount { get; set; }
+    public bool HasShipped { get; set; }
 }
 
 public static class PlaceOrderHandler
@@ -434,16 +435,18 @@ public record PlaceOrder(string OrderId, string CustomerId, decimal Amount)
 
 public static class PlaceOrderHandler
 {
-    public static Insert<Order> Handle(PlaceOrder command)
+    public static void Handle(
+        PlaceOrder command,
+        IDocumentSession session)
     {
         var order = new Order
         {
-            Id = command.OrderId, 
-            CustomerId = command.CustomerId, 
+            Id = command.OrderId,
+            CustomerId = command.CustomerId,
             Amount = command.Amount
         };
 
-        return Storage.Insert(order);
+        session.Store(order);
     }
 }
 ```

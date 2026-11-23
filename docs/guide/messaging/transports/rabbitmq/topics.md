@@ -184,7 +184,7 @@ application to get the message, because the conventional local routing to that h
 like it would if the exchange routing weren't there at all.
 
 ::: tip
-The original overload without the `additive` parameter is unchanged. With it, the exchange is the only route those
+The original overload without the `additive` parameter is unchanged. With that overload, the exchange is the only route those
 messages take, and explicit publishing rules or local routing to a handler for that message type are skipped. If you're ever unsure what Wolverine is going
 to do with a message type, `IWolverineRuntime.ExplainRoutingFor(type)` will walk you through every routing rule it
 consulted. The additive routing shows up there as `[additive, pass-through]`. See

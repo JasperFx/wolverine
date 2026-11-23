@@ -1,3 +1,4 @@
+using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using ImTools;
 using JasperFx.Core;
@@ -132,14 +133,13 @@ public class multi_tenanted_brokers
 
         builder.UseWolverine(opts =>
         {
-            // One way or another, you're probably pulling the Azure Service Bus
-            // connection string out of configuration
-            var azureServiceBusConnectionString = builder
-                .Configuration
-                .GetConnectionString("azure-service-bus")!;
+            // One way or another, you're probably pulling the fully qualified
+            // Azure Service Bus namespace out of configuration
+            var fullyQualifiedNamespace = builder.Configuration.GetValue<string>("asb_ns")!;
 
-            // Connect to the broker in the simplest possible way
-            opts.UseAzureServiceBus(azureServiceBusConnectionString)
+            // Connect with a credential rather than a connection string. The tenants
+            // registered by namespace below connect with this same credential
+            opts.UseAzureServiceBus(fullyQualifiedNamespace, new DefaultAzureCredential())
 
                 // This was the 6.x default: an outgoing message with no tenant id, or an
                 // unrecognized one, uses the default broker. Since 7.0 the default is

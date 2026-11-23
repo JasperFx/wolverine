@@ -147,6 +147,7 @@ public class SaveThenPublishDoc
 
 public static class SaveThenPublishHandlers
 {
+    #region sample_polecat_committing_the_session_yourself
     [Transactional]
     public static async Task Handle(SaveThenPublishToLocalQueue message, IDocumentSession session, IMessageBus bus)
     {
@@ -158,6 +159,7 @@ public static class SaveThenPublishHandlers
         // ...and then publishes. Wolverine still sends this message once the handler is done
         await bus.PublishAsync(new SaveThenPublishLocalTarget(message.Id));
     }
+    #endregion
 
     [Transactional]
     public static async Task Handle(PublishToOutboxAroundTheSave message, IDocumentSession session, IMessageBus bus)

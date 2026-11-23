@@ -39,7 +39,8 @@ builder.Host.UseWolverine(opts =>
 
 When a handler receives a message carrying any of the named headers, Wolverine will copy those headers onto every outgoing message cascaded within that handler context. Headers not present on the incoming message are silently skipped — no errors are thrown.
 
-This works across all transports — Kafka, RabbitMQ, Azure Service Bus, or any other.
+Copying the headers onto outgoing messages works the same on every transport. Whether a custom header arrives on the
+incoming message in the first place depends on the transport, as the warning below explains.
 
 ::: tip
 If an endpoint uses [CloudEvents interoperability](/tutorials/interop.html#interop-with-cloudevents), only headers with

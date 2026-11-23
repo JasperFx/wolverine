@@ -773,8 +773,6 @@ opts.ListenToAzureServiceBusQueue("incoming")
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
-            // I overrode the buffering limits just to show
-            // that they exist for "back pressure"
             opts.ListenToAzureServiceBusQueue("incoming")
                 .UseInterop((queue, mapper) =>
                 {
@@ -819,8 +817,6 @@ opts.ListenToAzureServiceBusQueue("incoming")
             // Connect to the broker in the simplest possible way
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
-            // I overrode the buffering limits just to show
-            // that they exist for "back pressure"
             opts.ListenToAzureServiceBusQueue("incoming")
                 .UseNServiceBusInterop();
             

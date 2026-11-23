@@ -955,7 +955,8 @@ keeps its durability agent and any queue listener for that database until it res
 those poll it with errors. Taking a tenant out of a running fleet is an operator action in
 [CritterWatch](https://github.com/JasperFx/CritterWatch), which first has every node deregister the tenant (stop its
 database's durability agent and listeners and forget its message store), then removes the tenancy entry, and only then
-drops the database. The same applies to Marten and Polecat master table tenancy.
+drops the database. The same applies to Marten and Polecat master table tenancy. If other tenant ids still use the same database,
+its durability agent and listeners keep running and only the removed tenant's mapping goes.
 
 After a tenant is deregistered, a message or lookup for it fails with `RemovedTenantException`, an
 `UnknownTenantIdException`. Adding the tenant again through Wolverine's `AddTenantAsync` admits it again on that node;

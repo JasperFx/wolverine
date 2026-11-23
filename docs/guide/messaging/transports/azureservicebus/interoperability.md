@@ -55,7 +55,7 @@ using var host = await Host.CreateDefaultBuilder()
             .ConfigureSenders(s => s.InteropWith(new CustomAzureServiceBusMapper()));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L110-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L111-L123' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_custom_envelope_mapper_for_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Interoperability with NServiceBus and MassTransit
@@ -78,8 +78,6 @@ builder.UseWolverine(opts =>
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
-    // I overrode the buffering limits just to show
-    // that they exist for "back pressure"
     opts.ListenToAzureServiceBusQueue("incoming")
         .UseNServiceBusInterop();
     
@@ -88,7 +86,7 @@ builder.UseWolverine(opts =>
     opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L809-L832' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_nservicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L807-L828' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_nservicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 MassTransit works the same way with `UseMassTransitInterop()`:
@@ -98,11 +96,8 @@ opts.PublishMessage<OrderShipped>().ToAzureServiceBusQueue("masstransit-orders")
     .UseMassTransitInterop();
 
 opts.ListenToAzureServiceBusQueue("from-masstransit")
-    .UseMassTransitInterop(mt =>
-    {
-        // optionally customize the inner JSON serialization, or map the
-        // Wolverine tenant id from each incoming MassTransit message
-    })
+    // Use System.Text.Json for the message inside the MassTransit envelope
+    .UseMassTransitInterop(mt => mt.UseSystemTextJsonForSerialization())
     .DefaultIncomingMessage<OrderShipped>();
 ```
 

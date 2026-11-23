@@ -24,14 +24,13 @@ var builder = Host.CreateApplicationBuilder();
 
 builder.UseWolverine(opts =>
 {
-    // One way or another, you're probably pulling the Azure Service Bus
-    // connection string out of configuration
-    var azureServiceBusConnectionString = builder
-        .Configuration
-        .GetConnectionString("azure-service-bus")!;
+    // One way or another, you're probably pulling the fully qualified
+    // Azure Service Bus namespace out of configuration
+    var fullyQualifiedNamespace = builder.Configuration.GetValue<string>("asb_ns")!;
 
-    // Connect to the broker in the simplest possible way
-    opts.UseAzureServiceBus(azureServiceBusConnectionString)
+    // Connect with a credential rather than a connection string. The tenants
+    // registered by namespace below connect with this same credential
+    opts.UseAzureServiceBus(fullyQualifiedNamespace, new DefaultAzureCredential())
 
         // This was the 6.x default: an outgoing message with no tenant id, or an
         // unrecognized one, uses the default broker. Since 7.0 the default is
@@ -78,7 +77,7 @@ builder.UseWolverine(opts =>
         .GlobalSender();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L130-L189' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_for_multi_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L131-L189' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_for_multi_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -106,7 +105,7 @@ public static async Task send_message_to_specific_tenant(IMessageBus bus)
     await bus.PublishAsync(new Message1(), new DeliveryOptions { TenantId = "two" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L396-L403' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L397-L404' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, in the Wolverine internals, it:
