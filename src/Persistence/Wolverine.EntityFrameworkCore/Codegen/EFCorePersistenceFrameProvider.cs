@@ -990,7 +990,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             Check = claim,
             IsDuplicate = claim.Variable,
-            Claim = new EfCoreDeduplicationClaimHeldFrame(claim.Variable)
+            Claim = new EfCoreDeduplicationClaimHeldFrame(claim.Variable, deduplicationId,
+                chain.BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome.Claimed))
         };
 
         return true;

@@ -135,7 +135,8 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
             // GH-5166: also answers a concurrent caller whose commit failed on its own work first, such as a
             // [WriteAggregate] stream version, before it reached the claim's primary key
             CommitRaceWrapper = new RefuseDuplicateMartenClaimAtCommitFrame(deduplicationId, marker,
-                lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement)),
+                lost => chain.BuildDeduplicationStopCondition(lost, DeduplicationOutcome.Duplicate, requirement),
+                chain.BuildDeduplicationOutcomeFrame(DeduplicatedExecutionOutcome.Claimed)),
             Commit = commit
         };
 

@@ -42,7 +42,7 @@ public sealed class DeduplicatedResponses
         _logger = logger;
 
         _outcomes = runtime.Meter.CreateCounter<int>(MetricsConstants.DeduplicationOutcomes, MetricsConstants.Requests,
-            "Number of requests with an idempotency key, by how they ended: claimed, replayed, mismatched or in_progress");
+            "Number of requests with an idempotency key or a [Deduplicated] id, by how they ended: claimed, replayed, mismatched, in_progress or duplicate");
     }
 
     internal void RecordOutcome(HttpContext context, ClaimOutcome outcome)
@@ -53,6 +53,7 @@ public sealed class DeduplicatedResponses
             ClaimOutcome.Replayed => ("replayed", WolverineTracing.DeduplicationReplayed),
             ClaimOutcome.Mismatched => ("mismatched", WolverineTracing.DeduplicationMismatched),
             ClaimOutcome.InProgress => ("in_progress", WolverineTracing.DeduplicationInProgress),
+            ClaimOutcome.Duplicate => ("duplicate", WolverineTracing.DeduplicationDuplicate),
             _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, null)
         };
 
@@ -238,5 +239,6 @@ internal enum ClaimOutcome
     Claimed,
     Replayed,
     Mismatched,
-    InProgress
+    InProgress,
+    Duplicate
 }

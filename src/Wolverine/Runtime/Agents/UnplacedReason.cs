@@ -55,5 +55,11 @@ public enum UnplacedReason
     ///     node running <see cref="NodeWorkloads.Messaging" />. Start a node with that workload; more capacity on the
     ///     other nodes would not place it.
     /// </summary>
-    NoNodeForWorkload
+    NoNodeForWorkload,
+
+    /// <summary>
+    ///     GH-5840. The agent belongs to a tenant database that was deregistered from the running fleet. The leader
+    ///     stops it wherever it still runs and never places it again. It disappears from the grid once no node runs it.
+    /// </summary>
+    TenantRemoved
 }

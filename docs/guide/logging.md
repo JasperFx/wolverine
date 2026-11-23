@@ -747,9 +747,16 @@ public const string Deserialize = "wolverine.deserialize";
 
 /// <summary>
 /// ActivityEvent marking that the first request with an idempotency key did its work, and its claim on the key
-/// is kept for repeats to be answered from
+/// is kept for repeats to be answered from. GH-5613: or that a message or request with a
+/// <c>[Deduplicated]</c> id was let through, and its claim is kept
 /// </summary>
 public const string DeduplicationClaimed = "wolverine.deduplication.claimed";
+
+/// <summary>
+/// GH-5613. ActivityEvent marking that a message or request was refused by <c>[Deduplicated]</c>, because its id
+/// is already claimed
+/// </summary>
+public const string DeduplicationDuplicate = "wolverine.deduplication.duplicate";
 
 /// <summary>
 /// ActivityEvent marking that a repeat of a request was answered with the first request's stored response
@@ -766,8 +773,13 @@ public const string DeduplicationMismatched = "wolverine.deduplication.mismatche
 /// or its claim has no stored response to answer with
 /// </summary>
 public const string DeduplicationInProgress = "wolverine.deduplication.in_progress";
+
+/// <summary>
+/// GH-5401. Span tag with how a <c>[WaitForProjection]</c> wait ended: Reached, TimedOut, Paused or Rebuilding
+/// </summary>
+public const string ProjectionWaitStatus = "wolverine.projection.wait_status";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L302' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L314' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Opt-in Handler Execution Diagnostics <Badge type="tip" text="5.38" />
@@ -1102,6 +1114,8 @@ will be added back to Wolverine in 4.0.
 | wolverine.inbox.count        | [Observable Gauge](https://opentelemetry.io/docs/specs/otel/metrics/api/#asynchronous-gauge)             | Current number of persisted incoming (inbox) messages. Tagged by `source` and `database`                                                                                                                                                                                                |
 | wolverine.outbox.count       | Observable Gauge                                                                                          | Current number of persisted outgoing (outbox) messages. Tagged by `source` and `database`                                                                                                                                                                                              |
 | wolverine.scheduled.count    | Observable Gauge                                                                                          | Current number of persisted scheduled messages. Tagged by `source` and `database`                                                                                                                                                                                                      |
+| wolverine.deduplication.outcomes | Counter | Number of messages handled by a `[Deduplicated]` handler, by outcome: `claimed` or `duplicate`. Tagged by `wolverine.deduplication.outcome`, `wolverine.message.type`, `wolverine.message.handler` and `source` only. See [Logical Message Deduplication](/guide/durability/idempotency#metrics-and-tracing) |
+| wolverine.http.deduplication.outcomes | Counter | Number of requests to a `[Deduplicated]` or `[DeduplicatedWithResponse]` endpoint, by outcome. Tagged by `wolverine.deduplication.outcome`, `http.route`, `http.request.method` and `source` only. See [Idempotency Keys](/guide/http/deduplication#metrics-and-tracing) |
 
 ::: tip System traffic is not counted <Badge type="tip" text="6.25" />
 Wolverine's own internal traffic — node agent commands on the control queues, acknowledgements, and

@@ -43,7 +43,7 @@ public class otel_naming_5128
             MetricsConstants.LeaseCeilingReached, MetricsConstants.DuplicatesSuppressed,
             MetricsConstants.IdempotencyEarlyRotation, MetricsConstants.MessagesReceived,
             MetricsConstants.MessagesFailed, MetricsConstants.RecurringOccurrencesSkipped,
-            MetricsConstants.DeduplicationOutcomes
+            MetricsConstants.DeduplicationOutcomes, MetricsConstants.MessageDeduplicationOutcomes
         };
 
         foreach (var name in names)

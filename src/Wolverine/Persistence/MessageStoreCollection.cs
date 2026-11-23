@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -132,7 +133,88 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
     // discovered later with one of these Uris is qualified too, whatever order the databases were found in
     private readonly HashSet<Uri> _ambiguousAgentUris = new();
 
+    // GH-5840. Durability agents of tenant databases deregistered from the fleet. The leader drops these from
+    // every assignment evaluation, so a node that still runs one is told to stop it and none is ever placed again.
+    // A store that comes back with the same Uri (a readmitted tenant) takes its agent off this list.
+    private ImmutableHashSet<Uri> _removedAgentUris = ImmutableHashSet<Uri>.Empty;
+
+    internal IReadOnlySet<Uri> RemovedAgentUris => _removedAgentUris;
+
+    internal void MarkAgentsRemoved(IEnumerable<Uri> agentUris)
+    {
+        foreach (var uri in agentUris)
+        {
+            ImmutableInterlocked.Update(ref _removedAgentUris, x => x.Add(uri));
+        }
+    }
+
+    /// <summary>
+    ///     GH-5840. Whether the store's database is one this node must never take out: the main database, which a
+    ///     tenant can point at too
+    /// </summary>
+    internal bool IsMainDatabase(IMessageStore store)
+    {
+        return _services.TryFind(store.Uri, out var existing) && existing.Role == MessageStoreRole.Main;
+    }
+
+    /// <summary>
+    ///     GH-5840. Take a removed tenant database out of this collection, so nothing on this node enumerates it,
+    ///     builds an agent for it or finds it by Uri, and remember its agent as removed. By Uri: the source only
+    ///     hands over a store when no live tenant uses that database, and the instance registered here may be
+    ///     another tenant's store over the same database. Idempotent.
+    /// </summary>
+    internal bool Deregister(IMessageStore store)
+    {
+        if (IsMainDatabase(store)) return false;
+
+        MarkAgentsRemoved([store.Uri]);
+
+        lock (_categorizeLock)
+        {
+            if (!_services.TryFind(store.Uri, out var existing) || existing.Role == MessageStoreRole.Main) return false;
+
+            _services = _services.Remove(store.Uri);
+            return true;
+        }
+    }
+
+    /// <summary>
+    ///     GH-5840. When a removed tenant's store instance is the one registered for its database, but another store
+    ///     still covers that database for a live tenant, register the other one instead. Returns false when this
+    ///     instance was not the registered one.
+    /// </summary>
+    internal bool IsRegistered(IMessageStore store)
+    {
+        return _services.TryFind(store.Uri, out var existing) && ReferenceEquals(existing, store);
+    }
+
+    internal bool ReplaceRegistration(IMessageStore store, IMessageStore replacement)
+    {
+        lock (_categorizeLock)
+        {
+            if (!_services.TryFind(store.Uri, out var existing) || !ReferenceEquals(existing, store)) return false;
+
+            _services = _services.AddOrUpdate(store.Uri, replacement);
+            return true;
+        }
+    }
+
+    private readonly object _categorizeLock = new();
+
     private void categorizeStore(IMessageStore store)
+    {
+        lock (_categorizeLock)
+        {
+            categorizeStoreUnlocked(store);
+        }
+
+        if (_removedAgentUris.Contains(store.Uri))
+        {
+            ImmutableInterlocked.Update(ref _removedAgentUris, x => x.Remove(store.Uri));
+        }
+    }
+
+    private void categorizeStoreUnlocked(IMessageStore store)
     {
         disambiguateAgentUri(store);
 
@@ -506,6 +588,13 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         // so the database attracts one node's connection pool instead of two. Depends on
         // NodeAgentController evaluating this family AFTER the event-subscription family. A database with
         // no projection agents in the grid falls back to the even spread.
+        // GH-5840: before anything is placed, so a removed tenant database's agent is stopped wherever it runs
+        // and never reassigned, however many times a node reports the removal
+        foreach (var uri in _removedAgentUris)
+        {
+            assignments.Drop(uri, UnplacedReason.TenantRemoved);
+        }
+
         var preference = DurabilityProjectionAffinity.BuildPreference(assignments);
         assignments.DistributeEvenlyWithAffinity(Scheme, preference.NodeFor, NodeCanRunDurabilityAgents);
 

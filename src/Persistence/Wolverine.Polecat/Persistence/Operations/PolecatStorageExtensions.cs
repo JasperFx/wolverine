@@ -27,6 +27,10 @@ internal class StoreIncomingEnvelopeParticipant : ITransactionParticipant
     private readonly string _incomingTable;
     private readonly Envelope _envelope;
 
+    // GH-5866. The participant stays enlisted for the session's later saves. Set after a commit, not before
+    // one, because a save that rolls back must still write the row on the next save.
+    private bool _committed;
+
     public StoreIncomingEnvelopeParticipant(string incomingTable, Envelope envelope)
     {
         _incomingTable = incomingTable;
@@ -35,6 +39,8 @@ internal class StoreIncomingEnvelopeParticipant : ITransactionParticipant
 
     public async Task BeforeCommitAsync(SqlConnection connection, SqlTransaction transaction, CancellationToken token)
     {
+        if (_committed) return;
+
         await using var cmd = connection.CreateCommand();
         cmd.Transaction = transaction;
         cmd.CommandText =
@@ -56,6 +62,12 @@ internal class StoreIncomingEnvelopeParticipant : ITransactionParticipant
 
         await cmd.ExecuteNonQueryAsync(token);
     }
+
+    public Task AfterCommitAsync(CancellationToken token)
+    {
+        _committed = true;
+        return Task.CompletedTask;
+    }
 }
 
 internal class StoreOutgoingEnvelopeParticipant : ITransactionParticipant
@@ -63,6 +75,9 @@ internal class StoreOutgoingEnvelopeParticipant : ITransactionParticipant
     private readonly string _outgoingTable;
     private readonly Envelope _envelope;
     private readonly int _ownerId;
+
+    // GH-5866. As StoreIncomingEnvelopeParticipant
+    private bool _committed;
 
     public StoreOutgoingEnvelopeParticipant(string outgoingTable, Envelope envelope, int ownerId)
     {
@@ -73,6 +88,8 @@ internal class StoreOutgoingEnvelopeParticipant : ITransactionParticipant
 
     public async Task BeforeCommitAsync(SqlConnection connection, SqlTransaction transaction, CancellationToken token)
     {
+        if (_committed) return;
+
         await using var cmd = connection.CreateCommand();
         cmd.Transaction = transaction;
         cmd.CommandText =
@@ -88,5 +105,11 @@ internal class StoreOutgoingEnvelopeParticipant : ITransactionParticipant
         cmd.Parameters.AddWithValue("@messageType", _envelope.MessageType);
 
         await cmd.ExecuteNonQueryAsync(token);
+    }
+
+    public Task AfterCommitAsync(CancellationToken token)
+    {
+        _committed = true;
+        return Task.CompletedTask;
     }
 }

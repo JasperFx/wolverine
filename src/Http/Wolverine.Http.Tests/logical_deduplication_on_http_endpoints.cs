@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Alba;
 using IntegrationTests;
 using JasperFx;
@@ -13,6 +14,7 @@ using JasperFx.Resources;
 using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.Postgresql;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace Wolverine.Http.Tests;
@@ -413,6 +415,90 @@ public class logical_deduplication_on_http_endpoints : IAsyncLifetime
         // The window sits between the id and the (absent) ancillary store marker
         source.ShouldContain($", System.TimeSpan.FromTicks({TimeSpan.FromMinutes(10).Ticks}), null, ");
         source.ShouldContain(".TryClaimAsync(");
+    }
+
+    private async Task postAsync(string url, string name, string? key, int status)
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new DedupRequest(name)).ToUrl(url);
+            if (key != null) x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(status);
+        });
+    }
+
+    // GH-5613
+    [Fact]
+    public async Task a_first_request_counts_as_claimed_and_its_repeat_as_a_duplicate()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+        var key = Guid.NewGuid().ToString();
+
+        await postAsync("/dedup/create", "first", key, 200);
+        await postAsync("/dedup/create", "second", key, 409);
+
+        outcomes.On("/dedup/create").ShouldBe(["claimed", "duplicate"]);
+        outcomes.All.ShouldAllBe(x => x.Method == "POST");
+    }
+
+    [Fact]
+    public async Task a_repeat_answered_as_benign_still_counts_as_a_duplicate()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+        var key = Guid.NewGuid().ToString();
+
+        await postAsync("/dedup/benign", "once", key, 200);
+        await postAsync("/dedup/benign", "twice", key, 204);
+
+        outcomes.On("/dedup/benign").ShouldBe(["claimed", "duplicate"]);
+    }
+
+    [Fact]
+    public async Task a_refused_first_request_counts_nothing_and_its_retry_claims()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+        var key = Guid.NewGuid().ToString();
+
+        await postAsync("/dedup/refusing", "missing", key, 404);
+        outcomes.On("/dedup/refusing").ShouldBeEmpty();
+
+        await postAsync("/dedup/refusing", "real", key, 200);
+        outcomes.On("/dedup/refusing").ShouldBe(["claimed"]);
+    }
+
+    [Fact]
+    public async Task a_missing_required_key_counts_nothing()
+    {
+        using var outcomes = new DeduplicationOutcomeListener(theHost);
+
+        await postAsync("/dedup/create", "no key", null, 400);
+
+        outcomes.All.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task the_outcome_is_an_event_on_the_request_span()
+    {
+        using var spans = new DeduplicationOutcomeListener.RequestSpans();
+        var key = Guid.NewGuid().ToString();
+
+        async Task<string[]> eventsOf(int status)
+        {
+            var trace = ActivityTraceId.CreateRandom();
+
+            await theHost.Scenario(x =>
+            {
+                x.Post.Json(new DedupRequest("traced")).ToUrl("/dedup/create");
+                x.WithRequestHeader("Idempotency-Key", key);
+                x.WithRequestHeader("traceparent", DeduplicationOutcomeListener.RequestSpans.TraceParent(trace));
+                x.StatusCodeShouldBe(status);
+            });
+
+            return await spans.DeduplicationEventsIn(trace);
+        }
+
+        (await eventsOf(200)).ShouldBe([WolverineTracing.DeduplicationClaimed]);
+        (await eventsOf(409)).ShouldBe([WolverineTracing.DeduplicationDuplicate]);
     }
 }
 
