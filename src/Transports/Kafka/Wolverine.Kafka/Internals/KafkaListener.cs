@@ -14,9 +14,15 @@ namespace Wolverine.Kafka.Internals;
 /// The Wolverine listener over a Dekaf consumer. Handles both a single-topic endpoint
 /// (<see cref="KafkaTopic"/>) and a multi-topic group (<see cref="KafkaTopicGroup"/>) — the
 /// subscription is just one consumer over one or more topic names.
+///
+/// <para>
+/// GH-5926. A buffered receiver completes each record once it finishes, not when it queues it
+/// (<see cref="ISettlesAfterHandlingListener"/>), so the committed offset never passes a record that is still queued
+/// or running. A node that stops with such a record leaves it to the next consumer in the group.
+/// </para>
 /// </summary>
 public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveLoopHealth,
-    IReportConnectionState, IKafkaClientHealthSource
+    IReportConnectionState, IKafkaClientHealthSource, ISettlesAfterHandlingListener
 {
     // How long a single poll waits for a record before the consume loop just loops again. Short enough
     // to keep the receive loop's heartbeat fresh and observe cancellation promptly.

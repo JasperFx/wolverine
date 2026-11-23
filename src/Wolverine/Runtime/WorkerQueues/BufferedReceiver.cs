@@ -51,7 +51,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private BatchMemberInbox? _batchMembers;
 
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
-        : this(endpoint, runtime, pipeline, Block<Envelope>.DefaultBoundedCapacity)
+        : this(endpoint, runtime, pipeline, endpoint.BufferedReceiverCapacity)
     {
     }
 
@@ -250,6 +250,20 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
                 // via Block's error rung, and a faulted block never recovers. Swallowing is the
                 // lesser evil: the message fails, the listener survives.
             }
+
+            // GH-5926. The pipeline never reached a terminal, so nothing settled this delivery. Settle it now, as it
+            // was on arrival before, rather than hold its broker position for the life of the listener
+            if (envelope.Listener is ISettlesAfterHandlingListener)
+            {
+                try
+                {
+                    await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Same reason as above: nothing may escape into the receiving block
+                }
+            }
         }
     }
 
@@ -297,6 +311,13 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         if (envelope.Listener is IRecoveredEnvelopeListener recovery)
         {
             return recovery.CompleteAsync(envelope);
+        }
+
+        // GH-5926. A delivery from a listener that settles once the message finishes, not on arrival. Every terminal
+        // (success, discard, a dead letter move) funnels through here
+        if (envelope.Listener is ISettlesAfterHandlingListener settlesLater)
+        {
+            return settlesLater.CompleteAsync(envelope);
         }
 
         // CritterWatch#942 — a grouped batch envelope reaching its terminal on a buffered local
@@ -479,7 +500,8 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         // GH-5676. Envelopes recovered from the message store have no broker delivery to settle on arrival. Their
         // completion is the inbox row, and IChannelCallback.CompleteAsync marks it once the handler succeeds
-        var recovered = listener is IRecoveredEnvelopeListener;
+        // GH-5926. A listener that settles its deliveries once they finish is not settled on arrival either
+        var recovered = listener is IRecoveredEnvelopeListener or ISettlesAfterHandlingListener;
 
         foreach (var envelope in messages)
         {
@@ -539,7 +561,12 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             await EnqueueAsync(envelope).ConfigureAwait(false);
         }
 
-        await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+        // GH-5926. Settled by IChannelCallback.CompleteAsync once the message reaches a terminal, so a node that stops
+        // with this message still queued or running leaves it with the broker
+        if (listener is not ISettlesAfterHandlingListener)
+        {
+            await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+        }
 
         _logger.IncomingReceived(envelope, Uri);
     }

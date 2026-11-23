@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using ImTools;
+using JasperFx.Blocks;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -1162,6 +1163,13 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     {
         foreach (var rule in OutgoingRules) rule.Modify(envelope);
     }
+
+    /// <summary>
+    /// GH-5926. How many envelopes a buffered receiver for this endpoint holds in its queue before it makes whoever
+    /// is handing it more wait. An endpoint that bounds its buffered listener this way, rather than with the back
+    /// pressure agent, uses its <see cref="BufferingLimits"/> here.
+    /// </summary>
+    internal virtual int BufferedReceiverCapacity => Block<Envelope>.DefaultBoundedCapacity;
 
     public virtual bool ShouldEnforceBackPressure()
     {
