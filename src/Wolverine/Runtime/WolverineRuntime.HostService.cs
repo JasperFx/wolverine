@@ -1395,6 +1395,9 @@ public partial class WolverineRuntime
 
         // GH-5917
         Handlers.AssertGlobalPartitionedBatchesHaveNoOtherHandlers(Options.MessagePartitioning);
+
+        // GH-5920
+        Handlers.AssertShardedBatchesHaveNoUnboundHandlers(Options.MessagePartitioning);
     }
 
     internal Task StartLightweightAsync()

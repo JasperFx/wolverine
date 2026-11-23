@@ -581,6 +581,11 @@ publishing node rather than on the node that owns the group's slot. Wolverine re
 instead of silently never running the batch. Handle the message in the batch handler alone, take it out of the
 topology with `Except<T>()`, or drop the batch. See [GH-5917](https://github.com/JasperFx/wolverine/issues/5917).
 
+The same goes for a sharded topology over an external transport, like `PublishToShardedRabbitQueues()`, when the
+message type's ordinary handler isn't sticky to a queue of its own. The slot can't run the handler and also feed the
+batch, so Wolverine refuses that combination at startup too. See
+[GH-5920](https://github.com/JasperFx/wolverine/issues/5920).
+
 Outside a topology -- a plain listener with only `PartitionProcessingByGroupId` applied -- there is no queue to
 place the batch on, because the unbatched handlers execute inside the listener's own execution block. The most you
 can get there is sequencing the batches for a group id against *each other*, by stamping the group id and sharding

@@ -460,6 +460,40 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     }
 
     /// <summary>
+    /// GH-5920. A message type of a sharded topology over an external transport that has a
+    /// <c>BatchMessagesOf&lt;T&gt;()</c> batch and a handler chain bound to no endpoint is refused at startup. The slot
+    /// listener relays the message to the message type's own local queue and to the batch's queue (GH-5138), and the
+    /// message type's own queue is not a slot, so it re-routed the message straight back to a slot, forever, without
+    /// ever running the handler. Running the handler on the slot and still feeding the batch needs a copy of the message
+    /// per member (#5695). A topology this application only publishes to never listens here and is not affected
+    /// </summary>
+    internal void AssertShardedBatchesHaveNoUnboundHandlers(MessagePartitioningRules partitioning)
+    {
+        foreach (var batch in _allBatches)
+        {
+            var group = GroupFor(batch.ElementType);
+            if (group == null || !group.UnboundChains().Any()) continue;
+
+            var topology = partitioning.ShardedMessageTopologies.FirstOrDefault(x =>
+                x is not LocalPartitionedMessageTopology && x.Matches(batch.ElementType) &&
+                x.Slots.Any(slot => slot.IsListener));
+
+            if (topology == null) continue;
+
+            var elementType = batch.ElementType.FullNameInCode();
+            var handlerTypes = MessageHandlerGroup.Describe(group.UnboundChains());
+
+            throw new InvalidOperationException(
+                $"Message type '{elementType}' belongs to the sharded message topology '{topology.Uri}', is handled by " +
+                $"{handlerTypes}, and is also batched with BatchMessagesOf<{batch.ElementType.Name}>(). The topology " +
+                "can't run the handler on its slots and still hand the message to the batch, so the message would be " +
+                "relayed back and forth between the slots and the handler's local queue without the handler ever " +
+                "running. Handle the message in the batch handler alone, leave it out of the topology, or remove the " +
+                "batch.");
+        }
+    }
+
+    /// <summary>
     /// GH-5137. The invariant every executor relies on: at most one handler chain of a message type is bound to
     /// any one endpoint, so the chain that runs a message received there is never a matter of discovery order.
     /// Checked at startup, once the routing conventions have bound their listeners to chains
