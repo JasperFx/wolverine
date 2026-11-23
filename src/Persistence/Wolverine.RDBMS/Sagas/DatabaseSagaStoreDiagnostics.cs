@@ -65,12 +65,18 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
         try
         {
             var qualified = qualifyTableName(definition.TableName);
-            var sql = $"select {DatabaseConstants.Body}, {DatabaseConstants.Version} from {qualified} where {DatabaseConstants.Id} = @id";
             await using var cmd = conn.CreateCommand();
-            cmd.CommandText = sql;
+            var prefix = isOracle(conn) ? ":" : "@";
+            cmd.CommandText =
+                $"select {DatabaseConstants.Body}, {DatabaseConstants.Version} from {qualified} where {DatabaseConstants.Id} = {prefix}id";
             var p = cmd.CreateParameter();
             p.ParameterName = "id";
-            p.Value = identity?.ToString() ?? (object)DBNull.Value;
+
+            // GH-5558: Oracle keeps a Guid id as RAW(16), the bytes of Guid.ToByteArray()
+            p.Value = isOracle(conn) && idTypeOf(definition) == typeof(Guid) &&
+                      Guid.TryParse(identity?.ToString(), out var guid)
+                ? guid.ToByteArray()
+                : identity?.ToString() ?? (object)DBNull.Value;
             cmd.Parameters.Add(p);
 
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
@@ -227,6 +233,9 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
             await conn.CloseAsync().ConfigureAwait(false);
         }
     }
+
+    private static bool isOracle(DbConnection conn)
+        => (conn.GetType().FullName ?? string.Empty).StartsWith("Oracle.", StringComparison.OrdinalIgnoreCase);
 
     private static Type idTypeOf(SagaTableDefinition definition) => definition.IdMember switch
     {
