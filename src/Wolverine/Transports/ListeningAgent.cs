@@ -397,6 +397,10 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
         var listener = Listener;
         var receiver = _receiver;
 
+        // GH-5926. A listener back pressure paused in place is still Listener, so a real stop stops and disposes it
+        // like any other. Only a listener back pressure stopped outright is missing, as GH-4866 below describes
+        _pausedInPlace = null;
+
         // GH-4866. A listener paused by back pressure has no IListener -- MarkAsTooBusyAndStopReceivingAsync
         // stopped and disposed it -- but it still has the receiver, deliberately, because the backlog that
         // receiver holds is what has to drain before the listener may resume. This used to return right here
@@ -612,8 +616,80 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
         return true;
     }
 
+    // GH-5926. The listener back pressure paused in place, still held as Listener, until it is resumed or stopped
+    private IPausesForBackPressure? _pausedInPlace;
+
+    // Called with _semaphore held
+    private async ValueTask<bool> tryPauseInPlaceAsync(IListener listener)
+    {
+        if (listener is not IPausesForBackPressure { PausesForBackPressure: true } pausable) return false;
+
+        try
+        {
+            await pausable.PauseForBackPressureAsync();
+            _pausedInPlace = pausable;
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to pause the listener for {Uri} in place, so it is being stopped instead", Uri);
+            return false;
+        }
+    }
+
+    // Called with _semaphore held. True if a listener paused in place by back pressure is receiving again
+    private async ValueTask<bool> tryResumeInPlaceAsync()
+    {
+        var paused = _pausedInPlace;
+        if (paused == null) return false;
+        _pausedInPlace = null;
+
+        // A restriction or a faulted receiver means the listener must not simply carry on: tear the paused one down
+        // and let the start below decide, exactly as it would for a listener back pressure had stopped
+        var restricted = _runtime.DurabilitySettings.Mode == DurabilityMode.Balanced
+                         && _runtime.Restrictions.FindPausedAgentUris().Any(u => u == Uri);
+        var faulted = _receiver?.Unwrap() is IFaultTrackingReceiver { HasFaulted: true };
+
+        if (!restricted && !faulted && ReferenceEquals(Listener, paused))
+        {
+            try
+            {
+                await paused.ResumeAfterBackPressureAsync();
+
+                Status = ListeningStatus.Accepting;
+                _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+                _logger.LogInformation("Resumed message listening at {Uri}", Uri);
+                return true;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Unable to resume the paused listener for {Uri}, so it is being rebuilt", Uri);
+            }
+        }
+
+        if (ReferenceEquals(Listener, paused))
+        {
+            Listener = null;
+        }
+
+        try
+        {
+            await paused.StopAsync();
+            await paused.DisposeAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to cleanly stop the paused listener for {Uri}", Uri);
+        }
+
+        return false;
+    }
+
     private async ValueTask startListenerAsync()
     {
+        // GH-5926. Back pressure paused this listener in place, so pick it back up rather than build another beside it
+        if (await tryResumeInPlaceAsync()) return;
+
         // GH-5257. A restarted listener's retries must not see the last stop's signal
         _pipeline.ResetStopping();
 
@@ -1023,6 +1099,18 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
             activity?.SetTag(WolverineTracing.EndpointAddress, Listener.Address);
             activity?.SetTag(WolverineTracing.StopReason, WolverineTracing.TooBusy);
 
+            // GH-5926. A listener that settles each delivery once it finishes pauses in place: stopping it would hand
+            // the backlog this node is still working through back to the broker. It keeps its Listener, so any stop
+            // while latched still stops and disposes it, and the resume picks it back up
+            if (await tryPauseInPlaceAsync(Listener))
+            {
+                Status = ListeningStatus.TooBusy;
+                _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+
+                _logger.LogInformation("Marked listener at {Uri} as too busy and paused receiving, keeping its broker connection. The current local message count is {LocalCount}, and the BufferingLimits are set to {BufferingLimits}. You may want to increase the buffering limits", Uri, QueueCount, Endpoint.BufferingLimits);
+                return;
+            }
+
             try
             {
                 await Listener.StopAsync();
@@ -1032,7 +1120,7 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
             {
                 _logger.LogError(e, "Unable to cleanly stop the listener for {Uri}", Uri);
             }
-        
+
             Listener = null;
 
             Status = ListeningStatus.TooBusy;

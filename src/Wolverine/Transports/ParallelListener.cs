@@ -4,7 +4,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Transports;
 
-public class ParallelListener : IListener, IDisposable
+public class ParallelListener : IListener, IDisposable, IPausesForBackPressure
 {
     private readonly List<IListener> _listeners = new();
 
@@ -36,6 +36,26 @@ public class ParallelListener : IListener, IDisposable
         envelope.Listener!.DeferAsync(envelope);
 
     public Uri Address { get; }
+
+    // GH-5926. Pauses in place only when every listener it fans out to does
+    bool IPausesForBackPressure.PausesForBackPressure =>
+        _listeners.Count > 0 && _listeners.All(x => x is IPausesForBackPressure { PausesForBackPressure: true });
+
+    async ValueTask IPausesForBackPressure.PauseForBackPressureAsync()
+    {
+        foreach (var listener in _listeners.Cast<IPausesForBackPressure>())
+        {
+            await listener.PauseForBackPressureAsync();
+        }
+    }
+
+    async ValueTask IPausesForBackPressure.ResumeAfterBackPressureAsync()
+    {
+        foreach (var listener in _listeners.Cast<IPausesForBackPressure>())
+        {
+            await listener.ResumeAfterBackPressureAsync();
+        }
+    }
 
     public async ValueTask StopAsync()
     {

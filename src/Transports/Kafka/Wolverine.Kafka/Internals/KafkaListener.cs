@@ -14,9 +14,17 @@ namespace Wolverine.Kafka.Internals;
 /// The Wolverine listener over a Dekaf consumer. Handles both a single-topic endpoint
 /// (<see cref="KafkaTopic"/>) and a multi-topic group (<see cref="KafkaTopicGroup"/>) — the
 /// subscription is just one consumer over one or more topic names.
+///
+/// <para>
+/// GH-5926. A buffered receiver completes each record once it finishes, not when it queues it
+/// (<see cref="ISettlesAfterHandlingListener"/>), so the committed offset never passes a record that is still queued
+/// or running. A node that stops with such a record leaves it to the next consumer in the group. For the same reason
+/// back pressure pauses a buffered listener's partitions rather than closing its consumer
+/// (<see cref="IPausesForBackPressure"/>), so the records it is still working through stay with it.
+/// </para>
 /// </summary>
 public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveLoopHealth,
-    IReportConnectionState, IKafkaClientHealthSource
+    IReportConnectionState, IKafkaClientHealthSource, ISettlesAfterHandlingListener, IPausesForBackPressure
 {
     // How long a single poll waits for a record before the consume loop just loops again. Short enough
     // to keep the receive loop's heartbeat fresh and observe cancellation promptly.
@@ -64,6 +72,12 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     // Retry-tier partitions paused until their head record is due. Only the consume loop touches it
     private readonly Dictionary<TopicPartition, DateTime> _pausedUntil = new();
+
+    // GH-5926. Set by back pressure, applied by the consume loop, which is the only thing that touches the consumer
+    private volatile bool _backPressurePaused;
+
+    // The partitions the consume loop paused for back pressure. Only the consume loop touches it
+    private readonly HashSet<TopicPartition> _pausedForBackPressure = new();
 
     public KafkaListener(KafkaTopic topic, KafkaConsumerOptions config,
         IKafkaConsumer<string, byte[]> consumer, string[] topicNames, IReceiver receiver,
@@ -151,9 +165,19 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             }
         }
 
-        // Commits what handlers finished since the last pass, here on the loop that owns the consumer
+        // Commits what handlers finished since the last pass, here on the loop that owns the consumer. This keeps
+        // running while back pressure has the partitions paused, so the backlog's offsets are still committed
         await _committer.CommitCompletedAsync();
-        resumeDuePartitions();
+
+        if (_backPressurePaused)
+        {
+            pauseForBackPressure();
+        }
+        else
+        {
+            resumeAfterBackPressure();
+            resumeDuePartitions();
+        }
 
         var maybe = await _consumer.ConsumeOneAsync(pollTimeout(), token);
         if (maybe == null)
@@ -302,6 +326,45 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         return true;
     }
 
+    // GH-5926. Pauses every assigned partition, including any a rebalance assigned since the last pass. The consumer
+    // keeps polling, which keeps it in the group, and holds the paused partitions' records for after the resume
+    private void pauseForBackPressure()
+    {
+        var assignment = _consumer.Assignment.ToArray();
+
+        // A partition a rebalance took away loses its pause with it, so pause it again if it ever comes back
+        _pausedForBackPressure.IntersectWith(assignment);
+
+        List<TopicPartition>? toPause = null;
+        foreach (var partition in assignment)
+        {
+            if (_pausedForBackPressure.Add(partition)) (toPause ??= []).Add(partition);
+        }
+
+        if (toPause != null)
+        {
+            _consumer.Partitions.Pause(toPause.ToArray());
+        }
+    }
+
+    // Resumes what back pressure paused, except retry-tier partitions still waiting on their head record, and
+    // partitions this consumer no longer owns
+    private void resumeAfterBackPressure()
+    {
+        if (_pausedForBackPressure.Count == 0) return;
+
+        var assigned = _consumer.Assignment.ToHashSet();
+        var toResume = _pausedForBackPressure
+            .Where(x => assigned.Contains(x) && !_pausedUntil.ContainsKey(x))
+            .ToArray();
+        _pausedForBackPressure.Clear();
+
+        if (toResume.Length > 0)
+        {
+            _consumer.Partitions.Resume(toResume);
+        }
+    }
+
     private void resumeDuePartitions()
     {
         if (_pausedUntil.Count == 0) return;
@@ -410,6 +473,29 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
         return ValueTask.CompletedTask;
     }
+
+    // GH-5926. Only a buffered listener: it settles each record once it finishes, so closing its consumer would hand
+    // the backlog back to the group. A durable listener's records are already in the inbox, so it stops as before
+    bool IPausesForBackPressure.PausesForBackPressure => _endpoint.Mode == EndpointMode.BufferedInMemory;
+
+    ValueTask IPausesForBackPressure.PauseForBackPressureAsync()
+    {
+        _backPressurePaused = true;
+        return ValueTask.CompletedTask;
+    }
+
+    ValueTask IPausesForBackPressure.ResumeAfterBackPressureAsync()
+    {
+        _backPressurePaused = false;
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// GH-5926. Whether back pressure has this listener paused
+    /// </summary>
+    internal bool IsPausedForBackPressure => _backPressurePaused;
+
+    internal KafkaOffsetCommitter Committer => _committer;
 
     public ValueTask DeferAsync(Envelope envelope)
     {
