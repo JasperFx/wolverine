@@ -53,6 +53,13 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
 
     private bool runsInsideCallback => _endpoint.Mode == EndpointMode.Inline;
 
+    /// <summary>GH-5802. How many times an Inline endpoint tries to publish a dead-letter copy before it nacks the original.</summary>
+    internal const int DeadLetterPublishAttempts = 4;
+
+    /// <summary>GH-5802. The waits between those attempts, about 1.5 seconds in all.</summary>
+    internal static readonly TimeSpan[] DeadLetterRetryDelays =
+        [TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(400), TimeSpan.FromSeconds(1)];
+
     private readonly IPubsubEnvelopeMapper _mapper;
 
     /// <summary>
@@ -205,7 +212,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
         {
             // GH-5822. There is no topic to publish a copy to, so the native Nack is the requeue: Pub/Sub redelivers
             // the original to this subscription
-            delivery.RequeueFailed();
+            delivery.CopyNotPublished();
             return;
         }
 
@@ -215,7 +222,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
         }
         catch (Exception e)
         {
-            delivery.RequeueFailed();
+            delivery.CopyNotPublished();
 
             _logger.LogError(e,
                 "{Uri}: Could not publish the requeued copy of envelope {EnvelopeId}; the Google Cloud Platform Pub/Sub delivery will be nacked so that Pub/Sub redelivers the original instead.",
@@ -258,7 +265,75 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
     public Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
         DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
+
+        if (_deadLetterTopic != null && _inline.TryGetValue(envelope, out var inline))
+        {
+            return deadLetterInsideCallbackAsync(envelope, inline, _deadLetterTopic);
+        }
+
         return _deadLetter.PostAsync(envelope);
+    }
+
+    /// <summary>
+    /// GH-5802. The original is still held by its subscriber callback, which settles it the moment it returns, so
+    /// the dead-letter copy has to be published before then. Retry it inline a fixed number of times rather than
+    /// through the fire-and-forget <c>RetryBlock</c>, and when it never succeeds -- or the host starts stopping --
+    /// have the callback Nack the original so Pub/Sub keeps it.
+    /// </summary>
+    /// <remarks>
+    /// The budget is a fixed <see cref="DeadLetterPublishAttempts" /> attempts over roughly a second and a half
+    /// (<see cref="DeadLetterRetryDelays" />), not <c>DurabilitySettings.DrainTimeout</c>. Every retry holds a
+    /// flow-control slot and the handler's lane while the dead-letter topic is down, and the drain timeout is a
+    /// shutdown budget sized for slow handlers, not for one publish. A short budget rides out a transient blip;
+    /// past it the message is safest left with Pub/Sub, which redelivers it.
+    /// </remarks>
+    private async Task deadLetterInsideCallbackAsync(Envelope envelope, PubsubInlineDelivery delivery,
+        PubsubEndpoint deadLetterTopic)
+    {
+        var cancellation = _runtime.Cancellation;
+        Exception? failure = null;
+
+        for (var attempt = 1; attempt <= DeadLetterPublishAttempts; attempt++)
+        {
+            try
+            {
+                await deadLetterTopic.SendMessageAsync(envelope, _logger, _clients);
+                return;
+            }
+            catch (Exception e)
+            {
+                failure = e;
+            }
+
+            if (attempt == DeadLetterPublishAttempts || cancellation.IsCancellationRequested) break;
+
+            _logger.LogWarning(failure,
+                "{Uri}: Publishing envelope {EnvelopeId} to the dead-letter topic {DeadLetterTopic} failed (attempt {Attempt} of {MaxAttempts}); retrying.",
+                _endpoint.Uri, envelope.Id, deadLetterTopic.TopicNameFor(_clients.ProjectId).ToString(), attempt, DeadLetterPublishAttempts);
+
+            try
+            {
+                await Task.Delay(DeadLetterRetryDelays[attempt - 1], cancellation);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+
+        delivery.CopyNotPublished();
+
+        _logger.LogError(failure,
+            "{Uri}: Could not publish envelope {EnvelopeId} to the dead-letter topic {DeadLetterTopic} within {MaxAttempts} attempts{Stopping}. The Google Cloud Platform Pub/Sub delivery will be nacked so that Pub/Sub keeps the original and redelivers it.",
+            _endpoint.Uri, envelope.Id, deadLetterTopic.TopicNameFor(_clients.ProjectId).ToString(),
+            DeadLetterPublishAttempts, cancellation.IsCancellationRequested ? " (the host is stopping)" : "");
+
+        // Nothing was dead lettered and the original is left with Pub/Sub, so the error policy must not complete the
+        // envelope or publish faults for it: completing it marks it handled, and the in-memory idempotency guard
+        // would then discard the very redelivery the Nack asks for
+        throw new DeadLetterMoveFailedException(
+            $"Envelope {envelope.Id} could not be published to the dead-letter topic {deadLetterTopic.TopicNameFor(_clients.ProjectId)} within {DeadLetterPublishAttempts} attempts; the Pub/Sub delivery is nacked so that Pub/Sub redelivers it",
+            failure);
     }
 
     public abstract Task StartAsync();
@@ -649,7 +724,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
             foreach (var envelope in envelopes) _inline.TryRemove(envelope, out _);
         }
 
-        return !delivery.HasFailedRequeue;
+        return !delivery.MustNack;
     }
 
 }
