@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -10,6 +11,7 @@ namespace Wolverine.Logging;
 public class AuditToActivityFrame : SyncFrame
 {
     private readonly Type _inputType;
+    private readonly MemberInfo? _bodyMember;
     private readonly List<AuditedMember> _members;
     private Variable? _input;
     private MessageActivityVariable? _activity;
@@ -24,9 +26,19 @@ public class AuditToActivityFrame : SyncFrame
     /// chain's request body — e.g. an [AsParameters] container whose [FromBody] member has overwritten
     /// the request type. See GH-3135.
     /// </param>
-    public AuditToActivityFrame(IChain chain, Type? inputType)
+    public AuditToActivityFrame(IChain chain, Type? inputType) : this(chain, inputType, null)
+    {
+    }
+
+    /// <param name="bodyMember">
+    /// The member of <paramref name="inputType"/> that holds the request body, when audited members are declared on
+    /// the body's type rather than on <paramref name="inputType"/> itself — e.g. an [AsParameters] container whose
+    /// [FromBody] member has no standalone variable. Those members are read through it.
+    /// </param>
+    public AuditToActivityFrame(IChain chain, Type? inputType, MemberInfo? bodyMember)
     {
         _inputType = inputType ?? chain.InputType()!;
+        _bodyMember = bodyMember;
         _members = chain.AuditedMembers;
     }
 
@@ -47,7 +59,7 @@ public class AuditToActivityFrame : SyncFrame
         foreach (var member in _members)
         {
             writer.WriteLine(
-                $"{activity}?.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {_input!.Usage}.{member.Member.Name});");
+                $"{activity}?.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {usageOf(member, _input!.Usage, false)});");
         }
 
         Next?.GenerateCode(method, writer);
@@ -67,12 +79,38 @@ public class AuditToActivityFrame : SyncFrame
             foreach (var member in _members)
             {
                 writer.Write(
-                    $"{current}.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {_input!.FSharpUsage}.{member.Member.Name}) |> ignore");
+                    $"{current}.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {usageOf(member, _input!.FSharpUsage, true)}) |> ignore");
             }
 
             writer.FinishBlock();
         }
 
         Next?.GenerateFSharpCode(method, writer);
+    }
+
+    // A member of the body's type is read through the body member, which may be null when the body is optional
+    private string usageOf(AuditedMember member, string input, bool fsharp)
+    {
+        if (_bodyMember == null || member.Member.DeclaringType!.IsAssignableFrom(_inputType))
+        {
+            return $"{input}.{member.Member.Name}";
+        }
+
+        // The declared type, so a Nullable<T> body stays nullable
+        var bodyType = _bodyMember is PropertyInfo property ? property.PropertyType : ((FieldInfo)_bodyMember).FieldType;
+        var bodyIsNullableStruct = Nullable.GetUnderlyingType(bodyType) != null;
+        var body = $"{input}.{_bodyMember.Name}";
+
+        if (fsharp)
+        {
+            // F# has no ?. operator, and a Nullable<T> body's members are only reachable through its Value
+            return bodyIsNullableStruct
+                ? $"(if {body}.HasValue then box {body}.Value.{member.Member.Name} else null)"
+                : $"{body}.{member.Member.Name}";
+        }
+
+        return bodyType.IsValueType && !bodyIsNullableStruct
+            ? $"{body}.{member.Member.Name}"
+            : $"{body}?.{member.Member.Name}";
     }
 }
