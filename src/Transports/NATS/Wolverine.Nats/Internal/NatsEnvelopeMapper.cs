@@ -103,6 +103,7 @@ public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>, 
 /// maps its messages with the endpoint's <see cref="INatsEnvelopeMapper"/>, the same one core NATS uses, so that
 /// <c>UseInterop(...)</c> covers both. Kept so code that builds one keeps compiling.
 /// </summary>
+[Obsolete("The NATS transport no longer uses this. Implement INatsEnvelopeMapper, or derive from NatsEnvelopeMapper, and plug it in with UseInterop(...). It covers core NATS and JetStream alike. This type will be removed in the next major version.")]
 public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHeaders>
 {
     private readonly Uri _destination;
