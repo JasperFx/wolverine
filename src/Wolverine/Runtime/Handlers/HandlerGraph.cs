@@ -417,13 +417,21 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         foreach (var group in Groups)
         {
             if (group.Chains.Count < 2) continue;
-            if (!partitioning.TryFindTopology(group.MessageType, out var topology)) continue;
 
-            var handlerTypes = group.Chains.Select(x => MessageHandlerGroup.HandlerTypeOf(x).FullNameInCode()).Join(", ");
+            // GH-5916. When several topologies publish the message type, each one runs only the handler types it
+            // declares, so count those
+            var topology = partitioning.ShardedMessageTopologies
+                .Where(x => x.Matches(group.MessageType))
+                .Select(x => (Topology: x, Chains: partitioning.HandlerScopes.ChainsRunBy(x, group)))
+                .FirstOrDefault(x => x.Chains.Length > 1);
+
+            if (topology.Topology == null) continue;
+
+            var handlerTypes = topology.Chains.Select(x => MessageHandlerGroup.HandlerTypeOf(x).FullNameInCode()).Join(", ");
 
             throw new InvalidOperationException(
                 $"Message type '{group.MessageType.FullNameInCode()}' belongs to the partitioned message topology " +
-                $"'{topology!.Uri}' and is handled by more than one handler type ({handlerTypes}). Each handler type " +
+                $"'{topology.Topology.Uri}' and is handled by more than one handler type ({handlerTypes}). Each handler type " +
                 "runs on its own local queue, so the topology cannot keep the messages of one group in order across " +
                 "them. Handle this message type in one handler type, or leave it out of the partitioned topology.");
         }

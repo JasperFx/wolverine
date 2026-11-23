@@ -120,29 +120,24 @@ internal class ExplicitRouting : IMessageRouteSource
             }
         }
 
+        var partitioning = runtime.Options.MessagePartitioning;
         var routedToBatch = false;
-        foreach (var topology in runtime.Options.MessagePartitioning.ShardedMessageTopologies)
+        foreach (var topology in partitioning.AllTopologies)
         {
-            if (topology.TryMatch(messageType, runtime, out var route))
-            {
-                yield return route!;
+            // GH-5916. A message type that more than one topology publishes goes only through the topologies that
+            // declare one of its handler types, so each handler runs once
+            if (!topology.TryMatch(messageType, runtime, out var route)) continue;
+            if (!partitioning.HandlerScopes.RoutesThrough(topology, messageType, runtime.Options.HandlerGraph)) continue;
 
-                // GH-5917. This route is terminating, so local routing never sends the message to its batch's queue,
-                // and the slot only runs the message's handler. Send the batch its own copy, as local routing does
-                if (!routedToBatch && topology is Partitioning.LocalPartitionedMessageTopology &&
-                    batchRouteBesideHandlers(messageType, runtime) is { } batchRoute)
-                {
-                    routedToBatch = true;
-                    yield return batchRoute;
-                }
-            }
-        }
+            yield return route!;
 
-        foreach (var topology in runtime.Options.MessagePartitioning.GlobalPartitionedTopologies)
-        {
-            if (topology.TryMatch(messageType, runtime, out var globalRoute))
+            // GH-5917. This route is terminating, so local routing never sends the message to its batch's queue,
+            // and the slot only runs the message's handler. Send the batch its own copy, as local routing does
+            if (!routedToBatch && topology is Partitioning.LocalPartitionedMessageTopology &&
+                batchRouteBesideHandlers(messageType, runtime) is { } batchRoute)
             {
-                yield return globalRoute!;
+                routedToBatch = true;
+                yield return batchRoute;
             }
         }
     }

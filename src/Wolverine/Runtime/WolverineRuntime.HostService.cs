@@ -1390,6 +1390,9 @@ public partial class WolverineRuntime
         // GH-5137. Every listener is bound to its chains by now
         Handlers.AssertOneChainPerEndpoint();
 
+        // GH-5916. Ahead of GH-5695's check, which counts only the handler types each topology declares
+        Options.MessagePartitioning.HandlerScopes.AssertValid(Handlers);
+
         // GH-5695
         Handlers.AssertPartitionedMessagesHaveOneHandlerType(Options.MessagePartitioning);
 

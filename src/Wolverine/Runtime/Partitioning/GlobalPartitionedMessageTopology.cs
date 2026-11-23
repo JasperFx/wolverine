@@ -5,7 +5,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Runtime.Partitioning;
 
-public class GlobalPartitionedMessageTopology
+public class GlobalPartitionedMessageTopology : IPartitionedTopology
 {
     private readonly WolverineOptions _options;
     private readonly List<Subscription> _subscriptions = new();
@@ -213,6 +213,50 @@ public class GlobalPartitionedMessageTopology
     }
 
     internal List<IGroupingRule> GroupingRules { get; } = new();
+
+    private readonly List<Type> _handlerTypes = new();
+
+    /// <summary>
+    ///     Declare that this topology runs the handlers in <typeparamref name="THandler"/>. This only matters for a
+    ///     message type that more than one partitioned topology publishes, as in a modular monolith where each
+    ///     module has its own global topology: each of its handler types runs only on the topology that declares it.
+    ///     A message type published through just one topology runs all of its handlers there, declared or not.
+    /// </summary>
+    /// <typeparam name="THandler">The handler type</typeparam>
+    public void HandledBy<THandler>()
+    {
+        HandledBy(typeof(THandler));
+    }
+
+    /// <summary>
+    ///     Declare that this topology runs the handlers in these handler types. See <see cref="HandledBy{THandler}"/>
+    /// </summary>
+    public void HandledBy(params Type[] handlerTypes)
+    {
+        ArgumentNullException.ThrowIfNull(handlerTypes);
+        foreach (var handlerType in handlerTypes)
+        {
+            ArgumentNullException.ThrowIfNull(handlerType);
+            if (!_handlerTypes.Contains(handlerType)) _handlerTypes.Add(handlerType);
+        }
+    }
+
+    string IPartitionedTopology.Name => _externalTopology?.Uri.ToString() ?? "a global partitioned topology";
+    bool IPartitionedTopology.ListensLocally => true;
+    IReadOnlyList<Type> IPartitionedTopology.HandlerTypes => _handlerTypes;
+    bool IPartitionedTopology.Matches(Type messageType) => Matches(messageType);
+
+    bool IPartitionedTopology.ExecutesAt(Endpoint endpoint)
+    {
+        if (_localTopology != null && _localTopology.Slots.Contains(endpoint)) return true;
+
+        // An external slot normally bridges into its companion queue, but under native acks (GH-3709), or when the
+        // "external" topology is itself made of local queues, the slot runs the message right there
+        return _externalTopology != null && _externalTopology.Slots.Contains(endpoint);
+    }
+
+    bool IPartitionedTopology.TryMatch(Type messageType, IWolverineRuntime runtime, out IMessageRoute? route) =>
+        TryMatch(messageType, runtime, out route);
 
     /// <summary>
     ///     Use the Envelope.TenantId as the GroupId of the message types published through this topology.

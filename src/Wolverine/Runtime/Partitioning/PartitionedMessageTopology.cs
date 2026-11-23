@@ -17,6 +17,8 @@ public abstract class PartitionedMessageTopology<TListener, TSubscriber> : Parti
     /// </summary>
     protected bool PublishOnly { get; set; }
 
+    internal override bool ListensLocally => !PublishOnly;
+
     public PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
     {
         if (listeningSlots.HasValue)
@@ -77,7 +79,7 @@ public abstract class PartitionedMessageTopology<TListener, TSubscriber> : Parti
     }
 } 
 
-public abstract class PartitionedMessageTopology
+public abstract class PartitionedMessageTopology : IPartitionedTopology
 {
     protected readonly WolverineOptions _options;
 
@@ -165,6 +167,47 @@ public abstract class PartitionedMessageTopology
     }
 
     public IReadOnlyList<Endpoint> Slots => _slots;
+
+    private readonly List<Type> _handlerTypes = new();
+
+    /// <summary>
+    ///     Declare that this topology runs the handlers in <typeparamref name="THandler"/>. This only matters for a
+    ///     message type that more than one partitioned topology publishes, as in a modular monolith where each
+    ///     module has its own topology: each of its handler types runs only on the topology that declares it.
+    ///     A message type published through just one topology runs all of its handlers there, declared or not.
+    /// </summary>
+    /// <typeparam name="THandler">The handler type</typeparam>
+    public void HandledBy<THandler>()
+    {
+        HandledBy(typeof(THandler));
+    }
+
+    /// <summary>
+    ///     Declare that this topology runs the handlers in these handler types. See <see cref="HandledBy{THandler}"/>
+    /// </summary>
+    public void HandledBy(params Type[] handlerTypes)
+    {
+        ArgumentNullException.ThrowIfNull(handlerTypes);
+        foreach (var handlerType in handlerTypes)
+        {
+            ArgumentNullException.ThrowIfNull(handlerType);
+            if (!_handlerTypes.Contains(handlerType)) _handlerTypes.Add(handlerType);
+        }
+    }
+
+    /// <summary>
+    ///     False for a topology that only publishes to its endpoints and never listens to them in this application
+    /// </summary>
+    internal virtual bool ListensLocally => true;
+
+    string IPartitionedTopology.Name => Uri.ToString();
+    bool IPartitionedTopology.ListensLocally => ListensLocally;
+    IReadOnlyList<Type> IPartitionedTopology.HandlerTypes => _handlerTypes;
+    bool IPartitionedTopology.Matches(Type messageType) => Matches(messageType);
+    bool IPartitionedTopology.ExecutesAt(Endpoint endpoint) => _slots.Contains(endpoint);
+
+    bool IPartitionedTopology.TryMatch(Type messageType, IWolverineRuntime runtime, out IMessageRoute? route) =>
+        TryMatch(messageType, runtime, out route);
 
     /// <summary>
     ///     Create a publishing rule for a single message type

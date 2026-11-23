@@ -5,27 +5,34 @@ namespace Wolverine.Runtime.Partitioning;
 
 internal class PartitionedMessageReRouter : IMessageHandler
 {
-    private readonly PartitionedMessageTopology _topology;
+    private readonly PartitionedMessageTopology[] _topologies;
 
-    public PartitionedMessageReRouter(PartitionedMessageTopology topology, Type messageType)
+    /// <summary>
+    /// GH-5916. A message type routed through several sharded topologies, each running its own handler types, is
+    /// re-routed to a slot of each of them
+    /// </summary>
+    public PartitionedMessageReRouter(PartitionedMessageTopology[] topologies, Type messageType)
     {
-        _topology = topology;
+        _topologies = topologies;
         MessageType = messageType;
     }
 
     public Type MessageType { get; }
 
-    public Task HandleAsync(MessageContext context, CancellationToken cancellation)
+    public async Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
         // Knock it out of being scheduled just in case
         // From https://github.com/JasperFx/wolverine/issues/2026
         context.Envelope!.ClearAnyScheduling();
-        
-        var endpoint = _topology.SelectSlot(context.Envelope);
 
-        return context
-            .EndpointFor(endpoint.Uri)
-            .SendAsync(context.Envelope.Message, context.Envelope.ToDeliveryOptions()).AsTask();
+        foreach (var topology in _topologies)
+        {
+            var endpoint = topology.SelectSlot(context.Envelope);
+
+            await context
+                .EndpointFor(endpoint.Uri)
+                .SendAsync(context.Envelope.Message, context.Envelope.ToDeliveryOptions());
+        }
     }
 
     public LogLevel ExecutionLogLevel => LogLevel.Debug;

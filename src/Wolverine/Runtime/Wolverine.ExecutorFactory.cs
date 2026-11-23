@@ -45,14 +45,29 @@ public partial class WolverineRuntime : IExecutorFactory
         var handler = Handlers.ResolveBatchMember(messageType, endpoint, Options.Transports.GetOrCreate<LocalTransport>(),
             batch => batch.BuildHandler(this));
 
-        if (handler == null && Options.MessagePartitioning.TryFindTopology(messageType, out var topology))
+        // GH-5916. On a slot of one of several topologies that publish this message type, run only the handler types
+        // that topology declares
+        if (handler == null &&
+            Options.MessagePartitioning.HandlerScopes.ChainsScopedTo(messageType, endpoint, Handlers) is { } scoped)
         {
+            handler = TopologyHandlerScopes.BuildHandler(messageType, scoped, Handlers);
+        }
+
+        if (handler == null && Options.MessagePartitioning.TryFindTopology(messageType, out _))
+        {
+            // GH-5916. Every sharded topology this message type is routed through gets it
+            var topologies = Options.MessagePartitioning.ShardedMessageTopologies
+                .Where(x => x.Matches(messageType) &&
+                            Options.MessagePartitioning.HandlerScopes.RoutesThrough(x, messageType, Handlers))
+                .ToArray();
+
             // GH-5695. A queue with a chain of this message type bound to it is where a slot relays the message to
             // run that chain. Re-routing it from there sent it straight back to the slot, which relayed it here
             // again, forever
-            if (!topology!.Slots.Contains(endpoint) && !Handlers.HasChainBoundTo(messageType, endpoint))
+            if (topologies.Length > 0 && !topologies.Any(x => x.Slots.Contains(endpoint)) &&
+                !Handlers.HasChainBoundTo(messageType, endpoint))
             {
-                handler = new PartitionedMessageReRouter(topology, messageType);
+                handler = new PartitionedMessageReRouter(topologies, messageType);
             }
         }
 
