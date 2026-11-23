@@ -14,6 +14,33 @@ namespace Wolverine.AmazonSqs.Tests.Samples;
 
 public class Bootstrapping
 {
+    private async Task interop_with_nservicebus_and_masstransit()
+    {
+        #region sample_sqs_interop_with_nservicebus_and_masstransit
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAmazonSqsTransport();
+
+                // Send to and receive from an NServiceBus application. The optional
+                // queue name tells NServiceBus where to send replies back to this application
+                opts.PublishMessage<OrderPlaced>().ToSqsQueue("nsb-orders")
+                    .UseNServiceBusInterop("wolverine-replies");
+
+                opts.ListenToSqsQueue("wolverine-replies")
+                    .UseNServiceBusInterop();
+
+                // Send to and receive from a MassTransit application
+                opts.PublishMessage<OrderShipped>().ToSqsQueue("masstransit-orders")
+                    .UseMassTransitInterop();
+
+                opts.ListenToSqsQueue("from-masstransit")
+                    .UseMassTransitInterop()
+                    .DefaultIncomingMessage<OrderShipped>();
+            }).StartAsync();
+        #endregion
+    }
+
     private async Task use_named_brokers()
     {
         #region sample_using_multiple_sqs_brokers
@@ -463,3 +490,6 @@ public class CustomSqsMapper : ISqsEnvelopeMapper
 
 #endregion
 
+public record OrderPlaced(Guid Id);
+
+public record OrderShipped(Guid Id);

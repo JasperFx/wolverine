@@ -19,7 +19,8 @@ namespace PolecatTests.AncillaryStores;
 // GH-3109 (Polecat mirror of MartenTests' ancillary_stores_use_different_databases): ancillary Polecat
 // stores can live on separate SQL Server databases, and a multi-tenanted ancillary store (database per
 // tenant) produces a MultiTenantedMessageStore. Mirrors the Marten coverage adapted to Polecat's
-// separate-database multi-tenancy (Polecat has no UseTenantPartitionedEvents — see notes.md).
+// separate-database multi-tenancy. Polecat 6 does have UseTenantPartitionedEvents, but this suite doesn't
+// mirror Marten's tenant-partitioned ancillary test yet (see notes.md).
 public class ancillary_stores_use_different_databases : IAsyncLifetime
 {
     private IHost theHost = null!;

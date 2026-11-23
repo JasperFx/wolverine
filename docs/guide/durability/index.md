@@ -146,7 +146,7 @@ using var host = await Host.CreateDefaultBuilder()
 ### Bumping out Stale Inbox/Outbox Messages <Badge type="tip" text="5.2" />
 
 ::: warning
-Do **not** make the inbox timeout too low are you could accidentally make Wolverine try to replay messages that are happily floating
+Do **not** make the inbox timeout too low or you could accidentally make Wolverine try to replay messages that are happily floating
 around in retries or just plain slow. Make the `InboxStaleTime` be at least longer than your longest expected message execution time
 with a couple retries for good measure. Ask us how we know this is a potential problem...
 
@@ -178,7 +178,7 @@ Since 7.0 both thresholds default to 1 hour (outside `ServerlessWithOutbox`, whi
 for the 6.x behaviour, where they were off and opting in required a database migration.
 :::
 
-You also have this setting to force Wolverine to automatically "bump" and older messages that seem to be stalled in
+You also have this setting to force Wolverine to automatically "bump" any older messages that seem to be stalled in
 the outbox table or the inbox table:
 
 <!-- snippet: sample_configuring_outbox_stale_timeout -->

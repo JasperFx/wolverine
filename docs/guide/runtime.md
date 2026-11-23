@@ -205,7 +205,7 @@ incoming messages are also deleted from the durable inbox upon successful messag
 The `Durable` endpoint option makes Wolverine's [local queueing](/guide/messaging/transports/local) robust enough to use for cases where you need 
 guaranteed processing of messages, but don't want to use an external broker.
 
-### Native Ack Endpoints
+### Native Ack Endpoints <Badge type="tip" text="6.30" />
 
 The fourth option, `EndpointMode.NativeAck`, processes messages in memory like **Buffered** endpoints, but holds the broker
 delivery unacknowledged until the handler finishes. The broker message is then acked on success, or nacked or dead lettered

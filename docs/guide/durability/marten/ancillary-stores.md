@@ -228,6 +228,8 @@ A [saga](/guide/durability/sagas) can live in an ancillary store too. Put the sa
 class, and Wolverine loads and saves that saga through the ancillary store. The saga diagnostics in
 `IWolverineRuntime.SagaStorage` read it from that store as well:
 
+<!-- snippet: sample_saga_in_an_ancillary_marten_store -->
+<a id='snippet-sample_saga_in_an_ancillary_marten_store'></a>
 ```cs
 [MartenStore(typeof(IGiftSagaStore))]
 public class GiftLedgerSaga : Wolverine.Saga
@@ -237,6 +239,8 @@ public class GiftLedgerSaga : Wolverine.Saga
     public static GiftLedgerSaga Start(StartGiftLedger command) => new() { Id = command.Id };
 }
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/saga_storage_on_an_ancillary_store_5799.cs#L133-L142' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_saga_in_an_ancillary_marten_store' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## What's not (yet) supported
 

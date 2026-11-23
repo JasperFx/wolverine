@@ -68,12 +68,13 @@ builder.UseWolverine(opts =>
         // broker connection
         .GlobalListener();
 
-    // More on this in the docs....
+    // This sender is tenant aware, so a message sent with a tenant id
+    // goes to the "outgoing" queue on that tenant's virtual host
     opts.PublishMessage<Message1>()
-        .ToRabbitQueue("outgoing").GlobalSender();
+        .ToRabbitQueue("outgoing");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L338-L391' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_rabbit_mq_for_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L338-L392' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_rabbit_mq_for_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -106,17 +107,14 @@ public static async Task send_message_to_specific_tenant(IMessageBus bus)
     await bus.PublishAsync(new Message1(), new DeliveryOptions { TenantId = "two" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L396-L403' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/multi_tenancy_through_virtual_hosts.cs#L397-L404' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_to_specific_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, in the Wolverine internals, it:
 
 1. Routes the message to a Rabbit MQ queue named "outgoing"
-2. Because the "outgoing" queue is marked with `GlobalSender()`, Wolverine opts it out of the per-tenant topology and
-   sends the message to the "outgoing" queue on the default broker connection, even though `TenantId == "two"`
-
-Without that `GlobalSender()` call, the sender for "outgoing" would be tenant aware instead. Wolverine would see that
-`TenantId == "two"` and send the message to the "outgoing" queue on the "vh2" virtual host.
+2. Within the sender for that queue, Wolverine sees that `TenantId == "two"`, so it sends the message to the "outgoing" queue
+   on the "vh2" virtual host
 
 Likewise, see the listening set up against the "incoming" queue above. At runtime, this Wolverine application will be
 listening to a queue named "incoming" on the default Rabbit MQ broker and a separate queue named "incoming" on the separate

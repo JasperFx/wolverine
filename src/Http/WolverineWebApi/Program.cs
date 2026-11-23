@@ -304,16 +304,6 @@ public class Program
         #region sample_using_configure_endpoints
         app.MapWolverineEndpoints(opts =>
         {
-            opts.UseApiVersioning(v =>
-            {
-                // Existing unversioned endpoints are left unchanged
-                v.UnversionedPolicy = UnversionedPolicy.PassThrough;
-                v.Sunset("3.0").On(DateTimeOffset.Parse("2027-01-01T00:00:00Z"))
-                    .WithLink(new Uri("https://example.com/migrate-to-v2"), "Migration guide", "text/html");
-                v.Deprecate("1.0").On(DateTimeOffset.Parse("2026-12-31T00:00:00Z"))
-                    .WithLink(new Uri("https://example.com/sunset-v1"));
-            });
-
             // This is strictly to test the endpoint policy
 
             opts.ConfigureEndpoints(httpChain =>
@@ -336,6 +326,16 @@ public class Program
             opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 
             #endregion
+
+            opts.UseApiVersioning(v =>
+            {
+                // Existing unversioned endpoints are left unchanged
+                v.UnversionedPolicy = UnversionedPolicy.PassThrough;
+                v.Sunset("3.0").On(DateTimeOffset.Parse("2027-01-01T00:00:00Z"))
+                    .WithLink(new Uri("https://example.com/migrate-to-v2"), "Migration guide", "text/html");
+                v.Deprecate("1.0").On(DateTimeOffset.Parse("2026-12-31T00:00:00Z"))
+                    .WithLink(new Uri("https://example.com/sunset-v1"));
+            });
 
             // Only want this middleware on endpoints on this one handler
             opts.AddMiddleware(typeof(BeforeAndAfterMiddleware),

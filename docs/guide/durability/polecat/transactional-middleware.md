@@ -135,6 +135,8 @@ A transactional handler can still call `IDocumentSession.SaveChangesAsync()` its
 afterward. That commit sends what was published before it, the transactional middleware's own commit stores
 what was published after it, and Wolverine sends those messages once the handler is done:
 
+<!-- snippet: sample_polecat_committing_the_session_yourself -->
+<a id='snippet-sample_polecat_committing_the_session_yourself'></a>
 ```cs
 [Transactional]
 public static async Task Handle(SaveThenPublishToLocalQueue message, IDocumentSession session, IMessageBus bus)
@@ -148,6 +150,8 @@ public static async Task Handle(SaveThenPublishToLocalQueue message, IDocumentSe
     await bus.PublishAsync(new SaveThenPublishLocalTarget(message.Id));
 }
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/save_then_publish_5886.cs#L150-L162' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_polecat_committing_the_session_yourself' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Before Wolverine 7.0, the default `MultiFlushMode.OnlyOnce` stopped Wolverine from sending the messages
 published after the handler's own commit, so they were left in the outbox. `MultiFlushMode` now applies

@@ -130,6 +130,7 @@ public class OrderLedgerSaga : Wolverine.Saga
     public static OrderLedgerSaga Start(StartOrderLedger command) => new() { Id = command.Id };
 }
 
+#region sample_saga_in_an_ancillary_marten_store
 [MartenStore(typeof(IGiftSagaStore))]
 public class GiftLedgerSaga : Wolverine.Saga
 {
@@ -137,3 +138,5 @@ public class GiftLedgerSaga : Wolverine.Saga
 
     public static GiftLedgerSaga Start(StartGiftLedger command) => new() { Id = command.Id };
 }
+
+#endregion

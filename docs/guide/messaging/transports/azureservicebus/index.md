@@ -334,7 +334,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L944-L978' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_system_queue_prefix' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L940-L974' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_system_queue_prefix' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The prefix is joined with the Azure Service Bus identifier delimiter (`.`), and the `wolverine` token is kept so the

@@ -18,10 +18,9 @@ scenarios.
 
 ## Polecat-specific differences
 
-* **No `UseTenantPartitionedEvents`.** Polecat multi-tenancy is *separate database per tenant*, not
-  Marten's Conjoined + partitioned-events model. So Marten's `tenant_partitioned_ancillary_store`
-  (which relies on `Events.UseTenantPartitionedEvents` + `AddMartenManagedTenantsAsync`) has no
-  verbatim Polecat equivalent. The multi-tenant ancillary coverage instead lives in
+* **Tenant-partitioned events aren't covered yet.** Polecat 6 supports conjoined multi-tenancy and
+  `Events.UseTenantPartitionedEvents` (earlier Polecat versions were database-per-tenant only), but Marten's
+  `tenant_partitioned_ancillary_store` has not been mirrored here. The multi-tenant ancillary coverage lives in
   `ancillary_stores_use_different_databases` (database-per-tenant → `MultiTenantedMessageStore`).
 
 * **`SubjectUri` vs `Uri`.** The RDBMS message store only specializes `SubjectUri` for the `Main`
