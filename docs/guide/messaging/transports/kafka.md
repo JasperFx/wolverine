@@ -238,8 +238,13 @@ committed. A **durable** listener (`UseDurableInbox()`) finishes a message once 
 transactional inbox. That gives you at-least-once semantics -- if the application shuts down unexpectedly before
 then, the message is re-delivered when the consumer rejoins the group.
 
-A **non-durable** listener (`BufferedInMemory` or `ProcessInline`) trades some of that for throughput, and can lose
-messages during an ungraceful shutdown. See the end of [Commit Strategy](#commit-strategy) for exactly when.
+A **non-durable** listener (`BufferedInMemory` or `ProcessInline`) only finishes a message when its handler does, or
+when the message is discarded or dead lettered. With
+the default commit strategy, that's the only point at which Wolverine stores the offset, so if the application goes
+down hard, anything still in flight is simply redelivered when the consumer rejoins the group. You might see a message
+twice, but you won't lose it. The one way a non-durable listener can *lose* messages is if you turn on Kafka's own
+auto commit yourself with `OffsetCommitMode.Auto`. See the end of [Commit Strategy](#commit-strategy) for exactly when
+that bites.
 
 ### Offset Commit Behavior in the Listener
 
@@ -284,8 +289,9 @@ If you explicitly set `OffsetCommitMode = OffsetCommitMode.Auto` via `ConfigureC
 commits and leaves offset management entirely to the Kafka client. Pending/stored offsets are flushed on a
 graceful shutdown so progress is not lost.
 
-In that mode a record's offset becomes committable once the listener asks for the next record (Dekaf's
-`OffsetStoreTiming.AfterProcessing`). An inline listener, or a durable listener receiving one record at a time
+In that mode, and only in that mode, a record's offset becomes committable once the listener asks for the next record
+(Dekaf's `OffsetStoreTiming.AfterProcessing`). Wolverine's own commit strategies above wait for a message to finish
+instead. An inline listener, or a durable listener receiving one record at a time
 (`MaximumMessagesToReceive(1)`), only asks after the handler or the inbox has the record, so a crash redelivers
 it. A buffered listener asks as soon as it has queued the record, and a durable micro-batch asks for its later
 records before the batch reaches the inbox, so a crash can still lose what they hold.
@@ -306,34 +312,51 @@ shortly after the message finishes rather than before its handler returns.
 
 ### Recommended Configuration by Use Case
 
-**At-least-once delivery** (recommended for most use cases):
+**At-least-once delivery with de-duplication** (recommended for most use cases):
 
 ```csharp
 opts.ListenToKafkaTopic("orders")
     .UseDurableInbox();
 ```
 
-This ensures messages are persisted to the inbox before the offset is committed. If your process crashes, the
-message will be re-delivered by Kafka and de-duplicated by Wolverine's inbox.
+This persists each message to the inbox before its offset is committed. If your process crashes, Kafka re-delivers
+the message and Wolverine's inbox de-duplicates it.
 
-**Higher throughput, at-most-once delivery**:
+**Higher throughput, at-least-once delivery without de-duplication**:
 
 ```csharp
-opts.ListenToKafkaTopic("telemetry")
+opts.ListenToKafkaTopic("orders")
     .BufferedInMemory();
 ```
 
-With auto-commit enabled, offsets may be committed before processing completes. This is suitable for
-high-volume, loss-tolerant workloads like telemetry or logging.
+Offsets are only stored once a message finishes, so a crash means re-delivery rather than loss. There's no inbox to
+catch the duplicates though, so make sure your handlers are idempotent.
+
+**At-most-once delivery**:
+
+```csharp
+opts.ListenToKafkaTopic("telemetry")
+    .BufferedInMemory()
+    .ConfigureConsumer(config =>
+    {
+        // Hand offset management over to the Kafka client
+        config.OffsetCommitMode = OffsetCommitMode.Auto;
+    });
+```
+
+With Kafka's own auto commit turned on, a buffered listener's offset can be committed as soon as the message is
+queued in memory, before it's processed. If the process crashes, those messages are gone. That's a fine trade for
+high-volume, loss-tolerant workloads like telemetry or logging that would rather drop a message than handle it twice.
 
 **Inline processing with manual consumer tuning**:
 
 ```csharp
 opts.ListenToKafkaTopic("events")
     .ProcessInline()
+    // Commit each finished message's offset right away
+    .CommitOffsets(CommitMode.PerMessage)
     .ConfigureConsumer(config =>
     {
-        config.OffsetCommitMode = OffsetCommitMode.Manual;
         config.AutoOffsetReset = AutoOffsetReset.Earliest;
     });
 ```
@@ -346,14 +369,14 @@ You can always override any consumer setting per-topic using `ConfigureConsumer(
 The Kafka-native way to scale out message processing is to **run more nodes in the same consumer group**.
 Kafka's own group coordinator assigns the topic's partitions across the live consumers in the group and
 guarantees that only one consumer processes a given partition at a time, so you get safe, ordered,
-horizontally-scaled processing for free. This is the recommended approach for Kafka — reach for it before
+horizontally-scaled processing for free. This is the recommended approach for Kafka -- reach for it before
 in-process parallelism.
 
 The ceiling is the **partition count**: a topic with _N_ partitions can be processed by at most _N_ nodes
 concurrently (extra nodes sit idle as hot standbys). Size your partition count for your target throughput
 and node count.
 
-Rebalancing itself needs no configuration — the transport always runs on Kafka's next-generation
+Rebalancing itself needs no configuration -- the transport always runs on Kafka's next-generation
 consumer rebalance protocol ([KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol)), so a rebalance keeps each
 consumer's unaffected partitions instead of a stop-the-world revoke-everything cycle. One **opt-in**
 consumer setting makes the assignment even more stable in production:
@@ -370,7 +393,7 @@ Also available per-listener on `ListenToKafkaTopic(...).UseStaticMembership(...)
 ::: warning group.instance.id must be unique per node and stable across restarts
 Static membership only works when each node uses a **distinct** `group.instance.id` that **stays the same**
 across restarts of that node. Two nodes sharing one id makes Kafka treat them as a single member and fence
-one out — silently losing messages. The default resolution (`POD_NAME` → `HOSTNAME` → machine name) matches
+one out -- silently losing messages. The default resolution (`POD_NAME` → `HOSTNAME` → machine name) matches
 the k8s `StatefulSet` idiom; supply your own when those aren't suitable:
 
 ```csharp
@@ -385,7 +408,7 @@ if no stable value could be resolved. Avoid a single hard-coded literal applied 
 
 This is the **second** concurrency lever, not the first.
 
-1. **First, scale out natively** — add partitions and run more nodes in the same consumer group (above).
+1. **First, scale out natively** -- add partitions and run more nodes in the same consumer group (above).
    Kafka routes same-key messages to the same partition, so ordering is free up to the partition count.
    Reaching for in-partition concurrency *before* adding partitions is usually a smell.
 2. **Then**, when you have a hot partition or can't add more partitions, process **different keys
@@ -397,20 +420,20 @@ opts.ListenToKafkaTopic("orders")
 ```
 
 Within each partition assigned to this node, messages are sharded across the configured number of slots by
-their **Kafka message key** — same key → same slot (strictly ordered), different keys → different slots
+their **Kafka message key** -- same key → same slot (strictly ordered), different keys → different slots
 (concurrent). To group by a business field instead of the raw Kafka key, configure
 [message partitioning rules](/guide/messaging/partitioning).
 
 This runs in **durable** mode: the Kafka offset is committed as each message is persisted to the inbox in
 consumption order, and the inbox processing is then sharded by key. That **decouples offset commit from
-out-of-order completion** — if key A (offset 5) is still running when key B (offset 6) finishes, the inbox
+out-of-order completion** -- if key A (offset 5) is still running when key B (offset 6) finishes, the inbox
 owns both, so a crash or rebalance can't lose A. Pairs naturally with KIP-848's incremental rebalancing
 (above), which keeps a rebalance from disrupting unaffected partitions.
 
 ### Cold Start vs. Live Tail 
 
 `auto.offset.reset` controls where a consumer **starts** when its group has **no committed offset** for a
-partition — i.e. a cold start. Once the group has committed an offset, it resumes from there and this
+partition -- i.e. a cold start. Once the group has committed an offset, it resumes from there and this
 setting is ignored. It is *not* a replay switch.
 
 ```csharp
@@ -421,15 +444,15 @@ opts.ListenToKafkaTopic("orders").BeginAtLatest();     // cold start from the ta
 Both are also available as a transport-wide default (`opts.UseKafka(...).BeginAtEarliest()`).
 
 ::: warning This only affects the *first* read of a partition by a group
-If the consumer group already has a committed offset, `BeginAtEarliest()`/`BeginAtLatest()` do nothing —
+If the consumer group already has a committed offset, `BeginAtEarliest()`/`BeginAtLatest()` do nothing -- 
 the group resumes from its committed position. To genuinely re-read old data you need a new group id or an
 explicit seek/replay (a separate, bounded operation).
 :::
 
 #### Hot-tail / broadcast consume
 
-Sometimes you want **every node** to see **every message** as it arrives — live dashboards, cache
-invalidation, fan-out-to-all-instances — rather than the competing-consumer model where each message goes
+Sometimes you want **every node** to see **every message** as it arrives -- live dashboards, cache
+invalidation, fan-out-to-all-instances -- rather than the competing-consumer model where each message goes
 to exactly one node in the group. Use `TailFromLatest()`:
 
 ```csharp
@@ -442,7 +465,7 @@ messages, never replays old data, and commits nothing. This is the idiomatic Kaf
 A few things to know:
 
 - Because it starts at the tail, only messages published **after** a node has joined and been assigned its
-  partitions are delivered — there is no backlog replay.
+  partitions are delivered -- there is no backlog replay.
 - Each process creates a transient consumer-group entry on the broker; Kafka expires these automatically via
   `offsets.retention.minutes`. Harmless, but worth knowing for cluster operators.
 - Reach for `TailFromLatest()` when you want **all** nodes to process each message; use a normal
@@ -450,8 +473,8 @@ A few things to know:
 
 ## Replaying a Topic 
 
-When you need to **reprocess** a window of a topic's history — error recovery, rebuilding downstream
-state, replaying after a bug fix — Wolverine offers a **bounded, one-shot replay** that reads a range of a
+When you need to **reprocess** a window of a topic's history -- error recovery, rebuilding downstream
+state, replaying after a bug fix -- Wolverine offers a **bounded, one-shot replay** that reads a range of a
 topic back through the **normal handler pipeline**. It uses a throwaway `Assign()`-based consumer that
 joins **no consumer group** and **never commits offsets**, so steady-state consumption is completely
 untouched.
@@ -488,7 +511,7 @@ Because the replay consumer joins no group, it needs no consumer group ACL on br
 prefix (the usual Confluent Cloud setup). Replayed envelopes carry the `Destination` the live listener would
 have stamped: the topic's own Uri, or that of a `ListenToKafkaTopics(...)` group subscribing to the topic.
 
-If your brokers authorize consumer groups by **literal name only** — no prefixed or wildcard ACLs — a
+If your brokers authorize consumer groups by **literal name only** -- no prefixed or wildcard ACLs -- a
 generated `{live group}-replay-{guid}` name can never be granted ahead of time. In that case, tell the replay
 exactly which group id to use with `GroupId`, and Wolverine will use that value verbatim:
 
@@ -512,7 +535,7 @@ dotnet run -- kafka-replay orders --from-offset 0 --group-id orders-service-repl
 The replay consumer still only uses `Assign()` and never commits offsets, so a fixed group id does not join
 a consumer group or disturb any committed offsets, and you can reuse the same name for every replay.
 
-Replay reads forward to the end boundary and stops cleanly. It is a discrete operation — for *live* seek of
+Replay reads forward to the end boundary and stops cleanly. It is a discrete operation -- for *live* seek of
 a running listener, or a CritterWatch control-pane, see the follow-up issues.
 
 ## Idempotency & Exactly-Once with Kafka
@@ -532,7 +555,7 @@ redelivered messages, so your handlers are safe under at-least-once delivery:
 opts.ListenToKafkaTopic("orders").UseDurableInbox();
 ```
 
-This gives you effectively-once processing that **spans your database and Kafka** — something Kafka
+This gives you effectively-once processing that **spans your database and Kafka** -- something Kafka
 transactions alone cannot do, because they can't enlist an external database. This is how most Wolverine
 applications should get exactly-once-style guarantees; you do **not** need Kafka transactions for it.
 
@@ -577,7 +600,7 @@ opts.PublishMessage<T>().ToKafkaTopic("t").UseIdempotentProducer();  // per topi
 
 This sets `EnableIdempotence = true` on the producer options (which implies acks from all in-sync replicas
 and bounded in-flight requests). It is
-**producer→broker** de-duplication only — it does not make consume-process-produce atomic.
+**producer→broker** de-duplication only -- it does not make consume-process-produce atomic.
 
 To turn it off:
 
@@ -611,7 +634,7 @@ The default is `read_uncommitted`.
 
 ### Handler idempotency
 
-Because delivery is at-least-once, **design your handlers to tolerate redelivery** — especially if you
+Because delivery is at-least-once, **design your handlers to tolerate redelivery** -- especially if you
 don't use the durable inbox, and always when using [retry topics](#non-blocking-retry-topics) or [replay](#replaying-a-topic). Make
 writes idempotent (upserts keyed by a business id, conditional updates, dedupe tables), so reprocessing the
 same message is harmless.
@@ -683,7 +706,7 @@ Also see the more generic [Wolverine Guide on Interoperability](/tutorials/inter
 
 It's a complex world out there, and it's more than likely you'll need your Wolverine application to interact with system
 that aren't also Wolverine applications. First, know that the transport is fully wire-compatible with
-applications using Confluent.Kafka or any other Kafka client — keys, values, headers, timestamps, and
+applications using Confluent.Kafka or any other Kafka client -- keys, values, headers, timestamps, and
 tombstones all round-trip cleanly in both directions. Beyond that, it's possible to send or receive raw JSON
 through Kafka and Wolverine by using the options shown below in test harness code:
 
@@ -737,17 +760,17 @@ silently ran the *default* Kafka envelope mapper instead of the raw-JSON mapper.
 of these behavioral corrections:
 
 * **Incoming records no longer promote Wolverine's reserved header names.** Previously, a record header named
-  `tenant-id`, `saga-id`, `id`, `correlation-id`, etc. was mapped straight onto the matching `Envelope` property —
+  `tenant-id`, `saga-id`, `id`, `correlation-id`, etc. was mapped straight onto the matching `Envelope` property -- 
   meaning any external producer could set the tenant id or saga identity of your messages. These reserved names
   are now deliberately ignored on raw-JSON listeners. All *other* record headers are copied into
   `Envelope.Headers`, and `Envelope.SentAt` is read from the Kafka record timestamp.
 * **Outgoing records are now genuinely raw.** `PublishRawJson()` previously stamped the full set of Wolverine
   protocol headers (`message-type`, `correlation-id`, and friends) onto every record. Those headers are no longer
-  written. When no `JsonSerializerOptions` are passed, the body bytes are unchanged — messages are still serialized
+  written. When no `JsonSerializerOptions` are passed, the body bytes are unchanged -- messages are still serialized
   by the endpoint's JSON serializer (camel-cased property names by default), so downstream consumers parsing the
   JSON are unaffected.
 * **The `JsonSerializerOptions` argument now works.** Previously the options passed to either method were silently
-  ignored on every code path. Supplying options now sets that endpoint's default JSON serialization — driving
+  ignored on every code path. Supplying options now sets that endpoint's default JSON serialization -- driving
   deserialization of incoming bodies on `ReceiveRawJson()` (e.g. snake_cased payloads via
   `PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower`) and serialization of outgoing bodies on
   `PublishRawJson()`. Omitting the argument keeps Wolverine's defaults (camel-cased, case-insensitive reads),
@@ -782,7 +805,7 @@ var schemaRegistry = new SchemaRegistryClient(
 
 ### JSON Schema Serializer
 
-The `SchemaRegistryJsonSerializer` works with any .NET class — no code generation or special interfaces
+The `SchemaRegistryJsonSerializer` works with any .NET class -- no code generation or special interfaces
 required. The JSON Schema for each message type is generated from the type itself via System.Text.Json's
 `JsonSchemaExporter`:
 
@@ -914,7 +937,7 @@ for the broker. So in the example above, you might see `Uri` values for `emea://
 ## Multi-Tenancy with a Broker per Tenant
 
 Named brokers (above) are a *static* topology: you pin specific endpoints to a specific broker by name at
-configuration time. **Broker-per-tenant** is different — it is *runtime* routing. You declare one shared topic
+configuration time. **Broker-per-tenant** is different -- it is *runtime* routing. You declare one shared topic
 topology, and each tenant is served by its **own dedicated Kafka cluster**. Which cluster a message goes to (and
 which cluster an inbound message came from) is decided at runtime by the message's
 [tenant id](/guide/handlers/multi-tenancy), typically set through `DeliveryOptions.TenantId`:
@@ -966,7 +989,7 @@ await bus.SendAsync(new ColorMessage("blue"), new DeliveryOptions { TenantId = "
 ```
 
 Wolverine wraps the outbound endpoint in a `TenantedSender` that dispatches on `Envelope.TenantId`, and builds a
-compound listener that runs one consumer per tenant cluster — each inbound envelope is stamped with the tenant id
+compound listener that runs one consumer per tenant cluster -- each inbound envelope is stamped with the tenant id
 it was consumed under. This mirrors the [RabbitMQ](/guide/messaging/transports/rabbitmq/multi-tenancy) and
 [NATS](/guide/messaging/transports/nats) broker-per-tenant support.
 
@@ -980,22 +1003,22 @@ tenant* based on the runtime tenant id. They are independent features and can be
 
 `TenantIdBehavior(...)` controls what happens when a message has a null or unregistered tenant id:
 
-* `DeadLetterUnknownTenants` (the default since 7.0) — a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
-* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) — route it to the shared/default cluster (the one passed to `UseKafka`).
-* `TenantIdRequired` — throw; every message must carry a known tenant id.
-* `IgnoreUnknownTenants` — silently drop the message.
+* `DeadLetterUnknownTenants` (the default since 7.0) -- a message with no tenant id goes to the default broker; a message for an unregistered tenant id is moved to dead letter storage and sent nowhere (with no message store, the send throws).
+* `FallbackToDefault` (the 6.x default, restored by `RestoreV6Defaults()`) -- route it to the shared/default cluster (the one passed to `UseKafka`).
+* `TenantIdRequired` -- throw; every message must carry a known tenant id.
+* `IgnoreUnknownTenants` -- silently drop the message.
 
 ### Consumer groups are *not* suffixed per tenant
 
 Because each tenant is a **separate Kafka cluster**, consumer offsets live in that tenant's own cluster. Wolverine
-therefore keeps the **same consumer group id** across all tenant listeners rather than suffixing it per tenant —
+therefore keeps the **same consumer group id** across all tenant listeners rather than suffixing it per tenant -- 
 there is no offset collision to avoid. (This is deliberately different from transports like NATS that isolate
 tenants by subject prefix on a *shared* connection.)
 
 ### Auto-provisioning per cluster
 
-When `AutoProvision()` is enabled, Wolverine provisions the shared topic topology — including the dead letter
-queue topic — on **every** tenant cluster, not just the default one, since each is an independent broker. A tenant
+When `AutoProvision()` is enabled, Wolverine provisions the shared topic topology -- including the dead letter
+queue topic -- on **every** tenant cluster, not just the default one, since each is an independent broker. A tenant
 listener's dead-lettered messages are likewise produced to the DLQ topic on that tenant's own cluster.
 
 ::: warning Out of scope
@@ -1007,7 +1030,7 @@ to the default cluster only; they are not currently fanned out per tenant.
 
 For pure-Kafka apps that can't lean on a database, Wolverine offers **Spring/Uber-style non-blocking retry
 topics**. On a matching failure the message is produced to a **tiered fixed-delay retry topic**, the source
-partition's offset is committed (so the partition keeps flowing — **no head-of-line blocking**), and a
+partition's offset is committed (so the partition keeps flowing -- **no head-of-line blocking**), and a
 delayed consumer reprocesses the message through the normal handler pipeline once the tier delay elapses.
 After the last tier is exhausted, the message lands in the existing Kafka [dead letter queue](#native-dead-letter-queue).
 
@@ -1027,7 +1050,7 @@ topic and Wolverine's own tier topics, so a topic of your own that happens to co
 
 ::: tip Prefer the durable inbox when you have a database
 This is the **DB-free** retry path. If your app uses a database, Wolverine's `ScheduleRetry(...)` (→ the
-durable scheduler) is already non-blocking and is the recommended choice — it survives restarts without
+durable scheduler) is already non-blocking and is the recommended choice -- it survives restarts without
 extra topics. Retry topics are for pure-Kafka shops, or orgs whose tooling/observability is built around
 `-retry`/`-dlt` topics.
 :::
@@ -1035,9 +1058,9 @@ extra topics. Retry topics are for pure-Kafka shops, or orgs whose tooling/obser
 ::: warning Trade-offs
 - This policy **only applies to messages received over Kafka**. The same rule on a non-Kafka endpoint falls
   back to a normal inline retry (Wolverine logs a startup warning if it detects this).
-- **Ordering is not preserved** for a retried flow — a message that goes to a retry topic is reprocessed
+- **Ordering is not preserved** for a retried flow -- a message that goes to a retry topic is reprocessed
   later than messages that succeeded after it.
-- The delays are **floors, not exact** — they're enforced by consumer-side waiting plus poll granularity.
+- The delays are **floors, not exact** -- they're enforced by consumer-side waiting plus poll granularity.
 - Reprocessing re-runs your handler, so make handlers **idempotent**.
 :::
 
@@ -1045,7 +1068,7 @@ extra topics. Retry topics are for pure-Kafka shops, or orgs whose tooling/obser
 
 Wolverine supports routing failed Kafka messages to a designated dead letter queue (DLQ) Kafka topic instead of relying on database-backed dead letter storage. This is opt-in on a per-listener basis.
 
-Messages produced to the DLQ topic — and to the [non-blocking retry topics](#non-blocking-retry-topics) —
+Messages produced to the DLQ topic -- and to the [non-blocking retry topics](#non-blocking-retry-topics) -- 
 carry the standard Wolverine diagnostic headers as Kafka headers: `exception-type`, `exception-message`,
 `exception-stack` (truncated to 8,192 characters), `failed-at`, `original-destination`, plus
 `original-partition` and `original-offset` recording exactly where the failed message came from. The delivery
@@ -1166,7 +1189,7 @@ opts.ListenToKafkaTopics("orders", "invoices", "shipments")
 
 For full control over topic creation, use `TopicCreation()` which gives you direct access to Dekaf's
 `IAdminClient`. Topic settings are described with Wolverine's `KafkaTopicSpecification` (`Name`,
-`NumPartitions`, `ReplicationFactor` — both defaulting to `-1`, meaning the broker default — and a `Configs`
+`NumPartitions`, `ReplicationFactor` -- both defaulting to `-1`, meaning the broker default -- and a `Configs`
 dictionary), whose `ToNewTopic()` method converts to the `Dekaf.Admin.NewTopic` the admin client consumes:
 
 ```csharp
@@ -1201,7 +1224,7 @@ Use individual `ListenToKafkaTopic()` calls when:
 
 ## Externally-Owned Topics 
 
-Some topics on the Kafka cluster may be owned by an external system where your service only has consume or produce ACLs — not `CreateTopics` or `DeleteTopics`. With `AutoProvision()` enabled, Wolverine attempts to create every declared topic at startup, which fails with `Authorization failed` on topics you don't own. Likewise, `dotnet run -- resources teardown` would attempt to delete those topics.
+Some topics on the Kafka cluster may be owned by an external system where your service only has consume or produce ACLs -- not `CreateTopics` or `DeleteTopics`. With `AutoProvision()` enabled, Wolverine attempts to create every declared topic at startup, which fails with `Authorization failed` on topics you don't own. Likewise, `dotnet run -- resources teardown` would attempt to delete those topics.
 
 Mark those endpoints with `ExternallyOwned()` so Wolverine leaves their lifecycle alone while still managing the topics you do own:
 
@@ -1225,7 +1248,7 @@ opts.ListenToKafkaTopic("our-orders");
 
 The flag is per-endpoint, so externally-owned and owned topics can coexist in the same `AutoProvision()` configuration. It applies symmetrically to both `SetupAsync` (startup, `resources setup`) and `TeardownAsync` (`resources teardown`).
 
-`ExternallyOwned()` and the [Topic Creation Options](#topic-creation-options) above are the two ends of a single spectrum: use `Specification()` / `TopicCreation()` to customize how Wolverine creates topics you *do* own, and `ExternallyOwned()` to bow out entirely for topics you don't. They compose freely — you can mix all three on listeners in the same host.
+`ExternallyOwned()` and the [Topic Creation Options](#topic-creation-options) above are the two ends of a single spectrum: use `Specification()` / `TopicCreation()` to customize how Wolverine creates topics you *do* own, and `ExternallyOwned()` to bow out entirely for topics you don't. They compose freely -- you can mix all three on listeners in the same host.
 
 ::: tip
 `dotnet run -- resources check` is **not** skipped for externally-owned topics. The check sends a small "ping" probe to verify each topic is reachable, which requires `Produce` access on that topic (or `KafkaUsage.ConsumeOnly` at the transport level, which skips the probe entirely). If your externally-owned topics are consume-only at the topic level but the transport publishes to other topics, prefer running `resources check` against a limited configuration, or skip it for those topics.
@@ -1315,7 +1338,7 @@ This creates Kafka topics named `orders1` through `orders4` with companion local
 
 ## Sending Tombstone Messages <Badge type="tip" text="5.22" />
 
-Wolverine supports sending [Kafka tombstone messages](https://medium.com/@damienthomlutz/deleting-records-in-kafka-aka-tombstones-651114655a16) — messages with a non-null key and a null value — which are used to delete records from log-compacted Kafka topics.
+Wolverine supports sending [Kafka tombstone messages](https://medium.com/@damienthomlutz/deleting-records-in-kafka-aka-tombstones-651114655a16) -- messages with a non-null key and a null value -- which are used to delete records from log-compacted Kafka topics.
 
 To send a tombstone, broadcast a `KafkaTombstone` to the target topic:
 
@@ -1336,14 +1359,16 @@ transport, and the factors behind them.
 ### Choose the endpoint mode deliberately
 
 - **Buffered** (the default) is the fastest mode: the consume loop hands messages to an
-  in-memory worker queue and keeps consuming. The trade-off is that offsets are stored as soon
-  as a message is buffered, *before* it is handled — an ungraceful process crash can lose
-  buffered messages (effectively at-most-once). Use it when throughput matters and your
-  handlers are idempotent or losses on crash are tolerable.
+  in-memory worker queue and keeps consuming. Offsets are still only stored once a message
+  finishes (it's handled, discarded, or dead lettered), so a crash or a stop redelivers whatever
+  was still in flight. That makes it at-least-once without de-duplication: use it when throughput
+  matters and your handlers are idempotent. The exception is turning on Kafka's own auto commit
+  with `OffsetCommitMode.Auto`, which makes a buffered listener at-most-once (see
+  [Commit Strategy](#commit-strategy)).
 - **Durable** (`UseDurableInbox()`) writes incoming messages to the database inbox before
   the offset advances. The consume loop drains up to `MaximumMessagesToReceive` (default 100)
   already-fetched records at a time and persists them with a single batched insert, so under
-  load the inbox cost is paid per batch rather than per record — measured locally this took a
+  load the inbox cost is paid per batch rather than per record -- measured locally this took a
   2,000 msg/s stream from unbounded backlog to a steady ~32ms delivery p50 (GH-3490). Your
   database's write latency still gates the ceiling; plan for the inbox database to be close
   (latency-wise) and lightly contended, set `MaximumMessagesToReceive(1)` if you need strict
@@ -1351,7 +1376,7 @@ transport, and the factors behind them.
   rate becomes the ceiling.
 - **Inline** (`ProcessInline()`) processes one message at a time per consumer, end to end, and
   only then stores the offset. Strongest per-partition guarantees, lowest throughput per
-  listener — scale with `ListenerCount` (bounded by the topic's partition count).
+  listener -- scale with `ListenerCount` (bounded by the topic's partition count).
 
 ### Consumption parallelism
 
@@ -1359,12 +1384,12 @@ transport, and the factors behind them.
   sets how many handlers run concurrently for a Buffered/Durable listener. It does nothing for
   Inline endpoints.
 - `ListenerCount(n)` creates *n* independent Kafka consumers in the same group. This only helps
-  if the topic has at least *n* partitions — **note that Wolverine's auto-provisioning creates
+  if the topic has at least *n* partitions -- **note that Wolverine's auto-provisioning creates
   topics with the broker default partition count (usually 1) unless you set
   `.Specification(spec => spec.NumPartitions = ...)`.** A single-partition topic cannot scale
   consumption no matter what you configure on the Wolverine side.
 - For per-key ordering *with* parallelism across keys, prefer `ProcessConcurrentlyByKey()` or
-  `PartitionProcessingByGroupId(...)` over hand-rolled locking in handlers — Wolverine's
+  `PartitionProcessingByGroupId(...)` over hand-rolled locking in handlers -- Wolverine's
   sharded execution keeps same-key messages sequential while unrelated keys proceed in
   parallel, without tying up worker slots in custom middleware waits. Custom middleware that
   blocks (semaphores, locks) both occupies a worker slot and inflates the
@@ -1374,7 +1399,7 @@ transport, and the factors behind them.
 ### Offset commits
 
 The default `CommitMode.StoreThenAutoFlush` stores offsets non-blockingly and lets the client's
-auto-committer flush them in the background — keep it unless you have a specific reason.
+auto-committer flush them in the background -- keep it unless you have a specific reason.
 `CommitMode.PerMessage` makes the consume loop wait on a broker commit whenever a message finished and is by
 far the slowest option; use it only where its stronger guarantee is genuinely required.
 
@@ -1382,10 +1407,16 @@ far the slowest option; use it only where its stronger guarantee is genuinely re
 
 Buffered and Durable listeners stop receiving when more than `BufferingLimits.Maximum`
 (default 1,000) messages are queued in memory, and resume below the restart threshold
-(default 500). On Kafka, stopping the listener closes the consumer — which means **leaving the
-consumer group and triggering a rebalance**, and another when it rejoins. If your load
-regularly crosses the limit you can see a sawtooth of multi-second pauses. For sustained
-high-throughput consumers, either raise `BufferingLimits` so normal bursts fit in memory, or
+(default 500). What "stop receiving" means on Kafka depends on the endpoint mode:
+
+- A **buffered** listener just *pauses* its assigned partitions. The consumer stays in the consumer group and keeps
+  heartbeating, and it keeps committing offsets as the queued messages finish. Once the queue drains below the restart
+  threshold, the same partitions resume. There's no rebalance at all.
+- A **durable** listener stops and closes its consumer, because its backlog is already safe in the inbox. That means
+  **leaving the consumer group and triggering a rebalance**, and another when it rejoins. If your load regularly
+  crosses the limit you can see a sawtooth of multi-second pauses.
+
+Either way, for sustained high-throughput consumers, raise `BufferingLimits` so normal bursts fit in memory, or
 increase processing parallelism so the queue drains faster than it fills.
 
 ### Publishing
@@ -1393,7 +1424,7 @@ increase processing parallelism so the queue drains faster than it fills.
 See [Publisher Batching](#publisher-batching) above. `MessageBatchTimeout` is the latency
 floor batching adds to a route: a batch is sent when it reaches `MessageBatchSize` or when
 the timeout elapses, so for low-rate streams every message waits up to the timeout (default
-250ms) before hitting the wire. Latency-sensitive routes should shrink both knobs — in
+250ms) before hitting the wire. Latency-sensitive routes should shrink both knobs -- in
 GH-3490's load rig, going from `(100, 250ms)` to `(1, 1ms)` on a steady 8 msg/s stream took
 publish-to-consume p50 from seconds to parity with a raw Confluent.Kafka producer (used as a
 cross-library baseline), and `SendInline()` measured at native latency as well.
@@ -1401,7 +1432,7 @@ cross-library baseline), and `SendInline()` measured at native latency as well.
 ::: warning
 On versions before the JasperFx fix for wolverine#3490, the batch timeout behaved as a
 *debounce*: every published message reset the timer, so a steady stream arriving faster than
-the timeout would not flush until a full batch accumulated — measured at 5.8s p50 delivery
+the timeout would not flush until a full batch accumulated -- measured at 5.8s p50 delivery
 latency for an 8 msg/s stream on the default `(100, 250ms)` settings. If you see multi-second
 Kafka delivery latency on a low-rate route, tighten `MessageBatchSize`/`MessageBatchTimeout`
 or upgrade.
@@ -1414,7 +1445,7 @@ in flight to the broker.
 
 Every message sent with the default envelope mapper carries the full set of Wolverine envelope
 headers (roughly 18 headers, written and parsed per message). For very high-volume topics
-where you control both ends — or interop scenarios — a raw JSON mapper (`ReceiveRawJson()` /
+where you control both ends -- or interop scenarios -- a raw JSON mapper (`ReceiveRawJson()` /
 `PublishRawJson()`) or a custom `IKafkaEnvelopeMapper` (mapping Dekaf's `ConsumeResult<string, byte[]>` in
 and Wolverine's `OutgoingKafkaRecord` out) that carries only what you need reduces per-message overhead and
 payload size.
@@ -1424,7 +1455,7 @@ payload size.
 When comparing Wolverine's numbers to your own measurements, note the interval definitions:
 `wolverine.execution.time` measures the handler *and all middleware* (including any time
 blocked inside middleware), while `wolverine.effective.time` is wall-clock from the producer's
-`SentAt` stamp through handling, cascading message flush, *and* the final acknowledgement —
+`SentAt` stamp through handling, cascading message flush, *and* the final acknowledgement -- 
 and it is sensitive to clock skew between producing and consuming machines.
 
 ## URI reference
