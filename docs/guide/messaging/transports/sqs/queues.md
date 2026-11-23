@@ -76,7 +76,7 @@ var host = await Host.CreateDefaultBuilder()
             .ListenerCount(5);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L147-L173' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_sqs_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L192-L218' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_sqs_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When configuring a subscription, use `ConfigureQueueCreation()` to reach the same `CreateQueueRequest`:
@@ -103,7 +103,7 @@ var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L178-L199' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subscriber_rules_for_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L240-L261' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subscriber_rules_for_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `ConfigureQueueCreation(Action<CreateQueueRequest>)` is available on both the listener and the subscriber

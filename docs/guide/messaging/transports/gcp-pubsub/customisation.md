@@ -22,7 +22,7 @@ var host = await Host.CreateDefaultBuilder()
             );
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_use_credential_wif' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L365-L379' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_use_credential_wif' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -74,7 +74,7 @@ var host = await Host.CreateDefaultBuilder()
             .UseCredential(GoogleCredential.FromJson(externalAccountJson));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_use_credential_aca_managed_identity' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L304-L339' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_use_credential_aca_managed_identity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -103,7 +103,7 @@ var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_use_credential_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L344-L360' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_use_credential_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The factory is **not** a one-time, startup-only hook. It runs again every time Wolverine constructs one of the underlying client builders:
@@ -143,7 +143,7 @@ var host = await Host.CreateDefaultBuilder()
             .UseCredential(() => credentials.GetAsync());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_use_credential_rolling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L428-L444' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_use_credential_rolling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `RollingCredentialSource` below caches the current credential, refreshes it once when it nears expiry (with other concurrent connects awaiting the same refresh), and reuses it on the fast path so a steady stream of reconnects doesn't hammer your secret store:
@@ -196,7 +196,7 @@ public class RollingCredentialSource
         => throw new NotImplementedException();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_rolling_credential_source' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L507-L553' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_rolling_credential_source' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -233,7 +233,7 @@ var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_configure_publisher_api_client' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L384-L398' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_configure_publisher_api_client' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Custom subscriber flow control settings
@@ -260,7 +260,7 @@ var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_configure_subscriber_client' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L403-L423' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_configure_subscriber_client' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Multiple calls to any `Configure*` method compose in order — all callbacks are applied, not just the last one.

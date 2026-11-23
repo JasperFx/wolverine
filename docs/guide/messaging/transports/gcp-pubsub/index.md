@@ -251,8 +251,9 @@ var host = await Host.CreateDefaultBuilder()
         opts.UsePubsub("shared-project-id")
             .AutoProvision()
 
-            // How should Wolverine route a message whose TenantId is null or
-            // unknown? FallbackToDefault (the 6.x default) uses the shared project;
+            // How should Wolverine route a message whose TenantId is unknown?
+            // DeadLetterUnknownTenants (the 7.0 default) dead letters it;
+            // FallbackToDefault (the 6.x default) uses the shared project;
             // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
             .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
@@ -276,7 +277,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.ListenToPubsubTopic("colors");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L107-L140' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L107-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To route a specific message to a tenant's project, stamp the tenant id on the send:
@@ -293,7 +294,7 @@ The GCP Pub/Sub emulator ignores credentials and accepts arbitrary project ids w
 
 ## Request/Reply
 
-[Request/reply](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RequestReply.html) mechanics (`IMessageBus.InvokeAsync<T>()`) are possible with the GCP Pub/Sub transport *if* Wolverine has the ability to auto-provision a specific response topic and subscription for each node. That topic and subscription would be named like `wlvrn.response.[application node id]` if you happen to notice that in your GCP Pub/Sub.
+[Request/reply](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RequestReply.html) mechanics (`IMessageBus.InvokeAsync<T>()`) are possible with the GCP Pub/Sub transport *if* Wolverine has the ability to auto-provision a specific response topic and subscription for each node. That topic and subscription would be named like `wlvrn.responses.[node id]` if you happen to notice that in your GCP Pub/Sub.
 
 ### Enable System Endpoints
 

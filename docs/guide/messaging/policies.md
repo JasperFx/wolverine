@@ -42,7 +42,8 @@ A few things worth knowing about the `Endpoint` you're handed:
   `EndpointRole.Application` (something you declared, or that conventional routing created on your behalf). It's
   almost always correct to skip `System` endpoints in your policy.
 * `endpoint.Mode` controls the durability/buffering behavior and is one of `EndpointMode.Durable`,
-  `EndpointMode.BufferedInMemory`, or `EndpointMode.Inline`.
+  `EndpointMode.BufferedInMemory`, `EndpointMode.Inline`, or
+  [`EndpointMode.NativeAck`](/guide/messaging/listeners#native-ack-endpoints).
 * `endpoint.IsListener` tells you whether the endpoint is receiving messages.
 * `endpoint.Uri` is the unique address of the endpoint, which is handy for matching by transport scheme or queue
   name.

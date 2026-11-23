@@ -36,7 +36,7 @@ public class CustomAzureServiceBusMapper : IAzureServiceBusEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L193-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_azure_service_bus_mapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L194-L218' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_custom_azure_service_bus_mapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To apply that mapper to specific endpoints, use this syntax on any type of Azure Service Bus endpoint:

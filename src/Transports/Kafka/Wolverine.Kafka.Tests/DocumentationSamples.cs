@@ -18,7 +18,7 @@ public class DocumentationSamples
             {
                 opts.UseKafka(KafkaContainerFixture.ConnectionString)
 
-                    // See https://github.com/confluentinc/confluent-kafka-dotnet for the exact options here
+                    // These are Wolverine's own option types, named after Dekaf's client options. See https://thomhurst.github.io/Dekaf/
                     .ConfigureClient(client =>
                     {
                         // configure both producers and consumers
@@ -200,8 +200,9 @@ public class DocumentationSamples
                 opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
 
-                    // How should Wolverine route a message whose TenantId is null or
-                    // unknown? FallbackToDefault (the 6.x default) uses the shared cluster;
+                    // How should Wolverine route a message whose TenantId is unknown?
+                    // DeadLetterUnknownTenants (the 7.0 default) dead letters it;
+                    // FallbackToDefault (the 6.x default) uses the shared cluster;
                     // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
                     .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 

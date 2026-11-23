@@ -911,8 +911,12 @@ opts.UseNats("nats://localhost:4222")
 
 ### Tenant Behavior Options
 
+- `DeadLetterUnknownTenants`: The 7.0 default. A missing tenant id uses the base subject, and a tenant id no
+  registered tenant matches is dead lettered instead of being sent
 - `TenantIdRequired`: Throws if tenant ID is missing
-- `FallbackToDefault`: Uses base subject if tenant ID is missing
+- `FallbackToDefault`: Uses base subject if tenant ID is missing or unknown (the 6.x default, which
+  `RestoreV6Defaults()` brings back)
+- `IgnoreUnknownTenants`: Drops a message for an unknown tenant
 
 ### Per-Tenant Connections
 
@@ -994,7 +998,9 @@ opts.UseNats(nats =>
 })
 .AddTenant("tenant-a")
 .AddTenant("tenant-b");
-``` Keep the shared connection out of the tenants' accounts as well:
+```
+
+Keep the shared connection out of the tenants' accounts as well:
 in the same account, the shared and the tenant's listener both receive a core NATS message, and on a JetStream
 consumer they share, which of the two takes a message is left to chance.
 

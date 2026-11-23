@@ -29,7 +29,7 @@ var host = await Host.CreateDefaultBuilder()
             .AutoProvision();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L97-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sns_setup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L98-L110' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sns_setup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -55,7 +55,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L114-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sns_connection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L115-L135' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sns_connection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -73,7 +73,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.UseAmazonSnsTransportLocally();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L83-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sns_and_localstack' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L84-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sns_and_localstack' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, if you want to explicitly supply an access and secret key for your credentials to SNS, you can use this syntax:
@@ -103,7 +103,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L139-L162' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_sns_credentials' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L140-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_sns_credentials' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting with Aspire or a Named Connection String <Badge type="tip" text="6.52" />
@@ -213,7 +213,7 @@ var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L167-L185' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subscriber_rules_for_sns' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L168-L186' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subscriber_rules_for_sns' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting to Multiple Brokers <Badge type="tip" text="6.17" />
@@ -277,8 +277,9 @@ using var host = await Host.CreateDefaultBuilder()
         })
             .AutoProvision()
 
-            // How should Wolverine route a message whose TenantId is null or
-            // unknown? FallbackToDefault (the 6.x default) uses the shared connection;
+            // How should Wolverine route a message whose TenantId is unknown?
+            // DeadLetterUnknownTenants (the 7.0 default) dead letters it;
+            // FallbackToDefault (the 6.x default) uses the shared connection;
             // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
             .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
 
@@ -304,7 +305,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.PublishMessage<Message1>().ToSnsTopic("colors");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L39-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sns_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L39-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sns_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To route a specific message to a tenant's connection, stamp the tenant id on the send:
@@ -392,7 +393,7 @@ var host = await Host.CreateDefaultBuilder()
                 });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L190-L237' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sns_topic_subscriptions_creation' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSns.Tests/Samples/Bootstrapping.cs#L191-L238' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sns_topic_subscriptions_creation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Interoperability

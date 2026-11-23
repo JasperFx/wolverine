@@ -31,7 +31,7 @@ var host = await Host.CreateDefaultBuilder()
             );
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L169-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enable_wolverine_dead_lettering_for_pubsub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L251-L272' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enable_wolverine_dead_lettering_for_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When enabled, Wolverine will try to move dead letter messages in GCP Pub/Sub to a single, global topic named "wlvrn.dead-letter".
@@ -62,7 +62,7 @@ var host = await Host.CreateDefaultBuilder()
             );
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L195-L217' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_dead_lettering_for_pubsub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L277-L299' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_dead_lettering_for_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## When the dead letter topic can't be published to

@@ -39,7 +39,7 @@ builder.UseWolverine(opts =>
             // The primary key column for this table, default is "id"
             table.IdColumnName = "id";
 
-            // What column has the actual JSON data? Default is "json"
+            // What column has the actual JSON data? Default is "body"
             table.JsonBodyColumnName = "body";
 
             // Optionally tell Wolverine that the message type name is this
@@ -80,7 +80,7 @@ builder.UseWolverine(opts =>
         .Sequential();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/external_message_tables.cs#L44-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_external_database_messaging' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/external_message_tables.cs#L48-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_external_database_messaging' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So a couple things to know:

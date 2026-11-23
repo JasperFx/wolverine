@@ -1,8 +1,8 @@
 # Using SignalR <Badge type="tip" text="5.0" />
 
 ::: info
-The SignalR transport has been requested several times, but finally got built specifically for the forthcoming
-"CritterWatch" product that will be used to monitor and manage Wolverine applications. In other words, the Wolverine
+The SignalR transport has been requested several times, but finally got built specifically for the
+"CritterWatch" product that is used to monitor and manage Wolverine applications. In other words, the Wolverine
 team has heavily dog-fooded this feature.
 :::
 
@@ -222,7 +222,7 @@ The actual JSON serialization in the SignalR transport is isolated from the rest
 JsonOptions = new(JsonSerializerOptions.Web) { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 JsonOptions.Converters.Add(new JsonStringEnumConverter());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR/Internals/SignalRTransport.cs#L29-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_default_json_configuration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR/Internals/SignalRTransport.cs#L37-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_default_json_configuration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 But of course, if you needed to override the JSON serialization for whatever reason, you can just push in a 
@@ -573,7 +573,7 @@ public abstract class WebSocketTestContext : IAsyncLifetime
         clientUri = new Uri($"http://localhost:{Port}/messages");
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder();
 

@@ -47,7 +47,7 @@ using var host = await Host.CreateDefaultBuilder()
             .ProcessInline();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L120-L153' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_session_identifiers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L152-L185' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_session_identifiers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To publish messages to Azure Service Bus with a session id, you will need to of course supply the session id:
@@ -60,7 +60,7 @@ await bus.SendAsync(new AsbMessage3("Red"), new DeliveryOptions { GroupId = "2" 
 await bus.SendAsync(new AsbMessage3("Green"), new DeliveryOptions { GroupId = "2" });
 await bus.SendAsync(new AsbMessage3("Refactor"), new DeliveryOptions { GroupId = "2" });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L144-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_with_session_identifier' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L143-L149' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_with_session_identifier' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
@@ -82,6 +82,32 @@ to `"A"` will never see the messages meant for `"B"`, even though both consumers
 Use `RequireSessionsWithOnlyTheseIdentifiers(...)` to pin a listener:
 
 <!-- snippet: sample_pinning_azure_service_bus_session_identifiers -->
+<a id='snippet-sample_pinning_azure_service_bus_session_identifiers'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAzureServiceBus("some connection string").AutoProvision();
+
+        // Two competing consumers share ONE queue, but each only ever locks its own
+        // session id -- on a shared entity the session id becomes a broker-enforced
+        // routing key, so neither consumer ever sees the other's messages.
+        opts.ListenToAzureServiceBusQueue("shared-orders")
+            .RequireSessionsWithOnlyTheseIdentifiers("A");
+
+        // (running on a different node)
+        // opts.ListenToAzureServiceBusQueue("shared-orders")
+        //     .RequireSessionsWithOnlyTheseIdentifiers("B");
+
+        opts.PublishMessage<OrderPlaced>().ToAzureServiceBusQueue("shared-orders");
+    }).StartAsync();
+
+// The producer selects the target consumer with the session id (GroupId)
+var bus = host.MessageBus();
+await bus.PublishAsync(new OrderPlaced("1"), new DeliveryOptions { GroupId = "A" }); // only "A" receives
+await bus.PublishAsync(new OrderPlaced("2"), new DeliveryOptions { GroupId = "B" }); // only "B" receives
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L190-L215' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinning_azure_service_bus_session_identifiers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The producer simply selects the target consumer by setting the session id (the `GroupId`) on the outgoing message, exactly
@@ -91,6 +117,24 @@ For any of the other `ServiceBusSessionProcessorOptions` knobs — `MaxConcurren
 `SessionIdleTimeout`, and so on — use the general `ConfigureSessionProcessor(...)` hook:
 
 <!-- snippet: sample_configuring_azure_service_bus_session_processor -->
+<a id='snippet-sample_configuring_azure_service_bus_session_processor'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAzureServiceBus("some connection string").AutoProvision();
+
+        // The general hook for any ServiceBusSessionProcessorOptions knob
+        opts.ListenToAzureServiceBusQueue("orders")
+            .ConfigureSessionProcessor(o =>
+            {
+                o.MaxConcurrentSessions = 8;
+                o.MaxAutoLockRenewalDuration = TimeSpan.FromMinutes(10);
+                o.SessionIdleTimeout = TimeSpan.FromSeconds(30);
+            });
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L220-L237' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_session_processor' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
