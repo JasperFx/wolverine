@@ -5,7 +5,7 @@ using Wolverine.Runtime;
 using Xunit;
 namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
-public class discover_with_naming_prefix : IDisposable
+public class discover_with_naming_prefix : IAsyncDisposable
 {
     private readonly IHost _host;
     private readonly ITestOutputHelper _output;
@@ -28,8 +28,9 @@ public class discover_with_naming_prefix : IDisposable
             }).Start();
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        await _host.StopAsync();
         _host.Dispose();
     }
 
