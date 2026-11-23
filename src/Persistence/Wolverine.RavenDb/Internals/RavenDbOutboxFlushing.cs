@@ -16,12 +16,9 @@ public static class RavenDbOutboxFlushing
     /// </summary>
     public static Task FlushOutgoingMessagesAsync(MessageContext context)
     {
-        if (context.Runtime.Options.Durability.Mode == DurabilityMode.ServerlessWithOutbox)
-        {
-            return context.SendAllOutgoingMessagesInlineAsync();
-        }
-
-        return context.FlushOutgoingMessagesAsync();
+        // GH-5886: the flush after the chain's own commit, so it sends everything enqueued since an earlier flush.
+        // Under ServerlessWithOutbox it sends inline
+        return context.FlushOutgoingMessagesFromPipelineAsync();
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",

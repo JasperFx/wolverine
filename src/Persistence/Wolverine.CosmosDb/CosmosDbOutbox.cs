@@ -23,7 +23,8 @@ public class CosmosDbOutbox : MessageContext, ICosmosDbOutbox
     /// <param name="cancellation"></param>
     public async Task SaveChangesAsync(CancellationToken cancellation = default)
     {
-        await CosmosDbOutboxFlushing.FlushOutgoingMessagesAsync(this);
+        // An explicit flush from user code, so MultiFlushMode governs it (GH-5886)
+        await FlushOutgoingMessagesAsync();
     }
 
     public Container Container { get; private set; } = null!;

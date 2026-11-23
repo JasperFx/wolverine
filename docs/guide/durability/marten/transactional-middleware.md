@@ -204,6 +204,19 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L66-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Committing the Session Yourself <Badge type="tip" text="7.0" />
+
+A transactional handler can still call `IDocumentSession.SaveChangesAsync()` itself and publish more messages
+afterward. That commit sends what was published before it, the transactional middleware's own commit stores
+what was published after it, and Wolverine sends those messages once the handler is done:
+
+<!-- snippet: sample_save_then_publish_in_a_transactional_handler -->
+<!-- endSnippet -->
+
+Before Wolverine 7.0, the default `MultiFlushMode.OnlyOnce` stopped Wolverine from sending the messages
+published after the handler's own commit, so they were left in the outbox. `MultiFlushMode` now applies
+only to the extra calls to `FlushOutgoingMessagesAsync()` your own code makes.
+
 ## Using IDocumentOperations <Badge type="tip" text="3.14" />
 
 When using the transactional middleware with Marten, it's best to **not** directly call `IDocumentSession.SaveChangesAsync()`

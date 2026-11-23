@@ -162,7 +162,7 @@ internal class Executor : IExecutor
                 envelope.Attempts++;
             }
 
-            await context.FlushOutgoingMessagesAsync().ConfigureAwait(false);
+            await context.FlushOutgoingMessagesFromPipelineAsync().ConfigureAwait(false);
             activity?.SetStatus(ActivityStatusCode.Ok);
             _tracker.ExecutionFinished(envelope);
         }
@@ -372,7 +372,7 @@ internal class Executor : IExecutor
         {
             await InvokeAsync(context, cancellation).ConfigureAwait(false);
 
-            await context.FlushOutgoingMessagesAsync().ConfigureAwait(false);
+            await context.FlushOutgoingMessagesFromPipelineAsync().ConfigureAwait(false);
             stream = envelope.Response as IAsyncEnumerable<T>;
             activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingStarted));
         }

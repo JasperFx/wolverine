@@ -204,12 +204,31 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             return SendAllOutgoingMessagesInlineAsync();
         }
 
-        return flushOutgoingMessagesAsync();
+        return flushOutgoingMessagesAsync(false);
     }
 
-    private async Task flushOutgoingMessagesAsync()
+    /// <summary>
+    ///     GH-5886. The flush Wolverine's own pipeline makes: the end-of-chain flush in the executor and in a
+    ///     generated handler or HTTP endpoint, and the flush after the commit of a chain's own session or
+    ///     DbContext. It always sends whatever was enqueued since the last flush. <see cref="MultiFlushMode" />
+    ///     only governs extra, explicit <see cref="FlushOutgoingMessagesAsync" /> calls from user code: a
+    ///     handler that commits its own session and then publishes has had the context flushed once already,
+    ///     and the message it published afterward is in the outbox, so the guard could only strand it there.
+    ///     Every flush clears the outstanding envelopes, so nothing is sent twice
+    /// </summary>
+    internal Task FlushOutgoingMessagesFromPipelineAsync()
     {
-        var outgoing = await beginFlushAsync().ConfigureAwait(false);
+        if (Runtime.Options.Durability.Mode == DurabilityMode.ServerlessWithOutbox)
+        {
+            return sendAllOutgoingMessagesInlineAsync(true);
+        }
+
+        return flushOutgoingMessagesAsync(true);
+    }
+
+    private async Task flushOutgoingMessagesAsync(bool fromPipeline)
+    {
+        var outgoing = await beginFlushAsync(fromPipeline).ConfigureAwait(false);
         if (outgoing == null) return;
 
         await flushEnvelopesAsync(outgoing).ConfigureAwait(false);
@@ -321,9 +340,24 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     ///     <para>Messages scheduled for later, and destinations without a transport sender (local queues),
     ///     are flushed exactly as <see cref="FlushOutgoingMessagesAsync" /> flushes them.</para>
     /// </remarks>
-    public async Task SendAllOutgoingMessagesInlineAsync()
+    public Task SendAllOutgoingMessagesInlineAsync()
     {
-        var outgoing = await beginFlushAsync().ConfigureAwait(false);
+        return sendAllOutgoingMessagesInlineAsync(false);
+    }
+
+    /// <summary>
+    ///     GH-5886. <see cref="SendAllOutgoingMessagesInlineAsync()" /> for the end of a pipeline that always sends
+    ///     inline, whatever the durability mode. Like <see cref="FlushOutgoingMessagesFromPipelineAsync" /> it
+    ///     sends everything enqueued since an earlier flush
+    /// </summary>
+    internal Task SendAllOutgoingMessagesInlineFromPipelineAsync()
+    {
+        return sendAllOutgoingMessagesInlineAsync(true);
+    }
+
+    private async Task sendAllOutgoingMessagesInlineAsync(bool fromPipeline)
+    {
+        var outgoing = await beginFlushAsync(fromPipeline).ConfigureAwait(false);
         if (outgoing == null) return;
 
         // With an external transaction (Marten, EF Core, the RDBMS stores) the durable envelopes were
@@ -482,10 +516,26 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
     }
 
-    // Answers null when there is nothing to flush
-    private async Task<Envelope[]?> beginFlushAsync()
+    // Answers null when there is nothing to flush. GH-5886: the guard below is for repeated explicit flushes
+    // only. The pipeline's own flush always sends what is outstanding, see FlushOutgoingMessagesFromPipelineAsync
+    private async Task<Envelope[]?> beginFlushAsync(bool fromPipeline)
     {
-        if (_hasFlushed)
+        if (_hasFlushed && fromPipeline)
+        {
+            // A repeat flush from the pipeline with nothing enqueued since the last one has nothing to do, and the
+            // requested-reply assertion below already ran on the flush that sent everything before it
+            // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+            _outstandingLock.Enter();
+            try
+            {
+                if (_outstanding.Count == 0) return null;
+            }
+            finally
+            {
+                _outstandingLock.Exit();
+            }
+        }
+        else if (_hasFlushed)
         {
             switch (MultiFlushMode)
             {
@@ -499,7 +549,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                             // GH-3499 -- a silent drop of enqueued envelopes is the worst outcome,
                             // so at least make the loss visible
                             Runtime.Logger.LogWarning(
-                                "MessageContext for {MessageType} has already flushed its outgoing messages, so {Count} envelope(s) enqueued after that flush will not be sent. This can happen when messages are enqueued after an explicit transaction commit (e.g. SaveChangesAsync()) has already drained the context. Consider MultiFlushMode.AllowMultiples if multiple flushes are expected",
+                                "MessageContext for {MessageType} has already flushed its outgoing messages, so {Count} envelope(s) enqueued after that flush will not be sent. This can happen when messages are enqueued after an explicit call to FlushOutgoingMessagesAsync(), or after the commit of an outbox you created yourself, has already drained the context. Consider MultiFlushMode.AllowMultiples if multiple flushes are expected",
                                 Envelope?.MessageType, _outstanding.Count);
                         }
                     }

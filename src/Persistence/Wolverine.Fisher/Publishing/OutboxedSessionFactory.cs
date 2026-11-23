@@ -141,9 +141,11 @@ public class OutboxedSessionFactory
         // (the field is readonly), and the result was a
         // NullReferenceException the first time the listener tried to read
         // messageStore.Role. See GH-2668.
+        // GH-5886: a session opened for a handler or endpoint commits as part of the pipeline, so each commit sends
+        // what was enqueued since the last flush
         options.Listeners.Add(new FlushOutgoingMessagesOnCommit(
             context,
-            resolveSqliteMessageStore()));
+            resolveSqliteMessageStore(), true));
 
         return options;
     }

@@ -15,9 +15,12 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
 {
     private readonly DocumentSessionOutboxCommit _commit;
 
-    public FlushOutgoingMessagesOnCommit(MessageContext context, PostgresqlMessageStore messageStore)
+    /// <param name="flushAsPipeline">GH-5886. See <see cref="DocumentSessionOutboxCommit" />: true for a session
+    /// OutboxedSessionFactory opened for a handler or HTTP endpoint</param>
+    public FlushOutgoingMessagesOnCommit(MessageContext context, PostgresqlMessageStore messageStore,
+        bool flushAsPipeline = false)
     {
-        _commit = new DocumentSessionOutboxCommit(context, messageStore);
+        _commit = new DocumentSessionOutboxCommit(context, messageStore, flushAsPipeline);
     }
 
     public override Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token)

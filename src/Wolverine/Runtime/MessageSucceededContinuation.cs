@@ -19,7 +19,15 @@ public class MessageSucceededContinuation : IContinuation
     {
         try
         {
-            await lifecycle.FlushOutgoingMessagesAsync();
+            // GH-5886: the end of the pipeline sends everything still outstanding, even after an earlier flush
+            if (lifecycle is MessageContext context)
+            {
+                await context.FlushOutgoingMessagesFromPipelineAsync();
+            }
+            else
+            {
+                await lifecycle.FlushOutgoingMessagesAsync();
+            }
 
             await lifecycle.CompleteAsync();
 

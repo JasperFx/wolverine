@@ -289,7 +289,7 @@ public class PushReceiver : IHandlerPipeline
             if (continuation is MessageSucceededContinuation)
             {
                 // The success path's flush is the inline one, before the ack
-                await context.SendAllOutgoingMessagesInlineAsync().ConfigureAwait(false);
+                await context.SendAllOutgoingMessagesInlineFromPipelineAsync().ConfigureAwait(false);
                 channel.Succeeded = true;
                 await context.CompleteAsync().ConfigureAwait(false);
                 context.CompletionTrackerFor(_runtime).MessageSucceeded(envelope);
@@ -300,7 +300,7 @@ public class PushReceiver : IHandlerPipeline
                 await continuation.ExecuteAsync(context, _runtime, DateTimeOffset.UtcNow, activity).ConfigureAwait(false);
 
                 // A failure acknowledgement or Fault<T> published by the error handling, sent before answering
-                await context.SendAllOutgoingMessagesInlineAsync().ConfigureAwait(false);
+                await context.SendAllOutgoingMessagesInlineFromPipelineAsync().ConfigureAwait(false);
             }
         }
         catch (Exception e)
