@@ -14,7 +14,7 @@ Wolverine provides a first-class integration testing experience by combining two
 You'll need `Alba` and your test framework of choice. Wolverine's tracking support ships in the core `WolverineFx` package — no extra package needed.
 
 ```xml
-<PackageReference Include="Alba" Version="8.*" />
+<PackageReference Include="Alba" Version="9.*" />
 <PackageReference Include="xunit" Version="2.*" />
 <PackageReference Include="Shouldly" Version="4.*" />
 ```

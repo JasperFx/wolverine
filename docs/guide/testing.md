@@ -578,7 +578,7 @@ one store at a time:
 - An ancillary store added with `AddMartenStore<T>()` but never integrated with `IntegrateWithWolverine()`
   is not included. Use `PauseThenCatchUpOnMartenDaemonActivityAsync<T>()` for that store.
 
-The samples shown above inlcude `Sent` message records, but there are more properties available in the `TrackedSession` object.
+The samples shown above include `Sent` message records, but there are more properties available in the `TrackedSession` object.
 In accordance with the `MessageEventType` enum, you can access these properties on the `TrackedSession` object:
 
 <!-- snippet: sample_record_collections -->
@@ -1394,7 +1394,7 @@ spy.WhenInvokedMessageOf<NumberRequest>(endpointName:"incoming")
 var response3 = await context.EndpointFor("incoming")
     .InvokeAsync<NumberResponse>(new NumberRequest(5, 6));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/TestMessageContextTests.cs#L566-L597' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_expected_response_with_test_message_context' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/TestMessageContextTests.cs#L576-L607' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_invoke_with_expected_response_with_test_message_context' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Stubbing All External Transports
@@ -1607,7 +1607,7 @@ await host.StartAsync();
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L54-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_solo_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Or if you're using something like [WebHostFactory](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests?view=aspnetcore-8.0) to 
+Or if you're using something like [WebHostFactory](https://learn.microsoft.com/en-us/aspnet/core/test/integration-tests) to 
 bootstrap your Wolverine application in an integration testing harness, you can use this helper to override Wolverine into being
 "Solo":
 

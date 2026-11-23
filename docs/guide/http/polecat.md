@@ -64,7 +64,7 @@ If you want your handler executed even if the document does not exist, set `Requ
 
 Use the `OnMissing` property for any other answer — a `ProblemDetails` body, a thrown exception, or an
 empty `204` with `OnMissing.EmptyContentWith204` <Badge type="tip" text="6.28" />. See
-[the full `OnMissing` table](/guide/handlers/persistence#using-entity-for-message-handlers-and-http-endpoints).
+[the full `OnMissing` table](/guide/handlers/persistence#automatically-loading-entities-to-method-parameters).
 
 ## Polecat Aggregate Workflow
 

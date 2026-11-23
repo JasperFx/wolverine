@@ -17,7 +17,7 @@ that relies on IoC trickery will probably not work -- with the possible exceptio
 ## Tenant Id Detection
 
 ::: warning
-Wolverine's multi-tenancy support is very admittedly built with [Marten's multi-tenancy support]() in mind, 
+Wolverine's multi-tenancy support is very admittedly built with [Marten's multi-tenancy support](https://martendb.io/configuration/multitenancy) in mind, 
 and part of that is assuming that tenants are identified with a `string`.
 :::
 
@@ -86,8 +86,7 @@ return await app.RunJasperFxCommands(args);
 All of the options are configured on `WolverineHttpOptions.TenantId`.
 
 ::: tip
-Wolverine does not yet have direct support for multi-tenancy with Entity Framework Core, but that's something we're
-interested in building into Wolverine's feature set. [You can track or comment on that work here](https://github.com/JasperFx/wolverine/issues/556).
+The tenant id detection here works with Entity Framework Core too. See [Multi-Tenancy with EF Core](/guide/durability/efcore/multi-tenancy).
 :::
 
 When Wolverine is actively detecting the tenant id, it's first setting the detected value on the active `MessageContext.TenantId`
@@ -279,12 +278,12 @@ public static string NoTenantNoProblem()
     return "hey";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L479-L487' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_nottenanted' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L494-L502' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_nottenanted' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the above usage completely disabled all tenant id detection or validation, in the case of an endpoint that *might* be 
 tenanted or might be validly used across all tenants depending on client needs, you can add the tenant id detection
-while disabling the tenant id assertion on missing values with the '[MaybeTenanted]` attribute shown
+while disabling the tenant id assertion on missing values with the `[MaybeTenanted]` attribute shown
 below in test code:
 
 <!-- snippet: sample_maybe_tenanted_attribute_usage -->
@@ -297,7 +296,7 @@ public static string MaybeTenanted(IMessageBus bus)
     return bus.TenantId ?? "none";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L489-L497' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/MultiTenancy/multi_tenancy_detection_and_integration.cs#L504-L512' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_maybe_tenanted_attribute_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

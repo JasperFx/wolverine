@@ -149,7 +149,8 @@ use `IDbContextOutboxFactory`:
 public async Task HandleAsync(CreateItem command, TenantId tenantId, CancellationToken ct)
 {
     var outbox = await _factory.CreateForTenantAsync<AppDbContext>(tenantId.Value, ct);
-    outbox.DbContext.Items.Add(new Item { Name = command.Name });
+    var item = new Item { Name = command.Name };
+    outbox.DbContext.Items.Add(item);
     await outbox.PublishAsync(new ItemCreated { Id = item.Id });
     await outbox.SaveChangesAndFlushMessagesAsync(ct);
 }
@@ -228,7 +229,8 @@ See [Azure Service Bus Multi-Tenancy](/guide/messaging/transports/azureservicebu
 
 ### Tenant ID Behavior Policies
 
-Both RabbitMQ and Azure Service Bus support four policies for handling messages with unrecognized tenant ids. A
+RabbitMQ, Azure Service Bus, and the other transports with broker-per-tenant support (Kafka, Amazon SQS and SNS,
+GCP Pub/Sub, MQTT, Pulsar, and Redis) support four policies for handling messages with unrecognized tenant ids. A
 message with no tenant id goes to the default broker under all but `TenantIdRequired`:
 
 | Policy | Behavior |

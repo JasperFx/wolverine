@@ -38,7 +38,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.Mode = DurabilityMode.MediatorOnly;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L37-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_mediator_mode' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L38-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_the_mediator_mode' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -54,10 +54,10 @@ Let's jump into a sample project. Let's say that your system creates and tracks 
 endpoint that can accept an input that will create and persist a new `Item`, while also publishing an `ItemCreated` event message to any other system
 (or internal listener within the same system). For the technology stack, let's use:
 
-* [MVC Core](https://docs.microsoft.com/en-us/aspnet/core/mvc/overview?view=aspnetcore-6.0) as the Web API framework, but I'm mostly
+* [MVC Core](https://docs.microsoft.com/en-us/aspnet/core/mvc/overview) as the Web API framework, but I'm mostly
   using the newer Minimal API feature for this
 * Wolverine as our mediator of course!
-* Sql Server as the backing database store, using [Wolverine's Sql Server message persistence](/guide/durability/#using-sql-server-for-message-storage)
+* Sql Server as the backing database store, using [Wolverine's Sql Server message persistence](/guide/durability/sqlserver)
 * [EF Core](https://docs.microsoft.com/en-us/ef/core/) as the persistence mechanism
 
 First off, let's start a new project with the `dotnet new webapi` template. Next, we'll add some configuration

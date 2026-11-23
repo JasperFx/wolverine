@@ -235,8 +235,8 @@ app.MapWolverineEndpoints(opts =>
 });
 ```
 
-See [Route Prefix Groups](https://github.com/JasperFx/wolverine/issues/2405) for future
-route prefix support.
+For the shared route prefix part of a route group, use `opts.RoutePrefix("api/orders", forEndpointsInNamespace: "MyApp.Features.Orders")`
+or the `[RoutePrefix]` attribute. See [Route Prefixes](/guide/http/routing#route-prefixes).
 
 ## Endpoint Filters → Before/After Methods
 
@@ -411,6 +411,9 @@ app.MapPost("/orders", CreateOrder.Handle);
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseWolverine();
+
+// Required for Wolverine.HTTP
+builder.Services.AddWolverineHttp();
 
 var app = builder.Build();
 app.MapWolverineEndpoints();

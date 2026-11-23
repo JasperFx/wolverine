@@ -184,13 +184,13 @@ using var host = await Host.CreateDefaultBuilder()
         opts.ApplicationAssembly = appAssembly;
         opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
     })
-    .StartAsync();
+    .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
 // The pre-generated F# MessageHandler is loaded by name and executed — no runtime compilation.
 var bus = host.MessageBus();
-await bus.InvokeAsync(new BehaviouralPing(42));
+await bus.InvokeAsync(new BehaviouralPing(42), TestContext.Current.CancellationToken);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.Behavioural.FSharpTests/BehaviouralRunStep.cs#L33-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fsharp_static_host' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.Behavioural.FSharpTests/BehaviouralRunStep.cs#L32-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_fsharp_static_host' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip

@@ -85,7 +85,7 @@ public static class MarkItemReadyHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L402-L434' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_showing_concurrency_exception_moving_directly_to_dlq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L463-L495' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_showing_concurrency_exception_moving_directly_to_dlq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Exclusive Locks or Serializable Transactions

@@ -115,9 +115,9 @@ public class Order
     {
         public Validator()
         {
-            RuleFor(x => x.OrderId).ShouldNotBeNull();
-            RuleFor(x => x.CustomerId).ShouldNotBeNull();
-            RuleFor(x => x.Amount).ShouldNotBeNull();
+            RuleFor(x => x.OrderId).NotNull();
+            RuleFor(x => x.CustomerId).NotNull();
+            RuleFor(x => x.Amount).NotNull();
         }
     }
 }
@@ -155,7 +155,7 @@ See [Martin Fowler's Unit Test](https://martinfowler.com/bliki/UnitTest.html) wr
 
 A couple other things to note about the code sample above:
 
-* You'll notice that the method is synchronous and doesn't call into `IDocument.SaveChangesAsync()` to commit the implied unit of work.
+* You'll notice that the method is synchronous and doesn't call into `IDocumentSession.SaveChangesAsync()` to commit the implied unit of work.
   I'm assuming that's happening by utilizing Wolverine's [transactional middleware](/guide/durability/marten/transactional-middleware) approach that happily works for Marten, EF Core, and RavenDb at the time of this writing.
 * There's a Fluent Validation validator up there, but I didn't directly use it, because I'm assuming the usage of the [Fluent Validation middleware package](/guide/handlers/fluent-validation)
   that comes in a Wolverine extension Nuget.
@@ -250,7 +250,7 @@ app.MapPost("/api/orders/cancel", (CancelOrder command, IMessageBus bus, Cancell
 ```
 
 But since the `Program` file would get absolutely overrun with a lot of unrelated forwarding calls to Wolverine's `IMessageBus`
-entry point, and the ugliness would be much worse when you remember how much extra code you would add for [OpenAPI metadata](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/openapi/overview?view=aspnetcore-9.0).
+entry point, and the ugliness would be much worse when you remember how much extra code you would add for [OpenAPI metadata](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/openapi/overview).
 There's no kind of automatic discovery for Minimal API like there is for MVC Core (or MediatR or Wolverine itself of course),
 so you might have to resort to extra mechanisms in the same file just to register the Minimal API endpoints or give up 
 and toss in an MVC Core controller just to delegate to Wolverine as a "Mediator". 
@@ -298,7 +298,7 @@ Now, the `IResult` return type by itself is a bit of a "mystery meat" response t
 can't glean any useful OpenAPI metadata from that, so you'd have to chain some extra code behind the call to `MapPost()`
 just to add OpenAPI declarations. That's tedious noise code. 
 
-Let's instead introduce [Wolverine.HTTP endpoints instead]() and rewrite the cancel order process -- this time with a route
+Let's instead introduce [Wolverine.HTTP endpoints instead](/guide/http/endpoints) and rewrite the cancel order process -- this time with a route
 value instead of the request body -- to simplify the code:
 
 ```csharp
@@ -313,7 +313,7 @@ public static class CancelOrderEndpoint
             : WolverineContinue.NoProblems;
     }
 
-    [WolverinePost("/api/orders/cancel/id"), EmptyResponse]
+    [WolverinePost("/api/orders/cancel/{id}"), EmptyResponse]
     public static (Delete<Order>, OrderCancelled) Post([Entity] Order order)
     {
         return (Storage.Delete(order), new OrderCancelled(order.Id));
@@ -327,13 +327,13 @@ And there's admittedly a bit to unpack here:
   so Wolverine emits a 204 status code for empty response, and "knows" that none of the return values should be used as
   the HTTP response body
 * The `Validate()` method is an example of *[Compound Handlers](/guide/handlers/#compound-handlers)* (this applies equally to Wolverine HTTP endpoints) in Wolverine, and 
-  will be called before the main method. By returning a [`ProblemDetails`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails?view=aspnetcore-9.0)
+  will be called before the main method. By returning a [`ProblemDetails`](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails)
   type from that method, that tells Wolverine that the method might stop all other processing by returning, well, problems. Learn more about
   how [Wolverine.HTTP uses the ProblemDetails](/guide/http/problemdetails) response type. Arguably, this is a built in form of [Railway Programming](https://fsharpforfunandprofit.com/rop/) in
   Wolverine (or at least a similar concept), but without the ugly high code ceremony that comes with Railway Programming. An idiom with Wolverine development is 
   to largely utilize `Validate` methods to make the main handler or endpoint method be for the ["Happy Path"](https://en.wikipedia.org/wiki/Happy_path).
 * It's legal to return .NET tuple values from either message handler or HTTP endpoint methods, with Wolverine treating each "return value" independently
-* The `Delete<Order>` return type is a known [persistence "side effect"]() by Wolverine, so it "knows" to use that to delegate to the
+* The `Delete<Order>` return type is a known [persistence "side effect"](/guide/handlers/side-effects#storage-side-effects) by Wolverine, so it "knows" to use that to delegate to the
   configured persistence tooling for the `Order` entity, which in this sample application is Marten. *For EF Core, Wolverine is smart enough to 
   use the correct `DbContext` for the entity type if you are using multiple `DbContext` types.*
 * In this case, because of the `[EmptyResponse]` declaration, any return value that doesn't have any other special handling is 

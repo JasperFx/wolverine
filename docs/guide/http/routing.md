@@ -21,7 +21,7 @@ public static string SimpleStringRouteArgument(string name)
     return $"Name is {name}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L28-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_route_parameter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L30-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_route_parameter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the sample above, the `name` argument will be the value of the route argument
@@ -36,7 +36,7 @@ public static string IntRouteArgument(int age)
     return $"Age is {age}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L37-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_numeric_route_parameter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L39-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_numeric_route_parameter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The following code snippet from `WolverineFx.Http` itself shows the *native .NET* valid route
@@ -66,7 +66,7 @@ public static readonly Dictionary<Type, string> TypeOutputs = new()
     { typeof(DateOnly), typeof(DateOnly).FullName! }
 };
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L15-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L17-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning

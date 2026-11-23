@@ -4,7 +4,7 @@ While you can always just take in `HttpContext` as an argument to your HTTP endp
 there's some value in having your endpoint methods be [pure functions](https://en.wikipedia.org/wiki/Pure_function) 
 to maximize the testability of your application code. Since reading header values and parsing those values into
 specific .NET types is such a common use case, Wolverine has some middleware you can opt into to read the header values
-and pass them into your endpoint methods using the `[Wolverine.Http.FromHeader]` attribute as shown from this sample
+and pass them into your endpoint methods using ASP.NET Core's `[FromHeader]` attribute as shown from this sample
 code from the Wolverine testing code:
 
 <!-- snippet: sample_pushing_header_values_into_endpoint_methods -->

@@ -84,7 +84,7 @@ If you, for whatever reason, want your handler executed even if the document doe
 
 Use the `OnMissing` property for any other answer — a `ProblemDetails` body, a thrown exception, or an
 empty `204` with `OnMissing.EmptyContentWith204` <Badge type="tip" text="6.28" />. See
-[the full `OnMissing` table](/guide/handlers/persistence#using-entity-for-message-handlers-and-http-endpoints).
+[the full `OnMissing` table](/guide/handlers/persistence#automatically-loading-entities-to-method-parameters).
 
 :::info
 Starting with Wolverine 3 `DocumentAttribute.Required = true` is the default behavior.
@@ -506,7 +506,7 @@ public static OrderShipped Ship(
 ## Reading the Latest Version of an Aggregate
 
 ::: info
-This is using Marten's [FetchLatest(https://martendb.io/events/projections/read-aggregates.html#fetchlatest) API]() and is limited to single stream
+This is using Marten's [FetchLatest API](https://martendb.io/events/projections/read-aggregates.html#fetchlatest) and is limited to single stream
 projections. 
 :::
 

@@ -33,7 +33,7 @@ var host = await Host.CreateDefaultBuilder()
     })
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L34-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Persistence/SqlServerMessageStore_with_IdAndDestination_Identity.cs#L54-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_message_identity_to_use_id_and_destination' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Means that the uniqueness is the message id + the endpoint destination, which Wolverine stores as a `Uri` string in the 
@@ -135,7 +135,7 @@ public static void Handle(DoSomething msg)
     
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/configuring_idempotency_style.cs#L108-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_explicit_idempotency_on_single_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/configuring_idempotency_style.cs#L110-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_explicit_idempotency_on_single_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or you can use an overload of the auto apply transactions policy:
@@ -148,14 +148,14 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts.Policies.AutoApplyTransactions(IdempotencyStyle.Eager);
     })
-    .StartAsync();
+    .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/configuring_idempotency_style.cs#L40-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_default_idempotency_check_level' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
 The idempotency check and the process of marking an incoming envelope are themselves "idempotent" within Wolverine
-to avoid Wolverine from making unnecessary database calls. ~~~~
+to avoid Wolverine from making unnecessary database calls.
 :::
 
 ## Idempotency on Non Transactional Handlers
@@ -198,7 +198,7 @@ using var host = await Host.CreateDefaultBuilder()
         
         // THIS RIGHT HERE
         opts.Policies.AutoApplyIdempotencyOnNonTransactionalHandlers();
-    }).StartAsync();
+    }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/idempotency_with_inline_or_buffered_endpoints_end_to_end.cs#L139-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_autoapplyidempotencyonnontransactionalhandlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -241,7 +241,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.KeepAfterMessageHandling = 10.Minutes();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L188-L198' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_keepaftermessagehandling' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L204-L214' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_keepaftermessagehandling' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The default is to keep messages for at least 5 minutes. 

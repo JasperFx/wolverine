@@ -48,7 +48,7 @@ app.UseOutputCache();
 
 app.UseRateLimiter();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L265-L272' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_output_cache_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L269-L276' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_output_cache_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Per-Endpoint Usage

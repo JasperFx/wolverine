@@ -200,9 +200,9 @@ public IActionResult Search(
 public static IEnumerable<Product> Search(
     string category,                              // route parameter (matched by name)
     string? name,                                 // query string (inferred for simple types)
-    int page,                                     // query string (default is 0, not configurable inline)
-    int pageSize,                                 // query string
-    [FromHeader(Name = "X-Correlation-Id")] string? correlationId)
+    [FromHeader(Name = "X-Correlation-Id")] string? correlationId,
+    int page = 1,                                 // query string, the declared default is used when it's missing
+    int pageSize = 20)                            // query string
 {
     // ...
 }
@@ -485,6 +485,9 @@ app.MapControllers();  // discovers controllers by convention
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseWolverine();
 
+// Required for Wolverine.HTTP
+builder.Services.AddWolverineHttp();
+
 var app = builder.Build();
 app.MapWolverineEndpoints();  // discovers endpoints by attribute scanning
 ```
@@ -498,14 +501,14 @@ Wolverine finds methods decorated with `[WolverineGet]`, `[WolverinePost]`, etc.
 |---------|---------------|----------------|
 | **Base class** | `ControllerBase` required | No base class — plain static classes |
 | **DI pattern** | Constructor injection | Method parameter injection |
-| **Route prefix** | `[Route("api/[controller]")]` | Full route in attribute |
+| **Route prefix** | `[Route("api/[controller]")]` | Full route in attribute, or `[RoutePrefix]` / `opts.RoutePrefix()` |
 | **Body binding** | `[FromBody]` or `[ApiController]` inferred | First complex param (always inferred) |
 | **Validation** | ModelState + `[ApiController]` | `Validate` methods or FluentValidation middleware |
 | **Responses** | `ActionResult<T>`, `IActionResult` | Direct return, `IResult`, `CreationResponse`, or `int` |
 | **Filters** | `IActionFilter`, `IExceptionFilter`, etc. | `Before`/`After`/`Finally` methods |
 | **Entity loading** | Manual in action or filter | `[Entity]` attribute or `Load`/`LoadAsync` method |
 | **Async messaging** | Not built-in | Tuple returns, `OutgoingMessages` |
-| **Registration** | `AddControllers()` + `MapControllers()` | `UseWolverine()` + `MapWolverineEndpoints()` |
+| **Registration** | `AddControllers()` + `MapControllers()` | `UseWolverine()` + `AddWolverineHttp()` + `MapWolverineEndpoints()` |
 
 ## Further Reading
 

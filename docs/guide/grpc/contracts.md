@@ -323,9 +323,10 @@ declaration changes. Cancellation from the client propagates into the handler's 
 in both styles, so mid-stream cancellation cleanly unwinds. For the broader streaming story
 (bidirectional, limitations, timing) see [Streaming](./streaming).
 
-## Client streaming (proto-first)
+## Client streaming
 
-A `stream TRequest → TResponse` RPC is code-generated on the proto-first path only. The handler
+A `stream TRequest → TResponse` RPC is code-generated on both the proto-first and the code-first
+paths (on code-first, a `Task<TResponse>` method taking `IAsyncEnumerable<TRequest>`). The handler
 receives the whole inbound stream as `IAsyncEnumerable<TRequest>` — the message type Wolverine's
 [`IMessageBus.StreamAsync`](/guide/messaging/message-bus.html#streaming-requests) dispatches
 on — and returns the single response:

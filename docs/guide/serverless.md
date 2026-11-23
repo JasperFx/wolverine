@@ -287,7 +287,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Durability.UseTransactionScopedDurabilityPassLock = true;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L111-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_transaction_scoped_durability_pass_lock' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L107-L124' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_transaction_scoped_durability_pass_lock' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With `UseTransactionScopedDurabilityPassLock`, Wolverine opens a transaction on the dedicated lock connection, takes
@@ -346,7 +346,7 @@ while (report.HasMoreWork && !report.TimedOut && passes < 5)
 
 Console.WriteLine($"Sent {report.OutgoingSent} outgoing messages, dead lettered {report.OutgoingDeadLettered}, released {report.ScheduledReleased} scheduled messages");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L133-L149' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_running_a_durability_pass' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DurabilityModes.cs#L129-L145' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_running_a_durability_pass' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `DurabilityPassReport` that comes back tells you what the pass did for each message store and each step, which stores it skipped because

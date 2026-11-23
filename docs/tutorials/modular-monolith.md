@@ -156,7 +156,7 @@ try to *not* have to move message types around in the namespace structure. The o
 in either external message queues or message persistence, so it does no harm to change namespaces if you are only in development and have not
 yet deployed to production. 
 
-For handler or HTTP endpoint discovery, you can tell Wolverine to look in additional assemblies. See [Assembly Discovery](/guide/messages.html#message-type-name-or-alias)
+For handler or HTTP endpoint discovery, you can tell Wolverine to look in additional assemblies. See [Assembly Discovery](/guide/handlers/discovery.html#assembly-discovery)
 for more information. As for [pre-generated code](/guide/codegen) with Wolverine, the least friction and idiomatic approach is to just have
 all Wolverine-generated code placed in the entry assembly. That can be overridden if you have to by setting the "Application Assembly" as shown
 in the [Assembly Discovery](/guide/handlers/discovery.html#assembly-discovery) section in the documentation.
@@ -351,7 +351,7 @@ public static async Task run_end_to_end(IHost host)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L10-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_sessions_end_to_end' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-In the code sample above, the `InvokeAndMessageAndWaitAsync()` method puts the Wolverine runtime into a "tracked" mode
+In the code sample above, the `InvokeMessageAndWaitAsync()` method puts the Wolverine runtime into a "tracked" mode
 where it's able to "know" when all in flight work is complete and allow your integration testing to be reliable by
 waiting until all cascaded messages are also complete (and yes, it works recursively). One of the challenges of testing
 asynchronous code is not doing the *assert* phase of the test until the *act* part is really complete, and "tracked sessions"
@@ -417,8 +417,9 @@ You can certainly do that, just with explicit code.
 :::
 
 For EF Core usage, we would recommend using separate `DbContext` types for different modules that all target a separate
-database schema, but still land in the same physical database. This may change soon, but for right now, Wolverine only
-supports transactional inbox/outbox usage with a single database with EF Core.
+database schema, but still land in the same physical database. If a module's `DbContext` really does need its own database,
+enroll it with an ancillary message store -- `PersistMessagesWithSqlServer(connectionString, role: MessageStoreRole.Ancillary).Enroll<MyDbContext>()` --
+to give it its own transactional inbox/outbox. See [Ancillary Message Stores](/guide/durability/marten/ancillary-stores).
 
 To maintain "severability" of modules to separate services later, you probably want to avoid making foreign key relationships
 in your database between tables owned by different modules. And of course, by and large only use one `DbContext` type

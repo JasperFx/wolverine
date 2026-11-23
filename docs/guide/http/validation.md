@@ -10,7 +10,7 @@ Wolverine.HTTP has direct support for utilizing validation within HTTP endpoint 
 
 1. Using one off `Validate()` or `ValidateAsync()` methods embedded directly in your endpoint types that return `ProblemDetails`. This is our recommendation for any 
    validation logic like data lookups that would require you to utilize IoC services or database calls.  
-   The [Lightweight Validation with String Messages](../handlers/index.md) will also generate `ProblemDetails` with status 400 for HTTP endpoints.
+   The [Lightweight Validation with String Messages](../handlers/index.md#lightweight-validation-with-string-messages) will also generate `ProblemDetails` with status 400 for HTTP endpoints.
 2. Fluent Validation middleware through the separate `WolverineFx.Http.FluentValidation` Nuget
 3. [Data Annotations](https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.dataannotations?view=net-10.0) middleware that is an option you have to explicitly configure within Wolverine.HTTP application
 
@@ -140,7 +140,7 @@ with your own metadata if you need to use a different status code like this:
 
 ## Using Lightweight Validation with String Messages
 
-Instead of using `ProblemDetails` directly, you can also use one of the [Lightweight Validation](../handlers/index.md) types: `IEnumerable<string>`, `string[]`, `Task<string[]>`, `ValueTask<string[]>` or `ValidationOutcome`. If the returned collection is not empty, Wolverine will create a `ProblemDetails` response with a 400 status code containing the validation messages.
+Instead of using `ProblemDetails` directly, you can also use one of the [Lightweight Validation](../handlers/index.md#lightweight-validation-with-string-messages) types: `IEnumerable<string>`, `string[]`, `Task<string[]>`, `ValueTask<string[]>` or `ValidationOutcome`. If the returned collection is not empty, Wolverine will create a `ProblemDetails` response with a 400 status code containing the validation messages.
 
 
 <!-- snippet: sample_simple_validation_http_ienumerable -->
@@ -441,7 +441,7 @@ app.MapWolverineEndpoints(opts =>
     // into the Wolverine.HTTP library
     opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L300-L334' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L304-L338' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## AsParameters Binding

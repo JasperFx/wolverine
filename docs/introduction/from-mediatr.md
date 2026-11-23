@@ -339,7 +339,7 @@ and ditch the "mediator" step altogether. Moreover, we'd even go so far as to dr
 just put the functionality right into an HTTP endpoint method if that code isn't going to be reused any where else in your application.
 
 ::: tip
-See [Automatically Loading Entities to Method Parameters](https://wolverinefx.net/guide/handlers/persistence.html#automatically-loading-entities-to-method-parameters) for some context around that `[Entity]`
+See [Automatically Loading Entities to Method Parameters](/guide/handlers/persistence#automatically-loading-entities-to-method-parameters) for some context around that `[Entity]`
 attribute usage
 :::
 
@@ -353,13 +353,13 @@ public static class AddToCartRequestEndpoint
     // to act as a filter so the main method is the happy path
     
     [WolverinePost("/api/cart/add")]
-    public static Update<Cart> Post(
+    public static IStorageAction<Cart> Post(
         AddToCartRequest request, 
         
         // See 
         [Entity] Cart cart)
     {
-        return cart.TryAddRequest(request) ? Storage.Update(cart) : Storage.Nothing(cart);
+        return cart.TryAddRequest(request) ? Storage.Update(cart) : Storage.Nothing<Cart>();
     }
 }
 ```

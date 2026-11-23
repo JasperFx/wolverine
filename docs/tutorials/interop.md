@@ -95,7 +95,7 @@ tries to handle an incoming `Envelope` in its execution pipeline, it will:
 1. Start some Open Telemetry span tracking using the metadata from the incoming `Envelope` to create traceability between the
    upstream publisher and the current message execution. You don't *have* to support this in your custom mapper, but you'd ideally *like* to have this.
 2. Checks if the `Envelope` has expired based on its `DeliverBy` property, and discards the `Envelope` if so
-3. Tries to choose a [message serializer](https://wolverinefx.net/guide/messages.html) based on the `Envelope.Serializer`, then the matching serializer based on `Envelope.ContentType` if that exists, then it falls through to
+3. Tries to choose a [message serializer](/guide/messages) based on the `Envelope.Serializer`, then the matching serializer based on `Envelope.ContentType` if that exists, then it falls through to
    the default serializer for the application (SystemTextJson by default) just in case the default serializer.
 
 As is hopefully clear from that series of steps above, when you are writing to the incoming `Envelope` in a custom message,
@@ -119,15 +119,15 @@ public class OurKafkaJsonMapper<TMessage> : IKafkaEnvelopeMapper
     // Wolverine needs to know the 
     private readonly string _messageTypeName = typeof(TMessage).ToMessageTypeName();
 
-    // Map the Wolverine Envelope structure to the outgoing Kafka structure
-    public void MapEnvelopeToOutgoing(Envelope envelope, Message<string, byte[]> outgoing)
+    // Map the Wolverine Envelope structure to the outgoing Kafka record
+    public void MapEnvelopeToOutgoing(Envelope envelope, OutgoingKafkaRecord outgoing)
     {
         // We'll come back to this later...
         throw new NotSupportedException();
     }
 
-    // Map the incoming message from Kafka to the incoming Wolverine envelope
-    public void MapIncomingToEnvelope(Envelope envelope, Message<string, byte[]> incoming)
+    // Map the incoming record from Kafka to the incoming Wolverine envelope
+    public void MapIncomingToEnvelope(Envelope envelope, ConsumeResult<string, byte[]> incoming)
     {
         // We're making an assumption here that only one type of message
         // is coming in on this particular Kafka topic, so we're telling
@@ -388,7 +388,7 @@ Here's some details that you will need to know:
 * Wolverine is able to do request/reply semantics with MassTransit, but there might be hiccups using Wolverine's automatic reply queues just because
   of differing naming conventions or reserved characters leaking through.
 * You probably want to use the `RegisterInteropMessageAssembly(Assembly)` for any assemblies of reused DTO message types between
-  MassTransit and your Wolverine application to help Wolverine be able to map from NServiceBus publishing by an interface and Wolverine only
+  MassTransit and your Wolverine application to help Wolverine be able to map from MassTransit publishing by an interface and Wolverine only
   handling concrete types
 
 ## Interop with NServiceBus
@@ -491,7 +491,7 @@ A few things to know about the XML support:
 We're honestly not sure how pervasive the [CloudEvents specification](https://cloudevents.io/) is really used outside of
 Microsoft's [Dapr](https://dapr.io/), but there have been enough mentions of this from the Wolverine community to justify its adoption. 
 
-CloudEvents works by publishing messages in its own standardized JSON [envelope wrapper](). The Wolverine to CloudEvents interoperability
+CloudEvents works by publishing messages in its own standardized JSON [envelope wrapper](https://www.enterpriseintegrationpatterns.com/patterns/messaging/EnvelopeWrapper.html). The Wolverine to CloudEvents interoperability
 is mapping between Wolverine's `Envelope` and the CloudEvents JSON payload, with the actual message data being embedded in
 the CloudEvents JSON.
 
@@ -581,7 +581,7 @@ var envelope = session.Received.SingleEnvelope<SqsMessage>();
 envelope.Headers["x-user"].ShouldBe("alice");
 envelope.Headers["x-country"].ShouldBe("ca");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/send_and_receive_with_CloudEvents.cs#L50-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_custom_headers_with_cloudevents' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/send_and_receive_with_CloudEvents.cs#L55-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_custom_headers_with_cloudevents' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The CloudEvents document that goes over the wire looks like this, with the two headers at the end:

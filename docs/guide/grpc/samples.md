@@ -246,15 +246,15 @@ Bidirectional streaming via a manual per-item bridge. The client sends a stream 
 for each command, the server streams back race updates. The bridge pattern:
 
 ```csharp
-public async IAsyncEnumerable<RaceUpdate> Race(
-    IAsyncEnumerable<RaceCommand> incoming,
-    [EnumeratorCancellation] CancellationToken cancellationToken)
+public async IAsyncEnumerable<RacePosition> RaceAsync(
+    IAsyncEnumerable<RacerUpdate> updates,
+    CallContext context = default)
 {
-    await foreach (var command in incoming.WithCancellation(cancellationToken))
+    await foreach (var update in updates.WithCancellation(context.CancellationToken))
     {
-        await foreach (var update in Bus.StreamAsync<RaceUpdate>(command, cancellationToken))
+        await foreach (var position in bus.StreamAsync<RacePosition>(update, context.CancellationToken))
         {
-            yield return update;
+            yield return position;
         }
     }
 }
@@ -347,7 +347,7 @@ builder.Services.AddWolverineGrpcClient<IInventoryService>(o =>
 <!-- endSnippet -->
 
 **What to copy**: `AddWolverineGrpcClient<T>()` in the calling service + an ordinary Wolverine
-handler that takes the typed client as a constructor parameter. The rest — envelope propagation,
+handler that takes the typed client as a method parameter. The rest — envelope propagation,
 exception mapping, channel management — Wolverine and `Grpc.Net.ClientFactory` handle for you.
 
 ### Running the sample
