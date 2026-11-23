@@ -16,7 +16,13 @@ builder.UseWolverine(opts =>
     opts.UsePulsarUsingNamedConnection("pulsar");
 
     opts.PublishMessage<Ping>().ToPulsarTopic("persistent://public/default/pings");
-    opts.ListenToPulsarTopic("persistent://public/default/pings");
+
+    // This service publishes to the topic it listens to. A brand-new subscription starts at the
+    // latest message by default, so a ping published before the subscription is established on
+    // the broker would never be delivered to it. Wolverine waits a bounded 10 seconds for that at
+    // startup, and a broker that has only just come up can take longer, so start from the earliest
+    // retained message instead. This only matters the first time the subscription is created.
+    opts.ListenToPulsarTopic("persistent://public/default/pings").BeginAtEarliest();
 });
 #endregion
 

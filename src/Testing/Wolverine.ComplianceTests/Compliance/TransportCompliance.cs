@@ -111,6 +111,9 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
                 configureReceiver(options);
                 configureSender(options);
             }).StartAsync();
+
+        // GH-5736, see ReceiverIs
+        Sender.CompileHandlersFor<MessageConsumer>();
     }
 
     protected async Task SenderIs(Action<WolverineOptions> configure)
@@ -152,6 +155,12 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
                 configure(opts);
                 configureReceiver(opts);
             }).StartAsync();
+
+        // GH-5736. can_send_and_wait is a remote invoke with the default 5 second reply wait, and a test process's first
+        // Roslyn compile is the receiver's Message1 handler. That one-time cost (about 0.5s locally, 20-30x a warm
+        // compile, and several seconds on a busy CI runner) landed inside the wait whenever can_send_and_wait was the
+        // first test of its process. Compile it with the host instead
+        Receiver.CompileHandlersFor<MessageConsumer>();
     }
 
     private static void configureReceiver(WolverineOptions options)

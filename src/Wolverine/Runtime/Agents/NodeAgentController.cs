@@ -1256,6 +1256,15 @@ public partial class NodeAgentController
     /// </summary>
     internal async Task DisableAgentsAsync()
     {
+        // GH-5760. Take the health check guard, and keep it: a tick already running renews the leadership lock, so
+        // releasing the lock under it lets that renewal land after the release (or get the release refused as
+        // stale), and the "disabled" node keeps the lock for a whole lease. Holding the guard also stops any later
+        // tick or CheckAgentHealth from running on this node.
+        while (Interlocked.CompareExchange(ref _healthCheckGuard, 1, 0) != 0)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(10));
+        }
+
         var agents = Agents.Select(x => x.Value).ToArray();
         foreach (var agent in agents)
         {
