@@ -161,6 +161,16 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
             return;
         }
 
+        if (!_endpoint.KnowsItsTopic)
+        {
+            // GH-5822. Reached only when the receiver hands a delivery back without a local fallback of its own (a
+            // latched or drained receiver). The original is settled already and there is no topic to put a copy on
+            _logger.LogError(
+                "{Uri}: Cannot requeue envelope {EnvelopeId}: the topic of the existing Google Cloud Platform Pub/Sub subscription is not known, so no copy can be published. Configure it with FromTopic().",
+                _endpoint.Uri, envelope.Id);
+            return;
+        }
+
         await _requeue.PostAsync(envelope);
     }
 
@@ -178,6 +188,13 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
             return true;
         }
 
+        if (!_endpoint.KnowsItsTopic)
+        {
+            // GH-5822. No topic to publish a copy to, and the original is already acked. False has the receiver
+            // requeue the envelope locally, in memory, instead of losing it to a publish that can never succeed
+            return false;
+        }
+
         await _requeue.PostAsync(envelope);
 
         return true;
@@ -191,6 +208,14 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
     /// </summary>
     private async Task requeueInsideCallbackAsync(Envelope envelope, PubsubInlineDelivery delivery)
     {
+        if (!_endpoint.KnowsItsTopic)
+        {
+            // GH-5822. There is no topic to publish a copy to, so the native Nack is the requeue: Pub/Sub redelivers
+            // the original to this subscription
+            delivery.CopyNotPublished();
+            return;
+        }
+
         try
         {
             await publishRequeueCopyAsync(envelope);

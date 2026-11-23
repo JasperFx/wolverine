@@ -685,11 +685,66 @@ The `Body` written by NServiceBus' JSON serializer begins with a UTF-8 byte orde
 receive so the payload deserializes cleanly with either the default `System.Text.Json` or a Newtonsoft serializer.
 :::
 
-Wolverine receives from the NServiceBus queue table with a destructive `DELETE ... OUTPUT`, so a message that is
-deferred (a handler failure in `Inline` mode, or a listener shutting down with messages still in hand) is put back by
-inserting a copy. That insert is retried with backoff for up to `DurabilitySettings.DrainTimeout`, a retry never adds
-a second copy, and an insert that still fails is logged as a `DatabaseQueueReinsertFailedException` naming the message
-id. The copy goes to the back of the queue, since the `RowVersion` column it is ordered by is an identity column.
+### Delivery Guarantees and the Receive Transaction <Badge type="tip" text="7.0" />
+
+By default, Wolverine receives from the NServiceBus queue table with a destructive `DELETE ... OUTPUT` that commits as
+soon as the messages are read. That has consequences you should know about before you pick a listener mode:
+
+* In the default `BufferedInMemory` mode, delivery is **at most once**. A popped batch waits in memory until it is
+  handled, and anything still in that buffer when the process dies is lost.
+* In `Inline` mode (`ProcessInline()`), the row is already gone while the handler runs, so a process that crashes
+  mid-handler **loses the message**.
+* A message that is deferred (a handler failure in `Inline` mode, or a listener shutting down with messages still in
+  hand) is put back by inserting a copy. That insert is retried with backoff for up to `DurabilitySettings.DrainTimeout`,
+  a retry never adds a second copy, and an insert that still fails is logged as a `DatabaseQueueReinsertFailedException`
+  naming the message id. The copy goes to the back of the queue, since the `RowVersion` column it is ordered by is an
+  identity column.
+
+If you can't afford to lose a message, opt an `Inline` listener into a *receive transaction*, which is how NServiceBus's
+own SQL Server transport receives:
+
+<!-- snippet: sample_nservicebus_sql_server_receive_transaction -->
+<a id='snippet-sample_nservicebus_sql_server_receive_transaction'></a>
+```cs
+// Keep each message's row, locked, until its handler is done with it
+opts.ListenToNServiceBusSqlServerQueue(_queueName)
+    .ProcessInline()
+    .UseReceiveTransaction();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/NServiceBus/nservicebus_sql_server_receive_transaction_5815.cs#L331-L336' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_sql_server_receive_transaction' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With `UseReceiveTransaction()`, Wolverine pops one message inside a database transaction and keeps that transaction
+open while the handler runs:
+
+* When the handler succeeds, the transaction commits and the row is deleted for good. A message moved to Wolverine's
+  dead letter storage is committed the same way, after it has been stored.
+* When the message is requeued, or the handler fails in a way that hands it back, the transaction rolls back. The row
+  comes back exactly as it was, `RowVersion` and all, so the message keeps its place at the head of the queue.
+* When the process dies or its connection is lost mid-handler, SQL Server rolls the transaction back on its own, and the
+  message is received again.
+* A message still in flight when a shutdown's drain times out is rolled back, so another node can pick it up.
+
+This is **at least once** delivery, not exactly once. The handler's own database work isn't enlisted in the receive
+transaction, so a crash after the handler did its work but before the commit means the message is handled again. Make
+these handlers idempotent.
+
+The receive transaction isn't free, which is why it's opt-in:
+
+* Messages are received **one at a time** per listener. `MaximumMessagesToReceive()` is ignored.
+* Each message in flight holds a **database connection and an open transaction** for as long as its handler runs.
+  Wolverine puts no timeout on that transaction, so a slow handler is fine, but size your connection pool with it in
+  mind.
+* The row stays exclusively locked until the transaction ends. Other consumers skip it with `READPAST`, and so does
+  Wolverine's own queue count, but a plain `SELECT` against the queue table waits behind it.
+* It only works with `ProcessInline()`. Wolverine refuses to start with an `InvalidListenerConfigurationException` if
+  `UseReceiveTransaction()` is used with any other listener mode, rather than quietly falling back to the destructive
+  receive.
+
+Queue names keep their case, so a reply to a mixed-case NServiceBus endpoint such as `Sales.Endpoint` goes to that
+table even on a database with a case-sensitive collation. Under SQL Server's default case-insensitive collations two
+names that differ only in case are one table, so Wolverine allows such a pair; with a case-sensitive collation, give
+the queues names that differ by more than case.
 
 ### Multi-Tenancy
 

@@ -31,6 +31,9 @@ internal class PubsubSenderProtocol : ISenderProtocol
 
         try
         {
+            // GH-5822. Never publish to a topic named after an existing subscription
+            _endpoint.AssertKnowsItsTopic();
+
             var message = new PubsubMessage();
 
             _mapper.MapOutgoingToMessage(batch, message);

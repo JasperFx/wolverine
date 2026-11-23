@@ -100,7 +100,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         if (_enableRequeue)
         {
-            _sender = new PulsarSender(runtime, endpoint, transport, _cancellation);
+            _sender = new PulsarSender(runtime, endpoint, transport, _cancellation, null, forRequeue: true);
         }
 
         _unsubscribeOnClose = endpoint.UnsubscribeOnClose;
@@ -483,6 +483,16 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     /// </summary>
     private async ValueTask ackOriginalAsync(PulsarEnvelope e)
     {
+        // GH-5813: a Buffered listener's ack block can reach a delivery after the failed handler has already asked
+        // Pulsar to redeliver it natively. Acking it now would cancel that redelivery, or ack the redelivered copy.
+        if (!e.TryClaimAck())
+        {
+            _logger.LogDebug(
+                "Pulsar message {EnvelopeId} at {Address} is being redelivered natively, so it is not acknowledged",
+                e.Id, Address);
+            return;
+        }
+
         if (e.IsFromRetryConsumer && _retryConsumer != null)
         {
             await _retryConsumer.Acknowledge(FixMessageId(e.MessageData.MessageId, _retryConsumer.Topic),
@@ -507,7 +517,8 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         // GH-5768: Pulsar can only redeliver a message it still holds unacknowledged. A Buffered listener has
         // already acked it, so a native redelivery there did nothing and the message was lost; it gets a copy instead.
-        if (_endpoint.UseNativeRedelivery && !e.OriginalAcked)
+        // GH-5813: the claim also covers an ack that is still on its way to the broker.
+        if (_endpoint.UseNativeRedelivery && e.TryClaimNativeRedelivery())
         {
             await redeliverNativelyAsync(e);
             return;
@@ -527,7 +538,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             return;
         }
 
-        if (e.OriginalAcked)
+        if (e.OriginalAcked || _endpoint.UseNativeRedelivery)
         {
             _logger.LogWarning(
                 "Pulsar message {EnvelopeId} at {Address} was already acknowledged and cannot be redelivered natively, and requeue is disabled for this endpoint, so it is not requeued",
@@ -561,24 +572,54 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
     /// <summary>
     ///     GH-5768. The topic a requeued message goes back to: the one it came from. A listener over one topic
-    ///     always uses the primary topic, as does a message from the retry-letter consumer.
+    ///     always uses the primary topic.
     /// </summary>
     private PulsarSender requeueSenderFor(PulsarEnvelope e)
     {
-        if (!_listensToSeveralTopics || e.IsFromRetryConsumer)
+        if (!_listensToSeveralTopics)
         {
             return _sender!;
         }
 
-        var topic = SourceTopicOf(e.MessageData.MessageId);
+        var topic = sourceTopicOf(e);
         if (topic is null || topic == _endpoint.PulsarTopic())
         {
             return _sender!;
         }
 
         return _topicSenders.GetOrAdd(topic,
-            t => new Lazy<PulsarSender>(() => new PulsarSender(_runtime, _endpoint, _transport, _cancellation, t)))
+            t => new Lazy<PulsarSender>(() => new PulsarSender(_runtime, _endpoint, _transport, _cancellation, t, forRequeue: true)))
             .Value;
+    }
+
+    /// <summary>
+    ///     GH-5813. The topic a message of a multi-topic listener was first consumed from. A message from the main
+    ///     consumer says so on its message id. A message from the retry-letter consumer carries it in the
+    ///     <see cref="PulsarEnvelopeConstants.SourceTopicMetadataKey" /> property its retry-letter move stamped, and
+    ///     that is used only when it names a topic this listener consumes. Null for the primary topic.
+    /// </summary>
+    private string? sourceTopicOf(PulsarEnvelope e)
+    {
+        if (!e.IsFromRetryConsumer)
+        {
+            return SourceTopicOf(e.MessageData.MessageId);
+        }
+
+        return e.Headers.TryGetValue(PulsarEnvelopeConstants.SourceTopicMetadataKey, out var topic) &&
+               topic is { Length: > 0 } && consumesTopic(topic)
+            ? topic
+            : null;
+    }
+
+    private bool consumesTopic(string topic)
+    {
+        if (_endpoint.TopicsPattern is { } pattern)
+        {
+            var match = pattern.Match(topic);
+            return match.Success && match.Index == 0 && match.Length == topic.Length;
+        }
+
+        return _endpoint.AllTopicPaths().Contains(topic);
     }
 
     /// <summary>
@@ -746,7 +787,10 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         {
             // GH-5768: only the Buffered receiver calls this, after it has already acked the message. Native
             // redelivery of an acked message does nothing, so it only applies while the message is still unacked.
-            if (_endpoint.UseNativeRedelivery && !e.OriginalAcked)
+            // GH-5813: the receiver acks from a separate block, so the handler can fail before that ack. Whichever
+            // claims the delivery first wins: a native redelivery that wins keeps the ack from running, and an ack
+            // that wins, even one still in flight, gets a copy here instead.
+            if (_endpoint.UseNativeRedelivery && e.TryClaimNativeRedelivery())
             {
                 await redeliverNativelyAsync(e);
                 return true;
@@ -884,6 +928,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         if (originTopicNameStr != null)
         {
             messageMetadata[PulsarEnvelopeConstants.RealTopicMetadataKey] = originTopicNameStr;
+        }
+
+        // GH-5813: a listener over several topics stamps the topic a message was consumed from on its retry-letter
+        // copy, so a requeue of the retried message goes back to that topic. A message from the retry-letter
+        // consumer already carries it in its headers, copied above.
+        if (_listensToSeveralTopics && !e.IsFromRetryConsumer && SourceTopicOf(e.MessageData.MessageId) is { } sourceTopic)
+        {
+            messageMetadata[PulsarEnvelopeConstants.SourceTopicMetadataKey] = sourceTopic;
         }
 
         var eid = e.Headers.GetValueOrDefault(PulsarEnvelopeConstants.OriginMessageIdMetadataKey,

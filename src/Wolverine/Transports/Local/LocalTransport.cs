@@ -1,3 +1,4 @@
+using System.Text;
 using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -96,7 +97,65 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
     ///     of a message type with several handler types, and for every handler type that is not sticky with
     ///     <see cref="NameQueuesByHandlerType"/>
     /// </summary>
-    internal static string QueueNameForHandlerType(Type handlerType) => handlerType.FullNameInCode().ToLowerInvariant();
+    /// <summary>
+    /// GH-5136 / GH-5754. The name of the local queue for one handler type of a message type with several. A
+    /// non-generic handler type keeps its lower cased full name, which durable inboxes persist. A generic one
+    /// spells its type arguments out in characters a local:// Uri host accepts: <c>Relay&lt;Ping&gt;</c> becomes
+    /// <c>relay-of-ping-end</c>, with "-and-" between arguments, so every closing of a generic type gets its own
+    /// queue.
+    /// </summary>
+    internal static string QueueNameForHandlerType(Type handlerType)
+    {
+        var name = handlerType.FullNameInCode().ToLowerInvariant();
+        return isUriSafeQueueName(name) ? name : sanitizeQueueName(name);
+    }
+
+    private static bool isUriSafeQueueName(string name)
+    {
+        foreach (var c in name)
+        {
+            if (!isUriSafeQueueCharacter(c)) return false;
+        }
+
+        return true;
+    }
+
+    private static bool isUriSafeQueueCharacter(char c)
+        => c is (>= 'a' and <= 'z') or (>= '0' and <= '9') or '.' or '-' or '_';
+
+    private static string sanitizeQueueName(string name)
+    {
+        var builder = new StringBuilder(name.Length + 16);
+        foreach (var c in name)
+        {
+            switch (c)
+            {
+                case '<':
+                    builder.Append("-of-");
+                    break;
+                case '>':
+                    builder.Append("-end");
+                    break;
+                case ',':
+                    builder.Append("-and-");
+                    break;
+                case '[':
+                    builder.Append("-array");
+                    break;
+                case '?':
+                    builder.Append("-nullable");
+                    break;
+                case ']':
+                case ' ':
+                    break;
+                default:
+                    builder.Append(isUriSafeQueueCharacter(c) ? c : '-');
+                    break;
+            }
+        }
+
+        return builder.ToString();
+    }
 
     public ILocalMessageRoutingConvention IsAdditive(bool additive)
     {
