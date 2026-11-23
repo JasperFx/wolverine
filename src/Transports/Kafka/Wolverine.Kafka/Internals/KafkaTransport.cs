@@ -252,12 +252,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
                 "MoveToKafkaRetryTopic is configured but non-Kafka listeners are present. The Kafka retry topics only apply to messages received over Kafka; failures on other transports will fall back to an inline retry.");
         }
 
-        // Source application listener topics (exclude the DLQ, system, and existing retry-tier topics).
-        var sources = Topics
-            .Where(t => t.IsListener && t.RetryTierDelay == null && t.TopicName != DeadLetterQueueTopicName
-                        && t.TopicName != KafkaTopic.WolverineTopicsName && !t.TopicName.Contains(".retry."))
-            .Select(t => t.TopicName)
-            .ToList();
+        var sources = RetryTierSourceTopics(delays);
 
         foreach (var source in sources)
         {
@@ -329,6 +324,29 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     private void inheritGroupProtocol(ConsumerConfig config)
     {
         config.GroupProtocol ??= ConsumerConfig.GroupProtocol;
+    }
+
+    /// <summary>
+    /// The application listener topics that get retry tiers: every listener except the DLQ, the system topic and
+    /// Wolverine's own retry-tier topics. GH-5772: a tier topic is recognized by the RetryTierDelay it is
+    /// registered with, or by being exactly <c>{source}.retry.{delay}</c> of another listener for one of the
+    /// configured delays, never by merely containing ".retry.", which skipped user topics like billing.retry.requests
+    /// </summary>
+    internal IReadOnlyList<string> RetryTierSourceTopics(IReadOnlyCollection<TimeSpan> delays)
+    {
+        var listeners = Topics
+            .Where(t => t.IsListener && t.TopicName != DeadLetterQueueTopicName
+                        && t.TopicName != KafkaTopic.WolverineTopicsName)
+            .ToList();
+
+        var tierNames = listeners
+            .SelectMany(t => delays.Select(delay => KafkaRetryNaming.RetryTopicName(t.TopicName, delay)))
+            .ToHashSet();
+
+        return listeners
+            .Where(t => t.RetryTierDelay == null && !tierNames.Contains(t.TopicName))
+            .Select(t => t.TopicName)
+            .ToList();
     }
 
     // GH-3139: surface the resolved group.instance.id so operators can verify per-node uniqueness, and

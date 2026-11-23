@@ -430,6 +430,11 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 ```
 
+::: warning
+Without system queues there is **no request/reply through Amazon SQS**: `InvokeAsync<T>()` and `SendAndWaitAsync()`
+against an SQS endpoint need the per-node response queue for the reply (or acknowledgement) to come back to.
+:::
+
 ## URI reference
 
 The `SqsEndpointUri` helper class builds canonical endpoint URIs:

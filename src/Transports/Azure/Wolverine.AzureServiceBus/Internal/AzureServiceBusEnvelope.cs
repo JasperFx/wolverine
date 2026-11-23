@@ -161,5 +161,17 @@ public class AzureServiceBusEnvelope : Envelope
 
     public Exception? Exception { get; set; }
     public bool IsCompleted { get; set; }
+
+    /// <summary>
+    ///     GH-5767. Set once a requeue's copy has been accepted by Azure Service Bus, so a retry of the requeue after
+    ///     a failed complete of the original does not send a second copy.
+    /// </summary>
+    internal bool RequeueCopySent { get; set; }
+
+    /// <summary>
+    ///     GH-5767. The <c>MessageId</c> of this envelope's requeue copy. Assigned once, so every retry of the same
+    ///     requeue sends the same id.
+    /// </summary>
+    internal string? RequeueMessageId { get; set; }
     public ServiceBusReceiver? Receiver { get; set; }
 }

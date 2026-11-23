@@ -659,7 +659,68 @@ receive uses `FOR UPDATE SKIP LOCKED` ordered by the NServiceBus `seq` column. A
 
 * NServiceBus uses lowercase column names; Wolverine's send/receive SQL matches them with unquoted identifiers.
 * NServiceBus addresses queues as the schema-qualified `"schema"."table"`; Wolverine maps the reply address back to the
-  bare queue name so request/reply works in both directions.
+  bare queue name so request/reply works in both directions. Like NServiceBus, it splits on the first dot outside the
+  quotes, so a dotted endpoint name such as `"public"."Sales.Endpoint"` maps to the `Sales.Endpoint` queue.
+* Queue names keep their case. NServiceBus quotes its queue table names, so `Sales.Endpoint` and `sales.endpoint` are
+  different tables, and a reply to a mixed-case endpoint goes to that endpoint's own table. Wolverine's endpoint
+  addresses (`Uri`s) do not distinguish case, though, so two queues whose names differ only in case should not be used
+  side by side from one Wolverine application.
+* A deferred message (a handler failure in `Inline` mode, or a listener shutting down with messages still in hand) is
+  put back by inserting a copy with its original `seq`, so it keeps its place in the queue. The insert is retried with
+  backoff for up to `DurabilitySettings.DrainTimeout`, a retry never adds a second copy, and an insert that still fails
+  is logged as a `DatabaseQueueReinsertFailedException` naming the message id.
+
+### Delivery Guarantees and the Receive Transaction <Badge type="tip" text="6.65" />
+
+By default the receive is a destructive `DELETE ... RETURNING` that commits as soon as the messages are read, with the
+same consequences as on [SQL Server](/guide/durability/sqlserver.html#delivery-guarantees-and-the-receive-transaction):
+
+* In the default `BufferedInMemory` mode, delivery is **at most once**. A popped batch waits in memory until it is
+  handled, and anything still in that buffer when the process dies is lost.
+* In `Inline` mode (`ProcessInline()`), the row is already gone while the handler runs, so a process that crashes
+  mid-handler **loses the message**.
+
+If you can't afford to lose a message, opt an `Inline` listener into a *receive transaction*, the way NServiceBus's own
+PostgreSQL transport receives:
+
+<!-- snippet: sample_nservicebus_postgresql_receive_transaction -->
+<a id='snippet-sample_nservicebus_postgresql_receive_transaction'></a>
+```cs
+// Keep each message's row, locked, until its handler is done with it
+opts.ListenToNServiceBusPostgresqlQueue(_queueName)
+    .ProcessInline()
+    .UseReceiveTransaction();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/NServiceBus/nservicebus_postgresql_receive_transaction_5815.cs#L316-L321' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_nservicebus_postgresql_receive_transaction' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With `UseReceiveTransaction()`, Wolverine pops one message inside a database transaction and keeps that transaction
+open while the handler runs. A successful handler commits it and deletes the row. A requeue, or a failure that hands the
+message back, rolls it back, and the row returns with its original `seq` at the head of the queue. If the process dies
+or its connection drops mid-handler, PostgreSQL rolls back on its own and the message is received again, and a message
+still in flight when a shutdown's drain times out is rolled back too. Other consumers pass the locked row by with
+`SKIP LOCKED`, and plain reads still see it.
+
+This is **at least once** delivery: the handler's own database work isn't part of the receive transaction, so a crash
+between the handler finishing and the commit means the message is handled again. Make these handlers idempotent.
+
+What it costs:
+
+* Messages are received **one at a time** per listener. `MaximumMessagesToReceive()` is ignored.
+* Each message in flight holds a **database connection and an open transaction** for as long as its handler runs. Size
+  your connection pool with it in mind.
+* Wolverine puts no timeout on the transaction, but PostgreSQL's `idle_in_transaction_session_timeout` does apply. It is
+  off by default; if your server or role sets it, a handler that runs longer than it has its session ended, and its
+  message is rolled back and received again. Keep it longer than your slowest handler.
+* It only works with `ProcessInline()`. Wolverine refuses to start with an `InvalidListenerConfigurationException` if
+  `UseReceiveTransaction()` is used with any other listener mode.
+
+A requeued message keeps its attempt count, so attempt-bounded error policies such as
+`Requeue(3).Then.MoveToErrorQueue()` stop where they should. A re-inserted copy carries the count in a
+`Wolverine.Attempts` header; NServiceBus's own `NServiceBus.Retries` header counts only its delayed retries, so
+Wolverine leaves it alone. A receive transaction's rollback leaves the row untouched, so the listener remembers the
+count by message id instead. That memory lasts for the listener's lifetime and holds up to 10,000 messages, oldest
+forgotten first, so a requeue that comes back to a different node or after a restart starts counting again.
 
 Tenant propagation works exactly as it does for SQL Server: NServiceBus carries the tenant id in a message
 header, and Wolverine maps it to and from `Envelope.TenantId` when you add `MapTenantIdToHeader` /

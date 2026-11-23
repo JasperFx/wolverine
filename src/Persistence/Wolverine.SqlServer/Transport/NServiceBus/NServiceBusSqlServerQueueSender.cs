@@ -12,6 +12,7 @@ internal class NServiceBusSqlServerQueueSender : ISender
     private readonly string _connectionString;
     private readonly NServiceBusSqlServerEnvelopeMapper _mapper;
     private readonly string _sendSql;
+    private readonly string _guardedReinsertSql;
 
     public NServiceBusSqlServerQueueSender(NServiceBusSqlServerQueue queue, IWolverineRuntime runtime)
     {
@@ -23,6 +24,12 @@ internal class NServiceBusSqlServerQueueSender : ISender
         // The documented NServiceBus SQL Server send statement.
         _sendSql =
             $@"INSERT INTO {queue.TableIdentifier} (Id, Recoverable, Expires, Headers, Body) VALUES (@Id, 1, @Expires, @Headers, @Body)";
+
+        // GH-5775. A retried re-insert of a popped message may follow an attempt that committed while
+        // reporting a failure. NServiceBus puts no constraint on Id (the table is clustered on RowVersion), so
+        // the guard is an explicit check. It scans, since Id is not indexed, which is why only a retry uses it.
+        _guardedReinsertSql =
+            $@"IF NOT EXISTS (SELECT 1 FROM {queue.TableIdentifier} WHERE Id = @Id) {_sendSql}";
     }
 
     // NServiceBus delayed delivery uses a separate timeout table + mover; not supported in v1.
@@ -42,15 +49,30 @@ internal class NServiceBusSqlServerQueueSender : ISender
         }
     }
 
-    public async ValueTask SendAsync(Envelope envelope)
+    public ValueTask SendAsync(Envelope envelope)
     {
-        var row = _mapper.MapOutgoing(envelope);
+        return new ValueTask(insertAsync(envelope, _sendSql, false));
+    }
+
+    /// <summary>
+    /// GH-5775. Put a message the listener popped back into the queue table. A <paramref name="retry"/> inserts
+    /// only when no row with the message's id is there yet.
+    /// </summary>
+    internal Task ReinsertAsync(Envelope envelope, bool retry)
+    {
+        // GH-5830. The copy carries the attempts the message has had, so attempt-bounded error policies still count
+        return insertAsync(envelope, retry ? _guardedReinsertSql : _sendSql, true);
+    }
+
+    private async Task insertAsync(Envelope envelope, string sql, bool includeAttempts)
+    {
+        var row = _mapper.MapOutgoing(envelope, includeAttempts);
 
         await using var conn = new SqlConnection(_connectionString);
         await conn.OpenAsync();
         try
         {
-            var cmd = conn.CreateCommand(_sendSql)
+            var cmd = conn.CreateCommand(sql)
                 .With("Id", row.Id)
                 .With("Headers", row.Headers)
                 .With("Body", row.Body);

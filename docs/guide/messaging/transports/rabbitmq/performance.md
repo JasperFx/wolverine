@@ -118,6 +118,12 @@ Also note Wolverine publishes with `mandatory: false`, so a message routed to a 
 binding is silently dropped by the broker — provision your topology (or use `AutoProvision`)
 rather than relying on publish failures to surface binding mistakes.
 
+The one exception is a requeue. Wolverine requeues a Rabbit MQ message by publishing a copy back to
+the queue and then acking the original, and that copy always goes out with a publisher confirm and
+`mandatory: true`, on a channel of its own, whatever the settings above are. If the broker refuses
+the copy or can't route it, the requeue fails and the original is not acked. Ordinary sends are
+unaffected.
+
 ## Back pressure closes the channel
 
 When a Buffered/Durable listener exceeds `BufferingLimits.Maximum` (default 1,000 in-memory

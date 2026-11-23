@@ -38,6 +38,13 @@ internal class NServiceBusPostgresqlEnvelopeMapper
     public const string TimeSentHeader = "NServiceBus.TimeSent";
     public const string EnclosedMessageTypesHeader = NServiceBusInterop.EnclosedMessageTypesHeader;
 
+    /// <summary>
+    /// GH-5830. Wolverine's attempt count for a message put back into its own queue table. NServiceBus keeps no count
+    /// of immediate retries on the wire (NServiceBus.Retries counts its delayed retries only), so a requeued message
+    /// used to come back as attempt 1 and an attempt-bounded error policy never reached its limit.
+    /// </summary>
+    public const string AttemptsHeader = "Wolverine.Attempts";
+
     // NServiceBus formats NServiceBus.TimeSent with this exact pattern.
     private const string TimeSentFormat = "yyyy-MM-dd HH:mm:ss:ffffff Z";
 
@@ -53,7 +60,11 @@ internal class NServiceBusPostgresqlEnvelopeMapper
     /// <summary>
     /// Build the row values written to the NServiceBus queue table for an outgoing envelope.
     /// </summary>
-    public OutgoingRow MapOutgoing(Envelope envelope)
+    /// <param name="envelope">The envelope to write</param>
+    /// <param name="includeAttempts">
+    /// GH-5830. Carry the envelope's attempt count, for a message being put back into the queue it was received from
+    /// </param>
+    public OutgoingRow MapOutgoing(Envelope envelope, bool includeAttempts = false)
     {
         var serializer = envelope.Serializer ?? _endpoint.DefaultSerializer
             ?? throw new InvalidOperationException("No serializer is configured for this endpoint");
@@ -97,6 +108,15 @@ internal class NServiceBusPostgresqlEnvelopeMapper
             headers[EnclosedMessageTypesHeader] = envelope.MessageType!;
         }
 
+        if (includeAttempts && envelope.Attempts > 0)
+        {
+            headers[AttemptsHeader] = envelope.Attempts.ToString(CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            headers.Remove(AttemptsHeader);
+        }
+
         var json = JsonSerializer.Serialize(headers, NServiceBusPostgresqlJsonContext.Default.DictionaryStringString);
 
         return new OutgoingRow(envelope.Id, json, body, envelope.DeliverBy);
@@ -105,12 +125,12 @@ internal class NServiceBusPostgresqlEnvelopeMapper
     /// <summary>
     /// Hydrate an <see cref="Envelope"/> from a row read off the NServiceBus queue table.
     /// </summary>
-    public Envelope MapIncoming(Guid id, string? headersJson, byte[] body)
+    public Envelope MapIncoming(Guid id, string? headersJson, byte[] body, long? seq = null)
     {
         // NServiceBus' JSON serializer prefixes the body with a UTF-8 BOM, which
         // System.Text.Json rejects ('0xEF' is an invalid start of a value). Strip it so
         // the configured serializer can read the payload.
-        var envelope = new Envelope { Data = stripUtf8Bom(body) };
+        var envelope = new NServiceBusPostgresqlEnvelope { Data = stripUtf8Bom(body), Seq = seq };
 
         var headers = headersJson.IsNotEmpty()
             ? JsonSerializer.Deserialize(headersJson!, NServiceBusPostgresqlJsonContext.Default.DictionaryStringString) ?? new()
@@ -149,6 +169,14 @@ internal class NServiceBusPostgresqlEnvelopeMapper
             envelope.MessageType = messageType;
         }
 
+        // GH-5830. A message Wolverine put back into this queue carries the attempts it has already had
+        if (headers.TryGetValue(AttemptsHeader, out var attemptsValue)
+            && int.TryParse(attemptsValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var attempts)
+            && attempts > 0)
+        {
+            envelope.Attempts = attempts;
+        }
+
         envelope.Serializer = _endpoint.TryFindSerializer(envelope.ContentType) ?? _endpoint.DefaultSerializer;
 
         return envelope;
@@ -166,15 +194,32 @@ internal class NServiceBusPostgresqlEnvelopeMapper
             address = address[..at];
         }
 
-        // PostgreSQL form: drop quoting and take the last dotted segment ("public"."nsb" -> nsb).
-        address = address.Replace("\"", string.Empty);
-        var dot = address.LastIndexOf('.');
-        if (dot >= 0)
+        // PostgreSQL form: "schema"."table". GH-5775: split on the FIRST dot outside the quotes, the way
+        // NServiceBus's own QueueAddress.Parse does, so a dotted endpoint name ("public"."Sales.Endpoint") stays
+        // whole instead of being cut at its last dot.
+        var quotes = 0;
+        for (var i = 0; i < address.Length; i++)
         {
-            address = address[(dot + 1)..];
+            if (address[i] == '"')
+            {
+                quotes++;
+            }
+            else if (address[i] == '.' && quotes % 2 == 0)
+            {
+                address = address[(i + 1)..];
+                break;
+            }
         }
 
-        return address;
+        return unquote(address);
+    }
+
+    // "Sales.Endpoint" -> Sales.Endpoint, with PostgreSQL's doubled quote escape undone
+    private static string unquote(string name)
+    {
+        return name.Length >= 2 && name[0] == '"' && name[^1] == '"'
+            ? name[1..^1].Replace("\"\"", "\"")
+            : name;
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2070",

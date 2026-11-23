@@ -20,6 +20,22 @@ public class NServiceBusSqlServerListenerConfiguration
     }
 
     /// <summary>
+    ///     Receive each message inside a database transaction that stays open while its handler runs, the way
+    ///     NServiceBus's own SQL transport receives. The message's row is deleted only when the handler succeeds;
+    ///     a message that is requeued, or whose process dies mid-handler, is put back exactly where it was in the
+    ///     queue. Without this, an Inline listener deletes the row as it receives the message.
+    ///     <para>
+    ///     Requires <c>ProcessInline()</c>, and the host refuses to start otherwise. Messages are received one at
+    ///     a time, and each holds a database connection and an open transaction for as long as its handler runs.
+    ///     </para>
+    /// </summary>
+    public NServiceBusSqlServerListenerConfiguration UseReceiveTransaction()
+    {
+        add(e => e.UseReceiveTransaction = true);
+        return this;
+    }
+
+    /// <summary>
     ///     Configure how often to poll for new messages when the queue is idle.
     /// </summary>
     public NServiceBusSqlServerListenerConfiguration PollingInterval(TimeSpan interval)
