@@ -93,7 +93,7 @@
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="16.0.0" />
     <PackageVersion Include="Marten" Version="10.0.0-rc.3" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
-    <PackageVersion Include="Polecat" Version="6.0.0-rc.2" />
+    <PackageVersion Include="Polecat" Version="6.0.0-rc.3" />
     <PackageVersion Include="Fisher" Version="2.0.0-rc.2" />
     <PackageVersion Include="Microsoft.Azure.Cosmos" Version="3.63.2" />
     <PackageVersion Include="Marten.AspNetCore" Version="10.0.0-rc.3" />
