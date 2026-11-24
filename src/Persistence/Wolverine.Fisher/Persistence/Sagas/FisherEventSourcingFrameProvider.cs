@@ -33,8 +33,12 @@ internal partial class FisherPersistenceFrameProvider : IEventSourcingFrameProvi
     // Core never writes "session.Events.FetchForWriting<T>(...)" itself. Handing back a finished frame
     // is what keeps that spelling on this side of the seam - and lets Fisher's frame stay a plain
     // AsyncFrame where Marten's also implements IBatchableFrame.
+    // Fisher has no FetchForWriting<T, TKey>(key, expectedVersion, token), so a load by natural key is made
+    // without the command's version, as it was before #5756: the version is not checked on load. Passing it
+    // generated a call that doesn't compile (CS1501).
     public Frame BuildLoadAggregateFrame(AggregateLoadRequest request)
-        => new Wolverine.Persistence.EventSourcing.Codegen.LoadAggregateFrame(request, typeof(IDocumentSession), StoreName);
+        => new Wolverine.Persistence.EventSourcing.Codegen.LoadAggregateFrame(
+            request.IsNaturalKey ? request with { Version = null } : request, typeof(IDocumentSession), StoreName);
 
     // GH-3627. Fisher's spelling of the raw stream reads.
     public Frame BuildFetchStreamStateFrame(Variable identity)

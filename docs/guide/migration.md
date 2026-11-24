@@ -745,7 +745,8 @@ differently:
 
 * **A version is checked on a write by natural key (BREAKING).** A command with a `Version` member loaded by its
   natural key now fails with a `ConcurrencyException` when the stream has moved on, as a load by stream id always
-  has. This comes from the shared store code, so it applies to Polecat and Fisher too.
+  has. This comes from the shared store code, so it applies to Polecat too. Fisher has no versioned fetch by natural
+  key yet, so on Fisher the version is still not checked on load.
 * **An exclusive load by natural key locks the stream (BREAKING).** With `LoadStyle = ModelConcurrencyStyle.Exclusive`,
   a load by natural key now calls `FetchForExclusiveWriting<T, TKey>` and can fail with a `StreamLockedException`.
   Marten takes a row lock, as Polecat already did for every load by natural key. Fisher's exclusive fetch does not

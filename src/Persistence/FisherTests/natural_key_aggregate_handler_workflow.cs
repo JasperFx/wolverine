@@ -109,6 +109,32 @@ public class natural_key_aggregate_handler_workflow : IAsyncLifetime
         order.ShouldNotBeNull();
         order.IsComplete.ShouldBeTrue();
     }
+
+    // #5756 passes the command's version to FetchForWriting<T, TKey>(key, version, token) for a natural key, as it
+    // does for a stream id. Fisher has no such overload, and the generated handler did not compile at all (CS1501).
+    // Until Fisher has one, a natural key load on Fisher leaves the version out, as before #5756.
+    [Fact]
+    public async Task natural_key_command_with_a_version_compiles_and_loads_without_the_version()
+    {
+        var streamId = Guid.NewGuid();
+        var orderNumber = new FiOrderNumber("ORD-FI-003");
+
+        var store = theHost.Services.GetRequiredService<IDocumentStore>();
+        await using (var session = store.LightweightSession())
+        {
+            session.Events.StartStream<FiNkOrder>(streamId, new FiNkOrderCreated(orderNumber));
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await theHost.InvokeMessageAndWaitAsync(new AddFiNkItemAtVersion(orderNumber, 1, 5m));
+
+        // The stream is at version 2 now. Not checked on Fisher yet: the load ignores the version
+        await theHost.InvokeMessageAndWaitAsync(new AddFiNkItemAtVersion(orderNumber, 1, 5m));
+
+        await using var verify = store.LightweightSession();
+        var order = await verify.LoadAsync<FiNkOrder>(streamId, TestContext.Current.CancellationToken);
+        order!.TotalAmount.ShouldBe(10m);
+    }
 }
 
 public record FiOrderNumber(string Value);
@@ -146,6 +172,7 @@ public record FiNkOrderCompleted;
 
 public record AddFiNkItem(FiOrderNumber OrderNum, decimal Price);
 public record CompleteFiNkOrder(FiOrderNumber OrderNum);
+public record AddFiNkItemAtVersion(FiOrderNumber OrderNum, long Version, decimal Price);
 
 public static class FiNkOrderHandler
 {
@@ -153,6 +180,9 @@ public static class FiNkOrderHandler
     {
         return new FiNkItemAdded(command.Price);
     }
+
+    public static FiNkItemAdded Handle(AddFiNkItemAtVersion command, [WriteAggregate] FiNkOrder order)
+        => new(command.Price);
 
     // The store-agnostic spelling of the same thing.
     public static FiNkOrderCompleted Handle(CompleteFiNkOrder command,

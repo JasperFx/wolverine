@@ -53,7 +53,8 @@ public class natural_key_explicit_key_type : PostgresqlContext, IAsyncLifetime
             // Only compiled when a test asks for one, so the refused shapes don't stop the host
             opts.Discovery.DisableConventionalDiscovery()
                 .IncludeType(typeof(NkExplicitHandler))
-                .IncludeType(typeof(NkRefusedHandler));
+                .IncludeType(typeof(NkRefusedHandler))
+                .IncludeType(typeof(NkDeciderRefusedHandler));
             opts.Durability.Mode = DurabilityMode.Solo;
 
             opts.Services.AddResourceSetupOnStartup();
@@ -259,6 +260,17 @@ public class natural_key_explicit_key_type : PostgresqlContext, IAsyncLifetime
         refusal.ShouldContain("[WriteAggregate<NkSku>]");
     }
 
+    // The decider workflow can't load by natural key yet, and [Identity] on a key member there was taken as the stream
+    // id: the key's inner value went to FetchForWriting<T>(string), which fails at runtime on a Guid store and
+    // looks up the wrong stream on a string one. Refused at codegen like [WriteAggregate] refuses it.
+    [Fact]
+    public void identity_on_a_natural_key_in_the_decider_workflow_is_refused()
+    {
+        var refusal = refusalFor<AuditNkShelfByDecider>();
+        refusal.ShouldContain("loads by stream id only");
+        refusal.ShouldContain("[WriteAggregate<NkShelfCode>]");
+    }
+
     [Fact]
     public void a_named_key_read_is_refused_by_a_store_that_cannot_read_by_natural_key()
     {
@@ -297,6 +309,8 @@ public record AuditNkShelfTwoCodes(NkShelfCode First, NkShelfCode Second);
 public record AuditNkShelfAmbiguous(NkSku Sku, NkShelfCode Code);
 
 public record AuditNkShelfMisnamed(NkShelfCode Code);
+
+public record AuditNkShelfByDecider([property: Identity] NkShelfCode Code);
 
 public record AuditNkShelfWithoutCode(string Note);
 
@@ -342,6 +356,12 @@ public static class NkExplicitHandler
     public static NkShelfAudited Handle(AuditNkShelfByStreamIdBesideIdentity command,
         [WriteAggregate(nameof(AuditNkShelfByStreamIdBesideIdentity.ShelfStreamId))] NkShelf shelf)
         => new();
+}
+
+[AggregateHandler]
+public static class NkDeciderRefusedHandler
+{
+    public static NkShelfAudited Handle(AuditNkShelfByDecider command, NkShelf shelf) => new();
 }
 
 public static class NkRefusedHandler

@@ -285,10 +285,43 @@ internal record AggregateHandling(IDataRequirement Requirement)
         }
 
         var aggregateId = DetermineAggregateIdMember(aggregateType, commandType);
+        assertIdIsNotANaturalKey(aggregateType, commandType, aggregateId, chain, container, provider);
+
         var version = versionSource != null
             ? DetermineVersionMemberByName(commandType, versionSource)
             : DetermineVersionMember(commandType);
         return (aggregateId, version);
+    }
+
+    /// <summary>
+    ///     The decider workflow (<c>[AggregateHandler]</c>, <c>[DeciderFunction]</c>) loads by stream id only. A member
+    ///     of one of the aggregate's natural key types, picked by <c>[Identity]</c> or by the naming convention, would
+    ///     otherwise have its inner value passed to <c>FetchForWriting&lt;T&gt;</c> as a stream id: a runtime failure on a
+    ///     Guid store and a lookup of the wrong stream on a string one. Refused here, as <c>[WriteAggregate]</c>
+    ///     refuses <c>[Identity]</c> on a natural key member.
+    /// </summary>
+    private static void assertIdIsNotANaturalKey(Type aggregateType, Type commandType, MemberInfo aggregateId,
+        IChain chain, IServiceContainer container, IEventSourcingFrameProvider provider)
+    {
+        var memberType = aggregateId switch
+        {
+            PropertyInfo p => p.PropertyType,
+            FieldInfo f => f.FieldType,
+            _ => null
+        };
+        if (memberType == null) return;
+        var keyType = Nullable.GetUnderlyingType(memberType) ?? memberType;
+
+        // A key of the stream id's own type is fetched as a stream id, so it is not one of these
+        var streamIdType = provider is IPersistenceFrameProvider persistence
+            ? persistence.DetermineSagaIdType(aggregateType, chain, container)
+            : null;
+        if (keyType == streamIdType) return;
+
+        if (!NaturalKeyIdentity.KeyTypesOf(provider, aggregateType, chain, container).Contains(keyType)) return;
+
+        throw new InvalidOperationException(
+            $"{commandType.FullNameInCode()}.{aggregateId.Name} is a {keyType.FullNameInCode()}, a natural key of {aggregateType.FullNameInCode()}, but the aggregate handler workflow on {chain.HandlerCalls().First()} loads by stream id only. Load the aggregate by its natural key with a parameter attribute instead, for example [WriteAggregate<{keyType.Name}>] or [WriteModel<{keyType.Name}>], or give the message the stream id.");
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2070",
