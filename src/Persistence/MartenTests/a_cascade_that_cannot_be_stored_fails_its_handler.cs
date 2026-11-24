@@ -72,6 +72,8 @@ public class a_cascade_that_cannot_be_stored_fails_its_handler : PostgresqlConte
 
         await _host.TrackActivity()
             .DoNotAssertOnExceptionsDetected()
+            .IgnoreFailureAcks()
+            .IgnoreMessageType<UnstorableCascade>()
             .Timeout(30.Seconds())
             .ExecuteAndWaitAsync(_ => _host.MessageBus().PublishAsync(source));
 
