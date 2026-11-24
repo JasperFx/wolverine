@@ -172,7 +172,7 @@ public static class FiNkSeatHandlers
     public static void Handle(ViewFiNkSeat query, [ReadAggregate<FiNkSeatCode>] FiNkSeat seat) => LastSeat = seat;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/FisherTests/natural_keys_in_7_0.cs#L282-L295' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_fisher_natural_key_type_argument' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/FisherTests/natural_keys_in_7_0.cs#L293-L306' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_fisher_natural_key_type_argument' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Reads by key, nullable keys and the decider workflow (`[AggregateHandler]`) by natural key all work like they do on
@@ -185,8 +185,6 @@ Fisher doesn't do everything Marten does with natural keys yet:
 - A command's `Version` isn't checked on a load by natural key.
 - An exclusive load by natural key doesn't lock the stream. Two writers still can't both commit, but the loser fails
   at commit with an `EventStreamUnexpectedMaxEventIdException` rather than waiting.
-- A write by a natural key that no stream has throws an `UnknownNaturalKeyException`, so an HTTP endpoint answers 500
-  rather than 404.
 - There are no mapped natural keys.
 :::
 

@@ -1670,7 +1670,7 @@ Natural keys work the same way across the three stores, with a few gaps that are
 | Reads by natural key | Yes | Yes | Yes |
 | Nullable keys | Yes | Yes | Yes |
 | The decider workflow by natural key | Yes | Yes | Yes |
-| An unknown key on a write finds no aggregate (404 over HTTP) | Yes | No: the load throws | No: the load throws |
+| An unknown key on a write finds no aggregate (404 over HTTP) | Yes | No: the load throws | Yes |
 | Version check on load | Yes | Yes | Not yet: the version isn't checked |
 | Exclusive load locks the stream | Yes | Yes | Not yet: it loads optimistically |
 | Mapped natural keys | Yes | Not yet | Not yet |
@@ -1678,9 +1678,9 @@ Natural keys work the same way across the three stores, with a few gaps that are
 | `JFXEVT016` / `JFXEVT017` at build time | Yes | Once Polecat bundles the JasperFx 3.14 generator | Once Fisher bundles the JasperFx 3.14 generator |
 
 ::: warning
-On Polecat and Fisher, a write by a natural key that no stream has fails: the store's `FetchForWriting<T, TKey>()` throws
-rather than handing back an empty stream, so an HTTP endpoint answers 500 rather than 404. A read by an unknown key finds
-nothing, as on Marten.
+On Polecat, a write by a natural key that no stream has fails: Polecat's `FetchForWriting<T, TKey>()` throws rather than
+handing back an empty stream, so an HTTP endpoint answers 500 rather than 404. A read by an unknown key finds nothing, as
+on Marten.
 
 On Fisher, a command's `Version` isn't checked on a load by natural key, and an exclusive load by natural key doesn't
 lock the stream. Two concurrent writers to the same stream still can't both commit, because Fisher checks the stream's

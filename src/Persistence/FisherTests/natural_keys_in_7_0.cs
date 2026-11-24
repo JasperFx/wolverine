@@ -191,12 +191,23 @@ public class natural_keys_in_7_0 : IAsyncLifetime
 
         (await loadSeat(streamId)).Holder.ShouldBe("Carol");
 
-        // Unlike Marten and Polecat, Fisher's FetchForWriting<T, TKey> throws for a key no stream has, rather than
-        // handing back an empty stream for the not-found check to answer 404 to
-        await Should.ThrowAsync<Fisher.Exceptions.UnknownNaturalKeyException>(() => theHost.Scenario(s =>
+        // Fisher's FetchForWriting<T, TKey> throws for a key no stream has. Wolverine.Fisher turns that into the empty
+        // stream Marten hands back, so the not-found check answers 404 (GH-5948)
+        await theHost.Scenario(s =>
         {
             s.Post.Json(new HoldFiNkSeatRequest("Nobody")).ToUrl("/fink/seats/S-NONE/hold");
-        }));
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task an_unknown_key_on_a_write_finds_no_aggregate()
+    {
+        // The required [WriteAggregate] stops the handler, as on Marten, rather than the load throwing
+        await theHost.InvokeMessageAndWaitAsync(new HoldFiNkSeat(uniqueCode(), "Nobody"));
+
+        // The decider workflow's aggregate isn't required, so its handler runs with no seat
+        await theHost.InvokeMessageAndWaitAsync(new HoldFiNkSeatByDecider(uniqueCode(), "Nobody"));
     }
 
     [Fact]

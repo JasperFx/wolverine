@@ -648,7 +648,7 @@ of those, which is what a missing query string value binds to. The 400 is new in
 well as natural keys: a write with no identity used to fail inside the load and answer 500.
 
 ::: tip
-On Polecat and Fisher, a write by a natural key that no stream has answers 500 for now, because the store's
+On Polecat, a write by a natural key that no stream has answers 500 for now, because Polecat's
 `FetchForWriting<T, TKey>()` throws for an unknown key. See
 [What Each Store Supports](/guide/durability/marten/event-sourcing#what-each-store-supports).
 :::
