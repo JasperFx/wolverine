@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;
@@ -5,14 +7,18 @@ namespace Wolverine.RabbitMQ.Internal;
 internal class RabbitMqHealthCheck : WolverineTransportHealthCheck
 {
     private readonly RabbitMqTransport _transport;
+    private readonly ILogger _logger;
 
-    public RabbitMqHealthCheck(RabbitMqTransport transport)
+    public RabbitMqHealthCheck(RabbitMqTransport transport, ILogger<RabbitMqHealthCheck>? logger = null)
     {
         _transport = transport;
+        _logger = logger ?? NullLogger<RabbitMqHealthCheck>.Instance;
     }
 
     public override string TransportName => _transport.Name;
-    public override string Protocol => RabbitMqTransport.ProtocolName;
+
+    // GH-5946. A named broker's transport has its own scheme, which is what its endpoint URIs carry
+    public override string Protocol => _transport.Protocol;
 
     public override Task<TransportHealthResult> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
@@ -79,13 +85,25 @@ internal class RabbitMqHealthCheck : WolverineTransportHealthCheck
 
     public override async Task<long?> GetBrokerQueueDepthAsync(Uri endpointUri, CancellationToken cancellationToken = default)
     {
-        if (endpointUri.Scheme != RabbitMqTransport.ProtocolName) return null;
+        // GH-5946. Every null below says why in the log, because a monitoring tool that gets one cannot tell a
+        // broker it could not ask from a transport that does not support the question
+
+        // This transport's own scheme, so an endpoint on a named broker is answered by that broker's health check
+        if (!endpointUri.Scheme.Equals(_transport.Protocol, StringComparison.OrdinalIgnoreCase)) return null;
 
         var queueName = endpointUri.Segments.LastOrDefault()?.TrimEnd('/');
         if (string.IsNullOrEmpty(queueName)) return null;
 
-        var monitor = _transport.TryGetSendingConnection() ?? _transport.TryGetListeningConnection();
-        if (monitor == null || !monitor.IsConnected) return null;
+        // Either connection can count a queue, so a sending connection between a drop and its recovery must not
+        // stop the listening one from answering
+        var monitor = connected(_transport.TryGetSendingConnection()) ?? connected(_transport.TryGetListeningConnection());
+        if (monitor == null)
+        {
+            _logger.LogDebug(
+                "Unable to read the broker queue depth for {Uri} because the Rabbit MQ transport has no connected connection",
+                endpointUri);
+            return null;
+        }
 
         try
         {
@@ -93,9 +111,12 @@ internal class RabbitMqHealthCheck : WolverineTransportHealthCheck
             var messageCount = await channel.MessageCountAsync(queueName, cancellationToken);
             return (long)messageCount;
         }
-        catch
+        catch (Exception e)
         {
+            _logger.LogWarning(e, "Unable to read the broker queue depth for {Uri} from Rabbit MQ", endpointUri);
             return null;
         }
     }
+
+    private static ConnectionMonitor? connected(ConnectionMonitor? monitor) => monitor is { IsConnected: true } ? monitor : null;
 }

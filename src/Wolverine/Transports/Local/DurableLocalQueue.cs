@@ -12,7 +12,8 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Transports.Local;
 
-internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue, IPlaysScheduledMessages
+internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue, IPlaysScheduledMessages,
+    IPausesForErrorPolicy
 {
     private readonly IMessageInbox _inbox;
     private readonly ILogger _logger;
@@ -84,6 +85,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue,
         ReplyUri = TransportConstants.RepliesUri;
 
         _logger = runtime.LoggerFactory.CreateLogger<DurableLocalQueue>();
+        ErrorPolicyPause = new ErrorPolicyPause(runtime, endpoint, _logger);
 
         if (endpoint.CircuitBreakerOptions != null)
         {
@@ -116,6 +118,9 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue,
     }
 
     public CircuitBreaker? CircuitBreaker { get; }
+
+    /// <summary>GH-5945. An error policy pause waiting to be reported as resumed.</summary>
+    internal ErrorPolicyPause ErrorPolicyPause { get; }
 
     /// <summary>
     /// Immediately latch the receiver to stop processing new messages.
@@ -151,11 +156,28 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue,
         // GH-5446. Not the breaker's pause, so the start that ends it is not a breaker recovery
         CircuitBreaker?.PauseSuperseded();
 
+        // GH-5945. Nor is it an error policy's resume
+        ErrorPolicyPause.Superseded();
+
         return pauseCoreAsync(pauseTime, waitForDrain: false);
+    }
+
+    /// <summary>
+    /// GH-5945. <see cref="PauseAsync" /> for an error policy's (or a rate limit's) pause, reported to
+    /// <c>IWolverineObserver.ListenerPaused</c> now and to <c>ListenerResumed</c> once the queue accepts again.
+    /// </summary>
+    async ValueTask IPausesForErrorPolicy.PauseForErrorPolicyAsync(TimeSpan pauseTime, Exception? exception)
+    {
+        CircuitBreaker?.PauseSuperseded();
+        await ErrorPolicyPause.PausingAsync(pauseTime, exception);
+        await pauseCoreAsync(pauseTime, waitForDrain: false);
     }
 
     public ValueTask PauseWithDrainAsync(TimeSpan pauseTime)
     {
+        // The circuit breaker's pause replaces any error policy pause, and reports its own end (GH-5446)
+        ErrorPolicyPause.Superseded();
+
         // Only ever called from outside the pipeline (the circuit breaker), so waiting here is safe.
         return pauseCoreAsync(pauseTime, waitForDrain: true);
     }
@@ -282,9 +304,15 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue,
         }
 
         // GH-5446. Outside the start lock, so an observer that reaches back into this queue cannot deadlock it
-        if (((IListenerCircuit)this).Status == ListeningStatus.Accepting && CircuitBreaker != null)
+        if (((IListenerCircuit)this).Status == ListeningStatus.Accepting)
         {
-            await CircuitBreaker.ListenerResumedAsync(reason, _logger);
+            if (CircuitBreaker != null)
+            {
+                await CircuitBreaker.ListenerResumedAsync(reason, _logger);
+            }
+
+            // GH-5945. Same rule for an error policy's pause
+            await ErrorPolicyPause.ResumedAsync();
         }
     }
 

@@ -46,20 +46,30 @@ public partial class WolverineRuntime
         public void ExecutionFinished(Envelope envelope)
         {
             var executionTime = envelope.StopTiming();
+            recordExecutionTime(envelope, executionTime);
+            _runtime.ExecutionFinished(envelope, executionTime);
+        }
+
+        // GH-5944: a failed attempt is still an execution, exactly as in the CritterWatch (Direct)
+        // tracker, so Failures / Executions is a failure rate over attempts in both modes. Without
+        // the execution, a message retried many times read as hundreds of failures against a
+        // handful of executions.
+        public void ExecutionFinished(Envelope envelope, Exception exception)
+        {
+            var executionTime = envelope.StopTiming();
+            recordExecutionTime(envelope, executionTime);
+            _runtime.ExecutionFinished(envelope, exception, executionTime);
+            _sink.Post(new RecordFailure(exception.GetType().FullNameInCode(), envelope.TenantId!));
+        }
+
+        private void recordExecutionTime(Envelope envelope, double executionTime)
+        {
             if (executionTime >= 0)
             {
                 // RecordExecutionTime stays whole-ms (it's on the CritterWatch wire); rounding
                 // instead of the old truncate-then-drop keeps sub-millisecond executions counted
                 _sink.Post(new RecordExecutionTime((long)Math.Round(executionTime), envelope.TenantId!));
             }
-
-            _runtime.ExecutionFinished(envelope);
-        }
-
-        public void ExecutionFinished(Envelope envelope, Exception exception)
-        {
-            _runtime.ExecutionFinished(envelope, exception);
-            _sink.Post(new RecordFailure(exception.GetType().FullNameInCode(), envelope.TenantId!));
         }
 
         public void MessageSucceeded(Envelope envelope)
