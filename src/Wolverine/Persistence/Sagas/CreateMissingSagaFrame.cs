@@ -30,4 +30,15 @@ internal class CreateMissingSagaFrame : SyncFrame
         writer.Write($"{_saga.Usage} = new {_saga.VariableType.FullNameInCode()}();");
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // The C# form reassigns the loaded (null) saga variable. An F# binding is immutable, and the loaded one is
+        // often a `let!`, so this shadows it instead. The frame only ever runs as the first step of the saga-missing
+        // branch, and everything that branch does with the saga comes after it, inside the same branch, so every
+        // later reference sees the new instance just as it does in C#.
+        writer.WriteComment("Create a new instance of the saga state");
+        writer.Write($"{_saga.FSharpAssignmentUsage} = {_saga.VariableType.FSharpName()}()");
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

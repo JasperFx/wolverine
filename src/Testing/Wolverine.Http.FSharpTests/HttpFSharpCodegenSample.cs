@@ -110,12 +110,43 @@ public static class HttpFSharpCodegenSample
         authedChain.Middleware.Add(checkCall);
         authedChain.Middleware.Add(maybeEnd);
 
+        // ParsedArrayQueryStringValue + ParsedCollectionQueryStringValue.GenerateFSharpCode -- arrays and
+        // collections bound from repeated query string values, as endpoint arguments and as the settable
+        // properties of a [FromQuery] type, with lenient binding
+        var queryCollectionChains = new[]
+        {
+            HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.Tags(null!), httpGraph),
+            HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.Ids(null!), httpGraph),
+            HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.Colors(null!), httpGraph),
+            HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.ThingIds(null!), httpGraph),
+            HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.Lists(null!, null!, null!), httpGraph),
+            HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.Bound(null!), httpGraph)
+        };
+
+        // The same frames with strict binding (RejectUnparseableQueryValues, the 7.0 default), which answers 400
+        // for a present but unparseable value. The flag is read when a chain is built, so these come from a graph
+        // of their own
+        var strictGraph = new HttpGraph(new WolverineOptions
+        {
+            ApplicationAssembly = typeof(ThingEndpoints).Assembly,
+            EnableRelayOfUserName = true
+        }, container)
+        {
+            RejectUnparseableQueryValues = true
+        };
+
+        var strictQueryCollectionChains = new[]
+        {
+            HttpChain.ChainFor<StrictQueryCollectionEndpoints>(x => x.Ids(null!), strictGraph),
+            HttpChain.ChainFor<StrictQueryCollectionEndpoints>(x => x.Mixed(null!, null!, null!), strictGraph)
+        };
+
         var chains = new[]
         {
             helloChain, createChain, getByIdChain, searchChain, getItemsChain,
             pagedChain, resultChain, deleteChain, publishChain, filterChain, uploadChain, dedupChain,
             dedupWithoutBodyChain, thingIdChain, thingCodeChain, authedChain
-        };
+        }.Concat(queryCollectionChains).Concat(strictQueryCollectionChains).ToArray();
 
         // TagHttpHandlerFrame.GenerateFSharpCode — applied to all chains via TagHttpHandlerPolicy.
         // DetectTenantIdFrame.GenerateFSharpCode — applied to all chains when at least one
@@ -144,7 +175,11 @@ public static class HttpFSharpCodegenSample
         // it, generated endpoint type names included, and assembled as `codegen write` assembles it. That is
         // per instance (AsCodegenCommand) rather than through the process-wide
         // DynamicCodeBuilder.WithinCodegenCommand, which would leak into the tests running beside this one.
-        var allEndpointTypes = new[] { typeof(ThingEndpoints), typeof(AuthedEndpoints) };
+        var allEndpointTypes = new[]
+        {
+            typeof(ThingEndpoints), typeof(AuthedEndpoints), typeof(QueryCollectionEndpoints),
+            typeof(StrictQueryCollectionEndpoints)
+        };
         var registryFile = new HttpEndpointRegistryCodeFile(allEndpointTypes,
             generatedEndpointTypeNames: chains.Select(x => ((ICodeFile)x).FileName))
         {

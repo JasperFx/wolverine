@@ -129,4 +129,30 @@ internal static class ParsingCode
 
         return $"{typeName}.TryParse({rawValue}, System.Globalization.CultureInfo.InvariantCulture, out {outExpression})";
     }
+
+    /// <summary>
+    ///     The F# form of <see cref="TryParse" />: an expression of type <c>bool * T</c>, since F# turns the trailing
+    ///     out argument into the second item of a returned tuple. Match it with <c>| true, parsed -> ...</c>.
+    /// </summary>
+    public static string FSharpTryParse(Type type, string rawValue)
+    {
+        if (type.IsEnum)
+        {
+            // Case-insensitive, as in the C# form. F# cannot reach Enum's static TryParse through the enum type
+            return $"System.Enum.TryParse<{type.FSharpName()}>({rawValue}, true)";
+        }
+
+        if (type.IsBoolean())
+        {
+            return $"System.Boolean.TryParse({rawValue})";
+        }
+
+        if (SingleValueWrapper.TryFind(type, out var wrapper))
+        {
+            return wrapper.FSharpTryParseCode(rawValue);
+        }
+
+        // FullName rather than FSharpName: the F# alias of a primitive (int, decimal...) cannot qualify a static call
+        return $"{type.FullName!.Replace('+', '.')}.TryParse({rawValue}, System.Globalization.CultureInfo.InvariantCulture)";
+    }
 }

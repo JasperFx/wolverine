@@ -155,3 +155,64 @@ public static class AuthHelpers
 {
     public static IResult CheckAuth() => WolverineContinue.Result();
 }
+
+/// <summary>An enum bound from repeated query string values, case-insensitively.</summary>
+public enum ThingColor
+{
+    Red,
+    Green
+}
+
+/// <summary>
+///     A [FromQuery] type with no constructor arguments, so its settable collection properties bind one by one
+///     (property mode of <c>ParsedArrayQueryStringValue</c> and <c>ParsedCollectionQueryStringValue</c>).
+/// </summary>
+public class ThingQuery
+{
+    public string[] Tags { get; set; } = [];
+    public int[] Ids { get; set; } = [];
+    public List<int> Pages { get; set; } = [];
+}
+
+/// <summary>
+///     Arrays and collections bound from repeated query string values (<c>?ids=1&amp;ids=2</c>): exercises
+///     <c>ParsedArrayQueryStringValue</c> and <c>ParsedCollectionQueryStringValue</c> with string, parsed, enum and
+///     single-value wrapper elements. Rendered with lenient query binding, where an unparseable value is skipped.
+/// </summary>
+public class QueryCollectionEndpoints
+{
+    [WolverineGet("/fsharp/query/tags")]
+    public string Tags(string[] tags) => string.Join(",", tags);
+
+    [WolverineGet("/fsharp/query/ids")]
+    public string Ids(int[] ids) => string.Join(",", ids);
+
+    [WolverineGet("/fsharp/query/colors")]
+    public string Colors(ThingColor[] colors) => string.Join(",", colors);
+
+    [WolverineGet("/fsharp/query/thing-ids")]
+    public string ThingIds(ThingId[] thingIds) => string.Join(",", thingIds.Select(x => x.Value));
+
+    [WolverineGet("/fsharp/query/lists")]
+    public string Lists(List<int> numbers, IReadOnlyList<string> names, IEnumerable<Guid> keys)
+        => $"{numbers.Count} {names.Count} {keys.Count()}";
+
+    [WolverineGet("/fsharp/query/bound")]
+    public string Bound([FromQuery] ThingQuery query)
+        => $"{query.Tags.Length} {query.Ids.Length} {query.Pages.Count}";
+}
+
+/// <summary>
+///     The same bindings rendered with strict query binding (<c>RejectUnparseableQueryValues</c>, the 7.0 default),
+///     where a present but unparseable value answers 400 with ProblemDetails. Two strict collections in one endpoint
+///     nest one rejection guard inside the other.
+/// </summary>
+public class StrictQueryCollectionEndpoints
+{
+    [WolverineGet("/fsharp/strict/ids")]
+    public string Ids(int[] ids) => string.Join(",", ids);
+
+    [WolverineGet("/fsharp/strict/mixed")]
+    public string Mixed(int[] ids, IReadOnlyList<Guid> keys, string[] tags)
+        => $"{ids.Length} {keys.Count} {tags.Length}";
+}

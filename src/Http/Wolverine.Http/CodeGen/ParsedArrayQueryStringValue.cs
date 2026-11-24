@@ -81,6 +81,52 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
         Next?.GenerateCode(method, writer);
     }
 
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var elementType = Variable.VariableType.GetElementType()!;
+        if (elementType == typeof(string))
+        {
+            writer.Write(Mode == AssignMode.WriteToVariable
+                ? $"let {Variable.Usage} = httpContext.Request.Query.[\"{Variable.Name}\"].ToArray()"
+                : $"{_property} <- httpContext.Request.Query.[\"{Variable.Name}\"].ToArray()");
+
+            Next?.GenerateFSharpCode(method, writer);
+            return;
+        }
+
+        if (_rejectUnparseableValue && Mode == AssignMode.WriteToProperty)
+        {
+            throw new NotSupportedException(StrictQueryBinding.FSharpStrictPropertyBindingNotSupported);
+        }
+
+        var list = $"{Variable.Usage}_List";
+        var value = $"{Variable.Usage}Value";
+        var rejected = _rejectUnparseableValue ? $"{Variable.Usage}_Unparseable" : null;
+
+        StrictQueryBinding.WriteFSharpParsedValues(writer, Variable.Name, elementType, list, value, rejected);
+
+        if (rejected == null)
+        {
+            writeFSharpAssignment(writer, list);
+            Next?.GenerateFSharpCode(method, writer);
+            return;
+        }
+
+        StrictQueryBinding.WriteFSharpRejectionGuard(method, writer, Variable.Name, rejected, elementType, () =>
+        {
+            writeFSharpAssignment(writer, list);
+            StrictQueryBinding.WriteFSharpNextOrAbort(Next, method, writer);
+        });
+    }
+
+    private void writeFSharpAssignment(ISourceWriter writer, string list)
+    {
+        // As in C#: an argument always gets the array, a property only when there was at least one value
+        writer.Write(Mode == AssignMode.WriteToVariable
+            ? $"let {Variable.Usage} = {list}.ToArray()"
+            : $"if {list}.Count > 0 then {_property} <- {list}.ToArray()");
+    }
+
     private void writeRejectionBlock(GeneratedMethod method, ISourceWriter writer, string valueUsage,
         string elementAlias)
     {
