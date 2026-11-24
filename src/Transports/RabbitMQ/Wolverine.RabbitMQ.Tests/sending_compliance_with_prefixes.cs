@@ -11,6 +11,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 {
     public PrefixedComplianceFixture() : base(new Uri("rabbitmq://queue/foo-buffered-receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

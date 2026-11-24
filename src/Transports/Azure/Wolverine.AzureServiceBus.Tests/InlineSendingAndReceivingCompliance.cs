@@ -8,6 +8,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 {
     public InlineComplianceFixture() : base(new Uri("asb://queue/inline-receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
         MustReset = false;
     }
 

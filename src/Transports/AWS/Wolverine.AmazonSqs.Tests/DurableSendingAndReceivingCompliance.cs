@@ -15,6 +15,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
 {
     public DurableComplianceFixture() : base(new Uri("sqs://receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

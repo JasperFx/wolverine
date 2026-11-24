@@ -233,7 +233,7 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
         }
     }
 
-    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    public override WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
     {
         return new RabbitMqHealthCheck(this, runtime.LoggerFactory.CreateLogger<RabbitMqHealthCheck>());
     }

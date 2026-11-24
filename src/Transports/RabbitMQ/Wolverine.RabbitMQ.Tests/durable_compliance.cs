@@ -11,6 +11,7 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
 {
     public RabbitMqTransportFixture() : base($"rabbitmq://queue/{RabbitTesting.NextQueueName()}".ToUri())
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

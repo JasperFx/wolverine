@@ -120,6 +120,14 @@ public abstract class TransportBase<TEndpoint> : ITransport, ITagged where TEndp
     /// </summary>
     public virtual Uri? TryResolveListenerAddress(Uri receivedAt) => null;
 
+    /// <summary>
+    ///     See <see cref="ITransport.BuildHealthCheck"/>. Declared here as a virtual for the same reason as
+    ///     <see cref="TryResolveListenerAddress"/>: a transport's own BuildHealthCheck was reachable only through
+    ///     its concrete type, so Wolverine.HealthChecks and anything else enumerating
+    ///     <c>WolverineOptions.Transports</c> got null for every broker. See GH-5963.
+    /// </summary>
+    public virtual WolverineTransportHealthCheck? BuildHealthCheck(IWolverineRuntime runtime) => null;
+
     public virtual bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource)
     {
         resource = default;

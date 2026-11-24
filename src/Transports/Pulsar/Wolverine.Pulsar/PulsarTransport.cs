@@ -269,7 +269,7 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
         }
     }
 
-    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    public override WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
     {
         return new PulsarHealthCheck(this);
     }

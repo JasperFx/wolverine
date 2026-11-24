@@ -10,6 +10,7 @@ public class BufferedComplianceWithDlqFixture : TransportComplianceFixture, IAsy
 {
     public BufferedComplianceWithDlqFixture() : base(new Uri("kafka://topic/receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

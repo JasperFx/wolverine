@@ -12,6 +12,7 @@ public class InlineNatsTransportFixture : TransportComplianceFixture, IAsyncLife
 
     public InlineNatsTransportFixture() : base(new Uri("nats://subject/compliance.receiver"), 60)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()
@@ -48,6 +49,7 @@ public class BufferedNatsTransportFixture : TransportComplianceFixture, IAsyncLi
 
     public BufferedNatsTransportFixture() : base(new Uri("nats://subject/compliance.receiver"), 60)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()
@@ -84,6 +86,7 @@ public class JetStreamNatsTransportFixture : TransportComplianceFixture, IAsyncL
 
     public JetStreamNatsTransportFixture() : base(new Uri("nats://subject/compliance.receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

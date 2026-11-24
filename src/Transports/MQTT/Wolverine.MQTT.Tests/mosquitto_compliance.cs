@@ -14,6 +14,7 @@ public class MosquittoBufferedComplianceFixture : TransportComplianceFixture, IA
 
     public MosquittoBufferedComplianceFixture() : base(new Uri("mqtt://topic/receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

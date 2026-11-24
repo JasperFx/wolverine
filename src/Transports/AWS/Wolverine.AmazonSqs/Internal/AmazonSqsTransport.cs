@@ -426,7 +426,7 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
         }
     }
 
-    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    public override WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
     {
         return new SqsHealthCheck(this);
     }

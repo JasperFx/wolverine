@@ -13,6 +13,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 {
     public BufferedComplianceFixture() : base(new Uri("kafka://topic/receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     // GH-4982: unique per fixture instance, and TransportCompliance builds a fresh fixture for every test.
@@ -72,6 +73,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
     public InlineComplianceFixture() : base(new Uri("kafka://topic/receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

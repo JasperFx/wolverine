@@ -372,7 +372,7 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
         }
     }
 
-    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    public override WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
     {
         return new RedisHealthCheck(this);
     }

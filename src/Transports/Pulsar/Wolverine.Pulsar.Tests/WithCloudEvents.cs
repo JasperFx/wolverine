@@ -12,6 +12,7 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
 {
     public PulsarWithCloudEventsFixture() : base(null!)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

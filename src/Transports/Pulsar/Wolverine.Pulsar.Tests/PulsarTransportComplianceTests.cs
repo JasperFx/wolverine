@@ -8,6 +8,7 @@ public class PulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
 {
     public PulsarTransportFixture() : base(null!)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

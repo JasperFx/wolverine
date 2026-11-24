@@ -8,6 +8,7 @@ public class InlineRabbitMqTransportFixture : TransportComplianceFixture, IAsync
 {
     public InlineRabbitMqTransportFixture() : base($"rabbitmq://queue/{RabbitTesting.NextQueueName()}".ToUri())
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

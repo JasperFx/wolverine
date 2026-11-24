@@ -558,7 +558,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         // otherwise, we're going to use a client per endpoint
     }
 
-    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    public override WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
     {
         return new AzureServiceBusHealthCheck(this);
     }

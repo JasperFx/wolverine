@@ -12,6 +12,7 @@ public class RedisInlineComplianceFixture : TransportComplianceFixture, IAsyncLi
 {
     public RedisInlineComplianceFixture() : base(new Uri("redis://stream/0/receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

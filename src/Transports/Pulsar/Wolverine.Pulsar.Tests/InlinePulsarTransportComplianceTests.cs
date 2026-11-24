@@ -8,6 +8,7 @@ public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLi
 {
     public InlinePulsarTransportFixture() : base(null!)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

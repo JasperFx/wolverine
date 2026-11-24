@@ -545,7 +545,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         };
     }
 
-    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    public override WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
     {
         return new NatsHealthCheck(this);
     }
