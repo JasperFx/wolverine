@@ -119,6 +119,17 @@ public class deduplicated_with_response_claim_in_transaction_default : IAsyncLif
         source.ShouldNotContain(".QueueClaim(");
     }
 
+    [Fact]
+    public void updated_aggregate_takes_the_application_default()
+    {
+        compile(theHost, "/claim-default/updated-aggregate");
+
+        var source = sourceFor("/claim-default/updated-aggregate");
+        source.ShouldContain(".QueueClaim(");
+        source.ShouldContain(".ProjectLatestForCommit<");
+        source.ShouldNotContain(".TryClaimAsync(");
+    }
+
     internal static void compile(IAlbaHost host, string route)
     {
         var graph = host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
@@ -187,7 +198,14 @@ public static class DefaultClaimInTransactionEndpoints
 
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/claim-default/after-commit")]
-    public static (UpdatedAggregate, Events) PostAfterCommit(IncrementDeduplicatedCounter command,
+    public static (ReadAfterCommit, Events) PostAfterCommit(IncrementDeduplicatedCounter command,
+        [WriteAggregate] IEventStream<DeduplicatedCounter> stream)
+        => (new ReadAfterCommit(), [new DeduplicatedCounterIncremented(command.Note)]);
+
+    // GH-5721: built before the commit, so it takes the default
+    [DeduplicatedWithResponse(DeduplicationScope.User)]
+    [WolverinePost("/claim-default/updated-aggregate")]
+    public static (UpdatedAggregate, Events) PostUpdatedAggregate(IncrementDeduplicatedCounter command,
         [WriteAggregate] IEventStream<DeduplicatedCounter> stream)
         => (new UpdatedAggregate(), [new DeduplicatedCounterIncremented(command.Note)]);
 
@@ -281,11 +299,21 @@ public class deduplicated_with_response_claim_in_transaction_fallback_throws : I
     {
         var ex = Should.Throw<InvalidOperationException>(() =>
             deduplicated_with_response_claim_in_transaction_default.compile(theHost,
-                "/marten-deduplicated-response/updated-aggregate"));
+                "/marten-deduplicated-response/after-commit-read"));
 
-        ex.Message.ShouldContain("/marten-deduplicated-response/updated-aggregate");
+        ex.Message.ShouldContain("/marten-deduplicated-response/after-commit-read");
         ex.Message.ShouldContain("ClaimInTransaction = true");
         ex.Message.ShouldContain("only produced after the commit");
+    }
+
+    [Fact]
+    public void updated_aggregate_claims_in_its_transaction_and_compiles()
+    {
+        // GH-5721. Before, UpdatedAggregate was read after the commit, and this option refused it
+        deduplicated_with_response_claim_in_transaction_default.compile(theHost,
+            "/marten-deduplicated-response/updated-aggregate");
+
+        sourceFor("/marten-deduplicated-response/updated-aggregate").ShouldContain(".QueueClaim(");
     }
 
     [Fact]

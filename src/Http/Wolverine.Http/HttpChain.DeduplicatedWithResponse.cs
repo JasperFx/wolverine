@@ -236,6 +236,21 @@ public partial class HttpChain
         }
 
         var resource = ResourceVariable ?? Method.Creates.First();
+
+        // GH-5721. A response read after the commit that the store can build before it instead, as UpdatedAggregate's
+        // FetchLatest can be Marten's ProjectLatestForCommit: the aggregate as the commit will write it
+        var creator = resource.Creator;
+        string? whyNotBeforeCommit = null;
+        Frame[]? beforeCommit = null;
+        if (creator is IHasBeforeCommitResponse alternative && Postprocessors.Contains(creator))
+        {
+            whyNotBeforeCommit = alternative.WhyNotBeforeCommit(this, container);
+            if (whyNotBeforeCommit == null)
+            {
+                (beforeCommit, resource) = alternative.BuildBeforeCommitResponse();
+            }
+        }
+
         var prepare = new PrepareDeduplicatedResponseClaimFrame(scoped, fingerprint, resource,
             MissingResponseBodyStatusCode, requirement.StoreBody, requirement.Window);
         var storageId = new DeduplicationStorageIdFrame(scoped);
@@ -252,12 +267,21 @@ public partial class HttpChain
         var commit = Postprocessors.IndexOf(transactional.Commit);
         if (commit < 0) return false;
 
-        // A response produced after the commit, as UpdatedAggregate fetches the aggregate: claiming it before the
-        // commit would pull that read ahead of the commit, and answer with the aggregate before this request's events
-        if (resource.Creator != null && Postprocessors.IndexOf(resource.Creator) > commit)
+        if (beforeCommit != null)
         {
-            reportClaimInTransactionFallsBack(container, asked,
-                "its response is only produced after the commit (UpdatedAggregate, say), and the claim has to be written before it");
+            // Only once the provider has agreed to claim in the transaction: the response moves ahead of the commit
+            Postprocessors.Remove(creator!);
+            commit = Postprocessors.IndexOf(transactional.Commit);
+            Postprocessors.InsertRange(commit, beforeCommit);
+            commit += beforeCommit.Length;
+            ResourceVariable = resource;
+        }
+        else if (creator != null && Postprocessors.IndexOf(creator) > commit)
+        {
+            // Any other response produced after the commit: claiming before the commit would pull that read ahead of
+            // it, and answer with what was there before this request's work
+            reportClaimInTransactionFallsBack(container, asked, whyNotBeforeCommit ??
+                "its response is only produced after the commit, and the claim has to be written before it");
             return false;
         }
 

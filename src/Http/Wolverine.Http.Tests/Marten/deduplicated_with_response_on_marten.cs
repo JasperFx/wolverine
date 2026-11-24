@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Alba;
 using IntegrationTests;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Events;
 using JasperFx.Resources;
@@ -16,6 +17,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine.Attributes;
+using Wolverine.Configuration;
 using Wolverine.Http.Runtime;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
@@ -503,7 +505,32 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
     [Fact]
     public async Task a_response_produced_after_the_commit_keeps_claim_and_release()
     {
-        // UpdatedAggregate fetches the aggregate after the commit; claiming before it would read it first
+        // This response reads after the commit and has no before-commit form; claiming before it would read it first
+        var counterId = Guid.NewGuid();
+        await using (var session = theHost.Services.GetRequiredService<IDocumentStore>().LightweightSession())
+        {
+            session.Events.StartStream<DeduplicatedCounter>(counterId, new DeduplicatedCounterStarted());
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        var key = Guid.NewGuid().ToString();
+        var command = new IncrementDeduplicatedCounter(counterId, "after-commit-read");
+
+        var first = await postAsync("/marten-deduplicated-response/after-commit-read", command, key, 200);
+        var repeat = await postAsync("/marten-deduplicated-response/after-commit-read", command, key, 200);
+
+        (await first.ReadAsJsonAsync<ReadAfterCommit>()).ShouldNotBeNull().Count.ShouldBe(1);
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+
+        var source = sourceFor("/marten-deduplicated-response/after-commit-read");
+        source.ShouldContain(".TryClaimAsync(");
+        source.ShouldNotContain(".QueueClaim(");
+    }
+
+    [Fact]
+    public async Task updated_aggregate_claims_in_its_transaction()
+    {
+        // GH-5721: UpdatedAggregate is built before the commit with ProjectLatestForCommit, so it claims in the transaction
         var counterId = Guid.NewGuid();
         await using (var session = theHost.Services.GetRequiredService<IDocumentStore>().LightweightSession())
         {
@@ -521,8 +548,10 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
         (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
 
         var source = sourceFor("/marten-deduplicated-response/updated-aggregate");
-        source.ShouldContain(".TryClaimAsync(");
-        source.ShouldNotContain(".QueueClaim(");
+        source.ShouldContain(".QueueClaim(");
+        source.ShouldContain(".ProjectLatestForCommit<");
+        source.ShouldNotContain(".TryClaimAsync(");
+        source.ShouldNotContain(".FetchLatest<");
     }
 
     [Fact]
@@ -869,6 +898,26 @@ public record IncrementDeduplicatedCounter(Guid DeduplicatedCounterId, string No
 
 public record DeduplicatedCounterAnswer(int Count);
 
+/// <summary>
+/// A response read after the commit, with no way to build it before: the counter's events as the database has them.
+/// [DeduplicatedWithResponse] can't claim in the transaction for it.
+/// </summary>
+public class ReadAfterCommit : IResponseAware
+{
+    public int Count { get; set; }
+
+    public static void ConfigureResponse(IChain chain)
+    {
+        chain.UseForResponse(new MethodCall(typeof(ReadAfterCommit), nameof(ReadAsync)));
+    }
+
+    public static async Task<ReadAfterCommit> ReadAsync(IncrementDeduplicatedCounter command, IDocumentSession session)
+    {
+        var events = await session.Events.FetchStreamAsync(command.DeduplicatedCounterId);
+        return new ReadAfterCommit { Count = events.Count(x => x.Data is DeduplicatedCounterIncremented) };
+    }
+}
+
 public class FailAfterCommitMarker
 {
     public Guid Id { get; set; }
@@ -1115,6 +1164,12 @@ public static class MartenDeduplicatedResponseEndpoints
     public static (UpdatedAggregate, Events) PostUpdatedAggregate(IncrementDeduplicatedCounter command,
         [WriteAggregate] IEventStream<DeduplicatedCounter> stream)
         => (new UpdatedAggregate(), [new DeduplicatedCounterIncremented(command.Note)]);
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true)]
+    [WolverinePost("/marten-deduplicated-response/after-commit-read")]
+    public static (ReadAfterCommit, Events) PostAfterCommitRead(IncrementDeduplicatedCounter command,
+        [WriteAggregate] IEventStream<DeduplicatedCounter> stream)
+        => (new ReadAfterCommit(), [new DeduplicatedCounterIncremented(command.Note)]);
 
     [DeduplicatedWithResponse(DeduplicationScope.Tenant | DeduplicationScope.User)]
     [WolverinePost("/marten-deduplicated-response/tenant")]

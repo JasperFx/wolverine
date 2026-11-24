@@ -418,9 +418,59 @@ request's claim and answers from it.
 - A failure inside the commit call after the database commit (on Marten, the outbox flush or a session
   listener) is rethrown, as on claim-and-release, and a retry is answered from the claim.
 - The response is captured just before the commit, after the endpoint has set the status and `Location`.
-  A value only the commit assigns (a document version, say) is not in the stored body. An endpoint whose
-  response is only produced after the commit, such as one returning `UpdatedAggregate`, keeps
-  claim-and-release.
+  A value only the commit assigns (a document version, say) is not in the stored body, with the one
+  exception of `UpdatedAggregate` on Marten (below). Any other response that is only produced after the
+  commit keeps claim-and-release.
+
+#### Returning the updated aggregate <Badge type="tip" text="7.0" />
+
+An endpoint using the aggregate handler workflow on Marten that returns `UpdatedAggregate` or
+`UpdatedAggregate<T>` can claim inside its transaction too. Wolverine builds the aggregate before the commit
+with Marten's `ProjectLatestForCommit()`, which gives this request's new events the versions, timestamps and
+metadata that the commit then keeps. The stored response is the aggregate exactly as the commit writes it,
+and a repeat gets the same bytes back:
+
+<!-- snippet: sample_updated_aggregate_claim_in_transaction -->
+<a id='snippet-sample_updated_aggregate_claim_in_transaction'></a>
+```cs
+[DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true)]
+[WolverinePost("/claimed-counter/increment")]
+public static (UpdatedAggregate, Events) Increment(IncrementClaimedCounter command,
+    [WriteAggregate] IEventStream<ClaimedCounter> stream)
+    => (new UpdatedAggregate(), [new ClaimedCounterIncremented()]);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/updated_aggregate_claim_in_transaction.cs#L302-L310' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_updated_aggregate_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Message handlers, and endpoints that don't claim inside their transaction, still read the aggregate after
+the commit with `FetchLatest()`. Under `EventAppendMode.Quick` the database assigns the timestamps, so the
+aggregate can't be built before the commit, and the endpoint keeps claim-and-release.
+
+::: info
+This changes an endpoint that returns `UpdatedAggregate` and claims inside its transaction, either with
+`ClaimInTransaction = true` or through `DefaultClaimInTransaction`. In 6.x it fell back to
+claim-and-release, or failed under `ThrowWhenClaimInTransactionFallsBack`. In 7.0 it claims inside the
+transaction.
+:::
+
+A custom `IResponseAware` response that reads the work of the transaction can do the same thing by
+putting itself before the Marten commit with `UseForResponseBeforeCommit()`:
+
+<!-- snippet: sample_use_for_response_before_commit -->
+<a id='snippet-sample_use_for_response_before_commit'></a>
+```cs
+public static void ConfigureResponse(IChain chain)
+{
+    // Before the chain commits its Marten session, so a [DeduplicatedWithResponse] endpoint can
+    // store this response with a claim written in the same transaction
+    chain.UseForResponseBeforeCommit(new MethodCall(typeof(PendingEventCount), nameof(Read)));
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/updated_aggregate_claim_in_transaction.cs#L285-L294' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_for_response_before_commit' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Nothing checks what that response reads. If it reads something only the commit assigns, the stored
+response won't have it.
 
 An endpoint that asks for `ClaimInTransaction` but cannot take it -- another store, database per tenant, a
 message store in another database, no commit through the middleware -- keeps claim-and-release, and
@@ -465,7 +515,7 @@ public static DeduplicatedOrderCreated PostUnset(DeduplicatedOrder request, IDoc
 public static DeduplicatedOrderCreated PostOff(DeduplicatedOrder request, IDocumentSession session)
     => store(request, session);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L167-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L178-L192' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_override_default_claim_in_transaction' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Endpoints that can't claim inside their transaction keep claim-and-release, as above. When they only
@@ -482,7 +532,7 @@ on, generating the code for an endpoint that would fall back to claim-and-releas
 ```cs
 opts.ThrowWhenClaimInTransactionFallsBack = true;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L240-L244' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_throw_when_claim_in_transaction_falls_back' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/deduplicated_with_response_claim_in_transaction_default.cs#L258-L262' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_throw_when_claim_in_transaction_falls_back' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 It throws when the endpoint's code is generated: inside `MapWolverineEndpoints` when `WarmUpRoutes` is

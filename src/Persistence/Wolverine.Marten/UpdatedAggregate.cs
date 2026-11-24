@@ -6,8 +6,12 @@ using JasperFx.Core.Reflection;
 using Marten;
 using Marten.Events;
 using Marten.Internal;
+using EventAppendMode = JasperFx.Events.EventAppendMode;
 using Wolverine.Configuration;
+using Wolverine.Marten.Persistence.Sagas;
+using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
+using Wolverine.Persistence.EventSourcing.Codegen;
 
 namespace Wolverine.Marten;
 
@@ -51,10 +55,7 @@ public class UpdatedAggregate : IResponseAware
         if (handling.IsNaturalKey)
         {
             var guidIdentity = ResolveToGuidType(handling.StreamIdType ?? typeof(Guid));
-            return new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestByStreamHandle(typeof(IEventStoreOperations),
-                UpdatedAggregateIdentity.FetchLatestMethod(guidIdentity ? typeof(Guid) : typeof(string),
-                    handling.AggregateType),
-                handling.AggregateType, guidIdentity);
+            return new MartenFetchLatestByStreamHandle(handling.AggregateType, guidIdentity);
         }
 
         return ResolveToGuidType(handling.AggregateId.VariableType)
@@ -106,21 +107,110 @@ public class UpdatedAggregate<T> : IResponseAware
 // T was only ever used to resolve a MethodInfo for IEventStoreOperations.FetchLatest<T>, which is a type
 // IDENTITY rather than a dispatch mechanism -- so this is the shape GH-4764 converted, and converting it
 // removes the instantiation ILC had to be asked to keep instead of merely rooting it.
-internal class FetchLatestByGuid : MethodCall
+internal class FetchLatestByGuid : MethodCall, IHasBeforeCommitResponse
 {
+    private readonly Variable _id;
+    private readonly Type _aggregateType;
+
     public FetchLatestByGuid(Variable id, Type aggregateType)
         : base(typeof(IEventStoreOperations), UpdatedAggregateIdentity.FetchLatestMethod(typeof(Guid), aggregateType))
     {
+        _id = id;
+        _aggregateType = aggregateType;
         Arguments[0] = UpdatedAggregateIdentity.Resolve(id, typeof(Guid));
     }
+
+    public string? WhyNotBeforeCommit(IChain chain, IServiceContainer container)
+        => ProjectLatestForCommit.WhyNotBeforeCommit(chain, container);
+
+    public (Frame[] Frames, Variable Response) BuildBeforeCommitResponse()
+        => ProjectLatestForCommit.BeforeCommit(_id, _aggregateType, typeof(Guid));
 }
 
-internal class FetchLatestByString : MethodCall
+internal class FetchLatestByString : MethodCall, IHasBeforeCommitResponse
 {
+    private readonly Variable _id;
+    private readonly Type _aggregateType;
+
     public FetchLatestByString(Variable id, Type aggregateType)
         : base(typeof(IEventStoreOperations), UpdatedAggregateIdentity.FetchLatestMethod(typeof(string), aggregateType))
     {
+        _id = id;
+        _aggregateType = aggregateType;
         Arguments[0] = UpdatedAggregateIdentity.Resolve(id, typeof(string));
+    }
+
+    public string? WhyNotBeforeCommit(IChain chain, IServiceContainer container)
+        => ProjectLatestForCommit.WhyNotBeforeCommit(chain, container);
+
+    public (Frame[] Frames, Variable Response) BuildBeforeCommitResponse()
+        => ProjectLatestForCommit.BeforeCommit(_id, _aggregateType, typeof(string));
+}
+
+/// <summary>
+/// GH-5721. <see cref="FetchLatestByStreamHandle" /> for an aggregate loaded by a natural key, which can build the same
+/// response before the commit with <c>ProjectLatestForCommit</c> by the id of the stream the workflow wrote to.
+/// </summary>
+internal class MartenFetchLatestByStreamHandle : FetchLatestByStreamHandle, IHasBeforeCommitResponse
+{
+    private readonly Type _aggregateType;
+    private readonly bool _guidIdentity;
+
+    public MartenFetchLatestByStreamHandle(Type aggregateType, bool guidIdentity)
+        : base(typeof(IEventStoreOperations),
+            UpdatedAggregateIdentity.FetchLatestMethod(guidIdentity ? typeof(Guid) : typeof(string), aggregateType),
+            aggregateType, guidIdentity)
+    {
+        _aggregateType = aggregateType;
+        _guidIdentity = guidIdentity;
+    }
+
+    public string? WhyNotBeforeCommit(IChain chain, IServiceContainer container)
+        => ProjectLatestForCommit.WhyNotBeforeCommit(chain, container);
+
+    public (Frame[] Frames, Variable Response) BuildBeforeCommitResponse()
+    {
+        var project = new FetchLatestByStreamHandle(typeof(IEventStoreOperations),
+            UpdatedAggregateIdentity.ProjectLatestForCommitMethod(_guidIdentity ? typeof(Guid) : typeof(string),
+                _aggregateType),
+            _aggregateType, _guidIdentity);
+
+        return ([project], project.ReturnVariable!);
+    }
+}
+
+/// <summary>
+/// GH-5721. Marten's <c>ProjectLatestForCommit</c>, the aggregate as this transaction's commit will write it, for a
+/// response that has to exist before the commit: the pending events get now the versions, timestamps and metadata the
+/// commit then keeps, and nothing is stored.
+/// </summary>
+internal class ProjectLatestForCommit : MethodCall
+{
+    private ProjectLatestForCommit(Variable id, Type aggregateType, Type identityType)
+        : base(typeof(IEventStoreOperations),
+            UpdatedAggregateIdentity.ProjectLatestForCommitMethod(identityType, aggregateType))
+    {
+        Arguments[0] = UpdatedAggregateIdentity.Resolve(id, identityType);
+    }
+
+    internal static string? WhyNotBeforeCommit(IChain chain, IServiceContainer container)
+    {
+        // Marten refuses it under Quick: the database assigns the timestamp of an event appended to an existing stream
+        var options = MartenPersistenceFrameProvider.ResolveStore(chain, container).As<DocumentStore>().Options;
+        if (options.Events.AppendMode == EventAppendMode.Quick)
+        {
+            return
+                "it responds with UpdatedAggregate, which cannot be built before the commit under Marten's EventAppendMode.Quick: the database assigns the timestamp of an event appended to an existing stream";
+        }
+
+        return null;
+    }
+
+    internal static (Frame[] Frames, Variable Response) BeforeCommit(Variable id, Type aggregateType,
+        Type identityType)
+    {
+        var project = new ProjectLatestForCommit(id, aggregateType, identityType);
+        return ([project], project.ReturnVariable!);
     }
 }
 
@@ -144,6 +234,16 @@ internal static class UpdatedAggregateIdentity
     ///     without it this lookup would be ambiguous the moment that overload's first parameter matched.</para>
     /// </remarks>
     internal static MethodInfo FetchLatestMethod(Type identityType, Type aggregateType)
+        => closeIdentityOverload(nameof(IEventStoreOperations.FetchLatest), identityType, aggregateType);
+
+    /// <summary>
+    ///     GH-5721. The closed <c>IEventStoreOperations.ProjectLatestForCommit&lt;TAggregate&gt;</c> for one of the
+    ///     two primitive identity overloads, found and closed exactly as <see cref="FetchLatestMethod" /> is.
+    /// </summary>
+    internal static MethodInfo ProjectLatestForCommitMethod(Type identityType, Type aggregateType)
+        => closeIdentityOverload(nameof(IEventStoreOperations.ProjectLatestForCommit), identityType, aggregateType);
+
+    private static MethodInfo closeIdentityOverload(string methodName, Type identityType, Type aggregateType)
     {
         // GetMethods() on an INTERFACE does not return members inherited from its base interfaces, and
         // Marten.Events.IEventStoreOperations declares no FetchLatest of its own -- it inherits all three
@@ -154,7 +254,7 @@ internal static class UpdatedAggregateIdentity
         var open = new[] { typeof(IEventStoreOperations) }
             .Concat(typeof(IEventStoreOperations).GetInterfaces())
             .SelectMany(x => x.GetMethods())
-            .Where(x => x.Name == nameof(IEventStoreOperations.FetchLatest)
+            .Where(x => x.Name == methodName
                         && x.IsGenericMethodDefinition
                         && x.GetGenericArguments().Length == 1
                         && x.GetParameters()[0].ParameterType == identityType)

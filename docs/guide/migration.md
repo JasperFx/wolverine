@@ -263,6 +263,13 @@ all seven. The user name relay, a core setting, is [below](#the-user-name-travel
   each message id in the durable inbox, so a redelivery is recognized instead of run again. See
   [serverless](/guide/serverless).
 
+One more change in Wolverine.Http has no setting to restore. A `[DeduplicatedWithResponse]` endpoint on Marten that
+returns `UpdatedAggregate` or `UpdatedAggregate<T>` and claims inside its transaction, with `ClaimInTransaction = true`
+or through `DefaultClaimInTransaction`, now does claim inside the transaction (GH-5721). Wolverine builds the aggregate
+before the commit with Marten's `ProjectLatestForCommit()`. In 6.x the endpoint fell back to claim-and-release, or
+failed under `ThrowWhenClaimInTransactionFallsBack`. Under `EventAppendMode.Quick` it still falls back. See
+[returning the updated aggregate](/guide/http/deduplication#returning-the-updated-aggregate).
+
 ### The user name travels with every message by default
 
 `WolverineOptions.EnableRelayOfUserName` is `true` from 7.0 (GH-5520); it was `false` throughout 6.x. On every HTTP
