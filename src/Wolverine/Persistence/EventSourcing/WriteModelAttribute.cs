@@ -184,7 +184,9 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
             if (routeValueName.IsNotEmpty())
             {
                 identity = NaturalKeyIdentity.FindRouteNaturalKey(provider, aggregateType, idType, routeValueName,
-                    chain, container);
+                               chain, container)
+                           ?? NaturalKeyIdentity.FindQueryStringNaturalKey(provider, aggregateType, idType,
+                               routeValueName, chain, container);
                 isNaturalKey = identity != null;
             }
 
@@ -226,7 +228,9 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
 
             // GH-5954: with nothing named, a route value named like one of the aggregate's keys, as {code} for Code
             identity ??= NaturalKeyIdentity.FindRouteNaturalKey(provider, aggregateType, idType, null, chain,
-                container);
+                             container)
+                         ?? NaturalKeyIdentity.FindQueryStringNaturalKey(provider, aggregateType, idType, null, chain,
+                             container);
             isNaturalKey = identity != null;
         }
 

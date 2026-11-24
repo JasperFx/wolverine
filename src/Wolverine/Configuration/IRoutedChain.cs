@@ -1,3 +1,5 @@
+using JasperFx.CodeGeneration.Model;
+
 namespace Wolverine.Configuration;
 
 /// <summary>
@@ -27,6 +29,17 @@ public interface IRoutedChain
     ///     for "id". Empty when it has none. GH-5954: a Guid-constrained route value is a stream id, never a natural key.
     /// </summary>
     IReadOnlyList<string> RouteParameterConstraints(string routeParameterName) => [];
+
+    /// <summary>
+    ///     Read a query string value the endpoint method doesn't declare as a parameter, parsed into
+    ///     <paramref name="valueType" />. GH-5954: a natural key named like the aggregate's key member, as <c>?code=</c>
+    ///     for a <c>Code</c> key. False when the chain can't.
+    /// </summary>
+    bool TryReadQueryStringValue(string name, Type valueType, out Variable? variable)
+    {
+        variable = null;
+        return false;
+    }
 
     /// <summary>
     ///     Tell this chain the CLR type behind a named route parameter. Purely descriptive: this creates no

@@ -347,6 +347,49 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
         });
     }
 
+    // GH-5954: a query string value the endpoint doesn't declare, named like the key
+    [Fact]
+    public async Task a_read_infers_the_key_from_the_query_string_with_no_endpoint_parameter()
+    {
+        var (streamId, code) = await seedGadget("Queried");
+
+        var gadget = await theHost.GetAsJson<NkGadget>($"/nkhttp/inferred-query?code={code.Value}");
+        gadget!.Id.ShouldBe(streamId);
+
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url("/nkhttp/inferred-query?code=G-NONE");
+            s.StatusCodeShouldBe(404);
+        });
+
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url("/nkhttp/inferred-query");
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task a_write_infers_the_key_from_the_query_string_with_no_endpoint_parameter()
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("By query")).ToUrl("/nkhttp/inferred-query/rename").QueryString("code", code.Value);
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("By query");
+
+        // Missing from the request: the write's identity is missing
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("Nobody")).ToUrl("/nkhttp/inferred-query/rename");
+            s.StatusCodeShouldBe(400);
+        });
+    }
+
     [Theory]
     [InlineData("/nkhttp/constrained/{0}/rename")]
     [InlineData("/nkhttp/declared/{0}/rename")]

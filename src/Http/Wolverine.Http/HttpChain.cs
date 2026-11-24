@@ -1286,6 +1286,12 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             .FirstOrDefault(x => x.Name.EqualsIgnoreCase(routeParameterName))?
             .ParameterPolicies.Select(x => x.Content ?? string.Empty).Where(x => x.Length > 0).ToArray() ?? [];
 
+    bool IRoutedChain.TryReadQueryStringValue(string name, Type valueType, out Variable? variable)
+    {
+        variable = TryFindOrCreateQuerystringValue(valueType, name);
+        return variable != null;
+    }
+
     void IRoutedChain.DeclareRouteParameterType(string routeParameterName, Type parameterType)
     {
         if (RoutePattern == null) return;

@@ -276,6 +276,58 @@ internal static class NaturalKeyIdentity
         return chain.TryFindVariable(routeName, ValueSource.Anything, keyType!, out var variable) ? variable : null;
     }
 
+    /// <summary>
+    ///     GH-5954. A query string value carrying one of the aggregate's natural keys that the endpoint doesn't declare
+    ///     as a parameter. With a name from the attribute: the value of that name, when it isn't a route value or an
+    ///     endpoint parameter and it's named like a key member or key type. With no name: the value named like the key
+    ///     member of an aggregate with exactly one natural key. Null otherwise, and for a chain with no route.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "Aggregate types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
+    public static Variable? FindQueryStringNaturalKey(IEventSourcingFrameProvider provider, Type aggregateType,
+        Type streamIdType, string? valueName, IChain chain, IServiceContainer container)
+    {
+        if (chain is not IRoutedChain routed) return null;
+
+        var keyTypes = KeyTypesOf(provider, aggregateType, chain, container).Where(x => x != streamIdType).ToArray();
+        if (keyTypes.Length == 0) return null;
+
+        string name;
+        Type keyType;
+        if (valueName.IsNotEmpty())
+        {
+            if (routed.RouteParameterNames.Any(x => x.EqualsIgnoreCase(valueName!))) return null;
+            if (declaresParameter(chain, valueName!)) return null;
+
+            var matched = keyTypes.FirstOrDefault(x =>
+                x.Name.EqualsIgnoreCase(valueName!) ||
+                keyMemberNamesOf(aggregateType, x).Any(m => m.EqualsIgnoreCase(valueName!)));
+            if (matched == null) return null;
+
+            (name, keyType) = (valueName!, matched);
+        }
+        else
+        {
+            // Only one key to read, or which query value is meant would be a guess
+            if (keyTypes.Length != 1) return null;
+
+            var memberName = keyMemberNamesOf(aggregateType, keyTypes[0]).FirstOrDefault();
+            if (memberName == null) return null;
+
+            name = memberName.ToCamelCase();
+            if (declaresParameter(chain, name) ||
+                routed.RouteParameterNames.Any(x => x.EqualsIgnoreCase(name))) return null;
+
+            keyType = keyTypes[0];
+        }
+
+        return routed.TryReadQueryStringValue(name, keyType, out var variable) ? variable : null;
+    }
+
+    private static bool declaresParameter(IChain chain, string name)
+        => chain.HandlerCalls().SelectMany(x => x.Method.GetParameters())
+            .Any(x => x.Name != null && x.Name.EqualsIgnoreCase(name));
+
     private static Type? routeValueKeyType(Type aggregateType, Type streamIdType, Type[] keyTypes, string name,
         IChain chain, IRoutedChain routed)
     {
