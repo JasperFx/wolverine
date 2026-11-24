@@ -301,20 +301,106 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
         });
     }
 
+    // GH-5954: {code} is named like NkGadget's key member, so it's the natural key without the key type
     [Fact]
-    public async Task without_the_key_type_a_route_value_is_the_stream_id()
+    public async Task without_the_key_type_a_route_value_named_like_the_key_is_the_key()
     {
         var (streamId, code) = await seedGadget("Original");
 
         await theHost.Scenario(s =>
         {
-            s.Post.Json(new RenameNkGadget("Nobody")).ToUrl($"/nkgadgets-untyped/{code.Value}/rename");
+            s.Post.Json(new RenameNkGadget("By inferred key")).ToUrl($"/nkgadgets-untyped/{code.Value}/rename");
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("By inferred key");
+    }
+
+    [Theory]
+    [InlineData("/nkhttp/inferred/{0}/rename")]
+    [InlineData("/nkhttp/inferred-by-type/{0}/rename")]
+    public async Task a_route_value_named_like_the_key_is_inferred_as_the_key(string route)
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("Inferred")).ToUrl(string.Format(route, code.Value));
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("Inferred");
+    }
+
+    [Fact]
+    public async Task a_read_infers_the_key_from_the_route_with_nothing_on_the_attribute()
+    {
+        var (streamId, code) = await seedGadget("Readable");
+
+        var gadget = await theHost.GetAsJson<NkGadget>($"/nkhttp/inferred/{code.Value}");
+        gadget!.Id.ShouldBe(streamId);
+
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url("/nkhttp/inferred/G-NONE");
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    // GH-5954: a query string value the endpoint doesn't declare, named like the key
+    [Fact]
+    public async Task a_read_infers_the_key_from_the_query_string_with_no_endpoint_parameter()
+    {
+        var (streamId, code) = await seedGadget("Queried");
+
+        var gadget = await theHost.GetAsJson<NkGadget>($"/nkhttp/inferred-query?code={code.Value}");
+        gadget!.Id.ShouldBe(streamId);
+
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url("/nkhttp/inferred-query?code=G-NONE");
             s.StatusCodeShouldBe(404);
         });
 
         await theHost.Scenario(s =>
         {
-            s.Post.Json(new RenameNkGadget("By stream id")).ToUrl($"/nkgadgets-untyped/{streamId}/rename");
+            s.Get.Url("/nkhttp/inferred-query");
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task a_write_infers_the_key_from_the_query_string_with_no_endpoint_parameter()
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("By query")).ToUrl("/nkhttp/inferred-query/rename").QueryString("code", code.Value);
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("By query");
+
+        // Missing from the request: the write's identity is missing
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("Nobody")).ToUrl("/nkhttp/inferred-query/rename");
+            s.StatusCodeShouldBe(400);
+        });
+    }
+
+    [Theory]
+    [InlineData("/nkhttp/constrained/{0}/rename")]
+    [InlineData("/nkhttp/declared/{0}/rename")]
+    [InlineData("/nkhttp/unmatched/{0}/rename")]
+    public async Task a_route_value_the_endpoint_types_or_that_matches_no_key_is_the_stream_id(string route)
+    {
+        var (streamId, _) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("By stream id")).ToUrl(string.Format(route, streamId));
             s.StatusCodeShouldBe(204);
         });
 
@@ -499,15 +585,19 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
         });
     }
 
-    // GH-5947 (U2): [WriteAggregate("code")] with no key type reads {code} as the stream id, so an endpoint for a gadget
-    // answers 404 to its natural key. Legal, so a warning rather than a refusal.
+    // GH-5947 (U2): [WriteAggregate("number")] with no key type, on a gadget whose key member is Code, reads {number} as
+    // the stream id, so an endpoint for a gadget answers 404 to its natural key. Legal, so a warning rather than a
+    // refusal.
     [Fact]
     public void an_untyped_route_value_for_an_aggregate_with_natural_keys_is_warned_about()
     {
         theWarnings.Messages.ShouldContain(x =>
-            x.Contains("reads the route value 'code' as the stream id") &&
-            x.Contains(nameof(NkHttpShapeEndpoints.RenameUntyped)) &&
-            x.Contains("[WriteAggregate<GadgetCode>(\"code\")]"));
+            x.Contains("reads the route value 'number' as the stream id") &&
+            x.Contains(nameof(NkHttpReviewEndpoints.RenameByUnmatchedName)) &&
+            x.Contains("[WriteAggregate<GadgetCode>(\"number\")]"));
+
+        // GH-5954: a route value named like the key, typed by a constraint or by the endpoint, is never ambiguous
+        theWarnings.Messages.ShouldNotContain(x => x.Contains("reads the route value 'code'"));
 
         // A route value named like a stream id is taken to be one
         theWarnings.Messages.ShouldNotContain(x => x.Contains("reads the route value 'id'"));

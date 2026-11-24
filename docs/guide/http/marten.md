@@ -537,7 +537,32 @@ just like it does for a message handler; this section covers what's different ab
 
 ### From the Route
 
-A natural key in the route always needs its key type named on the attribute:
+Name the route value after the aggregate's key member, and Wolverine reads it as the natural key, with nothing at all on
+the attribute:
+
+<!-- snippet: sample_wolverine_http_read_aggregate_by_inferred_natural_key -->
+<a id='snippet-sample_wolverine_http_read_aggregate_by_inferred_natural_key'></a>
+```cs
+// {code} is named like NkGadget's [NaturalKey] Code, so it's read as a GadgetCode and the gadget is loaded by its
+// natural key. No key type or route value name needed on the attribute
+[WolverineGet("/nkhttp/inferred/{code}")]
+public static NkGadget GetByInferredKey([ReadAggregate] NkGadget gadget) => gadget;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpReviewEndpoints.cs#L36-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_read_aggregate_by_inferred_natural_key' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+For a route value with no key type named on the attribute, Wolverine decides between the stream id and a natural key
+like this:
+
+1. If the endpoint declares the route value as a parameter of its own, the parameter's type decides: `GadgetCode code`
+   is the natural key, `Guid code` is the stream id.
+2. A `guid` route constraint, as in `{code:guid}`, makes it the stream id when the stream id is a `Guid`.
+3. A name matching one of the aggregate's natural keys, either the key member's name (`{code}` for `Code`) or the key
+   type's name (`{gadgetCode}` for `GadgetCode`), makes it that natural key.
+4. Anything else, `{id}` and `{orderId}` included, is the stream id, as it always was.
+
+You can always name the key type on the attribute instead, and that's the way to go when the route value's name
+doesn't match the key:
 
 <!-- snippet: sample_wolverine_http_write_aggregate_by_natural_key_route -->
 <a id='snippet-sample_wolverine_http_write_aggregate_by_natural_key_route'></a>
@@ -548,7 +573,7 @@ A natural key in the route always needs its key type named on the attribute:
 public static NkGadgetRenamed Rename(RenameNkGadget command, [WriteAggregate<GadgetCode>("code")] NkGadget gadget)
     => new(command.Name);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyGadgetEndpoints.cs#L44-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_write_aggregate_by_natural_key_route' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyGadgetEndpoints.cs#L45-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_write_aggregate_by_natural_key_route' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 <!-- snippet: sample_wolverine_http_read_aggregate_by_natural_key_route -->
@@ -557,7 +582,7 @@ public static NkGadgetRenamed Rename(RenameNkGadget command, [WriteAggregate<Gad
 [WolverineGet("/nkgadgets/{code}")]
 public static NkGadget Get([ReadAggregate<GadgetCode>("code")] NkGadget gadget) => gadget;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyGadgetEndpoints.cs#L60-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_read_aggregate_by_natural_key_route' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyGadgetEndpoints.cs#L61-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_read_aggregate_by_natural_key_route' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `[Aggregate<TKey>]` is the generic form of the HTTP `[Aggregate]` attribute, and `NaturalKey = typeof(TKey)` works on
@@ -588,11 +613,13 @@ public static NkGadgetRenamed AggregateByRoute(RenameNkGadget command,
 <!-- endSnippet -->
 
 ::: warning
-Without the key type, Wolverine reads the route value as the stream id, which it'll happily parse as whatever type the
-stream id is. A request carrying the natural key then finds nothing, and your endpoint answers 404 for an aggregate that
-exists. That's legal, because a stream id route value can have any name, so Wolverine doesn't refuse it, but it does log a
-warning when it generates the endpoint for an aggregate that has natural keys. It stays quiet for a route value named
-like a stream id, such as `{id}` or `{orderId}`, or one the endpoint declares as a parameter of its own.
+A route value whose name matches none of the aggregate's keys, like `{number}` for a gadget whose key member is `Code`,
+is read as the stream id, and Wolverine will happily parse it as whatever type the stream id is. A request carrying the
+natural key then finds nothing, and your endpoint answers 404 for an aggregate that exists. That's legal, so Wolverine
+doesn't refuse it, but it does log a warning when it generates the endpoint for an aggregate that has natural keys.
+Rename the route value after the key, or name the key type on the attribute. The warning stays quiet for a route value
+named like a stream id, such as `{id}` or `{orderId}`, one with a route constraint, or one the endpoint declares as a
+parameter of its own.
 :::
 
 Wolverine.Http parses a route or query string value into a value type, or into a class with a static
@@ -601,8 +628,23 @@ Wolverine.Http parses a route or query string value into a value type, or into a
 
 ### From the Query String
 
-Like a stream id, a query string value is only seen through a parameter of the endpoint. Once that parameter is there
-and typed as the key, naming the key type on the attribute is optional:
+A query string value named like the aggregate's key member is read as the natural key, even when the endpoint doesn't
+declare it as a parameter. For an aggregate with a single natural key, that works with nothing on the attribute at all:
+
+<!-- snippet: sample_wolverine_http_read_aggregate_by_inferred_natural_key_query -->
+<a id='snippet-sample_wolverine_http_read_aggregate_by_inferred_natural_key_query'></a>
+```cs
+// No route value and no endpoint parameter: ?code= is read as NkGadget's Code natural key
+[WolverineGet("/nkhttp/inferred-query")]
+public static NkGadget GetByInferredQueryKey([ReadAggregate] NkGadget gadget) => gadget;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpReviewEndpoints.cs#L49-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_read_aggregate_by_inferred_natural_key_query' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With a name on the attribute, as in `[WriteAggregate("code")]`, the query value of that name is the key when it isn't a
+route value or a parameter of the endpoint and it's named like the key member or the key type. When the endpoint does
+declare the value as a parameter typed as the key, that works too, and naming the key type on the attribute is still
+optional:
 
 <!-- snippet: sample_wolverine_http_read_aggregate_by_natural_key_query -->
 <a id='snippet-sample_wolverine_http_read_aggregate_by_natural_key_query'></a>
@@ -630,7 +672,7 @@ too:
 public static NkGadgetRenamed RenameByDecider(RenameNkGadgetByCode command, NkGadget gadget)
     => new(command.Name);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpReviewEndpoints.cs#L34-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_aggregate_handler_by_natural_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpReviewEndpoints.cs#L85-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_aggregate_handler_by_natural_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Status Codes

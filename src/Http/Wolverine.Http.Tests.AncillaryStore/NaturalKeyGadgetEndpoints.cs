@@ -5,7 +5,8 @@ using Wolverine.Marten;
 namespace Wolverine.Http.Tests.AncillaryStore;
 
 // [WriteAggregate<TKey>] / [ReadAggregate<TKey>] reading a natural key straight from the route or the query
-// string. Without the key type, a route value is taken as the stream id, because it parses into any type.
+// string. Without the key type, a route value named like the key ({code} for Code) is still the key (GH-5954), and any
+// other name is taken as the stream id, because it parses into any type.
 // The key is a value type: Wolverine.Http only parses route and query values into value-type wrappers.
 //
 // Registered on the same ancillary store as NkThing, because every host that scans this assembly builds

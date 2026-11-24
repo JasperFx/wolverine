@@ -31,11 +31,22 @@ internal static class NaturalKeyIdentity
     public static Variable? Find(IEventSourcingFrameProvider provider, Type aggregateType, IChain chain,
         IServiceContainer container, Func<Type, Variable?> findByType, string spelling = "WriteModel")
     {
-        var matches = KeyTypesOf(provider, aggregateType, chain, container)
-            .Select(keyType => findMember(keyType, findByType))
-            .OfType<Variable>()
-            .DistinctBy(x => x.Usage)
+        var owned = provider.TryDetermineNaturalKeyType(aggregateType, chain, container);
+        var found = KeyTypesOf(provider, aggregateType, chain, container)
+            .Select(keyType => (KeyType: keyType,
+                Variable: findMember(keyType, findByType) ?? findMemberNamedLikeTheKey(aggregateType, keyType, chain)))
+            .Where(x => x.Variable != null)
+            .DistinctBy(x => x.Variable!.Usage)
             .ToArray();
+
+        // GH-5954: the aggregate's own key ahead of a key it maps from another projection. Both lookups lead to the
+        // same stream for this aggregate, so taking the owned one is no guess
+        if (found.Length > 1 && owned != null && found.FirstOrDefault(x => x.KeyType == owned) is { Variable: { } ownedKey })
+        {
+            return ownedKey;
+        }
+
+        var matches = found.Select(x => x.Variable!).ToArray();
 
         // Each key of an aggregate has its own type, so a message carrying two of them names two different
         // lookups, and silently taking the first would load by the wrong one.
@@ -110,6 +121,15 @@ internal static class NaturalKeyIdentity
         if (chain.InputType() is { } inputType)
         {
             var members = keyMembersOf(inputType, candidates).ToArray();
+
+            // GH-5954: of two members of the key type, the one named like the aggregate's key property
+            if (members.Length > 1 && namedLikeTheKey(aggregateType, keyType, members) is { } namedMember &&
+                chain.TryFindVariable(namedMember.Name, ValueSource.InputMember, declaredTypeOf(namedMember),
+                    out var named))
+            {
+                return named;
+            }
+
             if (members.Length > 1)
             {
                 throw new InvalidOperationException(
@@ -167,13 +187,21 @@ internal static class NaturalKeyIdentity
     ///     the aggregate's identity off the command rather than a parameter attribute. A <c>TKey?</c> member carries a
     ///     struct key too. Null when the command has none.
     /// </summary>
+    /// <param name="ownedKeyType">The aggregate's own key type, preferred over a mapped key. GH-5954</param>
     public static MemberInfo? FindKeyMember(Type aggregateType, Type commandType, IReadOnlyList<Type> keyTypes,
-        IChain chain)
+        IChain chain, Type? ownedKeyType = null)
     {
         var matches = new List<MemberInfo>();
         foreach (var keyType in keyTypes)
         {
             var members = keyMembersOf(commandType, memberTypesFor(keyType)).ToArray();
+
+            // GH-5954: of two members of the key type, the one named like the aggregate's key property
+            if (members.Length > 1 && namedLikeTheKey(aggregateType, keyType, members) is { } namedMember)
+            {
+                members = [namedMember];
+            }
+
             if (members.Length > 1)
             {
                 throw new InvalidOperationException(
@@ -181,6 +209,13 @@ internal static class NaturalKeyIdentity
             }
 
             matches.AddRange(members);
+        }
+
+        // GH-5954: the aggregate's own key ahead of a key it maps from another projection
+        if (matches.Count > 1 && ownedKeyType != null &&
+            matches.FirstOrDefault(x => memberTypesFor(ownedKeyType).Contains(declaredTypeOf(x))) is { } ownedMember)
+        {
+            return ownedMember;
         }
 
         if (matches.Count > 1)
@@ -196,6 +231,162 @@ internal static class NaturalKeyIdentity
     ///     The member's declared type, <c>TKey?</c> included, which a chain matches a variable by.
     /// </summary>
     public static Type DeclaredTypeOf(MemberInfo member) => declaredTypeOf(member);
+
+    /// <summary>
+    ///     GH-5954. The route value carrying one of the aggregate's natural keys, when nothing names the key type. Tried
+    ///     ahead of the stream id, which any route value parses into, in this order for each route value (the one the
+    ///     attribute names, or every one in the route):
+    ///     <list type="number">
+    ///         <item>an endpoint parameter of that name decides by its type: the key, or not;</item>
+    ///         <item>a <c>guid</c> route constraint on a Guid stream id makes it the stream id;</item>
+    ///         <item>a name matching the aggregate's key member (<c>Code</c> for <c>{code}</c>) or the key type
+    ///         (<c>{gadgetCode}</c>) makes it that key;</item>
+    ///         <item>anything else, <c>{id}</c> and <c>{orderId}</c> included, is left to the stream id lookup.</item>
+    ///     </list>
+    ///     Null when no route value is a key, and for a chain with no route.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "Aggregate types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
+    public static Variable? FindRouteNaturalKey(IEventSourcingFrameProvider provider, Type aggregateType,
+        Type streamIdType, string? routeValueName, IChain chain, IServiceContainer container)
+    {
+        if (chain is not IRoutedChain routed) return null;
+
+        var keyTypes = KeyTypesOf(provider, aggregateType, chain, container).Where(x => x != streamIdType).ToArray();
+        if (keyTypes.Length == 0) return null;
+
+        var names = routed.RouteParameterNames
+            .Where(x => routeValueName.IsEmpty() || x.EqualsIgnoreCase(routeValueName!))
+            .ToArray();
+
+        var found = names
+            .Select(name => (Name: name, KeyType: routeValueKeyType(aggregateType, streamIdType, keyTypes, name, chain, routed)))
+            .Where(x => x.KeyType != null)
+            .ToArray();
+
+        if (found.Length > 1)
+        {
+            throw new InvalidOperationException(
+                $"The route for {aggregateType.FullNameInCode()} on {chain.HandlerCalls().First()} carries more than one of its natural keys ({found.Select(x => $"{{{x.Name}}}").Join(", ")}). Name the route value to load by in the attribute.");
+        }
+
+        if (found.Length == 0) return null;
+
+        var (routeName, keyType) = found[0];
+        return chain.TryFindVariable(routeName, ValueSource.Anything, keyType!, out var variable) ? variable : null;
+    }
+
+    /// <summary>
+    ///     GH-5954. A query string value carrying one of the aggregate's natural keys that the endpoint doesn't declare
+    ///     as a parameter. With a name from the attribute: the value of that name, when it isn't a route value or an
+    ///     endpoint parameter and it's named like a key member or key type. With no name: the value named like the key
+    ///     member of an aggregate with exactly one natural key. Null otherwise, and for a chain with no route.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "Aggregate types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
+    public static Variable? FindQueryStringNaturalKey(IEventSourcingFrameProvider provider, Type aggregateType,
+        Type streamIdType, string? valueName, IChain chain, IServiceContainer container)
+    {
+        if (chain is not IRoutedChain routed) return null;
+
+        var keyTypes = KeyTypesOf(provider, aggregateType, chain, container).Where(x => x != streamIdType).ToArray();
+        if (keyTypes.Length == 0) return null;
+
+        string name;
+        Type keyType;
+        if (valueName.IsNotEmpty())
+        {
+            if (routed.RouteParameterNames.Any(x => x.EqualsIgnoreCase(valueName!))) return null;
+            if (declaresParameter(chain, valueName!)) return null;
+
+            var matched = keyTypes.FirstOrDefault(x =>
+                x.Name.EqualsIgnoreCase(valueName!) ||
+                keyMemberNamesOf(aggregateType, x).Any(m => m.EqualsIgnoreCase(valueName!)));
+            if (matched == null) return null;
+
+            (name, keyType) = (valueName!, matched);
+        }
+        else
+        {
+            // Only one key to read, or which query value is meant would be a guess
+            if (keyTypes.Length != 1) return null;
+
+            var memberName = keyMemberNamesOf(aggregateType, keyTypes[0]).FirstOrDefault();
+            if (memberName == null) return null;
+
+            name = memberName.ToCamelCase();
+            if (declaresParameter(chain, name) ||
+                routed.RouteParameterNames.Any(x => x.EqualsIgnoreCase(name))) return null;
+
+            keyType = keyTypes[0];
+        }
+
+        return routed.TryReadQueryStringValue(name, keyType, out var variable) ? variable : null;
+    }
+
+    private static bool declaresParameter(IChain chain, string name)
+        => chain.HandlerCalls().SelectMany(x => x.Method.GetParameters())
+            .Any(x => x.Name != null && x.Name.EqualsIgnoreCase(name));
+
+    private static Type? routeValueKeyType(Type aggregateType, Type streamIdType, Type[] keyTypes, string name,
+        IChain chain, IRoutedChain routed)
+    {
+        // 1. Declared by the endpoint: its type decides
+        var declared = chain.HandlerCalls()
+            .SelectMany(x => x.Method.GetParameters())
+            .FirstOrDefault(x => x.Name != null && x.Name.EqualsIgnoreCase(name));
+        if (declared != null)
+        {
+            var declaredType = Nullable.GetUnderlyingType(declared.ParameterType) ?? declared.ParameterType;
+            return keyTypes.FirstOrDefault(x => x == declaredType);
+        }
+
+        // 2. {id:guid} on a Guid stream id
+        var streamIdInner = StrongTypedIdResolver.TryResolve(streamIdType, out var info, StrongTypedIdStyle.AnyType)
+            ? info.ValueProperty.PropertyType
+            : streamIdType;
+        if (streamIdInner == typeof(Guid) &&
+            routed.RouteParameterConstraints(name).Any(x => x.EqualsIgnoreCase("guid")))
+        {
+            return null;
+        }
+
+        // 3. Named like the key
+        return keyTypes.FirstOrDefault(keyType =>
+            keyType.Name.EqualsIgnoreCase(name) || keyMemberNamesOf(aggregateType, keyType).Any(x => x.EqualsIgnoreCase(name)));
+    }
+
+    /// <summary>
+    ///     The aggregate's own members of a key type, such as <c>Code</c> for a <c>GadgetCode</c> key: what a route value
+    ///     or a message member carrying that key is most likely named after.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Aggregate types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
+    private static string[] keyMemberNamesOf(Type aggregateType, Type keyType)
+    {
+        var candidates = memberTypesFor(keyType);
+        return keyMembersOf(aggregateType, candidates).Select(x => x.Name).ToArray();
+    }
+
+    private static MemberInfo? namedLikeTheKey(Type aggregateType, Type keyType, MemberInfo[] members)
+    {
+        var keyNames = keyMemberNamesOf(aggregateType, keyType);
+        var named = members.Where(m => keyNames.Any(k => k.EqualsIgnoreCase(m.Name))).ToArray();
+        return named.Length == 1 ? named[0] : null;
+    }
+
+    // A message member of the key type named like the aggregate's key member, when there are several of that type
+    private static Variable? findMemberNamedLikeTheKey(Type aggregateType, Type keyType, IChain chain)
+    {
+        if (chain.InputType() is not { } inputType) return null;
+
+        var members = keyMembersOf(inputType, memberTypesFor(keyType)).ToArray();
+        if (members.Length < 2 || namedLikeTheKey(aggregateType, keyType, members) is not { } member) return null;
+
+        return chain.TryFindVariable(member.Name, ValueSource.InputMember, declaredTypeOf(member), out var variable)
+            ? variable
+            : null;
+    }
 
     /// <summary>
     ///     How a handler spells an attribute, for messages: <c>WriteAggregate</c> for
@@ -276,7 +467,7 @@ internal static class NaturalKeyIdentity
     ///     GH-5947 (U2). An attribute naming a route value with no key type reads it as the stream id, so an endpoint for
     ///     an aggregate with natural keys answers 404 to a request carrying the key. Logged rather than refused at code
     ///     generation: a stream id route value named after the key is legal. Quiet for a route value named like a stream
-    ///     id (<c>id</c>, <c>orderId</c>) or declared as a parameter of the endpoint.
+    ///     id (<c>id</c>, <c>orderId</c>), typed by a route constraint, or declared as a parameter of the endpoint.
     /// </summary>
     public static void WarnOfUntypedRouteValue(IEventSourcingFrameProvider provider, Type aggregateType,
         string? routeValueName, IChain chain, IServiceContainer container, string spelling)
@@ -298,6 +489,7 @@ internal static class NaturalKeyIdentity
         // Named like a stream id, as in {id} or {orderId}, or declared by the endpoint with its own type: the stream id
         // is what's meant, and a warning on every such endpoint would only be noise
         if (routeValueName!.EndsWith("id", StringComparison.OrdinalIgnoreCase)) return null;
+        if (routed.RouteParameterConstraints(routeValueName).Count > 0) return null;
         if (chain.HandlerCalls().Any(call =>
                 call.Method.GetParameters().Any(x => routeValueName.EqualsIgnoreCase(x.Name ?? string.Empty)))) return null;
 

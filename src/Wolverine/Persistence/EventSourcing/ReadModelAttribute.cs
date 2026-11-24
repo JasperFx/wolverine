@@ -4,6 +4,7 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Events.Aggregation;
 using Wolverine.Attributes;
@@ -138,6 +139,19 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
                     ?? throw new InvalidOperationException(
                         $"The {provider.StoreName} integration cannot read {parameter.ParameterType.FullNameInCode()} by its natural key on {chain.HandlerCalls().First()}.");
         }
+        else if (ArgumentName.IsNotEmpty() && (ValueSource is ValueSource.Anything or ValueSource.RouteValue) &&
+                 (NaturalKeyIdentity.FindRouteNaturalKey(provider, parameter.ParameterType, idType, ArgumentName, chain,
+                      container)
+                  ?? NaturalKeyIdentity.FindQueryStringNaturalKey(provider, parameter.ParameterType, idType,
+                      ArgumentName, chain, container)) is { } routeKey)
+        {
+            // GH-5954: a route value named in the attribute is tried as a natural key first, by its name or its
+            // declared type, because it would always parse as a stream id
+            identity = routeKey;
+            frame = provider.BuildFetchLatestByNaturalKeyFrame(parameter.ParameterType, identity)
+                    ?? throw new InvalidOperationException(
+                        $"The {provider.StoreName} integration cannot read {parameter.ParameterType.FullNameInCode()} by its natural key on {chain.HandlerCalls().First()}.");
+        }
         else if (!tryFindIdentityVariable(chain, parameter, idType, out identity))
         {
             // Fall back to strong typed ID matching
@@ -157,6 +171,12 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
                 keyType => tryFindIdentityVariable(chain, parameter, keyType, out var byName)
                     ? byName
                     : tryFindStrongTypedIdentityVariable(chain, aggregateType, keyType), spelling);
+
+            // GH-5954: with nothing named, a route value named like one of the aggregate's keys, as {code} for Code
+            identity ??= NaturalKeyIdentity.FindRouteNaturalKey(provider, aggregateType, idType, null, chain,
+                             container)
+                         ?? NaturalKeyIdentity.FindQueryStringNaturalKey(provider, aggregateType, idType, null, chain,
+                             container);
 
             // A store that cannot fetch by natural key builds no frame, and the load is reported as before
             if (identity != null) frame = provider.BuildFetchLatestByNaturalKeyFrame(aggregateType, identity);

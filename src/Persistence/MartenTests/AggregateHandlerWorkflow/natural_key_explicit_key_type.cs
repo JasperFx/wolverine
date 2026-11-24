@@ -232,10 +232,17 @@ public class natural_key_explicit_key_type : PostgresqlContext, IAsyncLifetime
         refusalFor<AuditNkShelfTwoCodes>().ShouldContain("more than one MartenTests.AggregateHandlerWorkflow.NkShelfCode member");
     }
 
+    // GH-5954: the shelf's own key ahead of the key it maps from NkProduct, rather than refusing
     [Fact]
-    public void the_ambiguity_error_suggests_naming_the_key_type()
+    public async Task a_message_with_the_owned_and_a_mapped_key_loads_by_the_owned_key()
     {
-        refusalFor<AuditNkShelfAmbiguous>().ShouldContain("[WriteAggregate<TKey>]");
+        var streamId = await placeShelf(new NkSku("BOTH-1"), new NkShelfCode("BOTH-SHELF-1"));
+
+        await _host.InvokeMessageAndWaitAsync(new AuditNkShelfAmbiguous(new NkSku("BOTH-OTHER"),
+            new NkShelfCode("BOTH-SHELF-1")));
+
+        sourceFor<AuditNkShelfAmbiguous>().ShouldContain(fetchFor<NkShelfCode>());
+        (await loadShelf(streamId))!.Audits.ShouldBe(1);
     }
 
     [Fact]
@@ -285,9 +292,15 @@ public class natural_key_explicit_key_type : PostgresqlContext, IAsyncLifetime
     }
 
     [Fact]
-    public void two_keys_in_the_decider_workflow_need_identity()
+    public async Task the_decider_workflow_prefers_the_owned_key_over_a_mapped_one()
     {
-        refusalFor<AuditNkShelfByEitherKeyInTheDecider>().ShouldContain("Mark the one to load by with [Identity]");
+        var streamId = await placeShelf(new NkSku("DECIDER-3"), new NkShelfCode("DECIDER-SHELF-3"));
+
+        await _host.InvokeMessageAndWaitAsync(new AuditNkShelfByEitherKeyInTheDecider(new NkSku("DECIDER-OTHER"),
+            new NkShelfCode("DECIDER-SHELF-3")));
+
+        sourceFor<AuditNkShelfByEitherKeyInTheDecider>().ShouldContain(fetchFor<NkShelfCode>());
+        (await loadShelf(streamId))!.Audits.ShouldBe(1);
     }
 
     // GH-5947 (U4): NaturalKey used to win over the type argument without a word

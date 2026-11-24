@@ -31,6 +31,57 @@ public static class NkHttpReviewEndpoints
     public static NkGadgetRenamed RenameByStreamIdInBody(RenameNkGadgetById command, [WriteAggregate] NkGadget gadget)
         => new(command.Name);
 
+    // ---------- GH-5954: inferring the natural key from the route ----------
+
+    #region sample_wolverine_http_read_aggregate_by_inferred_natural_key
+    // {code} is named like NkGadget's [NaturalKey] Code, so it's read as a GadgetCode and the gadget is loaded by its
+    // natural key. No key type or route value name needed on the attribute
+    [WolverineGet("/nkhttp/inferred/{code}")]
+    public static NkGadget GetByInferredKey([ReadAggregate] NkGadget gadget) => gadget;
+    #endregion
+
+    // Named in the attribute, still with no key type
+    [WolverinePost("/nkhttp/inferred/{code}/rename")]
+    [EmptyResponse]
+    public static NkGadgetRenamed RenameByInferredKey(RenameNkGadget command, [WriteAggregate("code")] NkGadget gadget)
+        => new(command.Name);
+
+    #region sample_wolverine_http_read_aggregate_by_inferred_natural_key_query
+    // No route value and no endpoint parameter: ?code= is read as NkGadget's Code natural key
+    [WolverineGet("/nkhttp/inferred-query")]
+    public static NkGadget GetByInferredQueryKey([ReadAggregate] NkGadget gadget) => gadget;
+    #endregion
+
+    // Named in the attribute, and only in the query string
+    [WolverinePost("/nkhttp/inferred-query/rename")]
+    [EmptyResponse]
+    public static NkGadgetRenamed RenameByInferredQueryKey(RenameNkGadget command,
+        [WriteAggregate("code")] NkGadget gadget) => new(command.Name);
+
+    // Named like the key type rather than the key member
+    [WolverinePost("/nkhttp/inferred-by-type/{gadgetCode}/rename")]
+    [EmptyResponse]
+    public static NkGadgetRenamed RenameByKeyTypeName(RenameNkGadget command, [WriteAggregate] NkGadget gadget)
+        => new(command.Name);
+
+    // A guid route constraint keeps {code} a stream id
+    [WolverinePost("/nkhttp/constrained/{code:guid}/rename")]
+    [EmptyResponse]
+    public static NkGadgetRenamed RenameByConstrainedStreamId(RenameNkGadget command,
+        [WriteAggregate("code")] NkGadget gadget) => new(command.Name);
+
+    // So does declaring it as a Guid parameter of the endpoint
+    [WolverinePost("/nkhttp/declared/{code}/rename")]
+    [EmptyResponse]
+    public static NkGadgetRenamed RenameByDeclaredStreamId(RenameNkGadget command, Guid code,
+        [WriteAggregate("code")] NkGadget gadget) => new(command.Name);
+
+    // Named like nothing the gadget has: still a stream id, with a warning at code generation
+    [WolverinePost("/nkhttp/unmatched/{number}/rename")]
+    [EmptyResponse]
+    public static NkGadgetRenamed RenameByUnmatchedName(RenameNkGadget command, [WriteAggregate("number")] NkGadget gadget)
+        => new(command.Name);
+
     #region sample_wolverine_http_aggregate_handler_by_natural_key
     // The request body has no stream id, so the gadget is loaded by the GadgetCode in it
     [WolverinePost("/nkhttp/decider")]
