@@ -275,7 +275,8 @@ internal static class NaturalKeyIdentity
     /// <summary>
     ///     GH-5947 (U2). An attribute naming a route value with no key type reads it as the stream id, so an endpoint for
     ///     an aggregate with natural keys answers 404 to a request carrying the key. Logged rather than refused at code
-    ///     generation: a stream id route value named after the key is legal.
+    ///     generation: a stream id route value named after the key is legal. Quiet for a route value named like a stream
+    ///     id (<c>id</c>, <c>orderId</c>) or declared as a parameter of the endpoint.
     /// </summary>
     public static void WarnOfUntypedRouteValue(IEventSourcingFrameProvider provider, Type aggregateType,
         string? routeValueName, IChain chain, IServiceContainer container, string spelling)
@@ -293,6 +294,12 @@ internal static class NaturalKeyIdentity
     {
         if (routeValueName.IsEmpty() || chain is not IRoutedChain routed) return null;
         if (!routed.RouteParameterNames.Any(x => x.EqualsIgnoreCase(routeValueName!))) return null;
+
+        // Named like a stream id, as in {id} or {orderId}, or declared by the endpoint with its own type: the stream id
+        // is what's meant, and a warning on every such endpoint would only be noise
+        if (routeValueName!.EndsWith("id", StringComparison.OrdinalIgnoreCase)) return null;
+        if (chain.HandlerCalls().Any(call =>
+                call.Method.GetParameters().Any(x => routeValueName.EqualsIgnoreCase(x.Name ?? string.Empty)))) return null;
 
         var keyTypes = KeyTypesOf(provider, aggregateType, chain, container);
         if (keyTypes.Count == 0) return null;

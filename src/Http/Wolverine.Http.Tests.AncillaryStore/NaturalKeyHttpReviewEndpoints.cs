@@ -20,6 +20,12 @@ public static class NkHttpReviewEndpoints
         [Aggregate<GadgetCode>("code")] NkGadget gadget) => new(command.Name);
     #endregion
 
+    // A stream id route value named like one: no warning, though NkGadget has a natural key
+    [WolverinePost("/nkhttp/by-stream-id/{id}/rename")]
+    [EmptyResponse]
+    public static NkGadgetRenamed RenameByStreamIdInRoute(RenameNkGadget command, [WriteAggregate("id")] NkGadget gadget)
+        => new(command.Name);
+
     [WolverinePost("/nkhttp/by-stream-id-in-body")]
     [EmptyResponse]
     public static NkGadgetRenamed RenameByStreamIdInBody(RenameNkGadgetById command, [WriteAggregate] NkGadget gadget)

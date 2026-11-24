@@ -591,7 +591,8 @@ public static NkGadgetRenamed AggregateByRoute(RenameNkGadget command,
 Without the key type, Wolverine reads the route value as the stream id, which it'll happily parse as whatever type the
 stream id is. A request carrying the natural key then finds nothing, and your endpoint answers 404 for an aggregate that
 exists. That's legal, because a stream id route value can have any name, so Wolverine doesn't refuse it, but it does log a
-warning when it generates the endpoint for an aggregate that has natural keys.
+warning when it generates the endpoint for an aggregate that has natural keys. It stays quiet for a route value named
+like a stream id, such as `{id}` or `{orderId}`, or one the endpoint declares as a parameter of its own.
 :::
 
 Wolverine.Http parses a route or query string value into a value type, or into a class with a static
@@ -629,7 +630,7 @@ too:
 public static NkGadgetRenamed RenameByDecider(RenameNkGadgetByCode command, NkGadget gadget)
     => new(command.Name);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpReviewEndpoints.cs#L28-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_aggregate_handler_by_natural_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpReviewEndpoints.cs#L34-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_aggregate_handler_by_natural_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Status Codes

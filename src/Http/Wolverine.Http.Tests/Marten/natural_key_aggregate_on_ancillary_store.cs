@@ -503,6 +503,23 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
             x.Contains("reads the route value 'code' as the stream id") &&
             x.Contains(nameof(NkHttpShapeEndpoints.RenameUntyped)) &&
             x.Contains("[WriteAggregate<GadgetCode>(\"code\")]"));
+
+        // A route value named like a stream id is taken to be one
+        theWarnings.Messages.ShouldNotContain(x => x.Contains("reads the route value 'id'"));
+    }
+
+    [Fact]
+    public async Task a_stream_id_route_value_still_loads_by_stream_id()
+    {
+        var (streamId, _) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadget("By stream id")).ToUrl($"/nkhttp/by-stream-id/{streamId}/rename");
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("By stream id");
     }
 
     // ---------- every attribute over HTTP (NkHttpAttributeEndpoints) ----------
