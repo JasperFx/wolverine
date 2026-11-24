@@ -410,10 +410,10 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     /// <summary>
     /// GH-5695. A message type of a local or external sharded partitioned topology with more than one handler type is run
     /// on the topology's slots, one handler type after the other (<see cref="PartitionedSlotExpansion"/>), when the slots
-    /// are buffered. Anything the slots can't do that for is refused at startup, because each handler type would run
-    /// on its own local queue and nothing would keep the group's messages in order across them:
+    /// are buffered or durable. Anything the slots can't do that for is refused at startup, because each handler type
+    /// would run on its own local queue and nothing would keep the group's messages in order across them:
     /// <list type="bullet">
-    /// <item>a durable or native-ack slot</item>
+    /// <item>a native-ack or inline slot</item>
     /// <item>a topology that only publishes from this application</item>
     /// <item>an external sharded topology whose message type also has a <c>BatchMessagesOf&lt;T&gt;()</c> batch, which
     /// that slot relays to every member's local queue (GH-5138)</item>
@@ -441,12 +441,12 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
                     var modes = topology.Slots.Select(x => x.Mode.ToString()).Distinct().Join(", ");
                     throw new InvalidOperationException(
                         $"Message type '{messageType}' belongs to the partitioned message topology '{topology.Uri}' " +
-                        $"and is handled by more than one handler type ({handlerTypes}). A buffered slot runs every " +
-                        "handler type of the message on the slot, one after the other, which keeps the messages of " +
-                        $"one group in order across them, but this topology's slots are {modes}" +
+                        $"and is handled by more than one handler type ({handlerTypes}). A buffered or durable slot runs " +
+                        "every handler type of the message on the slot, one after the other, which keeps the messages " +
+                        $"of one group in order across them, but this topology's slots are {modes}" +
                         (topology.ListensLocally ? "" : " and are not listened to in this application") +
-                        ". Make the topology's slots buffered, handle this message type in one handler type, or leave " +
-                        "it out of the partitioned topology.");
+                        ". Make the topology's slots buffered or durable, handle this message type in one handler " +
+                        "type, or leave it out of the partitioned topology.");
                 }
 
                 if (topology is not LocalPartitionedMessageTopology && BatchFor(group.MessageType) != null)
