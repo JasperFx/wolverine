@@ -745,12 +745,10 @@ differently:
 
 * **A version is checked on a write by natural key (BREAKING).** A command with a `Version` member loaded by its
   natural key now fails with a `ConcurrencyException` when the stream has moved on, as a load by stream id always
-  has. This comes from the shared store code, so it applies to Polecat too. Fisher has no versioned fetch by natural
-  key yet, so on Fisher the version is still not checked on load.
+  has. This comes from the shared store code, so it applies to Polecat and Fisher too.
 * **An exclusive load by natural key locks the stream (BREAKING).** With `LoadStyle = ModelConcurrencyStyle.Exclusive`,
   a load by natural key now calls `FetchForExclusiveWriting<T, TKey>` and can fail with a `StreamLockedException`.
-  Marten takes a row lock, as Polecat already did for every load by natural key. Fisher's exclusive fetch does not
-  lock yet.
+  Marten takes a row lock, as Polecat already did for every load by natural key, and Fisher locks the SQLite file.
 * **`[Identity]` on a natural key member needs the key type (BREAKING).** On `[WriteAggregate]` and `[WriteModel]`, a
   member of one of the aggregate's natural key types marked with `[Identity]` used to be read as the stream id. It is
   now refused when the handler is generated, unless the attribute names the key type, as in
@@ -788,7 +786,7 @@ differently:
   implementation that builds nothing, so an existing chain type still compiles.
 
 Polecat and Fisher read by natural key and have `[WriteAggregate<TKey>]`, `[ReadAggregate<TKey>]` and HTTP
-`[Aggregate<TKey>]` in 7.0 as well. Mapped natural keys are Marten only for now. See
+`[Aggregate<TKey>]` in 7.0 as well, and Fisher has mapped natural keys. Polecat's mapped keys are still to come. See
 [What Each Store Supports](/guide/durability/marten/event-sourcing#what-each-store-supports).
 
 ### `Saga.LastModified` is set by every saga store

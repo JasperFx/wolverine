@@ -29,10 +29,32 @@ public static class FisherNaturalKeyLoads
         }
         catch (UnknownNaturalKeyException)
         {
-            // A new stream with nothing in it, as Marten makes for an unknown key
-            return streamKeys
-                ? await session.Events.FetchForWriting<T>(Guid.NewGuid().ToString(), token).ConfigureAwait(false)
-                : await session.Events.FetchForWriting<T>(Guid.NewGuid(), token).ConfigureAwait(false);
+            return await newStreamAsync<T>(session, streamKeys, token).ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    ///     With the command's expected version, checked on load: a stale version throws a <c>ConcurrencyException</c>.
+    ///     An exclusive load takes no version, as on Marten and Polecat.
+    /// </summary>
+    public static async Task<IEventStream<T>> FetchForWriting<T, TKey>(IDocumentSession session, TKey key,
+        long expectedVersion, bool exclusive, bool streamKeys, CancellationToken token)
+        where T : class where TKey : notnull
+    {
+        try
+        {
+            return await session.Events.FetchForWriting<T, TKey>(key, expectedVersion, token).ConfigureAwait(false);
+        }
+        catch (UnknownNaturalKeyException)
+        {
+            return await newStreamAsync<T>(session, streamKeys, token).ConfigureAwait(false);
+        }
+    }
+
+    // A new stream with nothing in it, as Marten makes for an unknown key
+    private static async Task<IEventStream<T>> newStreamAsync<T>(IDocumentSession session, bool streamKeys,
+        CancellationToken token) where T : class
+        => streamKeys
+            ? await session.Events.FetchForWriting<T>(Guid.NewGuid().ToString(), token).ConfigureAwait(false)
+            : await session.Events.FetchForWriting<T>(Guid.NewGuid(), token).ConfigureAwait(false);
 }

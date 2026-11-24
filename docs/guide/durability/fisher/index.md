@@ -162,6 +162,7 @@ with an inferred key, or with the key type named on `[WriteAggregate<TKey>]`, `[
 public static class FiNkSeatHandlers
 {
     public static FiNkSeat? LastSeat;
+    public static FiNkSeatView? LastView;
     public static FiNkSeat? LastMaybe;
 
     // Name the key type when the message carries more than one key, or to say so up front
@@ -172,20 +173,38 @@ public static class FiNkSeatHandlers
     public static void Handle(ViewFiNkSeat query, [ReadAggregate<FiNkSeatCode>] FiNkSeat seat) => LastSeat = seat;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/FisherTests/natural_keys_in_7_0.cs#L293-L306' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_fisher_natural_key_type_argument' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/FisherTests/natural_keys_in_7_0.cs#L347-L361' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_fisher_natural_key_type_argument' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Reads by key, nullable keys and the decider workflow (`[AggregateHandler]`) by natural key all work like they do on
-Marten, so see [Natural Keys](/guide/durability/marten/event-sourcing#natural-keys) on the Marten page for the whole
-story.
+Reads by key, nullable keys, the version check, exclusive loads and the decider workflow (`[AggregateHandler]`) by
+natural key all work like they do on Marten, so see [Natural Keys](/guide/durability/marten/event-sourcing#natural-keys)
+on the Marten page for the whole story. Mapped natural keys work too, so a read model of the same streams can be loaded
+through the aggregate's lookup by the aggregate's own key:
 
-::: warning
-Fisher doesn't do everything Marten does with natural keys yet:
+<!-- snippet: sample_wolverine_fisher_mapped_natural_key -->
+<a id='snippet-sample_wolverine_fisher_mapped_natural_key'></a>
+```cs
+// A read model of the same streams, found through FiNkSeat's lookup by the seat's code
+public class FiNkSeatView
+{
+    public Guid Id { get; set; }
 
-- A command's `Version` isn't checked on a load by natural key.
-- An exclusive load by natural key doesn't lock the stream. Two writers still can't both commit, but the loser fails
-  at commit with an `EventStreamUnexpectedMaxEventIdException` rather than waiting.
-- There are no mapped natural keys.
+    [MappedNaturalKey<FiNkSeat>]
+    public FiNkSeatCode Code { get; set; } = null!;
+
+    public int Holds { get; set; }
+
+    public void Apply(FiNkSeatAdded e) => Code = e.Code;
+
+    public void Apply(FiNkSeatHeld e) => Holds++;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/FisherTests/natural_keys_in_7_0.cs#L314-L329' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_fisher_mapped_natural_key' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: tip
+An exclusive load on Fisher locks the whole SQLite file until the handler's changes are saved, not just the one stream,
+because that's the lock SQLite has. Keep exclusive handlers short.
 :::
 
 See [What Each Store Supports](/guide/durability/marten/event-sourcing#what-each-store-supports) for the full table.

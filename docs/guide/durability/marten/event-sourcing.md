@@ -1661,7 +1661,8 @@ off.
 
 ### What Each Store Supports
 
-Natural keys work the same way across the three stores, with a few gaps that are on the store side:
+Natural keys work the same way across the three stores, with a few gaps that are on the store side. This is as of
+Marten 10.0.0-rc.3, Polecat 6.0.0-rc.2 and Fisher 2.0.0-rc.2:
 
 | | Marten | Polecat | Fisher |
 |---|---|---|---|
@@ -1671,21 +1672,16 @@ Natural keys work the same way across the three stores, with a few gaps that are
 | Nullable keys | Yes | Yes | Yes |
 | The decider workflow by natural key | Yes | Yes | Yes |
 | An unknown key on a write finds no aggregate (404 over HTTP) | Yes | No: the load throws | Yes |
-| Version check on load | Yes | Yes | Not yet: the version isn't checked |
-| Exclusive load locks the stream | Yes | Yes | Not yet: it loads optimistically |
-| Mapped natural keys | Yes | Not yet | Not yet |
+| Version check on load | Yes | Yes | Yes |
+| Exclusive load locks the stream | Yes | Yes | Yes, with a lock on the whole SQLite file |
+| Mapped natural keys | Yes | Not yet | Yes |
 | Natural key loads in a batched query | Yes | No | No |
-| `JFXEVT016` / `JFXEVT017` at build time | Yes | Once Polecat bundles the JasperFx 3.14 generator | Once Fisher bundles the JasperFx 3.14 generator |
+| `JFXEVT016` / `JFXEVT017` at build time | Yes | Yes | Yes |
 
 ::: warning
 On Polecat, a write by a natural key that no stream has fails: Polecat's `FetchForWriting<T, TKey>()` throws rather than
 handing back an empty stream, so an HTTP endpoint answers 500 rather than 404. A read by an unknown key finds nothing, as
 on Marten.
-
-On Fisher, a command's `Version` isn't checked on a load by natural key, and an exclusive load by natural key doesn't
-lock the stream. Two concurrent writers to the same stream still can't both commit, because Fisher checks the stream's
-version when it appends, but the loser gets an `EventStreamUnexpectedMaxEventIdException` at commit rather than waiting
-for the lock.
 :::
 
 For more details on how natural keys work at the Marten level, see the [Marten natural keys documentation](https://martendb.io/events/natural-keys).

@@ -56,6 +56,7 @@ public class natural_keys_in_7_0 : IAsyncLifetime
                 m.Connection(theDatabase.ConnectionString);
                 m.AutoCreateSchemaObjects = AutoCreate.All;
                 m.Projections.Snapshot<FiNkSeat>(SnapshotLifecycle.Inline);
+                m.Projections.Snapshot<FiNkSeatView>(SnapshotLifecycle.Inline);
             })
             .ApplyAllDatabaseChangesOnStartup()
             .IntegrateWithWolverine();
@@ -163,9 +164,41 @@ public class natural_keys_in_7_0 : IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new HoldFiNkSeatAtVersion(code, "Current", 1));
         (await loadSeat(streamId)).Holder.ShouldBe("Current");
 
-        // Fisher has no versioned fetch by natural key yet (fisher#688), so the version isn't checked on load
-        await theHost.InvokeMessageAndWaitAsync(new HoldFiNkSeatAtVersion(code, "Unchecked", 1));
-        (await loadSeat(streamId)).Holder.ShouldBe("Unchecked");
+        // Now at version 2, so 1 is stale
+        await Should.ThrowAsync<ConcurrencyException>(() =>
+            theHost.InvokeMessageAndWaitAsync(new HoldFiNkSeatAtVersion(code, "Stale", 1)));
+        (await loadSeat(streamId)).Holder.ShouldBe("Current");
+    }
+
+    // Fisher 2.0.0-rc.2's FetchForExclusiveWriting<T, TKey> takes the write lock, so concurrent exclusive writers by
+    // natural key are serialized instead of all but one failing at commit
+    [Fact]
+    public async Task exclusive_writers_by_natural_key_are_serialized()
+    {
+        var (streamId, code) = await addSeat();
+
+        await Task.WhenAll(Enumerable.Range(0, 5).Select(i =>
+            theHost.MessageBus().InvokeAsync(new HoldFiNkSeatExclusively(code, $"Holder {i}"),
+                TestContext.Current.CancellationToken)));
+
+        await using var session = theStore.LightweightSession();
+        var events = await session.Events.FetchStreamAsync(streamId, token: TestContext.Current.CancellationToken);
+        events.Count.ShouldBe(6);
+    }
+
+    // GH-5901: a read model found through the seat's lookup, by the seat's own key type
+    [Fact]
+    public async Task a_mapped_key_reads_and_writes_a_read_model()
+    {
+        var (streamId, code) = await addSeat();
+
+        await theHost.InvokeMessageAndWaitAsync(new CountFiNkSeatView(code));
+        await theHost.InvokeMessageAndWaitAsync(new PeekFiNkSeatView(code));
+
+        FiNkSeatHandlers.LastView.ShouldNotBeNull().Id.ShouldBe(streamId);
+        FiNkSeatHandlers.LastView.Holds.ShouldBe(1);
+        sourceFor<PeekFiNkSeatView>().ShouldContain(
+            $"FetchLatest<{typeof(FiNkSeatView).FullName}, {typeof(FiNkSeatCode).FullName}>");
     }
 
     [Fact]
@@ -278,6 +311,27 @@ public class FiNkSeat
     public void Apply(FiNkSeatHeld e) => Holder = e.Holder;
 }
 
+#region sample_wolverine_fisher_mapped_natural_key
+// A read model of the same streams, found through FiNkSeat's lookup by the seat's code
+public class FiNkSeatView
+{
+    public Guid Id { get; set; }
+
+    [MappedNaturalKey<FiNkSeat>]
+    public FiNkSeatCode Code { get; set; } = null!;
+
+    public int Holds { get; set; }
+
+    public void Apply(FiNkSeatAdded e) => Code = e.Code;
+
+    public void Apply(FiNkSeatHeld e) => Holds++;
+}
+#endregion
+
+public record CountFiNkSeatView(FiNkSeatCode Code);
+public record HoldFiNkSeatExclusively(FiNkSeatCode Code, string Holder);
+public record PeekFiNkSeatView(FiNkSeatCode Code);
+
 public record FiNkSeatAdded(FiNkSeatCode Code);
 public record FiNkSeatHeld(string Holder);
 
@@ -294,6 +348,7 @@ public record HoldFiNkSeatRequest(string Holder);
 public static class FiNkSeatHandlers
 {
     public static FiNkSeat? LastSeat;
+    public static FiNkSeatView? LastView;
     public static FiNkSeat? LastMaybe;
 
     // Name the key type when the message carries more than one key, or to say so up front
@@ -307,6 +362,14 @@ public static class FiNkSeatHandlers
 
 public static class FiNkSeatOtherHandlers
 {
+    public static FiNkSeatHeld Handle(CountFiNkSeatView command, [WriteAggregate] FiNkSeatView view) => new("Counted");
+
+    public static FiNkSeatHeld Handle(HoldFiNkSeatExclusively command,
+        [WriteAggregate<FiNkSeatCode>(LoadStyle = Wolverine.Fisher.ConcurrencyStyle.Exclusive)] FiNkSeat seat) => new(command.Holder);
+
+    public static void Handle(PeekFiNkSeatView query, [ReadAggregate] FiNkSeatView view)
+        => FiNkSeatHandlers.LastView = view;
+
     public static void Handle(PeekFiNkSeat query, [ReadAggregate] FiNkSeat seat)
         => FiNkSeatHandlers.LastSeat = seat;
 
