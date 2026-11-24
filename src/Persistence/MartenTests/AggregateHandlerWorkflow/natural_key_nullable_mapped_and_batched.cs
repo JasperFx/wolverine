@@ -106,6 +106,9 @@ public class natural_key_nullable_mapped_and_batched : PostgresqlContext, IAsync
         var ex = await Should.ThrowAsync<ArgumentOutOfRangeException>(() =>
             _host.InvokeMessageAndWaitAsync(new RestockNkProduct(null, 4)));
         ex.Message.ShouldContain("natural key on this message is null");
+
+        // GH-5947 (E5): the member, not the generated expression that reads it
+        ex.ParamName.ShouldBe(nameof(RestockNkProduct.Sku));
     }
 
     [Fact]
@@ -114,6 +117,7 @@ public class natural_key_nullable_mapped_and_batched : PostgresqlContext, IAsync
         var ex = await Should.ThrowAsync<ArgumentOutOfRangeException>(() =>
             _host.InvokeMessageAndWaitAsync(new RecodeNkShelf(null!)));
         ex.Message.ShouldContain("natural key on this message is null");
+        ex.ParamName.ShouldBe(nameof(RecodeNkShelf.Code));
     }
 
     [Fact]

@@ -57,8 +57,10 @@ public static class NkGadgetEndpoints
         [WriteAggregate<GadgetCode>("code")] NkGadget gadget)
         => new(command.Name);
 
+    #region sample_wolverine_http_read_aggregate_by_natural_key_route
     [WolverineGet("/nkgadgets/{code}")]
     public static NkGadget Get([ReadAggregate<GadgetCode>("code")] NkGadget gadget) => gadget;
+    #endregion
 
     // A second stream claiming an existing code is refused at commit
     [WolverinePost("/nkgadgets")]

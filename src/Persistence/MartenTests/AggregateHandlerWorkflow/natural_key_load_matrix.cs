@@ -405,13 +405,23 @@ public class natural_key_load_matrix : PostgresqlContext, IAsyncLifetime
 
     // ---------- the decider-function form ----------
 
+    // GH-5948: [AggregateHandler] loads by a natural key alone, in one tenant of a conjoined store too
     [Fact]
-    public void aggregate_handler_does_not_load_by_natural_key()
+    public async Task aggregate_handler_loads_by_natural_key()
     {
-        // [AggregateHandler] needs the stream id on the command; a natural key alone is not one
-        var ex = Should.Throw<InvalidOperationException>(() => _host.GetRuntime().Handlers.HandlerFor<MxDeciderBySku>());
-        _output.WriteLine(ex.ToString());
-        ex.Message.ShouldContain("Unable to determine the aggregate id for aggregate type");
+        var key = keyFor(typeof(MxSkuOrder));
+        var streamId = await placeAsync(typeof(MxSkuOrder), key);
+        var message = new MxDeciderBySku((MxSku)key, "Renamed");
+
+        sourceFor(message).ShouldContain(
+            $"FetchForWriting<{typeof(MxSkuOrder).FullNameInCode()}, {typeof(MxSku).FullNameInCode()}>");
+
+        await invokeAsync(message);
+
+        var events = await eventsOf(streamId);
+        events.Count.ShouldBe(2);
+        events[1].Data.ShouldBe(new MxRenamed("Renamed"));
+        await twinIsUntouchedAsync(streamId);
     }
 }
 
@@ -772,8 +782,7 @@ public static class MxLoadContextHandlers
 public record MxDeciderBySku(MxSku Key, string Name);
 
 // [AggregateHandler] marks the method rather than the class: IntegrateWithWolverine() includes every class marked
-// with it, conventional discovery or not, and inferring this refused shape's message identity throws, so any host
-// here using UseInferredMessageGrouping() would fail to start.
+// with it, conventional discovery or not, which would add this handler to every host here.
 public static class MxDeciderHandlers
 {
     [AggregateHandler]

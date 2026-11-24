@@ -54,7 +54,7 @@ public class natural_key_explicit_key_type : PostgresqlContext, IAsyncLifetime
             opts.Discovery.DisableConventionalDiscovery()
                 .IncludeType(typeof(NkExplicitHandler))
                 .IncludeType(typeof(NkRefusedHandler))
-                .IncludeType(typeof(NkDeciderRefusedHandler));
+                .IncludeType(typeof(NkDeciderHandler));
             opts.Durability.Mode = DurabilityMode.Solo;
 
             opts.Services.AddResourceSetupOnStartup();
@@ -260,15 +260,70 @@ public class natural_key_explicit_key_type : PostgresqlContext, IAsyncLifetime
         refusal.ShouldContain("[WriteAggregate<NkSku>]");
     }
 
-    // The decider workflow can't load by natural key yet, and [Identity] on a key member there was taken as the stream
-    // id: the key's inner value went to FetchForWriting<T>(string), which fails at runtime on a Guid store and
-    // looks up the wrong stream on a string one. Refused at codegen like [WriteAggregate] refuses it.
+    // GH-5948: [Identity] on a key member in the decider workflow loads by that key. Before #5756 the key's inner value
+    // went to FetchForWriting<T>(string) as a stream id; the rebased #5756 refused it at codegen.
     [Fact]
-    public void identity_on_a_natural_key_in_the_decider_workflow_is_refused()
+    public async Task identity_on_a_natural_key_in_the_decider_workflow_loads_by_it()
     {
-        var refusal = refusalFor<AuditNkShelfByDecider>();
-        refusal.ShouldContain("loads by stream id only");
-        refusal.ShouldContain("[WriteAggregate<NkShelfCode>]");
+        var streamId = await placeShelf(new NkSku("DECIDER-1"), new NkShelfCode("DECIDER-SHELF-1"));
+
+        await _host.InvokeMessageAndWaitAsync(new AuditNkShelfByDecider(new NkShelfCode("DECIDER-SHELF-1")));
+
+        sourceFor<AuditNkShelfByDecider>().ShouldContain(fetchFor<NkShelfCode>());
+        (await loadShelf(streamId))!.Audits.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task the_decider_workflow_loads_by_a_mapped_key()
+    {
+        var streamId = await placeShelf(new NkSku("DECIDER-2"), new NkShelfCode("DECIDER-SHELF-2"));
+
+        await _host.InvokeMessageAndWaitAsync(new AuditNkShelfBySkuInTheDecider(new NkSku("DECIDER-2")));
+
+        sourceFor<AuditNkShelfBySkuInTheDecider>().ShouldContain(fetchFor<NkSku>());
+        (await loadShelf(streamId))!.Audits.ShouldBe(1);
+    }
+
+    [Fact]
+    public void two_keys_in_the_decider_workflow_need_identity()
+    {
+        refusalFor<AuditNkShelfByEitherKeyInTheDecider>().ShouldContain("Mark the one to load by with [Identity]");
+    }
+
+    // GH-5947 (U4): NaturalKey used to win over the type argument without a word
+    [Fact]
+    public void a_type_argument_and_a_different_natural_key_are_refused()
+    {
+        refusalFor<AuditNkShelfByTwoKeyTypes>().ShouldContain("names two different natural key types");
+    }
+
+    [Fact]
+    public async Task a_type_argument_and_the_same_natural_key_are_fine()
+    {
+        var streamId = await placeShelf(new NkSku("SAME-KEY-1"), new NkShelfCode("SAME-KEY-SHELF-1"));
+
+        await _host.InvokeMessageAndWaitAsync(new AuditNkShelfBySameKeyTwice(new NkShelfCode("SAME-KEY-SHELF-1")));
+
+        (await loadShelf(streamId))!.Audits.ShouldBe(1);
+    }
+
+    // GH-5947 (E1): the plain "Unable to determine an aggregate id" said nothing about natural keys
+    [Fact]
+    public void two_members_of_an_inferred_key_type_are_explained()
+    {
+        var refusal = refusalFor<AuditNkShelfWithTwoInferredCodes>();
+        refusal.ShouldContain("Unable to determine an aggregate id");
+        refusal.ShouldContain("loaded by its stream id (Guid) or by its natural keys NkShelfCode, NkSku");
+        refusal.ShouldContain("more than one NkShelfCode member (First, Second)");
+        refusal.ShouldContain("[WriteAggregate<NkShelfCode>(\"First\")]");
+    }
+
+    [Fact]
+    public void a_raw_string_for_a_key_is_explained()
+    {
+        var refusal = refusalFor<AuditNkShelfByRawString>();
+        refusal.ShouldContain("Unable to determine an aggregate id");
+        refusal.ShouldContain("such as a string, isn't read as one");
     }
 
     [Fact]
@@ -312,6 +367,18 @@ public record AuditNkShelfMisnamed(NkShelfCode Code);
 
 public record AuditNkShelfByDecider([property: Identity] NkShelfCode Code);
 
+public record AuditNkShelfBySkuInTheDecider(NkSku Sku);
+
+public record AuditNkShelfByEitherKeyInTheDecider(NkSku Sku, NkShelfCode Code);
+
+public record AuditNkShelfByTwoKeyTypes(NkSku Sku, NkShelfCode Code);
+
+public record AuditNkShelfBySameKeyTwice(NkShelfCode Code);
+
+public record AuditNkShelfWithTwoInferredCodes(NkShelfCode First, NkShelfCode Second);
+
+public record AuditNkShelfByRawString(string Code);
+
 public record AuditNkShelfWithoutCode(string Note);
 
 public record AuditNkShelfSkuIdentityOnly([property: Identity] NkSku Sku);
@@ -353,15 +420,23 @@ public static class NkExplicitHandler
         [WriteAggregate<NkSku>] NkShelf shelf)
         => (new UpdatedAggregate(), new NkShelfAudited());
 
+    public static NkShelfAudited Handle(AuditNkShelfBySameKeyTwice command,
+        [WriteAggregate<NkShelfCode>(NaturalKey = typeof(NkShelfCode))] NkShelf shelf) => new();
+
     public static NkShelfAudited Handle(AuditNkShelfByStreamIdBesideIdentity command,
         [WriteAggregate(nameof(AuditNkShelfByStreamIdBesideIdentity.ShelfStreamId))] NkShelf shelf)
         => new();
 }
 
+// GH-5948: the decider workflow by natural key
 [AggregateHandler]
-public static class NkDeciderRefusedHandler
+public static class NkDeciderHandler
 {
     public static NkShelfAudited Handle(AuditNkShelfByDecider command, NkShelf shelf) => new();
+
+    public static NkShelfAudited Handle(AuditNkShelfBySkuInTheDecider command, NkShelf shelf) => new();
+
+    public static NkShelfAudited Handle(AuditNkShelfByEitherKeyInTheDecider command, NkShelf shelf) => new();
 }
 
 public static class NkRefusedHandler
@@ -390,6 +465,16 @@ public static class NkRefusedHandler
         => new();
 
     public static NkShelfAudited Handle(AuditNkShelfSkuIdentityOnly command, [WriteAggregate] NkShelf shelf) => new();
+
+#pragma warning disable JFXEVT016, JFXEVT017
+    public static NkShelfAudited Handle(AuditNkShelfByTwoKeyTypes command,
+        [WriteAggregate<NkShelfCode>(NaturalKey = typeof(NkSku))] NkShelf shelf) => new();
+#pragma warning restore JFXEVT016, JFXEVT017
+
+    public static NkShelfAudited Handle(AuditNkShelfWithTwoInferredCodes command, [WriteAggregate] NkShelf shelf)
+        => new();
+
+    public static NkShelfAudited Handle(AuditNkShelfByRawString command, [WriteAggregate] NkShelf shelf) => new();
 
     public static void Handle(ViewNkShelfByNamedSkuWithoutKeyReads query,
         [ReadModelWithoutNaturalKeyReads(NaturalKey = typeof(NkSku))] NkShelf shelf)

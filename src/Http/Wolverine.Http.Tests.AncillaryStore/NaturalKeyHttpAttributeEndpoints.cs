@@ -58,9 +58,12 @@ public static class NkHttpAttributeEndpoints
     [WolverineGet("/nkhttp/read-model-by-query")]
     public static NkGadget ReadModelByQuery(GadgetCode code, [ReadModel("code")] NkGadget gadget) => gadget;
 
+    #region sample_wolverine_http_read_aggregate_by_natural_key_query
+    // A query string value is only seen through a parameter of the endpoint
     [WolverineGet("/nkhttp/read-aggregate-by-query")]
     public static NkGadget ReadAggregateByQuery(GadgetCode code, [ReadAggregate<GadgetCode>("code")] NkGadget gadget)
         => gadget;
+    #endregion
 
     // ---------- the HTTP [Aggregate] and [ConsistentAggregate] ----------
 
@@ -69,10 +72,13 @@ public static class NkHttpAttributeEndpoints
     public static NkGadgetRenamed AggregateByBody(RenameNkGadgetByCode command, [Aggregate] NkGadget gadget)
         => new(command.Name);
 
+    #region sample_wolverine_http_aggregate_with_natural_key_property
+    // NaturalKey = typeof(TKey) is the spelling to use from F#
     [WolverinePost("/nkhttp/aggregate/{code}")]
     [EmptyResponse]
     public static NkGadgetRenamed AggregateByRoute(RenameNkGadget command,
         [Aggregate("code", NaturalKey = typeof(GadgetCode))] NkGadget gadget) => new(command.Name);
+    #endregion
 
     [WolverinePost("/nkhttp/consistent/{code}")]
     [EmptyResponse]

@@ -548,6 +548,21 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     /// <inheritdoc />
     /// <remarks>
+    ///     GH-5947. A write that names no aggregate is the caller's mistake, so it's a 400 rather than the 500 the
+    ///     load's exception used to become. A read keeps its 404: nothing is found by a missing identity.
+    /// </remarks>
+    public override Frame[] BuildMissingIdentityStopCondition(Variable isMissing, string detail)
+    {
+        Metadata.Produces<ProblemDetails>(400, "application/problem+json");
+        return
+        [
+            new DeduplicationProblemDetailsFrame(isMissing, 400, detail,
+                comment: "GH-5947: 400 for a write with no aggregate identity")
+        ];
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
     ///     GH-4180. An HTTP endpoint owes its caller an answer, so a refused request gets a status code
     ///     rather than the silent discard a message handler gets. Both codes are registered as endpoint
     ///     metadata so they show up in OpenAPI — a 409 a client can receive but cannot discover from the

@@ -70,10 +70,11 @@ type DepositByCodeHandler491942371(outboxedSessionFactory: Wolverine.Marten.Publ
             if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
                 (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
                 (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.natural_key", box (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByCode).Code) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.type", "WolverineMartenAggregateFSharpSample.Ledger") |> ignore
             // Loading Marten aggregate as part of the aggregate handler workflow
             let! stream_ledger = documentSession.Events.FetchForWriting<WolverineMartenAggregateFSharpSample.Ledger, WolverineMartenAggregateFSharpSample.LedgerCode>((context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByCode).Code, (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByCode).Version, cancellation)
-            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.id", (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByCode).Code.ToString()) |> ignore
-            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.type", "WolverineMartenAggregateFSharpSample.Ledger") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) && not (isNull (box stream_ledger.Aggregate)) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.id", stream_ledger.Id.ToString()) |> ignore
             
             // The actual message execution
             let outgoing1 = WolverineMartenAggregateFSharpSample.LedgerHandler.Handle(depositByCode, stream_ledger.Aggregate)
@@ -105,10 +106,11 @@ type DepositExclusivelyHandler313223480(outboxedSessionFactory: Wolverine.Marten
             if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
                 (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
                 (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.natural_key", box (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositExclusively).Code) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.type", "WolverineMartenAggregateFSharpSample.Ledger") |> ignore
             // Loading Marten aggregate as part of the aggregate handler workflow
             let! stream_ledger = documentSession.Events.FetchForExclusiveWriting<WolverineMartenAggregateFSharpSample.Ledger, WolverineMartenAggregateFSharpSample.LedgerCode>((context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositExclusively).Code, cancellation)
-            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.id", (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositExclusively).Code.ToString()) |> ignore
-            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.type", "WolverineMartenAggregateFSharpSample.Ledger") |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) && not (isNull (box stream_ledger.Aggregate)) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.id", stream_ledger.Id.ToString()) |> ignore
             
             // The actual message execution
             let outgoing1 = WolverineMartenAggregateFSharpSample.LedgerHandler.Handle(depositExclusively, stream_ledger.Aggregate)
@@ -140,11 +142,12 @@ type DepositByOptionalCodeHandler1025805385(outboxedSessionFactory: Wolverine.Ma
             if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
                 (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
                 (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "WolverineMartenAggregateFSharpSample.LedgerHandler") |> ignore
-            // Loading Marten aggregate as part of the aggregate handler workflow
-            if isNull (box (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode).Code) then raise (System.ArgumentOutOfRangeException("(context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode).Code", "The WolverineMartenAggregateFSharpSample.LedgerCode natural key on this message is null, so there is no WolverineMartenAggregateFSharpSample.Ledger to load"))
-            let! stream_ledger = documentSession.Events.FetchForWriting<WolverineMartenAggregateFSharpSample.Ledger, WolverineMartenAggregateFSharpSample.LedgerCode>((context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode).Code.Value, cancellation)
-            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.id", (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode).Code.ToString()) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.natural_key", box (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode).Code) |> ignore
             if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.type", "WolverineMartenAggregateFSharpSample.Ledger") |> ignore
+            // Loading Marten aggregate as part of the aggregate handler workflow
+            if isNull (box (context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode).Code) then raise (System.ArgumentOutOfRangeException("Code", "The WolverineMartenAggregateFSharpSample.LedgerCode natural key on this message is null, so there is no WolverineMartenAggregateFSharpSample.Ledger to load"))
+            let! stream_ledger = documentSession.Events.FetchForWriting<WolverineMartenAggregateFSharpSample.Ledger, WolverineMartenAggregateFSharpSample.LedgerCode>((context.Envelope.Message :?> WolverineMartenAggregateFSharpSample.DepositByOptionalCode).Code.Value, cancellation)
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) && not (isNull (box stream_ledger.Aggregate)) then (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.stream.id", stream_ledger.Id.ToString()) |> ignore
             
             // The actual message execution
             let outgoing1 = WolverineMartenAggregateFSharpSample.LedgerHandler.Handle(depositByOptionalCode, stream_ledger.Aggregate)

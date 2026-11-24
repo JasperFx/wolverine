@@ -50,10 +50,14 @@ internal partial class FisherPersistenceFrameProvider : IEventSourcingFrameProvi
     public Frame BuildFetchLatestFrame(Type aggregateType, Variable identity)
         => new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestAggregateFrame(aggregateType, identity, typeof(IDocumentSession));
 
-    // The Fisher integration has no natural key read and no mapped keys
-    public Frame? BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey)
-        => null;
+    // GH-5901: Fisher's FetchLatest<T, TKey>(key, token) reads by natural key, through the same shared frame Marten
+    // uses for its own.
+    public Frame BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey)
+        => new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestAggregateFrame(aggregateType, naturalKey,
+            typeof(IDocumentSession), true);
 
+    // GH-5901: mapped keys wait for a published Fisher package that serves them (fisher#679).
+    // Until then an aggregate on Fisher is found by its own natural key only.
     public IReadOnlyList<Type> DetermineMappedNaturalKeyTypes(Type aggregateType, IChain chain,
         IServiceContainer container)
         => [];

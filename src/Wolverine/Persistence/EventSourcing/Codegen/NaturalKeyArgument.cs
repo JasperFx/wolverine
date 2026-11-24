@@ -1,5 +1,6 @@
 using System.Reflection;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.CodeGeneration.Services;
 using JasperFx.Core.Reflection;
 
 namespace Wolverine.Persistence.EventSourcing.Codegen;
@@ -53,6 +54,17 @@ internal class NaturalKeyArgument
 
     public string FSharpIsNullCheck => $"isNull (box {_member.FSharpUsage})";
 
+    /// <summary>
+    /// GH-5947 (E5): the <c>ParamName</c> of the exception for a null key is the member or value carrying the key, as
+    /// in <c>Number</c>, rather than the generated expression that reads it.
+    /// </summary>
+    public string ParamName => _member switch
+    {
+        MemberAccessVariable { Member: { } member } => member.Name,
+        MessageMemberVariable { Member: { } member } => member.Name,
+        _ => _member.Usage
+    };
+
     public string NullKeyMessage(Type aggregateType) =>
         $"The {KeyType.FullNameInCode()} natural key on this message is null, so there is no {aggregateType.FullNameInCode()} to load";
 
@@ -61,8 +73,8 @@ internal class NaturalKeyArgument
     /// or a null string stream id, and Marten for a null natural key.
     /// </summary>
     public string ThrowIfNull(Type aggregateType) =>
-        $"if ({IsNullCheck}) throw new System.ArgumentOutOfRangeException(\"{_member.Usage}\", \"{NullKeyMessage(aggregateType)}\");";
+        $"if ({IsNullCheck}) throw new System.ArgumentOutOfRangeException(\"{ParamName}\", \"{NullKeyMessage(aggregateType)}\");";
 
     public string FSharpThrowIfNull(Type aggregateType) =>
-        $"if {FSharpIsNullCheck} then raise (System.ArgumentOutOfRangeException(\"{_member.FSharpUsage}\", \"{NullKeyMessage(aggregateType)}\"))";
+        $"if {FSharpIsNullCheck} then raise (System.ArgumentOutOfRangeException(\"{ParamName}\", \"{NullKeyMessage(aggregateType)}\"))";
 }

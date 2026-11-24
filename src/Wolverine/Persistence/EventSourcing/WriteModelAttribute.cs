@@ -107,7 +107,21 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
     ///     Without it, a natural key is only tried after the stream id lookup finds nothing, which never happens
     ///     for an HTTP route or query string value: those parse into a stream id of any type.
     /// </remarks>
-    public Type? NaturalKey { get; set; }
+    public Type? NaturalKey
+    {
+        get => _naturalKey ?? NaturalKeyTypeArgument;
+        set => _naturalKey = value;
+    }
+
+    private Type? _naturalKey;
+
+    /// <summary>
+    ///     The natural key type a generic spelling such as <c>[WriteModel&lt;TKey&gt;]</c> names as its type argument.
+    ///     Kept apart from <see cref="NaturalKey" /> so that naming two different key types, as in
+    ///     <c>[WriteModel&lt;OrderNumber&gt;(NaturalKey = typeof(CustomerCode))]</c>, is refused rather than settled
+    ///     silently in favour of <see cref="NaturalKey" />. GH-5947.
+    /// </summary>
+    protected Type? NaturalKeyTypeArgument { get; set; }
 
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "Handler/command/model types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
@@ -147,6 +161,9 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
 
         Variable? identity = null;
         var isNaturalKey = false;
+        var spelling = NaturalKeyIdentity.SpellingOf(this);
+
+        NaturalKeyIdentity.AssertOneKeyType(NaturalKeyTypeArgument, _naturalKey, spelling, aggregateType, chain);
 
         if (NaturalKey != null)
         {
@@ -173,6 +190,8 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
                 chain.TryFindVariable(RouteOrParameterName, ValueSource.Anything, idType, out var named))
             {
                 identity = named;
+                NaturalKeyIdentity.WarnOfUntypedRouteValue(provider, aggregateType, RouteOrParameterName, chain,
+                    container, spelling);
             }
 
             // Fall back to WriteModel's standard identity resolution. Only now could an [Identity] member be taken
@@ -180,7 +199,8 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
             // that member is never read, and the handler is fine as it is.
             if (identity == null)
             {
-                NaturalKeyIdentity.AssertIdentityIsNotANaturalKey(provider, aggregateType, idType, chain, container);
+                NaturalKeyIdentity.AssertIdentityIsNotANaturalKey(provider, aggregateType, idType, chain, container,
+                    spelling);
                 identity = FindIdentity(aggregateType, idType, chain);
             }
         }
@@ -192,14 +212,15 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
             // trim analysis cannot follow through to its earlier uses
             var keyedAggregateType = aggregateType;
             identity = NaturalKeyIdentity.Find(provider, aggregateType, chain, container,
-                keyType => FindIdentity(keyedAggregateType, keyType, chain));
+                keyType => FindIdentity(keyedAggregateType, keyType, chain), spelling);
             isNaturalKey = identity != null;
         }
 
         if (identity == null)
         {
             throw new InvalidOperationException(
-                $"Unable to determine an aggregate id for the parameter '{parameter.Name}' on method {chain.HandlerCalls().First()}");
+                $"Unable to determine an aggregate id for the parameter '{parameter.Name}' on method {chain.HandlerCalls().First()}." +
+                NaturalKeyIdentity.ExplainMissingIdentity(provider, aggregateType, idType, chain, container, spelling));
         }
 
         var version = findVersionVariable(chain);
@@ -435,11 +456,11 @@ public class WriteModelAttribute<TNaturalKey> : WriteModelAttribute where TNatur
 {
     public WriteModelAttribute()
     {
-        NaturalKey = typeof(TNaturalKey);
+        NaturalKeyTypeArgument = typeof(TNaturalKey);
     }
 
     public WriteModelAttribute(string? routeOrParameterName) : base(routeOrParameterName)
     {
-        NaturalKey = typeof(TNaturalKey);
+        NaturalKeyTypeArgument = typeof(TNaturalKey);
     }
 }

@@ -51,15 +51,16 @@ public class ReadAggregateAttribute : ReadModelAttribute
 ///     The aggregate's own natural key type, or one it maps from another projection. Never <c>TKey?</c>: a
 ///     <c>TKey?</c> member is still matched to <c>TKey</c>.
 /// </typeparam>
+[AttributeUsage(AttributeTargets.Parameter)]
 public class ReadAggregateAttribute<TNaturalKey> : ReadAggregateAttribute where TNaturalKey : notnull
 {
     public ReadAggregateAttribute()
     {
-        NaturalKey = typeof(TNaturalKey);
+        NaturalKeyTypeArgument = typeof(TNaturalKey);
     }
 
     public ReadAggregateAttribute(string argumentName) : base(argumentName)
     {
-        NaturalKey = typeof(TNaturalKey);
+        NaturalKeyTypeArgument = typeof(TNaturalKey);
     }
 }

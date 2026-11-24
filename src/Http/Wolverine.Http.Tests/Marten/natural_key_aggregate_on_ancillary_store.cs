@@ -1,10 +1,13 @@
+using System.Collections.Concurrent;
 using Alba;
 using IntegrationTests;
 using JasperFx.Events.Projections;
 using JasperFx.Resources;
 using Marten;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine.Http.Tests.AncillaryStore;
 using Wolverine.Marten;
@@ -36,10 +39,12 @@ namespace Wolverine.Http.Tests.Marten;
 public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
 {
     private IAlbaHost theHost = null!;
+    private readonly WarningCapture theWarnings = new();
 
     public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder([]);
+        builder.Logging.AddProvider(theWarnings);
 
         builder.Host.UseWolverine(opts =>
         {
@@ -415,20 +420,89 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
         (await loadGadget(streamId))!.Name.ShouldBe("By nullable query");
     }
 
+    // GH-5947 (U1): a write with no identity is the caller's mistake, so a 400 rather than the 500 the load's exception
+    // used to become. The first two are a stream id and a stream key; a natural key is refused the same way, as a TKey?
+    // and as a struct wrapping a null string, which is what a missing value binds to.
     [Theory]
     [InlineData("/nkgadgets-by-stream-id-query/rename")]
     [InlineData("/nkstring-gadgets-by-stream-key-query/rename")]
     [InlineData("/nkgadgets-by-query/rename")]
     [InlineData("/nkgadgets-by-nullable-query/rename")]
-    public async Task a_write_with_the_query_string_value_missing_is_refused_as_for_a_stream_id(string url)
+    public async Task a_write_with_the_query_string_value_missing_is_a_400(string url)
     {
-        // The first two are a stream id and a stream key, which Marten refuses when empty or null. A natural
-        // key is refused the same way: as a TKey? by the generated code, and as a struct wrapping a null
-        // string, which is what a missing value binds to, by Marten.
-        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => theHost.Scenario(s =>
+        var result = await theHost.Scenario(s =>
         {
             s.Post.Json(new RenameNkGadget("Nobody")).ToUrl(url);
-        }));
+            s.StatusCodeShouldBe(400);
+            s.ContentTypeShouldBe("application/problem+json");
+        });
+
+        var problems = await result.ReadAsJsonAsync<ProblemDetails>();
+        problems!.Detail!.ShouldContain("is missing from the request");
+    }
+
+    [Fact]
+    public async Task a_write_with_an_empty_stream_id_in_the_request_body_is_a_400()
+    {
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadgetById(Guid.Empty, "Nobody")).ToUrl("/nkhttp/by-stream-id-in-body");
+            s.StatusCodeShouldBe(400);
+        });
+    }
+
+    [Fact]
+    public async Task a_write_with_a_null_natural_key_in_the_request_body_is_a_400()
+    {
+        var result = await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadgetByBody(null, "Nobody")).ToUrl("/nkgadgets-by-body/rename");
+            s.StatusCodeShouldBe(400);
+        });
+
+        var problems = await result.ReadAsJsonAsync<ProblemDetails>();
+        problems!.Detail.ShouldBe("The GadgetCode natural key of the NkGadget to write to is missing from the request");
+    }
+
+    [Fact]
+    public async Task a_read_with_the_query_string_value_missing_is_still_a_404()
+    {
+        await theHost.Scenario(s =>
+        {
+            s.Get.Url("/nkhttp/read-aggregate-by-query");
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task the_decider_workflow_loads_by_a_natural_key_in_the_request_body()
+    {
+        var (streamId, code) = await seedGadget("Original");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadgetByCode(code, "By decider")).ToUrl("/nkhttp/decider");
+            s.StatusCodeShouldBe(204);
+        });
+
+        (await loadGadget(streamId))!.Name.ShouldBe("By decider");
+
+        await theHost.Scenario(s =>
+        {
+            s.Post.Json(new RenameNkGadgetByCode(default, "Nobody")).ToUrl("/nkhttp/decider");
+            s.StatusCodeShouldBe(400);
+        });
+    }
+
+    // GH-5947 (U2): [WriteAggregate("code")] with no key type reads {code} as the stream id, so an endpoint for a gadget
+    // answers 404 to its natural key. Legal, so a warning rather than a refusal.
+    [Fact]
+    public void an_untyped_route_value_for_an_aggregate_with_natural_keys_is_warned_about()
+    {
+        theWarnings.Messages.ShouldContain(x =>
+            x.Contains("reads the route value 'code' as the stream id") &&
+            x.Contains(nameof(NkHttpShapeEndpoints.RenameUntyped)) &&
+            x.Contains("[WriteAggregate<GadgetCode>(\"code\")]"));
     }
 
     // ---------- every attribute over HTTP (NkHttpAttributeEndpoints) ----------
@@ -436,6 +510,7 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
     [Theory]
     [InlineData("/nkhttp/write-model/{0}")]
     [InlineData("/nkhttp/aggregate/{0}")]
+    [InlineData("/nkhttp/aggregate-generic/{0}")]
     [InlineData("/nkhttp/consistent/{0}")]
     [InlineData("/nkhttp/as-parameters/{0}/rename")]
     [InlineData("/nkhttp/exclusive/{0}/rename")]
@@ -586,5 +661,30 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
             s.Get.Url($"/nkstring-gadgets/{streamKey}");
             s.StatusCodeShouldBe(404);
         });
+    }
+}
+
+/// <summary>Every warning the host logs, for the code generation warnings GH-5947 added.</summary>
+internal class WarningCapture : ILoggerProvider
+{
+    public ConcurrentQueue<string> Messages { get; } = new();
+
+    public ILogger CreateLogger(string categoryName) => new CapturingLogger(this);
+
+    public void Dispose()
+    {
+    }
+
+    private class CapturingLogger(WarningCapture parent) : ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (IsEnabled(logLevel)) parent.Messages.Enqueue(formatter(state, exception));
+        }
     }
 }

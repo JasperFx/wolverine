@@ -74,11 +74,11 @@ public class WriteAggregateAttribute<TNaturalKey> : WriteAggregateAttribute wher
 {
     public WriteAggregateAttribute()
     {
-        NaturalKey = typeof(TNaturalKey);
+        NaturalKeyTypeArgument = typeof(TNaturalKey);
     }
 
     public WriteAggregateAttribute(string? routeOrParameterName) : base(routeOrParameterName)
     {
-        NaturalKey = typeof(TNaturalKey);
+        NaturalKeyTypeArgument = typeof(TNaturalKey);
     }
 }

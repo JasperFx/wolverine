@@ -45,10 +45,14 @@ internal partial class PolecatPersistenceFrameProvider : IEventSourcingFrameProv
     public Frame BuildFetchLatestFrame(Type aggregateType, Variable identity)
         => new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestAggregateFrame(aggregateType, identity, typeof(IDocumentSession));
 
-    // The Polecat integration has no natural key read and no mapped keys
-    public Frame? BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey)
-        => null;
+    // GH-5901: Polecat's FetchLatest<T, TKey>(key, token) reads by natural key, through the same shared frame Marten
+    // uses for its own.
+    public Frame BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey)
+        => new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestAggregateFrame(aggregateType, naturalKey,
+            typeof(IDocumentSession), true);
 
+    // GH-5901: mapped keys wait for a published Polecat package that serves them (polecat#1131 / polecat#1050).
+    // Until then an aggregate on Polecat is found by its own natural key only.
     public IReadOnlyList<Type> DetermineMappedNaturalKeyTypes(Type aggregateType, IChain chain,
         IServiceContainer container)
         => [];
