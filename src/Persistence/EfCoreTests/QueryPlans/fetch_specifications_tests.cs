@@ -1,3 +1,5 @@
+using Weasel.SqlServer;
+using Microsoft.Data.SqlClient;
 using IntegrationTests;
 using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +31,15 @@ public class efcore_fetch_specifications_tests : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
+        // GH-5760. Drop the schema first, as end_to_end_efcore_persistence does: ResetState migrates the existing
+        // mt_items.items table before it cleans it, and a row left with a NULL Name by an earlier run against the
+        // shared SQL Server failed that migration ("Cannot insert the value NULL into column 'Name'")
+        await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
+        {
+            await conn.OpenAsync();
+            await conn.DropSchemaAsync("mt_items");
+        }
+
         _host = await Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
             {
