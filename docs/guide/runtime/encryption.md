@@ -75,6 +75,9 @@ With this on:
   evicted. Make your adapter throw `KeyNotFoundException` when the KMS says
   the key is gone or disabled (map the KMS's "key disabled" or "key not
   found" answer to it), so revocation still takes effect at the next refresh.
+  It also stops every other refresh of that key-id, including one already in
+  flight, from falling back on the bytes it held; until a refresh succeeds,
+  each failure throws.
 - Any other exception, including the inner provider's own timeout, serves
   the bytes last resolved for that key-id.
 - The next call retries the inner provider. Concurrent callers still share

@@ -18,8 +18,9 @@ namespace Wolverine.Runtime.Serialization.Encryption;
 /// <c>serveLastKnownKeyOnRefreshFailure</c> the cache instead serves the bytes it
 /// last resolved for that key-id, because a key-id's bytes never change. Only a
 /// <see cref="KeyNotFoundException"/> from the inner provider is taken to mean the
-/// key is gone; it still throws and evicts the entry. Each later call retries the
-/// inner provider until a refresh succeeds.</para>
+/// key is gone; it still throws and evicts the entry, and no refresh of that key-id
+/// falls back on bytes resolved before it. Each later call retries the inner provider
+/// until a refresh succeeds.</para>
 /// </remarks>
 public sealed class CachingKeyProvider : IKeyProvider
 {
@@ -64,7 +65,7 @@ public sealed class CachingKeyProvider : IKeyProvider
 
     public async ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken)
     {
-        var entry = _cache.GetOrAdd(keyId, id => new CacheEntry(FetchAsync(id, lastKnownKey: null)));
+        var entry = _cache.GetOrAdd(keyId, StartColdFetch);
 
         if (entry.IsExpired(_ttl))
         {
@@ -72,11 +73,11 @@ public sealed class CachingKeyProvider : IKeyProvider
             // refresh that has lost the last known bytes. The refreshed entry is
             // awaited without another expiry check: one that fell back on the last
             // known bytes is already expired, and re-checking would refresh forever.
-            var lastKnownKey = _serveLastKnownKeyOnRefreshFailure ? entry.LastKnownKey : null;
             // A key-id the store has already dropped, for example after a KeyNotFoundException,
-            // is fetched cold: the bytes read above may be the ones the KMS just said are gone.
-            entry = _cache.Replace(keyId, entry, id => new CacheEntry(FetchAsync(id, lastKnownKey), lastKnownKey))
-                    ?? _cache.GetOrAdd(keyId, id => new CacheEntry(FetchAsync(id, lastKnownKey: null)));
+            // is fetched cold, with nothing to fall back on.
+            var expired = entry;
+            entry = _cache.Replace(keyId, expired, id => StartRefresh(id, expired))
+                    ?? _cache.GetOrAdd(keyId, StartColdFetch);
         }
 
         try
@@ -99,16 +100,42 @@ public sealed class CachingKeyProvider : IKeyProvider
         }
     }
 
-    private async Task<FetchedKey> FetchAsync(string keyId, byte[]? lastKnownKey)
+    private CacheEntry StartColdFetch(string keyId)
+    {
+        var revocations = new KeyRevocations();
+        return new CacheEntry(FetchAsync(keyId, lastKnownKey: null, revocations, revocationsAtStart: 0),
+            startedWithKey: null, revocations, revocationsAtStart: 0);
+    }
+
+    private CacheEntry StartRefresh(string keyId, CacheEntry expired)
+    {
+        // The count is read before the bytes, so a revocation between the two reads
+        // still stops this refresh falling back on them.
+        var revocations = expired.Revocations;
+        var revocationsAtStart = revocations.Current;
+        var lastKnownKey = _serveLastKnownKeyOnRefreshFailure ? expired.LastKnownKey : null;
+        return new CacheEntry(FetchAsync(keyId, lastKnownKey, revocations, revocationsAtStart),
+            lastKnownKey, revocations, revocationsAtStart);
+    }
+
+    private async Task<FetchedKey> FetchAsync(string keyId, byte[]? lastKnownKey, KeyRevocations revocations,
+        long revocationsAtStart)
     {
         try
         {
             var key = await _inner.GetKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false);
             return new FetchedKey(key, IsLastKnown: false);
         }
+        catch (KeyNotFoundException)
+        {
+            // Recorded here rather than by a waiting caller, so it takes effect even when
+            // no caller is still waiting on this refresh.
+            revocations.Revoke();
+            throw;
+        }
         // The inner provider is called without a token, so an OperationCanceledException
         // here is its own timeout, as transient as any other failure.
-        catch (Exception ex) when (lastKnownKey is not null && ex is not KeyNotFoundException)
+        catch (Exception ex) when (lastKnownKey is not null && revocations.Current == revocationsAtStart)
         {
             Activity.Current?.AddEvent(new ActivityEvent(WolverineTracing.EncryptionKeyLastKnownServed,
                 tags: new ActivityTagsCollection
@@ -123,24 +150,45 @@ public sealed class CachingKeyProvider : IKeyProvider
 
     private readonly record struct FetchedKey(byte[] Key, bool IsLastKnown);
 
+    // Refreshes of one key-id can overlap when one outlives its TTL, and each entry
+    // carries this forward from the one it replaces. A KeyNotFoundException in any of
+    // them then reaches the others: no refresh that started before it falls back.
+    private sealed class KeyRevocations
+    {
+        private long _count;
+
+        public long Current => Volatile.Read(ref _count);
+
+        public void Revoke() => Interlocked.Increment(ref _count);
+    }
+
     private sealed class CacheEntry
     {
         public Task<FetchedKey> Task { get; }
         public DateTimeOffset CreatedAt { get; }
+        public KeyRevocations Revocations { get; }
+        private readonly long _revocationsAtStart;
         private readonly byte[]? _startedWithKey;
 
-        public CacheEntry(Task<FetchedKey> task, byte[]? startedWithKey = null)
+        public CacheEntry(Task<FetchedKey> task, byte[]? startedWithKey, KeyRevocations revocations,
+            long revocationsAtStart)
         {
             Task = task;
             CreatedAt = DateTimeOffset.UtcNow;
+            Revocations = revocations;
+            _revocationsAtStart = revocationsAtStart;
             _startedWithKey = startedWithKey;
         }
 
         /// <summary>
         /// The bytes this entry resolved, whether fetched or served as the last known key,
-        /// or the bytes it started with if its refresh hasn't completed yet.
+        /// or the bytes it started with if its refresh hasn't completed yet. None if its
+        /// fetch failed or the key-id was revoked after it started.
         /// </summary>
-        public byte[]? LastKnownKey => Resolved?.Key ?? _startedWithKey;
+        public byte[]? LastKnownKey
+            => Task.IsFaulted || Task.IsCanceled || Revocations.Current != _revocationsAtStart
+                ? null
+                : Resolved?.Key ?? _startedWithKey;
 
         // An entry that fell back on the last known bytes is expired at once, so the next
         // caller retries the inner provider instead of serving stale bytes for a whole TTL.
