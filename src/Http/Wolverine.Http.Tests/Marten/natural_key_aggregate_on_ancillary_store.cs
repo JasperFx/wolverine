@@ -58,6 +58,7 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
 
             opts.Durability.Mode = DurabilityMode.Solo;
             opts.Durability.MessageStorageSchemaName = "nk_http_wolverine";
+            opts.Durability.EnableDeduplicatedResponses = true;
             opts.Policies.AutoApplyTransactions();
         });
 
@@ -83,6 +84,7 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
             opts.Projections.Snapshot<NkBin>(SnapshotLifecycle.Inline);
             opts.Projections.Snapshot<NkPart>(SnapshotLifecycle.Inline);
             opts.Projections.Snapshot<NkGadgetView>(SnapshotLifecycle.Async);
+            opts.Projections.Snapshot<NkLabel>(SnapshotLifecycle.Inline);
         }).IntegrateWithWolverine();
 
         // The string-identity natural-key endpoints in the endpoint assembly need this store
@@ -683,6 +685,45 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
             s.Get.Url($"/nkstring-gadgets/{streamKey}");
             s.StatusCodeShouldBe(404);
         });
+    }
+
+    // ProjectLatestForCommit refuses a natural key, which FetchLatest after the commit took.
+    [Theory]
+    [InlineData("/nklabels/tag-once")]
+    [InlineData("/nklabels/tag-once-as-aggregate-handler")]
+    public async Task updated_aggregate_claiming_in_its_transaction_on_a_natural_key(string route)
+    {
+        var streamId = Guid.NewGuid();
+        var label = "label-" + Guid.NewGuid().ToString("N");
+
+        var store = theHost.Services.GetRequiredService<INkThingStore>();
+        await using (var session = store.LightweightSession())
+        {
+            session.Events.StartStream<NkLabel>(streamId, new NkLabelCreated(label));
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        object body = route == "/nklabels/tag-once" ? new TagNkLabel(label) : new TagNkLabelAsAggregateHandler(label);
+        var key = Guid.NewGuid().ToString();
+        Task<IScenarioResult> tagOnceAsync() => theHost.Scenario(s =>
+        {
+            s.Post.Json(body).ToUrl(route);
+            s.WithRequestHeader("Idempotency-Key", key);
+            s.StatusCodeShouldBe(200);
+        });
+
+        var first = await tagOnceAsync();
+        var repeat = await tagOnceAsync();
+        (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
+
+        var answer = (await first.ReadAsJsonAsync<NkLabel>()).ShouldNotBeNull();
+        answer.Id.ShouldBe(streamId);
+        answer.Tags.ShouldBe(1);
+
+        var source = theHost.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!.Chains
+            .Single(x => x.RoutePattern!.RawText == route).SourceCode.ShouldNotBeNull();
+        source.ShouldContain(".ProjectLatestForCommit<");
+        source.ShouldContain(".QueueClaim(");
     }
 }
 

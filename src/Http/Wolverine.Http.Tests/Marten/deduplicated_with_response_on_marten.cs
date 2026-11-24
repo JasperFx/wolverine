@@ -501,9 +501,8 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
     }
 
     [Fact]
-    public async Task a_response_produced_after_the_commit_keeps_claim_and_release()
+    public async Task an_updated_aggregate_response_is_built_before_the_commit_and_claimed_with_it()
     {
-        // UpdatedAggregate fetches the aggregate after the commit; claiming before it would read it first
         var counterId = Guid.NewGuid();
         await using (var session = theHost.Services.GetRequiredService<IDocumentStore>().LightweightSession())
         {
@@ -521,8 +520,9 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
         (await repeat.ReadAsTextAsync()).ShouldBe(await first.ReadAsTextAsync());
 
         var source = sourceFor("/marten-deduplicated-response/updated-aggregate");
-        source.ShouldContain(".TryClaimAsync(");
-        source.ShouldNotContain(".QueueClaim(");
+        source.ShouldContain(".ProjectLatestForCommit<");
+        source.ShouldContain(".QueueClaim(");
+        source.ShouldNotContain(".TryClaimAsync(");
     }
 
     [Fact]

@@ -64,6 +64,7 @@ public class deduplicated_with_response_on_stores_sharing_a_data_source : IAsync
             m.Projections.Snapshot<NkBin>(SnapshotLifecycle.Inline);
             m.Projections.Snapshot<NkPart>(SnapshotLifecycle.Inline);
             m.Projections.Snapshot<NkGadgetView>(SnapshotLifecycle.Async);
+            m.Projections.Snapshot<NkLabel>(SnapshotLifecycle.Inline);
         }).IntegrateWithWolverine();
 
         // The string-identity natural-key endpoints in the endpoint assembly need this store

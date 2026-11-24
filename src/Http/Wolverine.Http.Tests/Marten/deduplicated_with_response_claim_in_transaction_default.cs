@@ -1,6 +1,7 @@
 using Alba;
 using IntegrationTests;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Events;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Attributes;
+using Wolverine.Configuration;
 using Wolverine.Marten;
 using Xunit;
 
@@ -187,9 +189,15 @@ public static class DefaultClaimInTransactionEndpoints
 
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/claim-default/after-commit")]
-    public static (UpdatedAggregate, Events) PostAfterCommit(IncrementDeduplicatedCounter command,
+    public static (CounterReadAfterTheCommit, Events) PostAfterCommit(IncrementDeduplicatedCounter command,
         [WriteAggregate] IEventStream<DeduplicatedCounter> stream)
-        => (new UpdatedAggregate(), [new DeduplicatedCounterIncremented(command.Note)]);
+        => (new CounterReadAfterTheCommit(), [new DeduplicatedCounterIncremented(command.Note)]);
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true)]
+    [WolverinePost("/claim-default/after-commit-asked")]
+    public static (CounterReadAfterTheCommit, Events) PostAfterCommitAsked(IncrementDeduplicatedCounter command,
+        [WriteAggregate] IEventStream<DeduplicatedCounter> stream)
+        => (new CounterReadAfterTheCommit(), [new DeduplicatedCounterIncremented(command.Note)]);
 
     [DeduplicatedWithResponse(DeduplicationScope.User)]
     [WolverinePost("/claim-default/no-session")]
@@ -201,6 +209,18 @@ public static class DefaultClaimInTransactionEndpoints
         session.Store(document);
         return new DeduplicatedOrderCreated(document.Id);
     }
+}
+
+public class CounterReadAfterTheCommit : IResponseAware
+{
+    public static void ConfigureResponse(IChain chain)
+    {
+        chain.UseForResponse(new MethodCall(typeof(CounterReadAfterTheCommit), nameof(ReadAsync)));
+    }
+
+    public static async Task<DeduplicatedCounter> ReadAsync(IncrementDeduplicatedCounter command,
+        IDocumentSession session, CancellationToken cancellation)
+        => (await session.Events.FetchLatest<DeduplicatedCounter>(command.DeduplicatedCounterId, cancellation))!;
 }
 
 public class deduplicated_with_response_claim_in_transaction_fallback_throws : IAsyncLifetime
@@ -281,9 +301,9 @@ public class deduplicated_with_response_claim_in_transaction_fallback_throws : I
     {
         var ex = Should.Throw<InvalidOperationException>(() =>
             deduplicated_with_response_claim_in_transaction_default.compile(theHost,
-                "/marten-deduplicated-response/updated-aggregate"));
+                "/claim-default/after-commit-asked"));
 
-        ex.Message.ShouldContain("/marten-deduplicated-response/updated-aggregate");
+        ex.Message.ShouldContain("/claim-default/after-commit-asked");
         ex.Message.ShouldContain("ClaimInTransaction = true");
         ex.Message.ShouldContain("only produced after the commit");
     }

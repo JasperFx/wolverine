@@ -49,6 +49,26 @@ public record NkThingCreated(ThingCode Code, string Title);
 public record NkThingRenamed(string NewTitle);
 public record NkThingArchived;
 
+public class NkLabel
+{
+    public Guid Id { get; set; }
+
+    [NaturalKey]
+    public string Label { get; set; } = string.Empty;
+
+    public int Tags { get; set; }
+
+    [NaturalKeySource]
+    public void Apply(NkLabelCreated e) => Label = e.Label;
+
+    public void Apply(NkLabelTagged _) => Tags++;
+}
+
+public record NkLabelCreated(string Label);
+public record NkLabelTagged;
+public record TagNkLabel(string Label);
+public record TagNkLabelAsAggregateHandler([property: JasperFx.Identity] string Label);
+
 public record RenameNkThing(ThingCode Code, string NewTitle);
 public record ArchiveNkThing(ThingCode Code);
 
@@ -75,4 +95,17 @@ public static class NkThingEndpoints
     {
         return new NkThingArchived();
     }
+
+    [DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true)]
+    [WolverinePost("/nklabels/tag-once")]
+    public static (UpdatedAggregate, Events) TagOnce(TagNkLabel command,
+        [WriteAggregate(nameof(TagNkLabel.Label))] NkLabel label)
+        => (new UpdatedAggregate(), [new NkLabelTagged()]);
+
+    [AggregateHandler]
+    [DeduplicatedWithResponse(DeduplicationScope.User, ClaimInTransaction = true)]
+    [WolverinePost("/nklabels/tag-once-as-aggregate-handler")]
+    public static (UpdatedAggregate, Events) TagOnceAsAggregateHandler(TagNkLabelAsAggregateHandler command,
+        NkLabel label)
+        => (new UpdatedAggregate(), [new NkLabelTagged()]);
 }
