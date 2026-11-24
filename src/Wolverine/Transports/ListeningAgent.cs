@@ -77,13 +77,19 @@ public interface IListeningAgent : IListenerCircuit
     bool ReceiverHasFaulted => false;
 }
 
-public class ListeningAgent : IAsyncDisposable, IListeningAgent
+public class ListeningAgent : IAsyncDisposable, IListeningAgent, IPausesForErrorPolicy
 {
     private readonly BackPressureAgent? _backPressureAgent;
     private readonly CircuitBreaker? _circuitBreaker;
 
     /// <summary>Null unless the endpoint opted into a circuit breaker. Test seam.</summary>
     internal CircuitBreaker? CircuitBreaker => _circuitBreaker;
+
+    // GH-5945. An error policy pause waiting to be reported as resumed
+    private readonly ErrorPolicyPause _errorPolicyPause;
+
+    /// <summary>Test seam.</summary>
+    internal ErrorPolicyPause ErrorPolicyPause => _errorPolicyPause;
     private readonly ILogger _logger;
     private readonly HandlerPipeline _pipeline;
     private readonly WolverineRuntime _runtime;
@@ -104,6 +110,7 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
         _runtime = runtime;
         Uri = endpoint.Uri;
         _logger = runtime.LoggerFactory.CreateLogger<ListeningAgent>();
+        _errorPolicyPause = new ErrorPolicyPause(runtime, endpoint, _logger);
 
         if (endpoint.CircuitBreakerOptions != null)
         {
@@ -569,9 +576,15 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
         // GH-5446. Outside the semaphore, so an observer that reaches back into this listener cannot deadlock it.
         // Only a start that actually reached Accepting counts: one refused by an agent restriction leaves the
         // breaker's reset pending for whichever start does get there.
-        if (Status == ListeningStatus.Accepting && _circuitBreaker != null)
+        if (Status == ListeningStatus.Accepting)
         {
-            await _circuitBreaker.ListenerResumedAsync(reason, _logger);
+            if (_circuitBreaker != null)
+            {
+                await _circuitBreaker.ListenerResumedAsync(reason, _logger);
+            }
+
+            // GH-5945. Same rule for an error policy's pause
+            await _errorPolicyPause.ResumedAsync();
         }
     }
 
@@ -626,9 +639,14 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
         }
 
         // As in startAsync, outside the semaphore
-        if (Status == ListeningStatus.Accepting && _circuitBreaker != null)
+        if (Status == ListeningStatus.Accepting)
         {
-            await _circuitBreaker.ListenerResumedAsync(CircuitBreakerResetReason.ExplicitStart, _logger);
+            if (_circuitBreaker != null)
+            {
+                await _circuitBreaker.ListenerResumedAsync(CircuitBreakerResetReason.ExplicitStart, _logger);
+            }
+
+            await _errorPolicyPause.ResumedAsync();
         }
 
         return true;
@@ -1028,11 +1046,29 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
         // PauseWithDrainAsync and leaves its pending reset alone.
         _circuitBreaker?.PauseSuperseded();
 
+        // GH-5945. Nor is it an error policy's resume
+        _errorPolicyPause.Superseded();
+
+        await PauseCoreAsync(pauseTime, latchBeforeDrain: false);
+    }
+
+    /// <summary>
+    /// GH-5945. <see cref="PauseAsync" /> for an error policy's (or a rate limit's) pause, which is reported to
+    /// <c>IWolverineObserver.ListenerPaused</c> now and to <c>ListenerResumed</c> once the listener accepts again.
+    /// Reached from inside the handler pipeline, so the same no-latch rule as <see cref="PauseAsync" /> applies.
+    /// </summary>
+    async ValueTask IPausesForErrorPolicy.PauseForErrorPolicyAsync(TimeSpan pauseTime, Exception? exception)
+    {
+        _circuitBreaker?.PauseSuperseded();
+        await _errorPolicyPause.PausingAsync(pauseTime, exception);
         await PauseCoreAsync(pauseTime, latchBeforeDrain: false);
     }
 
     public async ValueTask PauseWithDrainAsync(TimeSpan pauseTime)
     {
+        // The circuit breaker's pause replaces any error policy pause, and reports its own end (GH-5446)
+        _errorPolicyPause.Superseded();
+
         // Safe to fully drain here: this method is called from background threads
         // (circuit breaker), never from within the handler pipeline call stack.
         await PauseCoreAsync(pauseTime, latchBeforeDrain: true);
