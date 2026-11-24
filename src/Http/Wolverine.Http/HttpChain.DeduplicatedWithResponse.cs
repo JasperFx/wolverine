@@ -236,6 +236,15 @@ public partial class HttpChain
         }
 
         var resource = ResourceVariable ?? Method.Creates.First();
+
+        var creator = resource.Creator;
+        Frame? beforeCommit = null;
+        if (creator is IHasBeforeCommitResponse alternative && Postprocessors.Contains(creator)
+            && alternative.TryBuildBeforeCommitResponse(this, container, out beforeCommit, out var response))
+        {
+            resource = response;
+        }
+
         var prepare = new PrepareDeduplicatedResponseClaimFrame(scoped, fingerprint, resource,
             MissingResponseBodyStatusCode, requirement.StoreBody, requirement.Window);
         var storageId = new DeduplicationStorageIdFrame(scoped);
@@ -252,12 +261,18 @@ public partial class HttpChain
         var commit = Postprocessors.IndexOf(transactional.Commit);
         if (commit < 0) return false;
 
-        // A response produced after the commit, as UpdatedAggregate fetches the aggregate: claiming it before the
-        // commit would pull that read ahead of the commit, and answer with the aggregate before this request's events
-        if (resource.Creator != null && Postprocessors.IndexOf(resource.Creator) > commit)
+        if (beforeCommit != null)
+        {
+            Postprocessors.Remove(creator!);
+            commit = Postprocessors.IndexOf(transactional.Commit);
+            Postprocessors.Insert(commit, beforeCommit);
+            commit++;
+            ResourceVariable = resource;
+        }
+        else if (creator != null && Postprocessors.IndexOf(creator) > commit)
         {
             reportClaimInTransactionFallsBack(container, asked,
-                "its response is only produced after the commit (UpdatedAggregate, say), and the claim has to be written before it");
+                "its response is only produced after the commit, and the claim has to be written before it");
             return false;
         }
 

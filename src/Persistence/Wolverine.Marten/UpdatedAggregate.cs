@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration.Frames;
@@ -7,6 +8,8 @@ using Marten;
 using Marten.Events;
 using Marten.Internal;
 using Wolverine.Configuration;
+using Wolverine.Marten.Persistence.Sagas;
+using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
 
 namespace Wolverine.Marten;
@@ -51,15 +54,15 @@ public class UpdatedAggregate : IResponseAware
         if (handling.IsNaturalKey)
         {
             var guidIdentity = ResolveToGuidType(handling.StreamIdType ?? typeof(Guid));
-            return new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestByStreamHandle(typeof(IEventStoreOperations),
+            return new FetchLatestByStreamHandle(
                 UpdatedAggregateIdentity.FetchLatestMethod(guidIdentity ? typeof(Guid) : typeof(string),
                     handling.AggregateType),
-                handling.AggregateType, guidIdentity);
+                handling.AggregateType, guidIdentity, handling.EventStream);
         }
 
         return ResolveToGuidType(handling.AggregateId.VariableType)
-            ? new FetchLatestByGuid(handling.AggregateId, handling.AggregateType)
-            : new FetchLatestByString(handling.AggregateId, handling.AggregateType);
+            ? new FetchLatestByGuid(handling.AggregateId, handling.AggregateType, handling.EventStream)
+            : new FetchLatestByString(handling.AggregateId, handling.AggregateType, handling.EventStream);
     }
 
     internal static bool ResolveToGuidType(Type idType)
@@ -106,21 +109,92 @@ public class UpdatedAggregate<T> : IResponseAware
 // T was only ever used to resolve a MethodInfo for IEventStoreOperations.FetchLatest<T>, which is a type
 // IDENTITY rather than a dispatch mechanism -- so this is the shape GH-4764 converted, and converting it
 // removes the instantiation ILC had to be asked to keep instead of merely rooting it.
-internal class FetchLatestByGuid : MethodCall
+internal class FetchLatestByGuid : MethodCall, IHasBeforeCommitResponse
 {
-    public FetchLatestByGuid(Variable id, Type aggregateType)
+    private readonly Variable _eventStream;
+    private readonly Type _aggregateType;
+
+    public FetchLatestByGuid(Variable id, Type aggregateType, Variable eventStream)
         : base(typeof(IEventStoreOperations), UpdatedAggregateIdentity.FetchLatestMethod(typeof(Guid), aggregateType))
     {
+        _eventStream = eventStream;
+        _aggregateType = aggregateType;
         Arguments[0] = UpdatedAggregateIdentity.Resolve(id, typeof(Guid));
     }
+
+    public bool TryBuildBeforeCommitResponse(IChain chain, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame, [NotNullWhen(true)] out Variable? response)
+        => ProjectLatestForCommit.TryBuild(chain, container, _eventStream, _aggregateType, out frame, out response);
 }
 
-internal class FetchLatestByString : MethodCall
+internal class FetchLatestByString : MethodCall, IHasBeforeCommitResponse
 {
-    public FetchLatestByString(Variable id, Type aggregateType)
+    private readonly Variable _eventStream;
+    private readonly Type _aggregateType;
+
+    public FetchLatestByString(Variable id, Type aggregateType, Variable eventStream)
         : base(typeof(IEventStoreOperations), UpdatedAggregateIdentity.FetchLatestMethod(typeof(string), aggregateType))
     {
+        _eventStream = eventStream;
+        _aggregateType = aggregateType;
         Arguments[0] = UpdatedAggregateIdentity.Resolve(id, typeof(string));
+    }
+
+    public bool TryBuildBeforeCommitResponse(IChain chain, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame, [NotNullWhen(true)] out Variable? response)
+        => ProjectLatestForCommit.TryBuild(chain, container, _eventStream, _aggregateType, out frame, out response);
+}
+
+internal class FetchLatestByStreamHandle
+    : Wolverine.Persistence.EventSourcing.Codegen.FetchLatestByStreamHandle, IHasBeforeCommitResponse
+{
+    private readonly Variable _eventStream;
+    private readonly Type _aggregateType;
+
+    public FetchLatestByStreamHandle(MethodInfo fetchLatest, Type aggregateType, bool guidIdentity,
+        Variable eventStream)
+        : base(typeof(IEventStoreOperations), fetchLatest, aggregateType, guidIdentity)
+    {
+        _eventStream = eventStream;
+        _aggregateType = aggregateType;
+    }
+
+    public bool TryBuildBeforeCommitResponse(IChain chain, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame, [NotNullWhen(true)] out Variable? response)
+        => ProjectLatestForCommit.TryBuild(chain, container, _eventStream, _aggregateType, out frame, out response);
+}
+
+internal class ProjectLatestForCommit : MethodCall
+{
+    private ProjectLatestForCommit(Variable streamId, Type aggregateType)
+        : base(typeof(IEventStoreOperations),
+            UpdatedAggregateIdentity.ProjectLatestForCommitMethod(streamId.VariableType, aggregateType))
+    {
+        Arguments[0] = streamId;
+    }
+
+    // ProjectLatestForCommit takes only the stream's id, where FetchLatest also takes a natural key and the
+    // aggregate's id can be one, so it is given the id of the stream that was loaded. Under EventAppendMode.Quick
+    // the database assigns each event's timestamp at the commit, and ProjectLatestForCommit refuses it.
+    internal static bool TryBuild(IChain chain, IServiceContainer container, Variable eventStream,
+        Type aggregateType, [NotNullWhen(true)] out Frame? frame, [NotNullWhen(true)] out Variable? response)
+    {
+        frame = null;
+        response = null;
+
+        var events = MartenPersistenceFrameProvider.ResolveStore(chain, container).As<DocumentStore>().Options.Events;
+        if (events.AppendMode == JasperFx.Events.EventAppendMode.Quick) return false;
+
+        var member = events.StreamIdentity == JasperFx.Events.StreamIdentity.AsGuid
+            ? nameof(JasperFx.Events.IEventStream<object>.Id)
+            : nameof(JasperFx.Events.IEventStream<object>.Key);
+
+        var project = new ProjectLatestForCommit(
+            new MemberAccessVariable(eventStream, eventStream.VariableType.GetProperty(member)!), aggregateType);
+
+        frame = project;
+        response = project.ReturnVariable!;
+        return true;
     }
 }
 
@@ -144,6 +218,12 @@ internal static class UpdatedAggregateIdentity
     ///     without it this lookup would be ambiguous the moment that overload's first parameter matched.</para>
     /// </remarks>
     internal static MethodInfo FetchLatestMethod(Type identityType, Type aggregateType)
+        => closeIdentityOverload(nameof(IEventStoreOperations.FetchLatest), identityType, aggregateType);
+
+    internal static MethodInfo ProjectLatestForCommitMethod(Type identityType, Type aggregateType)
+        => closeIdentityOverload(nameof(IEventStoreOperations.ProjectLatestForCommit), identityType, aggregateType);
+
+    private static MethodInfo closeIdentityOverload(string methodName, Type identityType, Type aggregateType)
     {
         // GetMethods() on an INTERFACE does not return members inherited from its base interfaces, and
         // Marten.Events.IEventStoreOperations declares no FetchLatest of its own -- it inherits all three
@@ -154,7 +234,7 @@ internal static class UpdatedAggregateIdentity
         var open = new[] { typeof(IEventStoreOperations) }
             .Concat(typeof(IEventStoreOperations).GetInterfaces())
             .SelectMany(x => x.GetMethods())
-            .Where(x => x.Name == nameof(IEventStoreOperations.FetchLatest)
+            .Where(x => x.Name == methodName
                         && x.IsGenericMethodDefinition
                         && x.GetGenericArguments().Length == 1
                         && x.GetParameters()[0].ParameterType == identityType)

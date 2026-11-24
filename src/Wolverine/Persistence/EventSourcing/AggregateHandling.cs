@@ -50,6 +50,12 @@ internal record AggregateHandling(IDataRequirement Requirement)
     /// </summary>
     public Type? StreamIdType { get; init; }
 
+    /// <summary>
+    ///     The <c>IEventStream&lt;TAggregate&gt;</c> that <see cref="Apply" /> loaded. Its id is the stream's own,
+    ///     where <see cref="AggregateId" /> can be a natural key.
+    /// </summary>
+    public Variable EventStream { get; private set; } = null!;
+
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "Handler/command/model types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
     public Variable Apply(IChain chain, IServiceContainer container)
@@ -93,6 +99,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         chain.Middleware.Add(loader);
 
         var eventStream = FindEventStreamVariable(loader, AggregateType, Provider);
+        EventStream = eventStream;
 
         chain.Middleware.Add(IsNaturalKey
             ? new TagLoadedStreamIdOtelFrame(eventStream, AggregateType, Provider.DetermineStreamIdentity(chain, container))
