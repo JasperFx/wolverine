@@ -333,34 +333,55 @@ public class natural_key_read_aggregate : PostgresqlContext, IAsyncLifetime
 /// </summary>
 public class natural_key_ambiguous_command : PostgresqlContext
 {
-    [Fact]
-    public async Task a_command_matching_two_natural_keys_is_refused()
+    private static Task<IHost> buildHost() => WolverineHost.ForAsync(opts =>
     {
-        using var host = await WolverineHost.ForAsync(opts =>
-        {
-            opts.Services.AddMarten(m =>
-                {
-                    m.Connection(Servers.PostgresConnectionString);
-                    m.DatabaseSchemaName = "nk_ambiguous";
-                    m.Projections.Snapshot<NkProduct>(SnapshotLifecycle.Inline);
-                    m.Projections.Snapshot<NkShelf>(SnapshotLifecycle.Inline);
-                })
-                .UseLightweightSessions()
-                .IntegrateWithWolverine();
+        opts.Services.AddMarten(m =>
+            {
+                m.Connection(Servers.PostgresConnectionString);
+                m.DatabaseSchemaName = "nk_ambiguous";
+                m.Projections.Snapshot<NkProduct>(SnapshotLifecycle.Inline);
+                m.Projections.Snapshot<NkShelf>(SnapshotLifecycle.Inline);
+            })
+            .UseLightweightSessions()
+            .IntegrateWithWolverine();
 
-            opts.Discovery.DisableConventionalDiscovery()
-                .IncludeType(typeof(NkShelfHandler));
-            opts.Durability.Mode = DurabilityMode.Solo;
-            opts.Services.AddResourceSetupOnStartup();
-            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-        });
+        opts.Discovery.DisableConventionalDiscovery()
+            .IncludeType(typeof(NkShelfHandler))
+            .IncludeType(typeof(NkShelfMoveHandler));
+        opts.Durability.Mode = DurabilityMode.Solo;
+        opts.Services.AddResourceSetupOnStartup();
+        opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+    });
 
-        var ex = Should.Throw<Exception>(() => host.GetRuntime().Handlers.HandlerFor<StockNkShelf>());
+    [Fact]
+    public async Task a_command_with_the_owned_and_a_mapped_key_loads_by_the_owned_key()
+    {
+        // GH-5954: the shelf owns Code and maps the product's Sku. Both lead to the same stream for the shelf, so the
+        // owned key is taken rather than the command being refused as ambiguous
+        using var host = await buildHost();
 
+        host.GetRuntime().Handlers.HandlerFor<StockNkShelf>();
+        var source = host.GetRuntime().Handlers.ChainFor<StockNkShelf>()!.SourceCode.ShouldNotBeNull();
+
+        source.ShouldContain(
+            $"FetchForWriting<{typeof(NkShelf).FullNameInCode()}, {typeof(NkShelfCode).FullNameInCode()}>");
+        source.ShouldNotContain(
+            $"FetchForWriting<{typeof(NkShelf).FullNameInCode()}, {typeof(NkSku).FullNameInCode()}>");
+    }
+
+    [Fact]
+    public async Task a_command_with_two_members_of_the_same_key_type_is_refused()
+    {
+        // Neither member is named like the shelf's key member, so there's nothing to prefer one by
+        using var host = await buildHost();
+
+        var ex = Should.Throw<Exception>(() => host.GetRuntime().Handlers.HandlerFor<MoveNkShelf>());
+
+        // GH-5947 (E1): the refusal says which members it couldn't choose between
         var message = ex.ToString();
-        message.ShouldContain("more than one natural key");
-        message.ShouldContain(nameof(StockNkShelf.Sku));
-        message.ShouldContain(nameof(StockNkShelf.Code));
+        message.ShouldContain("Unable to determine an aggregate id");
+        message.ShouldContain(
+            $"{nameof(MoveNkShelf)} has more than one {nameof(NkShelfCode)} member ({nameof(MoveNkShelf.From)}, {nameof(MoveNkShelf.To)})");
     }
 }
 
@@ -458,6 +479,8 @@ public record AuditNkProductAtVersion(NkSku Sku, long Version);
 
 public record StockNkShelf(NkSku Sku, NkShelfCode Code);
 
+public record MoveNkShelf(NkShelfCode From, NkShelfCode To);
+
 public static class NkProductHandler
 {
     public static int LastStockSeen;
@@ -535,6 +558,12 @@ public static class NkShelfHandler
 {
     public static NkShelfPlaced Handle(StockNkShelf command, [WriteAggregate] NkShelf shelf)
         => new(command.Code, command.Sku);
+}
+
+public static class NkShelfMoveHandler
+{
+    public static NkShelfPlaced Handle(MoveNkShelf command, [WriteAggregate] NkShelf shelf)
+        => new(command.To, shelf.Sku);
 }
 
 // A reference-type key, which can be null without being declared TKey?

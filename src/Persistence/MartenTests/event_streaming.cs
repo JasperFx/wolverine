@@ -42,12 +42,18 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
             {
                 opts.ListenAtPort(receiverPort);
                 opts.Durability.Mode = DurabilityMode.Solo;
+
+                // GH-5760: only the handler this receiver needs. Scanning the whole test assembly registered every
+                // aggregate document in MartenTests with this store, and resource setup then created or altered all of
+                // their tables, colliding with other tests' tables of the same names
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<TriggerEventHandler>();
             })
             .ConfigureServices(services =>
             {
                 services.AddMarten(opts =>
                     {
                         opts.Connection(Servers.PostgresConnectionString);
+                        opts.DatabaseSchemaName = "event_streaming";
                         opts.Logger(new TestOutputMartenLogger(_output));
                     })
                     .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "receiver");
@@ -77,6 +83,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
                 services.AddMarten(opts =>
                     {
                         opts.Connection(Servers.PostgresConnectionString);
+                        opts.DatabaseSchemaName = "event_streaming";
                         opts.Logger(new TestOutputMartenLogger(_output));
 
                         // Fast event forwarding publishes events in BeforeSaveChanges, before commit.

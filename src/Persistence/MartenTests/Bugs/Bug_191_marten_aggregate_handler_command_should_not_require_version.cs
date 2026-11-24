@@ -1,3 +1,4 @@
+using Marten.Schema;
 using IntegrationTests;
 using JasperFx;
 using Marten;
@@ -57,6 +58,10 @@ public class Bug_191_marten_aggregate_handler_command_should_not_require_version
 
     public record ThingUpdated(Guid ThingId, string UpdatedStuff);
 
+    // Without the alias the table is mt_doc_bug_191_marten_aggregate_handler_command_should_not_require_version_thing,
+    // longer than PostgreSQL's 63 character identifiers. Weasel 10 refuses it rather than truncating it, which failed
+    // resource setup in any host that discovers this handler, such as event_streaming's receiver (GH-5760)
+    [DocumentAlias("bug_191_thing")]
     public class Thing
     {
         public Guid Id { get; set; }
