@@ -2051,10 +2051,19 @@ For a deeper discussion of concurrency strategies in Wolverine, see the
 
 ### Optimistic Concurrency with Revisioning
 
-If your saga persistence supports optimistic concurrency (Marten and EF Core both do), you can
-implement the `IRevisioned` interface on your saga class. Wolverine will automatically check the
-version on save and throw a `ConcurrencyException` if the saga was modified by another handler
-between load and save:
+Every saga storage option Wolverine ships can catch a saga that was modified by another handler between load and
+save, but how you turn that on depends on the storage:
+
+* **Marten, Polecat and Fisher** check it when you implement the `IRevisioned` interface on your saga class, as shown
+  below
+* **EF Core** checks it when you map the saga's `Version` property as a concurrency token, like
+  `modelBuilder.Entity<QuoteCollection>().Property(x => x.Version).IsConcurrencyToken()`. Wolverine bumps `Version`
+  for you whenever the saga changed
+* The [lightweight saga tables](#lightweight-saga-storage) (PostgreSQL, SQL Server, MySQL, Oracle and SQLite),
+  CosmosDB and RavenDB always check it, with nothing to configure
+
+Either way, a conflict throws a `ConcurrencyException` (a `SagaConcurrencyException` is one too). With Marten,
+Polecat or Fisher, it looks like this:
 
 ```cs
 public class QuoteCollection : Saga, IRevisioned
