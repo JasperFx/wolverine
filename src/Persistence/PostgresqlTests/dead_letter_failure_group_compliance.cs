@@ -16,6 +16,12 @@ public class dead_letter_failure_group_compliance : RelationalDeadLetterFailureG
             {
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "dlq_groups");
                 opts.Durability.Mode = DurabilityMode.Solo;
+
+                // GH-5760. The tests drive the durability agent's recovery pass (moving replayable dead letters to the
+                // inbox) themselves. The agent's own pass moved replayed dead letters mid-test, so a discard or count
+                // that followed a replay saw fewer rows than it replayed. Its first pass now comes long after any test
+                // here; RavenDB's twin removes its replayer instead
+                opts.Durability.ScheduledJobFirstExecution = TimeSpan.FromHours(1);
             }).StartAsync();
     }
 
