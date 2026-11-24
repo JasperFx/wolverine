@@ -23,6 +23,12 @@ public interface IRoutedChain
     IReadOnlyList<string> RouteParameterNames { get; }
 
     /// <summary>
+    ///     The constraints on a named route parameter, as written in the template: "/orders/{id:guid}" yields "guid"
+    ///     for "id". Empty when it has none. GH-5954: a Guid-constrained route value is a stream id, never a natural key.
+    /// </summary>
+    IReadOnlyList<string> RouteParameterConstraints(string routeParameterName) => [];
+
+    /// <summary>
     ///     Tell this chain the CLR type behind a named route parameter. Purely descriptive: this creates no
     ///     binding and does not affect the generated code. Ignored when the route template has no parameter
     ///     by that name.

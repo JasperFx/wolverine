@@ -355,7 +355,9 @@ internal record AggregateHandling(IDataRequirement Requirement)
             return (member, keyType != null && naturalKeyTypes.Contains(keyType));
         }
 
-        if (NaturalKeyIdentity.FindKeyMember(aggregateType, commandType, naturalKeyTypes, chain) is { } keyMember)
+        var ownedKeyType = provider.TryDetermineNaturalKeyType(aggregateType, chain, container);
+        if (NaturalKeyIdentity.FindKeyMember(aggregateType, commandType, naturalKeyTypes, chain, ownedKeyType) is
+            { } keyMember)
         {
             return (keyMember, true);
         }

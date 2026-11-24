@@ -228,6 +228,17 @@ public class natural_key_decider_workflow : PostgresqlContext, IAsyncLifetime
         span.GetTagItem(WolverineTracing.StreamId).ShouldBeNull();
     }
 
+    // GH-5954: of two members of the key type, the one named like the ticket's own key member
+    [Fact]
+    public async Task the_decider_workflow_loads_by_the_member_named_like_the_key()
+    {
+        var (streamId, number) = await openTicket();
+
+        await _host.InvokeMessageAndWaitAsync(new NoteNkTicketWithAReference(number, uniqueNumber(), "Referenced"));
+
+        (await loadTicket(streamId)).Notes.ShouldBe(1);
+    }
+
     [Fact]
     public async Task changing_a_natural_key()
     {
@@ -294,6 +305,8 @@ public static class NkTicketOtherHandlers
 {
     public static NkTicketNoted Handle(NoteNkTicketById command, NkTicket ticket) => new(command.Text);
 
+    public static NkTicketNoted Handle(NoteNkTicketWithAReference command, NkTicket ticket) => new(command.Text);
+
     public static NkTicketNoted Handle(NoteNkTicketAtVersion command, NkTicket ticket) => new(command.Text);
 
     public static NkTicketNoted Handle(NoteNkTicketMaybe command, NkTicket ticket) => new(command.Text);
@@ -311,6 +324,8 @@ public record NoteNkTicketAtVersion(NkTicketNumber Number, string Text, long Ver
 public record NoteNkTicketMaybe(NkTicketNumber? Number, string Text);
 
 public record NoteNkTicketIfFound(NkTicketNumber Number, string Text);
+
+public record NoteNkTicketWithAReference(NkTicketNumber Number, NkTicketNumber Related, string Text);
 
 public record ConfirmNkTicket(NkTicketNumber Number);
 
@@ -338,7 +353,8 @@ public static class NkTicketDecider
 }
 
 #region sample_wolverine_marten_changing_a_natural_key
-// The command carries the current number and the new one, so the attribute names the one to load by
+// The command carries the current number and the new one. Number is named like NkTicket's own Number, so that's the
+// one the ticket is loaded by
 public record RenumberNkTicket(NkTicketNumber Number, NkTicketNumber NewNumber);
 
 public static class NkTicketRenumberHandler
@@ -346,7 +362,7 @@ public static class NkTicketRenumberHandler
     // NkTicketRenumbered is a [NaturalKeySource] on NkTicket, so appending it moves the ticket to the new number.
     // UpdatedAggregate returns the ticket as it is after the event.
     public static (UpdatedAggregate, NkTicketRenumbered) Handle(RenumberNkTicket command,
-        [WriteAggregate<NkTicketNumber>(nameof(RenumberNkTicket.Number))] NkTicket ticket)
+        [WriteAggregate] NkTicket ticket)
         => (new UpdatedAggregate(), new NkTicketRenumbered(command.NewNumber));
 }
 #endregion
