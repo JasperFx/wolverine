@@ -408,9 +408,16 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     }
 
     /// <summary>
-    /// GH-5695. A message type of a partitioned topology with more than one handler type is refused at startup. Each
-    /// handler type runs on its own local queue, so the slot that sequences a group's messages can only relay them to
-    /// those queues and move on, and nothing keeps the group's messages in order across them
+    /// GH-5695. A message type of a local or external sharded partitioned topology with more than one handler type is run
+    /// on the topology's slots, one handler type after the other (<see cref="PartitionedSlotExpansion"/>), when the slots
+    /// are buffered. Anything the slots can't do that for is refused at startup, because each handler type would run
+    /// on its own local queue and nothing would keep the group's messages in order across them:
+    /// <list type="bullet">
+    /// <item>a durable or native-ack slot</item>
+    /// <item>a topology that only publishes from this application</item>
+    /// <item>an external sharded topology whose message type also has a <c>BatchMessagesOf&lt;T&gt;()</c> batch, which
+    /// that slot relays to every member's local queue (GH-5138)</item>
+    /// </list>
     /// </summary>
     internal void AssertPartitionedMessagesHaveOneHandlerType(MessagePartitioningRules partitioning)
     {
@@ -418,22 +425,41 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         {
             if (group.Chains.Count < 2) continue;
 
-            // GH-5916. When several topologies publish the message type, each one runs only the handler types it
-            // declares, so count those
-            var topology = partitioning.ShardedMessageTopologies
-                .Where(x => x.Matches(group.MessageType))
-                .Select(x => (Topology: x, Chains: partitioning.HandlerScopes.ChainsRunBy(x, group)))
-                .FirstOrDefault(x => x.Chains.Length > 1);
+            foreach (var topology in partitioning.ShardedMessageTopologies.Where(x => x.Matches(group.MessageType)))
+            {
+                // GH-5916. When several topologies publish the message type, each one runs only the handler types it
+                // declares, so count those
+                var chains = partitioning.HandlerScopes.ChainsRunBy(topology, group);
+                if (chains.Length < 2) continue;
 
-            if (topology.Topology == null) continue;
+                var messageType = group.MessageType.FullNameInCode();
+                var handlerTypes = chains.Select(x => MessageHandlerGroup.HandlerTypeOf(x).FullNameInCode()).Join(", ");
 
-            var handlerTypes = topology.Chains.Select(x => MessageHandlerGroup.HandlerTypeOf(x).FullNameInCode()).Join(", ");
+                var expands = topology.ListensLocally && topology.Slots.All(PartitionedSlotExpansion.Supports);
+                if (!expands)
+                {
+                    var modes = topology.Slots.Select(x => x.Mode.ToString()).Distinct().Join(", ");
+                    throw new InvalidOperationException(
+                        $"Message type '{messageType}' belongs to the partitioned message topology '{topology.Uri}' " +
+                        $"and is handled by more than one handler type ({handlerTypes}). A buffered slot runs every " +
+                        "handler type of the message on the slot, one after the other, which keeps the messages of " +
+                        $"one group in order across them, but this topology's slots are {modes}" +
+                        (topology.ListensLocally ? "" : " and are not listened to in this application") +
+                        ". Make the topology's slots buffered, handle this message type in one handler type, or leave " +
+                        "it out of the partitioned topology.");
+                }
 
-            throw new InvalidOperationException(
-                $"Message type '{group.MessageType.FullNameInCode()}' belongs to the partitioned message topology " +
-                $"'{topology.Topology.Uri}' and is handled by more than one handler type ({handlerTypes}). Each handler type " +
-                "runs on its own local queue, so the topology cannot keep the messages of one group in order across " +
-                "them. Handle this message type in one handler type, or leave it out of the partitioned topology.");
+                if (topology is not LocalPartitionedMessageTopology && BatchFor(group.MessageType) != null)
+                {
+                    throw new InvalidOperationException(
+                        $"Message type '{messageType}' belongs to the sharded message topology '{topology.Uri}', is " +
+                        $"handled by more than one handler type ({handlerTypes}), and is also batched with " +
+                        $"BatchMessagesOf<{group.MessageType.Name}>(). The topology's slots hand the message to the " +
+                        "batch by relaying it to every handler type's local queue, so the messages of one group would " +
+                        "not stay in order across the handler types. Handle the message type in one handler type, " +
+                        "remove the batch, or leave the message type out of the topology.");
+                }
+            }
         }
     }
 

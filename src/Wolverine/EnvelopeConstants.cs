@@ -42,6 +42,13 @@ public static class EnvelopeConstants
     public const string StartsNewLinkedTraceKey = "starts-new-linked-trace";
 
     /// <summary>
+    ///     GH-5695. On a copy of a message that a partitioned topology's slot made for one of the several handler types
+    ///     of the message type: the handler type the copy runs. A slot runs a message with this header in that one
+    ///     handler type, and expands a message without it into one copy per handler type
+    /// </summary>
+    public const string PartitionedHandlerTypeKey = "wolverine-handler-type";
+
+    /// <summary>
     ///     Legacy timestamp format retained for reading older transport headers and persisted envelopes.
     ///     New transport headers use the invariant round-trip format ("o").
     /// </summary>

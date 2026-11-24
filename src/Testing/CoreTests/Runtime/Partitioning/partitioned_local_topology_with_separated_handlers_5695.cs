@@ -19,30 +19,36 @@ public class partitioned_local_topology_with_separated_handlers_5695
 {
     /// <summary>
     /// Two handler types each run on their own queue, so the topology could no longer keep the order of a group's
-    /// messages even without the relay loop. Startup refuses it instead of failing silently.
+    /// messages even without the relay loop. #5763 refused it at startup; a buffered slot now runs both handler types
+    /// itself, one after the other (see partitioned_slot_runs_every_handler_type_in_order_5695)
     /// </summary>
     [Fact]
-    public async Task a_partitioned_message_with_two_handler_types_is_refused_at_startup()
+    public async Task a_partitioned_message_with_two_handler_types_runs_both_on_the_slot()
     {
-        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
-        {
-            using var host = await Host.CreateDefaultBuilder()
-                .UseWolverine(opts =>
-                {
-                    opts.Discovery.DisableConventionalDiscovery()
-                        .IncludeType(typeof(BillingOrderPlacedHandler5695))
-                        .IncludeType(typeof(ShippingOrderPlacedHandler5695));
+        BillingOrderPlacedHandler5695.Handled.Clear();
+        ShippingOrderPlacedHandler5695.Handled.Clear();
 
-                    opts.MessagePartitioning
-                        .ByMessage<IOrderEvent5695>(x => x.OrderId.ToString())
-                        .PublishToPartitionedLocalMessaging("orders5695", 4,
-                            t => t.MessagesImplementing<IOrderEvent5695>());
-                }).StartAsync(TestContext.Current.CancellationToken);
-        });
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(BillingOrderPlacedHandler5695))
+                    .IncludeType(typeof(ShippingOrderPlacedHandler5695));
 
-        ex.Message.ShouldContain(nameof(OrderPlaced5695));
-        ex.Message.ShouldContain(nameof(BillingOrderPlacedHandler5695));
-        ex.Message.ShouldContain(nameof(ShippingOrderPlacedHandler5695));
+                opts.MessagePartitioning
+                    .ByMessage<IOrderEvent5695>(x => x.OrderId.ToString())
+                    .PublishToPartitionedLocalMessaging("orders5695", 4,
+                        t => t.MessagesImplementing<IOrderEvent5695>());
+            }).StartAsync(TestContext.Current.CancellationToken);
+
+        var orderId = Guid.NewGuid();
+        var session = await host.TrackActivity(10.Seconds()).PublishMessageAndWaitAsync(new OrderPlaced5695(orderId));
+
+        BillingOrderPlacedHandler5695.Handled.ShouldBe([orderId]);
+        ShippingOrderPlacedHandler5695.Handled.ShouldBe([orderId]);
+
+        // No relay to the handler types' own queues, and so no loop
+        session.Sent.MessagesOf<OrderPlaced5695>().Count().ShouldBeLessThan(5);
     }
 
     /// <summary>
@@ -92,16 +98,16 @@ public record OrderShipped5695(Guid OrderId) : IOrderEvent5695;
 
 public class BillingOrderPlacedHandler5695
 {
-    public void Handle(OrderPlaced5695 message)
-    {
-    }
+    public static ConcurrentQueue<Guid> Handled { get; } = new();
+
+    public void Handle(OrderPlaced5695 message) => Handled.Enqueue(message.OrderId);
 }
 
 public class ShippingOrderPlacedHandler5695
 {
-    public void Handle(OrderPlaced5695 message)
-    {
-    }
+    public static ConcurrentQueue<Guid> Handled { get; } = new();
+
+    public void Handle(OrderPlaced5695 message) => Handled.Enqueue(message.OrderId);
 }
 
 [StickyHandler("shipping5695")]

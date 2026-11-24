@@ -370,6 +370,72 @@ public partial class Envelope
     }
 
     /// <summary>
+    ///     GH-5695. A copy of an envelope received at a partitioned topology's slot for one of the several handler types
+    ///     of its message type. It has an id of its own, derived from this envelope's id and the handler type so that
+    ///     expanding the same envelope again produces the same copies, a header naming the handler type it runs, and
+    ///     this envelope as its parent. Everything else, including the group id, tenant, saga id and the slot it was
+    ///     received at, is kept
+    /// </summary>
+    internal Envelope CloneForPartitionedHandler(Guid id, string handlerTypeKey)
+    {
+        // Deliberately a plain Envelope rather than a MemberwiseClone: a transport's own envelope type (RabbitMqEnvelope,
+        // AzureServiceBusEnvelope and the like) carries the broker delivery, and settling a copy must never settle --
+        // ack, nack or requeue -- the original's delivery. A pooled body is materialized into an independent array
+        // first, so no copy refers to a rented buffer the original hands back to the pool
+        var copy = new Envelope
+        {
+            _data = SerializedDataIfAny,
+            _message = _message,
+            _deliverBy = _deliverBy,
+            _deliverWithin = _deliverWithin,
+            _headers = _headers == null ? new Dictionary<string, string?>() : new Dictionary<string, string?>(_headers),
+
+            Id = id,
+            ParentId = Id.ToString(),
+
+            AckRequested = AckRequested,
+            SentAt = SentAt,
+            ReceivedAt = ReceivedAt,
+            Source = Source,
+            MessageType = MessageType,
+            ReplyUri = ReplyUri,
+            ReplyRequested = ReplyRequested,
+            ContentType = ContentType,
+            CorrelationId = CorrelationId,
+            SagaId = SagaId,
+            ConversationId = ConversationId,
+            Destination = Destination,
+            TenantId = TenantId,
+            UserName = UserName,
+            AcceptedContentTypes = AcceptedContentTypes,
+            TopicName = TopicName,
+            EndpointName = EndpointName,
+            GroupId = GroupId,
+            DeduplicationId = DeduplicationId,
+            PartitionKey = PartitionKey,
+            KeepUntil = KeepUntil,
+
+            Serializer = Serializer,
+            ResponseType = ResponseType,
+            DoNotCascadeResponse = DoNotCascadeResponse,
+            AlwaysPublishResponse = AlwaysPublishResponse,
+            IsResponse = IsResponse,
+            Status = Status,
+            OwnerId = OwnerId,
+            WireTap = WireTap,
+            Store = Store
+        };
+
+        copy._headers[EnvelopeConstants.PartitionedHandlerTypeKey] = handlerTypeKey;
+
+        // The listener is what a requeue or an inline retry's cooldown asks, but a listener that recovered the original
+        // from the message store completes by marking the original's row, which is the original's business alone
+        if (Listener is not IRecoveredEnvelopeListener) copy.Listener = Listener;
+
+        return copy;
+    }
+
+    /// <summary>
     ///     Create a new Envelope that is a response to the current
     ///     Envelope
     /// </summary>

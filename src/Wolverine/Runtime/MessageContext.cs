@@ -43,6 +43,11 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 {
     private IChannelCallback? _channel;
 
+    /// <summary>
+    /// GH-5695. The channel the current envelope was received on, if any
+    /// </summary>
+    internal IChannelCallback? Channel => _channel;
+
     private bool _hasFlushed;
     private object? _sagaId;
 
