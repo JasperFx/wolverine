@@ -22,6 +22,14 @@ namespace Wolverine.Kafka.Internals;
 /// back pressure pauses a buffered listener's partitions rather than closing its consumer
 /// (<see cref="IPausesForBackPressure"/>), so the records it is still working through stay with it.
 /// </para>
+///
+/// <para>
+/// GH-5934. A graceful stop is in two phases. <see cref="StopAsync"/> stops fetching: every assigned partition is
+/// paused and nothing more goes to the receiver, but the consumer stays in the group and the consume loop keeps
+/// committing what finishes. That lets the receiver's drain, which <c>ListeningAgent</c> runs between the stop and
+/// the dispose, commit the records its in-flight handlers finish. <see cref="DisposeAsync"/> then flushes and closes
+/// the consumer. A record still unfinished at that point is never committed, so the group redelivers it.
+/// </para>
 /// </summary>
 public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveLoopHealth,
     IReportConnectionState, IKafkaClientHealthSource, ISettlesAfterHandlingListener, IPausesForBackPressure
@@ -39,9 +47,28 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     private readonly KafkaTopic _endpoint;
     private readonly IKafkaConsumer<string, byte[]> _consumer;
-    private CancellationTokenSource _cancellation = new();
 
-    // Captured once: DeferAsync() can run after _cancellation is disposed, and a token taken from a disposed
+    // Ends the consume loop. Cancelled by the teardown in DisposeAsync (or by StopAsync when it can't stop fetching)
+    private readonly CancellationTokenSource _cancellation = new();
+
+    // GH-5934. Cancelled by StopAsync: the loop stops fetching, but keeps the consumer open and keeps committing
+    private readonly CancellationTokenSource _stopFetching = new();
+
+    // Interrupts a waiting poll for either of the two above, so StopAsync doesn't wait out a poll timeout
+    private readonly CancellationTokenSource _pollCancellation;
+
+    // Set by the consume loop once it has stopped fetching, so StopAsync knows nothing more goes to the receiver
+    private readonly TaskCompletionSource _fetchingStopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // Set once the loop has been stopped and the consumer flushed and closed
+    private readonly SemaphoreSlim _teardownLock = new(1, 1);
+    private volatile bool _tornDown;
+
+    // Set when the consume loop didn't answer a stop within the drain budget, typically because an inline handler is
+    // still running on it. The teardown doesn't wait on it a second time, and the dispose doesn't wait on it at all
+    private volatile bool _loopUnresponsive;
+
+    // Captured once: DeferAsync() can run after _stopFetching is disposed, and a token taken from a disposed
     // source throws. The captured token still reports the cancellation that always precedes the dispose.
     private readonly CancellationToken _stopping;
     // GH-3236: the consume loop runs on the shared BackgroundReceiveLoop (backoff on consume errors,
@@ -112,7 +139,8 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
         Config = config;
         _receiver = receiver;
-        _stopping = _cancellation.Token;
+        _stopping = _stopFetching.Token;
+        _pollCancellation = CancellationTokenSource.CreateLinkedTokenSource(_cancellation.Token, _stopFetching.Token);
         _committer = new KafkaOffsetCommitter(consumer, config, topic.CommitMode, topic.CommitBatchCount,
             topic.CommitBatchInterval, logger);
         if (rebalance != null)
@@ -169,6 +197,11 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         // running while back pressure has the partitions paused, so the backlog's offsets are still committed
         await _committer.CommitCompletedAsync();
 
+        if (_stopping.IsCancellationRequested)
+        {
+            return await pollWithoutFetchingAsync(token);
+        }
+
         if (_backPressurePaused)
         {
             pauseForBackPressure();
@@ -179,10 +212,26 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
             resumeDuePartitions();
         }
 
-        var maybe = await _consumer.ConsumeOneAsync(pollTimeout(), token);
+        ConsumeResult<string, byte[]>? maybe;
+        try
+        {
+            maybe = await _consumer.ConsumeOneAsync(pollTimeout(), _pollCancellation.Token);
+        }
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested && !token.IsCancellationRequested)
+        {
+            // StopAsync interrupted the poll. The next pass stops fetching
+            return true;
+        }
+
         if (maybe == null)
         {
             // Poll timeout on a quiet topic; nothing to do this iteration
+            return true;
+        }
+
+        if (_stopping.IsCancellationRequested)
+        {
+            // Fetched as StopAsync came in. It was never tracked, so it is never committed: the next consumer gets it
             return true;
         }
 
@@ -323,6 +372,18 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         _consumer.Partitions.Pause(partition);
         _consumer.Positions.Seek(new TopicPartitionOffset(record.Topic, record.Partition, record.Offset));
         _pausedUntil[partition] = due;
+        return true;
+    }
+
+    // GH-5934. After StopAsync, and until DisposeAsync ends the loop: every assigned partition stays paused, so the
+    // consumer stays in the group without fetching, and each pass still commits what the draining receiver finished.
+    // A record a poll hands back anyway is dropped without being tracked, so it is never committed.
+    private async Task<bool> pollWithoutFetchingAsync(CancellationToken token)
+    {
+        pauseForBackPressure();
+        _fetchingStopped.TrySetResult();
+
+        await _consumer.ConsumeOneAsync(_pollTimeout, token);
         return true;
     }
 
@@ -506,8 +567,19 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     public async ValueTask DisposeAsync()
     {
         clusterTransport.ForgetClient(this);
-        await StopAsync();
+        await teardownAsync();
+
+        if (_loopUnresponsive)
+        {
+            // The loop is still stuck past every drain budget. Waiting on it would hang shutdown (GH-3434), so leave it
+            _logger.LogDebug("Not waiting on the consume loop for {Uri} because it did not stop within the drain timeout",
+                Address);
+            return;
+        }
+
         await _loop.DisposeAsync();
+        _pollCancellation.Dispose();
+        _stopFetching.Dispose();
         _cancellation.Dispose();
 
         if (_teardownAbandoned)
@@ -530,12 +602,67 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     public Uri Address { get; }
 
+    /// <summary>
+    /// GH-5934. Stops fetching, but leaves the consumer open and in the group so that records finished while the
+    /// receiver drains are still committed. <see cref="DisposeAsync"/> flushes and closes the consumer. Once this
+    /// returns, nothing more is handed to the receiver.
+    /// </summary>
     public async ValueTask StopAsync()
     {
+        if (_tornDown || _stopFetching.IsCancellationRequested) return;
+
+        await _stopFetching.CancelAsync();
+
+        // A consumer that never initialized has nothing to commit, and a loop that is no longer running can't stop
+        // fetching for us, so there is nothing to keep open
+        if (_initialized && _loop.ReceiveLoopStatus == ReceiveLoopStatus.Running)
+        {
+            try
+            {
+                // Bounded like the rest of the stop (GH-3434): the loop may be waiting on the receiver to take a record
+                await _fetchingStopped.Task.WaitAsync(_drainTimeout);
+                return;
+            }
+            catch (TimeoutException)
+            {
+                _loopUnresponsive = true;
+                _logger.LogWarning(
+                    "{Uri}: the Kafka consume loop did not stop fetching within the drain timeout of {DrainTimeout}, so the consumer is being closed now",
+                    Address, _drainTimeout);
+            }
+        }
+
+        await teardownAsync();
+    }
+
+    // Ends the consume loop, then flushes and closes the consumer, once
+    private async Task teardownAsync()
+    {
+        await _teardownLock.WaitAsync();
+        try
+        {
+            if (_tornDown) return;
+            _tornDown = true;
+            await stopLoopFlushAndCloseAsync();
+        }
+        finally
+        {
+            _teardownLock.Release();
+        }
+    }
+
+    private async Task stopLoopFlushAndCloseAsync()
+    {
+        await _stopFetching.CancelAsync();
         await _cancellation.CancelAsync();
         // Drain the loop within a bounded budget so shutdown can never hang (GH-3434). On a clean drain the
         // consume loop has exited and consumer access is single-threaded before we flush + close (GH-3150).
-        await _loop.StopAsync(_drainTimeout);
+        // A loop that already ignored StopAsync for a whole drain budget isn't waited on again
+        await _loop.StopAsync(_loopUnresponsive ? TimeSpan.Zero : _drainTimeout);
+        if (_loop.ReceiveLoopStatus is ReceiveLoopStatus.Running)
+        {
+            _loopUnresponsive = true;
+        }
 
         // A consumer that never initialized (broker down since startup) has nothing to flush or close
         if (!_initialized)

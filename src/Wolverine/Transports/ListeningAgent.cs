@@ -417,6 +417,7 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
             return;
         }
 
+        var listenerDisposed = false;
         try
         {
             using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.StoppingListener);
@@ -466,6 +467,7 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
 
             if (listener != null)
             {
+                listenerDisposed = true;
                 try
                 {
                     await listener.DisposeAsync();
@@ -481,6 +483,22 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent
         catch (Exception e)
         {
             _logger.LogError(e, "Unable to stop and drain the listener for {Uri}", Uri);
+
+            // GH-5934. Some listeners (Kafka) only stop fetching in StopAsync and let go of their broker connection in
+            // DisposeAsync, after the drain. A failure part way through (an inline drain that timed out, say) must not
+            // leave that connection open. Bounded, because a listener whose receive loop is still stuck in a handler
+            // may wait on it while disposing, and that must not hold shutdown (GH-3434).
+            if (listener != null && !listenerDisposed)
+            {
+                try
+                {
+                    await listener.DisposeAsync().AsTask().WaitAsync(_runtime.DurabilitySettings.DrainTimeout);
+                }
+                catch (Exception disposeFailure)
+                {
+                    _logger.LogError(disposeFailure, "Unable to dispose the listener for {Uri} after a failed stop", Uri);
+                }
+            }
         }
 
         Status = ListeningStatus.Stopped;

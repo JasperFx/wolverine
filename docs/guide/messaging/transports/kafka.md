@@ -246,6 +246,13 @@ twice, but you won't lose it. The one way a non-durable listener can *lose* mess
 auto commit yourself with `OffsetCommitMode.Auto`. See the end of [Commit Strategy](#commit-strategy) for exactly when
 that bites.
 
+A *graceful* stop is kinder than that. When the listener stops, Wolverine pauses all of its partitions so nothing new
+is fetched, but keeps the consumer open and in the group while the messages already in flight finish, up to
+`DurabilitySettings.DrainTimeout` (30 seconds by default). Their offsets are committed as they finish, and only then
+is the consumer flushed and closed. So a deploy or a restart doesn't hand the next consumer work this node already
+did. Anything still running when the drain times out isn't committed, and gets redelivered like it would after a
+crash.
+
 ### Offset Commit Behavior in the Listener
 
 The `KafkaListener` advances the consumer offset (commits the *specific* `TopicPartitionOffset` of the
@@ -1360,8 +1367,9 @@ transport, and the factors behind them.
 
 - **Buffered** (the default) is the fastest mode: the consume loop hands messages to an
   in-memory worker queue and keeps consuming. Offsets are still only stored once a message
-  finishes (it's handled, discarded, or dead lettered), so a crash or a stop redelivers whatever
-  was still in flight. That makes it at-least-once without de-duplication: use it when throughput
+  finishes (it's handled, discarded, or dead lettered), so a crash redelivers whatever was
+  still in flight. A graceful stop lets in-flight messages finish and commits them before it
+  closes the consumer, and only redelivers what was still running at the `DrainTimeout`. That makes it at-least-once without de-duplication: use it when throughput
   matters and your handlers are idempotent. The exception is turning on Kafka's own auto commit
   with `OffsetCommitMode.Auto`, which makes a buffered listener at-most-once (see
   [Commit Strategy](#commit-strategy)).
