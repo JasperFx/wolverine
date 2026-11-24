@@ -178,9 +178,19 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
         }
         else
         {
+            // GH-5954: a route value named in the attribute is tried as a natural key first, by its name or its
+            // declared type, because it would always parse as a stream id
+            var routeValueName = namedRouteValue();
+            if (routeValueName.IsNotEmpty())
+            {
+                identity = NaturalKeyIdentity.FindRouteNaturalKey(provider, aggregateType, idType, routeValueName,
+                    chain, container);
+                isNaturalKey = identity != null;
+            }
+
             // If a specific ValueSource has been set (e.g. via FromMethod, FromRoute, FromHeader, FromClaim),
             // use the base class identity resolution which respects that ValueSource
-            if (ValueSource != ValueSource.InputMember && ArgumentName.IsNotEmpty())
+            if (identity == null && ValueSource != ValueSource.InputMember && ArgumentName.IsNotEmpty())
             {
                 tryFindIdentityVariable(chain, parameter, idType, out identity);
             }
@@ -213,6 +223,10 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
             var keyedAggregateType = aggregateType;
             identity = NaturalKeyIdentity.Find(provider, aggregateType, chain, container,
                 keyType => FindIdentity(keyedAggregateType, keyType, chain), spelling);
+
+            // GH-5954: with nothing named, a route value named like one of the aggregate's keys, as {code} for Code
+            identity ??= NaturalKeyIdentity.FindRouteNaturalKey(provider, aggregateType, idType, null, chain,
+                container);
             isNaturalKey = identity != null;
         }
 
@@ -263,6 +277,14 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
     {
         return rules.FindEventSourcingFrameProvider(container, modelType);
     }
+
+    // The route value the attribute names: [WriteAggregate("code")], or FromRoute = "code"
+    private string? namedRouteValue()
+        => RouteOrParameterName.IsNotEmpty()
+            ? RouteOrParameterName
+            : ArgumentName.IsNotEmpty() && (ValueSource is ValueSource.RouteValue or ValueSource.Anything)
+                ? ArgumentName
+                : null;
 
     internal Variable? findVersionVariable(IChain chain)
     {

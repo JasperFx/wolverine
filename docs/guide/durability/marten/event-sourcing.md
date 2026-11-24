@@ -1411,11 +1411,12 @@ which is the form to use from F#. The key type is the aggregate's own natural ke
 public static NkShelfAudited Handle(AuditNkShelfByCode command, [WriteAggregate<NkShelfCode>] NkShelf shelf)
     => new();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_explicit_key_type.cs#L398-L402' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_write_aggregate_by_named_natural_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_explicit_key_type.cs#L411-L415' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_write_aggregate_by_named_natural_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Naming the key type is the answer to most of the errors you'll see from Wolverine about natural keys, and it's required
-for a natural key in an HTTP route (see [Natural Keys over HTTP](/guide/http/marten#natural-keys)).
+Most of the time you won't need to, because Wolverine already knows the aggregate's natural key types and finds the key
+on its own (see [How Wolverine Finds the Key](#how-wolverine-finds-the-key) below). Naming the key type is for when
+the message is genuinely ambiguous, or when you'd just rather say so.
 
 Name the key once. A type argument together with a different `NaturalKey`, as in
 `[WriteAggregate<OrderNumber>(NaturalKey = typeof(CustomerCode))]`, is refused when Wolverine generates the handler.
@@ -1430,11 +1431,15 @@ Without a key type on the attribute, Wolverine looks for, in order:
 1. the stream id, by the usual rules: the member or route value named in the attribute, a member marked with
    `[Identity]`, a member named `{aggregate}Id` or `Id`, then the aggregate's strong typed identifier;
 2. a member of the aggregate's own natural key type, or `TKey?` for a struct key, by the same rules: named in the
-   attribute, marked with `[Identity]`, named `{aggregate}Id` or `Id`, or the only member of that type;
-3. the same for each of the aggregate's mapped natural keys.
+   attribute, marked with `[Identity]`, named `{aggregate}Id` or `Id`, or the only member of that type. If the message
+   has more than one member of that type, the one named like the aggregate's own key member wins, so
+   `RenumberOrder(OrderNumber Number, OrderNumber NewNumber)` loads the order by `Number`;
+3. the same for each of the aggregate's mapped natural keys. A message carrying both the aggregate's own key and a
+   mapped key loads by its own key.
 
 That means `[WriteAggregate("Number")]`, without a key type, still loads by the natural key when `Number` isn't a stream
-id.
+id. For an HTTP route value, Wolverine also looks at the route value's name, so `{code}` is the natural key of an
+aggregate whose key member is `Code`; see [Natural Keys over HTTP](/guide/http/marten#natural-keys).
 
 With the key type named, the stream id is never considered, and only members of that type (or `TKey?` for a struct key)
 are. Wolverine takes, in order:
@@ -1445,7 +1450,8 @@ are. Wolverine takes, in order:
 4. the only member of that type.
 
 When Wolverine can't find a key, the error says which natural keys the aggregate has and what your message carries
-instead, like a message with two `OrderNumber` members or a raw `string` where the key is an `OrderNumber`.
+instead, like a message with two `OrderNumber` members, neither named like the key, or a raw `string` where the key is
+an `OrderNumber`. That's when you name the key type, or the member, on the attribute.
 
 ::: warning
 Without a key type, `[Identity]` on a member of one of the aggregate's natural key types is refused when the handler is
@@ -1517,8 +1523,8 @@ public static NkProductRestocked Handle(RestockNkProductStock command, [WriteAgg
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_nullable_mapped_and_batched.cs#L469-L475' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_mapped_natural_key_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Every key of an aggregate has its own type, so a command carrying members for more than one of them is ambiguous, and
-Wolverine refuses to generate the handler. Name the key type to load by, as shown above.
+A command carrying the aggregate's own key and a mapped key loads by the aggregate's own key. Both lookups lead to the
+same stream, so that's no guess. Name the key type when you want the other one.
 
 ### Reading by Natural Key
 
@@ -1609,7 +1615,8 @@ The command naturally carries both the current key and the new one, so name the 
 <!-- snippet: sample_wolverine_marten_changing_a_natural_key -->
 <a id='snippet-sample_wolverine_marten_changing_a_natural_key'></a>
 ```cs
-// The command carries the current number and the new one, so the attribute names the one to load by
+// The command carries the current number and the new one. Number is named like NkTicket's own Number, so that's the
+// one the ticket is loaded by
 public record RenumberNkTicket(NkTicketNumber Number, NkTicketNumber NewNumber);
 
 public static class NkTicketRenumberHandler
@@ -1617,11 +1624,11 @@ public static class NkTicketRenumberHandler
     // NkTicketRenumbered is a [NaturalKeySource] on NkTicket, so appending it moves the ticket to the new number.
     // UpdatedAggregate returns the ticket as it is after the event.
     public static (UpdatedAggregate, NkTicketRenumbered) Handle(RenumberNkTicket command,
-        [WriteAggregate<NkTicketNumber>(nameof(RenumberNkTicket.Number))] NkTicket ticket)
+        [WriteAggregate] NkTicket ticket)
         => (new UpdatedAggregate(), new NkTicketRenumbered(command.NewNumber));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_decider_workflow.cs#L340-L352' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_changing_a_natural_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_decider_workflow.cs#L355-L368' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_changing_a_natural_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 From then on the new key finds the aggregate, and the old one doesn't. `UpdatedAggregate` hands back the aggregate with
@@ -1645,12 +1652,13 @@ public static class NkTicketHandler
     public static NkTicketNoted Handle(NoteNkTicket command, NkTicket ticket) => new(command.Text);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_decider_workflow.cs#L281-L290' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_aggregate_handler_by_natural_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_decider_workflow.cs#L292-L301' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_aggregate_handler_by_natural_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The version check, exclusive loads and `AlwaysEnforceConsistency` all work the same as for a stream id. A command
-carrying members for two different natural keys is ambiguous: mark the one to load by with `[Identity]`, which on a
-natural key member means "load by this key".
+The version check, exclusive loads and `AlwaysEnforceConsistency` all work the same as for a stream id, and the key is
+found just like it is for `[WriteAggregate]`: a member named like the aggregate's key member wins over another of the
+same type, and the aggregate's own key wins over a mapped one. When that still leaves a choice, mark the one to load by
+with `[Identity]`, which on a natural key member means "load by this key".
 
 ### Telemetry
 

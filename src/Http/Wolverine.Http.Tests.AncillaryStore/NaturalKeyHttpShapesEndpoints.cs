@@ -81,8 +81,8 @@ public static class NkHttpShapeEndpoints
     [WolverineGet("/nkbins/{number}")]
     public static NkBin GetBin([ReadAggregate<BinNumber>("number")] NkBin bin) => bin;
 
-    // Without the key type a route value is the stream id: the stream id is a Guid, which a route value can
-    // always be parsed into, and that lookup comes first
+    // No key type, but {code} is named like NkGadget's key member Code, so it's the natural key (GH-5954). Before that,
+    // the route value was always the stream id, which any route value can be parsed into
     [WolverinePost("/nkgadgets-untyped/{code}/rename")]
     [EmptyResponse]
     public static NkGadgetRenamed RenameUntyped(RenameNkGadget command, [WriteAggregate("code")] NkGadget gadget)

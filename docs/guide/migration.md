@@ -764,6 +764,12 @@ differently:
   of those) answers 400 with a `ProblemDetails` before anything is loaded. It used to fail inside the load and answer
   500. This is for stream ids as well as natural keys, and those endpoints now declare the 400 in their OpenAPI
   metadata. Reads still answer 404, and message handlers still throw from the load.
+* **A route value named like a natural key loads by it (BREAKING).** For an aggregate with natural keys, a route value
+  whose name matches a key member or key type, like `{code}` for a `Code` key, is now the natural key even when the
+  attribute names no key type. It used to be parsed as the stream id. A `Guid` parameter of the endpoint or a
+  `{code:guid}` constraint keeps it a stream id. A message carrying two members of the key type now loads by the one
+  named like the aggregate's key member, and one carrying the aggregate's own key and a mapped key loads by its own key;
+  both used to be refused.
 * **Naming two natural key types is refused.** A type argument together with a different `NaturalKey`, as in
   `[WriteAggregate<OrderNumber>(NaturalKey = typeof(CustomerCode))]`, used to load by `NaturalKey` without a word. It
   is now refused when the handler is generated. The same type twice is fine.
