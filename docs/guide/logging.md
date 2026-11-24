@@ -677,6 +677,12 @@ public const string SagaType = "wolverine.saga.type";
 public const string StreamId = "wolverine.stream.id";
 
 /// <summary>
+/// Activity tag for the natural key an aggregate handler workflow loads its aggregate by. The stream id isn't
+/// known until the aggregate is loaded, so <see cref="StreamId" /> is set after the load. GH-5947.
+/// </summary>
+public const string StreamNaturalKey = "wolverine.stream.natural_key";
+
+/// <summary>
 /// Activity tag for the aggregate type full name when processing an aggregate handler workflow
 /// </summary>
 public const string StreamType = "wolverine.stream.type";
@@ -779,7 +785,7 @@ public const string DeduplicationInProgress = "wolverine.deduplication.in_progre
 /// </summary>
 public const string ProjectionWaitStatus = "wolverine.projection.wait_status";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L314' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L320' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Opt-in Handler Execution Diagnostics <Badge type="tip" text="5.38" />

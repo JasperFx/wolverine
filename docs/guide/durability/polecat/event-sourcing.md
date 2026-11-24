@@ -656,6 +656,40 @@ public static class PcNkOrderHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_key_aggregate_handler_workflow.cs#L180-L205' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_handlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Naming the Key and Reading by Key <Badge type="tip" text="7.0" />
+
+Polecat has the same generic attributes as Marten, `[WriteAggregate<TKey>]` and `[ReadAggregate<TKey>]` (and
+`[Aggregate<TKey>]` for HTTP), and reads by natural key with `FetchLatest<TAggregate, TNaturalKey>()`:
+
+<!-- snippet: sample_wolverine_polecat_natural_key_type_argument -->
+<a id='snippet-sample_wolverine_polecat_natural_key_type_argument'></a>
+```cs
+public static class PcNkSeatHandlers
+{
+    public static PcNkSeat? LastSeat;
+    public static PcNkSeat? LastMaybe;
+
+    // Name the key type when the message carries more than one key, or to say so up front
+    public static PcNkSeatHeld Handle(HoldPcNkSeat command, [WriteAggregate<PcNkSeatCode>] PcNkSeat seat)
+        => new(command.Holder);
+
+    // Reads by natural key
+    public static void Handle(ViewPcNkSeat query, [ReadAggregate<PcNkSeatCode>] PcNkSeat seat) => LastSeat = seat;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_keys_in_7_0.cs#L286-L299' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_type_argument' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Nullable keys, the version check, exclusive loads and the decider workflow (`[AggregateHandler]`) by natural key all work
+just like they do on Marten, so see [Natural Keys](/guide/durability/marten/event-sourcing#natural-keys) on the Marten
+page for the whole story. What Polecat doesn't do yet:
+
+- **Mapped natural keys.** An aggregate on Polecat is found by its own natural key only.
+- **An unknown key on a write.** Polecat's `FetchForWriting<T, TKey>()` throws for a key no stream has, so the handler
+  fails, and an HTTP endpoint answers 500 rather than 404. A read by an unknown key finds nothing, as on Marten.
+
+See [What Each Store Supports](/guide/durability/marten/event-sourcing#what-each-store-supports) for the full table.
+
 For more details on how natural keys work at the Polecat level, see the [Polecat natural keys documentation](https://polecat.jasperfx.net/events/natural-keys).
 
 ## Dynamic Consistency Boundary (DCB)
