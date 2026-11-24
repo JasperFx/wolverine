@@ -1,6 +1,7 @@
 using IntegrationTests;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
+using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Polecat;
@@ -38,25 +39,27 @@ public class Bug_4907_query_session_cascades_are_persisted : IClassFixture<Polec
     public async Task a_query_session_handler_schedules_its_cascading_message()
     {
         // Without the fix this times out: the scheduled envelope never reaches the incoming table.
+        var id = Guid.NewGuid();
         var tracked = await theHost
             .TrackActivity()
             .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<PcQuerySessionCascaded>(theHost)
-            .ExecuteAndWaitAsync(_ => theHost.MessageBus().PublishAsync(new PcCascadeAfterQuery(Guid.NewGuid())));
+            .ExecuteAndWaitAsync(_ => theHost.MessageBus().PublishAsync(new PcCascadeAfterQuery(id)));
 
-        tracked.Received.MessagesOf<PcQuerySessionCascaded>().Count().ShouldBe(1);
+        tracked.Received.MessagesOf<PcQuerySessionCascaded>().Count(x => x.Id == id).ShouldBe(1);
     }
 
     [Fact]
     public async Task a_query_session_handler_schedules_what_it_publishes_through_the_bus()
     {
+        var id = Guid.NewGuid();
         var tracked = await theHost
             .TrackActivity()
             .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<PcQuerySessionCascaded>(theHost)
-            .ExecuteAndWaitAsync(_ => theHost.MessageBus().PublishAsync(new PcPublishAfterQuery(Guid.NewGuid())));
+            .ExecuteAndWaitAsync(_ => theHost.MessageBus().PublishAsync(new PcPublishAfterQuery(id)));
 
-        tracked.Received.MessagesOf<PcQuerySessionCascaded>().Count().ShouldBe(1);
+        tracked.Received.MessagesOf<PcQuerySessionCascaded>().Count(x => x.Id == id).ShouldBe(1);
     }
 
     [Fact]
@@ -111,6 +114,10 @@ public class PolecatQuerySessionCascadeContext : IAsyncLifetime
 
         var store = Host.Services.GetRequiredService<IDocumentStore>();
         await ((DocumentStore)store).Database.ApplyAllConfiguredChangesToDatabaseAsync();
+
+        // The schema outlives the run, as the Marten twin's dropped schema does not: a cascade a stopped run scheduled
+        // would otherwise be delivered here, inside another test's tracked session
+        await Host.ResetResourceState();
     }
 
     public async ValueTask DisposeAsync()

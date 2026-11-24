@@ -28,7 +28,7 @@ public abstract class OrderFulfillmentSpec(AppFixture fixture) : WolverineSpec(f
     protected Specified<OrderFulfillmentCancelled> Cancelled
         => Specify<OrderFulfillmentCancelled>().With(x => x.OrderFulfillmentStateId, TheOrder);
 
-    public async ValueTask InitializeAsync() => await Host.ResetAllMartenDataAsync();
+    public async ValueTask InitializeAsync() => await fixture.ResetAsync();
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
