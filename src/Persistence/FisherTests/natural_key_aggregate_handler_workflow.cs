@@ -111,10 +111,10 @@ public class natural_key_aggregate_handler_workflow : IAsyncLifetime
     }
 
     // #5756 passes the command's version to FetchForWriting<T, TKey>(key, version, token) for a natural key, as it
-    // does for a stream id. Fisher has no such overload, and the generated handler did not compile at all (CS1501).
-    // Until Fisher has one, a natural key load on Fisher leaves the version out, as before #5756.
+    // does for a stream id. Fisher 2.0.0-rc.2 has that overload, so the version is checked on load as on Marten and
+    // Polecat (GH-5901); until then Wolverine.Fisher left it out.
     [Fact]
-    public async Task natural_key_command_with_a_version_compiles_and_loads_without_the_version()
+    public async Task natural_key_command_with_a_stale_version_is_refused_on_load()
     {
         var streamId = Guid.NewGuid();
         var orderNumber = new FiOrderNumber("ORD-FI-003");
@@ -128,12 +128,13 @@ public class natural_key_aggregate_handler_workflow : IAsyncLifetime
 
         await theHost.InvokeMessageAndWaitAsync(new AddFiNkItemAtVersion(orderNumber, 1, 5m));
 
-        // The stream is at version 2 now. Not checked on Fisher yet: the load ignores the version
-        await theHost.InvokeMessageAndWaitAsync(new AddFiNkItemAtVersion(orderNumber, 1, 5m));
+        // The stream is at version 2 now, so 1 is stale and nothing is appended
+        await Should.ThrowAsync<ConcurrencyException>(() =>
+            theHost.InvokeMessageAndWaitAsync(new AddFiNkItemAtVersion(orderNumber, 1, 5m)));
 
         await using var verify = store.LightweightSession();
         var order = await verify.LoadAsync<FiNkOrder>(streamId, TestContext.Current.CancellationToken);
-        order!.TotalAmount.ShouldBe(10m);
+        order!.TotalAmount.ShouldBe(5m);
     }
 }
 

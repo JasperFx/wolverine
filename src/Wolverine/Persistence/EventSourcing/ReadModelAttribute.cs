@@ -91,7 +91,20 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
     ///     <see cref="WriteModelAttribute.NaturalKey" />. <c>[ReadModel&lt;TKey&gt;]</c> and
     ///     <c>[ReadAggregate&lt;TKey&gt;]</c> set this.
     /// </summary>
-    public Type? NaturalKey { get; set; }
+    public Type? NaturalKey
+    {
+        get => _naturalKey ?? NaturalKeyTypeArgument;
+        set => _naturalKey = value;
+    }
+
+    private Type? _naturalKey;
+
+    /// <summary>
+    ///     The natural key type a generic spelling such as <c>[ReadModel&lt;TKey&gt;]</c> names as its type argument.
+    ///     Kept apart from <see cref="NaturalKey" /> so that naming two different key types is refused rather than
+    ///     settled silently in favour of <see cref="NaturalKey" />. GH-5947.
+    /// </summary>
+    protected Type? NaturalKeyTypeArgument { get; set; }
 
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container,
         GenerationRules rules)
@@ -110,6 +123,10 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
         var idType = ((IPersistenceFrameProvider)provider).DetermineSagaIdType(parameter.ParameterType, chain,
             container);
 
+        var spelling = NaturalKeyIdentity.SpellingOf(this);
+        NaturalKeyIdentity.AssertOneKeyType(NaturalKeyTypeArgument, _naturalKey, spelling, parameter.ParameterType,
+            chain);
+
         Frame? frame = null;
         Variable? identity;
         if (NaturalKey != null)
@@ -126,6 +143,11 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
             // Fall back to strong typed ID matching
             identity = tryFindStrongTypedIdentityVariable(chain, parameter.ParameterType, idType);
         }
+        else
+        {
+            NaturalKeyIdentity.WarnOfUntypedRouteValue(provider, parameter.ParameterType, ArgumentName, chain,
+                container, spelling);
+        }
 
         if (identity == null)
         {
@@ -134,7 +156,7 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
             identity = NaturalKeyIdentity.Find(provider, aggregateType, chain, container,
                 keyType => tryFindIdentityVariable(chain, parameter, keyType, out var byName)
                     ? byName
-                    : tryFindStrongTypedIdentityVariable(chain, aggregateType, keyType));
+                    : tryFindStrongTypedIdentityVariable(chain, aggregateType, keyType), spelling);
 
             // A store that cannot fetch by natural key builds no frame, and the load is reported as before
             if (identity != null) frame = provider.BuildFetchLatestByNaturalKeyFrame(aggregateType, identity);
@@ -251,11 +273,11 @@ public class ReadModelAttribute<TNaturalKey> : ReadModelAttribute where TNatural
 {
     public ReadModelAttribute()
     {
-        NaturalKey = typeof(TNaturalKey);
+        NaturalKeyTypeArgument = typeof(TNaturalKey);
     }
 
     public ReadModelAttribute(string argumentName) : base(argumentName)
     {
-        NaturalKey = typeof(TNaturalKey);
+        NaturalKeyTypeArgument = typeof(TNaturalKey);
     }
 }

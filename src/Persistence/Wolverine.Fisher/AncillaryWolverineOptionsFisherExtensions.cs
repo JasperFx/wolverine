@@ -318,9 +318,8 @@ internal class FisherOverrides<T> : IConfigureFisher<T> where T : IDocumentStore
         // GH-5415: Wolverine's own saga events, and an Inline snapshot of every event-sourced saga this store keeps
         Persistence.Sagas.FisherEventSourcedSagas.Configure(services, options, typeof(T));
 
-        // Fisher's DocumentMapping automatically detects IRevisioned types
-        // and enables numeric revisions.
-        Persistence.Sagas.FisherRevisionedSagas.Configure(options);
+        // Fisher maps an IRevisioned saga's revision onto the Version property it inherits from Saga
+        // itself since Fisher 2.0.0-rc.2 (fisher#677), so GH-5658 no longer needs a policy here
 
         // GH-3109: replace this ancillary store's default NulloMessageOutbox with the Wolverine
         // bridge so a projection author who calls slice.PublishMessage(...) from a RaiseSideEffects

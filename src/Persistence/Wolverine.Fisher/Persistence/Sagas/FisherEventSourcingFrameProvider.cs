@@ -33,12 +33,15 @@ internal partial class FisherPersistenceFrameProvider : IEventSourcingFrameProvi
     // Core never writes "session.Events.FetchForWriting<T>(...)" itself. Handing back a finished frame
     // is what keeps that spelling on this side of the seam - and lets Fisher's frame stay a plain
     // AsyncFrame where Marten's also implements IBatchableFrame.
-    // Fisher has no FetchForWriting<T, TKey>(key, expectedVersion, token), so a load by natural key is made
-    // without the command's version, as it was before #5756: the version is not checked on load. Passing it
-    // generated a call that doesn't compile (CS1501).
+    //
+    // GH-5948: a load by natural key goes through FisherNaturalKeyLoads, so that a key no stream has finds no aggregate,
+    // as on Marten, rather than throwing. Fisher 2.0.0-rc.2 added FetchForWriting<T, TKey>(key, expectedVersion, token),
+    // so the command's version is checked on load, as on Marten and Polecat.
     public Frame BuildLoadAggregateFrame(AggregateLoadRequest request)
-        => new Wolverine.Persistence.EventSourcing.Codegen.LoadAggregateFrame(
-            request.IsNaturalKey ? request with { Version = null } : request, typeof(IDocumentSession), StoreName);
+        => request.IsNaturalKey
+            ? new FisherNaturalKeyLoadAggregateFrame(request, StoreName)
+            : new Wolverine.Persistence.EventSourcing.Codegen.LoadAggregateFrame(request, typeof(IDocumentSession),
+                StoreName);
 
     // GH-3627. Fisher's spelling of the raw stream reads.
     public Frame BuildFetchStreamStateFrame(Variable identity)
@@ -50,13 +53,27 @@ internal partial class FisherPersistenceFrameProvider : IEventSourcingFrameProvi
     public Frame BuildFetchLatestFrame(Type aggregateType, Variable identity)
         => new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestAggregateFrame(aggregateType, identity, typeof(IDocumentSession));
 
-    // The Fisher integration has no natural key read and no mapped keys
-    public Frame? BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey)
-        => null;
+    // GH-5901: Fisher's FetchLatest<T, TKey>(key, token) reads by natural key, through the same shared frame Marten
+    // uses for its own.
+    public Frame BuildFetchLatestByNaturalKeyFrame(Type aggregateType, Variable naturalKey)
+        => new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestAggregateFrame(aggregateType, naturalKey,
+            typeof(IDocumentSession), true);
 
+    // GH-5901: the keys this aggregate maps from another projection's lookup ([MappedNaturalKey<T>]), which Fisher
+    // 2.0.0-rc.2 serves through FetchLatest<T, TKey> and FetchForWriting<T, TKey>. Read off the registered projections,
+    // as TryDetermineNaturalKeyType reads the owned key.
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "The aggregate type comes from handler discovery, which already roots it. Codegen-time only. See docs/guide/aot.md.")]
     public IReadOnlyList<Type> DetermineMappedNaturalKeyTypes(Type aggregateType, IChain chain,
         IServiceContainer container)
-        => [];
+        => resolveStoreOptions(chain, container)?.Projections.All
+               .OfType<IAggregateProjection>()
+               .SelectMany(x => x.MappedNaturalKeyDefinitions)
+               .Where(x => x.AggregateType == aggregateType)
+               .Select(x => x.OuterType)
+               .Distinct()
+               .ToArray()
+           ?? [];
 
     public Frame BuildLoadBoundaryFrame(Type modelType) => new LoadBoundaryFrame(modelType);
 
@@ -116,5 +133,29 @@ internal partial class FisherPersistenceFrameProvider : IEventSourcingFrameProvi
         }
 
         return container.Services.GetRequiredService<StoreOptions>();
+    }
+}
+
+/// <summary>
+/// GH-5948. The shared load frame, with a load by natural key made through <see cref="FisherNaturalKeyLoads" />.
+/// </summary>
+internal class FisherNaturalKeyLoadAggregateFrame : Wolverine.Persistence.EventSourcing.Codegen.LoadAggregateFrame
+{
+    public FisherNaturalKeyLoadAggregateFrame(AggregateLoadRequest request, string storeName)
+        : base(request, typeof(IDocumentSession), storeName)
+    {
+    }
+
+    protected override string? naturalKeyFetchOverride(string sessionUsage, string keyUsage, string? versionUsage,
+        string tokenUsage, bool fsharp = false)
+    {
+        var aggregateType = fsharp ? _att.AggregateType.FSharpName() : _att.AggregateType.FullNameInCode();
+        var keyType = new Wolverine.Persistence.EventSourcing.Codegen.NaturalKeyArgument(_att.AggregateId).KeyType;
+        var keyTypeName = fsharp ? keyType.FSharpName() : keyType.FullNameInCode();
+        var exclusive = (_att.LoadStyle == ModelConcurrencyStyle.Exclusive).ToString().ToLowerInvariant();
+        var streamKeys = (_att.StreamIdentity == StreamIdentity.AsString).ToString().ToLowerInvariant();
+
+        var version = versionUsage == null ? "" : $"{versionUsage}, ";
+        return $"{typeof(FisherNaturalKeyLoads).FullNameInCode()}.{nameof(FisherNaturalKeyLoads.FetchForWriting)}<{aggregateType}, {keyTypeName}>({sessionUsage}, {keyUsage}, {version}{exclusive}, {streamKeys}, {tokenUsage})";
     }
 }

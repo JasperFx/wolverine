@@ -745,16 +745,33 @@ differently:
 
 * **A version is checked on a write by natural key (BREAKING).** A command with a `Version` member loaded by its
   natural key now fails with a `ConcurrencyException` when the stream has moved on, as a load by stream id always
-  has. This comes from the shared store code, so it applies to Polecat too. Fisher has no versioned fetch by natural
-  key yet, so on Fisher the version is still not checked on load.
+  has. This comes from the shared store code, so it applies to Polecat and Fisher too.
 * **An exclusive load by natural key locks the stream (BREAKING).** With `LoadStyle = ModelConcurrencyStyle.Exclusive`,
   a load by natural key now calls `FetchForExclusiveWriting<T, TKey>` and can fail with a `StreamLockedException`.
-  Marten takes a row lock, as Polecat already did for every load by natural key. Fisher's exclusive fetch does not
-  lock yet.
-* **`[Identity]` on a natural key member needs the key type (BREAKING).** A member of one of the aggregate's natural
-  key types marked with `[Identity]` used to be read as the stream id. It is now refused when the handler is
-  generated, unless the attribute names the key type, as in `[WriteAggregate<OrderNumber>]`, or names the stream id
-  itself.
+  Marten takes a row lock, as Polecat already did for every load by natural key, and Fisher locks the SQLite file.
+* **`[Identity]` on a natural key member needs the key type (BREAKING).** On `[WriteAggregate]` and `[WriteModel]`, a
+  member of one of the aggregate's natural key types marked with `[Identity]` used to be read as the stream id. It is
+  now refused when the handler is generated, unless the attribute names the key type, as in
+  `[WriteAggregate<OrderNumber>]`, or names the stream id itself.
+* **The decider workflow loads by natural key (BREAKING).** `[AggregateHandler]`, `[ConsistentAggregateHandler]` and
+  `[DeciderFunction]` find a natural key on the command the way `[WriteAggregate]` does: the stream id first, then
+  the aggregate's own natural key, then its mapped keys. A command with only a natural key used to be refused with
+  "Unable to determine the aggregate id", and an `[Identity]` member of a natural key type had its value passed to
+  the store as a stream id. Both now load by the natural key. A command with members for two different natural keys
+  needs `[Identity]` on the one to load by.
+* **A write with no identity answers 400 over HTTP (BREAKING).** A write endpoint whose stream id or natural key is
+  missing from the request (null, an empty string, an empty `Guid`, or a strong typed identifier or key wrapping one
+  of those) answers 400 with a `ProblemDetails` before anything is loaded. It used to fail inside the load and answer
+  500. This is for stream ids as well as natural keys, and those endpoints now declare the 400 in their OpenAPI
+  metadata. Reads still answer 404, and message handlers still throw from the load.
+* **Naming two natural key types is refused.** A type argument together with a different `NaturalKey`, as in
+  `[WriteAggregate<OrderNumber>(NaturalKey = typeof(CustomerCode))]`, used to load by `NaturalKey` without a word. It
+  is now refused when the handler is generated. The same type twice is fine.
+* **Telemetry.** On a load by natural key, the `wolverine.stream.id` span tag used to carry the key. The key is now
+  tagged as `wolverine.stream.natural_key` before the load, and `wolverine.stream.id` is the stream's real id, set
+  once the aggregate is loaded.
+* **The null key's `ParamName`.** The `ArgumentOutOfRangeException` for a null natural key on a write names the
+  command member, as in `Number`, rather than the generated expression that reads it.
 * **`DuplicateNaturalKeyException` answers 409.** `MapConcurrencyFailuresToConflict()` maps it to a conflict, also
   when the commit wraps it in an `AggregateException`.
 * **`UpdatedAggregate` after a load by natural key** reads the stream the handler wrote to. It used to read the key's
@@ -765,9 +782,12 @@ differently:
 * **Custom event store integrations.** `IEventSourcingFrameProvider` has two new members,
   `BuildFetchLatestByNaturalKeyFrame` and `DetermineMappedNaturalKeyTypes`. Both have default implementations
   (no natural key reads, no mapped keys), so an existing provider still compiles.
+* **Custom chain types.** `IChain` has a new member, `BuildMissingIdentityStopCondition`, with a default
+  implementation that builds nothing, so an existing chain type still compiles.
 
-Natural key reads (`[ReadAggregate<TKey>]` and `[ReadModel<TKey>]`) and mapped keys are Marten only in 7.0. Polecat
-and Fisher load by owned natural keys for writing, as before.
+Polecat and Fisher read by natural key and have `[WriteAggregate<TKey>]`, `[ReadAggregate<TKey>]` and HTTP
+`[Aggregate<TKey>]` in 7.0 as well, and Fisher has mapped natural keys. Polecat's mapped keys are still to come. See
+[What Each Store Supports](/guide/durability/marten/event-sourcing#what-each-store-supports).
 
 ### `Saga.LastModified` is set by every saga store
 

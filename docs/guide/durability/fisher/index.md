@@ -149,6 +149,66 @@ method on the aggregate type itself throws `Wolverine.Fisher.UnknownAggregateExc
 [What Happens When the Stream Is Missing](/guide/durability/marten/event-sourcing.html#what-happens-when-the-stream-is-missing)
 for the details and the ways to handle a missing stream yourself.
 
+## Natural Keys <Badge type="tip" text="7.0" />
+
+Fisher supports natural keys on aggregates, and so does Wolverine's aggregate handler workflow on Fisher. You define
+the aggregate with `[NaturalKey]` and `[NaturalKeySource]` just like you would for Marten, and then load it by its key
+with an inferred key, or with the key type named on `[WriteAggregate<TKey>]`, `[ReadAggregate<TKey>]` or, over HTTP,
+`[Aggregate<TKey>]`:
+
+<!-- snippet: sample_wolverine_fisher_natural_key_type_argument -->
+<a id='snippet-sample_wolverine_fisher_natural_key_type_argument'></a>
+```cs
+public static class FiNkSeatHandlers
+{
+    public static FiNkSeat? LastSeat;
+    public static FiNkSeatView? LastView;
+    public static FiNkSeat? LastMaybe;
+
+    // Name the key type when the message carries more than one key, or to say so up front
+    public static FiNkSeatHeld Handle(HoldFiNkSeat command, [WriteAggregate<FiNkSeatCode>] FiNkSeat seat)
+        => new(command.Holder);
+
+    // Reads by natural key
+    public static void Handle(ViewFiNkSeat query, [ReadAggregate<FiNkSeatCode>] FiNkSeat seat) => LastSeat = seat;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/FisherTests/natural_keys_in_7_0.cs#L347-L361' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_fisher_natural_key_type_argument' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Reads by key, nullable keys, the version check, exclusive loads and the decider workflow (`[AggregateHandler]`) by
+natural key all work like they do on Marten, so see [Natural Keys](/guide/durability/marten/event-sourcing#natural-keys)
+on the Marten page for the whole story. Mapped natural keys work too, so a read model of the same streams can be loaded
+through the aggregate's lookup by the aggregate's own key:
+
+<!-- snippet: sample_wolverine_fisher_mapped_natural_key -->
+<a id='snippet-sample_wolverine_fisher_mapped_natural_key'></a>
+```cs
+// A read model of the same streams, found through FiNkSeat's lookup by the seat's code
+public class FiNkSeatView
+{
+    public Guid Id { get; set; }
+
+    [MappedNaturalKey<FiNkSeat>]
+    public FiNkSeatCode Code { get; set; } = null!;
+
+    public int Holds { get; set; }
+
+    public void Apply(FiNkSeatAdded e) => Code = e.Code;
+
+    public void Apply(FiNkSeatHeld e) => Holds++;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/FisherTests/natural_keys_in_7_0.cs#L314-L329' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_fisher_mapped_natural_key' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: tip
+An exclusive load on Fisher locks the whole SQLite file until the handler's changes are saved, not just the one stream,
+because that's the lock SQLite has. Keep exclusive handlers short.
+:::
+
+See [What Each Store Supports](/guide/durability/marten/event-sourcing#what-each-store-supports) for the full table.
+
 ## Ancillary stores
 
 A second Fisher store registered with `AddFisherStore<T>()` integrates the same way, and the

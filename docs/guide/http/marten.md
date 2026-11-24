@@ -529,6 +529,130 @@ The aggregate/stream identity is found with the same rules as the `[Entity]` or 
 2. Look for a request body property or route argument named "EntityTypeId"
 3. Look for a request body property or route argument named "Id" or "id"
 
+## Natural Keys <Badge type="tip" text="7.0" />
+
+An HTTP endpoint can load an aggregate by its [natural key](/guide/durability/marten/event-sourcing#natural-keys)
+instead of its stream id, from the route, the query string or the request body. Everything about finding the key works
+just like it does for a message handler; this section covers what's different about HTTP.
+
+### From the Route
+
+A natural key in the route always needs its key type named on the attribute:
+
+<!-- snippet: sample_wolverine_http_write_aggregate_by_natural_key_route -->
+<a id='snippet-sample_wolverine_http_write_aggregate_by_natural_key_route'></a>
+```cs
+// The route value is parsed into a GadgetCode and the gadget is loaded by its natural key
+[WolverinePost("/nkgadgets/{code}/rename")]
+[EmptyResponse]
+public static NkGadgetRenamed Rename(RenameNkGadget command, [WriteAggregate<GadgetCode>("code")] NkGadget gadget)
+    => new(command.Name);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyGadgetEndpoints.cs#L44-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_write_aggregate_by_natural_key_route' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+<!-- snippet: sample_wolverine_http_read_aggregate_by_natural_key_route -->
+<a id='snippet-sample_wolverine_http_read_aggregate_by_natural_key_route'></a>
+```cs
+[WolverineGet("/nkgadgets/{code}")]
+public static NkGadget Get([ReadAggregate<GadgetCode>("code")] NkGadget gadget) => gadget;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyGadgetEndpoints.cs#L60-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_read_aggregate_by_natural_key_route' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`[Aggregate<TKey>]` is the generic form of the HTTP `[Aggregate]` attribute, and `NaturalKey = typeof(TKey)` works on
+`[Aggregate]` too if you're writing F#:
+
+<!-- snippet: sample_wolverine_http_aggregate_by_natural_key_type_argument -->
+<a id='snippet-sample_wolverine_http_aggregate_by_natural_key_type_argument'></a>
+```cs
+// [Aggregate<TKey>] is [Aggregate(NaturalKey = typeof(TKey))]
+[WolverinePost("/nkhttp/aggregate-generic/{code}")]
+[EmptyResponse]
+public static NkGadgetRenamed RenameByGenericAggregate(RenameNkGadget command,
+    [Aggregate<GadgetCode>("code")] NkGadget gadget) => new(command.Name);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpReviewEndpoints.cs#L15-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_aggregate_by_natural_key_type_argument' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+<!-- snippet: sample_wolverine_http_aggregate_with_natural_key_property -->
+<a id='snippet-sample_wolverine_http_aggregate_with_natural_key_property'></a>
+```cs
+// NaturalKey = typeof(TKey) is the spelling to use from F#
+[WolverinePost("/nkhttp/aggregate/{code}")]
+[EmptyResponse]
+public static NkGadgetRenamed AggregateByRoute(RenameNkGadget command,
+    [Aggregate("code", NaturalKey = typeof(GadgetCode))] NkGadget gadget) => new(command.Name);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpAttributeEndpoints.cs#L75-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_aggregate_with_natural_key_property' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+Without the key type, Wolverine reads the route value as the stream id, which it'll happily parse as whatever type the
+stream id is. A request carrying the natural key then finds nothing, and your endpoint answers 404 for an aggregate that
+exists. That's legal, because a stream id route value can have any name, so Wolverine doesn't refuse it, but it does log a
+warning when it generates the endpoint for an aggregate that has natural keys. It stays quiet for a route value named
+like a stream id, such as `{id}` or `{orderId}`, or one the endpoint declares as a parameter of its own.
+:::
+
+Wolverine.Http parses a route or query string value into a value type, or into a class with a static
+`TryParse(string?, IFormatProvider?, out T)` method. A natural key from the route has to be one of those, like
+`readonly record struct OrderNumber(string Value)`.
+
+### From the Query String
+
+Like a stream id, a query string value is only seen through a parameter of the endpoint. Once that parameter is there
+and typed as the key, naming the key type on the attribute is optional:
+
+<!-- snippet: sample_wolverine_http_read_aggregate_by_natural_key_query -->
+<a id='snippet-sample_wolverine_http_read_aggregate_by_natural_key_query'></a>
+```cs
+// A query string value is only seen through a parameter of the endpoint
+[WolverineGet("/nkhttp/read-aggregate-by-query")]
+public static NkGadget ReadAggregateByQuery(GadgetCode code, [ReadAggregate<GadgetCode>("code")] NkGadget gadget)
+    => gadget;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpAttributeEndpoints.cs#L61-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_read_aggregate_by_natural_key_query' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### From the Request Body
+
+A natural key in the request body is found just like a member of a message, and that works for the decider workflow,
+too:
+
+<!-- snippet: sample_wolverine_http_aggregate_handler_by_natural_key -->
+<a id='snippet-sample_wolverine_http_aggregate_handler_by_natural_key'></a>
+```cs
+// The request body has no stream id, so the gadget is loaded by the GadgetCode in it
+[WolverinePost("/nkhttp/decider")]
+[EmptyResponse]
+[AggregateHandler]
+public static NkGadgetRenamed RenameByDecider(RenameNkGadgetByCode command, NkGadget gadget)
+    => new(command.Name);
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpReviewEndpoints.cs#L34-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_aggregate_handler_by_natural_key' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### Status Codes
+
+| | Status |
+|---|---|
+| A write whose stream id or natural key is missing from the request | 400, with a `ProblemDetails` |
+| A read whose natural key is missing from the request | 404 |
+| A key that no stream has, on a required load | 404 |
+| A stale version, or a stream locked by an exclusive load | 409, with `MapConcurrencyFailuresToConflict()` |
+| A second stream claiming a natural key another stream already has (`DuplicateNaturalKeyException`) | 409, with `MapConcurrencyFailuresToConflict()` |
+
+"Missing" means a null value, an empty string, an empty `Guid`, or a strong typed identifier or natural key wrapping one
+of those, which is what a missing query string value binds to. The 400 is new in 7.0, and it applies to stream ids as
+well as natural keys: a write with no identity used to fail inside the load and answer 500.
+
+::: tip
+On Polecat, a write by a natural key that no stream has answers 500 for now, because Polecat's
+`FetchForWriting<T, TKey>()` throws for an unknown key. See
+[What Each Store Supports](/guide/durability/marten/event-sourcing#what-each-store-supports).
+:::
+
 ## Reading a Stream Without Folding It <Badge type="tip" text="6.30" />
 
 `[ReadAggregate]` gives you the *folded* aggregate. When an endpoint's whole job is to serve the history -- 

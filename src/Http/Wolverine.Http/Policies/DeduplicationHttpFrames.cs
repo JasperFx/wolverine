@@ -32,21 +32,27 @@ internal class DeduplicationProblemDetailsFrame : AsyncFrame
     private readonly int _statusCode;
     private readonly string _message;
     private readonly Frame? _recordDuplicate;
+    private readonly string? _comment;
     private Variable? _httpContext;
 
+    /// <param name="comment">
+    ///     The generated comment. GH-5947 writes this frame for a write with no aggregate identity too, which is no
+    ///     deduplication check.
+    /// </param>
     public DeduplicationProblemDetailsFrame(Variable condition, int statusCode, string message,
-        Frame? recordDuplicate = null)
+        Frame? recordDuplicate = null, string? comment = null)
     {
         _condition = condition;
         _statusCode = statusCode;
         _message = message;
         _recordDuplicate = recordDuplicate;
+        _comment = comment;
         uses.Add(condition);
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.WriteComment($"GH-4180: {_statusCode} for a failed logical deduplication check");
+        writer.WriteComment(_comment ?? $"GH-4180: {_statusCode} for a failed logical deduplication check");
         writer.Write($"BLOCK:if ({_condition.Usage})");
         _recordDuplicate?.GenerateEmbedded(method, writer);
 

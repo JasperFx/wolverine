@@ -48,6 +48,13 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     public virtual bool RequiresDeduplication() => Deduplication is not null;
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     Mirrors the <see cref="IChain" /> default as a <c>virtual</c>: a default interface member cannot be overridden
+    ///     from within the class hierarchy.
+    /// </remarks>
+    public virtual Frame[] BuildMissingIdentityStopCondition(Variable isMissing, string detail) => [];
+
+    /// <inheritdoc />
     public virtual Frame[] BuildDeduplicationStopCondition(Variable condition, DeduplicationOutcome outcome,
         DeduplicationRequirement requirement)
         => throw new NotSupportedException(

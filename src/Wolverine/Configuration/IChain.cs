@@ -402,6 +402,15 @@ public interface IChain
     /// <param name="variable">The variable containing the RequirementResult</param>
     /// <returns>A frame that checks the RequirementResult and aborts if Branch == Stop, or null if not supported</returns>
     Frame? CreateRequirementResultFrame(Variable variable);
+
+    /// <summary>
+    ///     GH-5947. The frames that refuse a write whose aggregate identity (a stream id or a natural key) is missing
+    ///     from its input, before the aggregate is loaded. An HTTP endpoint answers 400 with a <c>ProblemDetails</c>; the
+    ///     default builds nothing, and leaves the refusal to the load, which throws.
+    /// </summary>
+    /// <param name="isMissing">A <c>bool</c> variable that is <see langword="true" /> when the identity is missing</param>
+    /// <param name="detail">What the refusal says</param>
+    Frame[] BuildMissingIdentityStopCondition(Variable isMissing, string detail) => [];
 }
 
 #endregion

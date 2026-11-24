@@ -2,6 +2,7 @@ using Alba;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Xunit;
 
@@ -9,6 +10,17 @@ namespace ProcessManagerViaHandlers.Tests;
 
 public class AppFixture : IAsyncLifetime
 {
+    /// <summary>
+    ///     The Marten data and Wolverine's persisted messages. The start handler schedules a 15 minute
+    ///     <c>PaymentTimeout</c> that outlives the test, and the run, that scheduled it: left in the inbox, it fires in
+    ///     a later run, after its stream was wiped, and its handler gets no state.
+    /// </summary>
+    public async Task ResetAsync()
+    {
+        await Host!.ResetAllMartenDataAsync();
+        await Host!.Services.GetRequiredService<IMessageStore>().Admin.ClearAllAsync();
+    }
+
     public IAlbaHost? Host { get; private set; }
 
     public async ValueTask InitializeAsync()
@@ -58,7 +70,7 @@ public abstract class IntegrationContext : IAsyncLifetime
 
     async ValueTask IAsyncLifetime.InitializeAsync()
     {
-        await Host.ResetAllMartenDataAsync();
+        await _fixture.ResetAsync();
     }
 
     public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;

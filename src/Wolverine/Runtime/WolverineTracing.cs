@@ -209,6 +209,12 @@ public static class WolverineTracing
     public const string StreamId = "wolverine.stream.id";
 
     /// <summary>
+    /// Activity tag for the natural key an aggregate handler workflow loads its aggregate by. The stream id isn't
+    /// known until the aggregate is loaded, so <see cref="StreamId" /> is set after the load. GH-5947.
+    /// </summary>
+    public const string StreamNaturalKey = "wolverine.stream.natural_key";
+
+    /// <summary>
     /// Activity tag for the aggregate type full name when processing an aggregate handler workflow
     /// </summary>
     public const string StreamType = "wolverine.stream.type";

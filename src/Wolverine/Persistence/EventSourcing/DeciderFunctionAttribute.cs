@@ -102,12 +102,14 @@ public class DeciderFunctionAttribute : ModifyChainAttribute, IDataRequirement, 
 
         var provider = ResolveEventSourcingProvider(rules, container, aggregateType);
 
-        (AggregateIdMember, VersionMember) =
+        (AggregateIdMember, VersionMember, var isNaturalKey) =
             AggregateHandling.DetermineAggregateIdAndVersion(AggregateType, CommandType, chain, container, provider,
                 VersionSource);
 
-        var aggregateFrame = new MemberAccessFrame(CommandType, AggregateIdMember,
-            $"{Variable.DefaultArgName(AggregateType)}_Id");
+        var aggregateId = isNaturalKey
+            ? findNaturalKeyVariable(chain, AggregateIdMember)
+            : new MemberAccessFrame(CommandType, AggregateIdMember, $"{Variable.DefaultArgName(AggregateType)}_Id")
+                .Variable;
 
         var versionFrame = VersionMember == null
             ? null
@@ -116,14 +118,32 @@ public class DeciderFunctionAttribute : ModifyChainAttribute, IDataRequirement, 
         var handling = new AggregateHandling(this)
         {
             AggregateType = AggregateType,
-            AggregateId = aggregateFrame.Variable,
+            AggregateId = aggregateId,
             Provider = provider,
             LoadStyle = LoadStyle,
             Version = versionFrame?.Variable,
-            AlwaysEnforceConsistency = AlwaysEnforceConsistency
+            AlwaysEnforceConsistency = AlwaysEnforceConsistency,
+            IsNaturalKey = isNaturalKey
         };
 
         handling.Apply(chain, container);
+    }
+
+    /// <summary>
+    ///     GH-5948. The command member carrying the natural key, as the chain reads it. Unlike a
+    ///     <see cref="MemberAccessFrame" />, whose variable takes the member's type without <c>Nullable&lt;T&gt;</c>, this
+    ///     keeps a <c>TKey?</c> member's own type, so a null key is checked before the load.
+    /// </summary>
+    private static Variable findNaturalKeyVariable(IChain chain, MemberInfo member)
+    {
+        if (chain.TryFindVariable(member.Name, ValueSource.InputMember, NaturalKeyIdentity.DeclaredTypeOf(member),
+                out var variable))
+        {
+            return variable;
+        }
+
+        throw new InvalidOperationException(
+            $"Unable to read the natural key {member.DeclaringType?.FullNameInCode()}.{member.Name} on {chain}");
     }
 
     /// <summary>
@@ -173,8 +193,26 @@ public class DeciderFunctionAttribute : ModifyChainAttribute, IDataRequirement, 
         // shared JasperFx.IdentityAttribute plus the naming conventions, which is what every store honors;
         // a store-specific [Identity] spelling only matters on the codegen path above, where the provider
         // is available.
+        // GH-5948: after code generation, the member the workflow loads by, which may be a natural key
+        if (AggregateHandling.TryLoad(chain, out var loaded) && loaded.AggregateId switch
+            {
+                MemberAccessVariable { Member: PropertyInfo p } => p,
+                MessageMemberVariable { Member: PropertyInfo p } => p,
+                _ => null
+            } is { } loadedBy)
+        {
+            property = loadedBy;
+            return true;
+        }
+
+        if (AggregateIdMember is PropertyInfo determined)
+        {
+            property = determined;
+            return true;
+        }
+
         var aggregateType = AggregateType ?? AggregateHandling.DetermineAggregateType(chain);
-        var idMember = AggregateHandling.DetermineAggregateIdMember(aggregateType, inputType!);
+        var idMember = AggregateHandling.TryDetermineAggregateIdMember(aggregateType, inputType!);
         property = idMember as PropertyInfo;
         return property != null;
     }

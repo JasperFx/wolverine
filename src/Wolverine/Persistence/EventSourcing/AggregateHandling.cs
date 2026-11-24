@@ -9,6 +9,7 @@ using JasperFx.Events;
 using JasperFx.Events.Aggregation;
 using JasperFx.Events.Daemon;
 using Wolverine.Configuration;
+using Wolverine.Persistence.EventSourcing.Codegen;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -69,19 +70,33 @@ internal record AggregateHandling(IDataRequirement Requirement)
         ((IPersistenceFrameProvider)Provider).ApplyTransactionSupport(chain, container);
         chain.IsTransactional = true;
 
+        refuseAMissingIdentity(chain);
+
+        // GH-5947: the stream id isn't known before a load by natural key, so the key is tagged now and the stream id
+        // once the aggregate is loaded
+        if (IsNaturalKey)
+        {
+            chain.Middleware.Add(TagAggregateOtelFrame.ForNaturalKey(AggregateType, AggregateId));
+        }
+
         var loader = Provider.BuildLoadAggregateFrame(new AggregateLoadRequest(
             AggregateType,
             AggregateId,
             LoadStyle,
             LoadStyle == ModelConcurrencyStyle.Optimistic ? Version : null,
             AlwaysEnforceConsistency,
-            IsNaturalKey));
+            IsNaturalKey)
+        {
+            StreamIdentity = Provider.DetermineStreamIdentity(chain, container)
+        });
 
         chain.Middleware.Add(loader);
 
         var eventStream = FindEventStreamVariable(loader, AggregateType, Provider);
 
-        chain.Middleware.Add(new TagAggregateOtelFrame(AggregateType, AggregateId));
+        chain.Middleware.Add(IsNaturalKey
+            ? new TagLoadedStreamIdOtelFrame(eventStream, AggregateType, Provider.DetermineStreamIdentity(chain, container))
+            : new TagAggregateOtelFrame(AggregateType, AggregateId));
 
         var firstCall = chain.HandlerCalls().First();
 
@@ -107,6 +122,27 @@ internal record AggregateHandling(IDataRequirement Requirement)
         }
 
         return aggregate;
+    }
+
+    /// <summary>
+    ///     GH-5947. A write whose stream id or natural key is missing from its input has nothing to load and nothing for
+    ///     a new stream to claim. A chain that answers that itself, an HTTP endpoint with a 400, does so before the load;
+    ///     a message handler builds nothing here and the load throws, as it always has.
+    /// </summary>
+    private void refuseAMissingIdentity(IChain chain)
+    {
+        var name = Parameter?.Name ?? Variable.DefaultArgName(AggregateType);
+        if (AggregateIdentityIsMissingFrame.For(AggregateId, name) is not { } check) return;
+
+        var what = IsNaturalKey
+            ? $"{NaturalKeyIdentity.KeyTypeOf(AggregateId).NameInCode()} natural key"
+            : "identity";
+        var stop = chain.BuildMissingIdentityStopCondition(check.IsMissing,
+            $"The {what} of the {AggregateType.NameInCode()} to write to is missing from the request");
+        if (stop.Length == 0) return;
+
+        chain.Middleware.Add(check);
+        chain.Middleware.AddRange(stop);
     }
 
     /// <summary>
@@ -265,8 +301,9 @@ internal record AggregateHandling(IDataRequirement Requirement)
         Justification = "Event<> is closed over the command's own event body type at codegen time; the command type comes from handler discovery. AOT consumers pre-generate via TypeLoadMode.Static. See docs/guide/aot.md.")]
     [UnconditionalSuppressMessage("AOT", "IL3050",
         Justification = "Event<> is closed over the command's own event body type at codegen time; the command type comes from handler discovery. AOT consumers pre-generate via TypeLoadMode.Static. See docs/guide/aot.md.")]
-    internal static (MemberInfo, MemberInfo?) DetermineAggregateIdAndVersion(Type aggregateType, Type commandType,
-        IChain chain, IServiceContainer container, IEventSourcingFrameProvider provider, string? versionSource = null)
+    internal static (MemberInfo, MemberInfo?, bool IsNaturalKey) DetermineAggregateIdAndVersion(Type aggregateType,
+        Type commandType, IChain chain, IServiceContainer container, IEventSourcingFrameProvider provider,
+        string? versionSource = null)
     {
         if (commandType.Closes(typeof(IEvent<>)))
         {
@@ -281,47 +318,55 @@ internal record AggregateHandling(IDataRequirement Requirement)
                 ? concreteEventType.GetProperty(nameof(IEvent.StreamId), flattenHierarchy)
                 : concreteEventType.GetProperty(nameof(IEvent.StreamKey), flattenHierarchy);
 
-            return (member!, null);
+            return (member!, null, false);
         }
 
-        var aggregateId = DetermineAggregateIdMember(aggregateType, commandType);
-        assertIdIsNotANaturalKey(aggregateType, commandType, aggregateId, chain, container, provider);
+        var (aggregateId, isNaturalKey) = determineAggregateIdOrNaturalKey(aggregateType, commandType, chain,
+            container, provider);
 
         var version = versionSource != null
             ? DetermineVersionMemberByName(commandType, versionSource)
             : DetermineVersionMember(commandType);
-        return (aggregateId, version);
+        return (aggregateId, version, isNaturalKey);
     }
 
     /// <summary>
-    ///     The decider workflow (<c>[AggregateHandler]</c>, <c>[DeciderFunction]</c>) loads by stream id only. A member
-    ///     of one of the aggregate's natural key types, picked by <c>[Identity]</c> or by the naming convention, would
-    ///     otherwise have its inner value passed to <c>FetchForWriting&lt;T&gt;</c> as a stream id: a runtime failure on a
-    ///     Guid store and a lookup of the wrong stream on a string one. Refused here, as <c>[WriteAggregate]</c>
-    ///     refuses <c>[Identity]</c> on a natural key member.
+    ///     GH-5948. The member the decider workflow (<c>[AggregateHandler]</c>, <c>[ConsistentAggregateHandler]</c>,
+    ///     <c>[DeciderFunction]</c>) loads the aggregate by, found the way <c>[WriteAggregate]</c> finds it: the stream
+    ///     id first (<c>[Identity]</c>, then the naming conventions, then a strong typed id), then the aggregate's owned
+    ///     natural key, then a key it maps. A stream id member of one of the aggregate's natural key types is the key,
+    ///     loaded by <c>FetchForWriting&lt;T, TKey&gt;</c> rather than passed as a stream id.
     /// </summary>
-    private static void assertIdIsNotANaturalKey(Type aggregateType, Type commandType, MemberInfo aggregateId,
-        IChain chain, IServiceContainer container, IEventSourcingFrameProvider provider)
+    private static (MemberInfo Member, bool IsNaturalKey) determineAggregateIdOrNaturalKey(Type aggregateType,
+        Type commandType, IChain chain, IServiceContainer container, IEventSourcingFrameProvider provider)
     {
-        var memberType = aggregateId switch
-        {
-            PropertyInfo p => p.PropertyType,
-            FieldInfo f => f.FieldType,
-            _ => null
-        };
-        if (memberType == null) return;
-        var keyType = Nullable.GetUnderlyingType(memberType) ?? memberType;
+        var keyTypes = NaturalKeyIdentity.KeyTypesOf(provider, aggregateType, chain, container);
 
         // A key of the stream id's own type is fetched as a stream id, so it is not one of these
         var streamIdType = provider is IPersistenceFrameProvider persistence
             ? persistence.DetermineSagaIdType(aggregateType, chain, container)
             : null;
-        if (keyType == streamIdType) return;
+        var naturalKeyTypes = keyTypes.Where(x => x != streamIdType).ToArray();
 
-        if (!NaturalKeyIdentity.KeyTypesOf(provider, aggregateType, chain, container).Contains(keyType)) return;
+        if (TryDetermineAggregateIdMember(aggregateType, commandType) is { } member)
+        {
+            var memberType = (member as PropertyInfo)?.PropertyType ?? (member as FieldInfo)?.FieldType;
+            var keyType = memberType == null ? null : Nullable.GetUnderlyingType(memberType) ?? memberType;
+            return (member, keyType != null && naturalKeyTypes.Contains(keyType));
+        }
+
+        if (NaturalKeyIdentity.FindKeyMember(aggregateType, commandType, naturalKeyTypes, chain) is { } keyMember)
+        {
+            return (keyMember, true);
+        }
+
+        var conventionalMemberName = $"{aggregateType.Name}Id";
+        var naturalKeys = naturalKeyTypes.Length == 0
+            ? ""
+            : $", or give it a single member of the aggregate's natural key type{(naturalKeyTypes.Length > 1 ? "s" : "")} {naturalKeyTypes.Select(x => x.NameInCode()).Join(", ")}";
 
         throw new InvalidOperationException(
-            $"{commandType.FullNameInCode()}.{aggregateId.Name} is a {keyType.FullNameInCode()}, a natural key of {aggregateType.FullNameInCode()}, but the aggregate handler workflow on {chain.HandlerCalls().First()} loads by stream id only. Load the aggregate by its natural key with a parameter attribute instead, for example [WriteAggregate<{keyType.Name}>] or [WriteModel<{keyType.Name}>], or give the message the stream id.");
+            $"Unable to determine the aggregate id for aggregate type {aggregateType.FullNameInCode()} on command type {commandType.FullNameInCode()}. Either make a property or field named '{conventionalMemberName}', or decorate a member with the {typeof(IdentityAttribute).FullNameInCode()} attribute{naturalKeys}");
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2070",
@@ -364,26 +409,33 @@ internal record AggregateHandling(IDataRequirement Requirement)
         Justification = "Handler/command/model types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
     internal static MemberInfo DetermineAggregateIdMember(Type aggregateType, Type commandType)
     {
-        var conventionalMemberName = $"{aggregateType.Name}Id";
-
-        var member = commandType.GetMembers().FirstOrDefault(IsMarkedAsIdentity)
-                     ?? commandType.GetMembers().FirstOrDefault(x =>
-                         x.Name.EqualsIgnoreCase(conventionalMemberName) || x.Name.EqualsIgnoreCase("Id"));
-
-        if (member == null)
-        {
-            // Fall back: if the aggregate uses a strong typed ID, look for a single
-            // property of that exact type on the command
-            member = TryFindStrongTypedIdMember(aggregateType, commandType);
-        }
+        var member = TryDetermineAggregateIdMember(aggregateType, commandType);
 
         if (member == null)
         {
             throw new InvalidOperationException(
-                $"Unable to determine the aggregate id for aggregate type {aggregateType.FullNameInCode()} on command type {commandType.FullNameInCode()}. Either make a property or field named '{conventionalMemberName}', or decorate a member with the {typeof(IdentityAttribute).FullNameInCode()} attribute");
+                $"Unable to determine the aggregate id for aggregate type {aggregateType.FullNameInCode()} on command type {commandType.FullNameInCode()}. Either make a property or field named '{aggregateType.Name}Id', or decorate a member with the {typeof(IdentityAttribute).FullNameInCode()} attribute");
         }
 
         return member;
+    }
+
+    /// <summary>
+    ///     The command member carrying the aggregate's stream id: <c>[Identity]</c>, then <c>{Aggregate}Id</c> or
+    ///     <c>Id</c>, then a single member of the aggregate's strong typed id. Null when there is none.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Handler/command/model types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
+    internal static MemberInfo? TryDetermineAggregateIdMember(Type aggregateType, Type commandType)
+    {
+        var conventionalMemberName = $"{aggregateType.Name}Id";
+
+        // Fall back: if the aggregate uses a strong typed ID, look for a single
+        // property of that exact type on the command
+        return commandType.GetMembers().FirstOrDefault(IsMarkedAsIdentity)
+               ?? commandType.GetMembers().FirstOrDefault(x =>
+                   x.Name.EqualsIgnoreCase(conventionalMemberName) || x.Name.EqualsIgnoreCase("Id"))
+               ?? TryFindStrongTypedIdMember(aggregateType, commandType);
     }
 
     /// <summary>

@@ -80,24 +80,24 @@
     <PackageVersion Include="Bobcat.EventModel" Version="1.1.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageVersion Include="JasperFx" Version="3.14.0" />
-    <PackageVersion Include="JasperFx.Events" Version="3.14.0" />
-    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="3.14.0" />
-    <PackageVersion Include="JasperFx.Events.InMemory" Version="3.14.0" />
+    <PackageVersion Include="JasperFx" Version="3.16.0" />
+    <PackageVersion Include="JasperFx.Events" Version="3.16.0" />
+    <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="3.16.0" />
+    <PackageVersion Include="JasperFx.Events.InMemory" Version="3.16.0" />
     <!-- RuntimeCompiler is on its own line (the Roslyn compiler package), not the JasperFx one:
          6.0.0 goes with JasperFx 3.0 (net10.0;net11.0, Roslyn 5.9). 5.0.1 was jasperfx#1086,
          AssemblyGenerator sharing one Roslyn MetadataReference per assembly path across
          compilations instead of re-reading every referenced PE image into native memory each time. -->
     <PackageVersion Include="JasperFx.RuntimeCompiler" Version="6.0.0" />
-    <PackageVersion Include="JasperFx.SourceGenerator" Version="3.14.0" />
+    <PackageVersion Include="JasperFx.SourceGenerator" Version="3.16.0" />
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="16.0.0" />
-    <PackageVersion Include="Marten" Version="10.0.0-rc.2" />
+    <PackageVersion Include="Marten" Version="10.0.0-rc.3" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="7.1.1" />
-    <PackageVersion Include="Polecat" Version="6.0.0-rc.1" />
-    <PackageVersion Include="Fisher" Version="2.0.0-rc.1" />
+    <PackageVersion Include="Polecat" Version="6.0.0-rc.2" />
+    <PackageVersion Include="Fisher" Version="2.0.0-rc.2" />
     <PackageVersion Include="Microsoft.Azure.Cosmos" Version="3.63.2" />
-    <PackageVersion Include="Marten.AspNetCore" Version="10.0.0-rc.2" />
-    <PackageVersion Include="Marten.Newtonsoft" Version="10.0.0-rc.1" />
+    <PackageVersion Include="Marten.AspNetCore" Version="10.0.0-rc.3" />
+    <PackageVersion Include="Marten.Newtonsoft" Version="10.0.0-rc.3" />
     <PackageVersion Include="MemoryPack" Version="1.21.3" />
     <PackageVersion Include="MessagePack" Version="3.1.12" />
     <PackageVersion Include="Meziantou.Extensions.Logging.Xunit" Version="1.0.15" />
@@ -123,7 +123,7 @@
     <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
     <PackageVersion Include="MQTTnet.Server" Version="5.2.0.1603" />
     <!-- Whatever Weasel.MySql declares, or the restore fails with NU1605, a package downgrade promoted to an
-         error: Weasel.MySql 10.0.0-rc.1 declares MySqlConnector >= 3.0.0 (GH-5728). Weasel took 2.6.1 before
+         error: Weasel.MySql 10.0.0 declares MySqlConnector >= 3.0.0 (GH-5728). Weasel took 2.6.1 before
          that for GHSA-473q-m89c-ghf8 (weasel#767). -->
     <PackageVersion Include="MySqlConnector" Version="3.0.0" />
     <PackageVersion Include="NATS.Net" Version="3.3.2" />
@@ -261,13 +261,13 @@
          declares a floor of 2.6.1, so the restore fails with NU1605 at the 2.4.0 this repo pinned.
          Weasel took it for GHSA-473q-m89c-ghf8 (weasel#767), so that advisory closes for
          WolverineFx.MySql here too. -->
-    <PackageVersion Include="Weasel.Core" Version="10.0.0-rc.1" />
-    <PackageVersion Include="Weasel.EntityFrameworkCore" Version="10.0.0-rc.1" />
-    <PackageVersion Include="Weasel.MySql" Version="10.0.0-rc.1" />
-    <PackageVersion Include="Weasel.Oracle" Version="10.0.0-rc.1" />
-    <PackageVersion Include="Weasel.Postgresql" Version="10.0.0-rc.1" />
-    <PackageVersion Include="Weasel.SqlServer" Version="10.0.0-rc.1" />
-    <PackageVersion Include="Weasel.Sqlite" Version="10.0.0-rc.1" />
+    <PackageVersion Include="Weasel.Core" Version="10.0.0" />
+    <PackageVersion Include="Weasel.EntityFrameworkCore" Version="10.0.0" />
+    <PackageVersion Include="Weasel.MySql" Version="10.0.0" />
+    <PackageVersion Include="Weasel.Oracle" Version="10.0.0" />
+    <PackageVersion Include="Weasel.Postgresql" Version="10.0.0" />
+    <PackageVersion Include="Weasel.SqlServer" Version="10.0.0" />
+    <PackageVersion Include="Weasel.Sqlite" Version="10.0.0" />
     <!-- The eighth Weasel package, and the only one nothing referenced directly. Marten, Polecat and
          Fisher each request the Weasel.Storage matching their own Weasel line, which trails the
          version pinned for the seven siblings — so before this pin the solution ran Weasel.Storage
@@ -275,7 +275,7 @@
          siblings whenever that line moves. Wolverine.Marten/.Polecat/.Fisher/.ClaimCheck.Marten
          reference it directly so the pin actually wins; without transitive pinning a PackageVersion
          on its own would be inert here, since nothing else references it. -->
-    <PackageVersion Include="Weasel.Storage" Version="10.0.0-rc.1" />
+    <PackageVersion Include="Weasel.Storage" Version="10.0.0" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <!-- xUnit v3. Test projects use xunit.v3 and must set <OutputType>Exe</OutputType>.
          Shared/base-class libraries that are referenced by test projects (notably
@@ -331,7 +331,7 @@
     <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="10.0.2" />
   </ItemGroup>
   <!-- EF Core and its Npgsql provider are split by framework (GH-5728): the 10.x line on net10.0, and the 11.0.0
-       GA line on net11.0 through the Update group below, because EF Core 11 needs net11.0. Weasel 10.0.0-rc.1 does
+       GA line on net11.0 through the Update group below, because EF Core 11 needs net11.0. Weasel 10.0.0 does
        the same, and Weasel.EntityFrameworkCore asks for EF Core 11 on net11.0. Npgsql.EntityFrameworkCore.PostgreSQL
        10.x asks for Npgsql >= 10.0.0 with no upper bound, so on net10.0 it runs on Npgsql 11. GH-5134 kept net11.0
        on 10.x only while Npgsql's EF Core provider had no 11.0 GA. -->

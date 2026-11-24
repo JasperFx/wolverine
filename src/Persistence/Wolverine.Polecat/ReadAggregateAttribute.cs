@@ -42,3 +42,24 @@ public class ReadAggregateAttribute : ReadModelAttribute
         return new PolecatPersistenceFrameProvider();
     }
 }
+
+/// <summary>
+///     <see cref="ReadAggregateAttribute" /> reading the aggregate by its <typeparamref name="TNaturalKey" /> natural
+///     key. Equivalent to <c>[ReadAggregate(NaturalKey = typeof(TNaturalKey))]</c>. GH-5901.
+/// </summary>
+/// <typeparam name="TNaturalKey">
+///     The aggregate's natural key type. Never <c>TKey?</c>: a <c>TKey?</c> member is still matched to <c>TKey</c>.
+/// </typeparam>
+[AttributeUsage(AttributeTargets.Parameter)]
+public class ReadAggregateAttribute<TNaturalKey> : ReadAggregateAttribute where TNaturalKey : notnull
+{
+    public ReadAggregateAttribute()
+    {
+        NaturalKeyTypeArgument = typeof(TNaturalKey);
+    }
+
+    public ReadAggregateAttribute(string argumentName) : base(argumentName)
+    {
+        NaturalKeyTypeArgument = typeof(TNaturalKey);
+    }
+}

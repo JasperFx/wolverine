@@ -141,3 +141,12 @@ write workflow, use the `[ReadAggregate]` attribute:
 [WolverineGet("/orders/latest/{id}")]
 public static Order GetLatest(Guid id, [ReadAggregate] Order order) => order;
 ```
+
+## Natural Keys <Badge type="tip" text="7.0" />
+
+An endpoint can load an aggregate by its natural key instead of its stream id, from the route with
+`[Aggregate<TKey>("name")]`, `[WriteAggregate<TKey>("name")]` or `[ReadAggregate<TKey>("name")]`, from the query
+string, or from the request body, and a write with no stream id or natural key in the request answers 400. It all works
+the same way as on Marten, so see [Natural Keys](/guide/http/marten#natural-keys) on the Marten page, and
+[What Each Store Supports](/guide/durability/marten/event-sourcing#what-each-store-supports) for what Fisher doesn't
+do yet.

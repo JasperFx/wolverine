@@ -4,8 +4,10 @@ using JasperFx;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Persistence.EventSourcing.Codegen;
 
 namespace Wolverine.Persistence.EventSourcing;
 
@@ -25,8 +27,9 @@ internal static class NaturalKeyIdentity
     ///     store side can only ask the default store, and an aggregate registered on an ancillary store never
     ///     takes this branch.
     /// </remarks>
+    /// <param name="spelling">The attribute as the handler spells it, such as <c>WriteAggregate</c>, for messages</param>
     public static Variable? Find(IEventSourcingFrameProvider provider, Type aggregateType, IChain chain,
-        IServiceContainer container, Func<Type, Variable?> findByType)
+        IServiceContainer container, Func<Type, Variable?> findByType, string spelling = "WriteModel")
     {
         var matches = KeyTypesOf(provider, aggregateType, chain, container)
             .Select(keyType => findMember(keyType, findByType))
@@ -39,11 +42,16 @@ internal static class NaturalKeyIdentity
         if (matches.Length > 1)
         {
             throw new InvalidOperationException(
-                $"The message for {aggregateType.FullNameInCode()} on {chain.HandlerCalls().First()} carries more than one natural key of the aggregate ({matches.Select(x => x.Usage).Join(", ")}), so which one identifies it is ambiguous. Name the key type to load by, for example [WriteAggregate<TKey>] or [WriteModel(NaturalKey = typeof(TKey))].");
+                $"The message for {aggregateType.FullNameInCode()} on {chain.HandlerCalls().First()} carries more than one natural key of the aggregate ({matches.Select(x => x.Usage).Join(", ")}), so which one identifies it is ambiguous. Name the key type to load by, for example {suggest(spelling, "TKey")}.");
         }
 
         return matches.SingleOrDefault();
     }
+
+    /// <summary>
+    ///     The key type a member or value carries: its own type, or <c>TKey</c> for a <c>TKey?</c>.
+    /// </summary>
+    public static Type KeyTypeOf(Variable naturalKey) => new NaturalKeyArgument(naturalKey).KeyType;
 
     /// <summary>
     ///     The aggregate's owned key type, if any, then its mapped key types. Never <c>Nullable&lt;T&gt;</c>.
@@ -127,7 +135,7 @@ internal static class NaturalKeyIdentity
     [UnconditionalSuppressMessage("Trimming", "IL2075",
         Justification = "Message types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
     public static void AssertIdentityIsNotANaturalKey(IEventSourcingFrameProvider provider, Type aggregateType,
-        Type streamIdType, IChain chain, IServiceContainer container)
+        Type streamIdType, IChain chain, IServiceContainer container, string spelling = "WriteModel")
     {
         var inputType = chain.InputType();
         if (inputType == null) return;
@@ -149,9 +157,155 @@ internal static class NaturalKeyIdentity
             if (keyTypes.Contains(keyType))
             {
                 throw new InvalidOperationException(
-                    $"{inputType.FullNameInCode()}.{member.Name} is marked with [Identity] and is a {keyType.FullNameInCode()}, a natural key of {aggregateType.FullNameInCode()}, on {chain.HandlerCalls().First()}. Name the key type in the attribute, for example [WriteAggregate<{keyType.Name}>] or [WriteModel(NaturalKey = typeof({keyType.Name}))], so it is loaded by its natural key rather than as a stream id.");
+                    $"{inputType.FullNameInCode()}.{member.Name} is marked with [Identity] and is a {keyType.FullNameInCode()}, a natural key of {aggregateType.FullNameInCode()}, on {chain.HandlerCalls().First()}. Name the key type in the attribute, for example {suggest(spelling, keyType.Name)}, so it is loaded by its natural key rather than as a stream id.");
             }
         }
+    }
+
+    /// <summary>
+    ///     GH-5948. The command member carrying one of <paramref name="keyTypes" />, for the decider workflow, which reads
+    ///     the aggregate's identity off the command rather than a parameter attribute. A <c>TKey?</c> member carries a
+    ///     struct key too. Null when the command has none.
+    /// </summary>
+    public static MemberInfo? FindKeyMember(Type aggregateType, Type commandType, IReadOnlyList<Type> keyTypes,
+        IChain chain)
+    {
+        var matches = new List<MemberInfo>();
+        foreach (var keyType in keyTypes)
+        {
+            var members = keyMembersOf(commandType, memberTypesFor(keyType)).ToArray();
+            if (members.Length > 1)
+            {
+                throw new InvalidOperationException(
+                    $"{commandType.FullNameInCode()} has more than one {keyType.FullNameInCode()} member ({members.Select(x => x.Name).Join(", ")}), a natural key of {aggregateType.FullNameInCode()}, on {chain.HandlerCalls().First()}. Mark the one to load by with [Identity].");
+            }
+
+            matches.AddRange(members);
+        }
+
+        if (matches.Count > 1)
+        {
+            throw new InvalidOperationException(
+                $"{commandType.FullNameInCode()} carries more than one natural key of {aggregateType.FullNameInCode()} ({matches.Select(x => x.Name).Join(", ")}) on {chain.HandlerCalls().First()}, so which one identifies it is ambiguous. Mark the one to load by with [Identity].");
+        }
+
+        return matches.SingleOrDefault();
+    }
+
+    /// <summary>
+    ///     The member's declared type, <c>TKey?</c> included, which a chain matches a variable by.
+    /// </summary>
+    public static Type DeclaredTypeOf(MemberInfo member) => declaredTypeOf(member);
+
+    /// <summary>
+    ///     How a handler spells an attribute, for messages: <c>WriteAggregate</c> for
+    ///     <c>[WriteAggregate&lt;OrderNumber&gt;]</c>, <c>Aggregate</c> for the HTTP <c>[Aggregate]</c>.
+    /// </summary>
+    public static string SpellingOf(Attribute attribute)
+    {
+        var name = attribute.GetType().Name;
+        var tick = name.IndexOf('`');
+        if (tick > 0) name = name[..tick];
+        return name.EndsWith("Attribute") ? name[..^"Attribute".Length] : name;
+    }
+
+    /// <summary>
+    ///     GH-5947 (E2): the attribute the handler already uses with the key type named, and <c>[WriteModel&lt;TKey&gt;]</c>
+    ///     or <c>[ReadModel&lt;TKey&gt;]</c> beside it, which every store's integration has.
+    /// </summary>
+    private static string suggest(string spelling, string keyType, string? name = null)
+    {
+        var arguments = name == null ? "" : $"(\"{name}\")";
+        var core = spelling.StartsWith("Read") ? "ReadModel" : "WriteModel";
+        return spelling == core
+            ? $"[{spelling}<{keyType}>{arguments}]"
+            : $"[{spelling}<{keyType}>{arguments}] or [{core}<{keyType}>{arguments}]";
+    }
+
+    /// <summary>
+    ///     GH-5947 (U4): <c>[WriteAggregate&lt;OrderNumber&gt;(NaturalKey = typeof(CustomerCode))]</c> names two keys,
+    ///     and used to load by the second without a word. The same type twice is harmless.
+    /// </summary>
+    public static void AssertOneKeyType(Type? typeArgument, Type? naturalKey, string spelling, Type aggregateType,
+        IChain chain)
+    {
+        if (typeArgument == null || naturalKey == null || typeArgument == naturalKey) return;
+
+        throw new InvalidOperationException(
+            $"[{spelling}<{typeArgument.NameInCode()}>(NaturalKey = typeof({naturalKey.NameInCode()}))] for {aggregateType.FullNameInCode()} on {chain.HandlerCalls().First()} names two different natural key types. Name the key to load by once, as the type argument or as NaturalKey.");
+    }
+
+    /// <summary>
+    ///     GH-5947 (E1): what to add to "Unable to determine an aggregate id" when the aggregate has natural keys, which
+    ///     the plain message never mentioned. Empty when it has none.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "Message types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
+    public static string ExplainMissingIdentity(IEventSourcingFrameProvider provider, Type aggregateType,
+        Type streamIdType, IChain chain, IServiceContainer container, string spelling)
+    {
+        var keyTypes = KeyTypesOf(provider, aggregateType, chain, container);
+        if (keyTypes.Count == 0) return string.Empty;
+
+        var keys = keyTypes.Select(x => x.NameInCode()).Join(", ");
+        var explanation =
+            $" {aggregateType.NameInCode()} is loaded by its stream id ({streamIdType.NameInCode()}) or by its natural key{(keyTypes.Count > 1 ? "s" : "")} {keys}.";
+
+        var inputType = chain.InputType();
+        if (inputType == null)
+        {
+            return explanation +
+                   $" Name the route or query string value to load by, as in {suggest(spelling, keyTypes[0].Name, "number")}.";
+        }
+
+        foreach (var keyType in keyTypes)
+        {
+            var members = keyMembersOf(inputType, memberTypesFor(keyType)).Select(x => x.Name).ToArray();
+            if (members.Length > 1)
+            {
+                return explanation +
+                       $" {inputType.NameInCode()} has more than one {keyType.NameInCode()} member ({members.Join(", ")}): name the one to load by, as in {suggest(spelling, keyType.Name, members[0])}.";
+            }
+        }
+
+        return explanation +
+               $" {inputType.NameInCode()} has no member of {(keyTypes.Count > 1 ? "any of those types" : "that type")}, and a member of another type, such as a string, isn't read as one. Give it a {keyTypes[0].NameInCode()} member, or name the member or value to load by, as in {suggest(spelling, keyTypes[0].Name, "Name")}.";
+    }
+
+    /// <summary>
+    ///     GH-5947 (U2). An attribute naming a route value with no key type reads it as the stream id, so an endpoint for
+    ///     an aggregate with natural keys answers 404 to a request carrying the key. Logged rather than refused at code
+    ///     generation: a stream id route value named after the key is legal. Quiet for a route value named like a stream
+    ///     id (<c>id</c>, <c>orderId</c>) or declared as a parameter of the endpoint.
+    /// </summary>
+    public static void WarnOfUntypedRouteValue(IEventSourcingFrameProvider provider, Type aggregateType,
+        string? routeValueName, IChain chain, IServiceContainer container, string spelling)
+    {
+        if (UntypedRouteValueWarning(provider, aggregateType, routeValueName, chain, container, spelling) is not
+            { } warning) return;
+
+        if (container.Services.GetService(typeof(ILoggerFactory)) is not ILoggerFactory loggers) return;
+
+        loggers.CreateLogger(typeof(NaturalKeyIdentity)).LogWarning("{Warning}", warning);
+    }
+
+    internal static string? UntypedRouteValueWarning(IEventSourcingFrameProvider provider, Type aggregateType,
+        string? routeValueName, IChain chain, IServiceContainer container, string spelling)
+    {
+        if (routeValueName.IsEmpty() || chain is not IRoutedChain routed) return null;
+        if (!routed.RouteParameterNames.Any(x => x.EqualsIgnoreCase(routeValueName!))) return null;
+
+        // Named like a stream id, as in {id} or {orderId}, or declared by the endpoint with its own type: the stream id
+        // is what's meant, and a warning on every such endpoint would only be noise
+        if (routeValueName!.EndsWith("id", StringComparison.OrdinalIgnoreCase)) return null;
+        if (chain.HandlerCalls().Any(call =>
+                call.Method.GetParameters().Any(x => routeValueName.EqualsIgnoreCase(x.Name ?? string.Empty)))) return null;
+
+        var keyTypes = KeyTypesOf(provider, aggregateType, chain, container);
+        if (keyTypes.Count == 0) return null;
+
+        return
+            $"[{spelling}(\"{routeValueName}\")] on {chain.HandlerCalls().First()} reads the route value '{routeValueName}' as the stream id of {aggregateType.FullNameInCode()}, which also has the natural key{(keyTypes.Count > 1 ? "s" : "")} {keyTypes.Select(x => x.NameInCode()).Join(", ")}. If the route carries a natural key, name its type, as in {suggest(spelling, keyTypes[0].Name, routeValueName)}: read as a stream id, a natural key finds nothing and the endpoint answers 404.";
     }
 
     private static void assertIsKeyOf(IEventSourcingFrameProvider provider, Type aggregateType, Type keyType,
