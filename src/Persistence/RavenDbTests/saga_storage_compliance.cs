@@ -60,7 +60,7 @@ public class RavenDbSagaHost : RavenTestDriver, ISagaHost
     }
 }
 
-[CollectionDefinition("raven")]
+[Collection("raven")]
 public class saga_storage_compliance : StringIdentifiedSagaComplianceSpecs<RavenDbSagaHost>
 {
     public saga_storage_compliance()

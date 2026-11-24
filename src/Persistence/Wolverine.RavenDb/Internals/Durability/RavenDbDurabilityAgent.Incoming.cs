@@ -76,7 +76,7 @@ public partial class RavenDbDurabilityAgent
             .Where(x => x.OwnerId == TransportConstants.AnyNode && x.Status == EnvelopeStatus.Incoming)
             .Select(x => new { x.ReceivedAt })
             .Distinct()
-            .ToListAsync();
+            .ToListAsync(_combined.Token);
 
         return listeners.Where(x => x.ReceivedAt != null).Select(x => x.ReceivedAt!).ToList();
     }

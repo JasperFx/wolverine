@@ -13,7 +13,7 @@ public partial class RavenDbDurabilityAgent
             using var session = _store.OpenAsyncSession();
 
             var senders = (await session.Query<OutgoingMessage>().Customize(x => x.WaitForNonStaleResults())
-                .Where(x => x.OwnerId == 0).ToListAsync())
+                .Where(x => x.OwnerId == 0).ToListAsync(_combined.Token))
                 .Select(x => new { x.Destination })
                 .Distinct()
                 .ToList();

@@ -31,6 +31,7 @@ public partial class RavenDbDurabilityAgent : IAgent
     private readonly CancellationTokenSource _cancellation = new();
     private readonly CancellationTokenSource _combined;
     private PersistenceMetrics _metrics = null!;
+    private IDisposable? _metricsRegistration;
     private readonly DurabilityHealthSignals _health;
 
     // GH-5587. Shared with every other store's durability agent in this application
@@ -66,7 +67,9 @@ public partial class RavenDbDurabilityAgent : IAgent
         
         if (_settings.DurabilityMetricsEnabled)
         {
-            _metrics.StartPolling(_runtime.LoggerFactory.CreateLogger<PersistenceMetrics>(), _parent);
+            // GH-5760. The node's sweeper, as the RDBMS agent uses (GH-3375 / GH-5235), so that stopping can wait for a
+            // count already in flight instead of leaving it running against the store
+            _metricsRegistration = PersistenceMetricsSweeper.For(_runtime).Register(_parent, _metrics);
         }
         
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
@@ -195,19 +198,42 @@ public partial class RavenDbDurabilityAgent : IAgent
     {
         await _cancellation.CancelAsync();
 
-        if (_metrics != null)
+        // GH-5760, the RavenDB side of GH-5247. Wait for the recovery and scheduled-job passes already running instead
+        // of abandoning them. A pass left running keeps querying, and writing compare-exchange values, against a
+        // database that the caller may delete or dispose as soon as this returns
+#pragma warning disable VSTHRD003 // this agent started both loops, and joining them is the whole point
+        await waitForPassAsync(_recoveryTask, cancellationToken);
+        await waitForPassAsync(_scheduledJob, cancellationToken);
+#pragma warning restore VSTHRD003
+
+        // GH-5235. The sweep may already be fetching this store's counts; wait for that query too
+        if (_metricsRegistration is IAsyncDisposable registration)
         {
-            _metrics.SafeDispose();
+            await waitForPassAsync(registration.DisposeAsync().AsTask(), cancellationToken);
         }
-        
-        if (_recoveryTask != null)
+        else
         {
-            _recoveryTask.SafeDispose();
+            _metricsRegistration?.Dispose();
         }
 
-        if (_scheduledJob != null)
+        _metrics?.SafeDispose();
+    }
+
+    private async Task waitForPassAsync(Task? pass, CancellationToken cancellationToken)
+    {
+        if (pass == null) return;
+
+        try
         {
-            _scheduledJob.SafeDispose();
+            await pass.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // The loop's own cancellation, or the caller's stop window ran out
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "A durability pass failed while the RavenDB durability agent was stopping");
         }
     }
 
