@@ -44,10 +44,12 @@ public sealed class CachingKeyProvider : IKeyProvider
             {
                 return await entry.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 // Per-caller cancellation: leave the shared inner task untouched
                 // so other waiters still see the value when the inner completes.
+                // A cancellation from the inner provider is its own timeout, and is
+                // evicted below like any other failure.
                 throw;
             }
             catch
