@@ -116,8 +116,7 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent, IPausesForError
         {
             _circuitBreaker = new CircuitBreaker(endpoint.CircuitBreakerOptions, this, runtime.Observer);
             _pipeline = new HandlerPipeline(runtime,
-                new CircuitBreakerTrackedExecutorFactory(_circuitBreaker,
-                    new CircuitBreakerTrackedExecutorFactory(_circuitBreaker, runtime)), endpoint)
+                new CircuitBreakerTrackedExecutorFactory(_circuitBreaker, runtime), endpoint)
             {
                 TelemetryEnabled = endpoint.TelemetryEnabled
             };
