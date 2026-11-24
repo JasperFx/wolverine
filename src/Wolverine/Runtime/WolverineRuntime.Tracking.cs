@@ -216,7 +216,13 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
     public void ExecutionFinished(Envelope envelope)
     {
-        var time = envelope.StopTiming();
+        ExecutionFinished(envelope, envelope.StopTiming());
+    }
+
+    // GH-5944: the Hybrid tracker stops the envelope's timer once and hands the same elapsed time to
+    // both the OpenTelemetry instruments here and its own CritterWatch accumulator
+    internal void ExecutionFinished(Envelope envelope, double time)
+    {
         if (time >= 0 && _executionCounter.Enabled)
         {
             _executionCounter.Record(time, metricTags(envelope));
@@ -227,7 +233,11 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
     public void ExecutionFinished(Envelope envelope, Exception exception)
     {
-        var time = envelope.StopTiming();
+        ExecutionFinished(envelope, exception, envelope.StopTiming());
+    }
+
+    internal void ExecutionFinished(Envelope envelope, Exception exception, double time)
+    {
         var recordTime = time >= 0 && _executionCounter.Enabled;
 
         // One tag set serves both instruments; the exception type is only added for the failure counter

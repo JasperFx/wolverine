@@ -7,12 +7,23 @@ namespace Wolverine.ErrorHandling;
 
 internal class PauseListenerContinuation : IContinuation, IContinuationSource
 {
-    public PauseListenerContinuation(TimeSpan pauseTime)
+    public PauseListenerContinuation(TimeSpan pauseTime) : this(pauseTime, null)
+    {
+    }
+
+    private PauseListenerContinuation(TimeSpan pauseTime, Exception? exception)
     {
         PauseTime = pauseTime;
+        Exception = exception;
     }
 
     public TimeSpan PauseTime { get; }
+
+    /// <summary>
+    /// The failure the error policy matched, reported to <c>IWolverineObserver.ListenerPaused</c>. Null for the
+    /// rule itself, and for a rate limit pause, which executes this directly. See GH-5945.
+    /// </summary>
+    public Exception? Exception { get; }
 
     public ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime, DateTimeOffset now,
         Activity? activity)
@@ -44,7 +55,10 @@ internal class PauseListenerContinuation : IContinuation, IContinuationSource
             activity?.AddTag(WolverineTracing.EndpointAddress, agent.Endpoint.Uri);
             activity?.AddEvent(new ActivityEvent(WolverineTracing.PausedListener));
 
-            return agent.PauseAsync(PauseTime);
+            // GH-5945. The circuits that can really pause report it, and later its resume, to IWolverineObserver
+            return agent is IPausesForErrorPolicy pausable
+                ? pausable.PauseForErrorPolicyAsync(PauseTime, Exception)
+                : agent.PauseAsync(PauseTime);
         }
 
         runtime.Logger.LogInformation(
@@ -58,6 +72,6 @@ internal class PauseListenerContinuation : IContinuation, IContinuationSource
 
     public IContinuation Build(Exception ex, Envelope envelope)
     {
-        return this;
+        return new PauseListenerContinuation(PauseTime, ex);
     }
 }

@@ -103,6 +103,25 @@ public interface IWolverineObserver
     /// See GH-5446.
     /// </summary>
     Task CircuitBreakerReset(Endpoint endpoint, CircuitBreakerResetReason reason) => CircuitBreakerReset(endpoint);
+
+    /// <summary>
+    /// An error policy (<c>OnException&lt;T&gt;()...AndPauseProcessing(TimeSpan)</c>) or a rate limit is pausing
+    /// the listener for <paramref name="endpoint" /> for <paramref name="pauseTime" />. <paramref name="exception" />
+    /// is the failure that matched the error policy, and null for a rate limit pause. Raised as the pause begins, so
+    /// always before the matching <see cref="ListenerResumed" />. Not raised for a circuit breaker's pause, which has
+    /// <see cref="CircuitBreakerTripped" />, nor for a pause through the listener's own API. Default no-op so
+    /// existing observers are unaffected. See GH-5945.
+    /// </summary>
+    Task ListenerPaused(Endpoint endpoint, TimeSpan pauseTime, Exception? exception) => Task.CompletedTask;
+
+    /// <summary>
+    /// The listener a <see cref="ListenerPaused" /> paused is accepting messages again, either on its own once the
+    /// pause time elapsed or through an explicit start or restart before then. Raised once per pause still pending
+    /// when the listener resumes, and not at all when another pause (an operator's, or a circuit breaker's)
+    /// replaced it first. Default no-op so existing observers are unaffected. See GH-5945.
+    /// </summary>
+    Task ListenerResumed(Endpoint endpoint) => Task.CompletedTask;
+
     void PersistedCounts(Uri storeUri, PersistedCounts counts);
     void MessageHandlingMetricsExported(MessageHandlingMetrics metrics);
 

@@ -218,6 +218,14 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L116-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pause_when_system_is_unusable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Observing the pause <Badge type="tip" text="7.0" />
+
+When `AndPauseProcessing()` (or a rate limit) pauses a listener, Wolverine tells `IWolverineObserver.ListenerPaused(endpoint, pauseTime, exception)`
+with the exception that matched the rule (`null` for a rate limit), and then `IWolverineObserver.ListenerResumed(endpoint)` once that listener is
+accepting messages again, whether the pause time ran out or something restarted the listener first. A pause from a circuit breaker
+is reported through `CircuitBreakerTripped()` and `CircuitBreakerReset()` instead. Both members have default implementations, so existing
+observers are unaffected.
+
 
 ## Scoping
 
