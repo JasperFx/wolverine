@@ -81,8 +81,10 @@ public class bounded_consumer_close_4422 : IDisposable
         return listener;
     }
 
+    // GH-5934. StopAsync now only stops fetching and the close moved to DisposeAsync, after the receiver drains, so
+    // the bound is asserted across the whole stop-then-dispose sequence ListeningAgent runs.
     [Fact]
-    public async Task stop_async_is_bounded_when_close_never_returns()
+    public async Task stop_and_dispose_are_bounded_when_close_never_returns()
     {
         var consumer = buildConsumer();
         makeCloseWedge(consumer);
@@ -94,6 +96,7 @@ public class bounded_consumer_close_4422 : IDisposable
         // WaitAsync rather than a bare await: without the fix this never completes, and a test that
         // FAILS on a timeout is worth vastly more than one that hangs the whole suite.
         await listener.StopAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+        await listener.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
 
         stopwatch.Stop();
 
