@@ -527,8 +527,8 @@ key goes out as your endpoint answered it. To make that possible, the response i
 commit.
 
 An endpoint or `Validate` method that calls `SaveChangesAsync` itself commits its claim with that save.
-On Marten, a failure after that save is the request's own: it goes out as your endpoint answered it, and
-a retry with the same key is refused as a duplicate.
+On Marten, Polecat and Fisher, a failure after that save is the request's own: it goes out as your endpoint
+answered it, and a retry with the same key is refused as a duplicate.
 
 **The claim is compensated.** Everywhere else -- a Buffered or Inline endpoint, an HTTP endpoint with no
 transactional middleware, a `[Transactional]` handler on a plain relational message store -- the claim

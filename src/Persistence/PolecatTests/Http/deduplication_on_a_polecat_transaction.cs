@@ -76,7 +76,9 @@ public class deduplication_on_a_polecat_transaction : IAsyncLifetime
             opts.CustomizeHttpEndpointDiscovery(q =>
                 q.Excludes.WithCondition("Not a transactional deduplication test endpoint",
                     type => type != typeof(PolecatDeduplicatedEndpoint)
-                            && type != typeof(SelfSavingPolecatDeduplicatedEndpoint)))));
+                            && type != typeof(SelfSavingPolecatDeduplicatedEndpoint)
+                            && type != typeof(SavesThenFailsPolecatDeduplicatedEndpoint)
+                            && type != typeof(ValidateSavesPolecatDeduplicatedEndpoint)))));
 
         await ((IHost)theHost).ResetResourceState();
 
@@ -300,6 +302,58 @@ public class deduplication_on_a_polecat_transaction : IAsyncLifetime
         (await claimCountAsync("self-save-2")).ShouldBe(1);
     }
 
+    // GH-5835: the claim committed with the endpoint's own save, so the failure after it is the endpoint's own, not a
+    // concurrent request's work it failed over
+    [Fact]
+    public async Task an_endpoint_that_saves_its_own_session_then_throws_fails_as_itself()
+    {
+        var key = Guid.NewGuid().ToString();
+
+        // A 500 under the developer exception page, else the exception straight through the test server
+        try
+        {
+            var failed = await theHost.Scenario(x =>
+            {
+                x.Post.Json(new PolecatDedupRequest("save-then-throw")).ToUrl("/polecat-dedup/save-then-throw");
+                x.WithRequestHeader("Idempotency-Key", key);
+                x.IgnoreStatusCode();
+            });
+            failed.Context.Response.StatusCode.ShouldBeGreaterThanOrEqualTo(500);
+        }
+        catch (InvalidOperationException e) when (e.Message == SavesThenFailsPolecatDeduplicatedEndpoint.Failure)
+        {
+        }
+
+        (await countAsync("save-then-throw")).ShouldBe(1);
+        (await claimCountAsync(key)).ShouldBe(1);
+
+        // The claim is committed, so a retry is the duplicate
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new PolecatDedupRequest("save-then-throw-again")).ToUrl("/polecat-dedup/save-then-throw");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(409);
+        });
+        (await countAsync("save-then-throw-again")).ShouldBe(0);
+    }
+
+    // GH-5835
+    [Fact]
+    public async Task a_validate_that_saves_then_refuses_keeps_its_own_400()
+    {
+        var key = Guid.NewGuid().ToString();
+
+        var result = await theHost.Scenario(x =>
+        {
+            x.Post.Json(new PolecatDedupRequest("validate-saves")).ToUrl("/polecat-dedup/validate-saves");
+            x.WithRequestHeader("Idempotency-Key", key);
+            x.StatusCodeShouldBe(400);
+        });
+
+        (await result.ReadAsJsonAsync<ProblemDetails>())!.Detail.ShouldBe("Refused after saving");
+        (await claimCountAsync(key)).ShouldBe(1);
+    }
+
     private static async Task<int> claimCountAsync(string key)
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
@@ -489,4 +543,36 @@ public static class UncommittedPolecatDeduplicatedEndpoint
         await session.SaveChangesAsync(cancellation);
         return "ok";
     }
+}
+
+/// <summary>GH-5835. Commits its own session, claim included, and then fails.</summary>
+public static class SavesThenFailsPolecatDeduplicatedEndpoint
+{
+    public const string Failure = "Failed after saving its own session";
+
+    [Deduplicated]
+    [WolverinePost("/polecat-dedup/save-then-throw")]
+    public static async Task<string> SaveThenThrow(PolecatDedupRequest request, IDocumentSession session,
+        CancellationToken cancellation)
+    {
+        session.Store(new PolecatDedupDocument { Id = Guid.NewGuid(), Name = request.Name });
+        await session.SaveChangesAsync(cancellation);
+        throw new InvalidOperationException(Failure);
+    }
+}
+
+/// <summary>GH-5835. A <c>Validate</c> method that commits the session, claim included, and then refuses.</summary>
+public static class ValidateSavesPolecatDeduplicatedEndpoint
+{
+    public static async Task<ProblemDetails> ValidateAsync(PolecatDedupRequest request, IDocumentSession session,
+        CancellationToken cancellation)
+    {
+        session.Store(new PolecatDedupDocument { Id = Guid.NewGuid(), Name = request.Name });
+        await session.SaveChangesAsync(cancellation);
+        return new ProblemDetails { Detail = "Refused after saving", Status = 400 };
+    }
+
+    [Deduplicated]
+    [WolverinePost("/polecat-dedup/validate-saves")]
+    public static string Post(PolecatDedupRequest request, IDocumentSession session) => "ok";
 }

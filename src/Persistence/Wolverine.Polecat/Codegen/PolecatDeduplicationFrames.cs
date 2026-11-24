@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -154,5 +155,47 @@ internal class QueuePolecatDeduplicationClaimFrame : SyncFrame, IDeduplicationCl
         {
             yield return variable;
         }
+    }
+}
+
+/// <summary>
+/// GH-5835. Enlists a <see cref="DeduplicationClaimCommitted" /> participant that calls a static callback once the
+/// session's first commit succeeds, before the session listeners (the outbox flush among them) run. A participant
+/// stays enlisted for later saves of the session, and fires once.
+/// </summary>
+internal class EnlistPolecatDatabaseCommitHookFrame : SyncFrame
+{
+    private readonly MethodInfo _onCommitted;
+    private readonly Type _argumentType;
+    private Variable? _session;
+    private Variable? _argument;
+
+    public EnlistPolecatDatabaseCommitHookFrame(MethodInfo onCommitted)
+    {
+        if (!onCommitted.IsStatic || onCommitted.GetParameters().Length != 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(onCommitted),
+                "The commit callback must be a static method with exactly one parameter");
+        }
+
+        _onCommitted = onCommitted;
+        _argumentType = onCommitted.GetParameters()[0].ParameterType;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("GH-5835: hear that the database committed before anything else in the commit call can still throw");
+        writer.Write(
+            $"{_session!.Usage}.{nameof(IDocumentSession.AddTransactionParticipant)}(new {typeof(DeduplicationClaimCommitted).FullNameInCode()}(() => {_onCommitted.DeclaringType!.FullNameInCode()}.{_onCommitted.Name}({_argument!.Usage})));");
+        Next?.GenerateCode(method, writer);
+    }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _session = chain.FindVariable(typeof(IDocumentSession));
+        yield return _session;
+
+        _argument = chain.FindVariable(_argumentType);
+        yield return _argument;
     }
 }
