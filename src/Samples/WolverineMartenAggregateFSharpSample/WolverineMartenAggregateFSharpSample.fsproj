@@ -27,6 +27,7 @@
     <ItemGroup>
         <Compile Include="Domain.fs" />
         <Compile Include="Handlers.fs" />
+        <Compile Include="NaturalKeys.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

@@ -42,3 +42,24 @@ public class ReadAggregateAttribute : ReadModelAttribute
         return new MartenPersistenceFrameProvider();
     }
 }
+
+/// <summary>
+///     <see cref="ReadAggregateAttribute" /> reading the aggregate by its <typeparamref name="TNaturalKey" />
+///     natural key. Equivalent to <c>[ReadAggregate(NaturalKey = typeof(TNaturalKey))]</c>.
+/// </summary>
+/// <typeparam name="TNaturalKey">
+///     The aggregate's own natural key type, or one it maps from another projection. Never <c>TKey?</c>: a
+///     <c>TKey?</c> member is still matched to <c>TKey</c>.
+/// </typeparam>
+public class ReadAggregateAttribute<TNaturalKey> : ReadAggregateAttribute where TNaturalKey : notnull
+{
+    public ReadAggregateAttribute()
+    {
+        NaturalKey = typeof(TNaturalKey);
+    }
+
+    public ReadAggregateAttribute(string argumentName) : base(argumentName)
+    {
+        NaturalKey = typeof(TNaturalKey);
+    }
+}

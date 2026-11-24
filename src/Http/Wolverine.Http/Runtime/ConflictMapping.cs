@@ -26,6 +26,9 @@ namespace Wolverine.Http.Runtime;
 /// <item><see cref="ExistingStreamIdCollisionException"/>, what <c>StartStream</c> throws when the stream id is
 /// already taken. It is not a <see cref="ConcurrencyException"/>, but it is the same kind of failure from the
 /// client's side: the request conflicts with the current state of the resource.</item>
+/// <item><see cref="DuplicateNaturalKeyException"/>, what a commit throws when a second stream claims a natural key
+/// another stream already has. Not a <see cref="ConcurrencyException"/> either, and a conflict for the same
+/// reason.</item>
 /// </list>
 /// </summary>
 public static class ConcurrencyExceptionMiddleware
@@ -50,6 +53,15 @@ public static class ConcurrencyExceptionMiddleware
     /// stream the client asked to create is already there, so a 409 rather than a 500.
     /// </summary>
     public static ProblemDetails OnException(ExistingStreamIdCollisionException ex, WolverineHttpOptions options)
+    {
+        return ConflictMapping.ToProblemDetails(ex, options);
+    }
+
+    /// <summary>
+    /// A second stream claiming a natural key that another stream already has, on any store. The key the client
+    /// asked for is taken, so a 409 rather than a 500.
+    /// </summary>
+    public static ProblemDetails OnException(DuplicateNaturalKeyException ex, WolverineHttpOptions options)
     {
         return ConflictMapping.ToProblemDetails(ex, options);
     }
@@ -82,13 +94,15 @@ public static class ConflictMapping
     public const int ConflictStatusCode = 409;
 
     /// <summary>
-    /// True when the aggregate is non-empty and every leaf exception, however deeply nested, is a
-    /// <see cref="ConcurrencyException"/>.
+    /// True when the aggregate is non-empty and every leaf exception, however deeply nested, is one this mapping
+    /// answers with a 409 on its own: a <see cref="ConcurrencyException"/>, an
+    /// <see cref="ExistingStreamIdCollisionException"/> or a <see cref="DuplicateNaturalKeyException"/>.
     /// </summary>
     public static bool IsConflict(AggregateException ex)
     {
         var inner = ex.Flatten().InnerExceptions;
-        return inner.Count > 0 && inner.All(x => x is ConcurrencyException);
+        return inner.Count > 0 && inner.All(x =>
+            x is ConcurrencyException or ExistingStreamIdCollisionException or DuplicateNaturalKeyException);
     }
 
     /// <summary>

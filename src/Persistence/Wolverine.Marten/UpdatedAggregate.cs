@@ -23,13 +23,7 @@ public class UpdatedAggregate : IResponseAware
     {
         if (AggregateHandling.TryLoad(chain, out var handling))
         {
-            var idType = handling.AggregateId.VariableType;
-
-            MethodCall frame = ResolveToGuidType(idType)
-                ? new FetchLatestByGuid(handling.AggregateId, handling.AggregateType)
-                : new FetchLatestByString(handling.AggregateId, handling.AggregateType);
-
-            chain.UseForResponse(frame);
+            chain.UseForResponse(UpdatedAggregate.FrameFor(handling));
         }
         else
         {
@@ -48,6 +42,26 @@ public class UpdatedAggregate : IResponseAware
     /// identifiers at all. The handler side has resolved them since #1167 closed, and the Polecat and Fisher
     /// ports of this class already did this -- Marten was the odd one out.
     /// </remarks>
+    /// <summary>
+    /// The read the response is made from. After a load by natural key it goes by the id of the stream that was
+    /// written to: the identity variable is then the key, not a stream id, and the handler may just have changed it.
+    /// </summary>
+    internal static MethodCall FrameFor(AggregateHandling handling)
+    {
+        if (handling.IsNaturalKey)
+        {
+            var guidIdentity = ResolveToGuidType(handling.StreamIdType ?? typeof(Guid));
+            return new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestByStreamHandle(typeof(IEventStoreOperations),
+                UpdatedAggregateIdentity.FetchLatestMethod(guidIdentity ? typeof(Guid) : typeof(string),
+                    handling.AggregateType),
+                handling.AggregateType, guidIdentity);
+        }
+
+        return ResolveToGuidType(handling.AggregateId.VariableType)
+            ? new FetchLatestByGuid(handling.AggregateId, handling.AggregateType)
+            : new FetchLatestByString(handling.AggregateId, handling.AggregateType);
+    }
+
     internal static bool ResolveToGuidType(Type idType)
     {
         if (idType == typeof(Guid)) return true;
@@ -78,13 +92,7 @@ public class UpdatedAggregate<T> : IResponseAware
     {
         if (AggregateHandling.TryLoad<T>(chain, out var handling))
         {
-            var idType = handling.AggregateId.VariableType;
-
-            MethodCall frame = UpdatedAggregate.ResolveToGuidType(idType)
-                ? new FetchLatestByGuid(handling.AggregateId, handling.AggregateType)
-                : new FetchLatestByString(handling.AggregateId, handling.AggregateType);
-
-            chain.UseForResponse(frame);
+            chain.UseForResponse(UpdatedAggregate.FrameFor(handling));
         }
         else
         {

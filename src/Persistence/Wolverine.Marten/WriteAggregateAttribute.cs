@@ -60,3 +60,25 @@ public class WriteAggregateAttribute : WriteModelAttribute
         return new MartenPersistenceFrameProvider();
     }
 }
+
+/// <summary>
+///     <see cref="WriteAggregateAttribute" /> loading the aggregate by its <typeparamref name="TNaturalKey" />
+///     natural key. Equivalent to <c>[WriteAggregate(NaturalKey = typeof(TNaturalKey))]</c>.
+/// </summary>
+/// <typeparam name="TNaturalKey">
+///     The aggregate's own natural key type, or one it maps from another projection. Never <c>TKey?</c>: a
+///     <c>TKey?</c> member is still matched to <c>TKey</c>.
+/// </typeparam>
+[AttributeUsage(AttributeTargets.Parameter)]
+public class WriteAggregateAttribute<TNaturalKey> : WriteAggregateAttribute where TNaturalKey : notnull
+{
+    public WriteAggregateAttribute()
+    {
+        NaturalKey = typeof(TNaturalKey);
+    }
+
+    public WriteAggregateAttribute(string? routeOrParameterName) : base(routeOrParameterName)
+    {
+        NaturalKey = typeof(TNaturalKey);
+    }
+}

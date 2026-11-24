@@ -30,6 +30,7 @@ internal class LoadAggregateFrame : AsyncFrame
     protected readonly Variable? _version;
     protected readonly Type _eventStreamType;
     protected readonly Variable _rawIdentity;
+    protected readonly NaturalKeyArgument? _naturalKey;
 
     /// <param name="att">The aggregate load the workflow asked for</param>
     /// <param name="sessionType">The store's own document session type, which the chain resolves</param>
@@ -56,7 +57,11 @@ internal class LoadAggregateFrame : AsyncFrame
 
         _rawIdentity = _identity;
         // For natural keys, keep the full natural key object (don't unwrap)
-        if (!_att.IsNaturalKey && _rawIdentity.VariableType != typeof(Guid) && _rawIdentity.VariableType != typeof(string))
+        if (_att.IsNaturalKey)
+        {
+            _naturalKey = new NaturalKeyArgument(_identity);
+        }
+        else if (_rawIdentity.VariableType != typeof(Guid) && _rawIdentity.VariableType != typeof(string))
         {
             var valueType = ValueTypeInfo.ForType(_rawIdentity.VariableType);
             _rawIdentity = new MemberAccessVariable(_identity, valueType.ValueProperty);
@@ -101,8 +106,8 @@ internal class LoadAggregateFrame : AsyncFrame
         var aggregateType = _att.AggregateType.FullNameInCode();
         if (_att.IsNaturalKey)
         {
-            var nkType = _identity.VariableType.FullNameInCode();
-            writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForWriting<{aggregateType}, {nkType}>({_identity.Usage}, {_token!.Usage});");
+            writeNullKeyCheck(writer);
+            writer.WriteLine($"var {Stream.Usage} = await {naturalKeyFetchForWriting(_session!.Usage, _token!.Usage)};");
         }
         else if (_att.LoadStyle == ModelConcurrencyStyle.Exclusive)
         {
@@ -124,8 +129,14 @@ internal class LoadAggregateFrame : AsyncFrame
         var aggregateType = _att.AggregateType.FSharpName();
         if (_att.IsNaturalKey)
         {
-            var nkType = _identity.VariableType.FSharpName();
-            writer.WriteLine($"let! {Stream.Usage} = {_session!.FSharpUsage}.Events.FetchForWriting<{aggregateType}, {nkType}>({_identity.FSharpUsage}, {_token!.FSharpUsage})");
+            if (_naturalKey!.CanBeNull)
+            {
+                writer.WriteLine(_naturalKey.FSharpThrowIfNull(_att.AggregateType));
+            }
+
+            var nkType = _naturalKey.KeyType.FSharpName();
+            var version = _version != null ? $", {_version.FSharpUsage}" : "";
+            writer.WriteLine($"let! {Stream.Usage} = {_session!.FSharpUsage}.Events.{naturalKeyFetchMethod}<{aggregateType}, {nkType}>({_naturalKey.FSharpUsage}{version}, {_token!.FSharpUsage})");
         }
         else if (_att.LoadStyle == ModelConcurrencyStyle.Exclusive)
         {
@@ -138,6 +149,41 @@ internal class LoadAggregateFrame : AsyncFrame
         else
         {
             writer.WriteLine($"let! {Stream.Usage} = {_session!.FSharpUsage}.Events.FetchForWriting<{aggregateType}>({_rawIdentity.FSharpUsage}, {_version.FSharpUsage}, {_token!.FSharpUsage})");
+        }
+    }
+
+    /// <summary>
+    /// <c>FetchForWriting&lt;T, TNaturalKey&gt;</c>, or <c>FetchForExclusiveWriting&lt;T, TNaturalKey&gt;</c> for an
+    /// exclusive load, on a session or on a batch query, which have the same natural key overloads. An optimistic
+    /// load with a version passes it, as a stream id load does, so a stale version fails on load instead of being
+    /// ignored. Always by <c>TKey</c>: a member that can be null is checked first, see <see cref="writeNullKeyCheck"/>.
+    /// </summary>
+    protected string naturalKeyFetchForWriting(string targetUsage, string? cancellationTokenUsage = null)
+    {
+        var aggregateType = _att.AggregateType.FullNameInCode();
+        var nkType = _naturalKey!.KeyType.FullNameInCode();
+        var args = _version != null ? $"{_naturalKey.Usage}, {_version.Usage}" : _naturalKey.Usage;
+        if (cancellationTokenUsage != null)
+        {
+            args += $", {cancellationTokenUsage}";
+        }
+
+        return $"{targetUsage}.Events.{naturalKeyFetchMethod}<{aggregateType}, {nkType}>({args})";
+    }
+
+    private string naturalKeyFetchMethod => _att.LoadStyle == ModelConcurrencyStyle.Exclusive
+        ? "FetchForExclusiveWriting"
+        : "FetchForWriting";
+
+    /// <summary>
+    /// A null key is refused the way a null string stream id is: there is no aggregate to load, and no key for a
+    /// new stream to claim.
+    /// </summary>
+    protected void writeNullKeyCheck(ISourceWriter writer)
+    {
+        if (_naturalKey!.CanBeNull)
+        {
+            writer.WriteLine(_naturalKey.ThrowIfNull(_att.AggregateType));
         }
     }
 
@@ -165,6 +211,8 @@ internal class FetchLatestAggregateFrame : AsyncFrame
 {
     protected readonly Type _sessionType;
     protected readonly Variable _identity;
+    protected readonly NaturalKeyArgument? _naturalKey;
+    protected readonly string _typeArguments;
     protected Variable _session = null!;
     protected Variable _token = null!;
 
@@ -174,10 +222,27 @@ internal class FetchLatestAggregateFrame : AsyncFrame
     [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "Codegen-time only; see comment.")]
     [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Codegen-time only; see comment.")]
     public FetchLatestAggregateFrame(Type aggregateType, Variable identity, Type sessionType)
+        : this(aggregateType, identity, sessionType, false)
+    {
+    }
+
+    /// <param name="isNaturalKey">
+    /// The identity is one of the aggregate's natural keys, fetched as is with <c>FetchLatest&lt;T, TKey&gt;</c>
+    /// rather than unwrapped to a stream id. A null key finds nothing, as a null string stream id does.
+    /// </param>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Codegen-time only; see comment.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "Codegen-time only; see comment.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Codegen-time only; see comment.")]
+    public FetchLatestAggregateFrame(Type aggregateType, Variable identity, Type sessionType, bool isNaturalKey)
     {
         _sessionType = sessionType;
 
-        if (identity.VariableType == typeof(Guid) || identity.VariableType == typeof(string))
+        if (isNaturalKey)
+        {
+            _identity = identity;
+            _naturalKey = new NaturalKeyArgument(identity);
+        }
+        else if (identity.VariableType == typeof(Guid) || identity.VariableType == typeof(string))
         {
             _identity = identity;
         }
@@ -187,10 +252,16 @@ internal class FetchLatestAggregateFrame : AsyncFrame
             _identity = new MemberAccessVariable(identity, valueType.ValueProperty);
         }
 
+        _typeArguments = isNaturalKey
+            ? $"{aggregateType.FullNameInCode()}, {_naturalKey!.KeyType.FullNameInCode()}"
+            : aggregateType.FullNameInCode();
+
         Aggregate = new Variable(aggregateType, this);
     }
 
     public Variable Aggregate { get; }
+
+    protected string argumentUsage => _naturalKey?.Usage ?? _identity.Usage;
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
@@ -205,13 +276,26 @@ internal class FetchLatestAggregateFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"var {Aggregate.Usage} = await {_session.Usage}.Events.{nameof(IEventStoreOperations.FetchLatest)}<{Aggregate.VariableType.FullNameInCode()}>({_identity.Usage}, {_token.Usage});");
+        var fetch = $"await {_session.Usage}.Events.{nameof(IEventStoreOperations.FetchLatest)}<{_typeArguments}>({argumentUsage}, {_token.Usage})";
+        writer.Write(_naturalKey is { CanBeNull: true }
+            ? $"var {Aggregate.Usage} = {_naturalKey.IsNullCheck} ? null : {fetch};"
+            : $"var {Aggregate.Usage} = {fetch};");
         Next?.GenerateCode(method, writer);
     }
 
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.WriteLine($"let! {Aggregate.Usage} = {_session.FSharpUsage}.Events.{nameof(IEventStoreOperations.FetchLatest)}<{Aggregate.VariableType.FSharpName()}>({_identity.FSharpUsage}, {_token.FSharpUsage})");
+        var typeArguments = _naturalKey == null
+            ? Aggregate.VariableType.FSharpName()
+            : $"{Aggregate.VariableType.FSharpName()}, {_naturalKey.KeyType.FSharpName()}";
+        var fetch = $"{_session.FSharpUsage}.Events.{nameof(IEventStoreOperations.FetchLatest)}<{typeArguments}>({_naturalKey?.FSharpUsage ?? _identity.FSharpUsage}, {_token.FSharpUsage})";
+
+        // Both branches of an F# if are the fetch's ValueTask, and an aggregate defined in F# has no null
+        // literal, so the null key reads Unchecked.defaultof, which is null for any class
+        var aggregateType = Aggregate.VariableType.FSharpName();
+        writer.WriteLine(_naturalKey is { CanBeNull: true }
+            ? $"let! {Aggregate.Usage} = if {_naturalKey.FSharpIsNullCheck} then System.Threading.Tasks.ValueTask.FromResult<{aggregateType}>(Unchecked.defaultof<{aggregateType}>) else {fetch}"
+            : $"let! {Aggregate.Usage} = {fetch}");
         Next?.GenerateFSharpCode(method, writer);
     }
 }

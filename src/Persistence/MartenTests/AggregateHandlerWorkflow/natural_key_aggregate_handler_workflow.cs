@@ -37,7 +37,8 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
                 .IntegrateWithWolverine();
 
             opts.Discovery.DisableConventionalDiscovery()
-                .IncludeType(typeof(NkOrderHandler));
+                .IncludeType(typeof(NkOrderHandler))
+                .IncludeType(typeof(NkOrderExclusiveHandler));
             opts.Durability.Mode = DurabilityMode.Solo;
 
             opts.Services.AddResourceSetupOnStartup();
@@ -129,6 +130,28 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
         aggregate!.IsComplete.ShouldBeTrue();
         aggregate.TotalAmount.ShouldBe(10.00m);
     }
+
+    [Fact]
+    public async Task handle_command_with_natural_key_using_an_exclusive_load()
+    {
+        var streamId = Guid.NewGuid();
+        var orderNumber = new NkHandlerOrderNumber("ORD-WOL-004");
+
+        await using var session = _store.LightweightSession();
+        session.Events.StartStream<NkOrderAggregate>(streamId,
+            new NkHandlerOrderCreated(orderNumber, "Dana"),
+            new NkHandlerItemAdded("Widget", 10.00m));
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await _host.TrackActivity()
+            .SendMessageAndWaitAsync(new CompleteNkOrderExclusively(orderNumber));
+
+        await using var verify = _store.LightweightSession();
+        var aggregate = await verify.LoadAsync<NkOrderAggregate>(streamId, TestContext.Current.CancellationToken);
+
+        aggregate.ShouldNotBeNull();
+        aggregate!.IsComplete.ShouldBeTrue();
+    }
 }
 
 #region sample_wolverine_marten_natural_key_aggregate
@@ -199,6 +222,20 @@ public static class NkOrderHandler
     {
         stream.AppendOne(new NkHandlerOrderCompleted());
     }
+}
+
+#endregion
+
+#region sample_wolverine_marten_exclusive_load_by_natural_key
+public record CompleteNkOrderExclusively(NkHandlerOrderNumber OrderNum);
+
+public static class NkOrderExclusiveHandler
+{
+    // Loaded with FetchForExclusiveWriting<NkOrderAggregate, NkHandlerOrderNumber>, which locks the
+    // stream until the handler's changes are saved
+    public static NkHandlerOrderCompleted Handle(CompleteNkOrderExclusively command,
+        [WriteAggregate(LoadStyle = Wolverine.Marten.ConcurrencyStyle.Exclusive)] NkOrderAggregate aggregate)
+        => new();
 }
 
 #endregion
