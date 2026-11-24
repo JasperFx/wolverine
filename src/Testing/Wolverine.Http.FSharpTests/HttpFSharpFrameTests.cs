@@ -179,4 +179,14 @@ public class HttpFSharpFrameTests
             "ReadYourWritesEndpoints.Get(id, (documentSession :> Marten.IQuerySession))");
         _readYourWrites.Value.ShouldNotContain("((Marten.IQuerySession)");
     }
+
+    [Fact]
+    public void a_closed_generic_tryparse_type_is_named_in_fsharp_syntax()
+    {
+        // Type.FullName would carry the arity and the assembly-qualified type argument (Labeled`1[[...]])
+        Code.ShouldContain(
+            "Wolverine.Http.FSharpContracts.Labeled<Wolverine.Http.FSharpContracts.ThingColor>.TryParse(");
+        Code.ShouldContain("Wolverine.Http.FSharpContracts.Labeled<int>.TryParse(");
+        Code.ShouldNotContain("Labeled`1");
+    }
 }

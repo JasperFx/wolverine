@@ -152,7 +152,9 @@ internal static class ParsingCode
             return wrapper.FSharpTryParseCode(rawValue);
         }
 
-        // FullName rather than FSharpName: the F# alias of a primitive (int, decimal...) cannot qualify a static call
-        return $"{type.FullName!.Replace('+', '.')}.TryParse({rawValue}, System.Globalization.CultureInfo.InvariantCulture)";
+        // FullName rather than FSharpName: the F# alias of a primitive (int, decimal...) cannot qualify a static call.
+        // A closed generic type's FullName carries its arity and assembly-qualified arguments, so it takes FSharpName
+        var typeName = type.IsGenericType ? type.FSharpName() : type.FullName!.Replace('+', '.');
+        return $"{typeName}.TryParse({rawValue}, System.Globalization.CultureInfo.InvariantCulture)";
     }
 }

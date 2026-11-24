@@ -89,7 +89,7 @@ public partial class SagaChain
             // StartOrHandle, or an instance Start, works on a new saga with nothing applied to it yet
             if (StartingCalls.Any(x => !x.Method.IsStatic))
             {
-                yield return new CreateMissingSagaFrame(saga);
+                yield return new CreateMissingSagaFrame(saga, this);
             }
 
             yield return new SetSagaIdFrame(sagaId, SagaType);

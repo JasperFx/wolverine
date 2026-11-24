@@ -20,6 +20,23 @@ public readonly record struct ThingId(Guid Value);
 public readonly record struct ThingCode(string Value);
 
 /// <summary>
+///     A closed generic query value with its own <c>TryParse</c>: F# has to name it <c>Labeled&lt;T&gt;</c>, not by
+///     its CLR full name with the arity and assembly-qualified type arguments.
+/// </summary>
+public readonly struct Labeled<T>
+{
+    public Labeled(string text) => Text = text;
+
+    public string Text { get; }
+
+    public static bool TryParse(string? value, IFormatProvider? provider, out Labeled<T> result)
+    {
+        result = new Labeled<T>(value ?? string.Empty);
+        return !string.IsNullOrEmpty(value);
+    }
+}
+
+/// <summary>
 ///     The "smallest viable" Wolverine.Http endpoints for the F# code-generation audit
 ///     (issue GH-2969, Phase C): a GET returning a string and a POST binding a JSON body and
 ///     returning a JSON result. The driver renders each endpoint's real <c>HttpChain</c> to F#, and
@@ -192,6 +209,10 @@ public class QueryCollectionEndpoints
 
     [WolverineGet("/fsharp/query/thing-ids")]
     public string ThingIds(ThingId[] thingIds) => string.Join(",", thingIds.Select(x => x.Value));
+
+    [WolverineGet("/fsharp/query/labels")]
+    public string Labels(Labeled<ThingColor>[] labels, Labeled<int> label)
+        => $"{string.Join(",", labels.Select(x => x.Text))} {label.Text}";
 
     [WolverineGet("/fsharp/query/lists")]
     public string Lists(List<int> numbers, IReadOnlyList<string> names, IEnumerable<Guid> keys)

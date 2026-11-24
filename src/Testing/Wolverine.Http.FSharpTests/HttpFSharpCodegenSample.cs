@@ -119,6 +119,7 @@ public static class HttpFSharpCodegenSample
             HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.Ids(null!), httpGraph),
             HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.Colors(null!), httpGraph),
             HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.ThingIds(null!), httpGraph),
+            HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.Labels(null!, default), httpGraph),
             HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.Lists(null!, null!, null!), httpGraph),
             HttpChain.ChainFor<QueryCollectionEndpoints>(x => x.Bound(null!), httpGraph)
         };

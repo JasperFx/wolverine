@@ -577,6 +577,34 @@ type GET_fsharp_query_thing_ids(wolverineHttpOptions: Wolverine.Http.WolverineHt
         }
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_query_labels(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            if not (isNull (Wolverine.Http.HttpHandler.RequestActivity(httpContext))) then (Wolverine.Http.HttpHandler.RequestActivity(httpContext)).SetTag("handler.type", "Wolverine.Http.FSharpContracts.QueryCollectionEndpoints").SetTag("http.route", "/fsharp/query/labels").SetTag("http.request.method", "GET") |> ignore
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            let labels_List = System.Collections.Generic.List<Wolverine.Http.FSharpContracts.Labeled<Wolverine.Http.FSharpContracts.ThingColor>>()
+            for labelsValue in httpContext.Request.Query.["labels"] do
+                match Wolverine.Http.FSharpContracts.Labeled<Wolverine.Http.FSharpContracts.ThingColor>.TryParse(labelsValue, System.Globalization.CultureInfo.InvariantCulture) with
+                    | true, labelsValueParsed -> labels_List.Add(labelsValueParsed)
+                    | _ -> ()
+            let labels = labels_List.ToArray()
+            let label_rawValue = httpContext.Request.Query.["label"].ToString()
+            let label = match Wolverine.Http.FSharpContracts.Labeled<int>.TryParse(label_rawValue, System.Globalization.CultureInfo.InvariantCulture) with | true, v -> v | _ -> Unchecked.defaultof<Wolverine.Http.FSharpContracts.Labeled<int>>
+            let queryCollectionEndpoints = Wolverine.Http.FSharpContracts.QueryCollectionEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_Labels = queryCollectionEndpoints.Labels(labels, label)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Labels, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GET_fsharp_query_lists(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
