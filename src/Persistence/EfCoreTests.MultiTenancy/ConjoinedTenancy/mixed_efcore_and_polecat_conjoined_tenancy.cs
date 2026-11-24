@@ -39,9 +39,14 @@ public class mixed_efcore_and_polecat_conjoined_tenancy : IAsyncLifetime
     private const string TenantRed = "red";
     private const string TenantBlue = "blue";
 
-    // Partition function names are what Weasel (for EF) and Polecat derive from the table name
-    private const string EfPartitionFunction = "pf_mixed_sql_items_tenant_ordinal";
-    private const string PolecatPartitionFunction = "pf_pc_doc_mixedpolecatdoc_tenant_ordinal";
+    // The two partitioned tables. Their partition functions are found through the table, not by name: since
+    // Weasel 10 (weasel#920) a new table's function is pf_{schema}_{table}_{column}, where it was pf_{table}_{column}
+    private const string EfTable = "mixed_sql_items";
+    private const string PolecatTable = "pc_doc_mixedpolecatdoc";
+
+    // Name endings shared by both namings, for the fixture's cleanup of the two functions it creates
+    private const string EfFunctionSuffix = "mixed_sql_items_tenant_ordinal";
+    private const string PolecatFunctionSuffix = "pc_doc_mixedpolecatdoc_tenant_ordinal";
 
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
@@ -129,7 +134,7 @@ public class mixed_efcore_and_polecat_conjoined_tenancy : IAsyncLifetime
     [Fact]
     public async Task registering_a_tenant_with_wolverine_splits_only_the_ef_tables_function()
     {
-        var polecatBefore = await boundariesOfAsync(PolecatPartitionFunction);
+        var polecatBefore = await boundariesOfAsync(PolecatSchema, PolecatTable);
         var polecatRegistryBefore = await registeredTenantsAsync(PolecatSchema, "pc_tenant_partitions");
 
         // Guard against a vacuous comparison of two empty lists: Polecat's function has to be there
@@ -140,7 +145,7 @@ public class mixed_efcore_and_polecat_conjoined_tenancy : IAsyncLifetime
         (await registeredTenantsAsync(WolverineSchema, "wolverine_tenant_partitions")).ShouldContain(TenantRed);
 
         // The whole point: Wolverine split ITS function and left Polecat's function and registry as they were
-        (await boundariesOfAsync(PolecatPartitionFunction)).ShouldBe(polecatBefore);
+        (await boundariesOfAsync(PolecatSchema, PolecatTable)).ShouldBe(polecatBefore);
         (await registeredTenantsAsync(PolecatSchema, "pc_tenant_partitions")).ShouldBe(polecatRegistryBefore);
         (await registeredTenantsAsync(PolecatSchema, "pc_tenant_partitions")).ShouldNotContain(TenantRed);
     }
@@ -148,7 +153,7 @@ public class mixed_efcore_and_polecat_conjoined_tenancy : IAsyncLifetime
     [Fact]
     public async Task registering_a_tenant_with_polecat_splits_only_the_polecat_tables_function()
     {
-        var efBefore = await boundariesOfAsync(EfPartitionFunction);
+        var efBefore = await boundariesOfAsync(MixedSqlItemsDbContext.SchemaName, EfTable);
         var efRegistryBefore = await registeredTenantsAsync(WolverineSchema, "wolverine_tenant_partitions");
 
         // Same guard, the other way round: Weasel's function for the EF table has to be there
@@ -159,7 +164,7 @@ public class mixed_efcore_and_polecat_conjoined_tenancy : IAsyncLifetime
         (await registeredTenantsAsync(PolecatSchema, "pc_tenant_partitions")).ShouldContain(TenantBlue);
 
         // ...and Polecat left the EF function and Wolverine's registry exactly as it found them
-        (await boundariesOfAsync(EfPartitionFunction)).ShouldBe(efBefore);
+        (await boundariesOfAsync(MixedSqlItemsDbContext.SchemaName, EfTable)).ShouldBe(efBefore);
         (await registeredTenantsAsync(WolverineSchema, "wolverine_tenant_partitions")).ShouldBe(efRegistryBefore);
         (await registeredTenantsAsync(WolverineSchema, "wolverine_tenant_partitions")).ShouldNotContain(TenantBlue);
     }
@@ -226,22 +231,24 @@ public class mixed_efcore_and_polecat_conjoined_tenancy : IAsyncLifetime
     }
 
     /// <summary>
-    /// The boundary values of a partition function, straight from sys.partition_range_values -- neither
-    /// engine's own bookkeeping. An empty list means the function does not exist (yet).
+    /// The boundary values of the partition function a table is bound to, straight from sys.indexes and
+    /// sys.partition_range_values -- neither engine's own bookkeeping. An empty list means the table is not
+    /// partitioned (yet).
     /// </summary>
-    private static async Task<IReadOnlyList<string>> boundariesOfAsync(string partitionFunction)
+    private static async Task<IReadOnlyList<string>> boundariesOfAsync(string schema, string table)
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
                           select cast(prv.value as nvarchar(50))
-                          from sys.partition_functions pf
-                              join sys.partition_range_values prv on prv.function_id = pf.function_id
-                          where pf.name = @name
+                          from sys.indexes i
+                              join sys.partition_schemes ps on ps.data_space_id = i.data_space_id
+                              join sys.partition_range_values prv on prv.function_id = ps.function_id
+                          where i.object_id = object_id(@table) and i.index_id in (0, 1)
                           order by prv.boundary_id;
                           """;
-        cmd.Parameters.AddWithValue("name", partitionFunction);
+        cmd.Parameters.AddWithValue("table", $"[{schema}].[{table}]");
         return await readStringsAsync(cmd);
     }
 
@@ -293,15 +300,23 @@ public class mixed_efcore_and_polecat_conjoined_tenancy : IAsyncLifetime
             }
         }
 
-        foreach (var function in new[] { EfPartitionFunction, PolecatPartitionFunction })
+        // Both namings: pf_{table}_{column} from before Weasel 10, and pf_{schema}_{table}_{column}
+        foreach (var suffix in new[] { EfFunctionSuffix, PolecatFunctionSuffix })
         {
-            var scheme = "ps_" + function.Substring(3);
-            await using var drop = conn.CreateCommand();
-            drop.CommandText = $"""
-                                if exists (select 1 from sys.partition_schemes where name = '{scheme}') drop partition scheme [{scheme}];
-                                if exists (select 1 from sys.partition_functions where name = '{function}') drop partition function [{function}];
-                                """;
-            await drop.ExecuteNonQueryAsync();
+            await using var find = conn.CreateCommand();
+            find.CommandText = "select name from sys.partition_functions where name like 'pf[_]%' + @suffix;";
+            find.Parameters.AddWithValue("suffix", suffix);
+
+            foreach (var function in await readStringsAsync(find))
+            {
+                var scheme = "ps_" + function.Substring(3);
+                await using var drop = conn.CreateCommand();
+                drop.CommandText = $"""
+                                    if exists (select 1 from sys.partition_schemes where name = '{scheme}') drop partition scheme [{scheme}];
+                                    if exists (select 1 from sys.partition_functions where name = '{function}') drop partition function [{function}];
+                                    """;
+                await drop.ExecuteNonQueryAsync();
+            }
         }
     }
 }
