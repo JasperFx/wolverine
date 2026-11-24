@@ -259,4 +259,70 @@ public class CachingKeyProviderTests
 
         inner.CallCount.ShouldBe(1);
     }
+
+    private sealed class ScriptedKeyProvider : IKeyProvider
+    {
+        private readonly Queue<Func<ValueTask<byte[]>>> _answers = new();
+        public int CallCount;
+
+        public ScriptedKeyProvider(string defaultKeyId) { DefaultKeyId = defaultKeyId; }
+
+        public string DefaultKeyId { get; }
+
+        public ScriptedKeyProvider Returns(byte[] key)
+        {
+            _answers.Enqueue(() => ValueTask.FromResult(key));
+            return this;
+        }
+
+        public ScriptedKeyProvider Throws(Exception ex)
+        {
+            _answers.Enqueue(() => ValueTask.FromException<byte[]>(ex));
+            return this;
+        }
+
+        public ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref CallCount);
+            return _answers.Dequeue()();
+        }
+    }
+
+    private static readonly TimeSpan ShortTtl = TimeSpan.FromMilliseconds(50);
+
+    private static Task WaitPastShortTtl() => Task.Delay(80, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public async Task cold_key_inner_cancellation_is_evicted_and_retried()
+    {
+        var inner = new ScriptedKeyProvider("k1")
+            .Throws(new TaskCanceledException("kms token timeout"))
+            .Returns(Key32(0x01));
+        var caching = new CachingKeyProvider(inner, TimeSpan.FromMinutes(1));
+
+        await Should.ThrowAsync<TaskCanceledException>(async () =>
+            await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken));
+
+        (await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken)).ShouldBe(Key32(0x01));
+        inner.CallCount.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task inner_cancellation_on_refresh_is_evicted_and_retried()
+    {
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .Throws(new TaskCanceledException("kms token timeout"))
+            .Returns(Key32(0x01));
+        var caching = new CachingKeyProvider(inner, ShortTtl);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+
+        await Should.ThrowAsync<TaskCanceledException>(async () =>
+            await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken));
+
+        (await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken)).ShouldBe(Key32(0x01));
+        inner.CallCount.ShouldBe(3);
+    }
 }
