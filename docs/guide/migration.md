@@ -288,6 +288,10 @@ builder.Host.UseWolverine(opts =>
 that identifies the user with `WolverineHttpOptions.UserNameClaimType`, for example `opts.UserNameClaimType = "sub";` in
 `MapWolverineEndpoints()`. See [tracking the user name](/guide/http/security#tracking-user-name).
 
+A Marten `[DeduplicatedWithResponse]` endpoint that returns `UpdatedAggregate` with `ClaimInTransaction = true` or
+`DefaultClaimInTransaction` now claims in its transaction, with a response built before the commit that has no event
+`Sequence`; in 6.x it kept claim-and-release. Set `ClaimInTransaction = false` on the endpoint to keep claim-and-release.
+
 Two related behaviors need no action. `DefaultClaimInTransaction` stays opt-in. And since 6.51.2, a query string, header
 or form value that is omitted binds the parameter's declared default (`int limit = 50` binds 50, not 0); that change
 shipped without a flag, so there is nothing for `RestoreV6Defaults()` to restore (GH-5099).
