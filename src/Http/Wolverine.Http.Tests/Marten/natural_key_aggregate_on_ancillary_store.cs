@@ -5,6 +5,7 @@ using JasperFx.Resources;
 using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Http.Tests.AncillaryStore;
 using Wolverine.Marten;
@@ -39,7 +40,11 @@ public class natural_key_aggregate_on_ancillary_store : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        var builder = WebApplication.CreateBuilder([]);
+        // Pinned to Production: CI sets ASPNETCORE_ENVIRONMENT=Development, and in Development ASP.NET Core
+        // adds the developer exception page, which turns the unhandled exception a missing identity raises
+        // into a 500 instead of letting it reach the test.
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+            { EnvironmentName = Environments.Production });
 
         builder.Host.UseWolverine(opts =>
         {
