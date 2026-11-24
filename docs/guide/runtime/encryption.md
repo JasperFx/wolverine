@@ -50,6 +50,42 @@ opts.UseEncryption(new CachingKeyProvider(myKmsProvider, ttl: TimeSpan.FromMinut
 The serializer hits the provider on every send and every receive; the cache
 keeps that bounded.
 
+### Serving the last known key when a refresh fails
+
+When a cached key's TTL expires, the next call asks the inner provider again.
+By default, if that refresh fails, the call throws. The serializer wraps any
+exception other than `OperationCanceledException` from the key provider in
+`EncryptionKeyNotFoundException`. Either way an inbound encrypted message goes
+to the dead-letter queue, and an outbound send fails. A throttled or briefly
+unavailable KMS at a TTL boundary is enough to cause this.
+
+A key-id's bytes never change, so the cache can safely keep serving them
+while the KMS is unreachable. Opt in with `serveLastKnownKeyOnRefreshFailure`:
+
+```csharp
+opts.UseEncryption(new CachingKeyProvider(
+    myKmsProvider,
+    ttl: TimeSpan.FromHours(1),
+    serveLastKnownKeyOnRefreshFailure: true));
+```
+
+With this on:
+
+- A refresh that throws `KeyNotFoundException` still throws, and the key is
+  evicted. Make your adapter throw `KeyNotFoundException` when the KMS says
+  the key is gone or disabled (map the KMS's "key disabled" or "key not
+  found" answer to it), so revocation still takes effect at the next refresh.
+- Any other exception, including the inner provider's own timeout, serves
+  the bytes last resolved for that key-id.
+- The next call retries the inner provider. Concurrent callers still share
+  one inner call. Once a refresh succeeds, the key is cached for a full TTL
+  again.
+- A key-id that has never resolved has nothing to fall back on, so its
+  first failure still throws, and the next call retries the inner provider.
+- Each fallback adds a `wolverine.encryption.key.last_known_served` event, tagged
+  with the key-id and exception type, to the activity of the call that performs
+  the refresh. Callers that only wait on that shared refresh don't get their own event.
+
 The byte array returned by `GetKeyAsync` is treated as a borrowed reference
 owned by the provider. Callers must not mutate it or call
 `CryptographicOperations.ZeroMemory` on it -- doing so corrupts caching
@@ -236,7 +272,8 @@ any of them.
 > retry rules do not apply to them in the current runtime. If your provider is
 > a remote KMS that can have transient outages, consider implementing the
 > retry/backoff inside your `IKeyProvider` rather than relying on Wolverine's
-> failure policies.
+> failure policies, and see
+> [Serving the last known key when a refresh fails](#serving-the-last-known-key-when-a-refresh-fails).
 
 For diagnostics, configure a logger or a sink on the dead-letter queue and
 filter on `Envelope.Headers["exception-type"]` when storage is configured.

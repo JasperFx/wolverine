@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Wolverine.Runtime.Serialization.Encryption;
 
 /// <summary>
@@ -8,13 +10,44 @@ namespace Wolverine.Runtime.Serialization.Encryption;
 /// (e.g. many tenants with per-tenant keys) should raise this limit.
 /// <see cref="DefaultKeyId"/> is forwarded to the inner without caching.
 /// </summary>
+/// <remarks>
+/// <para>By default a refresh that fails after the TTL expires throws. The
+/// encrypting serializer wraps any exception other than <see cref="OperationCanceledException"/>
+/// from the key provider in <see cref="EncryptionKeyNotFoundException"/>. Either way an
+/// inbound message is dead-lettered and an outbound send fails. With
+/// <c>serveLastKnownKeyOnRefreshFailure</c> the cache instead serves the bytes it
+/// last resolved for that key-id, because a key-id's bytes never change. Only a
+/// <see cref="KeyNotFoundException"/> from the inner provider is taken to mean the
+/// key is gone; it still throws and evicts the entry. Each later call retries the
+/// inner provider until a refresh succeeds.</para>
+/// </remarks>
 public sealed class CachingKeyProvider : IKeyProvider
 {
     private readonly IKeyProvider _inner;
     private readonly TimeSpan _ttl;
     private readonly LruEntryStore _cache;
+    private readonly bool _serveLastKnownKeyOnRefreshFailure;
 
+    /// <param name="inner">The provider that resolves keys, typically a remote KMS adapter.</param>
+    /// <param name="ttl">How long resolved key bytes are served before the inner provider is asked again.</param>
+    /// <param name="maxEntries">The most key-ids kept; the least recently used is evicted beyond this.</param>
     public CachingKeyProvider(IKeyProvider inner, TimeSpan ttl, int maxEntries = 1024)
+        : this(inner, ttl, serveLastKnownKeyOnRefreshFailure: false, maxEntries)
+    {
+    }
+
+    // A separate overload rather than a new optional parameter on the constructor above,
+    // so assemblies compiled against the three-parameter constructor keep binding to it.
+    /// <param name="inner">The provider that resolves keys, typically a remote KMS adapter.</param>
+    /// <param name="ttl">How long resolved key bytes are served before the inner provider is asked again.</param>
+    /// <param name="serveLastKnownKeyOnRefreshFailure">
+    /// When true, a refresh after the TTL expires that fails with anything but a
+    /// <see cref="KeyNotFoundException"/> serves the key-id's last known bytes instead of throwing.
+    /// A key-id that has never resolved still throws.
+    /// </param>
+    /// <param name="maxEntries">The most key-ids kept; the least recently used is evicted beyond this.</param>
+    public CachingKeyProvider(IKeyProvider inner, TimeSpan ttl, bool serveLastKnownKeyOnRefreshFailure,
+        int maxEntries = 1024)
     {
         if (ttl <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(ttl), "TTL must be positive.");
@@ -24,60 +57,107 @@ public sealed class CachingKeyProvider : IKeyProvider
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
         _ttl = ttl;
         _cache = new LruEntryStore(maxEntries);
+        _serveLastKnownKeyOnRefreshFailure = serveLastKnownKeyOnRefreshFailure;
     }
 
     public string DefaultKeyId => _inner.DefaultKeyId;
 
     public async ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken)
     {
-        while (true)
+        var entry = _cache.GetOrAdd(keyId, id => new CacheEntry(FetchAsync(id, lastKnownKey: null)));
+
+        if (entry.IsExpired(_ttl))
         {
-            var entry = _cache.GetOrAdd(keyId, id => new CacheEntry(FetchAsync(id)));
+            // Replaced in place rather than removed, so no caller can slip in a
+            // refresh that has lost the last known bytes. The refreshed entry is
+            // awaited without another expiry check: one that fell back on the last
+            // known bytes is already expired, and re-checking would refresh forever.
+            var lastKnownKey = _serveLastKnownKeyOnRefreshFailure ? entry.LastKnownKey : null;
+            // A key-id the store has already dropped, for example after a KeyNotFoundException,
+            // is fetched cold: the bytes read above may be the ones the KMS just said are gone.
+            entry = _cache.Replace(keyId, entry, id => new CacheEntry(FetchAsync(id, lastKnownKey), lastKnownKey))
+                    ?? _cache.GetOrAdd(keyId, id => new CacheEntry(FetchAsync(id, lastKnownKey: null)));
+        }
 
-            if (entry.IsExpired(_ttl))
-            {
-                _cache.TryRemove(keyId, entry);
-                continue;
-            }
-
-            try
-            {
-                return await entry.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                // Per-caller cancellation: leave the shared inner task untouched
-                // so other waiters still see the value when the inner completes.
-                // A cancellation from the inner provider is its own timeout, and is
-                // evicted below like any other failure.
-                throw;
-            }
-            catch
-            {
-                _cache.TryRemove(keyId, entry);
-                throw;
-            }
+        try
+        {
+            var fetched = await entry.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return fetched.Key;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Per-caller cancellation: leave the shared inner task untouched
+            // so other waiters still see the value when the inner completes.
+            // A cancellation from the inner provider is its own timeout, and is
+            // evicted below like any other failure.
+            throw;
+        }
+        catch
+        {
+            _cache.TryRemove(keyId, entry);
+            throw;
         }
     }
 
-    private async Task<byte[]> FetchAsync(string keyId)
+    private async Task<FetchedKey> FetchAsync(string keyId, byte[]? lastKnownKey)
     {
-        return await _inner.GetKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            var key = await _inner.GetKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false);
+            return new FetchedKey(key, IsLastKnown: false);
+        }
+        // The inner provider is called without a token, so an OperationCanceledException
+        // here is its own timeout, as transient as any other failure.
+        catch (Exception ex) when (lastKnownKey is not null && ex is not KeyNotFoundException)
+        {
+            Activity.Current?.AddEvent(new ActivityEvent(WolverineTracing.EncryptionKeyLastKnownServed,
+                tags: new ActivityTagsCollection
+                {
+                    [WolverineTracing.EncryptionKeyId] = keyId,
+                    ["exception.type"] = ex.GetType().FullName
+                }));
+
+            return new FetchedKey(lastKnownKey, IsLastKnown: true);
+        }
     }
+
+    private readonly record struct FetchedKey(byte[] Key, bool IsLastKnown);
 
     private sealed class CacheEntry
     {
-        public Task<byte[]> Task { get; }
+        public Task<FetchedKey> Task { get; }
         public DateTimeOffset CreatedAt { get; }
+        private readonly byte[]? _startedWithKey;
 
-        public CacheEntry(Task<byte[]> task)
+        public CacheEntry(Task<FetchedKey> task, byte[]? startedWithKey = null)
         {
             Task = task;
             CreatedAt = DateTimeOffset.UtcNow;
+            _startedWithKey = startedWithKey;
         }
 
+        /// <summary>
+        /// The bytes this entry resolved, whether fetched or served as the last known key,
+        /// or the bytes it started with if its refresh hasn't completed yet.
+        /// </summary>
+        public byte[]? LastKnownKey => Resolved?.Key ?? _startedWithKey;
+
+        // An entry that fell back on the last known bytes is expired at once, so the next
+        // caller retries the inner provider instead of serving stale bytes for a whole TTL.
         public bool IsExpired(TimeSpan ttl)
-            => DateTimeOffset.UtcNow - CreatedAt > ttl;
+            => Resolved is { IsLastKnown: true }
+               || DateTimeOffset.UtcNow - CreatedAt > ttl;
+
+        private FetchedKey? Resolved
+        {
+            get
+            {
+                if (!Task.IsCompletedSuccessfully) return null;
+#pragma warning disable VSTHRD002 // The task has completed, so reading its result never blocks
+                return Task.Result;
+#pragma warning restore VSTHRD002
+            }
+        }
     }
 
     private sealed class LruEntryStore
@@ -119,6 +199,32 @@ public sealed class CachingKeyProvider : IKeyProvider
                 _order.AddFirst(node);
                 _index[keyId] = node;
                 return newEntry;
+            }
+        }
+
+        /// <summary>
+        /// Replaces <paramref name="expired"/> with a new entry and returns it. If another
+        /// caller has already replaced it, returns the entry now cached instead. If the
+        /// key-id has been removed, returns null and adds nothing.
+        /// </summary>
+        public CacheEntry? Replace(string keyId, CacheEntry expired, Func<string, CacheEntry> factory)
+        {
+            lock (_lock)
+            {
+                if (!_index.TryGetValue(keyId, out var node))
+                {
+                    return null;
+                }
+
+                if (ReferenceEquals(node.Value.Value, expired))
+                {
+                    // Same non-blocking factory contract as GetOrAdd.
+                    node.Value = new KeyValuePair<string, CacheEntry>(keyId, factory(keyId));
+                }
+
+                _order.Remove(node);
+                _order.AddFirst(node);
+                return node.Value.Value;
             }
         }
 
