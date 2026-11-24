@@ -1,5 +1,4 @@
 using JasperFx.CodeGeneration.Model;
-using JasperFx.Events;
 
 namespace Wolverine.Persistence.EventSourcing;
 
@@ -33,11 +32,4 @@ public sealed record AggregateLoadRequest(
     ModelConcurrencyStyle LoadStyle,
     Variable? Version,
     bool AlwaysEnforceConsistency,
-    bool IsNaturalKey)
-{
-    /// <summary>
-    ///     How the store the aggregate lives on identifies its streams. A store that has to start a new stream itself,
-    ///     as Fisher does for a natural key no stream has yet (GH-5948), needs to know which kind of id to make.
-    /// </summary>
-    public StreamIdentity StreamIdentity { get; init; } = StreamIdentity.AsGuid;
-}
+    bool IsNaturalKey);

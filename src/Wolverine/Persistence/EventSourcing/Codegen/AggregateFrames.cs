@@ -107,9 +107,7 @@ internal class LoadAggregateFrame : AsyncFrame
         if (_att.IsNaturalKey)
         {
             writeNullKeyCheck(writer);
-            var fetch = naturalKeyFetchOverride(_session!.Usage, _naturalKey!.Usage, _version?.Usage, _token!.Usage)
-                        ?? naturalKeyFetchForWriting(_session!.Usage, _token!.Usage);
-            writer.WriteLine($"var {Stream.Usage} = await {fetch};");
+            writer.WriteLine($"var {Stream.Usage} = await {naturalKeyFetchForWriting(_session!.Usage, _token!.Usage)};");
         }
         else if (_att.LoadStyle == ModelConcurrencyStyle.Exclusive)
         {
@@ -138,10 +136,7 @@ internal class LoadAggregateFrame : AsyncFrame
 
             var nkType = _naturalKey.KeyType.FSharpName();
             var version = _version != null ? $", {_version.FSharpUsage}" : "";
-            var fetch = naturalKeyFetchOverride(_session!.FSharpUsage, _naturalKey.FSharpUsage, _version?.FSharpUsage,
-                            _token!.FSharpUsage, fsharp: true)
-                        ?? $"{_session!.FSharpUsage}.Events.{naturalKeyFetchMethod}<{aggregateType}, {nkType}>({_naturalKey.FSharpUsage}{version}, {_token!.FSharpUsage})";
-            writer.WriteLine($"let! {Stream.Usage} = {fetch}");
+            writer.WriteLine($"let! {Stream.Usage} = {_session!.FSharpUsage}.Events.{naturalKeyFetchMethod}<{aggregateType}, {nkType}>({_naturalKey.FSharpUsage}{version}, {_token!.FSharpUsage})");
         }
         else if (_att.LoadStyle == ModelConcurrencyStyle.Exclusive)
         {
@@ -176,14 +171,7 @@ internal class LoadAggregateFrame : AsyncFrame
         return $"{targetUsage}.Events.{naturalKeyFetchMethod}<{aggregateType}, {nkType}>({args})";
     }
 
-    /// <summary>
-    /// A store's own call for a load by natural key, for a store whose <c>FetchForWriting&lt;T, TKey&gt;</c> doesn't
-    /// behave as the workflow needs on its own. Null, the default, writes the session's own fetch. GH-5948.
-    /// </summary>
-    protected virtual string? naturalKeyFetchOverride(string sessionUsage, string keyUsage, string? versionUsage,
-        string tokenUsage, bool fsharp = false) => null;
-
-    protected string naturalKeyFetchMethod => _att.LoadStyle == ModelConcurrencyStyle.Exclusive
+    private string naturalKeyFetchMethod => _att.LoadStyle == ModelConcurrencyStyle.Exclusive
         ? "FetchForExclusiveWriting"
         : "FetchForWriting";
 

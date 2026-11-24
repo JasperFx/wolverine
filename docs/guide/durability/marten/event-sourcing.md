@@ -1670,7 +1670,7 @@ off.
 ### What Each Store Supports
 
 Natural keys work the same way across the three stores, with one gap that is on the store side. This is as of
-Marten 10.0.0-rc.3, Polecat 6.0.0-rc.3 and Fisher 2.0.0-rc.2:
+Marten 10.0.0-rc.3, Polecat 6.0.0-rc.3 and Fisher 2.0.0-rc.3:
 
 | | Marten | Polecat | Fisher |
 |---|---|---|---|

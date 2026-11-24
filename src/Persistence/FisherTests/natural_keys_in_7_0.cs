@@ -224,8 +224,8 @@ public class natural_keys_in_7_0 : IAsyncLifetime
 
         (await loadSeat(streamId)).Holder.ShouldBe("Carol");
 
-        // Fisher's FetchForWriting<T, TKey> throws for a key no stream has. Wolverine.Fisher turns that into the empty
-        // stream Marten hands back, so the not-found check answers 404 (GH-5948)
+        // Since Fisher 2.0.0-rc.3 (fisher#695) FetchForWriting<T, TKey> hands back an empty stream for a key no stream
+        // has, as Marten and Polecat do, so the not-found check answers 404 (GH-5948)
         await theHost.Scenario(s =>
         {
             s.Post.Json(new HoldFiNkSeatRequest("Nobody")).ToUrl("/fink/seats/S-NONE/hold");
@@ -241,6 +241,15 @@ public class natural_keys_in_7_0 : IAsyncLifetime
 
         // The decider workflow's aggregate isn't required, so its handler runs with no seat
         await theHost.InvokeMessageAndWaitAsync(new HoldFiNkSeatByDecider(uniqueCode(), "Nobody"));
+    }
+
+    [Fact]
+    public async Task an_unknown_key_at_a_version_is_a_concurrency_failure()
+    {
+        // A new stream is at version 0, so an expected version of 1 is stale, as on Marten. Before Fisher 2.0.0-rc.3
+        // Wolverine.Fisher caught the unknown key and handed back a new stream without checking the version
+        await Should.ThrowAsync<ConcurrencyException>(() =>
+            theHost.InvokeMessageAndWaitAsync(new HoldFiNkSeatAtVersion(uniqueCode(), "Nobody", 1)));
     }
 
     [Fact]

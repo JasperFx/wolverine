@@ -85,10 +85,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             LoadStyle,
             LoadStyle == ModelConcurrencyStyle.Optimistic ? Version : null,
             AlwaysEnforceConsistency,
-            IsNaturalKey)
-        {
-            StreamIdentity = Provider.DetermineStreamIdentity(chain, container)
-        });
+            IsNaturalKey));
 
         chain.Middleware.Add(loader);
 

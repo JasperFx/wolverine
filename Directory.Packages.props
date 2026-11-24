@@ -96,7 +96,9 @@
     <!-- Polecat 6.0.0-rc.3 serves mapped natural keys and starts a new stream for an unknown natural key on
          FetchForWriting (polecat#1150), as Marten does. Wolverine.Polecat reads the mapped keys (GH-5901). -->
     <PackageVersion Include="Polecat" Version="6.0.0-rc.3" />
-    <PackageVersion Include="Fisher" Version="2.0.0-rc.2" />
+    <!-- Fisher 2.0.0-rc.3 starts a new stream for an unknown natural key on FetchForWriting (fisher#695), as Marten
+         and Polecat do, so Wolverine.Fisher no longer catches UnknownNaturalKeyException (GH-5948). -->
+    <PackageVersion Include="Fisher" Version="2.0.0-rc.3" />
     <PackageVersion Include="Microsoft.Azure.Cosmos" Version="3.63.2" />
     <PackageVersion Include="Marten.AspNetCore" Version="10.0.0-rc.3" />
     <PackageVersion Include="Marten.Newtonsoft" Version="10.0.0-rc.3" />

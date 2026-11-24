@@ -753,6 +753,10 @@ differently:
 * **A version is checked on a write by natural key (BREAKING).** A command with a `Version` member loaded by its
   natural key now fails with a `ConcurrencyException` when the stream has moved on, as a load by stream id always
   has. This comes from the shared store code, so it applies to Polecat and Fisher too.
+* **An unknown natural key on a write finds no aggregate on every store.** Marten always handed back a new, empty
+  stream for a key no stream has, so a required load stopped the handler and an HTTP endpoint answered 404. Polecat
+  6.0.0-rc.3 and Fisher 2.0.0-rc.3 do the same now, where they used to throw and answer 500. As on Marten, an unknown key
+  with a non-zero expected version fails with a `ConcurrencyException`, because the new stream is at version 0.
 * **An exclusive load by natural key locks the stream (BREAKING).** With `LoadStyle = ModelConcurrencyStyle.Exclusive`,
   a load by natural key now calls `FetchForExclusiveWriting<T, TKey>` and can fail with a `StreamLockedException`.
   Marten takes a row lock, as Polecat already did for every load by natural key, and Fisher locks the SQLite file.
