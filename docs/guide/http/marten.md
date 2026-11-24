@@ -628,8 +628,23 @@ Wolverine.Http parses a route or query string value into a value type, or into a
 
 ### From the Query String
 
-Like a stream id, a query string value is only seen through a parameter of the endpoint. Once that parameter is there
-and typed as the key, naming the key type on the attribute is optional:
+A query string value named like the aggregate's key member is read as the natural key, even when the endpoint doesn't
+declare it as a parameter. For an aggregate with a single natural key, that works with nothing on the attribute at all:
+
+<!-- snippet: sample_wolverine_http_read_aggregate_by_inferred_natural_key_query -->
+<a id='snippet-sample_wolverine_http_read_aggregate_by_inferred_natural_key_query'></a>
+```cs
+// No route value and no endpoint parameter: ?code= is read as NkGadget's Code natural key
+[WolverineGet("/nkhttp/inferred-query")]
+public static NkGadget GetByInferredQueryKey([ReadAggregate] NkGadget gadget) => gadget;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpReviewEndpoints.cs#L49-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_read_aggregate_by_inferred_natural_key_query' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With a name on the attribute, as in `[WriteAggregate("code")]`, the query value of that name is the key when it isn't a
+route value or a parameter of the endpoint and it's named like the key member or the key type. When the endpoint does
+declare the value as a parameter typed as the key, that works too, and naming the key type on the attribute is still
+optional:
 
 <!-- snippet: sample_wolverine_http_read_aggregate_by_natural_key_query -->
 <a id='snippet-sample_wolverine_http_read_aggregate_by_natural_key_query'></a>
@@ -657,7 +672,7 @@ too:
 public static NkGadgetRenamed RenameByDecider(RenameNkGadgetByCode command, NkGadget gadget)
     => new(command.Name);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpReviewEndpoints.cs#L73-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_aggregate_handler_by_natural_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests.AncillaryStore/NaturalKeyHttpReviewEndpoints.cs#L85-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_http_aggregate_handler_by_natural_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Status Codes

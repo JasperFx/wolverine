@@ -46,6 +46,18 @@ public static class NkHttpReviewEndpoints
     public static NkGadgetRenamed RenameByInferredKey(RenameNkGadget command, [WriteAggregate("code")] NkGadget gadget)
         => new(command.Name);
 
+    #region sample_wolverine_http_read_aggregate_by_inferred_natural_key_query
+    // No route value and no endpoint parameter: ?code= is read as NkGadget's Code natural key
+    [WolverineGet("/nkhttp/inferred-query")]
+    public static NkGadget GetByInferredQueryKey([ReadAggregate] NkGadget gadget) => gadget;
+    #endregion
+
+    // Named in the attribute, and only in the query string
+    [WolverinePost("/nkhttp/inferred-query/rename")]
+    [EmptyResponse]
+    public static NkGadgetRenamed RenameByInferredQueryKey(RenameNkGadget command,
+        [WriteAggregate("code")] NkGadget gadget) => new(command.Name);
+
     // Named like the key type rather than the key member
     [WolverinePost("/nkhttp/inferred-by-type/{gadgetCode}/rename")]
     [EmptyResponse]

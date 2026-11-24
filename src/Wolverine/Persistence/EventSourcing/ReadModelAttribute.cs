@@ -140,8 +140,10 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
                         $"The {provider.StoreName} integration cannot read {parameter.ParameterType.FullNameInCode()} by its natural key on {chain.HandlerCalls().First()}.");
         }
         else if (ArgumentName.IsNotEmpty() && (ValueSource is ValueSource.Anything or ValueSource.RouteValue) &&
-                 NaturalKeyIdentity.FindRouteNaturalKey(provider, parameter.ParameterType, idType, ArgumentName, chain,
-                     container) is { } routeKey)
+                 (NaturalKeyIdentity.FindRouteNaturalKey(provider, parameter.ParameterType, idType, ArgumentName, chain,
+                      container)
+                  ?? NaturalKeyIdentity.FindQueryStringNaturalKey(provider, parameter.ParameterType, idType,
+                      ArgumentName, chain, container)) is { } routeKey)
         {
             // GH-5954: a route value named in the attribute is tried as a natural key first, by its name or its
             // declared type, because it would always parse as a stream id
@@ -172,7 +174,9 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
 
             // GH-5954: with nothing named, a route value named like one of the aggregate's keys, as {code} for Code
             identity ??= NaturalKeyIdentity.FindRouteNaturalKey(provider, aggregateType, idType, null, chain,
-                container);
+                             container)
+                         ?? NaturalKeyIdentity.FindQueryStringNaturalKey(provider, aggregateType, idType, null, chain,
+                             container);
 
             // A store that cannot fetch by natural key builds no frame, and the load is reported as before
             if (identity != null) frame = provider.BuildFetchLatestByNaturalKeyFrame(aggregateType, identity);
