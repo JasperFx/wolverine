@@ -778,8 +778,19 @@ public const string DeduplicationInProgress = "wolverine.deduplication.in_progre
 /// GH-5401. Span tag with how a <c>[WaitForProjection]</c> wait ended: Reached, TimedOut, Paused or Rebuilding
 /// </summary>
 public const string ProjectionWaitStatus = "wolverine.projection.wait_status";
+
+/// <summary>
+/// ActivityEvent marking that a <c>CachingKeyProvider</c> created with <c>serveLastKnownKeyOnRefreshFailure</c>
+/// could not refresh an expired encryption key, and served the key's last known bytes instead
+/// </summary>
+public const string EncryptionKeyLastKnownServed = "wolverine.encryption.key.last_known_served";
+
+/// <summary>
+/// Tag on <see cref="EncryptionKeyLastKnownServed"/> with the key-id whose last known bytes were served
+/// </summary>
+public const string EncryptionKeyId = "wolverine.encryption.key_id";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L314' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L325' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Opt-in Handler Execution Diagnostics <Badge type="tip" text="5.38" />

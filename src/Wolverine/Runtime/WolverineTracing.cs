@@ -311,6 +311,17 @@ public static class WolverineTracing
     /// </summary>
     public const string ProjectionWaitStatus = "wolverine.projection.wait_status";
 
+    /// <summary>
+    /// ActivityEvent marking that a <c>CachingKeyProvider</c> created with <c>serveLastKnownKeyOnRefreshFailure</c>
+    /// could not refresh an expired encryption key, and served the key's last known bytes instead
+    /// </summary>
+    public const string EncryptionKeyLastKnownServed = "wolverine.encryption.key.last_known_served";
+
+    /// <summary>
+    /// Tag on <see cref="EncryptionKeyLastKnownServed"/> with the key-id whose last known bytes were served
+    /// </summary>
+    public const string EncryptionKeyId = "wolverine.encryption.key_id";
+
     #endregion
 
     public static ActivitySource ActivitySource { get; } = new(

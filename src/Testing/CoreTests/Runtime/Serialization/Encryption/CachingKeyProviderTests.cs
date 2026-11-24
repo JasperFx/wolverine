@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Shouldly;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization.Encryption;
 using Xunit;
 
@@ -281,6 +283,14 @@ public class CachingKeyProviderTests
             return this;
         }
 
+        public ScriptedKeyProvider WaitsFor(Task<byte[]> answer)
+        {
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
+            _answers.Enqueue(() => new ValueTask<byte[]>(answer));
+#pragma warning restore VSTHRD003
+            return this;
+        }
+
         public ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref CallCount);
@@ -291,6 +301,164 @@ public class CachingKeyProviderTests
     private static readonly TimeSpan ShortTtl = TimeSpan.FromMilliseconds(50);
 
     private static Task WaitPastShortTtl() => Task.Delay(80, TestContext.Current.CancellationToken);
+
+    [Fact]
+    public async Task refresh_failure_after_ttl_still_throws_by_default()
+    {
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .Throws(new TimeoutException("kms throttled"));
+        var caching = new CachingKeyProvider(inner, ShortTtl);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+
+        await Should.ThrowAsync<TimeoutException>(async () =>
+            await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task transient_refresh_failure_after_ttl_serves_the_last_known_key()
+    {
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .Throws(new TimeoutException("kms throttled"));
+        var caching = new CachingKeyProvider(inner, ShortTtl, serveLastKnownKeyOnRefreshFailure: true);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+
+        var key = await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+
+        key.ShouldBe(Key32(0x01));
+        inner.CallCount.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task inner_timeout_cancellation_counts_as_transient()
+    {
+        // The inner provider is called without a token, so a cancellation can only be its own timeout
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .Throws(new TaskCanceledException("token request timed out"));
+        var caching = new CachingKeyProvider(inner, ShortTtl, serveLastKnownKeyOnRefreshFailure: true);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+
+        (await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken)).ShouldBe(Key32(0x01));
+    }
+
+    [Fact]
+    public async Task a_key_served_from_last_known_bytes_is_refreshed_on_the_next_call()
+    {
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .Throws(new TimeoutException("kms throttled"))
+            .Throws(new TimeoutException("kms still throttled"))
+            .Returns(Key32(0x01));
+        var caching = new CachingKeyProvider(inner, TimeSpan.FromMilliseconds(200),
+            serveLastKnownKeyOnRefreshFailure: true);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await Task.Delay(250, TestContext.Current.CancellationToken);
+
+        // Each call while the inner provider fails retries it and falls back again...
+        (await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken)).ShouldBe(Key32(0x01));
+        (await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken)).ShouldBe(Key32(0x01));
+        inner.CallCount.ShouldBe(3);
+
+        // ...until a refresh succeeds, which is cached for a full TTL again
+        (await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken)).ShouldBe(Key32(0x01));
+        (await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken)).ShouldBe(Key32(0x01));
+        inner.CallCount.ShouldBe(4);
+    }
+
+    [Fact]
+    public async Task key_not_found_on_refresh_throws_and_evicts_the_last_known_key()
+    {
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .Throws(new KeyNotFoundException("key version disabled"))
+            .Throws(new TimeoutException("kms throttled"));
+        var caching = new CachingKeyProvider(inner, ShortTtl, serveLastKnownKeyOnRefreshFailure: true);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+
+        await Should.ThrowAsync<KeyNotFoundException>(async () =>
+            await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken));
+
+        // The key is gone, so a later transient failure has nothing to fall back on
+        await Should.ThrowAsync<TimeoutException>(async () =>
+            await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken));
+        inner.CallCount.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task first_fetch_failure_still_throws_with_nothing_to_fall_back_on()
+    {
+        var inner = new ScriptedKeyProvider("k1")
+            .Throws(new TimeoutException("kms throttled"))
+            .Returns(Key32(0x01));
+        var caching = new CachingKeyProvider(inner, TimeSpan.FromMinutes(1), serveLastKnownKeyOnRefreshFailure: true);
+
+        await Should.ThrowAsync<TimeoutException>(async () =>
+            await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken));
+
+        (await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken)).ShouldBe(Key32(0x01));
+        inner.CallCount.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task concurrent_callers_during_a_failing_refresh_share_one_inner_call_and_the_last_known_key()
+    {
+        var refresh = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .WaitsFor(refresh.Task);
+        var caching = new CachingKeyProvider(inner, ShortTtl, serveLastKnownKeyOnRefreshFailure: true);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+
+        var callers = Enumerable.Range(0, 5)
+            .Select(_ => caching.GetKeyAsync("k1", TestContext.Current.CancellationToken).AsTask())
+            .ToArray();
+
+        refresh.SetException(new TimeoutException("kms throttled"));
+
+        var keys = await Task.WhenAll(callers);
+
+        keys.ShouldAllBe(key => key.SequenceEqual(Key32(0x01)));
+        inner.CallCount.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task caller_cancellation_during_a_failing_refresh_does_not_stop_co_waiters_getting_the_last_known_key()
+    {
+        using var firstCallerCts = new CancellationTokenSource();
+        var refresh = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .WaitsFor(refresh.Task);
+        var caching = new CachingKeyProvider(inner, ShortTtl, serveLastKnownKeyOnRefreshFailure: true);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+
+        var first = caching.GetKeyAsync("k1", firstCallerCts.Token).AsTask();
+        var second = caching.GetKeyAsync("k1", TestContext.Current.CancellationToken).AsTask();
+
+        await firstCallerCts.CancelAsync();
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
+        await Should.ThrowAsync<OperationCanceledException>(() => first);
+#pragma warning restore VSTHRD003
+
+        refresh.SetException(new TimeoutException("kms throttled"));
+
+        (await second).ShouldBe(Key32(0x01));
+    }
 
     [Fact]
     public async Task cold_key_inner_cancellation_is_evicted_and_retried()
@@ -324,5 +492,137 @@ public class CachingKeyProviderTests
 
         (await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken)).ShouldBe(Key32(0x01));
         inner.CallCount.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task a_refresh_still_in_flight_past_its_ttl_keeps_the_last_known_key_for_the_next_refresh()
+    {
+        var slowRefresh = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .WaitsFor(slowRefresh.Task)
+            .Throws(new TimeoutException("kms throttled"));
+        var caching = new CachingKeyProvider(inner, ShortTtl, serveLastKnownKeyOnRefreshFailure: true);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+
+        var waitingOnSlowRefresh = caching.GetKeyAsync("k1", TestContext.Current.CancellationToken).AsTask();
+        await WaitPastShortTtl();
+
+        // The slow refresh has not completed, so only the bytes it started with can be served
+        (await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken)).ShouldBe(Key32(0x01));
+        inner.CallCount.ShouldBe(3);
+
+        slowRefresh.SetResult(Key32(0x01));
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
+        (await waitingOnSlowRefresh).ShouldBe(Key32(0x01));
+#pragma warning restore VSTHRD003
+    }
+
+    [Fact]
+    public async Task key_not_found_on_an_overlapped_refresh_stops_the_refresh_that_inherited_its_bytes_falling_back()
+    {
+        var slowRefresh = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nextRefresh = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .WaitsFor(slowRefresh.Task)
+            .WaitsFor(nextRefresh.Task);
+        var caching = new CachingKeyProvider(inner, ShortTtl, serveLastKnownKeyOnRefreshFailure: true);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+
+        var waitingOnSlowRefresh = caching.GetKeyAsync("k1", TestContext.Current.CancellationToken).AsTask();
+        await WaitPastShortTtl();
+        var waitingOnNextRefresh = caching.GetKeyAsync("k1", TestContext.Current.CancellationToken).AsTask();
+        inner.CallCount.ShouldBe(3);
+
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
+        slowRefresh.SetException(new KeyNotFoundException("key version disabled"));
+        await Should.ThrowAsync<KeyNotFoundException>(() => waitingOnSlowRefresh);
+
+        nextRefresh.SetException(new TimeoutException("kms throttled"));
+        await Should.ThrowAsync<TimeoutException>(() => waitingOnNextRefresh);
+#pragma warning restore VSTHRD003
+    }
+
+    [Fact]
+    public async Task key_not_found_after_an_overlapped_refresh_fell_back_stops_the_next_refresh_falling_back()
+    {
+        var slowRefresh = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .WaitsFor(slowRefresh.Task)
+            .Throws(new TimeoutException("kms throttled"))
+            .Throws(new TimeoutException("kms still throttled"));
+        var caching = new CachingKeyProvider(inner, ShortTtl, serveLastKnownKeyOnRefreshFailure: true);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+
+        var waitingOnSlowRefresh = caching.GetKeyAsync("k1", TestContext.Current.CancellationToken).AsTask();
+        await WaitPastShortTtl();
+
+        // No revocation is known yet, so this overlapping refresh may fall back
+        (await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken)).ShouldBe(Key32(0x01));
+
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
+        slowRefresh.SetException(new KeyNotFoundException("key version disabled"));
+        await Should.ThrowAsync<KeyNotFoundException>(() => waitingOnSlowRefresh);
+#pragma warning restore VSTHRD003
+
+        await Should.ThrowAsync<TimeoutException>(async () =>
+            await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken));
+        inner.CallCount.ShouldBe(4);
+    }
+
+    [Fact]
+    public async Task key_not_found_on_a_refresh_whose_only_caller_cancelled_leaves_nothing_to_fall_back_on()
+    {
+        using var onlyCallerCts = new CancellationTokenSource();
+        // Continuations run inline, so the refresh has failed by the time SetException returns
+        var refresh = new TaskCompletionSource<byte[]>();
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .WaitsFor(refresh.Task)
+            .Throws(new TimeoutException("kms throttled"));
+        var caching = new CachingKeyProvider(inner, ShortTtl, serveLastKnownKeyOnRefreshFailure: true);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+
+        var onlyCaller = caching.GetKeyAsync("k1", onlyCallerCts.Token).AsTask();
+        await onlyCallerCts.CancelAsync();
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
+        await Should.ThrowAsync<OperationCanceledException>(() => onlyCaller);
+#pragma warning restore VSTHRD003
+
+        refresh.SetException(new KeyNotFoundException("key version disabled"));
+        await WaitPastShortTtl();
+
+        await Should.ThrowAsync<TimeoutException>(async () =>
+            await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken));
+        inner.CallCount.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task a_fallback_adds_the_last_known_served_event_to_the_refreshing_activity()
+    {
+        using var activity = new Activity("test").Start();
+        var inner = new ScriptedKeyProvider("k1")
+            .Returns(Key32(0x01))
+            .Throws(new TimeoutException("kms throttled"));
+        var caching = new CachingKeyProvider(inner, ShortTtl, serveLastKnownKeyOnRefreshFailure: true);
+
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await WaitPastShortTtl();
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+
+        var served = activity.Events.ShouldHaveSingleItem();
+        served.Name.ShouldBe(WolverineTracing.EncryptionKeyLastKnownServed);
+        served.Tags.ShouldContain(t => t.Key == WolverineTracing.EncryptionKeyId && (string?)t.Value == "k1");
+        served.Tags.ShouldContain(t => t.Key == "exception.type" && (string?)t.Value == typeof(TimeoutException).FullName);
     }
 }
