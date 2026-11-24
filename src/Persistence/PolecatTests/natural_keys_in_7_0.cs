@@ -56,6 +56,7 @@ public class natural_keys_in_7_0 : IAsyncLifetime
                 m.ConnectionString = Servers.SqlServerConnectionString;
                 m.DatabaseSchemaName = "nk_7_0";
                 m.Projections.Snapshot<PcNkSeat>(SnapshotLifecycle.Inline);
+                m.Projections.Snapshot<PcNkSeatView>(SnapshotLifecycle.Inline);
             })
             .IntegrateWithWolverine()
             .UseLightweightSessions();
@@ -171,6 +172,21 @@ public class natural_keys_in_7_0 : IAsyncLifetime
         (await loadSeat(streamId)).Holder.ShouldBe("Current");
     }
 
+    // GH-5901: a read model found through the seat's lookup, by the seat's own key type
+    [Fact]
+    public async Task a_mapped_key_reads_and_writes_a_read_model()
+    {
+        var (streamId, code) = await addSeat();
+
+        await theHost.InvokeMessageAndWaitAsync(new CountPcNkSeatView(code));
+        await theHost.InvokeMessageAndWaitAsync(new PeekPcNkSeatView(code));
+
+        PcNkSeatHandlers.LastView.ShouldNotBeNull().Id.ShouldBe(streamId);
+        PcNkSeatHandlers.LastView.Holds.ShouldBe(1);
+        sourceFor<PeekPcNkSeatView>().ShouldContain(
+            $"FetchLatest<{typeof(PcNkSeatView).FullName}, {typeof(PcNkSeatCode).FullName}>");
+    }
+
     [Fact]
     public void a_type_argument_and_a_different_natural_key_are_refused()
     {
@@ -194,13 +210,23 @@ public class natural_keys_in_7_0 : IAsyncLifetime
 
         (await loadSeat(streamId)).Holder.ShouldBe("Carol");
 
-        // Unlike Marten, Polecat's FetchForWriting<T, TKey> throws for a key no stream has, rather than handing back
-        // an empty stream for the not-found check to answer 404 to
-        var ex = await Should.ThrowAsync<InvalidOperationException>(() => theHost.Scenario(s =>
+        // Since Polecat 6.0.0-rc.3 (polecat#1150) FetchForWriting<T, TKey> hands back an empty stream for a key no
+        // stream has, as Marten does, so the not-found check answers 404
+        await theHost.Scenario(s =>
         {
             s.Post.Json(new HoldPcNkSeatRequest("Nobody")).ToUrl("/pcnk/seats/S-NONE/hold");
-        }));
-        ex.Message.ShouldContain("No active stream found for natural key");
+            s.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task an_unknown_key_on_a_write_finds_no_aggregate()
+    {
+        // The required [WriteAggregate] stops the handler, as on Marten, rather than the load throwing
+        await theHost.InvokeMessageAndWaitAsync(new HoldPcNkSeat(uniqueCode(), "Nobody"));
+
+        // The decider workflow's aggregate isn't required, so its handler runs with no seat
+        await theHost.InvokeMessageAndWaitAsync(new HoldPcNkSeatByDecider(uniqueCode(), "Nobody"));
     }
 
     [Fact]
@@ -283,11 +309,32 @@ public record HoldPcNkSeatByDecider(PcNkSeatCode Code, string Holder);
 public record HoldPcNkSeatAtVersion(PcNkSeatCode Code, string Holder, long Version);
 public record HoldPcNkSeatRequest(string Holder);
 
+#region sample_wolverine_polecat_mapped_natural_key
+// A read model of the same streams, found through PcNkSeat's lookup by the seat's code
+public class PcNkSeatView
+{
+    public Guid Id { get; set; }
+
+    [MappedNaturalKey<PcNkSeat>]
+    public PcNkSeatCode Code { get; set; } = null!;
+
+    public int Holds { get; set; }
+
+    public void Apply(PcNkSeatAdded e) => Code = e.Code;
+
+    public void Apply(PcNkSeatHeld e) => Holds++;
+}
+#endregion
+
+public record CountPcNkSeatView(PcNkSeatCode Code);
+public record PeekPcNkSeatView(PcNkSeatCode Code);
+
 #region sample_wolverine_polecat_natural_key_type_argument
 public static class PcNkSeatHandlers
 {
     public static PcNkSeat? LastSeat;
     public static PcNkSeat? LastMaybe;
+    public static PcNkSeatView? LastView;
 
     // Name the key type when the message carries more than one key, or to say so up front
     public static PcNkSeatHeld Handle(HoldPcNkSeat command, [WriteAggregate<PcNkSeatCode>] PcNkSeat seat)
@@ -305,6 +352,11 @@ public static class PcNkSeatOtherHandlers
 
     public static void Handle(MaybePcNkSeat query, [ReadAggregate(Required = false)] PcNkSeat? seat)
         => PcNkSeatHandlers.LastMaybe = seat;
+
+    public static PcNkSeatHeld Handle(CountPcNkSeatView command, [WriteAggregate] PcNkSeatView view) => new("Counted");
+
+    public static void Handle(PeekPcNkSeatView query, [ReadAggregate] PcNkSeatView view)
+        => PcNkSeatHandlers.LastView = view;
 
 #pragma warning disable JFXEVT016, JFXEVT017
     public static PcNkSeatHeld Handle(HoldPcNkSeatTwice command,

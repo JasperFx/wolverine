@@ -51,11 +51,21 @@ internal partial class PolecatPersistenceFrameProvider : IEventSourcingFrameProv
         => new Wolverine.Persistence.EventSourcing.Codegen.FetchLatestAggregateFrame(aggregateType, naturalKey,
             typeof(IDocumentSession), true);
 
-    // GH-5901: mapped keys wait for a published Polecat package that serves them (polecat#1131 / polecat#1050).
-    // Until then an aggregate on Polecat is found by its own natural key only.
+    // GH-5901: the aggregate's mapped natural keys, which Polecat 6.0.0-rc.3 serves (polecat#1150) through
+    // FetchLatest<T, TKey> and FetchForWriting<T, TKey>. Read off the registered projections as Fisher's twin does; the
+    // owned key is TryDetermineNaturalKeyType's.
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "The aggregate type comes from handler discovery, which already roots it. Codegen-time only. See docs/guide/aot.md.")]
     public IReadOnlyList<Type> DetermineMappedNaturalKeyTypes(Type aggregateType, IChain chain,
         IServiceContainer container)
-        => [];
+        => resolveStoreOptions(chain, container)?.Projections.All
+               .OfType<JasperFx.Events.Aggregation.IAggregateProjection>()
+               .SelectMany(x => x.MappedNaturalKeyDefinitions)
+               .Where(x => x.AggregateType == aggregateType)
+               .Select(x => x.OuterType)
+               .Distinct()
+               .ToArray()
+           ?? [];
 
     public Frame BuildLoadBoundaryFrame(Type modelType) => new LoadBoundaryFrame(modelType);
 

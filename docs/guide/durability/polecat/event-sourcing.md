@@ -668,6 +668,7 @@ public static class PcNkSeatHandlers
 {
     public static PcNkSeat? LastSeat;
     public static PcNkSeat? LastMaybe;
+    public static PcNkSeatView? LastView;
 
     // Name the key type when the message carries more than one key, or to say so up front
     public static PcNkSeatHeld Handle(HoldPcNkSeat command, [WriteAggregate<PcNkSeatCode>] PcNkSeat seat)
@@ -677,16 +678,35 @@ public static class PcNkSeatHandlers
     public static void Handle(ViewPcNkSeat query, [ReadAggregate<PcNkSeatCode>] PcNkSeat seat) => LastSeat = seat;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_keys_in_7_0.cs#L286-L299' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_type_argument' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_keys_in_7_0.cs#L332-L346' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_natural_key_type_argument' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Nullable keys, the version check, exclusive loads and the decider workflow (`[AggregateHandler]`) by natural key all work
-just like they do on Marten, so see [Natural Keys](/guide/durability/marten/event-sourcing#natural-keys) on the Marten
-page for the whole story. What Polecat doesn't do yet:
+Nullable keys, the version check, exclusive loads, an unknown key on a write (404 over HTTP) and the decider workflow
+(`[AggregateHandler]`) by natural key all work just like they do on Marten, so see
+[Natural Keys](/guide/durability/marten/event-sourcing#natural-keys) on the Marten page for the whole story. Mapped
+natural keys work too, so a read model of the same streams can be loaded through the aggregate's lookup by the
+aggregate's own key:
 
-- **Mapped natural keys.** An aggregate on Polecat is found by its own natural key only.
-- **An unknown key on a write.** Polecat's `FetchForWriting<T, TKey>()` throws for a key no stream has, so the handler
-  fails, and an HTTP endpoint answers 500 rather than 404. A read by an unknown key finds nothing, as on Marten.
+<!-- snippet: sample_wolverine_polecat_mapped_natural_key -->
+<a id='snippet-sample_wolverine_polecat_mapped_natural_key'></a>
+```cs
+// A read model of the same streams, found through PcNkSeat's lookup by the seat's code
+public class PcNkSeatView
+{
+    public Guid Id { get; set; }
+
+    [MappedNaturalKey<PcNkSeat>]
+    public PcNkSeatCode Code { get; set; } = null!;
+
+    public int Holds { get; set; }
+
+    public void Apply(PcNkSeatAdded e) => Code = e.Code;
+
+    public void Apply(PcNkSeatHeld e) => Holds++;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PolecatTests/natural_keys_in_7_0.cs#L312-L327' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_polecat_mapped_natural_key' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 See [What Each Store Supports](/guide/durability/marten/event-sourcing#what-each-store-supports) for the full table.
 

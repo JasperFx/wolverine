@@ -674,12 +674,6 @@ public static NkGadgetRenamed RenameByDecider(RenameNkGadgetByCode command, NkGa
 of those, which is what a missing query string value binds to. The 400 is new in 7.0, and it applies to stream ids as
 well as natural keys: a write with no identity used to fail inside the load and answer 500.
 
-::: tip
-On Polecat, a write by a natural key that no stream has answers 500 for now, because Polecat's
-`FetchForWriting<T, TKey>()` throws for an unknown key. See
-[What Each Store Supports](/guide/durability/marten/event-sourcing#what-each-store-supports).
-:::
-
 ## Reading a Stream Without Folding It <Badge type="tip" text="6.30" />
 
 `[ReadAggregate]` gives you the *folded* aggregate. When an endpoint's whole job is to serve the history -- 

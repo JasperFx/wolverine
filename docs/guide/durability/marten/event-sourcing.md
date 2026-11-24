@@ -1669,8 +1669,8 @@ off.
 
 ### What Each Store Supports
 
-Natural keys work the same way across the three stores, with a few gaps that are on the store side. This is as of
-Marten 10.0.0-rc.3, Polecat 6.0.0-rc.2 and Fisher 2.0.0-rc.2:
+Natural keys work the same way across the three stores, with one gap that is on the store side. This is as of
+Marten 10.0.0-rc.3, Polecat 6.0.0-rc.3 and Fisher 2.0.0-rc.2:
 
 | | Marten | Polecat | Fisher |
 |---|---|---|---|
@@ -1679,18 +1679,12 @@ Marten 10.0.0-rc.3, Polecat 6.0.0-rc.2 and Fisher 2.0.0-rc.2:
 | Reads by natural key | Yes | Yes | Yes |
 | Nullable keys | Yes | Yes | Yes |
 | The decider workflow by natural key | Yes | Yes | Yes |
-| An unknown key on a write finds no aggregate (404 over HTTP) | Yes | No: the load throws | Yes |
+| An unknown key on a write finds no aggregate (404 over HTTP) | Yes | Yes | Yes |
 | Version check on load | Yes | Yes | Yes |
 | Exclusive load locks the stream | Yes | Yes | Yes, with a lock on the whole SQLite file |
-| Mapped natural keys | Yes | Not yet | Yes |
+| Mapped natural keys | Yes | Yes | Yes |
 | Natural key loads in a batched query | Yes | No | No |
 | `JFXEVT016` / `JFXEVT017` at build time | Yes | Yes | Yes |
-
-::: warning
-On Polecat, a write by a natural key that no stream has fails: Polecat's `FetchForWriting<T, TKey>()` throws rather than
-handing back an empty stream, so an HTTP endpoint answers 500 rather than 404. A read by an unknown key finds nothing, as
-on Marten.
-:::
 
 For more details on how natural keys work at the Marten level, see the [Marten natural keys documentation](https://martendb.io/events/natural-keys).
 
