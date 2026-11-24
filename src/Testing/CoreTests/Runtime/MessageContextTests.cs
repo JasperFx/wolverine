@@ -117,6 +117,50 @@ public class MessageContextTests
     }
     
     [Fact]
+    public async Task flush_fails_when_a_durable_sender_cannot_store_the_envelope()
+    {
+        theEnvelope.Sender = senderThatCannotStore(theEnvelope, isDurable: true);
+        await theContext.As<IEnvelopeTransaction>().PersistOutgoingAsync(theEnvelope);
+
+        await Should.ThrowAsync<TimeoutException>(() => theContext.FlushOutgoingMessagesAsync());
+    }
+
+    [Fact]
+    public async Task flush_discards_an_envelope_a_non_durable_sender_cannot_take()
+    {
+        theEnvelope.Sender = senderThatCannotStore(theEnvelope, isDurable: false);
+        await theContext.As<IEnvelopeTransaction>().PersistOutgoingAsync(theEnvelope);
+
+        await Should.NotThrowAsync(() => theContext.FlushOutgoingMessagesAsync());
+    }
+
+    [Fact]
+    public async Task flush_fails_when_a_durable_sender_cannot_store_while_another_destination_is_waiting()
+    {
+        theEnvelope.Destination = new Uri("local://waiting");
+        theEnvelope.Sender = Substitute.For<ISendingAgent>();
+        theEnvelope.Sender.StoreAndForwardAsync(theEnvelope).Returns(_ => new ValueTask(Task.Delay(100.Milliseconds())));
+
+        var unstorable = ObjectMother.Envelope();
+        unstorable.Destination = new Uri("local://unstorable");
+        unstorable.Sender = senderThatCannotStore(unstorable, isDurable: true);
+
+        await theContext.As<IEnvelopeTransaction>().PersistOutgoingAsync(theEnvelope);
+        await theContext.As<IEnvelopeTransaction>().PersistOutgoingAsync(unstorable);
+
+        await Should.ThrowAsync<TimeoutException>(() => theContext.FlushOutgoingMessagesAsync());
+    }
+
+    private static ISendingAgent senderThatCannotStore(Envelope envelope, bool isDurable)
+    {
+        var sender = Substitute.For<ISendingAgent>();
+        sender.IsDurable.Returns(isDurable);
+        sender.StoreAndForwardAsync(envelope)
+            .Returns(ValueTask.FromException(new TimeoutException("the message store is unreachable")));
+        return sender;
+    }
+
+    [Fact]
     public async Task reject_side_effect_as_cascading_message()
     {
         await Should.ThrowAsync<InvalidOperationException>(async () =>

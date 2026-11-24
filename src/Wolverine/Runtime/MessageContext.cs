@@ -257,7 +257,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             if (envelope == null) continue;
 
             var flushing = flushEnvelopeAsync(envelope);
-            if (!flushing.IsCompleted)
+            if (!flushing.IsCompletedSuccessfully)
             {
                 return flushRemainingByDestinationAsync(outgoing, i, flushing);
             }
@@ -281,7 +281,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             if (envelope == null) continue;
 
             var destination = destinationOf(envelope);
-            if (waitingByDestination.TryGetValue(destination, out var ahead) && !ahead.IsCompleted)
+            if (waitingByDestination.TryGetValue(destination, out var ahead) && !ahead.IsCompletedSuccessfully)
             {
                 // Never alongside the envelope ahead of it: a destination takes its envelopes one at a time
                 waitingByDestination[destination] = flushAfterAsync(ahead, envelope);
@@ -289,7 +289,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             }
 
             var flushing = flushEnvelopeAsync(envelope);
-            if (flushing.IsCompleted)
+            if (flushing.IsCompletedSuccessfully)
             {
                 waitingByDestination.Remove(destination);
             }
@@ -299,13 +299,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             }
         }
 
-        // flushEnvelopeAsync() logs and swallows its own failures, so this waits for every destination
-        foreach (var flushing in waitingByDestination.Values)
-        {
 #pragma warning disable VSTHRD003 // started by this flush, and waiting for it is the whole point
-            await flushing.ConfigureAwait(false);
+        await Task.WhenAll(waitingByDestination.Values).ConfigureAwait(false);
 #pragma warning restore VSTHRD003
-        }
     }
 
     private async Task flushAfterAsync(Task ahead, Envelope envelope)
@@ -641,7 +637,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                 await sendEnvelopeAsync(envelope).ConfigureAwait(false);
             }
         }
-        catch (Exception e)
+        catch (Exception e) when (!ReferenceEquals(this, Transaction) || envelope.Sender is not { IsDurable: true })
         {
             // GH-4662. This used to read "most likely due to serialization issues", which was a fair
             // guess back when a durable store failure was swallowed by a RetryBlock and could never

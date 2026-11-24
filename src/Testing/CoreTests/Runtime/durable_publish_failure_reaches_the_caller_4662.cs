@@ -108,22 +108,13 @@ public class durable_publish_failure_reaches_the_caller_4662
     }
 
     [Fact]
-    public async Task a_cascaded_message_is_discarded_rather_than_failing_its_handler()
+    public async Task a_cascaded_message_that_cannot_be_stored_fails_its_handler()
     {
-        // The blast radius of this change is exactly "outside a handler, outside a transaction". Inside a
-        // handler the publish is buffered against the context's own transaction and does not throw; the
-        // send happens in FlushOutgoingMessagesAsync, whose loop catches, logs and records a
-        // DiscardedEnvelope. So a store outage must NOT turn a handler that succeeded into a failure.
-        //
-        // With a real outbox enlisted (EF Core, Marten) the flush takes QuickSendAsync instead and never
-        // reaches this code at all.
         var (host, inbox) = unreachableStore();
         using var _host = host;
 
-        await Should.NotThrowAsync(() => host.MessageBus().InvokeAsync(new CascadingSource("one")));
+        await Should.ThrowAsync<TimeoutException>(() => host.MessageBus().InvokeAsync(new CascadingSource("one")));
 
-        // Not vacuous: the cascade really did reach the store and really did fail there. Without this the
-        // fact would pass just as happily if the message had never been routed at all.
         await inbox.Received().StoreIncomingAsync(Arg.Any<Envelope>());
     }
 
