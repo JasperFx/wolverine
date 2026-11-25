@@ -89,6 +89,17 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     /// </summary>
     internal bool RequestBodyIsOptional { get; set; }
 
+    // GH-5973. An optional body may be null, and a null body has nothing to validate
+    internal Frame[] NullGuardOptionalBody(MethodCall validation, Frame next)
+    {
+        var index = Array.FindIndex(validation.Method.GetParameters(), x => x.ParameterType == RequestType);
+        var body = index < 0 ? null : validation.Arguments[index] ?? RequestBodyVariable;
+
+        return RequestBodyIsOptional && body != null
+            ? [new IfElseNullGuardFrame.IfNullGuardFrame(body, validation, next)]
+            : [validation, next];
+    }
+
     private string? _fileName;
     private string? _typeNameOverride;
     private readonly List<string> _httpMethods = [];

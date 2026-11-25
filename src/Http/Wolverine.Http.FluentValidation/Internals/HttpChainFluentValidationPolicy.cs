@@ -57,7 +57,7 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
             };
 
             var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
-            chain.Middleware.InsertRange(0, [methodCall, maybeResult]);
+            chain.Middleware.InsertRange(0, chain.NullGuardOptionalBody(methodCall, maybeResult));
         }
         else if (registered.Count() > 1)
         {
@@ -69,7 +69,7 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
 
             var methodCall = new MethodCall(typeof(FluentValidationHttpExecutor), method);
             var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
-            chain.Middleware.InsertRange(0, [methodCall, maybeResult]);
+            chain.Middleware.InsertRange(0, chain.NullGuardOptionalBody(methodCall, maybeResult));
         }
     }
 }
