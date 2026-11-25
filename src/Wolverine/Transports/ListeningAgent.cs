@@ -354,7 +354,13 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent, IPausesForError
     /// is paused, so there is no concurrency to prevent and no reason to dump the companion queue's backlog
     /// back into the inbox.
     /// </param>
-    private async ValueTask StopAndDrainCoreAsync(bool latchBeforeDrain, bool drainCompanionQueue = false)
+    /// <param name="detachFromCaller">
+    /// GH-5964. True only for a pause raised from inside the handler pipeline by an error policy or a rate limit. The
+    /// listener is taken out of service before this returns, but stopping and disposing it finishes on a detached task:
+    /// see <see cref="stopDetached" />.
+    /// </param>
+    private async ValueTask StopAndDrainCoreAsync(bool latchBeforeDrain, bool drainCompanionQueue = false,
+        bool detachFromCaller = false)
     {
         // GH-4866. A back pressure resume must never run beside a stop. The stop drops _receiver before it drains,
         // so for the length of the drain a too-busy listener reads TooBusy with a local count of 0, which is exactly
@@ -378,7 +384,7 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent, IPausesForError
 #pragma warning restore VSTHRD003
             }
 
-            await stopAndDrainAsync(latchBeforeDrain, drainCompanionQueue);
+            await stopAndDrainAsync(latchBeforeDrain, drainCompanionQueue, detachFromCaller);
         }
         finally
         {
@@ -389,11 +395,18 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent, IPausesForError
         }
     }
 
-    private async ValueTask stopAndDrainAsync(bool latchBeforeDrain, bool drainCompanionQueue)
+    private async ValueTask stopAndDrainAsync(bool latchBeforeDrain, bool drainCompanionQueue, bool detachFromCaller)
     {
         // GH-3590. Always tear the loop down first -- StartAsync() rebuilds it when this listener becomes
         // the active one again.
         stopInboxRecovery();
+
+        // GH-5964. A real stop (shutdown, a slot handoff, LatchPermanently) also sees the end of a listener an error
+        // policy pause let go of, even though the paused agent itself has nothing left to stop
+        if (latchBeforeDrain)
+        {
+            await waitForDetachedStopAsync();
+        }
 
         if (Status is ListeningStatus.Stopped or ListeningStatus.GloballyLatched or ListeningStatus.Paused)
         {
@@ -420,6 +433,12 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent, IPausesForError
         {
             Status = ListeningStatus.Stopped;
             _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+            return;
+        }
+
+        if (detachFromCaller)
+        {
+            stopDetached(listener, receiver);
             return;
         }
 
@@ -511,6 +530,140 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent, IPausesForError
         _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
 
         _logger.LogInformation("Stopped message listener at {Uri}", Uri);
+    }
+
+    // GH-5964. The stop of the last listener an error policy pause let go of, until a start or a real stop sees it end
+    private Task? _detachedStop;
+
+    /// <summary>
+    /// GH-5964. Stops the listener for a pause raised from inside the handler pipeline without making the caller
+    /// wait for it. In an Inline endpoint that pipeline runs inside the transport's own delivery callback, and stopping
+    /// or disposing the listener from there can wait on that very callback: Rabbit MQ's channel close waits for the
+    /// consumer dispatcher to finish the delivery being handled (and holds up the connection's other channels while it
+    /// does), and Azure Service Bus's <c>StopProcessingAsync</c> waits for every running message handler. The pause then
+    /// never got past the stop -- no Paused status, no restart, a queue left with no consumer and a shutdown that hung.
+    /// <para>
+    /// The listener and receiver are dropped and the receiver latched before this returns, and the listener's stop
+    /// is started here, so it stops receiving as early as it would have; only the waiting moves off the caller. The
+    /// listener is disposed once the message that asked for the pause has finished and settled against it. The next
+    /// start, and any real stop, wait for all of that first (bounded by the drain timeout).
+    /// </para>
+    /// </summary>
+    private void stopDetached(IListener? listener, IReceiver? receiver)
+    {
+        Listener = null;
+        _receiver = null;
+
+        // Started, not awaited: runs here up to the listener's first real wait
+        var stopping = listener == null ? Task.CompletedTask : stopDetachedListenerAsync(listener);
+
+        // Not latched first, so this returns at once rather than waiting for the handler that asked for the pause
+        var draining = receiver == null ? Task.CompletedTask : drainDetachedReceiverAsync(receiver);
+
+        _detachedStop = finishDetachedStopAsync(stopping, draining, listener, receiver);
+
+        Status = ListeningStatus.Stopped;
+        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, Status));
+
+        _logger.LogInformation("Stopped message listener at {Uri}", Uri);
+    }
+
+    private async Task stopDetachedListenerAsync(IListener listener)
+    {
+        try
+        {
+            await listener.StopAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to stop the listener for {Uri}", Uri);
+        }
+    }
+
+    private async Task drainDetachedReceiverAsync(IReceiver receiver)
+    {
+        try
+        {
+            await receiver.DrainAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to drain the receiver for {Uri}", Uri);
+        }
+    }
+
+    private async Task finishDetachedStopAsync(Task stopping, Task draining, IListener? listener, IReceiver? receiver)
+    {
+#pragma warning disable VSTHRD003 // both were started by stopDetached for exactly this method to finish
+        await stopping;
+        await draining;
+#pragma warning restore VSTHRD003
+
+        // The message whose error policy paused the listener is still running on the listener's delivery callback,
+        // and settles against the listener once its error policy is done (the pause comes first). Disposing the
+        // listener before then would close the transport channel under that settle.
+        if (receiver?.Unwrap() is IRunsOnTheListenersCallback inline)
+        {
+            try
+            {
+                await inline.WaitForInFlightMessagesAsync(_runtime.DurabilitySettings.DrainTimeout);
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning(
+                    "Messages were still executing at {Uri} a drain timeout of {DrainTimeout} after an error policy paused the listener; disposing it anyway",
+                    Uri, _runtime.DurabilitySettings.DrainTimeout);
+            }
+        }
+
+        if (listener != null)
+        {
+            try
+            {
+                await listener.DisposeAsync();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Listener may already be disposed during rapid pause/stop cycles.
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Unable to dispose the listener for {Uri} after pausing it", Uri);
+            }
+        }
+
+        try
+        {
+            receiver?.Dispose();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Unable to dispose the receiver for {Uri} after pausing it", Uri);
+        }
+    }
+
+    private async ValueTask waitForDetachedStopAsync()
+    {
+        var detached = _detachedStop;
+        if (detached == null) return;
+
+        try
+        {
+#pragma warning disable VSTHRD003 // started by stopDetached, and seeing it end is the point
+            await detached.WaitAsync(_runtime.DurabilitySettings.DrainTimeout);
+#pragma warning restore VSTHRD003
+        }
+        catch (TimeoutException)
+        {
+            _logger.LogWarning(
+                "The listener for {Uri} that an error policy pause let go of had not finished stopping within the drain timeout of {DrainTimeout}",
+                Uri, _runtime.DurabilitySettings.DrainTimeout);
+        }
+
+        if (detached.IsCompleted)
+        {
+            _ = Interlocked.CompareExchange(ref _detachedStop, null, detached);
+        }
     }
 
     public async ValueTask LatchPermanently()
@@ -724,6 +877,9 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent, IPausesForError
     {
         // GH-5926. Back pressure paused this listener in place, so pick it back up rather than build another beside it
         if (await tryResumeInPlaceAsync()) return;
+
+        // GH-5964. The listener an error policy pause let go of finishes stopping before another one is built
+        await waitForDetachedStopAsync();
 
         // GH-5257. A restarted listener's retries must not see the last stop's signal
         _pipeline.ResetStopping();
@@ -1060,7 +1216,10 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent, IPausesForError
     {
         _circuitBreaker?.PauseSuperseded();
         await _errorPolicyPause.PausingAsync(pauseTime, exception);
-        await PauseCoreAsync(pauseTime, latchBeforeDrain: false);
+
+        // GH-5964. Always raised from inside the handler pipeline, and for an Inline endpoint from inside the
+        // transport's own delivery callback, so the listener's stop must not be waited on here
+        await PauseCoreAsync(pauseTime, latchBeforeDrain: false, detachFromCaller: true);
     }
 
     public async ValueTask PauseWithDrainAsync(TimeSpan pauseTime)
@@ -1073,11 +1232,11 @@ public class ListeningAgent : IAsyncDisposable, IListeningAgent, IPausesForError
         await PauseCoreAsync(pauseTime, latchBeforeDrain: true);
     }
 
-    private async ValueTask PauseCoreAsync(TimeSpan pauseTime, bool latchBeforeDrain)
+    private async ValueTask PauseCoreAsync(TimeSpan pauseTime, bool latchBeforeDrain, bool detachFromCaller = false)
     {
         try
         {
-            await StopAndDrainCoreAsync(latchBeforeDrain);
+            await StopAndDrainCoreAsync(latchBeforeDrain, detachFromCaller: detachFromCaller);
         }
         catch (Exception e)
         {
