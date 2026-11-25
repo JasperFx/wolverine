@@ -34,6 +34,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
       <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
       <ProjectReference Include="..\Wolverine.CosmosDb\Wolverine.CosmosDb.csproj" />
     </ItemGroup>
