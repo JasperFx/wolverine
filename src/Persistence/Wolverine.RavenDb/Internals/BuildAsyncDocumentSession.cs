@@ -37,7 +37,7 @@ internal class BuildAsyncDocumentSession : MethodCall
 
         // GH-5678. Resolved here whether or not the session ends up enlisted, so the message context is declared
         // ahead of the session. The transactional frame may ask for the enlistment before or after this runs
-        _context = chain.TryFindVariable(typeof(IMessageContext), VariableSource.NotServices);
+        _context = chain.TryFindVariable(typeof(MessageContext), VariableSource.NotServices);
         if (_context != null) yield return _context;
     }
 
