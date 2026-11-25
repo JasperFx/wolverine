@@ -105,14 +105,11 @@ public class scheduled_saga_timeout_preserves_tenant : IAsyncLifetime
         // leaked out of its tenant cannot pass either.
         var store2 = _host.Services.GetRequiredService<IDocumentStore>();
 
-        await using (var session = store2.QuerySession("red"))
-        {
-            var remaining = await session.Query<TenantedRabbitSaga>()
-                .Where(x => x.Id == sagaId)
-                .ToListAsync(token: TestContext.Current.CancellationToken);
-
-            remaining.ShouldBeEmpty();
-        }
+        // The capture fires inside Handle, before the transaction that deletes the completed saga commits, so the row
+        // can still be there for a moment after WaitAsync returns. Wait for the delete rather than racing it (GH-5958,
+        // seen in a full LocalGate).
+        var remaining = await sagaRowsAfterTheDeleteCommits(store2, sagaId);
+        remaining.ShouldBeEmpty();
 
         await using (var defaultSession = store2.QuerySession())
         {
@@ -121,6 +118,22 @@ public class scheduled_saga_timeout_preserves_tenant : IAsyncLifetime
                 .ToListAsync(token: TestContext.Current.CancellationToken);
 
             leaked.ShouldBeEmpty();
+        }
+    }
+
+    private static async Task<IReadOnlyList<TenantedRabbitSaga>> sagaRowsAfterTheDeleteCommits(IDocumentStore store,
+        Guid sagaId)
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            await using var session = store.QuerySession("red");
+            var rows = await session.Query<TenantedRabbitSaga>()
+                .Where(x => x.Id == sagaId)
+                .ToListAsync(token: TestContext.Current.CancellationToken);
+
+            if (rows.Count == 0 || DateTimeOffset.UtcNow > deadline) return rows;
+            await Task.Delay(100, TestContext.Current.CancellationToken);
         }
     }
 }
