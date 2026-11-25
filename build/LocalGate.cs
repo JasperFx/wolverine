@@ -101,7 +101,14 @@ partial class Build
         Shared,
 
         /// <summary>SqlServerTests: its own wolverine_w0..N-1 lanes, as CISqlServer runs it.</summary>
-        Lanes
+        Lanes,
+
+        /// <summary>
+        /// GH-5958: a server of its own per lane, a container the gate starts for the run and removes after it
+        /// (build/GateLaneServers.cs). For a suite that creates sibling databases under fixed names: each lane's
+        /// siblings are on its own server, so the suite holds no track and can run on several lanes. Postgres only.
+        /// </summary>
+        LaneServers
     }
 
     /// <summary>One test project of the gate and everything its CI target knows about running it.</summary>
@@ -111,6 +118,12 @@ partial class Build
 
         /// <summary>Docker-compose services the suite needs, besides postgresql and sqlserver.</summary>
         public string[] Services { get; init; } = [];
+
+        /// <summary>
+        /// GH-5958: compose services in <see cref="Services"/> the suite uses only under names of its own (queues,
+        /// exchanges), so it needs the service running but does not hold its track.
+        /// </summary>
+        public string[] SharesServices { get; init; } = [];
 
         /// <summary>Exclusive resources that are not compose services (fixed ports, heavy emulators).</summary>
         public string[] Holds { get; init; } = [];
@@ -150,7 +163,8 @@ partial class Build
 
         public IEnumerable<string> ComposeServices()
         {
-            if (Postgres != ServerUse.None) yield return "postgresql";
+            // A suite on lane servers never touches the compose Postgres
+            if (Postgres is not (ServerUse.None or ServerUse.LaneServers)) yield return "postgresql";
             if (SqlServer != ServerUse.None) yield return "sqlserver";
             foreach (var service in Services) yield return service;
         }
@@ -159,7 +173,7 @@ partial class Build
         {
             if (Postgres == ServerUse.Shared) yield return "postgresql";
             if (SqlServer == ServerUse.Shared) yield return "sqlserver";
-            foreach (var service in Services) yield return service;
+            foreach (var service in Services.Except(SharesServices)) yield return service;
             foreach (var resource in Holds) yield return resource;
         }
     }
@@ -178,23 +192,33 @@ partial class Build
         new("src/Testing/MessageRoutingTests/MessageRoutingTests.csproj", "CIMessageRouting") { Services = ["rabbitmq"] },
 
         // ─── Persistence ───
+        // GH-5958: the Postgres chain. These suites create sibling databases under fixed, server-wide names, and used to
+        // share the compose Postgres and its track, one after another, for ~100 minutes at the end of the gate. Each
+        // lane now gets a Postgres server of its own (ServerUse.LaneServers), so they run beside each other and beside
+        // everything else. They still need RabbitMQ for a handful of classes, but on queue names of their own, so they
+        // share the broker without holding its track. The ones that also use SQL Server still share its default
+        // database and its track, which is also why they stay on one lane: two lanes would collide on db1-3 there.
         new("src/Persistence/PersistenceTests/PersistenceTests.csproj", "CIPersistence")
         {
-            Postgres = ServerUse.Shared, SqlServer = ServerUse.Shared, Services = ["rabbitmq"], Frameworks = ["net10.0"]
+            Postgres = ServerUse.LaneServers, SqlServer = ServerUse.Shared, Services = ["rabbitmq"], Frameworks = ["net10.0"],
+            SharesServices = ["rabbitmq"]
         },
-        new("src/Persistence/PostgresqlTests/PostgresqlTests.csproj", "CIPersistence, CIPostgresql, CIPostgresqlFeatures") { Postgres = ServerUse.Shared, Services = ["rabbitmq"] },
+        new("src/Persistence/PostgresqlTests/PostgresqlTests.csproj", "CIPersistence, CIPostgresql, CIPostgresqlFeatures")
+        {
+            Postgres = ServerUse.LaneServers, Services = ["rabbitmq"], SharesServices = ["rabbitmq"], Workers = 3
+        },
         new("src/Persistence/MartenTests/MartenTests.csproj", "CIMarten, CIMartenDistribution, CIMartenTenancy")
         {
-            Postgres = ServerUse.Shared
+            Postgres = ServerUse.LaneServers, Workers = 4
         },
         new("src/Persistence/MartenSubscriptionTests/MartenSubscriptionTests.csproj", "CIMarten") { Postgres = ServerUse.OwnDatabase },
         new("src/Persistence/EfCoreTests/EfCoreTests.csproj", "CIEfCore")
         {
-            Postgres = ServerUse.Shared, SqlServer = ServerUse.Shared, Services = ["rabbitmq"]
+            Postgres = ServerUse.LaneServers, SqlServer = ServerUse.Shared, Services = ["rabbitmq"], SharesServices = ["rabbitmq"]
         },
         new("src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj", "CIEfCoreMultiTenancy")
         {
-            Postgres = ServerUse.Shared, SqlServer = ServerUse.Shared, Services = ["rabbitmq"]
+            Postgres = ServerUse.LaneServers, SqlServer = ServerUse.Shared
         },
         new("src/Persistence/SqlServerTests/SqlServerTests.csproj", "CISqlServer, CISqlServerTransport")
         {
@@ -491,6 +515,9 @@ partial class Build
             foreach (var track in suites.SelectMany(tracksOf).Distinct(StringComparer.OrdinalIgnoreCase))
                 gate.Tracks.Add(new Track(track));
 
+            // GH-5958: filled once the units are known, read as each unit starts
+            var laneServers = new Dictionary<string, GateLaneServer[]>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var suite in suites)
             {
                 var tracks = tracksOf(suite);
@@ -510,7 +537,7 @@ partial class Build
                     })
                     // Provisioned when the unit starts rather than before the gate: a database is the
                     // unit's alone, and recreating it is only safe once the unit is the one running.
-                    .LaunchingWith(unit => workerFactoryFor(unit.Executable, gateConnectionStrings(suite, unit),
+                    .LaunchingWith(unit => workerFactoryFor(unit.Executable, gateConnectionStrings(suite, unit, laneServers),
                         suite.Environment.Count > 0 ? suite.Environment : null));
 
                 if (tracks.Length > 0) project.On(tracks);
@@ -529,6 +556,16 @@ partial class Build
             var rest = services.Except(fresh).ToArray();
 
             if (rest.Length > 0) LaunchDockerServices(rest);
+
+            // GH-5958: started before the build and awaited after it, as the compose services are
+            var suitesByName = suites.ToDictionary(s => s.Name, StringComparer.OrdinalIgnoreCase);
+            foreach (var (unit, servers) in startLaneServers(units
+                         .Where(u => suitesByName[u.Project.Name].Postgres == ServerUse.LaneServers)
+                         .Select(u => (u.Name, u.Workers))))
+            {
+                laneServers[unit] = servers;
+            }
+
             if (!GateSkipBuild) buildGateUnits(units);
 
             // Taken after the build and before the emulators are started fresh, and held until every unit is done: one
@@ -541,8 +578,19 @@ partial class Build
             // GH-5545: the tracks of a service this gate started fresh may recreate it when a unit degrades on it
             healGateTracks(gate, suites, healSqlServer);
 
+            awaitLaneServers(laneServers);
+
             var cleanBefore = cleanFSharpFixtures();
-            var results = await gate.Run();
+            GateResults results;
+            try
+            {
+                results = await gate.Run();
+            }
+            finally
+            {
+                removeLaneServers();
+            }
+
             restoreFSharpFixtures(cleanBefore);
 
             foreach (var unit in results.Units.Where(u => u.Results is not null))
@@ -691,7 +739,8 @@ partial class Build
     /// uses that way (recreated now, as the unit starts); SqlServerTests' lanes; nothing for Shared,
     /// which is the default database Servers.cs falls back to.
     /// </summary>
-    WorkerConnectionStrings gateConnectionStrings(GateSuite suite, GateUnit unit)
+    WorkerConnectionStrings gateConnectionStrings(GateSuite suite, GateUnit unit,
+        IReadOnlyDictionary<string, GateLaneServer[]> laneServers)
     {
         var connectionStrings = new WorkerConnectionStrings();
         var database = gateDatabaseName(suite);
@@ -713,6 +762,12 @@ partial class Build
                 MultipleActiveResultSets = true
             }.ConnectionString;
             connectionStrings.Add("sqlserver", connectionString);
+        }
+
+        if (suite.Postgres == ServerUse.LaneServers)
+        {
+            var servers = laneServers[unit.Name];
+            connectionStrings.Add("postgres", context => servers[context.Lane].ConnectionString);
         }
 
         if (suite.SqlServer == ServerUse.Lanes)
