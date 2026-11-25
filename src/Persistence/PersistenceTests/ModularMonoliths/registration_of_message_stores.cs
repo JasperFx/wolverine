@@ -402,11 +402,11 @@ public class registration_of_message_stores : IAsyncLifetime
         
         collection.HasAnyAncillaryStores().ShouldBeTrue();
         var databases = await collection.FindAllAsync();
-        databases.Select(x => x.Uri).OrderBy(x => x.ToString()).ShouldBe([new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/main"), new Uri("wolverinedb://sqlserver/localhost/master/dbo")]);
+        databases.Select(x => x.Uri).OrderBy(x => x.ToString()).ShouldBe([new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/main"), new Uri($"wolverinedb://sqlserver/localhost/{Servers.SqlServerDatabaseName}/dbo")]);
         
         var store = _host.Services.GetRequiredService<AncillaryMessageStore>();
         store.MarkerType.ShouldBe(typeof(SampleDbContext));
-        store.Inner.Uri.ShouldBe(new Uri("wolverinedb://sqlserver/localhost/master/dbo"));
+        store.Inner.Uri.ShouldBe(new Uri($"wolverinedb://sqlserver/localhost/{Servers.SqlServerDatabaseName}/dbo"));
     }
 
     [Fact]
@@ -423,7 +423,7 @@ public class registration_of_message_stores : IAsyncLifetime
 
         var context = new MessageContext(_host.GetRuntime());
         application.Apply(context);
-        context.Storage.Uri.ShouldBe(new Uri("wolverinedb://sqlserver/localhost/master/dbo"));
+        context.Storage.Uri.ShouldBe(new Uri($"wolverinedb://sqlserver/localhost/{Servers.SqlServerDatabaseName}/dbo"));
     }
 }
 
