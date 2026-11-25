@@ -7,7 +7,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Runtime.WorkerQueues;
 
-internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
+internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth, IRunsOnTheListenersCallback
 {
     private readonly ILogger _logger;
     private readonly Endpoint _endpoint;
@@ -72,6 +72,19 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
     public void Latch()
     {
         _latched = true;
+    }
+
+    // GH-5964. Once latched, the last in-flight message to finish completes _drainComplete
+    public Task WaitForInFlightMessagesAsync(TimeSpan timeout)
+    {
+        if (!_latched) return Task.CompletedTask;
+
+        if (Volatile.Read(ref _inFlightCount) == 0)
+        {
+            _drainComplete.TrySetResult();
+        }
+
+        return _drainComplete.Task.WaitAsync(timeout);
     }
 
     public ValueTask DrainAsync()
