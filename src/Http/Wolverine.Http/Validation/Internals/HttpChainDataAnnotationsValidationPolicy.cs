@@ -55,6 +55,8 @@ internal class HttpChainDataAnnotationsValidationPolicy : IHttpPolicy
         methodCall.TrySetArgument(
             new Variable(typeof(IServiceProvider), $"httpContext.{nameof(HttpContext.RequestServices)}"));
 
+        if (chain.TryFindAsParametersBody(validatedType, out var body)) methodCall.TrySetArgument(body);
+
         var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
         chain.Middleware.InsertRange(0, [methodCall, maybeResult]);
     }

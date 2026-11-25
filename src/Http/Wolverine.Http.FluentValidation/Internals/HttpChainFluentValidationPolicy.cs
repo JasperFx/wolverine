@@ -56,6 +56,8 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
                 CommentText = "Execute FluentValidation validators"
             };
 
+            if (chain.TryFindAsParametersBody(validatedType, out var body)) methodCall.TrySetArgument(body);
+
             var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
             chain.Middleware.InsertRange(0, [methodCall, maybeResult]);
         }
@@ -68,6 +70,9 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
                     .MakeGenericMethod(validatedType);
 
             var methodCall = new MethodCall(typeof(FluentValidationHttpExecutor), method);
+
+            if (chain.TryFindAsParametersBody(validatedType, out var body)) methodCall.TrySetArgument(body);
+
             var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
             chain.Middleware.InsertRange(0, [methodCall, maybeResult]);
         }

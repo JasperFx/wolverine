@@ -549,11 +549,38 @@ public partial class HttpChain
         return char.IsDigit(name[0]) ? "_" + name : name;
     }
 
-    // The [AsParameters] member the request body binds to. Only one member may be the body, so the one typed as the
-    // request type is it.
+    // GH-5970. The body of an [AsParameters] type has no variable of its own, so middleware that takes the body reads it
+    // off the bound [AsParameters] object, and validation stays at the front of the chain as on any other endpoint.
+    internal bool TryFindAsParametersBody(Type bodyType, [NotNullWhen(true)] out Variable? body)
+    {
+        body = null;
+        if (AsParametersVariable == null || bodyType == AsParametersType) return false;
+        if (findAsParametersBodyMember() is not { } member || member.PropertyType != bodyType) return false;
+
+        body = new MemberAccessVariable(AsParametersVariable, member);
+        return true;
+    }
+
+    // The [AsParameters] member the request body binds to: the one marked [FromBody], read the way
+    // AsParametersBindingFrame reads it, from the single public constructor's parameters or a writable property.
+    // Matching on the request type instead could pick a [FromServices] member of the same type.
     private PropertyInfo? findAsParametersBodyMember()
     {
-        return AsParametersType!.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .FirstOrDefault(x => (x.PropertyType.IsNullable() ? x.PropertyType.GetInnerTypeFromNullable() : x.PropertyType) == RequestType);
+        var type = AsParametersType!;
+        var constructors = type.GetConstructors();
+        if (constructors.Length == 1 &&
+            constructors[0].GetParameters().FirstOrDefault(x => x.HasAttribute<FromBodyAttribute>()) is { } parameter)
+        {
+            var named = type.GetProperty(parameter.Name!, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            if (named != null) return named;
+
+            // GH-5970. A constructor parameter need not share its property's name. Then a readable property of the
+            // body's type is the body; on 6.x an ambiguous type keeps 6.0's first-property rule.
+            return type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .FirstOrDefault(x => x.CanRead && x.PropertyType == parameter.ParameterType);
+        }
+
+        return type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .FirstOrDefault(x => x is { CanWrite: true, IsSpecialName: false } && x.HasAttribute<FromBodyAttribute>());
     }
 }
