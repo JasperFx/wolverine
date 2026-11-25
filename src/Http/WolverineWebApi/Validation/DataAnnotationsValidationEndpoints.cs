@@ -85,3 +85,19 @@ public static class CreateAccountCompoundEndpoint
         return "Got a new account";
     }
 }
+
+#region sample_using_dataannotations_validation_with_asparameters_and_frombody
+public record UpdateJobTitle([property: MaxLength(100)] string? JobTitle);
+
+public record UpdateJobTitleRequest([FromRoute] Guid PersonId, [FromBody] UpdateJobTitle Body);
+
+public static class UpdateJobTitleEndpoint
+{
+    [WolverinePut("/validate/people/{personId:guid}/job-title")]
+    public static string Put([AsParameters] UpdateJobTitleRequest request)
+    {
+        return $"{request.PersonId} is now {request.Body.JobTitle}";
+    }
+}
+
+#endregion

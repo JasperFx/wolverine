@@ -270,10 +270,11 @@ public class ValidatedQuery
 
 ### AsParameters with [FromBody] <Badge type="tip" text="5.25" />
 
-When using `[AsParameters]` with a `[FromBody]` property, the Fluent Validation middleware will validate
-**both** the `[FromBody]` type (if it has a validator) and the `[AsParameters]` type itself. This ensures
-that validation rules on the `[AsParameters]` type are always applied, even when a `[FromBody]` property
-is present:
+When an `[AsParameters]` type has a `[FromBody]` member, either a constructor parameter of a record or a
+property of a class, both the Fluent Validation and the Data Annotations middleware validate the body. The
+`[AsParameters]` type is bound first, and with Fluent Validation its own validator runs before the body's.
+An error is keyed by the member's path from the `[AsParameters]` validator, like `Body.At`, or by the body's
+own member name, like `At`, from the body's validator:
 
 <!-- snippet: sample_using_fluent_validation_with_asparameters_and_frombody -->
 <a id='snippet-sample_using_fluent_validation_with_asparameters_and_frombody'></a>
@@ -315,6 +316,27 @@ public class ValidatedWithFromBody
 }
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L260-L297' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters_and_frombody' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The same with Data Annotations on a record:
+
+<!-- snippet: sample_using_dataannotations_validation_with_asparameters_and_frombody -->
+<a id='snippet-sample_using_dataannotations_validation_with_asparameters_and_frombody'></a>
+```cs
+public record UpdateJobTitle([property: MaxLength(100)] string? JobTitle);
+
+public record UpdateJobTitleRequest([FromRoute] Guid PersonId, [FromBody] UpdateJobTitle Body);
+
+public static class UpdateJobTitleEndpoint
+{
+    [WolverinePut("/validate/people/{personId:guid}/job-title")]
+    public static string Put([AsParameters] UpdateJobTitleRequest request)
+    {
+        return $"{request.PersonId} is now {request.Body.JobTitle}";
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/DataAnnotationsValidationEndpoints.cs#L89-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dataannotations_validation_with_asparameters_and_frombody' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## QueryString Binding <Badge type="tip" text="5.0" />
