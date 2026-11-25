@@ -39,46 +39,35 @@
       "frameworks": [
         "net10.0"
       ],
-      "postgres": "Shared",
+      "postgres": "LaneServers",
       "sqlServer": "Shared",
       "services": [
-        "postgresql",
         "sqlserver",
         "rabbitmq"
       ],
       "tracks": [
-        "postgresql",
-        "sqlserver",
-        "rabbitmq"
+        "sqlserver"
       ]
     },
     {
       "name": "PostgresqlTests",
       "path": "src/Persistence/PostgresqlTests/PostgresqlTests.csproj",
       "ciTargets": "CIPersistence, CIPostgresql, CIPostgresqlFeatures",
-      "workers": 1,
-      "postgres": "Shared",
+      "workers": 3,
+      "postgres": "LaneServers",
       "services": [
-        "postgresql",
         "rabbitmq"
       ],
-      "tracks": [
-        "postgresql",
-        "rabbitmq"
-      ]
+      "tracks": []
     },
     {
       "name": "MartenTests",
       "path": "src/Persistence/MartenTests/MartenTests.csproj",
       "ciTargets": "CIMarten, CIMartenDistribution, CIMartenTenancy",
-      "workers": 1,
-      "postgres": "Shared",
-      "services": [
-        "postgresql"
-      ],
-      "tracks": [
-        "postgresql"
-      ]
+      "workers": 4,
+      "postgres": "LaneServers",
+      "services": [],
+      "tracks": []
     },
     {
       "name": "MartenSubscriptionTests",
@@ -96,17 +85,14 @@
       "path": "src/Persistence/EfCoreTests/EfCoreTests.csproj",
       "ciTargets": "CIEfCore",
       "workers": 1,
-      "postgres": "Shared",
+      "postgres": "LaneServers",
       "sqlServer": "Shared",
       "services": [
-        "postgresql",
         "sqlserver",
         "rabbitmq"
       ],
       "tracks": [
-        "postgresql",
-        "sqlserver",
-        "rabbitmq"
+        "sqlserver"
       ]
     },
     {
@@ -114,17 +100,13 @@
       "path": "src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj",
       "ciTargets": "CIEfCoreMultiTenancy",
       "workers": 1,
-      "postgres": "Shared",
+      "postgres": "LaneServers",
       "sqlServer": "Shared",
       "services": [
-        "postgresql",
-        "sqlserver",
-        "rabbitmq"
+        "sqlserver"
       ],
       "tracks": [
-        "postgresql",
-        "sqlserver",
-        "rabbitmq"
+        "sqlserver"
       ]
     },
     {

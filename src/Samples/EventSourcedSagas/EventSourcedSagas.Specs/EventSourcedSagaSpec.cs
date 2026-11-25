@@ -46,11 +46,21 @@ public abstract class EventSourcedSagaSpec : WolverineSpec, IAsyncLifetime
 
     protected static Wolverine.SagaCompleted Completed => new();
 
-    /// <summary>When the last event of the fulfillment's stream was recorded. A query, not a step.</summary>
+    /// <summary>
+    /// When the last event of the fulfillment's stream was recorded. A query, not a step. It returns only once the clock
+    /// is clearly past that time, so an event appended after it can never carry the same timestamp: on a busy box the
+    /// next append could land within the clock's resolution of this one, and a read "as of" this time then included it
+    /// (GH-5958, seen on Fisher in a full LocalGate).
+    /// </summary>
     protected async Task<DateTimeOffset> TheTimeOfTheLastEvent()
     {
         var events = await EventStores.FetchStreamAsync(Scenario.EventStore, OrderFulfillmentId);
-        return events[^1].Timestamp;
+        var timestamp = events[^1].Timestamp;
+
+        var after = timestamp.AddMilliseconds(50);
+        while (DateTimeOffset.UtcNow < after) await Task.Delay(10);
+
+        return timestamp;
     }
 
     // ---- the fulfillment service's state ------------------------------------------------------------------------------
