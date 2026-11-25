@@ -69,7 +69,7 @@ How the suites share the box (the tracks; a track is held by one unit at a time)
 
 | Resource | Rule |
 |---|---|
-| Postgres, SQL Server | A suite that only uses the database its connection string names gets its own, `wolverine_gate_<project>`, recreated per run and handed over as `ConnectionStrings__postgres` / `ConnectionStrings__sqlserver`; it holds no track (`ServerUse.OwnDatabase`). A suite that also creates sibling databases under fixed names on Postgres (MartenTests, PostgresqlTests, PersistenceTests, the EF suites) gets a **Postgres server of its own per lane** (`ServerUse.LaneServers`, GH-5958, below), so it holds no `postgresql` track and can run on several lanes. On SQL Server such a suite (PersistenceTests, the EF suites, PolecatTests) still runs against the default database, as in CI, and holds the `sqlserver` track (`ServerUse.Shared`). SqlServerTests keeps its four `wolverine_w*` lanes (`ServerUse.Lanes`). |
+| Postgres, SQL Server | A suite that only uses the database its connection string names gets its own, `wolverine_gate_<project>`, recreated per run and handed over as `ConnectionStrings__postgres` / `ConnectionStrings__sqlserver`; it holds no track (`ServerUse.OwnDatabase`). A suite that also creates sibling databases under fixed names on Postgres (MartenTests, PostgresqlTests, PersistenceTests, the EF suites) gets a **Postgres server of its own per lane** (`ServerUse.LaneServers`, GH-5958, below), so it holds no `postgresql` track and can run on several lanes. On SQL Server those suites and PolecatTests each get a database of their own (`OwnDatabase`): their siblings there are theirs alone (`db1`-`db3`, `polecat_*`) or named after the catalog, so no suite holds the `sqlserver` track any more. SqlServerTests keeps its four `wolverine_w*` lanes (`ServerUse.Lanes`). |
 | Each broker and emulator | One track per compose service: rabbitmq, kafka, localstack, asb-emulator, pulsar, gcp-pubsub, nats, mysql, oracle, azurite, fake-gcs-server. |
 | Fixed ports, heavy emulators | `mqtt-broker-ports` (both MQTT suites host a broker on 1883/1884), `cosmos-emulator` (each Cosmos suite starts one through Testcontainers), `ravendb`. |
 | Nothing | CoreTests, SQLite, Fisher, gRPC, the extension and F# suites: the worker budget only. |
@@ -83,7 +83,7 @@ started for it, but the suite holds no track on it. PostgresqlTests, Persistence
 | `ServerUse` | What each lane gets | Track | Used by |
 |---|---|---|---|
 | `OwnDatabase` | one database, `wolverine_gate_<project>`, on the compose server, shared by the suite's lanes | none | most suites that touch Postgres or SQL Server |
-| `Shared` | the compose server's default database | `postgresql` / `sqlserver` | the SQL Server side of PersistenceTests, the EF suites, PolecatTests |
+| `Shared` | the compose server's default database, as CI runs it | `postgresql` / `sqlserver` | none since GH-5958; kept for a suite that cannot run anywhere else |
 | `Lanes` | `wolverine_w<lane>` on the compose SQL Server; siblings named through `LaneDatabases` | none | SqlServerTests (4 lanes) |
 | `LaneServers` | a Postgres **server** of its own per lane: a `postgres:17` container the gate starts before the build (`<compose project>-gate-<unit>-w<lane>`, a port Docker picks, `fsync=off`), waits on after it, and removes when the suites finish, red or green | none | MartenTests (4 lanes), PostgresqlTests (3), PersistenceTests, EfCoreTests, EfCoreTests.MultiTenancy |
 
@@ -92,8 +92,8 @@ started for it, but the suite holds no track on it. PostgresqlTests, Persistence
 server per lane makes every such name the lane's own with no change to a test. Bobcat starts discovery,
 isolated and retry workers as lane 0 and never while the lanes are running, so lane 0's server is never
 used by two processes at once. The code is `build/GateLaneServers.cs`; the per-suite settings are the
-table in `build/LocalGate.cs`. A suite that also uses SQL Server through `Shared` stays on one lane, because
-two lanes would collide on its sibling databases there.
+table in `build/LocalGate.cs`. A suite that also uses SQL Server through `OwnDatabase` stays on one lane, because
+its lanes would share that one database.
 
 ## What the run publishes
 

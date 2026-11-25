@@ -40,14 +40,12 @@
         "net10.0"
       ],
       "postgres": "LaneServers",
-      "sqlServer": "Shared",
+      "sqlServer": "OwnDatabase",
       "services": [
         "sqlserver",
         "rabbitmq"
       ],
-      "tracks": [
-        "sqlserver"
-      ]
+      "tracks": []
     },
     {
       "name": "PostgresqlTests",
@@ -86,14 +84,12 @@
       "ciTargets": "CIEfCore",
       "workers": 1,
       "postgres": "LaneServers",
-      "sqlServer": "Shared",
+      "sqlServer": "OwnDatabase",
       "services": [
         "sqlserver",
         "rabbitmq"
       ],
-      "tracks": [
-        "sqlserver"
-      ]
+      "tracks": []
     },
     {
       "name": "EfCoreTests.MultiTenancy",
@@ -101,13 +97,11 @@
       "ciTargets": "CIEfCoreMultiTenancy",
       "workers": 1,
       "postgres": "LaneServers",
-      "sqlServer": "Shared",
+      "sqlServer": "OwnDatabase",
       "services": [
         "sqlserver"
       ],
-      "tracks": [
-        "sqlserver"
-      ]
+      "tracks": []
     },
     {
       "name": "SqlServerTests",
@@ -128,13 +122,11 @@
       "frameworks": [
         "net10.0"
       ],
-      "sqlServer": "Shared",
+      "sqlServer": "OwnDatabase",
       "services": [
         "sqlserver"
       ],
-      "tracks": [
-        "sqlserver"
-      ]
+      "tracks": []
     },
     {
       "name": "PolecatIncidentService.Tests",
@@ -144,13 +136,11 @@
       "frameworks": [
         "net10.0"
       ],
-      "sqlServer": "Shared",
+      "sqlServer": "OwnDatabase",
       "services": [
         "sqlserver"
       ],
-      "tracks": [
-        "sqlserver"
-      ]
+      "tracks": []
     },
     {
       "name": "MySqlTests",

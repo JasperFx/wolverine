@@ -53,11 +53,14 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 //   - Postgres and SQL Server: a suite that only ever touches the database its connection string
 //     names gets a database of its own (wolverine_gate_<suite>, recreated per run, handed to every
 //     worker as ConnectionStrings__postgres / ConnectionStrings__sqlserver, which src/Servers.cs
-//     reads first) and holds no track at all. A suite that also creates databases BESIDE it under
-//     fixed names (tenant1-4, db1-3, players, things, ...) runs exactly as CI runs it, against the
-//     default database, and holds the `postgresql` / `sqlserver` track: those names are server-wide,
-//     and MartenTests, PostgresqlTests, PersistenceTests and the EF suites share several of them.
-//     SqlServerTests keeps its own four lanes (wolverine_w0..3, LaneDatabases-scoped siblings).
+//     reads first) and holds no track at all. A suite that also creates databases BESIDE it on Postgres
+//     under fixed names (tenant1-4, db1-3, players, things, ...) gets a Postgres SERVER of its own per
+//     lane instead (ServerUse.LaneServers, GH-5958, build/GateLaneServers.cs): those names are
+//     server-wide, and MartenTests, PostgresqlTests, PersistenceTests and the EF suites share several of
+//     them. On SQL Server their siblings are their own or named after the catalog, so OwnDatabase does.
+//     ServerUse.Shared (the default database, holding the server's track) is left for a suite that needs
+//     it; none does today. SqlServerTests keeps its own four lanes (wolverine_w0..3, LaneDatabases-scoped
+//     siblings).
 //   - Brokers and emulators (rabbitmq, kafka, localstack, the ASB emulator, pulsar, gcp-pubsub,
 //     nats, mysql, oracle, azurite, fake-gcs-server) are one track each: queue, topic and bucket
 //     names are hard-coded across their suites.
@@ -196,11 +199,13 @@ partial class Build
         // share the compose Postgres and its track, one after another, for ~100 minutes at the end of the gate. Each
         // lane now gets a Postgres server of its own (ServerUse.LaneServers), so they run beside each other and beside
         // everything else. They still need RabbitMQ for a handful of classes, but on queue names of their own, so they
-        // share the broker without holding its track. The ones that also use SQL Server still share its default
-        // database and its track, which is also why they stay on one lane: two lanes would collide on db1-3 there.
+        // share the broker without holding its track. On SQL Server each has a database of its own (OwnDatabase): what
+        // they collided on there was master itself, and the siblings they create are either theirs alone (db1-3 in
+        // EfCoreTests.MultiTenancy, polecat_* in PolecatTests) or named after the catalog (EfCoreTests' {catalog}_anc_a).
+        // Those that use SQL Server stay on one lane, because two lanes would share that one database.
         new("src/Persistence/PersistenceTests/PersistenceTests.csproj", "CIPersistence")
         {
-            Postgres = ServerUse.LaneServers, SqlServer = ServerUse.Shared, Services = ["rabbitmq"], Frameworks = ["net10.0"],
+            Postgres = ServerUse.LaneServers, SqlServer = ServerUse.OwnDatabase, Services = ["rabbitmq"], Frameworks = ["net10.0"],
             SharesServices = ["rabbitmq"]
         },
         new("src/Persistence/PostgresqlTests/PostgresqlTests.csproj", "CIPersistence, CIPostgresql, CIPostgresqlFeatures")
@@ -214,23 +219,24 @@ partial class Build
         new("src/Persistence/MartenSubscriptionTests/MartenSubscriptionTests.csproj", "CIMarten") { Postgres = ServerUse.OwnDatabase },
         new("src/Persistence/EfCoreTests/EfCoreTests.csproj", "CIEfCore")
         {
-            Postgres = ServerUse.LaneServers, SqlServer = ServerUse.Shared, Services = ["rabbitmq"], SharesServices = ["rabbitmq"]
+            Postgres = ServerUse.LaneServers, SqlServer = ServerUse.OwnDatabase, Services = ["rabbitmq"], SharesServices = ["rabbitmq"]
         },
         new("src/Persistence/EfCoreTests.MultiTenancy/EfCoreTests.MultiTenancy.csproj", "CIEfCoreMultiTenancy")
         {
-            Postgres = ServerUse.LaneServers, SqlServer = ServerUse.Shared
+            Postgres = ServerUse.LaneServers, SqlServer = ServerUse.OwnDatabase
         },
         new("src/Persistence/SqlServerTests/SqlServerTests.csproj", "CISqlServer, CISqlServerTransport")
         {
             SqlServer = ServerUse.Lanes, Workers = 4
         },
+        // GH-5958: their sibling databases are polecat_* names no other suite uses, or named after the catalog
         new("src/Persistence/PolecatTests/PolecatTests.csproj", "CIPolecat, CIPolecatWorkflow, CIPolecatSagas")
         {
-            SqlServer = ServerUse.Shared, Frameworks = ["net10.0"]
+            SqlServer = ServerUse.OwnDatabase, Frameworks = ["net10.0"]
         },
         new("src/Persistence/Polecat/PolecatIncidentService.Tests/PolecatIncidentService.Tests.csproj", "CIPolecat")
         {
-            SqlServer = ServerUse.Shared, Frameworks = ["net10.0"]
+            SqlServer = ServerUse.OwnDatabase, Frameworks = ["net10.0"]
         },
         new("src/Persistence/MySql/MySqlTests/MySqlTests.csproj", "CIMySql") { Services = ["mysql"] },
         new("src/Persistence/Oracle/OracleTests/OracleTests.csproj", "CIOracle") { Services = ["oracle"] },
