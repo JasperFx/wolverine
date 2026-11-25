@@ -25,4 +25,6 @@ using JasperFx.Core.TypeScanning;
 // only acknowledges the System.Text.Json default. The grant is intentional
 // and scoped to this one consumer.
 [assembly: InternalsVisibleTo("Wolverine.Http.Newtonsoft")]
+// GH-5973. WolverineFx.Http.FluentValidation guards its middleware against a null optional body
+[assembly: InternalsVisibleTo("Wolverine.Http.FluentValidation")]
 [assembly: IgnoreAssembly]

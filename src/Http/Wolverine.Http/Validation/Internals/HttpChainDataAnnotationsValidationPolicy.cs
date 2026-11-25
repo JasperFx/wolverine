@@ -56,6 +56,6 @@ internal class HttpChainDataAnnotationsValidationPolicy : IHttpPolicy
             new Variable(typeof(IServiceProvider), $"httpContext.{nameof(HttpContext.RequestServices)}"));
 
         var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
-        chain.Middleware.InsertRange(0, [methodCall, maybeResult]);
+        chain.Middleware.InsertRange(0, chain.NullGuardOptionalBody(methodCall, maybeResult));
     }
 }
