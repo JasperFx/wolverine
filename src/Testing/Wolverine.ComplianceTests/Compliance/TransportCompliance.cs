@@ -38,6 +38,14 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
     public bool IsSenderOnlyTransport { get; set; }
 
     /// <summary>
+    /// Set by a fixture whose transport builds a health check, so that
+    /// <see cref="TransportCompliance{T}.transport_health_check_does_not_throw"/> fails when the transport
+    /// behind <see cref="OutboundAddress"/> answers null through <see cref="ITransport.BuildHealthCheck"/>
+    /// instead of passing without exercising one. See GH-5963.
+    /// </summary>
+    public bool ExpectsTransportHealthCheck { get; set; }
+
+    /// <summary>
     /// Durability mode applied to the sender and receiver hosts. Defaults to Solo,
     /// which is correct for the vast majority of broker transports. Control-plane
     /// transports that only register in a clustered mode (e.g. the RavenDB control
@@ -729,6 +737,13 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     public async Task transport_health_check_does_not_throw()
     {
         var runtime = theSender.Get<IWolverineRuntime>();
+
+        if (Fixture.ExpectsTransportHealthCheck)
+        {
+            var transportUnderTest = runtime.Options.Transports.ForScheme(Fixture.OutboundAddress.Scheme);
+            transportUnderTest.ShouldNotBeNull();
+            transportUnderTest.BuildHealthCheck(runtime).ShouldNotBeNull();
+        }
 
         foreach (var transport in runtime.Options.Transports)
         {

@@ -11,6 +11,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 {
     public BufferedComplianceFixture() : base(new Uri("sqs://receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

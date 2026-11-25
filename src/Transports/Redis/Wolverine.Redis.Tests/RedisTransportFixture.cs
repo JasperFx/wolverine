@@ -7,6 +7,7 @@ public class RedisTransportFixture : TransportComplianceFixture
 {
     public RedisTransportFixture() : base(new Uri($"redis://{RedisContainerFixture.ConnectionString}?streamKey=wolverine-tests-{Guid.NewGuid():N}"))
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

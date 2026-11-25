@@ -20,6 +20,7 @@ public class StreamQueueFixture : TransportComplianceFixture, IAsyncLifetime
 
     public StreamQueueFixture() : base($"rabbitmq://queue/{TheSendingQueue}".ToUri())
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

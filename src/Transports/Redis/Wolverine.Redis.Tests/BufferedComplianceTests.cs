@@ -11,6 +11,7 @@ public class RedisBufferedComplianceFixture : TransportComplianceFixture, IAsync
 {
     public RedisBufferedComplianceFixture() : base(new Uri("redis://stream/0/receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

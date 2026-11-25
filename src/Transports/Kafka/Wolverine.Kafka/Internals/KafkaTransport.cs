@@ -362,7 +362,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
         }
     }
 
-    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    public override WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
     {
         return new KafkaHealthCheck(this);
     }

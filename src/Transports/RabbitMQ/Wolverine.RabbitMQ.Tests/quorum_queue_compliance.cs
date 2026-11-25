@@ -24,6 +24,7 @@ public class QuorumQueueFixture : TransportComplianceFixture, IAsyncLifetime
 
     public QuorumQueueFixture() : base($"rabbitmq://queue/{TheSendingQueue}".ToUri())
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

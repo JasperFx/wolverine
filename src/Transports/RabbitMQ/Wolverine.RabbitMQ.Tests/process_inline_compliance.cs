@@ -26,6 +26,7 @@ public class ProcessInlineFixture : TransportComplianceFixture, IAsyncLifetime
 
     public ProcessInlineFixture() : base($"rabbitmq://queue/{TheSendingQueue}".ToUri())
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

@@ -12,6 +12,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 {
     public BufferedComplianceFixture() : base(new Uri("asb://queue/buffered-receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
         MustReset = false;
     }
 

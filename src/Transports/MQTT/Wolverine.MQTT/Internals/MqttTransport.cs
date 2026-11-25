@@ -295,7 +295,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         };
     }
 
-    public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
+    public override WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
     {
         return new MqttHealthCheck(this);
     }

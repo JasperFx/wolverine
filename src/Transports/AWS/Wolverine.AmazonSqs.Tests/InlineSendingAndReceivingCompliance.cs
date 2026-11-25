@@ -11,6 +11,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 {
     public InlineComplianceFixture() : base(new Uri("sqs://buffered-receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

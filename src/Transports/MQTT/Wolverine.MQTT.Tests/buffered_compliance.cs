@@ -14,6 +14,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
     public BufferedComplianceFixture() : base(new Uri("mqtt://topic/receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()

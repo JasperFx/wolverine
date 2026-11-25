@@ -14,6 +14,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
     public InlineComplianceFixture() : base(new Uri("mqtt://topic/receiver"), 120)
     {
+        ExpectsTransportHealthCheck = true;
     }
 
     public async ValueTask InitializeAsync()
