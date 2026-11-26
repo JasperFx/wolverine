@@ -192,10 +192,12 @@ partial class Build
     /// the CI targets (<see cref="runSupervised"/>) and every unit of <c>LocalGate</c>.
     /// </summary>
     static MtpWorkerFactory workerFactoryFor(string executable, WorkerConnectionStrings connectionStrings,
-        IReadOnlyDictionary<string, string> environment = null)
+        IReadOnlyDictionary<string, string> environment = null,
+        Func<WorkerLaunchContext, IReadOnlyDictionary<string, string>> environmentFor = null)
         => new(executable, environment)
         {
             ConnectionStrings = connectionStrings,
+            EnvironmentFor = environmentFor,
             // A wedged worker's state stops existing the moment it is killed (GH-4100): this
             // hook gets the live pid first, and the dumpasync capture is the diagnosis. Only
             // ever invoked for a live process that refused to exit — a healthy worker never

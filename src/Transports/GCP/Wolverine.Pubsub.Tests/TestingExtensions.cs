@@ -5,7 +5,15 @@ namespace Wolverine.Pubsub.Tests;
 
 public static class TestingExtensions
 {
-    public const string EmulatorHost = "localhost:8085";
+    /// <summary>
+    /// The compose emulator, unless the process was started with WOLVERINE_PUBSUB_EMULATOR: LocalGate runs the suite on
+    /// two lanes with an emulator each and tells every worker its lane's (GH-5958). Not PUBSUB_EMULATOR_HOST itself,
+    /// which tests here point elsewhere on purpose before this is first read.
+    /// </summary>
+    public static readonly string EmulatorHost =
+        Environment.GetEnvironmentVariable("WOLVERINE_PUBSUB_EMULATOR") is { Length: > 0 } configured
+            ? configured.Trim()
+            : "localhost:8085";
 
     public static PubsubConfiguration UsePubsubTesting(this WolverineOptions options)
     {
@@ -43,7 +51,8 @@ public static class TestingExtensions
         try
         {
             using var client = new TcpClient();
-            var connect = client.ConnectAsync("localhost", 8085);
+            var separator = EmulatorHost.LastIndexOf(':');
+            var connect = client.ConnectAsync(EmulatorHost[..separator], int.Parse(EmulatorHost[(separator + 1)..]));
             var completed = await Task.WhenAny(connect, Task.Delay(TimeSpan.FromSeconds(2)));
             return completed == connect && client.Connected;
         }

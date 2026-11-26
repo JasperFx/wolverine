@@ -134,7 +134,7 @@ public class native_ack_inflight_redelivery_5533 : IAsyncLifetime
     [Fact]
     public async Task an_in_flight_redelivery_is_not_acked_so_a_draining_node_still_loses_nothing()
     {
-        _skip.ShouldBeFalse("The Pub/Sub emulator is not reachable on localhost:8085");
+        _skip.ShouldBeFalse($"The Pub/Sub emulator is not reachable on {TestingExtensions.EmulatorHost}");
 
         var topic = "inflight5533drain";
         var batch = Guid.NewGuid().ToString("N");
@@ -154,7 +154,7 @@ public class native_ack_inflight_redelivery_5533 : IAsyncLifetime
     [Fact]
     public async Task an_in_flight_redelivery_is_acked_with_its_own_ack_id_once_the_original_succeeds()
     {
-        _skip.ShouldBeFalse("The Pub/Sub emulator is not reachable on localhost:8085");
+        _skip.ShouldBeFalse($"The Pub/Sub emulator is not reachable on {TestingExtensions.EmulatorHost}");
 
         var topic = "inflight5533settle";
         var batch = Guid.NewGuid().ToString("N");

@@ -292,6 +292,15 @@ partial class Build
                 Log.Warning("GH-5545: creating {Database} again", gateDatabaseName(suite));
                 recreateSqlServerDatabase(gateDatabaseName(suite));
                 break;
+
+            case ServerUse.DatabasePerLane:
+                for (var lane = 0; lane < unit.Workers; lane++)
+                {
+                    var database = laneDatabaseName(gateDatabaseName(suite), lane);
+                    Log.Warning("GH-5545: creating {Database} again", database);
+                    recreateSqlServerDatabase(database);
+                }
+                break;
         }
     }
 }

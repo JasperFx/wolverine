@@ -111,7 +111,15 @@ partial class Build
         /// (build/GateLaneServers.cs). For a suite that creates sibling databases under fixed names: each lane's
         /// siblings are on its own server, so the suite holds no track and can run on several lanes. Postgres only.
         /// </summary>
-        LaneServers
+        LaneServers,
+
+        /// <summary>
+        /// GH-5958: a database of its own per lane on the compose server, recreated as the unit starts
+        /// ({suite database}_w{lane}). For a suite on several lanes whose classes use the database under fixed schema
+        /// names but create no sibling databases: each lane's schemas are in its own database, so the lanes cannot
+        /// reset each other's tables. Holds no track.
+        /// </summary>
+        DatabasePerLane
     }
 
     /// <summary>One test project of the gate and everything its CI target knows about running it.</summary>
@@ -146,6 +154,13 @@ partial class Build
         /// (which src/Servers.cs reads first). For services the gate already runs one of per lane.
         /// </summary>
         public Dictionary<string, Func<int, string>> LaneConnectionStrings { get; init; } = new();
+
+        /// <summary>
+        /// GH-5958: brokers each lane gets a container of its own of (build/GateLaneServers.cs), by kind, and the
+        /// environment variables that tell a worker its lane's address. For a suite that reaches its broker through
+        /// an address it reads from the environment and uses fixed names on it, so its lanes cannot share one.
+        /// </summary>
+        public Dictionary<string, string[]> LaneBrokers { get; init; } = new();
 
         /// <summary>
         /// Left out of a default LocalGate run; it runs only when named with --gate-with or --gate-only. Still a
@@ -192,7 +207,11 @@ partial class Build
         new("src/Testing/CoreTests/CoreTests.csproj", "CoreTests"),
         // GH-5545: the build's own decisions (build/ServiceHeal.cs)
         new("src/Testing/BuildTests/BuildTests.csproj", "CoreTests"),
-        new("src/Testing/MessageRoutingTests/MessageRoutingTests.csproj", "CIMessageRouting") { Services = ["rabbitmq"] },
+        // GH-5958: routing assertions over conventional queues named after its own message types, so it shares the broker
+        new("src/Testing/MessageRoutingTests/MessageRoutingTests.csproj", "CIMessageRouting")
+        {
+            Services = ["rabbitmq"], SharesServices = ["rabbitmq"]
+        },
 
         // ─── Persistence ───
         // GH-5958: the Postgres chain. These suites create sibling databases under fixed, server-wide names, and used to
@@ -281,9 +300,11 @@ partial class Build
         {
             Services = ["rabbitmq"], Postgres = ServerUse.OwnDatabase, SqlServer = ServerUse.OwnDatabase
         },
+        // GH-5958: each class listens on a queue named after itself and the time (CircuitBreakerIntegrationContext), so
+        // it shares the broker with Wolverine.RabbitMQ.Tests instead of waiting 13 minutes for its track
         new("src/Transports/RabbitMQ/CircuitBreakingTests/CircuitBreakingTests.csproj", "CICircuitBreaking")
         {
-            Services = ["rabbitmq"], Postgres = ServerUse.OwnDatabase
+            Services = ["rabbitmq"], SharesServices = ["rabbitmq"], Postgres = ServerUse.OwnDatabase
         },
         new("src/Transports/AWS/Wolverine.AmazonSqs.Tests/Wolverine.AmazonSqs.Tests.csproj", "CIAWSSqs, CIAWSSqsCompliance")
         {
@@ -327,9 +348,12 @@ partial class Build
         {
             Services = ["nats"], Postgres = ServerUse.OwnDatabase
         },
+        // GH-5958: two lanes, each on a Pub/Sub emulator of its own (the suite's topics have fixed names: "orders",
+        // "sr", "colors", ...) and a database of its own for the durable compliance classes. No compose emulator.
         new("src/Transports/GCP/Wolverine.Pubsub.Tests/Wolverine.Pubsub.Tests.csproj", "CIPubsub")
         {
-            Services = ["gcp-pubsub"], Postgres = ServerUse.OwnDatabase
+            Postgres = ServerUse.DatabasePerLane, Workers = 2,
+            LaneBrokers = new() { [PubsubLaneServer] = ["WOLVERINE_PUBSUB_EMULATOR", "PUBSUB_EMULATOR_HOST"] }
         },
         new("src/Transports/Pulsar/Wolverine.Pulsar.Tests/Wolverine.Pulsar.Tests.csproj", "CIPulsar")
         {
@@ -342,8 +366,18 @@ partial class Build
                 ["WOLVERINE_PULSAR_HTTP"] = "http://localhost:8080"
             }
         },
-        new("src/Transports/Redis/Wolverine.Redis.Tests/Wolverine.Redis.Tests.csproj", "CIRedis") { Postgres = ServerUse.OwnDatabase },
-        new("src/Testing/OpenTelemetry/TracingTests/TracingTests.csproj", "CIOtel") { Services = ["rabbitmq"] },
+        // GH-5958: two lanes. Every worker process starts a Redis container of its own (RedisContainerFixture), so the
+        // lanes never share a broker; the durable and partitioned classes keep their fixed schema names in a database
+        // per lane.
+        new("src/Transports/Redis/Wolverine.Redis.Tests/Wolverine.Redis.Tests.csproj", "CIRedis")
+        {
+            Postgres = ServerUse.DatabasePerLane, Workers = 2
+        },
+        // GH-5958: its queues are its own (otel.subscriber.*, retry-attempt-links-*), so it shares the broker
+        new("src/Testing/OpenTelemetry/TracingTests/TracingTests.csproj", "CIOtel")
+        {
+            Services = ["rabbitmq"], SharesServices = ["rabbitmq"]
+        },
         new("src/Wolverine.Grpc.Tests/Wolverine.Grpc.Tests.csproj", "CIGrpc"),
         // Starts the AspireWith* sample AppHosts through Aspire.Hosting.Testing: Pulsar, LocalStack and the gcloud
         // Pub/Sub emulator each run in a container of Aspire's own, on random host ports, so no compose service
@@ -543,8 +577,23 @@ partial class Build
                     })
                     // Provisioned when the unit starts rather than before the gate: a database is the
                     // unit's alone, and recreating it is only safe once the unit is the one running.
-                    .LaunchingWith(unit => workerFactoryFor(unit.Executable, gateConnectionStrings(suite, unit, laneServers),
-                        suite.Environment.Count > 0 ? suite.Environment : null));
+                    .LaunchingWith(unit =>
+                    {
+                        // GH-5958: each lane's workers are told where its own brokers are
+                        Func<WorkerLaunchContext, IReadOnlyDictionary<string, string>> brokersFor = null;
+                        if (suite.LaneBrokers.Count > 0)
+                        {
+                            var brokers = suite.LaneBrokers
+                                .SelectMany(pair => pair.Value.Select(variable =>
+                                    (Variable: variable, Servers: laneServers[laneServerKey(unit.Name, pair.Key)])))
+                                .ToArray();
+                            brokersFor = context => brokers.ToDictionary(b => b.Variable,
+                                b => b.Servers[context.Lane].ConnectionString);
+                        }
+
+                        return workerFactoryFor(unit.Executable, gateConnectionStrings(suite, unit, laneServers),
+                            suite.Environment.Count > 0 ? suite.Environment : null, brokersFor);
+                    });
 
                 if (tracks.Length > 0) project.On(tracks);
             }
@@ -565,11 +614,15 @@ partial class Build
 
             // GH-5958: started before the build and awaited after it, as the compose services are
             var suitesByName = suites.ToDictionary(s => s.Name, StringComparer.OrdinalIgnoreCase);
-            foreach (var (unit, servers) in startLaneServers(units
-                         .Where(u => suitesByName[u.Project.Name].Postgres == ServerUse.LaneServers)
-                         .Select(u => (u.Name, u.Workers))))
+            foreach (var (key, servers) in startLaneServers(units.SelectMany(u =>
+                     {
+                         var suite = suitesByName[u.Project.Name];
+                         var kinds = suite.LaneBrokers.Keys.ToList();
+                         if (suite.Postgres == ServerUse.LaneServers) kinds.Add(PostgresLaneServer);
+                         return kinds.Select(kind => (u.Name, u.Workers, kind));
+                     })))
             {
-                laneServers[unit] = servers;
+                laneServers[key] = servers;
             }
 
             if (!GateSkipBuild) buildGateUnits(units);
@@ -770,9 +823,30 @@ partial class Build
             connectionStrings.Add("sqlserver", connectionString);
         }
 
+        if (suite.Postgres == ServerUse.DatabasePerLane)
+        {
+            var databases = Enumerable.Range(0, unit.Workers).Select(lane => laneDatabaseName(database, lane)).ToArray();
+            foreach (var laneDatabase in databases) recreatePostgresDatabase(laneDatabase);
+            connectionStrings.Add("postgres", context =>
+                new Npgsql.NpgsqlConnectionStringBuilder(PostgresConnectionString) { Database = databases[context.Lane] }
+                    .ConnectionString);
+        }
+
+        if (suite.SqlServer == ServerUse.DatabasePerLane)
+        {
+            var databases = Enumerable.Range(0, unit.Workers).Select(lane => laneDatabaseName(database, lane)).ToArray();
+            foreach (var laneDatabase in databases) recreateSqlServerDatabase(laneDatabase);
+            connectionStrings.Add("sqlserver", context =>
+                new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(SqlServerConnectionString)
+                {
+                    InitialCatalog = databases[context.Lane],
+                    MultipleActiveResultSets = true
+                }.ConnectionString);
+        }
+
         if (suite.Postgres == ServerUse.LaneServers)
         {
-            var servers = laneServers[unit.Name];
+            var servers = laneServers[laneServerKey(unit.Name, PostgresLaneServer)];
             connectionStrings.Add("postgres", context => servers[context.Lane].ConnectionString);
         }
 
@@ -789,6 +863,8 @@ partial class Build
 
         return connectionStrings.Names.Count > 0 ? connectionStrings : null;
     }
+
+    static string laneDatabaseName(string database, int lane) => $"{database}_w{lane}";
 
     static string gateDatabaseName(GateSuite suite)
         => "wolverine_gate_" + new string(suite.Name.ToLowerInvariant()
