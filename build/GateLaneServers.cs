@@ -134,7 +134,6 @@ partial class Build
                         // The emulator answers "Ok" on its root once it serves the API
                         using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
                         http.GetStringAsync($"http://{server.ConnectionString}/").GetAwaiter().GetResult();
-                        warmPubsubEmulator(server);
                         return;
                     }
 
@@ -156,46 +155,6 @@ partial class Build
         });
 
         Log.Information("GH-5958: {Count} lane server(s) ready in {Seconds:0.0}s", all.Length, clock.Elapsed.TotalSeconds);
-    }
-
-    /// <summary>
-    /// Takes one message through a fresh emulator before any test does. The first send and receive on a just-started
-    /// emulator took over a minute in the first two-lane run (the JVM is cold) and timed a test out; the compose
-    /// emulator every earlier run used had been up for hours.
-    /// </summary>
-    static void warmPubsubEmulator(GateLaneServer server)
-    {
-        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-        var root = $"http://{server.ConnectionString}/v1/projects/wolverine";
-
-        string send(System.Net.Http.HttpMethod method, string path, string json)
-        {
-            using var request = new System.Net.Http.HttpRequestMessage(method, root + path)
-            {
-                Content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json")
-            };
-            using var response = http.Send(request);
-            var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
-
-            // 409: already there, from an earlier attempt of this loop
-            if (!response.IsSuccessStatusCode && (int)response.StatusCode != 409)
-                throw new InvalidOperationException($"{method} {path}: {(int)response.StatusCode} {body}");
-            return body;
-        }
-
-        send(System.Net.Http.HttpMethod.Put, "/topics/gate-warmup", "{}");
-        send(System.Net.Http.HttpMethod.Put, "/subscriptions/gate-warmup",
-            "{\"topic\":\"projects/wolverine/topics/gate-warmup\"}");
-        send(System.Net.Http.HttpMethod.Post, "/topics/gate-warmup:publish", "{\"messages\":[{\"data\":\"d2FybQ==\"}]}");
-
-        var deadline = DateTime.UtcNow.AddSeconds(90);
-        while (!send(System.Net.Http.HttpMethod.Post, "/subscriptions/gate-warmup:pull", "{\"maxMessages\":1}")
-                   .Contains("receivedMessages"))
-        {
-            if (DateTime.UtcNow > deadline)
-                throw new InvalidOperationException($"{server.Container} never delivered the warm-up message");
-            Thread.Sleep(250);
-        }
     }
 
     /// <summary>Removes every lane server this compose project's gate started. Never anyone else's.</summary>

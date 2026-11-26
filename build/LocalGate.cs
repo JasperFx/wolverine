@@ -76,8 +76,15 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 // wants the list without compiling the build.
 partial class Build
 {
-    [Parameter("LocalGate: worker processes across every unit at once (default: half the cores)")]
+    [Parameter("LocalGate: worker processes across every unit at once (default: two thirds of the cores)")]
     readonly int? GateWorkers;
+
+    /// <summary>
+    /// GH-5958: two thirds of the cores, not Bobcat's half. Most of the gate's time is broker and database waits, so
+    /// half the cores left the box idle: on 18 cores, 12 workers ran the suites in 20m29s against 22m16s on 9, with a
+    /// median load of about 10.5. --gate-workers still wins.
+    /// </summary>
+    static int defaultGateWorkers => Math.Max(1, Environment.ProcessorCount * 2 / 3);
 
     [Parameter("LocalGate: run only the suites whose project name contains one of these (case-insensitive)")]
     readonly string[] GateOnly;
@@ -536,7 +543,7 @@ partial class Build
                 DurationsPath = GateOnly is { Length: > 0 } || Affected ? null : RootDirectory / ".bobcat" / "gate-durations.json",
                 Log = message => Log.Information("{Message}", message)
             };
-            if (GateWorkers is { } budget) gate.WorkerBudget = budget;
+            gate.WorkerBudget = GateWorkers ?? defaultGateWorkers;
 
             // GH-5545: SQL Server can be recreated mid-gate only when no two units use it at once. See gateHealsSqlServer.
             var healSqlServer = gateHealsSqlServer(suites.Select(s => (s.Name, s.SqlServer)).ToArray(), out var whyNotSqlServer);

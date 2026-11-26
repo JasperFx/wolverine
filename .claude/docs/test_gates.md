@@ -49,7 +49,7 @@ stoat gate run {plan}/{node}                        # from the worktree; the nod
   `build/SupervisedTests.cs`), and leaves its ledger in `artifacts/test-ledger/LocalGate.*.json`.
 - **Framework.** `.nuke/parameters.json` pins `net10.0`, as in CI; a suite that does not target it runs
   on its newest. `--framework all` runs every framework a suite declares (net10.0 and net11.0).
-- **Longest first, under one worker budget** (`--gate-workers`, default half the cores). Durations
+- **Most work first (predicted wall clock × workers, Bobcat 1.1.1+), under one worker budget** (`--gate-workers`, default two thirds of the cores: 12 on an 18-core box, GH-5958). Durations
   are kept in `.bobcat/gate-durations.json` for the next run's order.
 - **Extras**, which `LocalGate` runs after the suites, one after another, as the ordinary targets
   they are: `CICommandLineSmoke` (describe-handlers and event-model), `CIAotSmoke`, `BobcatSamples`,

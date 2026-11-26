@@ -49,7 +49,10 @@ public class send_and_receive : IAsyncLifetime
     [Fact]
     public async Task builds_system_endpoints()
     {
-        var host = await Host.CreateDefaultBuilder()
+        // Disposed: this host listens on the class's "send_and_receive" subscription too, and a leaked one kept
+        // pulling from it, so it took the messages a later test in the class sent and that test timed out
+        // (GH-5958, exposed when LocalGate split the suite into lanes and the class order changed)
+        using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UsePubsubTesting()
