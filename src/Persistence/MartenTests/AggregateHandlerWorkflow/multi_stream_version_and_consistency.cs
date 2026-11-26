@@ -127,6 +127,26 @@ public class multi_stream_version_and_consistency : PostgresqlContext, IAsyncLif
                     FromVersion: 1, ToVersion: 99)));
     }
 
+    // Two streams load in one batched query. A message handler keeps the expected version in the load, so a missing
+    // stream is a concurrency failure, unlike an HTTP endpoint's 404, and nothing is appended to either stream
+    [Fact]
+    public async Task missing_secondary_stream_with_an_expected_version_is_still_a_concurrency_failure()
+    {
+        await GivenAccounts();
+        var missingAccountId = Guid.NewGuid();
+
+        await Should.ThrowAsync<ConcurrencyException>(
+            theHost.InvokeMessageAndWaitAsync(
+                new TransferFundsWithDualVersion(fromAccountId, missingAccountId, 100,
+                    FromVersion: 1, ToVersion: 3)));
+
+        var from = await LoadAccount(fromAccountId);
+        from.Balance.ShouldBe(1000);
+
+        await using var session = theStore.LightweightSession();
+        (await session.Events.FetchStreamStateAsync(missingAccountId, TestContext.Current.CancellationToken)).ShouldBeNull();
+    }
+
     [Fact]
     public async Task always_enforce_consistency_on_secondary_stream_with_no_events()
     {

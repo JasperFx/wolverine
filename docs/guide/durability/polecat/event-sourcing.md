@@ -539,6 +539,11 @@ public static OrderShipped Ship(
 }
 ```
 
+On an HTTP endpoint the expected version is checked once the stream is loaded and a missing aggregate has been dealt
+with, so a stream that does not exist answers 404 (or what `OnMissing` asks for) whatever the version. A message
+handler checks the version as it loads the stream, so a missing stream with a non-zero expected version fails with a
+`ConcurrencyException` that an error policy can retry.
+
 ## Strong Typed Identifiers
 
 You can use strong typed identifiers from tools like [Vogen](https://github.com/SteveDunn/Vogen) and [StronglyTypedId](https://github.com/andrewlock/StronglyTypedId)

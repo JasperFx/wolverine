@@ -79,11 +79,19 @@ internal record AggregateHandling(IDataRequirement Requirement)
             chain.Middleware.Add(TagAggregateOtelFrame.ForNaturalKey(AggregateType, AggregateId));
         }
 
+        var expectedVersion = LoadStyle == ModelConcurrencyStyle.Optimistic ? Version : null;
+
+        // An HTTP endpoint loads the stream without the expected version and checks it after the missing aggregate
+        // handling below: a store compares it inside FetchForWriting(id, version), and throws a concurrency failure for
+        // a stream that does not exist before the endpoint can answer 404 (RFC 9110 §13.2.1). A message handler keeps
+        // the check in the load, where a missing stream is a ConcurrencyException that a retry policy can wait out.
+        var checkVersionAfterMissingAggregate = expectedVersion != null && chain is IRoutedChain;
+
         var loader = Provider.BuildLoadAggregateFrame(new AggregateLoadRequest(
             AggregateType,
             AggregateId,
             LoadStyle,
-            LoadStyle == ModelConcurrencyStyle.Optimistic ? Version : null,
+            checkVersionAfterMissingAggregate ? null : expectedVersion,
             AlwaysEnforceConsistency,
             IsNaturalKey));
 
@@ -112,6 +120,11 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain, Provider);
         var aggregate = RelayAggregateToHandlerMethod(eventStream, chain, firstCall, AggregateType);
+
+        if (checkVersionAfterMissingAggregate)
+        {
+            chain.Middleware.Add(new ExpectedVersionCheckFrame(eventStream, expectedVersion!));
+        }
 
         if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
         {

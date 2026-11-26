@@ -110,6 +110,29 @@ public class version_source_override : IAsyncLifetime
             theHost.InvokeMessageAndWaitAsync(
                 new IncrementWithParamVersionSource(theStreamId, MyVersion: 99)));
     }
+
+    // A message handler keeps the expected version in the load, so a missing stream is a concurrency failure that a
+    // retry policy can wait out. An HTTP endpoint answers 404 instead
+    [Fact]
+    public async Task missing_stream_with_a_version_on_write_aggregate_is_still_a_concurrency_failure()
+    {
+        var streamId = Guid.NewGuid();
+
+        await Should.ThrowAsync<ConcurrencyException>(
+            theHost.InvokeMessageAndWaitAsync(
+                new IncrementWithParamVersionSource(streamId, MyVersion: 3)));
+
+        await using var session = theStore.LightweightSession();
+        (await session.Events.FetchStreamStateAsync(streamId, TestContext.Current.CancellationToken)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task missing_stream_with_a_version_on_aggregate_handler_is_still_a_concurrency_failure()
+    {
+        await Should.ThrowAsync<ConcurrencyException>(
+            theHost.InvokeMessageAndWaitAsync(
+                new IncrementWithCustomVersion(Guid.NewGuid(), ExpectedVersion: 3)));
+    }
 }
 
 #region Types

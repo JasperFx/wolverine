@@ -52,6 +52,30 @@ public class using_version_source_override(AppFixture fixture) : IntegrationCont
     }
 
     [Fact]
+    public async Task missing_stream_with_version_from_route_argument_returns_404()
+    {
+        var orderId = Guid.NewGuid();
+
+        await Scenario(x =>
+        {
+            x.Post.Json(new ShipOrderWithExpectedVersion(orderId, 3))
+                .ToUrl($"/orders/{orderId}/ship-with-expected-version/3");
+            x.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
+    public async Task missing_stream_with_version_from_request_body_returns_404()
+    {
+        await Scenario(x =>
+        {
+            x.Post.Json(new ShipOrderWithExpectedVersion(Guid.NewGuid(), 3))
+                .ToUrl("/orders/ship-with-body-version");
+            x.StatusCodeShouldBe(404);
+        });
+    }
+
+    [Fact]
     public async Task happy_path_with_version_source_from_request_body()
     {
         var orderId = await CreateOrder();
