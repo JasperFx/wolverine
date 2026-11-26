@@ -248,9 +248,9 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
             return null;
         }
 
-        if (_idempotency != null)
+        if (brokerGuardFor(envelope) is { } guard)
         {
-            switch (_idempotency.Claim(envelope, holdIfInFlight: true))
+            switch (guard.Claim(envelope, holdIfInFlight: true))
             {
                 case IdempotencyClaim.AlreadyProcessed:
                     // GH-3710. Ack-and-drop a redelivery of something this process already handled, which is
@@ -485,9 +485,14 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
         _ = recordOutcomeAsync(envelope).AsTask();
     }
 
+    // An inbox retry can run while the original broker claim is still in flight. It must neither
+    // join that claim at admission nor settle its held broker deliveries when it finishes.
+    private IIncomingIdempotencyGuard? brokerGuardFor(Envelope envelope) =>
+        envelope.Listener is IRecoveredEnvelopeListener ? null : _idempotency;
+
     private ValueTask recordOutcomeAsync(Envelope envelope)
     {
-        if (_idempotency == null) return ValueTask.CompletedTask;
+        if (brokerGuardFor(envelope) is not { } guard) return ValueTask.CompletedTask;
 
         if (envelope.HasBeenAcked)
         {
@@ -495,7 +500,7 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
             // it is acknowledged -- each against its own listener and with its own handle, which on RabbitMQ,
             // SQS, Service Bus and Pub/Sub is the live one. Only now, never before: this is the "already
             // processed" case, not the "in flight" one.
-            var held = _idempotency.MarkProcessed(envelope);
+            var held = guard.MarkProcessed(envelope);
             return held.Count == 0 ? ValueTask.CompletedTask : settleHeldAsync(held, _completeBlock, "acknowledging");
         }
 
@@ -512,9 +517,9 @@ internal class NativeAckReceiver : IReceiver, IFaultTrackingReceiver, ILatchedRe
     /// </summary>
     private ValueTask releaseAsync(Envelope envelope)
     {
-        if (_idempotency == null) return ValueTask.CompletedTask;
+        if (brokerGuardFor(envelope) is not { } guard) return ValueTask.CompletedTask;
 
-        var held = _idempotency.Release(envelope);
+        var held = guard.Release(envelope);
         return held.Count == 0 ? ValueTask.CompletedTask : settleHeldAsync(held, _deferBlock, "deferring");
     }
 
