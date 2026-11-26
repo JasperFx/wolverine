@@ -21,6 +21,10 @@ using Serilog;
 // Bobcat launches discovery, isolated and recycled workers as lane 0 and never while the pool is running
 // (WorkerLaunchContext), so lane 0's server is never shared by two processes at once.
 //
+// GH-5958, broker lanes: the same for a broker a suite reaches through an address its workers are told
+// (GateSuite.LaneBrokers). The Pub/Sub emulator: each lane's topics and subscriptions are on its own emulator, so
+// the suite's fixed names ("orders", "sr", "colors", ...) cannot cross lanes.
+//
 // The containers are this run's alone: named after the compose project, the unit and the lane, published on a
 // port Docker picks (so two worktrees' gates never collide on a port), recreated empty at the start of the run
 // and removed at the end of it, red or green.
@@ -28,6 +32,13 @@ partial class Build
 {
     /// <summary>The image docker-compose.yml's postgresql service runs, so a lane server is the same Postgres.</summary>
     const string LaneServerPostgresImage = "postgres:17";
+
+    /// <summary>The image docker-compose.yml's gcp-pubsub service runs.</summary>
+    const string LaneServerPubsubImage = "gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators";
+
+    /// <summary>The kinds of lane server the gate can start.</summary>
+    const string PostgresLaneServer = "postgres";
+    const string PubsubLaneServer = "pubsub";
 
     /// <summary>One lane's server: the container, and the whole connection string its workers get.</summary>
     sealed record GateLaneServer(string Kind, string Container, int Lane)
@@ -38,24 +49,30 @@ partial class Build
         {
             // As the compose default, but on the lane server's port. Database=postgres, so Servers.PostgresDatabaseName
             // and every assertion built on it read exactly what they read against the compose server.
-            "postgres" => $"Host=localhost;Port={Port};Database=postgres;Username=postgres;password=postgres",
+            PostgresLaneServer => $"Host=localhost;Port={Port};Database=postgres;Username=postgres;password=postgres",
+
+            // PUBSUB_EMULATOR_HOST's form
+            PubsubLaneServer => $"localhost:{Port}",
             _ => throw new ArgumentOutOfRangeException(nameof(Kind), Kind, null)
         };
     }
+
+    /// <summary>The key a unit's lane servers of one kind are filed under.</summary>
+    static string laneServerKey(string unit, string kind) => $"{unit}|{kind}";
 
     /// <summary>
     /// The lane servers of every unit whose suite asks for them, by unit name. Containers are started here and
     /// not awaited: <see cref="awaitLaneServers"/> waits on them after the build, as the compose services are.
     /// </summary>
-    Dictionary<string, GateLaneServer[]> startLaneServers(IEnumerable<(string Unit, int Workers)> units)
+    Dictionary<string, GateLaneServer[]> startLaneServers(IEnumerable<(string Unit, int Workers, string Kind)> units)
     {
         removeLaneServers(); // a previous run killed before its cleanup
 
         var servers = new Dictionary<string, GateLaneServer[]>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (unit, workers) in units)
+        foreach (var (unit, workers, kind) in units)
         {
-            servers[unit] = Enumerable.Range(0, workers)
-                .Select(lane => new GateLaneServer("postgres", laneServerContainerName(unit, lane), lane))
+            servers[laneServerKey(unit, kind)] = Enumerable.Range(0, workers)
+                .Select(lane => new GateLaneServer(kind, laneServerContainerName(unit, kind, lane), lane))
                 .ToArray();
         }
 
@@ -67,14 +84,30 @@ partial class Build
 
         Parallel.ForEach(all, server =>
         {
-            // max_connections as the compose service has it (#2810). fsync and friends off: a lane server is thrown away
-            // at the end of the run, so durability across a crash buys nothing and costs every commit a flush.
-            docker($"run -d --name {server.Container} --label {LaneServerLabel}={ComposeProjectName} " +
-                   "--shm-size 512m -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432 " +
-                   $"{LaneServerPostgresImage} postgres -c max_connections=500 -c fsync=off -c synchronous_commit=off " +
-                   "-c full_page_writes=off");
+            var label = $"--label {LaneServerLabel}={ComposeProjectName}";
+            switch (server.Kind)
+            {
+                case PostgresLaneServer:
+                    // max_connections as the compose service has it (#2810). fsync and friends off: a lane server is
+                    // thrown away at the end of the run, so durability across a crash buys nothing and costs every
+                    // commit a flush.
+                    docker($"run -d --name {server.Container} {label} " +
+                           "--shm-size 512m -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432 " +
+                           $"{LaneServerPostgresImage} postgres -c max_connections=500 -c fsync=off " +
+                           "-c synchronous_commit=off -c full_page_writes=off");
+                    server.Port = laneServerPort(server.Container, 5432);
+                    break;
 
-            server.Port = laneServerPort(server.Container, 5432);
+                case PubsubLaneServer:
+                    // As the compose service starts it, less its debug logging
+                    docker($"run -d --name {server.Container} {label} -p 8085 {LaneServerPubsubImage} " +
+                           "gcloud --quiet beta emulators pubsub start --host-port 0.0.0.0:8085 --project wolverine");
+                    server.Port = laneServerPort(server.Container, 8085);
+                    break;
+
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(server.Kind), server.Kind, null);
+            }
         });
 
         return servers;
@@ -96,6 +129,15 @@ partial class Build
             {
                 try
                 {
+                    if (server.Kind == PubsubLaneServer)
+                    {
+                        // The emulator answers "Ok" on its root once it serves the API
+                        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                        http.GetStringAsync($"http://{server.ConnectionString}/").GetAwaiter().GetResult();
+                        warmPubsubEmulator(server);
+                        return;
+                    }
+
                     using var conn = new Npgsql.NpgsqlConnection(server.ConnectionString + ";Pooling=false;Timeout=5");
                     conn.Open();
                     using var command = conn.CreateCommand();
@@ -116,6 +158,46 @@ partial class Build
         Log.Information("GH-5958: {Count} lane server(s) ready in {Seconds:0.0}s", all.Length, clock.Elapsed.TotalSeconds);
     }
 
+    /// <summary>
+    /// Takes one message through a fresh emulator before any test does. The first send and receive on a just-started
+    /// emulator took over a minute in the first two-lane run (the JVM is cold) and timed a test out; the compose
+    /// emulator every earlier run used had been up for hours.
+    /// </summary>
+    static void warmPubsubEmulator(GateLaneServer server)
+    {
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        var root = $"http://{server.ConnectionString}/v1/projects/wolverine";
+
+        string send(System.Net.Http.HttpMethod method, string path, string json)
+        {
+            using var request = new System.Net.Http.HttpRequestMessage(method, root + path)
+            {
+                Content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json")
+            };
+            using var response = http.Send(request);
+            var body = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+
+            // 409: already there, from an earlier attempt of this loop
+            if (!response.IsSuccessStatusCode && (int)response.StatusCode != 409)
+                throw new InvalidOperationException($"{method} {path}: {(int)response.StatusCode} {body}");
+            return body;
+        }
+
+        send(System.Net.Http.HttpMethod.Put, "/topics/gate-warmup", "{}");
+        send(System.Net.Http.HttpMethod.Put, "/subscriptions/gate-warmup",
+            "{\"topic\":\"projects/wolverine/topics/gate-warmup\"}");
+        send(System.Net.Http.HttpMethod.Post, "/topics/gate-warmup:publish", "{\"messages\":[{\"data\":\"d2FybQ==\"}]}");
+
+        var deadline = DateTime.UtcNow.AddSeconds(90);
+        while (!send(System.Net.Http.HttpMethod.Post, "/subscriptions/gate-warmup:pull", "{\"maxMessages\":1}")
+                   .Contains("receivedMessages"))
+        {
+            if (DateTime.UtcNow > deadline)
+                throw new InvalidOperationException($"{server.Container} never delivered the warm-up message");
+            Thread.Sleep(250);
+        }
+    }
+
     /// <summary>Removes every lane server this compose project's gate started. Never anyone else's.</summary>
     static void removeLaneServers()
     {
@@ -129,8 +211,8 @@ partial class Build
         docker("rm -f -v " + string.Join(" ", ids));
     }
 
-    string laneServerContainerName(string unit, int lane)
-        => $"{ComposeProjectName}-gate-{new string(unit.ToLowerInvariant().Select(c => char.IsAsciiLetterOrDigit(c) ? c : '-').ToArray())}-w{lane}";
+    string laneServerContainerName(string unit, string kind, int lane)
+        => $"{ComposeProjectName}-gate-{new string(unit.ToLowerInvariant().Select(c => char.IsAsciiLetterOrDigit(c) ? c : '-').ToArray())}-{kind}-w{lane}";
 
     static int laneServerPort(string container, int containerPort)
     {

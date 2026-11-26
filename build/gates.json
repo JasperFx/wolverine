@@ -27,9 +27,7 @@
       "services": [
         "rabbitmq"
       ],
-      "tracks": [
-        "rabbitmq"
-      ]
+      "tracks": []
     },
     {
       "name": "PersistenceTests",
@@ -343,9 +341,7 @@
         "postgresql",
         "rabbitmq"
       ],
-      "tracks": [
-        "rabbitmq"
-      ]
+      "tracks": []
     },
     {
       "name": "Wolverine.AmazonSqs.Tests",
@@ -442,15 +438,12 @@
       "name": "Wolverine.Pubsub.Tests",
       "path": "src/Transports/GCP/Wolverine.Pubsub.Tests/Wolverine.Pubsub.Tests.csproj",
       "ciTargets": "CIPubsub",
-      "workers": 1,
-      "postgres": "OwnDatabase",
+      "workers": 2,
+      "postgres": "DatabasePerLane",
       "services": [
-        "postgresql",
-        "gcp-pubsub"
+        "postgresql"
       ],
-      "tracks": [
-        "gcp-pubsub"
-      ]
+      "tracks": []
     },
     {
       "name": "Wolverine.Pulsar.Tests",
@@ -470,8 +463,8 @@
       "name": "Wolverine.Redis.Tests",
       "path": "src/Transports/Redis/Wolverine.Redis.Tests/Wolverine.Redis.Tests.csproj",
       "ciTargets": "CIRedis",
-      "workers": 1,
-      "postgres": "OwnDatabase",
+      "workers": 2,
+      "postgres": "DatabasePerLane",
       "services": [
         "postgresql"
       ],
@@ -485,9 +478,7 @@
       "services": [
         "rabbitmq"
       ],
-      "tracks": [
-        "rabbitmq"
-      ]
+      "tracks": []
     },
     {
       "name": "Wolverine.Grpc.Tests",

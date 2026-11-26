@@ -297,7 +297,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task configure_callbacks_are_applied_to_live_builders()
     {
-        Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
+        Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", TestingExtensions.EmulatorHost);
         Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
 
         // Transport-level EmulatorDetection is set to ProductionOnly — the callbacks are the

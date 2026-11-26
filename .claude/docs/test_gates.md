@@ -70,13 +70,16 @@ How the suites share the box (the tracks; a track is held by one unit at a time)
 | Resource | Rule |
 |---|---|
 | Postgres, SQL Server | A suite that only uses the database its connection string names gets its own, `wolverine_gate_<project>`, recreated per run and handed over as `ConnectionStrings__postgres` / `ConnectionStrings__sqlserver`; it holds no track (`ServerUse.OwnDatabase`). A suite that also creates sibling databases under fixed names on Postgres (MartenTests, PostgresqlTests, PersistenceTests, the EF suites) gets a **Postgres server of its own per lane** (`ServerUse.LaneServers`, GH-5958, below), so it holds no `postgresql` track and can run on several lanes. On SQL Server those suites and PolecatTests each get a database of their own (`OwnDatabase`): their siblings there are theirs alone (`db1`-`db3`, `polecat_*`) or named after the catalog, so no suite holds the `sqlserver` track any more. SqlServerTests keeps its four `wolverine_w*` lanes (`ServerUse.Lanes`). |
-| Each broker and emulator | One track per compose service: rabbitmq, kafka, localstack, asb-emulator, pulsar, gcp-pubsub, nats, mysql, oracle, azurite, fake-gcs-server. |
+| Each broker and emulator | One track per compose service: rabbitmq, kafka, localstack, asb-emulator, pulsar, nats, mysql, oracle, azurite, fake-gcs-server. Wolverine.Pubsub.Tests no longer uses the compose `gcp-pubsub`: each of its two lanes gets an emulator of its own (GH-5958, below). |
 | Fixed ports, heavy emulators | `mqtt-broker-ports` (both MQTT suites host a broker on 1883/1884), `cosmos-emulator` (each Cosmos suite starts one through Testcontainers), `ravendb`. |
 | Nothing | CoreTests, SQLite, Fisher, gRPC, the extension and F# suites: the worker budget only. |
 
 A broker a suite uses only under queue names of its own is listed in its `SharesServices`: the service is
-started for it, but the suite holds no track on it. PostgresqlTests, PersistenceTests and EfCoreTests share
-`rabbitmq` that way; the RabbitMQ suites themselves still hold it.
+started for it, but the suite holds no track on it. PostgresqlTests, PersistenceTests, EfCoreTests,
+CircuitBreakingTests, TracingTests and MessageRoutingTests share `rabbitmq` that way, so they run beside
+Wolverine.RabbitMQ.Tests; that suite alone holds the track. It stays on one lane: its classes use literal queue
+names (`incoming`, `one`, `two`, ...) on the one broker, and `UseRabbitMq()` always connects to `localhost:5672`, so a
+broker per lane would need every test changed.
 
 ### The lane modes (GH-5958)
 
@@ -85,6 +88,7 @@ started for it, but the suite holds no track on it. PostgresqlTests, Persistence
 | `OwnDatabase` | one database, `wolverine_gate_<project>`, on the compose server, shared by the suite's lanes | none | most suites that touch Postgres or SQL Server |
 | `Shared` | the compose server's default database, as CI runs it | `postgresql` / `sqlserver` | none since GH-5958; kept for a suite that cannot run anywhere else |
 | `Lanes` | `wolverine_w<lane>` on the compose SQL Server; siblings named through `LaneDatabases` | none | SqlServerTests (4 lanes) |
+| `DatabasePerLane` | a database of its own per lane on the compose server, `wolverine_gate_<project>_w<lane>`, recreated as the unit starts | none | Wolverine.Redis.Tests (2 lanes), Wolverine.Pubsub.Tests (2) |
 | `LaneServers` | a Postgres **server** of its own per lane: a `postgres:17` container the gate starts before the build (`<compose project>-gate-<unit>-w<lane>`, a port Docker picks, `fsync=off`), waits on after it, and removes when the suites finish, red or green | none | MartenTests (4 lanes), PostgresqlTests (3), PersistenceTests, EfCoreTests, EfCoreTests.MultiTenancy |
 
 `LaneServers` exists because those suites create sibling databases under fixed, server-wide names
@@ -94,6 +98,20 @@ isolated and retry workers as lane 0 and never while the lanes are running, so l
 used by two processes at once. The code is `build/GateLaneServers.cs`; the per-suite settings are the
 table in `build/LocalGate.cs`. A suite that also uses SQL Server through `OwnDatabase` stays on one lane, because
 its lanes would share that one database.
+
+### Broker lanes (GH-5958)
+
+A broker suite runs on several lanes only when each lane has a broker of its own, because the suites use fixed
+topic and queue names:
+
+| Suite | Lanes | Broker per lane |
+|---|---|---|
+| Wolverine.Redis.Tests | 2 | already: every worker process starts its own Redis through Testcontainers (`RedisContainerFixture`) |
+| Wolverine.Pubsub.Tests | 2 | an emulator container per lane (`GateSuite.LaneBrokers`, `build/GateLaneServers.cs`), its address handed to the lane's workers as `WOLVERINE_PUBSUB_EMULATOR` (read by `TestingExtensions.EmulatorHost`) and `PUBSUB_EMULATOR_HOST` |
+
+The rest stay on one lane. Wolverine.RabbitMQ.Tests: see above. Pulsar's fixture would take a broker per lane through
+`WOLVERINE_PULSAR`, but a standalone Pulsar is about 2.7 GB, and at 9-10 minutes the suite is under what the
+worker budget makes the floor. Amazon SQS, Kafka and NATS are shorter still.
 
 ## What the run publishes
 
