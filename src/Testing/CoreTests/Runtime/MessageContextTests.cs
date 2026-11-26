@@ -283,6 +283,54 @@ public class MessageContextTests
         theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
 
         await theContext.Storage.Inbox.Received().RescheduleExistingEnvelopeForRetryAsync(theEnvelope);
+        await callback.DidNotReceive().CompleteAsync(theEnvelope);
+    }
+
+    [Fact]
+    public async Task inline_delivery_is_only_settled_after_the_retry_is_persisted()
+    {
+        var listener = Substitute.For<IListener>();
+        listener.RequiresAckAfterPersistedRetry.Returns(true);
+        theEnvelope.Listener = listener;
+        theContext.ReadEnvelope(theEnvelope, listener);
+
+        var write = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        theContext.Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(theEnvelope).Returns(write.Task);
+
+        var reschedule = theContext.ReScheduleAsync(DateTimeOffset.UtcNow.AddSeconds(1));
+        await theContext.Storage.Inbox.Received(1).RescheduleExistingEnvelopeForRetryAsync(theEnvelope);
+        await listener.DidNotReceive().CompleteAsync(theEnvelope);
+
+        write.SetResult();
+        await reschedule;
+        await listener.Received(1).CompleteAsync(theEnvelope);
+    }
+
+    [Fact]
+    public async Task inline_delivery_is_not_settled_when_persisting_the_retry_fails()
+    {
+        var listener = Substitute.For<IListener>();
+        listener.RequiresAckAfterPersistedRetry.Returns(true);
+        theEnvelope.Listener = listener;
+        theContext.ReadEnvelope(theEnvelope, listener);
+        theContext.Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(theEnvelope)
+            .Returns(Task.FromException(new InvalidOperationException("Retry storage unavailable")));
+
+        await Should.ThrowAsync<InvalidOperationException>(() => theContext.ReScheduleAsync(DateTimeOffset.UtcNow));
+        await listener.DidNotReceive().CompleteAsync(theEnvelope);
+    }
+
+    [Fact]
+    public async Task in_memory_retry_does_not_release_the_broker_delivery()
+    {
+        var listener = Substitute.For<IListener>();
+        listener.RequiresAckAfterPersistedRetry.Returns(true);
+        theEnvelope.Listener = listener;
+        theEnvelope.Store = new NullMessageStore();
+        theContext.ReadEnvelope(theEnvelope, listener);
+
+        await theContext.ReScheduleAsync(DateTimeOffset.UtcNow);
+        await listener.DidNotReceive().CompleteAsync(theEnvelope);
     }
 
     [Fact]
