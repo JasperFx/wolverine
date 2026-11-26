@@ -148,7 +148,7 @@ public class request_span_tags_on_short_circuits_5406 : IAsyncLifetime
         tags.ShouldBeGreaterThan(0);
 
         tags.ShouldBeLessThan(code.IndexOf("TryDetectTenantId", StringComparison.Ordinal));
-        tags.ShouldBeLessThan(code.IndexOf("ReadJsonAsync", StringComparison.Ordinal));
+        tags.ShouldBeLessThan(code.IndexOf("jsonContinue", StringComparison.Ordinal));
     }
 }
 

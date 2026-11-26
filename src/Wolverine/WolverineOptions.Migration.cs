@@ -78,7 +78,7 @@ public sealed partial class WolverineOptions
         // GH-5520: 7.0 relays the authenticated user name (EnableRelayOfUserName) by default. Nothing to assign: the
         // getter reads V6DefaultsRestored, so an explicit setting still wins. Wolverine.Http's
         // RejectUnparseableHeaderValues and automatic FluentValidation ProblemDetails read the flag when the
-        // endpoints are mapped.
+        // endpoints are mapped, and so does GH-5976's RejectNullRequestBodies.
 
         // GH-5523: in the Production profile a Wolverine host uses TypeLoadMode.Static with AssertAllPreGeneratedTypesExist in
         // 7.0, 6.x JasperFx's Dynamic without the assertion. Nothing to assign: the JasperFxOptions post-configuration

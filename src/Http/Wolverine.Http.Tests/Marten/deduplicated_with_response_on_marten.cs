@@ -685,7 +685,7 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
 
         var source = sourceFor("/marten-deduplicated-response/audited");
         source.IndexOf("EnableBuffering", StringComparison.Ordinal)
-            .ShouldBeLessThan(source.IndexOf("ReadJsonAsync", StringComparison.Ordinal), source);
+            .ShouldBeLessThan(source.IndexOf("jsonContinue", StringComparison.Ordinal), source);
     }
 
     [Fact]
@@ -713,7 +713,7 @@ public class deduplicated_with_response_on_marten : IAsyncLifetime
 
         var source = sourceFor("/marten-deduplicated-response/counters");
         source.IndexOf("EnableBuffering", StringComparison.Ordinal)
-            .ShouldBeLessThan(source.IndexOf("ReadJsonAsync", StringComparison.Ordinal), source);
+            .ShouldBeLessThan(source.IndexOf("jsonContinue", StringComparison.Ordinal), source);
     }
 
     [Fact]
