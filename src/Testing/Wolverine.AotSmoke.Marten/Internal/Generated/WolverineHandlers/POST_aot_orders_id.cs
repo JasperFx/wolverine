@@ -32,37 +32,90 @@ namespace Internal.Generated.WolverineHandlers
             // Building the Marten session
             await using var documentSession = _outboxedSessionFactory.OpenSession(messageContext);
             Wolverine.Http.HttpHandler.RequestActivity(httpContext)?.SetTag("handler.type", "AotMartenEndpoints").SetTag("http.route", "/aot/orders/{id}").SetTag("http.request.method", "POST");
-            string id_rawValue = (string?)httpContext.GetRouteValue("id");
-            System.Guid id = default;
-
-            if (id_rawValue != null && System.Guid.TryParse(id_rawValue, System.Globalization.CultureInfo.InvariantCulture, out id))
+            try
             {
-            }
-            else
-            {
-                httpContext.Response.StatusCode = 404;
-                return;
-            }
+                string id_rawValue = (string?)httpContext.GetRouteValue("id");
+                System.Guid id = default;
 
-            
-            // The actual HTTP request handler execution
-            (var result, var startStream) = AotMartenEndpoints.PlaceOrder(id);
+                if (id_rawValue != null && System.Guid.TryParse(id_rawValue, System.Globalization.CultureInfo.InvariantCulture, out id))
+                {
+                }
+                else
+                {
+                    httpContext.Response.StatusCode = 404;
+                    return;
+                }
 
-            if (startStream != null)
-            {
                 
-                // Placed by Wolverine's ISideEffect policy
-                startStream.Execute(documentSession);
+                // The actual HTTP request handler execution
+                (var result, var startStream) = AotMartenEndpoints.PlaceOrder(id);
+
+                if (startStream != null)
+                {
+                    
+                    // Placed by Wolverine's ISideEffect policy
+                    startStream.Execute(documentSession);
+                }
+
+                
+                // Save all pending changes to this Marten session
+                await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
+
+                await result.ExecuteAsync(httpContext).ConfigureAwait(false);
+                
+                // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+                await Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(messageContext).ConfigureAwait(false);
             }
-
-            
-            // Save all pending changes to this Marten session
-            await documentSession.SaveChangesAsync(httpContext.RequestAborted).ConfigureAwait(false);
-
-            await result.ExecuteAsync(httpContext).ConfigureAwait(false);
-            
-            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
-            await Wolverine.Persistence.FlushOutgoingMessages.FlushOutgoingMessagesAsync(messageContext).ConfigureAwait(false);
+            catch (JasperFx.Events.StreamLockedException streamLockedException)
+            {
+                var onExceptionProblemDetails = Wolverine.Http.Runtime.ConcurrencyExceptionMiddleware.OnException(streamLockedException, _wolverineHttpOptions);
+                // Evaluate whether the processing should stop if there are any problems
+                if (!(ReferenceEquals(onExceptionProblemDetails, Wolverine.Http.WolverineContinue.NoProblems)))
+                {
+                    await WriteProblems(onExceptionProblemDetails, httpContext).ConfigureAwait(false);
+                    return;
+                }
+            }
+            catch (System.AggregateException aggregateException) when (Wolverine.Http.Runtime.ConcurrencyExceptionMiddleware.OnExceptionFilter(aggregateException))
+            {
+                var onExceptionProblemDetails = Wolverine.Http.Runtime.ConcurrencyExceptionMiddleware.OnException(aggregateException, _wolverineHttpOptions);
+                // Evaluate whether the processing should stop if there are any problems
+                if (!(ReferenceEquals(onExceptionProblemDetails, Wolverine.Http.WolverineContinue.NoProblems)))
+                {
+                    await WriteProblems(onExceptionProblemDetails, httpContext).ConfigureAwait(false);
+                    return;
+                }
+            }
+            catch (JasperFx.ConcurrencyException concurrencyException)
+            {
+                var onExceptionProblemDetails = Wolverine.Http.Runtime.ConcurrencyExceptionMiddleware.OnException(concurrencyException, _wolverineHttpOptions);
+                // Evaluate whether the processing should stop if there are any problems
+                if (!(ReferenceEquals(onExceptionProblemDetails, Wolverine.Http.WolverineContinue.NoProblems)))
+                {
+                    await WriteProblems(onExceptionProblemDetails, httpContext).ConfigureAwait(false);
+                    return;
+                }
+            }
+            catch (JasperFx.Events.ExistingStreamIdCollisionException existingStreamIdCollisionException)
+            {
+                var onExceptionProblemDetails = Wolverine.Http.Runtime.ConcurrencyExceptionMiddleware.OnException(existingStreamIdCollisionException, _wolverineHttpOptions);
+                // Evaluate whether the processing should stop if there are any problems
+                if (!(ReferenceEquals(onExceptionProblemDetails, Wolverine.Http.WolverineContinue.NoProblems)))
+                {
+                    await WriteProblems(onExceptionProblemDetails, httpContext).ConfigureAwait(false);
+                    return;
+                }
+            }
+            catch (JasperFx.Events.DuplicateNaturalKeyException duplicateNaturalKeyException)
+            {
+                var onExceptionProblemDetails = Wolverine.Http.Runtime.ConcurrencyExceptionMiddleware.OnException(duplicateNaturalKeyException, _wolverineHttpOptions);
+                // Evaluate whether the processing should stop if there are any problems
+                if (!(ReferenceEquals(onExceptionProblemDetails, Wolverine.Http.WolverineContinue.NoProblems)))
+                {
+                    await WriteProblems(onExceptionProblemDetails, httpContext).ConfigureAwait(false);
+                    return;
+                }
+            }
         }
     }
 

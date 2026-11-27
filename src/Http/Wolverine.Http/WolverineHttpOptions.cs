@@ -722,7 +722,7 @@ public class WolverineHttpOptions
         // GH-5195: an explicit call replaces the 7.0 default mapping rather than adding a second one
         _concurrencyFailureMapping = true;
 
-        addBuiltInMiddleware(typeof(ConcurrencyExceptionMiddleware), filter);
+        // GH-5985: the policy applies the middleware too, once the chain policies have settled IsTransactional
         Policies.Add(new ConflictProblemPolicy(filter));
     }
 

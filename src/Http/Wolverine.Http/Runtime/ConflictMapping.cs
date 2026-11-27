@@ -5,6 +5,7 @@ using JasperFx.Events;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Wolverine.Middleware;
 
 namespace Wolverine.Http.Runtime;
 
@@ -135,10 +136,18 @@ public static class ConflictMapping
 }
 
 /// <summary>
-/// GH-4512. Stamps <c>ProducesProblem(409)</c> on the same chains the conflict middleware is applied to, so
-/// the OpenAPI document advertises the conflict and generated clients know to expect it. Previously a user
+/// GH-4512. Applies the conflict middleware and stamps <c>ProducesProblem(409)</c> on the same chains, so the
+/// OpenAPI document advertises the conflict and generated clients know to expect it. Previously a user
 /// following the documented recipe had to hand-write this policy as a fourth separate piece.
 /// </summary>
+/// <remarks>
+/// GH-5985. The middleware is applied here rather than through <c>WolverineHttpOptions.AddMiddleware</c>. Those
+/// filters run before the chain policies, and <c>AutoApplyTransactions</c> and the store's operation policies are
+/// chain policies that only then mark a chain transactional, so the default filter,
+/// <see cref="ConflictMapping.IsTransactional" />, missed every chain they made transactional: a 500 for a
+/// concurrency failure, with a 409 advertised. An <see cref="IHttpPolicy" /> runs after the chain policies, so the
+/// middleware and the OpenAPI metadata see the same settled chain.
+/// </remarks>
 public class ConflictProblemPolicy : IHttpPolicy
 {
     private readonly Func<HttpChain, bool> _filter;
@@ -150,7 +159,15 @@ public class ConflictProblemPolicy : IHttpPolicy
 
     public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
     {
-        foreach (var chain in chains.Where(_filter))
+        var matching = chains.Where(_filter).ToArray();
+        if (matching.Length == 0) return;
+
+        // The conflict middleware is only OnException handlers, which wrap the whole chain wherever it is applied
+        var middleware = new MiddlewarePolicy();
+        middleware.AddType(typeof(ConcurrencyExceptionMiddleware));
+        middleware.Apply(matching, rules, container);
+
+        foreach (var chain in matching)
         {
             chain.Metadata.ProducesProblem(ConflictMapping.ConflictStatusCode);
         }
