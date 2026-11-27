@@ -420,6 +420,23 @@ public class WolverineHttpOptions
     private bool? _rejectUnparseableHeaderValues;
 
     /// <summary>
+    /// When true, a request body sent as JSON <c>null</c> for a non-nullable body parameter, or a non-nullable
+    /// <c>[FromBody]</c> member of an <c>[AsParameters]</c> type, answers 400 with ProblemDetails, the same answer
+    /// an empty body gets, as ASP.NET Core minimal APIs and MVC do. A nullable body is optional and binds null in
+    /// either mode, and so does a body declared where nullable reference types are disabled, which says nothing
+    /// about whether it may be null. <b>True by default from Wolverine 7.0</b> (GH-5976). Set it to false, or call
+    /// <c>WolverineOptions.RestoreV6Defaults()</c>, for the 6.x behavior, where the endpoint runs with a null
+    /// body; an explicit setting wins over both.
+    /// </summary>
+    public bool RejectNullRequestBodies
+    {
+        get => _rejectNullRequestBodies ?? true;
+        set => _rejectNullRequestBodies = value;
+    }
+
+    private bool? _rejectNullRequestBodies;
+
+    /// <summary>
     /// The claim type whose value is relayed as the user name when <c>WolverineOptions.EnableRelayOfUserName</c>
     /// is on (GH-5520). When null, the default, the user name is <c>ClaimsPrincipal.Identity.Name</c>, which is
     /// whatever claim the authentication handler maps to the name. Set it when that is null, for example
@@ -798,6 +815,7 @@ public class WolverineHttpOptions
 
         _rejectUnparseableQueryValues ??= v7;
         _rejectUnparseableHeaderValues ??= v7;
+        _rejectNullRequestBodies ??= v7;
         _applyCorrelationIdHeaderToAllEndpoints ??= v7;
 
         if (_concurrencyFailureMapping == null && v7)

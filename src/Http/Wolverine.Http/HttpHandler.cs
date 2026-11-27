@@ -1195,6 +1195,37 @@ public abstract partial class HttpHandler
         }
     }
 
+    /// <summary>
+    /// Reads a required JSON body as <see cref="ReadJsonAsync{T}"/> does, and refuses one that is JSON <c>null</c>
+    /// with a 400 ProblemDetails. Called by generated code for a non-nullable body when
+    /// <see cref="WolverineHttpOptions.RejectNullRequestBodies"/> is on.
+    /// </summary>
+    public async ValueTask<(T?, HandlerContinuation)> ReadNonNullJsonAsync<T>(HttpContext context)
+    {
+        var (body, continuation) = await ReadJsonAsync<T>(context);
+        if (continuation == HandlerContinuation.Stop || body is not null)
+        {
+            return (body, continuation);
+        }
+
+        // GH-5976. JSON null is valid JSON, so it deserializes without the JsonException that makes an empty
+        // body a 400. Minimal APIs give both the same 400, and MVC reports "A non-empty request body is required."
+        var logger = context.RequestServices.GetService<ILogger<T>>();
+        logger?.LogDebug("The request body at {Url} for {Type} is required but was JSON null",
+            context.Request.Path, typeof(T).FullNameInCode());
+
+        await Results.Problem(new()
+        {
+            Type = "https://httpstatuses.com/400",
+            Title = "Request body is required",
+            Status = StatusCodes.Status400BadRequest,
+            Detail = $"The request body for {typeof(T).NameInCode()} is required, and was JSON null.",
+            Instance = context.Request.Path
+        }).ExecuteAsync(context);
+
+        return (default, HandlerContinuation.Stop);
+    }
+
     private static bool acceptsJson(HttpContext context)
     {
         var headers = new RequestHeaders(context.Request.Headers);

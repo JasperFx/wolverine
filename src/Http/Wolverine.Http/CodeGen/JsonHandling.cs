@@ -38,12 +38,20 @@ internal class ReadJsonBody : AsyncFrame
     /// </summary>
     public bool Optional { get; init; }
 
+    /// <summary>
+    /// When true a JSON <c>null</c> body answers 400 rather than binding null. Set for a non-nullable body when
+    /// <see cref="WolverineHttpOptions.RejectNullRequestBodies"/> is on.
+    /// </summary>
+    public bool RejectNull { get; init; }
+
+    private string readMethodName => RejectNull ? nameof(HttpHandler.ReadNonNullJsonAsync) : nameof(HttpHandler.ReadJsonAsync);
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("Reading the request body via JSON deserialization");
         var optionalArg = Optional ? ", true" : "";
         writer.Write(
-            $"var ({Variable.Usage}, jsonContinue) = await ReadJsonAsync<{Variable.VariableType.FullNameInCode()}>(httpContext{optionalArg});");
+            $"var ({Variable.Usage}, jsonContinue) = await {readMethodName}<{Variable.VariableType.FullNameInCode()}>(httpContext{optionalArg});");
         writer.Write(
             $"if (jsonContinue == {typeof(HandlerContinuation).FullNameInCode()}.{nameof(HandlerContinuation.Stop)}) return;");
 
@@ -61,7 +69,7 @@ internal class ReadJsonBody : AsyncFrame
         // ReadJsonAsync returns ValueTask<(T?, HandlerContinuation)> — a struct (value) tuple.
         // F# requires `let! struct (a, b) =` for struct tuple destructuring.
         writer.Write(
-            $"let! struct ({Variable.Usage}, jsonContinue) = this.{nameof(HttpHandler.ReadJsonAsync)}<{Variable.VariableType.FSharpName()}>(httpContext{optionalArg})");
+            $"let! struct ({Variable.Usage}, jsonContinue) = this.{readMethodName}<{Variable.VariableType.FSharpName()}>(httpContext{optionalArg})");
 
         var condition = $"jsonContinue = {typeof(HandlerContinuation).FSharpName()}.{nameof(HandlerContinuation.Stop)}";
         FSharpEmitHelpers.WriteAbortGuard(writer, method, condition, Next);
@@ -135,10 +143,11 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
             // request body as not required. This used to be true only of a nullable [FromBody] member
             // inside an [AsParameters] type (GH-3135); a top-level `Payload? body` was still required.
             chain.RequestBodyIsOptional = AsParametersBindingFrame.IsNullableMember(parameter);
+            chain.RequestBodyIsNonNullable = AsParametersBindingFrame.IsNonNullableReferenceMember(parameter);
 
             // It *could* be used twice, so let's watch out for this!
             chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson
-                ? new ReadJsonBody(parameter) { Optional = chain.RequestBodyIsOptional }.Variable
+                ? new ReadJsonBody(parameter) { Optional = chain.RequestBodyIsOptional, RejectNull = chain.RequestBodyRejectsNull }.Variable
                 : requireNewtonsoftCodeGen().CreateReadJsonBodyVariable(parameter);
 
             variable = chain.RequestBodyVariable;
@@ -184,7 +193,7 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
         {
             // It *could* be used twice, so let's watch out for this!
             chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson
-                ? new ReadJsonBody(chain.RequestType!) { Optional = chain.RequestBodyIsOptional }.Variable
+                ? new ReadJsonBody(chain.RequestType!) { Optional = chain.RequestBodyIsOptional, RejectNull = chain.RequestBodyRejectsNull }.Variable
                 : requireNewtonsoftCodeGen().CreateReadJsonBodyVariable(chain.RequestType!);
 
             variable = chain.RequestBodyVariable;

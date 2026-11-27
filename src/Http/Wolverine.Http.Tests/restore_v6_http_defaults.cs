@@ -307,6 +307,55 @@ public class restore_v6_http_defaults
         (await result.ReadAsTextAsync()).ShouldBe("count 0");
     }
 
+    // GH-5976: RejectNullRequestBodies
+
+    [Fact]
+    public async Task a_json_null_required_body_is_a_400_by_default()
+    {
+        await using var host = await startHostAsync();
+
+        await host.Scenario(x =>
+        {
+            postJsonNull(x);
+            x.StatusCodeShouldBe(400);
+        });
+
+        host.Services.GetRequiredService<WolverineHttpOptions>().RejectNullRequestBodies.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task restoring_the_v6_defaults_binds_a_json_null_required_body_again()
+    {
+        await using var host = await startHostAsync(restoreV6Defaults: true);
+
+        var result = await host.Scenario(x =>
+        {
+            postJsonNull(x);
+            x.StatusCodeShouldBe(200);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldBe("no body");
+    }
+
+    [Fact]
+    public async Task an_explicit_reject_null_request_bodies_wins_over_restoring_the_v6_defaults()
+    {
+        await using var host = await startHostAsync(restoreV6Defaults: true,
+            configure: opts => opts.RejectNullRequestBodies = true);
+
+        await host.Scenario(x =>
+        {
+            postJsonNull(x);
+            x.StatusCodeShouldBe(400);
+        });
+    }
+
+    private static void postJsonNull(Scenario x)
+    {
+        x.Post.Text("null").ToUrl("/v6defaults/body");
+        x.ConfigureHttpContext(c => c.Request.ContentType = "application/json");
+    }
+
     // GH-5520: FluentValidation ProblemDetails is automatic once UseFluentValidation() is called
 
     [Fact]
@@ -599,9 +648,14 @@ public static class V6DefaultsEndpoints
     [WolverinePost("/v6defaults/validated")]
     public static string Validated(V6ValidatedRequest request) => "ok";
 
+    [WolverinePost("/v6defaults/body")]
+    public static string Body(V6Body body) => body is null ? "no body" : body.Name;
+
     [WolverineGet("/v6defaults/whoami")]
     public static string WhoAmI(IMessageContext context) => context.UserName ?? "nobody";
 }
+
+public record V6Body(string Name);
 
 public record V6ValidatedRequest(string Name);
 
