@@ -478,8 +478,271 @@ type GET_fsharp_authed(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions
         }
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_query_tags(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            if not (isNull (Wolverine.Http.HttpHandler.RequestActivity(httpContext))) then (Wolverine.Http.HttpHandler.RequestActivity(httpContext)).SetTag("handler.type", "Wolverine.Http.FSharpContracts.QueryCollectionEndpoints").SetTag("http.route", "/fsharp/query/tags").SetTag("http.request.method", "GET") |> ignore
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            let tags = httpContext.Request.Query.["tags"].ToArray()
+            let queryCollectionEndpoints = Wolverine.Http.FSharpContracts.QueryCollectionEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_Tags = queryCollectionEndpoints.Tags(tags)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Tags, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_query_ids(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            if not (isNull (Wolverine.Http.HttpHandler.RequestActivity(httpContext))) then (Wolverine.Http.HttpHandler.RequestActivity(httpContext)).SetTag("handler.type", "Wolverine.Http.FSharpContracts.QueryCollectionEndpoints").SetTag("http.route", "/fsharp/query/ids").SetTag("http.request.method", "GET") |> ignore
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            let ids_List = System.Collections.Generic.List<int>()
+            for idsValue in httpContext.Request.Query.["ids"] do
+                match System.Int32.TryParse(idsValue, System.Globalization.CultureInfo.InvariantCulture) with
+                    | true, idsValueParsed -> ids_List.Add(idsValueParsed)
+                    | _ -> ()
+            let ids = ids_List.ToArray()
+            let queryCollectionEndpoints = Wolverine.Http.FSharpContracts.QueryCollectionEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_Ids = queryCollectionEndpoints.Ids(ids)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Ids, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_query_colors(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            if not (isNull (Wolverine.Http.HttpHandler.RequestActivity(httpContext))) then (Wolverine.Http.HttpHandler.RequestActivity(httpContext)).SetTag("handler.type", "Wolverine.Http.FSharpContracts.QueryCollectionEndpoints").SetTag("http.route", "/fsharp/query/colors").SetTag("http.request.method", "GET") |> ignore
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            let colors_List = System.Collections.Generic.List<Wolverine.Http.FSharpContracts.ThingColor>()
+            for colorsValue in httpContext.Request.Query.["colors"] do
+                match System.Enum.TryParse<Wolverine.Http.FSharpContracts.ThingColor>(colorsValue, true) with
+                    | true, colorsValueParsed -> colors_List.Add(colorsValueParsed)
+                    | _ -> ()
+            let colors = colors_List.ToArray()
+            let queryCollectionEndpoints = Wolverine.Http.FSharpContracts.QueryCollectionEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_Colors = queryCollectionEndpoints.Colors(colors)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Colors, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_query_thing_ids(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            if not (isNull (Wolverine.Http.HttpHandler.RequestActivity(httpContext))) then (Wolverine.Http.HttpHandler.RequestActivity(httpContext)).SetTag("handler.type", "Wolverine.Http.FSharpContracts.QueryCollectionEndpoints").SetTag("http.route", "/fsharp/query/thing-ids").SetTag("http.request.method", "GET") |> ignore
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            let thingIds_List = System.Collections.Generic.List<Wolverine.Http.FSharpContracts.ThingId>()
+            for thingIdsValue in httpContext.Request.Query.["thingIds"] do
+                match Wolverine.Http.HttpHandler.TryParseSingleValue<Wolverine.Http.FSharpContracts.ThingId, System.Guid>(thingIdsValue, System.Func<System.Guid, Wolverine.Http.FSharpContracts.ThingId>(fun inner -> Wolverine.Http.FSharpContracts.ThingId(inner))) with
+                    | true, thingIdsValueParsed -> thingIds_List.Add(thingIdsValueParsed)
+                    | _ -> ()
+            let thingIds = thingIds_List.ToArray()
+            let queryCollectionEndpoints = Wolverine.Http.FSharpContracts.QueryCollectionEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_ThingIds = queryCollectionEndpoints.ThingIds(thingIds)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_ThingIds, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_query_labels(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            if not (isNull (Wolverine.Http.HttpHandler.RequestActivity(httpContext))) then (Wolverine.Http.HttpHandler.RequestActivity(httpContext)).SetTag("handler.type", "Wolverine.Http.FSharpContracts.QueryCollectionEndpoints").SetTag("http.route", "/fsharp/query/labels").SetTag("http.request.method", "GET") |> ignore
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            let labels_List = System.Collections.Generic.List<Wolverine.Http.FSharpContracts.Labeled<Wolverine.Http.FSharpContracts.ThingColor>>()
+            for labelsValue in httpContext.Request.Query.["labels"] do
+                match Wolverine.Http.FSharpContracts.Labeled<Wolverine.Http.FSharpContracts.ThingColor>.TryParse(labelsValue, System.Globalization.CultureInfo.InvariantCulture) with
+                    | true, labelsValueParsed -> labels_List.Add(labelsValueParsed)
+                    | _ -> ()
+            let labels = labels_List.ToArray()
+            let label_rawValue = httpContext.Request.Query.["label"].ToString()
+            let label = match Wolverine.Http.FSharpContracts.Labeled<int>.TryParse(label_rawValue, System.Globalization.CultureInfo.InvariantCulture) with | true, v -> v | _ -> Unchecked.defaultof<Wolverine.Http.FSharpContracts.Labeled<int>>
+            let queryCollectionEndpoints = Wolverine.Http.FSharpContracts.QueryCollectionEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_Labels = queryCollectionEndpoints.Labels(labels, label)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Labels, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_query_lists(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            if not (isNull (Wolverine.Http.HttpHandler.RequestActivity(httpContext))) then (Wolverine.Http.HttpHandler.RequestActivity(httpContext)).SetTag("handler.type", "Wolverine.Http.FSharpContracts.QueryCollectionEndpoints").SetTag("http.route", "/fsharp/query/lists").SetTag("http.request.method", "GET") |> ignore
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            let numbers = System.Collections.Generic.List<int>()
+            for numbersValue in httpContext.Request.Query.["numbers"] do
+                match System.Int32.TryParse(numbersValue, System.Globalization.CultureInfo.InvariantCulture) with
+                    | true, numbersValueParsed -> numbers.Add(numbersValueParsed)
+                    | _ -> ()
+            let names = System.Collections.Generic.List<string>(httpContext.Request.Query.["names"])
+            let keys = System.Collections.Generic.List<System.Guid>()
+            for keysValue in httpContext.Request.Query.["keys"] do
+                match System.Guid.TryParse(keysValue, System.Globalization.CultureInfo.InvariantCulture) with
+                    | true, keysValueParsed -> keys.Add(keysValueParsed)
+                    | _ -> ()
+            let queryCollectionEndpoints = Wolverine.Http.FSharpContracts.QueryCollectionEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_Lists = queryCollectionEndpoints.Lists(numbers, names, keys)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Lists, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_query_bound(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            if not (isNull (Wolverine.Http.HttpHandler.RequestActivity(httpContext))) then (Wolverine.Http.HttpHandler.RequestActivity(httpContext)).SetTag("handler.type", "Wolverine.Http.FSharpContracts.QueryCollectionEndpoints").SetTag("http.route", "/fsharp/query/bound").SetTag("http.request.method", "GET") |> ignore
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            // Binding QueryString values to the argument marked with [FromQuery]
+            let thingQuery : Wolverine.Http.FSharpContracts.ThingQuery = Wolverine.Http.FSharpContracts.ThingQuery()
+            thingQuery.Tags <- httpContext.Request.Query.["Tags"].ToArray()
+            let Ids_List = System.Collections.Generic.List<int>()
+            for idsValue in httpContext.Request.Query.["Ids"] do
+                match System.Int32.TryParse(idsValue, System.Globalization.CultureInfo.InvariantCulture) with
+                    | true, idsValueParsed -> Ids_List.Add(idsValueParsed)
+                    | _ -> ()
+            if Ids_List.Count > 0 then thingQuery.Ids <- Ids_List.ToArray()
+            let Pages_List = System.Collections.Generic.List<int>()
+            for pagesValue in httpContext.Request.Query.["Pages"] do
+                match System.Int32.TryParse(pagesValue, System.Globalization.CultureInfo.InvariantCulture) with
+                    | true, pagesValueParsed -> Pages_List.Add(pagesValueParsed)
+                    | _ -> ()
+            thingQuery.Pages <- Pages_List
+            let queryCollectionEndpoints = Wolverine.Http.FSharpContracts.QueryCollectionEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_Bound = queryCollectionEndpoints.Bound(thingQuery)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Bound, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_strict_ids(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            if not (isNull (Wolverine.Http.HttpHandler.RequestActivity(httpContext))) then (Wolverine.Http.HttpHandler.RequestActivity(httpContext)).SetTag("handler.type", "Wolverine.Http.FSharpContracts.StrictQueryCollectionEndpoints").SetTag("http.route", "/fsharp/strict/ids").SetTag("http.request.method", "GET") |> ignore
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            let ids_List = System.Collections.Generic.List<int>()
+            let ids_Unparseable = System.Collections.Generic.List<string>()
+            for idsValue in httpContext.Request.Query.["ids"] do
+                match System.Int32.TryParse(idsValue, System.Globalization.CultureInfo.InvariantCulture) with
+                    | true, idsValueParsed -> ids_List.Add(idsValueParsed)
+                    | _ -> if not (System.String.IsNullOrEmpty(idsValue)) then ids_Unparseable.Add(idsValue)
+            if ids_Unparseable.Count > 0 then
+                do! Wolverine.Http.HttpHandler.WriteQueryValueParsingProblem(httpContext, "ids", ids_Unparseable.[0], "int")
+            else
+                let ids = ids_List.ToArray()
+                let strictQueryCollectionEndpoints = Wolverine.Http.FSharpContracts.StrictQueryCollectionEndpoints()
+                
+                // The actual HTTP request handler execution
+                let result_of_Ids = strictQueryCollectionEndpoints.Ids(ids)
+
+                do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Ids, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type GET_fsharp_strict_mixed(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            if not (isNull (Wolverine.Http.HttpHandler.RequestActivity(httpContext))) then (Wolverine.Http.HttpHandler.RequestActivity(httpContext)).SetTag("handler.type", "Wolverine.Http.FSharpContracts.StrictQueryCollectionEndpoints").SetTag("http.route", "/fsharp/strict/mixed").SetTag("http.request.method", "GET") |> ignore
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            let ids_List = System.Collections.Generic.List<int>()
+            let ids_Unparseable = System.Collections.Generic.List<string>()
+            for idsValue in httpContext.Request.Query.["ids"] do
+                match System.Int32.TryParse(idsValue, System.Globalization.CultureInfo.InvariantCulture) with
+                    | true, idsValueParsed -> ids_List.Add(idsValueParsed)
+                    | _ -> if not (System.String.IsNullOrEmpty(idsValue)) then ids_Unparseable.Add(idsValue)
+            if ids_Unparseable.Count > 0 then
+                do! Wolverine.Http.HttpHandler.WriteQueryValueParsingProblem(httpContext, "ids", ids_Unparseable.[0], "int")
+            else
+                let ids = ids_List.ToArray()
+                let keys = System.Collections.Generic.List<System.Guid>()
+                let keysValue_Unparseable = System.Collections.Generic.List<string>()
+                for keysValue in httpContext.Request.Query.["keys"] do
+                    match System.Guid.TryParse(keysValue, System.Globalization.CultureInfo.InvariantCulture) with
+                        | true, keysValueParsed -> keys.Add(keysValueParsed)
+                        | _ -> if not (System.String.IsNullOrEmpty(keysValue)) then keysValue_Unparseable.Add(keysValue)
+                if keysValue_Unparseable.Count > 0 then
+                    do! Wolverine.Http.HttpHandler.WriteQueryValueParsingProblem(httpContext, "keys", keysValue_Unparseable.[0], "System.Guid")
+                else
+                    let tags = httpContext.Request.Query.["tags"].ToArray()
+                    let strictQueryCollectionEndpoints = Wolverine.Http.FSharpContracts.StrictQueryCollectionEndpoints()
+                    
+                    // The actual HTTP request handler execution
+                    let result_of_Mixed = strictQueryCollectionEndpoints.Mixed(ids, keys, tags)
+
+                    do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Mixed, 404)
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type GeneratedHttpEndpointRegistry() =
     inherit Wolverine.Http.HttpEndpointRegistry()
     override this.EndpointTypes() : System.Type[] =
-        [| "Wolverine.Http.FSharpContracts.AuthedEndpoints, Wolverine.Http.FSharpContracts, Version=7.0.0.0, Culture=neutral, PublicKeyToken=null"; "Wolverine.Http.FSharpContracts.ThingEndpoints, Wolverine.Http.FSharpContracts, Version=7.0.0.0, Culture=neutral, PublicKeyToken=null" |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)
+        [| "Wolverine.Http.FSharpContracts.AuthedEndpoints, Wolverine.Http.FSharpContracts, Version=7.0.0.0, Culture=neutral, PublicKeyToken=null"; "Wolverine.Http.FSharpContracts.QueryCollectionEndpoints, Wolverine.Http.FSharpContracts, Version=7.0.0.0, Culture=neutral, PublicKeyToken=null"; "Wolverine.Http.FSharpContracts.StrictQueryCollectionEndpoints, Wolverine.Http.FSharpContracts, Version=7.0.0.0, Culture=neutral, PublicKeyToken=null"; "Wolverine.Http.FSharpContracts.ThingEndpoints, Wolverine.Http.FSharpContracts, Version=7.0.0.0, Culture=neutral, PublicKeyToken=null" |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)
 

@@ -37,6 +37,8 @@ public static class FSharpCodegenSample
                     opts.Discovery.IncludeType<CountingSaga>();
                     opts.Discovery.IncludeType<StockSaga>();
                     opts.Discovery.IncludeType<HistoryRecordingSaga>(); // GH-5665
+                    // StartOrHandle: CreateMissingSagaFrame in the saga-missing branch
+                    opts.Discovery.IncludeType<TallySaga>();
                     opts.Discovery.IncludeType<TickHandler>();
 
                     // TickMiddleware has both Before() and Finally() methods. When applied to

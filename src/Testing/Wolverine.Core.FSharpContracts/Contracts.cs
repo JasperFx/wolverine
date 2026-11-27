@@ -224,3 +224,34 @@ public class HistoryRecordingSaga : Saga
     {
     }
 }
+
+// -----------------------------------------------------------------------------
+// A saga whose StartOrHandle both starts and continues it. The message loads the
+// saga like any other, and when there is none, CreateMissingSagaFrame creates the
+// saga state in the saga-missing branch before the same method runs on it.
+// -----------------------------------------------------------------------------
+
+/// <summary>Starts a <see cref="TallySaga" />, or adds to the one already running.</summary>
+public record AddToTally(string Id, int Amount);
+
+/// <summary>Cascaded by <see cref="TallySaga" /> each time it is added to.</summary>
+public record TallyChanged(string Id, int Total);
+
+/// <summary>A saga started or continued by the same message, over the in-memory store.</summary>
+public class TallySaga : Saga
+{
+    public string? Id { get; set; }
+    public int Total { get; set; }
+
+    public TallyChanged StartOrHandle(AddToTally command)
+    {
+        Id ??= command.Id;
+        Total += command.Amount;
+        if (Total >= 100)
+        {
+            MarkCompleted();
+        }
+
+        return new TallyChanged(Id, Total);
+    }
+}
