@@ -58,6 +58,7 @@ internal class KafkaTenant
         Transport.ConfigureProducerBuilders = parent.ConfigureProducerBuilders;
         Transport.ConfigureConsumerBuilders = parent.ConfigureConsumerBuilders;
         Transport.ConfigureAdminClientBuilders = parent.ConfigureAdminClientBuilders;
+        Transport.LoggerFactory = parent.LoggerFactory;
 
         Transport.DeadLetterQueueTopicName = parent.DeadLetterQueueTopicName;
         Transport.Usage = parent.Usage;

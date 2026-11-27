@@ -46,13 +46,15 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
 
     /// <summary>
     /// Configure the Kafka message producer builders within the Wolverine transport. Use this as the
-    /// escape hatch to any Dekaf producer setting Wolverine's options don't cover.
+    /// escape hatch to any Dekaf producer setting Wolverine's options don't cover. Each call adds to the earlier
+    /// ones, which run first, so separate pieces of configuration don't replace each other (GH-5999). Wolverine
+    /// gives the builder the host's logger factory before these run (GH-6001).
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
     public KafkaTransportExpression ConfigureProducerBuilders(Action<ProducerBuilder<string, byte[]>> configure)
     {
-        _transport.ConfigureProducerBuilders = configure;
+        _transport.ConfigureProducerBuilders += configure;
         return this;
     }
 
@@ -70,13 +72,15 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
 
     /// <summary>
     /// Configure the Kafka consumer builders within the Wolverine transport. Use this as the
-    /// escape hatch to any Dekaf consumer setting Wolverine's options don't cover.
+    /// escape hatch to any Dekaf consumer setting Wolverine's options don't cover. Each call adds to the earlier
+    /// ones, which run first, so separate pieces of configuration don't replace each other (GH-5999). Wolverine
+    /// gives the builder the host's logger factory before these run (GH-6001).
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
     public KafkaTransportExpression ConfigureConsumerBuilders(Action<ConsumerBuilder<string, byte[]>> configure)
     {
-        _transport.ConfigureConsumerBuilders = configure;
+        _transport.ConfigureConsumerBuilders += configure;
         return this;
     }
 
@@ -177,13 +181,15 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
 
     /// <summary>
     /// Configure the Kafka admin client builders within the Wolverine transport. Use this as the
-    /// escape hatch to any Dekaf admin client setting Wolverine's options don't cover.
+    /// escape hatch to any Dekaf admin client setting Wolverine's options don't cover. Each call adds to the earlier
+    /// ones, which run first, so separate pieces of configuration don't replace each other (GH-5999). Wolverine
+    /// gives the builder the host's logger factory before these run (GH-6001).
     /// </summary>
     /// <param name="configure"></param>
     /// <returns></returns>
     public KafkaTransportExpression ConfigureAdminClientBuilders(Action<AdminClientBuilder> configure)
     {
-        _transport.ConfigureAdminClientBuilders = configure;
+        _transport.ConfigureAdminClientBuilders += configure;
         return this;
     }
 

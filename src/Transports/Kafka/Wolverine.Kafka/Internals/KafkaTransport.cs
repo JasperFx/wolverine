@@ -63,6 +63,15 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
     [IgnoreDescription]
     public Action<AdminClientBuilder> ConfigureAdminClientBuilders { get; internal set; } = _ => {};
 
+    /// <summary>
+    /// The host's logger factory, handed to every Dekaf producer, consumer and admin client before the
+    /// <c>Configure*Builders</c> callbacks run, so the client's own diagnostics (connections, rebalances,
+    /// retries, authentication failures) reach the application's logging (GH-6001). Captured when the transport
+    /// starts; a callback can still replace it with <c>WithLoggerFactory(...)</c>.
+    /// </summary>
+    [IgnoreDescription]
+    internal ILoggerFactory? LoggerFactory { get; set; }
+
     public override string? DescribeEndpoint()
     {
         // BootstrapServers is a CSV of host:port (e.g. "broker1:9092, broker2:9092"); it carries no credentials.
@@ -128,6 +137,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
 
     protected override void tryBuildSystemEndpoints(IWolverineRuntime runtime)
     {
+        LoggerFactory ??= runtime.LoggerFactory;
         ConsumerConfig.GroupId ??= runtime.Options.ServiceName;
         ProducerConfig.ClientId ??= runtime.Options.ServiceName;
 
@@ -139,6 +149,8 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
+        LoggerFactory ??= runtime.LoggerFactory;
+
         var namedConnection = runtime.Services.GetService<KafkaNamedConnectionSource>();
         if (namedConnection != null)
         {
@@ -157,6 +169,18 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
         foreach (var topic in Topics)
         {
             if (topic.ProducerConfig != null) topic.ProducerConfig.EnableIdempotence ??= idempotentByDefault;
+        }
+
+        // GH-6000. Dekaf's default partitioner hashes keys with murmur2 (as the Java client does), where 6.x's
+        // librdkafka used consistent_random (CRC32), so most keys land on a different partition after the upgrade.
+        // RestoreV6Defaults() puts librdkafka's partitioner back wherever none was chosen.
+        if (runtime.Options.V6DefaultsRestored)
+        {
+            ProducerConfig.Partitioner ??= PartitionerType.ConsistentRandom;
+            foreach (var topic in Topics)
+            {
+                if (topic.ProducerConfig != null) topic.ProducerConfig.Partitioner ??= PartitionerType.ConsistentRandom;
+            }
         }
 
         ProducerConfig.AssertAcksAllowed("the Kafka transport");
@@ -376,6 +400,8 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
     {
         var producerBuilder = DekafClient.CreateProducer<string, byte[]>()
             .ApplyOptions(config ?? ProducerConfig);
+        // Before the user's callbacks, so they can still replace it (GH-6001)
+        if (LoggerFactory != null) producerBuilder.WithLoggerFactory(LoggerFactory);
         ConfigureProducerBuilders(producerBuilder);
         return await producerBuilder.BuildAsync(CancellationToken.None);
     }
@@ -390,6 +416,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
     {
         var consumerBuilder = DekafClient.CreateConsumer<string, byte[]>()
             .ApplyOptions(config ?? ConsumerConfig);
+        if (LoggerFactory != null) consumerBuilder.WithLoggerFactory(LoggerFactory);
         ConfigureConsumerBuilders(consumerBuilder);
 
         // Added rather than set, so a listener from ConfigureConsumerBuilders keeps working
@@ -405,6 +432,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>, IAsyncDisposable
     {
         var adminClientBuilder = DekafClient.CreateAdminClient()
             .ApplyOptions(AdminClientConfig);
+        if (LoggerFactory != null) adminClientBuilder.WithLoggerFactory(LoggerFactory);
         ConfigureAdminClientBuilders(adminClientBuilder);
         return adminClientBuilder.Build();
     }
