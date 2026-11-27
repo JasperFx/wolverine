@@ -4,6 +4,8 @@ using JasperFx.Events;
 using Marten.Schema;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
+using Wolverine.Marten;
+using Wolverine.Persistence;
 
 namespace WolverineWebApi.Marten;
 
@@ -191,5 +193,47 @@ public static class ConcurrencyEndpoints
     public static string MixedAggregate()
     {
         throw new AggregateException(new ConcurrencyException("lost"), new InvalidOperationException("bug"));
+    }
+
+    // An expected version from the route. A stream that does not exist is answered as missing, whatever the version
+    [WolverinePost("/seatholds/{id}/confirm-at/{expectedVersion}")]
+    [EmptyResponse]
+    public static SeatHoldConfirmed ConfirmAtVersion([WriteAggregate(VersionSource = "expectedVersion")] SeatHold hold)
+    {
+        return new SeatHoldConfirmed();
+    }
+
+    [WolverinePost("/seatholds/{id}/confirm-at/{expectedVersion}/problem-details")]
+    [EmptyResponse]
+    public static SeatHoldConfirmed ConfirmAtVersionWithProblemDetails(
+        [WriteAggregate(VersionSource = "expectedVersion", OnMissing = OnMissing.ProblemDetailsWith404)]
+        SeatHold hold)
+    {
+        return new SeatHoldConfirmed();
+    }
+
+    // Not required, so the endpoint would run for a stream that does not exist, and only the expected version can stop it
+    [WolverinePost("/seatholds/{id}/confirm-at/{expectedVersion}/optional")]
+    [EmptyResponse]
+    public static SeatHoldConfirmed ConfirmAtVersionOptionally(
+        [WriteAggregate(VersionSource = "expectedVersion", Required = false)] SeatHold? hold)
+    {
+        return new SeatHoldConfirmed();
+    }
+
+    /// <summary>
+    /// Another writer appends to the stream after this endpoint loaded it at the expected version, so the store
+    /// refuses this endpoint's append at commit
+    /// </summary>
+    [WolverinePost("/seatholds/{id}/confirm-at/{expectedVersion}/after-another-writer")]
+    [EmptyResponse]
+    public static async Task<SeatHoldConfirmed> ConfirmAtVersionAfterAnotherWriter(Guid id,
+        [WriteAggregate(VersionSource = "expectedVersion")] SeatHold hold, IDocumentStore store)
+    {
+        await using var other = store.LightweightSession();
+        other.Events.Append(id, new SeatHoldConfirmed());
+        await other.SaveChangesAsync();
+
+        return new SeatHoldConfirmed();
     }
 }

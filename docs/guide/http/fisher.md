@@ -132,6 +132,11 @@ public static OrderShipped Ship(
 }
 ```
 
+A stream that does not exist is a missing aggregate before it is a version mismatch: whatever the expected version,
+a required aggregate answers 404 (or what its `OnMissing` asks for), as RFC 9110 §13.2.1 expects of a request that would
+fail without its precondition. Only an existing stream at another version, or an aggregate that isn't required, fails
+with a `ConcurrencyException`. Message handlers keep the check in the load, so a missing stream is a concurrency failure there.
+
 ## Reading the Latest Version of an Aggregate
 
 To inject the current state of an event sourced aggregate as a parameter without opting into the
