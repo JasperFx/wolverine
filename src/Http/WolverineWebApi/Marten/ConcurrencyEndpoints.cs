@@ -236,4 +236,15 @@ public static class ConcurrencyEndpoints
 
         return new SeatHoldConfirmed();
     }
+
+    // GH-5983. Two aggregates, each with its own expected version. A missing one answers 404 even when the one loaded
+    // before it is stale
+    [WolverinePost("/seatholds/{fromId}/{toId}/move-at/{fromVersion}/{toVersion}")]
+    [EmptyResponse]
+    public static void MoveAtVersions(
+        [WriteAggregate("fromId", VersionSource = "fromVersion")] IEventStream<SeatHold> from,
+        [WriteAggregate("toId", VersionSource = "toVersion")] IEventStream<SeatHold> to)
+    {
+        to.AppendOne(new SeatHoldConfirmed());
+    }
 }

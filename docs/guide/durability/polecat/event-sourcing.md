@@ -540,9 +540,16 @@ public static OrderShipped Ship(
 ```
 
 On an HTTP endpoint the expected version is checked once the stream is loaded and a missing aggregate has been dealt
-with, so a stream that does not exist answers 404 (or what `OnMissing` asks for) whatever the version. A message
-handler checks the version as it loads the stream, so a missing stream with a non-zero expected version fails with a
-`ConcurrencyException` that an error policy can retry.
+with, so a stream that does not exist answers 404 (or what `OnMissing` asks for) whatever the version. When an
+endpoint loads several aggregates, every version check runs after all of their missing aggregate handling, so a missing
+aggregate answers 404 even when another one is stale.
+
+A message handler checks the version as it loads the stream, so a missing stream with a non-zero expected version fails
+with a `ConcurrencyException`. That is the same on every transport. Wolverine has no default error policy for
+`ConcurrencyException`, so unless you add one, such as
+`opts.OnException<ConcurrencyException>().RetryWithCooldown(50.Milliseconds(), 250.Milliseconds())`, the message moves
+to the dead letter queue on its first failure. A caller of `IMessageBus.InvokeAsync()` gets the `ConcurrencyException`
+itself, and a gRPC service that forwards to the handler answers `Aborted` (see [gRPC error handling](/guide/grpc/errors)).
 
 ## Strong Typed Identifiers
 

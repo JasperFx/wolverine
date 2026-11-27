@@ -27,6 +27,9 @@ into `RpcException` with the canonical status code from the table below. See
 | `OperationCanceledException`  | `Cancelled`             |
 | `TimeoutException`            | `DeadlineExceeded`      |
 | `IndeterminateSagaStateIdException` | `InvalidArgument` (see [Sagas](./sagas#saga-identity-must-ride-on-the-message)) |
+| `JasperFx.ConcurrencyException` (& `StreamLockedException`) | `Aborted` <Badge type="tip" text="7.0" /> |
+| `JasperFx.Events.ExistingStreamIdCollisionException` | `AlreadyExists` <Badge type="tip" text="7.0" /> |
+| `RequiredDataMissingException` (an `OnMissing.ThrowException` entity or aggregate) | `NotFound` <Badge type="tip" text="7.0" /> |
 | `ArgumentException` (& subclasses) | `InvalidArgument`  |
 | `KeyNotFoundException`        | `NotFound`              |
 | `FileNotFoundException`       | `NotFound`              |

@@ -163,4 +163,51 @@ public class version_source_on_a_missing_stream(AppFixture fixture) : Integratio
         missing.ShouldBeGreaterThan(0);
         versionCheck.ShouldBeGreaterThan(missing);
     }
+
+    [Fact]
+    public async Task a_missing_second_aggregate_is_a_404_even_when_the_first_is_stale()
+    {
+        // The first aggregate's version check used to run before the second aggregate's missing aggregate handling
+        var from = await createSeatHoldAsync();
+        var to = Guid.NewGuid();
+
+        await Scenario(x =>
+        {
+            x.Post.Url($"/seatholds/{from}/{to}/move-at/5/0");
+            x.StatusCodeShouldBe(404);
+        });
+
+        (await streamStateAsync(to)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task a_stale_first_aggregate_is_a_concurrency_failure_when_both_exist()
+    {
+        var from = await createSeatHoldAsync();
+        var to = await createSeatHoldAsync();
+
+        var result = await Scenario(x =>
+        {
+            x.Post.Url($"/seatholds/{from}/{to}/move-at/5/1");
+            x.StatusCodeShouldBe(409);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldContain("Expected the existing version to be 5, but was 1");
+        (await streamStateAsync(to))!.Version.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task two_aggregates_at_their_expected_versions_are_written()
+    {
+        var from = await createSeatHoldAsync();
+        var to = await createSeatHoldAsync();
+
+        await Scenario(x =>
+        {
+            x.Post.Url($"/seatholds/{from}/{to}/move-at/1/1");
+            x.StatusCodeShouldBe(204);
+        });
+
+        (await streamStateAsync(to))!.Version.ShouldBe(2);
+    }
 }
