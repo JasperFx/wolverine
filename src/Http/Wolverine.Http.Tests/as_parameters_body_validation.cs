@@ -104,8 +104,10 @@ public class fluent_validation_of_as_parameters_body : IAsyncLifetime
     }
 
     [Fact]
-    public async Task the_command_validator_turns_away_a_null_body()
+    public async Task a_json_null_body_is_refused_before_the_command_validator()
     {
+        // GH-5976: from 7.0 a required body sent as JSON null is refused when it is bound
+        // (RejectNullRequestBodies), so the [AsParameters] validator never sees a null Body
         var result = await theHost.Scenario(x =>
         {
             x.Post.Text("null").ToUrl($"/api/as-parameters-validation/ring/{Guid.NewGuid()}/decline");
@@ -113,8 +115,8 @@ public class fluent_validation_of_as_parameters_body : IAsyncLifetime
             x.StatusCodeShouldBe(400);
         });
 
-        var problems = await result.ReadAsJsonAsync<HttpValidationProblemDetails>();
-        problems.Errors.Keys.ShouldBe(["Body"]);
+        var problems = await result.ReadAsJsonAsync<ProblemDetails>();
+        problems.Title.ShouldBe("Request body is required");
     }
 
     [Fact]
