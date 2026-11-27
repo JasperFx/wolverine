@@ -144,6 +144,20 @@ public class audit_member_of_as_parameters_body : IAsyncLifetime
         RequestSpanFor("/api/audit-as-parameters/struct-invitations").GetTagItem("person.id").ShouldBe(personId);
     }
 
+    [Fact]
+    public async Task an_audited_member_of_a_body_bound_through_a_renamed_constructor_parameter_tags_the_request_span()
+    {
+        var personId = Guid.NewGuid();
+
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new InvitePayload(personId)).ToUrl("/api/audit-as-parameters/renamed-invitations");
+            x.StatusCodeShouldBe(204);
+        });
+
+        RequestSpanFor("/api/audit-as-parameters/renamed-invitations").GetTagItem("person.id").ShouldBe(personId);
+    }
+
     private Activity RequestSpanFor(string route)
         => _stopped.Where(x => x.GetTagItem("http.route") as string == route).ShouldHaveSingleItem();
 }
@@ -168,8 +182,17 @@ public record struct StructInvitePayload(Guid PersonId);
 
 public record StructInviteCommand([FromBody] StructInvitePayload? Body);
 
+// The body binds through a constructor parameter whose name no property shares
+public class RenamedInviteCommand([FromBody] InvitePayload payload)
+{
+    public InvitePayload Body { get; } = payload;
+}
+
 public static class AuditedAsParametersBodyEndpoints
 {
+    [WolverinePost("/api/audit-as-parameters/renamed-invitations"), EmptyResponse]
+    public static Task InviteRenamed([AsParameters] RenamedInviteCommand command) => Task.CompletedTask;
+
     [WolverinePost("/api/audit-as-parameters/invitations"), EmptyResponse]
     public static Task Invite([AsParameters] InviteCommand command) => Task.CompletedTask;
 
