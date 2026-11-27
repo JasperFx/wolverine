@@ -27,7 +27,7 @@ internal class TransactionalFrame : Frame
         Container = chain.FindVariable(typeof(Container));
         yield return Container;
 
-        _context = chain.TryFindVariable(typeof(IMessageContext), VariableSource.NotServices);
+        _context = chain.TryFindVariable(typeof(MessageContext), VariableSource.NotServices);
 
         if (_context != null)
         {
