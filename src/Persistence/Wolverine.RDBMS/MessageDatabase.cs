@@ -681,6 +681,35 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    ///     GH-5962. The inbox and outbox rows of one handler's durable outgoing messages in one transaction, so
+    ///     either all of them are stored or none is. The outbox rows take this store's own outgoing owner, as
+    ///     they do in every other transaction this database enlists in
+    /// </summary>
+    public async Task StoreEnvelopesAsync(IReadOnlyList<Envelope> incoming, IReadOnlyList<Envelope> outgoing,
+        int outgoingOwnerId)
+    {
+        if (incoming.Count == 0 && outgoing.Count == 0) return;
+
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        await using var tx = await conn.BeginTransactionAsync(_cancellation);
+
+        if (incoming.Count > 0)
+        {
+            await StoreIncomingAsync(tx, incoming as Envelope[] ?? incoming.ToArray());
+        }
+
+        if (outgoing.Count > 0)
+        {
+            await StoreOutgoingAsync(tx, outgoing as Envelope[] ?? outgoing.ToArray());
+        }
+
+        await tx.CommitAsync(_cancellation);
+
+        foreach (var envelope in incoming) envelope.WasPersistedInInbox = true;
+    }
+
     public async ValueTask<ISagaStorage<TId, TSaga>> EnrollAndFetchSagaStorage<TId, TSaga>(MessageContext context) where TSaga : Saga
     {
         var conn = CreateConnection();

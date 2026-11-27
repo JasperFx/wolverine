@@ -255,6 +255,28 @@ public class DurabilitySettings : IDescribeMyself
     public int StoreOutgoingBatchSize { get; set; } = 100;
 
     /// <summary>
+    /// GH-5962. Opt in to storing a handler's durable outgoing messages as part of the handler itself, for a
+    /// handler with no transactional middleware (no Marten session, DbContext or other outbox enlisted).
+    /// When the handler returns, every message it cascaded or published to a durable destination is written
+    /// to the message store in one batch, in one database transaction where the store supports it, before
+    /// any of them is sent. A failure to store them is a failure of the message, so the message's error
+    /// handling policies apply to it: retry, schedule, requeue or move to the dead letter queue.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Off by default. Without it, those messages are stored and sent one at a time after the handler has
+    /// succeeded, and one that cannot be stored is logged and discarded while the message that cascaded it is
+    /// still marked as handled.
+    /// </para>
+    /// <para>
+    /// The batch is atomic within one message store. Messages bound for different databases (another tenant's,
+    /// or an ancillary store) are stored per database, and a database that already committed its share is not
+    /// rolled back if another one fails. Messages to non-durable destinations are sent as before.
+    /// </para>
+    /// </remarks>
+    public bool PersistOutgoingMessagesBeforeCompletion { get; set; }
+
+    /// <summary>
     /// If non-null, this directs Wolverine to "push" any message in the durable outbox that is older
     /// than the configured time even if the message is marked as owned by an active node
     /// </summary>

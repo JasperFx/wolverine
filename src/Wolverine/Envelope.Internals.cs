@@ -81,6 +81,14 @@ public partial class Envelope
     internal bool LeftInInboxForRecovery { get; set; }
 
     /// <summary>
+    /// GH-5962. Set when this envelope was stored with the rest of its handler's durable outgoing messages
+    /// (<see cref="DurabilitySettings.PersistOutgoingMessagesBeforeCompletion" />), so the flush after the
+    /// handler only forwards it instead of storing it a second time.
+    /// </summary>
+    [JsonIgnore]
+    internal bool PersistedBeforeCompletion { get; set; }
+
+    /// <summary>
     /// GH-4135. Guards against reporting IMessageTracker.Received more than once for a single
     /// receipt. Partitioned processing deserializes an envelope up front -- through
     /// HandlerPipeline.TryDeserializeEnvelope, so it can read the group id off the message -- and the
@@ -784,6 +792,7 @@ public partial class Envelope
         HandlerFailureLogLevel = null;
         DeadLetterFaults = null;
         LeftInInboxForRecovery = false;
+        PersistedBeforeCompletion = false;
         WasTrackedAsReceived = false;
         Serializer = null;
         ResponseType = null;

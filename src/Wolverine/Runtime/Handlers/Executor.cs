@@ -265,6 +265,9 @@ internal class Executor : IExecutor
                 await context.AssertAnyRequiredResponseWasGenerated().ConfigureAwait(false);
             }
 
+            // GH-5962: inside the try, so a store that refuses the handler's messages fails the message
+            await context.PersistOutgoingBeforeCompletionAsync(cts.Token).ConfigureAwait(false);
+
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
 
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
@@ -311,6 +314,9 @@ internal class Executor : IExecutor
             {
                 await context.AssertAnyRequiredResponseWasGenerated().ConfigureAwait(false);
             }
+
+            // GH-5962: inside the try, so the inline error policies see a store that refuses these messages
+            await context.PersistOutgoingBeforeCompletionAsync(cancellation).ConfigureAwait(false);
             
             return InvokeResult.Success;
         }

@@ -218,6 +218,29 @@ public interface IMessageStore : IAsyncDisposable
     Task DrainAsync();
     IAgent StartScheduledJobs(IWolverineRuntime runtime);
 
+    /// <summary>
+    ///     GH-5962. Store the durable outgoing envelopes of one handler together, before any of them is sent:
+    ///     <paramref name="incoming" /> into the inbox (durable local queues, and scheduled messages), and
+    ///     <paramref name="outgoing" /> into the outbox. A store that can write both in one transaction should
+    ///     override this so the batch is all or nothing. The default writes the inbox batch and then the outbox
+    ///     batch, which is correct for every store but not atomic between the two.
+    /// </summary>
+    async Task StoreEnvelopesAsync(IReadOnlyList<Envelope> incoming, IReadOnlyList<Envelope> outgoing,
+        int outgoingOwnerId)
+    {
+        if (incoming.Count > 0)
+        {
+            await Inbox.StoreIncomingAsync(incoming);
+            foreach (var envelope in incoming) envelope.WasPersistedInInbox = true;
+        }
+
+        if (outgoing.Count > 0)
+        {
+            await Outbox.StoreOutgoingAsync(outgoing, outgoingOwnerId);
+            foreach (var envelope in outgoing) envelope.WasPersistedInOutbox = true;
+        }
+    }
+
     Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
     Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming);
 
