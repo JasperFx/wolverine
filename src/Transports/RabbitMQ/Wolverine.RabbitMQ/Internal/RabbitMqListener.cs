@@ -227,6 +227,8 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
     public RabbitMqQueue Queue { get; }
 
+    public bool RequiresAckAfterPersistedRetry => true;
+
     protected override ushort? ConsumerDispatchConcurrency => Queue.ConsumerDispatchConcurrency;
 
     public async ValueTask StopAsync()

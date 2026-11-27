@@ -708,6 +708,14 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             Runtime.Logger.LogDebug("Rescheduling envelope {EnvelopeId} ({MessageType}) via durable inbox to {ScheduledTime}", Envelope.Id, Envelope.MessageType, scheduledTime);
             await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(Envelope).ConfigureAwait(false);
+
+            // An inline receiver passes the live listener as its callback. Once the inbox owns the retry,
+            // release the original broker delivery. A storage-backed receiver owns its own settlement.
+            if (Storage is not NullMessageStore && _channel is IListener { RequiresAckAfterPersistedRetry: true }
+                && ReferenceEquals(_channel, Envelope.Listener))
+            {
+                await CompleteAsync().ConfigureAwait(false);
+            }
         }
 
         _rescheduled = true;

@@ -173,13 +173,17 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
 
         using var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
 
+        // Inbox recovery owns this attempt. Its id can already be in the broker guard because the
+        // original delivery was acknowledged as soon as its retry was durably scheduled.
+        var brokerGuard = listener is IRecoveredEnvelopeListener ? null : _idempotency;
+
         try
         {
             envelope.MarkReceived(listener, DateTimeOffset.UtcNow, _settings, _endpoint.WireTap);
 
             // GH-3710. Ack-and-drop a redelivery of something already handled within the window, the
             // non-durable analogue of DurableReceiver.handleDuplicateIncomingEnvelope.
-            if (_idempotency != null && !_idempotency.TryBeginProcessing(envelope))
+            if (brokerGuard != null && !brokerGuard.TryBeginProcessing(envelope))
             {
                 _logger.LogDebug(
                     "Discarding duplicate delivery of envelope {EnvelopeId} ({MessageType}) at {Uri}; it was already handled within the in-memory idempotency window",
@@ -193,7 +197,7 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
 
             // GH-3710. Only a delivery the broker will not redeliver -- acked, or natively dead lettered --
             // may be remembered. A nack or requeue releases the id so the redelivery still runs.
-            recordOutcome(envelope);
+            recordOutcome(envelope, brokerGuard);
             _logger.IncomingReceived(envelope, listener.Address);
 
             // Don't clobber an Error status already set by the HandlerPipeline / Executor.
@@ -208,7 +212,7 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
         }
         catch (Exception? e)
         {
-            _idempotency?.Release(envelope);
+            brokerGuard?.Release(envelope);
 
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             activity.RecordException(e, _recordExceptions);
@@ -231,17 +235,17 @@ internal class InlineReceiver : IReceiver, ILatchedReceiver, IHasQueueDepth
         }
     }
 
-    private void recordOutcome(Envelope envelope)
+    private static void recordOutcome(Envelope envelope, IIncomingIdempotencyGuard? brokerGuard)
     {
-        if (_idempotency == null) return;
+        if (brokerGuard == null) return;
 
         if (envelope.HasBeenAcked)
         {
-            _idempotency.MarkProcessed(envelope);
+            brokerGuard.MarkProcessed(envelope);
         }
         else
         {
-            _idempotency.Release(envelope);
+            brokerGuard.Release(envelope);
         }
     }
 

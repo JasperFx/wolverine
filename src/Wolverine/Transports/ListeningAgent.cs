@@ -1084,7 +1084,7 @@ internal class InboxHealthRestarter : IDisposable
     }
 }
 
-internal class RetryOnInlineChannelCallback : IListener
+internal class RetryOnInlineChannelCallback : IRecoveredEnvelopeListener
 {
     private readonly IListener _inner;
     private readonly IWolverineRuntime _runtime;
