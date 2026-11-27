@@ -47,9 +47,7 @@ public class FSharpCoverageRatchet
         "Wolverine.Http.CodeGen.MaybeEndHandlerWithProblemDetailsFrame",
         "Wolverine.Http.CodeGen.MaybeEndWithProblemDetailsFrame",
         "Wolverine.Http.CodeGen.ParsedArrayFormValue",
-        "Wolverine.Http.CodeGen.ParsedArrayQueryStringValue",
         "Wolverine.Http.CodeGen.ParsedCollectionFormValue",
-        "Wolverine.Http.CodeGen.ParsedCollectionQueryStringValue",
         "Wolverine.Http.CodeGen.ReadClaimFrame",
         "Wolverine.Http.CodeGen.RequestServicesFrame",
         "Wolverine.Http.CodeGen.RequirementResultHttpFrame",
@@ -78,7 +76,6 @@ public class FSharpCoverageRatchet
         "Wolverine.Persistence.ForEachStorageActionFrame",
         "Wolverine.Persistence.LoadEntityFrameBlock",
         "Wolverine.Persistence.MultiTenancy.TenantIdResolutionFrame",
-        "Wolverine.Persistence.Sagas.CreateMissingSagaFrame",
         // GH-4805: de-genericized (was `2). The leftover generic subclass is a source-compatibility
         // shim nothing constructs, and carries [FSharpEmit(Skip)] rather than a second baseline entry.
         "Wolverine.Persistence.Sagas.EnrollAndFetchSagaStorageFrame",

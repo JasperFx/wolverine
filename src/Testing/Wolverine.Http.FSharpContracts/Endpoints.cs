@@ -20,6 +20,23 @@ public readonly record struct ThingId(Guid Value);
 public readonly record struct ThingCode(string Value);
 
 /// <summary>
+///     A closed generic query value with its own <c>TryParse</c>: F# has to name it <c>Labeled&lt;T&gt;</c>, not by
+///     its CLR full name with the arity and assembly-qualified type arguments.
+/// </summary>
+public readonly struct Labeled<T>
+{
+    public Labeled(string text) => Text = text;
+
+    public string Text { get; }
+
+    public static bool TryParse(string? value, IFormatProvider? provider, out Labeled<T> result)
+    {
+        result = new Labeled<T>(value ?? string.Empty);
+        return !string.IsNullOrEmpty(value);
+    }
+}
+
+/// <summary>
 ///     The "smallest viable" Wolverine.Http endpoints for the F# code-generation audit
 ///     (issue GH-2969, Phase C): a GET returning a string and a POST binding a JSON body and
 ///     returning a JSON result. The driver renders each endpoint's real <c>HttpChain</c> to F#, and
@@ -154,4 +171,69 @@ public class AuthedEndpoints
 public static class AuthHelpers
 {
     public static IResult CheckAuth() => WolverineContinue.Result();
+}
+
+/// <summary>An enum bound from repeated query string values, case-insensitively.</summary>
+public enum ThingColor
+{
+    Red,
+    Green
+}
+
+/// <summary>
+///     A [FromQuery] type with no constructor arguments, so its settable collection properties bind one by one
+///     (property mode of <c>ParsedArrayQueryStringValue</c> and <c>ParsedCollectionQueryStringValue</c>).
+/// </summary>
+public class ThingQuery
+{
+    public string[] Tags { get; set; } = [];
+    public int[] Ids { get; set; } = [];
+    public List<int> Pages { get; set; } = [];
+}
+
+/// <summary>
+///     Arrays and collections bound from repeated query string values (<c>?ids=1&amp;ids=2</c>): exercises
+///     <c>ParsedArrayQueryStringValue</c> and <c>ParsedCollectionQueryStringValue</c> with string, parsed, enum and
+///     single-value wrapper elements. Rendered with lenient query binding, where an unparseable value is skipped.
+/// </summary>
+public class QueryCollectionEndpoints
+{
+    [WolverineGet("/fsharp/query/tags")]
+    public string Tags(string[] tags) => string.Join(",", tags);
+
+    [WolverineGet("/fsharp/query/ids")]
+    public string Ids(int[] ids) => string.Join(",", ids);
+
+    [WolverineGet("/fsharp/query/colors")]
+    public string Colors(ThingColor[] colors) => string.Join(",", colors);
+
+    [WolverineGet("/fsharp/query/thing-ids")]
+    public string ThingIds(ThingId[] thingIds) => string.Join(",", thingIds.Select(x => x.Value));
+
+    [WolverineGet("/fsharp/query/labels")]
+    public string Labels(Labeled<ThingColor>[] labels, Labeled<int> label)
+        => $"{string.Join(",", labels.Select(x => x.Text))} {label.Text}";
+
+    [WolverineGet("/fsharp/query/lists")]
+    public string Lists(List<int> numbers, IReadOnlyList<string> names, IEnumerable<Guid> keys)
+        => $"{numbers.Count} {names.Count} {keys.Count()}";
+
+    [WolverineGet("/fsharp/query/bound")]
+    public string Bound([FromQuery] ThingQuery query)
+        => $"{query.Tags.Length} {query.Ids.Length} {query.Pages.Count}";
+}
+
+/// <summary>
+///     The same bindings rendered with strict query binding (<c>RejectUnparseableQueryValues</c>, the 7.0 default),
+///     where a present but unparseable value answers 400 with ProblemDetails. Two strict collections in one endpoint
+///     nest one rejection guard inside the other.
+/// </summary>
+public class StrictQueryCollectionEndpoints
+{
+    [WolverineGet("/fsharp/strict/ids")]
+    public string Ids(int[] ids) => string.Join(",", ids);
+
+    [WolverineGet("/fsharp/strict/mixed")]
+    public string Mixed(int[] ids, IReadOnlyList<Guid> keys, string[] tags)
+        => $"{ids.Length} {keys.Count} {tags.Length}";
 }

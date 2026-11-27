@@ -257,20 +257,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
     }
 
     // The F# tuple form of the C# out-parameter TryParse (F# auto-tuples the out arg).
-    private string fsharpTryParse(string raw)
-    {
-        if (_rawType.IsBoolean())
-        {
-            return $"System.Boolean.TryParse({raw})";
-        }
-
-        if (SingleValueWrapper.TryFind(_rawType, out var wrapper))
-        {
-            return wrapper.FSharpTryParseCode(raw);
-        }
-
-        return $"{_rawType.FullName}.TryParse({raw}, System.Globalization.CultureInfo.InvariantCulture)";
-    }
+    private string fsharpTryParse(string raw) => ParsingCode.FSharpTryParse(_rawType, raw);
 
     private string fsharpRawValueSource()
     {
