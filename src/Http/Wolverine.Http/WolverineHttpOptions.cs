@@ -537,7 +537,7 @@ public class WolverineHttpOptions
         filter ??= ConflictMapping.IsTransactional;
         if (toProblemDetails != null) ConflictProblemDetailsFactory = toProblemDetails;
 
-        AddMiddleware(typeof(ConcurrencyExceptionMiddleware), filter);
+        // GH-5985: the policy applies the middleware too, once the chain policies have settled IsTransactional
         Policies.Add(new ConflictProblemPolicy(filter));
     }
 
