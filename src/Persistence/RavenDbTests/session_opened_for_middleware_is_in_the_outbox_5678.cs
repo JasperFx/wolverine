@@ -1,8 +1,14 @@
+using JasperFx.CodeGeneration;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using Shouldly;
 using Wolverine;
+using Wolverine.Attributes;
+using Wolverine.Http;
 using Wolverine.RavenDb;
 using Wolverine.RavenDb.Internals;
 using Wolverine.Runtime;
@@ -22,6 +28,30 @@ public class session_opened_for_middleware_is_in_the_outbox_5678
     public session_opened_for_middleware_is_in_the_outbox_5678(DatabaseFixture fixture)
     {
         _fixture = fixture;
+    }
+
+    [Fact]
+    public async Task compiles_transactional_http_endpoint_when_middleware_takes_session_and_concrete_context()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<IDocumentStore>(_ => new DocumentStore
+        {
+            Urls = ["http://localhost:8080"],
+            Database = "codegen"
+        }.Initialize());
+        builder.Services.AddWolverine(opts =>
+        {
+            opts.ApplicationAssembly = typeof(EnlistedSession5678Endpoint).Assembly;
+            opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
+            opts.UseRavenDbPersistence();
+        });
+        builder.Services.AddWolverineHttp();
+
+        await using var app = builder.Build();
+        app.MapWolverineEndpoints(opts => opts.WarmUpRoutes = RouteWarmup.Eager);
+
+        ((IEndpointRouteBuilder)app).DataSources.SelectMany(x => x.Endpoints).OfType<RouteEndpoint>()
+            .ShouldContain(x => x.RoutePattern.RawText == "/enlisted-session");
     }
 
     [Fact]
@@ -56,6 +86,14 @@ public class session_opened_for_middleware_is_in_the_outbox_5678
 }
 
 public record StoreEnlistedNote5678(string Id);
+
+public static class EnlistedSession5678Endpoint
+{
+    [WolverinePost("/enlisted-session")]
+    [Middleware(typeof(EnlistedSession5678Middleware))]
+    [Transactional]
+    public static string Post() => "ok";
+}
 
 public class EnlistedNote5678
 {
