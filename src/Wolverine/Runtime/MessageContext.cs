@@ -15,6 +15,7 @@ using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 using Wolverine.Transports.Sending;
 using Wolverine.Util;
 
@@ -655,7 +656,8 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         async Task sendEnvelopeAsync(Envelope envelope)
         {
-            if (ReferenceEquals(this, Transaction))
+            // GH-5962: already stored with the rest of the handler's durable messages, so only forwarded
+            if (ReferenceEquals(this, Transaction) && !envelope.PersistedBeforeCompletion)
             {
                 await envelope.StoreAndForwardAsync().ConfigureAwait(false);
             }
@@ -663,6 +665,74 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             {
                 await envelope.QuickSendAsync().ConfigureAwait(false);
             }
+        }
+    }
+
+    /// <summary>
+    ///     GH-5962. With <see cref="DurabilitySettings.PersistOutgoingMessagesBeforeCompletion" />, a handler that is
+    ///     its own envelope transaction (no Marten session, DbContext or other outbox enlisted) stores every message
+    ///     it sent to a durable destination here, as the last step of the handler and before any of them goes out:
+    ///     in one batch per message store, in one database transaction where the store can, with the same inline
+    ///     retries as any first durable write. A failure throws into the executor, so it is a failure of the message
+    ///     and the message's error policies decide what happens next. The flush afterward only forwards them.
+    /// </summary>
+    internal async Task PersistOutgoingBeforeCompletionAsync(CancellationToken cancellation)
+    {
+        if (!Runtime.Options.Durability.PersistOutgoingMessagesBeforeCompletion) return;
+
+        // An enlisted outbox has already put these envelopes into its own transaction
+        if (!ReferenceEquals(Transaction, this)) return;
+
+        if (Storage is NullMessageStore) return;
+
+        Envelope[] outstanding;
+        // System.Threading.Lock's scope is a ref struct, which C# 12 refuses in an async method
+        _outstandingLock.Enter();
+        try
+        {
+            if (_outstanding.Count == 0) return;
+            outstanding = _outstanding.ToArray();
+        }
+        finally
+        {
+            _outstandingLock.Exit();
+        }
+
+        var batch = new OutgoingEnvelopeBatch(Storage);
+        foreach (var envelope in outstanding)
+        {
+            if (envelope is not { Sender.IsDurable: true } || envelope.PersistedBeforeCompletion) continue;
+
+            if (envelope is { Sender.Latched: true, Status: EnvelopeStatus.Outgoing })
+            {
+                envelope.OwnerId = TransportConstants.AnyNode;
+            }
+
+            // The ancillary store is stamped before the envelope is grouped by store
+            if (envelope.Sender is DurableLocalQueue queue)
+            {
+                queue.AssignAncillaryStoreIfNeeded(envelope);
+            }
+
+            await batch.PersistAsync(envelope).ConfigureAwait(false);
+        }
+
+        if (batch.IsEmpty) return;
+
+        var ownerId = Runtime.Options.Durability.OutgoingOwnerId;
+        foreach (var (store, (incoming, outgoing)) in batch.Stores)
+        {
+            var first = incoming.Count > 0 ? incoming[0] : outgoing[0];
+            await DurableWriteRetry.ExecuteAsync(() => store.StoreEnvelopesAsync(incoming, outgoing, ownerId),
+                first, Runtime.Logger, cancellation).ConfigureAwait(false);
+        }
+
+        foreach (var envelope in batch.AllEnvelopes())
+        {
+            envelope.PersistedBeforeCompletion = true;
+
+            // Its inbox row is written, so the flush must not write it again through the scheduled path
+            Scheduled.Remove(envelope);
         }
     }
 

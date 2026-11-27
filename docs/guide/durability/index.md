@@ -143,6 +143,60 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L68-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Storing Outgoing Messages Before a Handler Completes <Badge type="tip" text="7.0" />
+
+When a handler runs inside transactional middleware, like a Marten session, an EF Core `DbContext` or one of the
+other persistence integrations, the messages it sends are stored in the same database transaction as its own work.
+Either all of it commits or none of it does.
+
+A handler *without* that middleware is different. Wolverine stores each message it cascades or publishes to a
+durable destination one at a time, after the handler has already returned, and sends each one as soon as it is
+stored. Every one of those writes gets a few quick retries (four attempts over roughly 400 ms), but if the message
+store is still refusing writes after that, the outgoing message is logged as discarded and the message that cascaded
+it is *still marked as handled*. The outgoing message is lost, and an error in the logs is the only trace of it.
+
+You can opt into a stricter behavior instead:
+
+<!-- snippet: sample_persist_outgoing_messages_before_completion -->
+<a id='snippet-sample_persist_outgoing_messages_before_completion'></a>
+```cs
+// Store every message a handler sends to a durable destination before any of them is sent,
+// and treat a failure to store them as a failure of the message being handled
+opts.Durability.PersistOutgoingMessagesBeforeCompletion = true;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/persisting_outgoing_messages_before_completion_5962.cs#L61-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_persist_outgoing_messages_before_completion' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With this setting on, for a handler that has no transactional middleware:
+
+1. When the handler returns, every message it sent to a durable destination is stored in **one batch**, before any of
+   them is sent. In the relational database stores (PostgreSQL, SQL Server, MySQL, Oracle, SQLite, and the Marten,
+   Polecat, Fisher and EF Core integrations that use them) the batch is a single database transaction, so either all of the
+   handler's outgoing messages are stored or none of them are.
+2. Storing the batch still gets the same short retries as any other durable write.
+3. If the batch still can't be stored, that is a failure of the *message being handled*, and that message's
+   [error handling policies](/guide/handlers/error-handling) decide what happens next, exactly as if the handler had
+   thrown the exception itself. A retry runs the handler again, and a message that runs out of attempts is moved to
+   the dead letter queue. Nothing the handler sent has gone out.
+4. Once the batch is stored, the messages are sent, and the message being handled is marked as complete.
+
+For `IMessageBus.InvokeAsync()`, a batch that can't be stored throws to the caller after any inline retries.
+
+A few things to know:
+
+* Messages to non-durable destinations are not part of the batch and are sent as before.
+* The batch is atomic within one database. If one handler's outgoing messages belong in different databases, like
+  separate tenant databases or an ancillary store, each database stores its own share in its own transaction, and a
+  database that already committed is not rolled back if another one fails.
+* The document stores that are not relational databases (RavenDB, CosmosDb) store the batch in two writes, one for
+  the inbox and one for the outbox, so they are not atomic across the two.
+* This setting changes nothing for handlers that already use transactional middleware. Those already store their
+  outgoing messages in the handler's own transaction.
+* This is still at-least-once messaging. A retry of the handler sends its outgoing messages again, and a process that
+  dies after the batch is stored but before the source message is marked as handled will process that message again.
+
+This setting is off by default.
+
 ### Bumping out Stale Inbox/Outbox Messages <Badge type="tip" text="5.2" />
 
 ::: warning

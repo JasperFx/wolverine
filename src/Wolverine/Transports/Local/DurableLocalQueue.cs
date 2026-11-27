@@ -644,7 +644,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue,
     /// publisher's inbox table while the receiving Marten/Polecat session was
     /// connected to the ancillary database. See GH-2669.
     /// </summary>
-    private void assignAncillaryStoreIfNeeded(Envelope envelope)
+    internal void AssignAncillaryStoreIfNeeded(Envelope envelope)
     {
         if (_runtime.Stores == null) return;
 
@@ -673,7 +673,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue,
             // The ancillary store has to be stamped BEFORE the envelope joins a batch: both
             // DelegatingMessageInbox and MultiTenantedMessageStore group the batched overload by
             // Store/TenantId, and they can only group on what is already on the envelope.
-            assignAncillaryStoreIfNeeded(envelope);
+            AssignAncillaryStoreIfNeeded(envelope);
 
             // GH-4662: retried inline, and on exhaustion the exception reaches whoever called
             // PublishAsync/ScheduleAsync. Before this it was swallowed by a RetryBlock that had

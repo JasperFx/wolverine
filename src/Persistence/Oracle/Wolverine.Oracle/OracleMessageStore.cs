@@ -452,6 +452,34 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
 
     // ISagaSupport
     //
+    /// <summary>
+    ///     GH-5962. The inbox and outbox rows of one handler's durable outgoing messages in one transaction, as
+    ///     MessageDatabase does for the other relational stores
+    /// </summary>
+    public async Task StoreEnvelopesAsync(IReadOnlyList<Envelope> incoming, IReadOnlyList<Envelope> outgoing,
+        int outgoingOwnerId)
+    {
+        if (incoming.Count == 0 && outgoing.Count == 0) return;
+
+        await using var conn = CreateConnection();
+        await conn.OpenAsync(_cancellation);
+        await using var tx = await conn.BeginTransactionAsync(_cancellation);
+
+        if (incoming.Count > 0)
+        {
+            await StoreIncomingAsync(tx, incoming as Envelope[] ?? incoming.ToArray());
+        }
+
+        if (outgoing.Count > 0)
+        {
+            await StoreOutgoingAsync(tx, outgoing as Envelope[] ?? outgoing.ToArray());
+        }
+
+        await tx.CommitAsync(_cancellation);
+
+        foreach (var envelope in incoming) envelope.WasPersistedInInbox = true;
+    }
+
     // GH-4805. Deliberately NOT an ISagaStorageCodeSource, unlike the other four relational stores.
     // They inherit SagaSchemaFor as an `abstract` generic method on the generic MessageDatabase<T>,
     // which makes it a generic VIRTUAL method that NativeAOT cannot dispatch -- so they need generated
