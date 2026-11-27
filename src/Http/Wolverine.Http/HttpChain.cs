@@ -99,6 +99,12 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             : [validation, next];
     }
 
+    // GH-5976. Only a body the compiler knows is non-nullable refuses JSON null. An oblivious one, under
+    // #nullable disable, says nothing either way, so it binds null as it always has
+    internal bool RequestBodyIsNonNullable { get; set; }
+
+    internal bool RequestBodyRejectsNull => RequestBodyIsNonNullable && _parent.RejectNullRequestBodies;
+
     private string? _fileName;
     private string? _typeNameOverride;
     private readonly List<string> _httpMethods = [];
