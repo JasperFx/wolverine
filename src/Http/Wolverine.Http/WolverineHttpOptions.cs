@@ -303,6 +303,16 @@ public class WolverineHttpOptions
     public bool RejectUnparseableHeaderValues { get; set; }
 
     /// <summary>
+    /// When true, a request body sent as JSON <c>null</c> for a non-nullable body parameter, or a non-nullable
+    /// <c>[FromBody]</c> member of an <c>[AsParameters]</c> type, answers 400 with ProblemDetails, the same answer
+    /// an empty body gets, as ASP.NET Core minimal APIs and MVC do. A nullable body is optional and binds null in
+    /// either mode, and so does a body declared where nullable reference types are disabled, which says nothing
+    /// about whether it may be null. Opt-in (default false) to preserve the previous behavior, where the endpoint
+    /// runs with a null body. See GH-5976.
+    /// </summary>
+    public bool RejectNullRequestBodies { get; set; }
+
+    /// <summary>
     ///     The application wide default for what status code is written when an endpoint's response body is null.
     ///     The built in default is <see cref="OnMissingResponseBody.NotFound404" />. Setting this to
     ///     <see cref="OnMissingResponseBody.NoContent204" /> only affects GET and QUERY endpoints -- a null body
