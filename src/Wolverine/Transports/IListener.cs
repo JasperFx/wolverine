@@ -6,6 +6,9 @@ public interface IListener : IChannelCallback, IAsyncDisposable
 {
     Uri Address { get; }
 
+    /// <summary>Whether an inline delivery needs a broker acknowledgement after its retry is persisted in the inbox.</summary>
+    bool RequiresAckAfterPersistedRetry => false;
+
     /// <summary>
     ///     Stop the receiving of any new messages, but leave any connection
     ///     open for possible calls to Defer/Complete
