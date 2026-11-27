@@ -1,4 +1,7 @@
 using Grpc.Core;
+using JasperFx;
+using JasperFx.Events;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 
 namespace Wolverine.Grpc;
@@ -41,6 +44,16 @@ public static class WolverineGrpcExceptionMapper
             // the caller cannot fix by retrying, because the header never crosses the hop at all.
             // InvalidArgument per AIP-193, with a detail that says what to do about it.
             IndeterminateSagaStateIdException => StatusCode.InvalidArgument,
+
+            // GH-5983. A failed optimistic concurrency check, such as an expected stream version the stream is not at
+            // (or a stream that does not exist yet), is a conflict the caller can resolve by re-reading and retrying:
+            // Aborted per AIP-193.
+            ConcurrencyException => StatusCode.Aborted,
+            ExistingStreamIdCollisionException => StatusCode.AlreadyExists,
+
+            // A required entity or aggregate the handler loads was missing and its OnMissing asks for an exception
+            RequiredDataMissingException => StatusCode.NotFound,
+
 
             ArgumentException => StatusCode.InvalidArgument,
             KeyNotFoundException => StatusCode.NotFound,
@@ -107,7 +120,9 @@ public static class WolverineGrpcExceptionMapper
     ///     <see cref="Map"/> has a non-degenerate reverse entry here. <see cref="StatusCode.Cancelled"/>
     ///     is the exception: it maps to <see cref="OperationCanceledException"/>, but the two sides
     ///     of the mapping are still consistent because <see cref="Map"/> recognises
-    ///     <see cref="OperationCanceledException"/> as cancellation.
+    ///     <see cref="OperationCanceledException"/> as cancellation. <see cref="StatusCode.AlreadyExists"/> comes
+    ///     back as the original <see cref="RpcException"/>: the stream id <c>ExistingStreamIdCollisionException</c>
+    ///     needs does not cross the hop.
     /// </remarks>
     public static Exception MapToException(RpcException exception)
     {
@@ -124,6 +139,7 @@ public static class WolverineGrpcExceptionMapper
             StatusCode.PermissionDenied => new UnauthorizedAccessException(message, exception),
             StatusCode.Unauthenticated => new UnauthorizedAccessException(message, exception),
             StatusCode.FailedPrecondition => new InvalidOperationException(message, exception),
+            StatusCode.Aborted => new ConcurrencyException(message ?? exception.Message, exception),
             StatusCode.Unimplemented => new NotImplementedException(message, exception),
             _ => exception
         };

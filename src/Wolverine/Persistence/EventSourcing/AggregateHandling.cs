@@ -9,6 +9,7 @@ using JasperFx.Events;
 using JasperFx.Events.Aggregation;
 using JasperFx.Events.Daemon;
 using Wolverine.Configuration;
+using Wolverine.Persistence.EventSourcing.Codegen;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -63,11 +64,22 @@ internal record AggregateHandling(IDataRequirement Requirement)
         ((IPersistenceFrameProvider)Provider).ApplyTransactionSupport(chain, container);
         chain.IsTransactional = true;
 
+        var expectedVersion = LoadStyle == ModelConcurrencyStyle.Optimistic ? Version : null;
+
+        // GH-5983. An HTTP endpoint loads the stream without the expected version and checks it after the missing
+        // aggregate handling below: a store compares it inside FetchForWriting(id, version), and throws a concurrency
+        // failure for a stream that does not exist before the endpoint can answer 404 (RFC 9110 §13.2.1). A message
+        // handler keeps the check in the load, where a missing stream is a ConcurrencyException that a retry policy can
+        // wait out. Opt-in on 6.x (EntityDefaults.CheckExpectedVersionAfterMissingAggregate), the behavior of 7.0.
+        var checkVersionAfterMissingAggregate = expectedVersion != null && chain is IRoutedChain &&
+                                                container.GetInstance<WolverineOptions>().EntityDefaults
+                                                    .CheckExpectedVersionAfterMissingAggregate;
+
         var loader = Provider.BuildLoadAggregateFrame(new AggregateLoadRequest(
             AggregateType,
             AggregateId,
             LoadStyle,
-            LoadStyle == ModelConcurrencyStyle.Optimistic ? Version : null,
+            checkVersionAfterMissingAggregate ? null : expectedVersion,
             AlwaysEnforceConsistency,
             IsNaturalKey));
 
@@ -94,6 +106,21 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain, Provider);
         var aggregate = RelayAggregateToHandlerMethod(eventStream, chain, firstCall, AggregateType);
+
+        if (chain is IRoutedChain)
+        {
+            // GH-5983. The version checks of the aggregates loaded before this one move after its missing aggregate
+            // handling too, so on an endpoint with several aggregates a missing one answers 404 before a stale one
+            // answers as a concurrency failure, whichever of them comes first
+            var earlierChecks = chain.Middleware.OfType<ExpectedVersionCheckFrame>().ToArray();
+            foreach (var check in earlierChecks) chain.Middleware.Remove(check);
+            chain.Middleware.AddRange(earlierChecks);
+        }
+
+        if (checkVersionAfterMissingAggregate)
+        {
+            chain.Middleware.Add(new ExpectedVersionCheckFrame(eventStream, expectedVersion!));
+        }
 
         if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
         {

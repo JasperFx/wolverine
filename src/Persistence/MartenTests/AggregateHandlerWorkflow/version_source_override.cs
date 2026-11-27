@@ -112,6 +112,39 @@ public class version_source_override : PostgresqlContext, IAsyncLifetime
             theHost.InvokeMessageAndWaitAsync(
                 new IncrementWithParamVersionSource(theStreamId, MyVersion: 99)));
     }
+
+    // An HTTP endpoint answers 404 for a missing stream whatever the expected version. A message handler keeps the
+    // version in the load, so a missing stream is a ConcurrencyException that a retry policy can wait out, for an
+    // out-of-order message that arrives before the one that starts the stream
+    [Fact]
+    public async Task missing_stream_with_a_version_on_write_aggregate_is_still_a_concurrency_failure()
+    {
+        var streamId = Guid.NewGuid();
+
+        var exception = await Should.ThrowAsync<ConcurrencyException>(
+            theHost.InvokeMessageAndWaitAsync(
+                new IncrementWithParamVersionSource(streamId, MyVersion: 3)));
+
+        exception.Message.ShouldBe("Expected the existing version to be 3, but was 0");
+
+        await using var session = theStore.LightweightSession();
+        (await session.Events.FetchStreamStateAsync(streamId, TestContext.Current.CancellationToken)).ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task missing_stream_with_a_version_on_aggregate_handler_is_still_a_concurrency_failure()
+    {
+        var streamId = Guid.NewGuid();
+
+        var exception = await Should.ThrowAsync<ConcurrencyException>(
+            theHost.InvokeMessageAndWaitAsync(
+                new IncrementWithCustomVersion(streamId, ExpectedVersion: 3)));
+
+        exception.Message.ShouldBe("Expected the existing version to be 3, but was 0");
+
+        await using var session = theStore.LightweightSession();
+        (await session.Events.FetchStreamStateAsync(streamId, TestContext.Current.CancellationToken)).ShouldBeNull();
+    }
 }
 
 #region Types

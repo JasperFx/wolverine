@@ -146,6 +146,9 @@ public class Program
 
             opts.Durability.MessageStorageSchemaName = "wolverine";
 
+            // GH-5983. Opt in to the 7.0 behavior: a missing stream answers 404 whatever expected version is sent
+            opts.EntityDefaults.CheckExpectedVersionAfterMissingAggregate = true;
+
             // I'm speeding this up a lot for faster tests
             opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();
 
