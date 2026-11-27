@@ -602,6 +602,10 @@ public class KafkaListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     public Uri Address { get; }
 
+    // #5980. A scheduled retry this listener cannot schedule natively goes to the durable inbox, and the original
+    // delivery is then acknowledged, or the broker redelivers it and the handler runs twice
+    public bool RequiresAckAfterPersistedRetry => true;
+
     /// <summary>
     /// GH-5934. Stops fetching, but leaves the consumer open and in the group so that records finished while the
     /// receiver drains are still committed. <see cref="DisposeAsync"/> flushes and closes the consumer. Once this

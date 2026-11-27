@@ -27,6 +27,10 @@ public class NatsListener : IListener, ISupportDeadLetterQueue, IReportConnectio
     // can detect a listener whose connection has dropped while it still reports Accepting.
     public TransportConnectionState ConnectionState => _subscriber.ConnectionState;
 
+    // #5980. A scheduled retry this listener cannot schedule natively goes to the durable inbox, and the original
+    // delivery is then acknowledged, or the broker redelivers it and the handler runs twice
+    public bool RequiresAckAfterPersistedRetry => _subscriber is JetStreamSubscriber;
+
     internal NatsListener(
         NatsEndpoint endpoint,
         INatsSubscriber subscriber,

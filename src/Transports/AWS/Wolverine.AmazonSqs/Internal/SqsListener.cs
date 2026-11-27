@@ -515,6 +515,10 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     public Uri Address => _queue.Uri;
 
+    // #5980. A scheduled retry this listener cannot schedule natively goes to the durable inbox, and the original
+    // delivery is then acknowledged, or the broker redelivers it and the handler runs twice
+    public bool RequiresAckAfterPersistedRetry => true;
+
     public async ValueTask StopAsync()
     {
         await _loop.StopAsync(_drainTimeout);

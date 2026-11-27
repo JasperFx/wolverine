@@ -53,14 +53,16 @@ internal class AzureServiceBusSessionListener : IListener
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
+    // #5980. The session's own SessionSpecificListener settles each delivery. This parent is what the listening agent
+    // hands an inbox retry to, and only forwards its completion, so it has nothing to settle and must not throw
     public ValueTask CompleteAsync(Envelope envelope)
     {
-        throw new NotSupportedException();
+        return ValueTask.CompletedTask;
     }
 
     public ValueTask DeferAsync(Envelope envelope)
     {
-        throw new NotSupportedException();
+        return ValueTask.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()
@@ -264,6 +266,10 @@ internal class SessionSpecificListener : IListener, ISupportDeadLetterQueue
     }
 
     public Uri Address => _endpoint.Uri;
+
+    // #5980. A scheduled retry this listener cannot schedule natively goes to the durable inbox, and the original
+    // delivery is then acknowledged, or the broker redelivers it and the handler runs twice
+    public bool RequiresAckAfterPersistedRetry => true;
 
     public ValueTask StopAsync()
     {
