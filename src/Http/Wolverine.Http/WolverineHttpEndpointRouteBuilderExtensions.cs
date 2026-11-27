@@ -297,6 +297,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         options.Endpoints.RequireAntiforgeryOnAll = options._requireAntiforgeryOnAll;
         options.Endpoints.RejectUnparseableQueryValues = options.RejectUnparseableQueryValues;
         options.Endpoints.RejectUnparseableHeaderValues = options.RejectUnparseableHeaderValues;
+        options.Endpoints.RejectNullRequestBodies = options.RejectNullRequestBodies;
         options.Endpoints.ApplyCorrelationIdHeaderToAllEndpoints = options.ApplyCorrelationIdHeaderToAllEndpoints;
         options.Endpoints.UserNameClaimType = options.UserNameClaimType;
         options.Endpoints.DiscoverEndpoints(options);

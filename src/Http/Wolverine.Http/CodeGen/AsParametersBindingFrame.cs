@@ -315,6 +315,7 @@ internal class AsParametersBindingFrame : SyncFrame
             // A nullable [FromBody] member is an optional body: an empty request body binds null at
             // runtime (instead of 400) and renders requestBody.required = false. See GH-3135.
             chain.RequestBodyIsOptional = IsNullableMember(parameter);
+            chain.RequestBodyIsNonNullable = IsNonNullableReferenceMember(parameter);
             variable = chain.BuildJsonDeserializationVariable();
 
             chain.IsFormData = false;
@@ -393,6 +394,7 @@ internal class AsParametersBindingFrame : SyncFrame
             // A nullable [FromBody] member is an optional body: an empty request body binds null at
             // runtime (instead of 400) and renders requestBody.required = false. See GH-3135.
             chain.RequestBodyIsOptional = IsNullableMember(propertyInfo);
+            chain.RequestBodyIsNonNullable = IsNonNullableReferenceMember(propertyInfo);
             variable = chain.BuildJsonDeserializationVariable();
 
             chain.IsFormData = false;
@@ -460,5 +462,17 @@ internal class AsParametersBindingFrame : SyncFrame
         }
 
         return new NullabilityInfoContext().Create(property).WriteState == NullabilityState.Nullable;
+    }
+
+    internal static bool IsNonNullableReferenceMember(ParameterInfo parameter)
+    {
+        return !parameter.ParameterType.IsValueType &&
+               new NullabilityInfoContext().Create(parameter).WriteState == NullabilityState.NotNull;
+    }
+
+    internal static bool IsNonNullableReferenceMember(PropertyInfo property)
+    {
+        return !property.PropertyType.IsValueType &&
+               new NullabilityInfoContext().Create(property).WriteState == NullabilityState.NotNull;
     }
 }

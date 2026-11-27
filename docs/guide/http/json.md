@@ -68,6 +68,12 @@ public static class OptionalBodyEndpoint
 OpenAPI reports the request body as not required. A non-nullable body parameter stays required, and a request
 without a body gets a 400.
 
+A required body sent as the JSON literal `null` gets a 400 with ProblemDetails as well, as it would from a minimal API
+or an MVC controller. That is `WolverineHttpOptions.RejectNullRequestBodies`, true by default from Wolverine 7.0. Set
+it to false in `MapWolverineEndpoints()`, or call `RestoreV6Defaults()`, to run the endpoint with a null body as 6.x
+did. A body declared where nullable reference types are disabled binds null in either mode, because Wolverine can't
+tell whether it may be null.
+
 Wolverine decides whether a request *has* a body the way minimal APIs do, by asking the server
 (`IHttpRequestBodyDetectionFeature.CanHaveBody`) rather than by looking for a `Content-Length` header, so a body
 sent with `Transfer-Encoding: chunked`, from an `HttpClient` `StreamContent` of unknown length, or over HTTP/2

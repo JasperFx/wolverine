@@ -153,6 +153,7 @@ value, so `RestoreV6Defaults()` leaves it alone. If you still call `RestoreV5Def
 | `WolverineHttpOptions.MapUnknownTenantToNotFound()` | off: `UnknownTenantIdException` escapes as a 500 | on for the tenanted endpoints: 404 with ProblemDetails, advertised in OpenAPI | `opts.DoNotMapUnknownTenantToNotFound()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
 | `WolverineHttpOptions.ApplyCorrelationIdHeaderToAllEndpoints` | `false` | `true`: the `X-Correlation-ID` header reaches every endpoint, and the events it appends | `opts.ApplyCorrelationIdHeaderToAllEndpoints = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
 | `WolverineHttpOptions.RejectUnparseableHeaderValues` | `false`: an unparseable `[FromHeader]` value binds the parameter's default | `true`: it answers 400 with ProblemDetails, matching `RejectUnparseableQueryValues` | `opts.RejectUnparseableHeaderValues = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
+| `WolverineHttpOptions.RejectNullRequestBodies` | `false`: a non-nullable body sent as JSON `null` binds null and the endpoint runs | `true`: it answers 400 with ProblemDetails, as an empty body does | `opts.RejectNullRequestBodies = false` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
 | FluentValidation ProblemDetails for HTTP (`WolverineFx.Http.FluentValidation`) | off unless `UseFluentValidationProblemDetailMiddleware()` is called as well as `UseFluentValidation()` | on wherever `UseFluentValidation()` is called: a failed validator answers 400 with `ValidationProblemDetails`. `UseFluentValidationProblemDetailMiddleware()` still works and is no longer needed | `opts.DoNotUseFluentValidationProblemDetailMiddleware()` in `MapWolverineEndpoints()` | `restore_v6_http_defaults` |
 | `WolverineOptions.EnableRelayOfUserName` | `false` | `true`: the authenticated HTTP user is relayed onto the message context, the outboxed Marten, Polecat or Fisher session, and **the `user-name` header of every message sent, to every transport**. `WolverineHttpOptions.UserNameClaimType` names the claim when `Identity.Name` is null | `opts.EnableRelayOfUserName = false` | `restore_v6_defaults_tests` |
 | `PushReceiverOptions.DeduplicateWithInbox` | `false` | `true` when the application has a message store | `o.DeduplicateWithInbox = false` in `MapWolverinePushReceiver()` | `push_receiver_5016` |
@@ -224,9 +225,9 @@ runtime as they did in 6.x. To test the pre-generated code itself, set the mode 
 
 ### Wolverine.Http defaults that changed in 7.0
 
-Seven Wolverine.Http defaults flipped in 7.0 (GH-5195, GH-5520). They are the rows of the table above that name
+Eight Wolverine.Http defaults flipped in 7.0 (GH-5195, GH-5520, GH-5976). They are the rows of the table above that name
 `WolverineHttpOptions`, `PushReceiverOptions` or FluentValidation ProblemDetails, and `RestoreV6Defaults()` puts back
-all seven. The user name relay, a core setting, is [below](#the-user-name-travels-with-every-message-by-default).
+all eight. The user name relay, a core setting, is [below](#the-user-name-travels-with-every-message-by-default).
 
 - **Strict query string binding.** A query string value that is present but cannot be parsed, such as `?page=abc` on an
   `int page` parameter, now answers 400 with a ProblemDetails naming the parameter, as MVC and minimal APIs do. In 6.x it
@@ -239,6 +240,11 @@ all seven. The user name relay, a core setting, is [below](#the-user-name-travel
   bound the parameter's default value. A missing header still binds the default, and `string` headers are never
   rejected. F# code generation does not support it yet, so an application that pre-generates F# code for an endpoint
   with a parsed header parameter has to set `RejectUnparseableHeaderValues = false`. See [headers](/guide/http/headers).
+- **A JSON `null` body is refused.** A non-nullable body parameter, or a non-nullable `[FromBody]` member of an
+  `[AsParameters]` type, sent as the JSON literal `null` now answers 400 with ProblemDetails, as an empty body already
+  did and as minimal APIs and MVC do. In 6.x the endpoint ran with a null body, and the validation middleware threw on
+  it. A nullable body still binds null, and so does a body declared where nullable reference types are disabled. See
+  [optional request bodies](/guide/http/json#optional-request-bodies).
 - **FluentValidation ProblemDetails is automatic.** With `WolverineFx.Http.FluentValidation` referenced, calling
   `UseFluentValidation()` now also applies the HTTP validation middleware, so an endpoint whose request type has a
   validator answers 400 with `ValidationProblemDetails` when it fails. `UseFluentValidationProblemDetailMiddleware()`
