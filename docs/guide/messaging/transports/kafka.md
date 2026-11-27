@@ -210,6 +210,25 @@ The `ConfigureClient()` / `ConfigureConsumers()` / `ConfigureProducers()` method
 Anything beyond these curated options is reachable through `ConfigureConsumerBuilders()` /
 `ConfigureProducerBuilders()` / `ConfigureAdminClientBuilders()`, which hand you Dekaf's fluent
 `ConsumerBuilder<string, byte[]>` / `ProducerBuilder<string, byte[]>` / `AdminClientBuilder` directly.
+Each call to one of these adds to the earlier ones, which run first, so separate pieces of configuration don't
+replace each other. <Badge type="tip" text="7.0" />
+
+Wolverine gives every Dekaf client the host's `ILoggerFactory` before your builder callbacks run, so the client's own
+diagnostics (connections, rebalances, producer retries, authentication failures) are logged under categories starting
+with `Dekaf`. <Badge type="tip" text="7.0" />
+
+### Partitioner <Badge type="tip" text="7.0" />
+
+`KafkaProducerOptions.Partitioner` chooses how a keyed record picks its partition. Left unset, Dekaf hashes the key
+with murmur2, as the Java client does. Wolverine 6.x produced through librdkafka, whose default is `consistent_random`
+(CRC32 of the key), so most keys land on a different partition after an upgrade. To keep them where 6.x put them:
+
+```csharp
+opts.UseKafka(connectionString)
+    .ConfigureProducers(p => p.Partitioner = PartitionerType.ConsistentRandom);
+```
+
+`opts.RestoreV6Defaults()` sets `ConsistentRandom` on every producer that doesn't choose a partitioner itself.
 
 Wolverine builds one producer per cluster for each distinct set of producer options. Every topic without its own
 producer options, the dead letter topic and the retry-tier topics share that producer, and a topic configured with

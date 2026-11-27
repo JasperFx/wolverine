@@ -137,6 +137,11 @@ internal static class KafkaOptionsMapper
             builder.WithBatchSize(options.BatchSize.Value);
         }
 
+        if (options.Partitioner.HasValue)
+        {
+            builder.WithPartitioner(options.Partitioner.Value);
+        }
+
         applySecurity(options, () => builder.UseTls(),
             (u, p) => builder.WithSaslPlain(u, p),
             (u, p) => builder.WithSaslScramSha256(u, p),

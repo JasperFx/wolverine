@@ -157,6 +157,15 @@ public class KafkaProducerOptions : KafkaClientOptions
     public TimeSpan? Linger { get; set; }
     public int? BatchSize { get; set; }
 
+    /// <summary>
+    /// How a keyed record picks its partition. Unset leaves Dekaf's default, which hashes the key with murmur2 as
+    /// the Java client does. 6.x produced through librdkafka, whose default is
+    /// <see cref="PartitionerType.ConsistentRandom" /> (CRC32 of the key), so most keys go to a different partition
+    /// after the upgrade. Set <see cref="PartitionerType.ConsistentRandom" /> to keep every key on the partition 6.x
+    /// put it on; <see cref="WolverineOptions.RestoreV6Defaults" /> does that wherever it is unset (GH-6000)
+    /// </summary>
+    public PartitionerType? Partitioner { get; set; }
+
     public KafkaProducerOptions Clone()
     {
         return (KafkaProducerOptions)MemberwiseClone();
