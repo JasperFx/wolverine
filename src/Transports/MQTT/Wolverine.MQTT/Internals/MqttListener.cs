@@ -72,6 +72,10 @@ internal class MqttListener : IListener, IReportConnectionState
 
     public Uri Address { get; }
 
+    // #5980. A scheduled retry this listener cannot schedule natively goes to the durable inbox, and the original
+    // delivery is then acknowledged, or the broker redelivers it and the handler runs twice
+    public bool RequiresAckAfterPersistedRetry => true;
+
     internal bool IsStopped => _stopping.IsCancellationRequested;
 
     public async ValueTask StopAsync()

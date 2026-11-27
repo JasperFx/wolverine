@@ -129,6 +129,10 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IRepo
 
     public Uri Address => _endpoint.Uri;
 
+    // #5980. A scheduled retry this listener cannot schedule natively goes to the durable inbox, and the original
+    // delivery is then acknowledged, or the broker redelivers it and the handler runs twice
+    public bool RequiresAckAfterPersistedRetry => holdsUntilSettled;
+
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
     public ValueTask CompleteAsync(Envelope envelope)
