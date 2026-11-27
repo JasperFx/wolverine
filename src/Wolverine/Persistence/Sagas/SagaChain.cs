@@ -377,7 +377,7 @@ public class SagaChain : HandlerChain
 
         if (StartingCalls.Length != 0)
         {
-            yield return new CreateMissingSagaFrame(saga);
+            yield return new CreateMissingSagaFrame(saga, this);
 
             yield return new SetSagaIdFrame(sagaId, SagaType);
 

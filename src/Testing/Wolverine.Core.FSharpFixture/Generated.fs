@@ -11,6 +11,65 @@ open Wolverine.Runtime
 open Wolverine.Runtime.Handlers
 
 [<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
+type AddToTallyHandler652916779(inMemorySagaPersistor: Wolverine.Persistence.Sagas.InMemorySagaPersistor) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _inMemorySagaPersistor = inMemorySagaPersistor
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        task {
+            // The actual message body
+            let addToTally = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.AddToTally
+
+            // Application-specific Open Telemetry auditing
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("Id", addToTally.Id) |> ignore
+            if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("message.handler", "Wolverine.Core.FSharpContracts.TallySaga") |> ignore
+                (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("handler.type", "Wolverine.Core.FSharpContracts.TallySaga") |> ignore
+            let sagaId = if isNull addToTally.Id then context.Envelope.SagaId else addToTally.Id
+            if System.String.IsNullOrEmpty(sagaId) then
+                raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope, typeof<Wolverine.Core.FSharpContracts.TallySaga>, "Id"))
+            let tallySaga = _inMemorySagaPersistor.Load<Wolverine.Core.FSharpContracts.TallySaga>(sagaId)
+            if isNull (box tallySaga) then
+                // Create a new instance of the saga state
+                let tallySaga = Wolverine.Core.FSharpContracts.TallySaga()
+                context.SetSagaId(sagaId)
+                if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                    (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.id", sagaId.ToString()) |> ignore
+                    (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.TallySaga") |> ignore
+                
+                // The actual message execution
+                let outgoing1 = tallySaga.StartOrHandle(addToTally)
+
+                
+                // Outgoing, cascaded message
+                do! context.EnqueueCascadingAsync(outgoing1)
+
+                if not (tallySaga.IsCompleted()) then
+                    _inMemorySagaPersistor.Store<Wolverine.Core.FSharpContracts.TallySaga>(tallySaga)
+                // No unit of work
+            else
+                context.SetSagaId(sagaId)
+                if not (isNull (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope))) then
+                    (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.id", sagaId.ToString()) |> ignore
+                    (Wolverine.Runtime.WolverineTracing.MessageActivity(context.Envelope)).SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.TallySaga") |> ignore
+                
+                // The actual message execution
+                let outgoing1 = tallySaga.StartOrHandle(addToTally)
+
+                
+                // Outgoing, cascaded message
+                do! context.EnqueueCascadingAsync(outgoing1)
+
+                // Delete the saga if completed, otherwise update it
+                if tallySaga.IsCompleted() then
+                    _inMemorySagaPersistor.Delete<Wolverine.Core.FSharpContracts.TallySaga>(sagaId)
+                else
+                    _inMemorySagaPersistor.Store<Wolverine.Core.FSharpContracts.TallySaga>(tallySaga)
+                // No unit of work
+        }
+
+[<System.CodeDom.Compiler.GeneratedCode("JasperFx", "1.0.0")>]
 type CheckThingHandler649476295(loggerForMessage: Microsoft.Extensions.Logging.ILogger<Wolverine.Core.FSharpContracts.CheckThing>) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _loggerForMessage = loggerForMessage

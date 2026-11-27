@@ -50,3 +50,27 @@ type ThingSaga() =
 
     member this.Handle(_: ContinueThing) : unit =
         this.Count <- this.Count + 1
+
+// ── Cosmos saga started or continued by one message ─────────────────────────
+// StartOrHandle loads the saga like any other handler, and when there is none,
+// CreateMissingSagaFrame creates it before the same method runs. Deliberately NOT
+// [<AllowNullLiteral>]: the generated null guard boxes the loaded saga, so a plain
+// F# class works.
+
+/// Starts a TallySaga, or adds to the one already stored. TallySagaId names the saga.
+type AddToTally = { TallySagaId: string; Amount: int }
+
+/// Cascaded each time the tally changes.
+type TallyChanged = { TallyId: string; Total: int }
+
+type TallySaga() =
+    inherit Saga()
+    member val Id = "" with get, set
+    member val Total = 0 with get, set
+
+    member this.StartOrHandle(command: AddToTally) : TallyChanged =
+        if System.String.IsNullOrEmpty this.Id then
+            this.Id <- command.TallySagaId
+
+        this.Total <- this.Total + command.Amount
+        { TallyId = this.Id; Total = this.Total }

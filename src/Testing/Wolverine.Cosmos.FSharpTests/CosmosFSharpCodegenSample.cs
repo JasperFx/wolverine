@@ -60,6 +60,8 @@ public static class CosmosFSharpCodegenSample
                     // ThingSaga exercises LoadDocumentFrame.GenerateFSharpCode (GH-2969):
                     // its Handle chain loads the saga document from CosmosDB before calling the method.
                     opts.Discovery.IncludeType<ThingSaga>();
+                    // TallySaga's StartOrHandle renders CreateMissingSagaFrame with the Cosmos saga frames
+                    opts.Discovery.IncludeType<TallySaga>();
                 })
                 .Build();
 
@@ -78,13 +80,14 @@ public static class CosmosFSharpCodegenSample
                 .OrderBy(c => c.MessageType.Name)
                 .ToArray();
 
-            // Expect exactly 3 chains: CreateThing + ContinueThing + StartThingSaga.
+            // Expect exactly 4 chains: CreateThing + ContinueThing + StartThingSaga + AddToTally.
             // A wrong count means saga discovery for F# types broke (or IncludeType<ThingSaga>()
             // stopped resolving), which would silently drop LoadDocumentFrame coverage.
-            chains.Length.ShouldBe(3);
+            chains.Length.ShouldBe(4);
             handlerGraph.ChainFor(typeof(CreateThing)).ShouldNotBeNull();
             handlerGraph.ChainFor(typeof(ContinueThing)).ShouldNotBeNull();
             handlerGraph.ChainFor(typeof(StartThingSaga)).ShouldNotBeNull();
+            handlerGraph.ChainFor(typeof(AddToTally)).ShouldNotBeNull();
 
             foreach (var chain in chains)
             {
