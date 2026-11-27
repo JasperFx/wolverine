@@ -1,3 +1,6 @@
+using JasperFx;
+using JasperFx.CodeGeneration;
+using Wolverine.Middleware;
 using Microsoft.AspNetCore.Mvc;
 using Polecat.Exceptions;
 using Wolverine.Http.Runtime;
@@ -49,6 +52,32 @@ public static class PolecatWolverineHttpOptionsExtensions
         filter ??= ConflictMapping.IsTransactional;
 
         options.MapConcurrencyFailuresToConflict(filter, toProblemDetails);
-        options.AddMiddleware(typeof(PolecatStreamLockedMiddleware), filter);
+        options.Policies.Add(new PolecatStreamLockedMiddlewarePolicy(filter));
+    }
+}
+
+/// <summary>
+/// GH-5985. Applies a store's conflict middleware from an <see cref="IHttpPolicy" />, after the chain policies have
+/// settled <see cref="HttpChain.IsTransactional" />, as <see cref="ConflictProblemPolicy" /> does for the core
+/// mapping. An <c>AddMiddleware</c> filter runs before <c>AutoApplyTransactions</c> and missed the chains it makes
+/// transactional.
+/// </summary>
+internal class PolecatStreamLockedMiddlewarePolicy : IHttpPolicy
+{
+    private readonly Func<HttpChain, bool> _filter;
+
+    public PolecatStreamLockedMiddlewarePolicy(Func<HttpChain, bool> filter)
+    {
+        _filter = filter;
+    }
+
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        var matching = chains.Where(_filter).ToArray();
+        if (matching.Length == 0) return;
+
+        var middleware = new MiddlewarePolicy();
+        middleware.AddType(typeof(PolecatStreamLockedMiddleware));
+        middleware.Apply(matching, rules, container);
     }
 }

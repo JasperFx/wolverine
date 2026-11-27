@@ -250,6 +250,31 @@ conflict. It takes the same optional predicate `AddMiddleware` does if you want 
 opts.MapMartenConcurrencyFailuresToConflict(chain => chain.Method.HandlerType == typeof(OrderEndpoints));
 ```
 
+"Transactional" includes the chains a policy makes transactional, such as an endpoint that takes an
+`IDocumentSession` under `opts.Policies.AutoApplyTransactions()`. The mapping is applied after the chain policies
+have run, so its filter sees the same settled `chain.IsTransactional` as the OpenAPI metadata. <Badge type="tip" text="7.0" />
+
+::: warning
+A filter you pass to `AddMiddleware()` yourself still runs *before* the chain policies, so
+`chain => chain.IsTransactional` there misses the chains `AutoApplyTransactions()` makes transactional. To key your
+own middleware on that flag, apply it from an `IHttpPolicy`, which runs after the chain policies:
+
+```csharp
+public class MyMiddlewareOnTransactionalChains : IHttpPolicy
+{
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        var middleware = new MiddlewarePolicy();
+        middleware.AddType(typeof(MyMiddleware));
+        middleware.Apply(chains.Where(x => x.IsTransactional).ToArray(), rules, container);
+    }
+}
+
+// In MapWolverineEndpoints()
+opts.AddPolicy<MyMiddlewareOnTransactionalChains>();
+```
+:::
+
 By default `Detail` is the exception message, which carries stream or document ids and CLR type names. Pass a
 factory to shape the whole `ProblemDetails` yourself -- `Detail`, `Type`, extension members:
 
