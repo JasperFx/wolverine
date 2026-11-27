@@ -101,4 +101,17 @@ public class dataannotations_validation_middleware : IntegrationContext
         var problems = await results.ReadAsJsonAsync<HttpValidationProblemDetails>();
     }
 
+    [Fact]
+    public async Task validates_the_from_body_member_of_an_as_parameters_record()
+    {
+        var results = await Host.Scenario(x =>
+        {
+            x.Put.Json(new UpdateJobTitle(new string('x', 101))).ToUrl($"/validate/people/{Guid.NewGuid()}/job-title");
+            x.ContentTypeShouldBe("application/problem+json");
+            x.StatusCodeShouldBe(400);
+        });
+
+        var problems = await results.ReadAsJsonAsync<HttpValidationProblemDetails>();
+        problems.Errors.Keys.ShouldBe([nameof(UpdateJobTitle.JobTitle)]);
+    }
 }

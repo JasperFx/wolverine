@@ -9,6 +9,8 @@ using JasperFx.Core.TypeScanning;
 
 [assembly: InternalsVisibleTo("Wolverine.Http.AspVersioning")]
 [assembly: InternalsVisibleTo("Wolverine.Http.AspVersioning.Tests")]
+// GH-5970. The Fluent Validation policy reads an [AsParameters] body with HttpChain.TryFindAsParametersBody
+[assembly: InternalsVisibleTo("Wolverine.Http.FluentValidation")]
 
 [assembly: InternalsVisibleTo("Wolverine.Http.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.Http.FSharpTests")]
