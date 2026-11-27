@@ -59,7 +59,7 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
             if (chain.TryFindAsParametersBody(validatedType, out var body)) methodCall.TrySetArgument(body);
 
             var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
-            chain.Middleware.InsertRange(0, [methodCall, maybeResult]);
+            chain.Middleware.InsertRange(0, chain.NullGuardOptionalBody(methodCall, maybeResult));
         }
         else if (registered.Count() > 1)
         {
@@ -74,7 +74,7 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
             if (chain.TryFindAsParametersBody(validatedType, out var body)) methodCall.TrySetArgument(body);
 
             var maybeResult = new MaybeEndWithResultFrame(methodCall.ReturnVariable!);
-            chain.Middleware.InsertRange(0, [methodCall, maybeResult]);
+            chain.Middleware.InsertRange(0, chain.NullGuardOptionalBody(methodCall, maybeResult));
         }
     }
 }
