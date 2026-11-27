@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Events.Documents;
 using JasperFx.Events.InMemory;
@@ -25,6 +26,7 @@ public class agnostic_model_attributes : IAsyncLifetime
             {
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(RecordDepositHandler))
+                    .IncludeType(typeof(RecordDepositAtVersionHandler))
                     .IncludeType(typeof(RecordWithdrawalHandler))
                     .IncludeType(typeof(ReadAccountBalanceHandler));
             },
@@ -138,6 +140,40 @@ public class agnostic_model_attributes : IAsyncLifetime
 
         (await loadAccount(streamId)).Balance.ShouldBe(101m);
     }
+
+    [Fact]
+    public async Task an_expected_version_that_matches_appends()
+    {
+        var streamId = await givenAccount(100m);
+
+        await theHost.InvokeAsync(new RecordDepositAtVersion(streamId, 5m, 1));
+
+        (await loadAccount(streamId)).Balance.ShouldBe(105m);
+    }
+
+    [Fact]
+    public async Task an_expected_version_that_does_not_match_is_a_concurrency_failure()
+    {
+        var streamId = await givenAccount(100m);
+
+        await Should.ThrowAsync<ConcurrencyException>(() =>
+            theHost.InvokeAsync(new RecordDepositAtVersion(streamId, 5m, 4)));
+
+        (await loadAccount(streamId)).Balance.ShouldBe(100m);
+    }
+
+    [Fact]
+    public async Task an_expected_version_on_a_missing_stream_is_a_concurrency_failure()
+    {
+        // A message handler keeps the expected version in the load. Only an HTTP endpoint answers a missing stream first
+        var streamId = Guid.NewGuid();
+
+        await Should.ThrowAsync<ConcurrencyException>(() =>
+            theHost.InvokeAsync(new RecordDepositAtVersion(streamId, 5m, 3)));
+
+        await using var session = Sessions.QuerySession();
+        (await session.Events.FetchStreamStateAsync(streamId, TestContext.Current.CancellationToken)).ShouldBeNull();
+    }
 }
 
 public record AmountDeposited(decimal Amount);
@@ -147,6 +183,8 @@ public record AmountWithdrawn(decimal Amount);
 public record RecordDeposit(Guid AccountId, decimal Amount);
 
 public record RecordWithdrawal(Guid AccountId, decimal Amount);
+
+public record RecordDepositAtVersion(Guid AccountId, decimal Amount, long ExpectedVersion);
 
 public record ReadAccountBalance(Guid AccountId);
 
@@ -162,6 +200,13 @@ public class Account
 public static class RecordDepositHandler
 {
     public static AmountDeposited Handle(RecordDeposit command, [WriteModel] Account account)
+        => new(command.Amount);
+}
+
+public static class RecordDepositAtVersionHandler
+{
+    public static AmountDeposited Handle(RecordDepositAtVersion command,
+        [WriteModel(VersionSource = nameof(RecordDepositAtVersion.ExpectedVersion))] Account account)
         => new(command.Amount);
 }
 

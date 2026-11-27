@@ -17,7 +17,9 @@ namespace Wolverine.Persistence.EventSourcing;
 /// <param name="Version">
 ///     The expected stream version for an optimistic concurrency check, when one was found. Null means
 ///     "no version check", and is always null when <paramref name="LoadStyle" /> is
-///     <see cref="ModelConcurrencyStyle.Exclusive" />.
+///     <see cref="ModelConcurrencyStyle.Exclusive" />. On an HTTP endpoint the aggregate handler workflow passes null and
+///     checks the version itself after its missing aggregate handling, with <see cref="ExpectedStreamVersion" />, so
+///     that a stream that does not exist answers 404 rather than a concurrency failure.
 /// </param>
 /// <param name="AlwaysEnforceConsistency">
 ///     Enforce the optimistic concurrency check at commit even when the handler appended no events.
