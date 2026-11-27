@@ -219,8 +219,8 @@ public static class ConcurrencyEndpoints
     [WolverinePost("/seatholds/{fromId}/{toId}/move-at/{fromVersion}/{toVersion}")]
     [EmptyResponse]
     public static void MoveAtVersions(
-        [WriteAggregate("fromId", VersionSource = "fromVersion")] IEventStream<SeatHold> from,
-        [WriteAggregate("toId", VersionSource = "toVersion")] IEventStream<SeatHold> to)
+        [WriteAggregate("fromId", VersionSource = "fromVersion")] JasperFx.Events.IEventStream<SeatHold> from,
+        [WriteAggregate("toId", VersionSource = "toVersion")] JasperFx.Events.IEventStream<SeatHold> to)
     {
         to.AppendOne(new SeatHoldConfirmed());
     }
