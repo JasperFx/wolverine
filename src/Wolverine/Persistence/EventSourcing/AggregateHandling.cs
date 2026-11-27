@@ -107,6 +107,16 @@ internal record AggregateHandling(IDataRequirement Requirement)
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain, Provider);
         var aggregate = RelayAggregateToHandlerMethod(eventStream, chain, firstCall, AggregateType);
 
+        if (chain is IRoutedChain)
+        {
+            // GH-5983. The version checks of the aggregates loaded before this one move after its missing aggregate
+            // handling too, so on an endpoint with several aggregates a missing one answers 404 before a stale one
+            // answers as a concurrency failure, whichever of them comes first
+            var earlierChecks = chain.Middleware.OfType<ExpectedVersionCheckFrame>().ToArray();
+            foreach (var check in earlierChecks) chain.Middleware.Remove(check);
+            chain.Middleware.AddRange(earlierChecks);
+        }
+
         if (checkVersionAfterMissingAggregate)
         {
             chain.Middleware.Add(new ExpectedVersionCheckFrame(eventStream, expectedVersion!));

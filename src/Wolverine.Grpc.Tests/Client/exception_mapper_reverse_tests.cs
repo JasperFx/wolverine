@@ -21,6 +21,7 @@ public class exception_mapper_reverse_tests
     [InlineData(StatusCode.Unauthenticated, typeof(UnauthorizedAccessException))]
     [InlineData(StatusCode.FailedPrecondition, typeof(InvalidOperationException))]
     [InlineData(StatusCode.Unimplemented, typeof(NotImplementedException))]
+    [InlineData(StatusCode.Aborted, typeof(JasperFx.ConcurrencyException))]
     public void known_status_codes_map_to_idiomatic_net_exception_types(
         StatusCode statusCode,
         Type expectedType)

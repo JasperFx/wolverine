@@ -158,6 +158,7 @@ code and substitutes a typed .NET exception using the inverse of the server-side
 | `NotFound`                                 | `KeyNotFoundException`               |
 | `PermissionDenied`, `Unauthenticated`      | `UnauthorizedAccessException`        |
 | `FailedPrecondition`                       | `InvalidOperationException`          |
+| `Aborted`                                  | `JasperFx.ConcurrencyException` <Badge type="tip" text="7.0" /> |
 | `Unimplemented`                            | `NotImplementedException`            |
 | *anything else* (`Internal`, `Unknown`, …) | *original `RpcException`, unchanged* |
 
