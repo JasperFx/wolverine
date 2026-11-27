@@ -1,3 +1,6 @@
+using JasperFx;
+using JasperFx.CodeGeneration;
+using Wolverine.Middleware;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http.Runtime;
 
@@ -38,7 +41,7 @@ public static class WolverineHttpOptionsExtensions
         filter ??= ConflictMapping.IsTransactional;
 
         options.MapConcurrencyFailuresToConflict(filter, toProblemDetails);
-        options.AddMiddleware(typeof(MartenStreamLockedMiddleware), filter);
+        options.Policies.Add(new MartenStreamLockedMiddlewarePolicy(filter));
     }
 
     /// <summary>
@@ -49,5 +52,31 @@ public static class WolverineHttpOptionsExtensions
         string responseType = "application/json", int successStatusCode = 200)
     {
         options.AddResourceWriterPolicy(new CompiledQueryWriterPolicy(responseType, successStatusCode));
+    }
+}
+
+/// <summary>
+/// GH-5985. Applies a store's conflict middleware from an <see cref="IHttpPolicy" />, after the chain policies have
+/// settled <see cref="HttpChain.IsTransactional" />, as <see cref="ConflictProblemPolicy" /> does for the core
+/// mapping. An <c>AddMiddleware</c> filter runs before <c>AutoApplyTransactions</c> and missed the chains it makes
+/// transactional.
+/// </summary>
+internal class MartenStreamLockedMiddlewarePolicy : IHttpPolicy
+{
+    private readonly Func<HttpChain, bool> _filter;
+
+    public MartenStreamLockedMiddlewarePolicy(Func<HttpChain, bool> filter)
+    {
+        _filter = filter;
+    }
+
+    public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        var matching = chains.Where(_filter).ToArray();
+        if (matching.Length == 0) return;
+
+        var middleware = new MiddlewarePolicy();
+        middleware.AddType(typeof(MartenStreamLockedMiddleware));
+        middleware.Apply(matching, rules, container);
     }
 }
