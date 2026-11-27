@@ -2,6 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using Alba;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.FluentValidation;
 using Wolverine.Http.FluentValidation;
@@ -128,6 +130,55 @@ public class validation_of_a_null_body : IAsyncLifetime
             x.StatusCodeShouldBe(400);
         });
     }
+
+    // GH-5973 with GH-5970: the guard tests the [AsParameters] object's body member, command.Body
+    [Theory]
+    [InlineData("/null-body/as-parameters/fluent")]
+    [InlineData("/null-body/as-parameters/data-annotations")]
+    public async Task an_absent_optional_as_parameters_body_skips_validation(string url)
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Url($"{url}/{Guid.NewGuid()}");
+            x.ConfigureHttpContext(c => c.Request.ContentLength = 0);
+            x.StatusCodeShouldBe(204);
+        });
+    }
+
+    [Theory]
+    [InlineData("/null-body/as-parameters/fluent")]
+    [InlineData("/null-body/as-parameters/data-annotations")]
+    public async Task a_json_null_optional_as_parameters_body_skips_validation(string url)
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Text("null").ToUrl($"{url}/{Guid.NewGuid()}");
+            x.ConfigureHttpContext(c => c.Request.ContentType = "application/json");
+            x.StatusCodeShouldBe(204);
+        });
+    }
+
+    [Fact]
+    public async Task an_invalid_optional_as_parameters_body_is_still_a_validation_problem_with_fluent_validation()
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new FluentValidatedPayload(default)).ToUrl($"/null-body/as-parameters/fluent/{Guid.NewGuid()}");
+            x.ContentTypeShouldBe("application/problem+json");
+            x.StatusCodeShouldBe(400);
+        });
+    }
+
+    [Fact]
+    public async Task an_invalid_optional_as_parameters_body_is_still_a_validation_problem_with_data_annotations()
+    {
+        await theHost.Scenario(x =>
+        {
+            x.Post.Json(new AnnotatedPayload(null!)).ToUrl($"/null-body/as-parameters/data-annotations/{Guid.NewGuid()}");
+            x.ContentTypeShouldBe("application/problem+json");
+            x.StatusCodeShouldBe(400);
+        });
+    }
 }
 
 public record FluentValidatedPayload(DateTimeOffset At);
@@ -164,4 +215,15 @@ public static class NullBodyValidationEndpoints
 
     [WolverinePost("/null-body/fluent/required"), EmptyResponse]
     public static void PostRequired(FluentValidatedPayload body) { }
+
+    [WolverinePost("/null-body/as-parameters/fluent/{id:guid}"), EmptyResponse]
+    public static void PostAsParametersFluent([AsParameters] OptionalFluentBodyRequest request) { }
+
+    [WolverinePost("/null-body/as-parameters/data-annotations/{id:guid}"), EmptyResponse]
+    public static void PostAsParametersAnnotated([AsParameters] OptionalAnnotatedBodyRequest request) { }
 }
+
+public record OptionalFluentBodyRequest([FromRoute] Guid Id, [FromBody] FluentValidatedPayload? Body);
+
+public record OptionalAnnotatedBodyRequest([FromRoute] Guid Id, [FromBody] AnnotatedPayload? Body);
+
