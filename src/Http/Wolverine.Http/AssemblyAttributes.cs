@@ -9,7 +9,8 @@ using JasperFx.Core.TypeScanning;
 
 [assembly: InternalsVisibleTo("Wolverine.Http.AspVersioning")]
 [assembly: InternalsVisibleTo("Wolverine.Http.AspVersioning.Tests")]
-// GH-5970. The Fluent Validation policy reads an [AsParameters] body with HttpChain.TryFindAsParametersBody
+// GH-5970 / GH-5973. The Fluent Validation policy reads an [AsParameters] body with
+// HttpChain.TryFindAsParametersBody and guards a null optional body with HttpChain.NullGuardOptionalBody
 [assembly: InternalsVisibleTo("Wolverine.Http.FluentValidation")]
 
 [assembly: InternalsVisibleTo("Wolverine.Http.Tests")]
@@ -27,6 +28,4 @@ using JasperFx.Core.TypeScanning;
 // only acknowledges the System.Text.Json default. The grant is intentional
 // and scoped to this one consumer.
 [assembly: InternalsVisibleTo("Wolverine.Http.Newtonsoft")]
-// GH-5973. WolverineFx.Http.FluentValidation guards its middleware against a null optional body
-[assembly: InternalsVisibleTo("Wolverine.Http.FluentValidation")]
 [assembly: IgnoreAssembly]
