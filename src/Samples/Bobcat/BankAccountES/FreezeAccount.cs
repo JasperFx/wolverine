@@ -29,12 +29,6 @@ public record FreezeAccount(Guid AccountId, string Reason)
 }
 
 /// <summary>
-/// The one message-handled slice in the sample — the fraud desk freezes an account over the bus
-/// rather than over HTTP, which is what lets the spec's <c>WhenReceived(new FreezeAccount(…))</c>
-/// hand it to the Wolverine bus. Same store-agnostic decider shape
-/// as the HTTP endpoints: load the <see cref="Account"/>, return the events to append.
-/// </summary>
-/// <summary>
 /// ⚠️ The RUNTIME plant for the vehicle's fourth rung (bobcat#172): the audit note is appended
 /// IMPERATIVELY, through the session, inside the handler body — the documented case chain
 /// derivation cannot see. Derived claims this slice emits [AccountFrozen, AccountFlagged];
@@ -45,6 +39,16 @@ public record FreezeAccount(Guid AccountId, string Reason)
 /// </summary>
 public record AuditTrailNoted(Guid AccountId, string Entry);
 
+/// <summary>
+/// The one message-handled slice in the sample — the fraud desk freezes an account over the bus
+/// rather than over HTTP, which is what lets the spec's <c>WhenReceived(new FreezeAccount(…))</c>
+/// hand it to the Wolverine bus. Same store-agnostic decider shape
+/// as the HTTP endpoints: load the <see cref="Account"/>, return the events to append.
+/// </summary>
+/// <remarks>
+/// wolverine#6005: this comment is also the slice's description in the derived Event Model, read from the
+/// documentation file beside the assembly -- which is why it sits on the handler and not on the event above.
+/// </remarks>
 public static class FreezeAccountHandler
 {
     [DeciderFunction]

@@ -54,10 +54,15 @@ public sealed class DiscoveredEventModelDefinitions : IEventModelDefinitionSourc
             .ToHashSet();
 
         var definitions = new List<EventModelDescriptor>();
+        var shapes = ShapesByDefinition(options);
         foreach (var type in DefinitionTypes(options, logger))
         {
             var source = EventModelDefinitionSource.For(type);
             if (registered.Contains(source.Subject)) continue;
+
+            // GH-6005 (jasperfx#1299): the field shapes the source generator wrote for the types this definition
+            // names ride along on the Derived rung -- the AOT path, where nothing reflects over a record
+            if (shapes.TryGetValue(type, out var generated)) source.WithShapes(generated);
 
             var descriptor = await source.TryCreateAsync(services, token).ConfigureAwait(false);
             if (descriptor is not null) definitions.Add(descriptor);
@@ -75,6 +80,33 @@ public sealed class DiscoveredEventModelDefinitions : IEventModelDefinitionSourc
         }
 
         return merged.FirstOrDefault(x => x.Name == application);
+    }
+
+    /// <summary>
+    ///     GH-6005 (jasperfx#1299). The field shapes each assembly's generated manifest derived, keyed by the
+    ///     definition type that names the shaped types. Empty for a manifest written by a generator that predates
+    ///     shapes, which has no <c>Shapes</c> member.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Reads the generated JasperFx.Generated.DiscoveredEventModels type by name; when trimmed away the lookup degrades to 'no shapes'.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Shapes is a generated public static property of the manifest type.")]
+    public static IReadOnlyDictionary<Type, IReadOnlyList<TypeShapeDescriptor>> ShapesByDefinition(WolverineOptions options)
+    {
+        var shapes = new Dictionary<Type, IReadOnlyList<TypeShapeDescriptor>>();
+        foreach (var assembly in new[] { options.ApplicationAssembly }.Concat(options.Assemblies).OfType<Assembly>().Distinct())
+        {
+            var manifest = assembly.GetType(ManifestTypeName);
+            if (manifest?.GetProperty("Shapes", BindingFlags.Public | BindingFlags.Static)?.GetValue(null)
+                    is not IReadOnlyDictionary<Type, IReadOnlyList<TypeShapeDescriptor>> listed)
+            {
+                continue;
+            }
+
+            foreach (var (definition, generated) in listed) shapes.TryAdd(definition, generated);
+        }
+
+        return shapes;
     }
 
     /// <summary>The definition types every assembly Wolverine scans lists in its generated manifest.</summary>

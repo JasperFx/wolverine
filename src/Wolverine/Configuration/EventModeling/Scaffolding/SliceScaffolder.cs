@@ -129,6 +129,13 @@ public static class ScaffoldNoticeCodes
     ///     the event belongs to, so no Apply methods were planned for those events.
     /// </summary>
     public const string EmittedEventStreamAmbiguous = "emitted-event-stream-ambiguous";
+
+    /// <summary>
+    ///     GH-6006. The handler skeleton carries one guard per refusal the slice declares with <c>Refuses("...")</c>
+    ///     (jasperfx#1297), each refusing with its message in place -- a <c>ProblemDetails</c> for an HTTP
+    ///     endpoint, a thrown exception for a message handler -- and the rule behind each left as a TODO.
+    /// </summary>
+    public const string RefusalGuards = "refusal-guards";
 }
 
 /// <summary>One line of the scaffold report.</summary>
@@ -286,7 +293,8 @@ public sealed class SliceScaffoldOptions
 ///         <c>.StartsStream&lt;T&gt;()</c>; an aggregate is a non-nullable <c>[WriteModel]</c> because the
 ///         slice declares <c>.Against&lt;T&gt;()</c>; and a slice whose trigger neither the declaration nor
 ///         the code reveals is reported as <see cref="ScaffoldNoticeKind.UnknownTrigger" /> rather than
-///         guessed. Guard reasons live in the specifications and are not scaffolded.
+///         guessed. A guard is written only for a refusal the slice declares with <c>Refuses("...")</c>
+///         (GH-6006): the message in place, the rule a TODO; nothing is read out of a specification.
 ///     </para>
 ///     <para>
 ///         <b>A hole in the behaviour, never in the syntax.</b> Each method body says the shape to fill in
@@ -1622,6 +1630,14 @@ public static class SliceScaffolder
                 };
 
 
+                // GH-6006 (jasperfx#1297): one guard per refusal the slice declares with Refuses("..."), the message
+                // in place, so a specification's ThenRefusedWith("...") has something to bind to on day one. The
+                // RULE behind each guard is the one thing the model cannot say, so it is a TODO.
+                var refusals = slice.RejectionReasons.Count > 0 &&
+                               (http || (slice.CommandType is { } guarded && EventModelSliceDescriptor.SameType(guarded, trigger)))
+                    ? slice.RejectionReasons
+                    : Array.Empty<string>();
+
                 if (http)
                 {
                     file.Namespaces.Add("Microsoft.AspNetCore.Mvc");
@@ -1632,7 +1648,16 @@ public static class SliceScaffolder
                         : new List<string> { $"{triggerName} {triggerArgument}", $"{aggregateName} {aggregateArgument}" };
 
                     writer.Write(signature("public static ProblemDetails Validate", validateParameters));
-                    writer.WriteLine("// TODO: the guards your specifications describe. Return a ProblemDetails to refuse the request.");
+                    if (refusals.Count > 0)
+                    {
+                        // An HTTP endpoint refuses with a ProblemDetails, which is what the spec reads the message from
+                        writeRefusalGuards(writer, refusals, reason => $"return new ProblemDetails {{ Detail = {literal(reason)}, Status = 400 }};");
+                    }
+                    else
+                    {
+                        writer.WriteLine("// TODO: the guards your specifications describe. Return a ProblemDetails to refuse the request.");
+                    }
+
                     writer.WriteLine("return WolverineContinue.NoProblems;");
                     writer.FinishBlock();
                     writer.BlankLine();
@@ -1669,6 +1694,13 @@ public static class SliceScaffolder
                 }
 
                 writer.Write(signature($"public static {returnType} {(http ? "Post" : "Handle")}", parameters));
+                if (!http && refusals.Count > 0)
+                {
+                    // A message handler refuses by throwing: ThenRefusedWith("...") binds to the exception's message
+                    writeRefusalGuards(writer, refusals, reason => $"throw new InvalidOperationException({literal(reason)});");
+                    writer.BlankLine();
+                }
+
                 writer.WriteLine("// Fill this in and delete the throw -- the shape is:");
                 foreach (var line in shape)
                 {
@@ -1677,6 +1709,14 @@ public static class SliceScaffolder
 
                 writer.WriteLine($"throw new NotImplementedException(\"TODO: {slice.Name}\");");
                 writer.FinishBlock();
+
+                if (refusals.Count > 0)
+                {
+                    Notices.Add(notice(ScaffoldNoticeCodes.RefusalGuards, ScaffoldNoticeKind.Wrote, slice.Name,
+                        $"{refusals.Count} guard(s) written for the declared refusals {string.Join(", ", refusals.Select(x => $"\"{x}\""))} -- " +
+                        $"each refuses with its message in place{(http ? " as a ProblemDetails" : " by throwing")}; the rule behind each is a TODO.",
+                        path));
+                }
             }
 
             writer.FinishBlock();
@@ -1950,6 +1990,44 @@ public static class SliceScaffolder
             var argument = char.ToLowerInvariant(name[0]) + name[1..];
             return SyntaxFacts.IsKeyword(argument) ? "@" + argument : argument;
         }
+
+        /// <summary>
+        ///     GH-6006. One guard per declared refusal: a local whose name is the reason in camelCase, false until
+        ///     the rule replaces it (a variable rather than a constant, so the compiler does not report the refusal
+        ///     as unreachable), and the refusal <paramref name="refuse" /> renders when it is true.
+        /// </summary>
+        private static void writeRefusalGuards(SourceWriter writer, IReadOnlyList<string> reasons, Func<string, string> refuse)
+        {
+            writer.WriteLine("// One guard per refusal the Event Model declares with Refuses(\"...\"). Replace each `false`");
+            writer.WriteLine("// with the rule; the message is the one the specifications bind to.");
+            var used = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var reason in reasons)
+            {
+                var guard = guardIdentifierFor(reason, used);
+                writer.WriteLine($"var {guard} = false;   // TODO: when is {literal(reason)} true?");
+                writer.WriteLine($"if ({guard}) {refuse(reason)}");
+            }
+        }
+
+        /// <summary>A C# identifier for a refusal reason: <c>"Course is full"</c> becomes <c>courseIsFull</c>, unique within one method.</summary>
+        private static string guardIdentifierFor(string reason, HashSet<string> used)
+        {
+            var words = Regex.Split(reason, @"[^\p{L}\p{Nd}]+").Where(x => x.Length > 0).ToArray();
+            var identifier = string.Concat(words.Select((word, index) => index == 0
+                ? char.ToLowerInvariant(word[0]) + word[1..]
+                : char.ToUpperInvariant(word[0]) + word[1..]));
+
+            if (identifier.Length == 0 || char.IsDigit(identifier[0])) identifier = "refusal" + identifier;
+            if (SyntaxFacts.IsKeyword(identifier)) identifier = "@" + identifier;
+
+            var candidate = identifier;
+            for (var i = 2; !used.Add(candidate); i++) candidate = identifier + i;
+            return candidate;
+        }
+
+        /// <summary>A reason as a C# string literal.</summary>
+        private static string literal(string text)
+            => "\"" + text.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
 
         /// <summary>One file: its usings, the stub records for name-only types it is first to need, and its body.</summary>
         private sealed class SliceFile

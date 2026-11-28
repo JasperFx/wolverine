@@ -5,6 +5,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- wolverine#6005: the derived Event Model reads each handler's and type's <summary> from the XML
+         documentation file beside the assembly, so the sample writes one. CS1591 (a public member with no
+         comment) stays quiet: the sample documents what the model should describe, not everything. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -367,6 +367,55 @@ dotnet run -- describe-event-model --hotspots-only > open-questions.txt
 See [Hotspots](https://shared-libs.jasperfx.net/event-modeling/hotspots) in the JasperFx documentation for what each
 kind of hotspot means.
 
+### What the derived model says about a slice <Badge type="tip" text="7.0" />
+
+Beside the roles above, Wolverine fills the Event Model's round-two roles (JasperFx 3.17: jasperfx#1297, #1298
+and #1299) from facts the running application already has. Nothing is read out of a method body: every fact below
+comes from a registration, an attribute, a signature, a return type or an XML documentation comment.
+
+| Role | Where it comes from |
+| --- | --- |
+| The tag catalogue (`Tags`) | the event store's registered tag types -- `opts.Events.RegisterTagType<CourseId>()` -- named `courseId` for `CourseId`, with the primitive inside each |
+| The tags an event carries (`EventTags`) | the registered tag types the event has exactly one public property of, which is the rule the store applies when it writes the event |
+| What a command reads (`Reads`) and the boundary query | for a handler with a `Load()` / `Before()` method returning an `EventTagQuery`: the `[DcbModel]` model (else the aggregate a `[DeciderFunction]` folds), read by every tag the command carries as a member, plus every registry tag bound to the model with `ForAggregate<T>()`. The query is computed from the reads and the event tags; the body of `Load()` is never read. A host described without its store reads by the command's strong-typed identifiers instead |
+| Rejection reasons | **never derived.** Which guard refuses with what message is in the method body; the Specified rung (Bobcat) and the declaration fill it |
+| `Schedule` | `opts.Schedules.ScheduleRecurring<T>(cron)` makes `T`'s slice a cron schedule; a slice whose command another slice returns as a `ScheduledMessage<T>` or a `TimeoutMessage` is `scheduled by` that producer |
+| `Actor` | the roles an HTTP endpoint requires through `[Authorize(Roles = "...")]`, on the method or its class; an `[AllowAnonymous]` endpoint requires none. The derived actor is named by its roles, and takes the name a declaration gave the same slice before the two merge, so agreeing roles raise no finding and differing roles do |
+| `ExternalEvents` | a message that arrives on a listener outside this process (not the local transport) and that no slice in the model emits or publishes comes from the system the listener names with `.ExternalSystem("...")`, else from the listener itself |
+| `Description` | the `<summary>` of the handler (else its method) from the XML documentation file beside the assembly; each command, event, aggregate and read model's own `<summary>` becomes its element description. Turn `GenerateDocumentationFile` on for the application project, or there is nothing to read |
+| `Shapes` (fields) | reflected at describe time from every type the slices name: public properties and fields, base type first, `Nullable<T>` and a nullable annotation as optional (`[Required]` or `required` takes that back), arrays and `IEnumerable<T>` as many, `[Identity]`, `[Key]`, a member named `Id` or `{Type}Id` as the identity, a member of a registered tag type as that tag, `[JasperFx.Generated]` and `[JasperFx.Pii]` as the flags. Under Native AOT nothing is reflected; the shapes `JasperFx.SourceGenerator` wrote into the event-model manifest are attached instead |
+
+A declared field the code lacks is a disagreement once the type exists; a field the code has and the declaration
+does not is not (jasperfx#1299's rule). A `ScheduledMessage<T>` or `TimeoutMessage` a handler returns is also reported as
+a message the slice publishes, which it was not before.
+
+<!-- JEREMY: the derived actor's name. The code only knows the roles, so the actor is named "claims-adjuster" until
+     the merge, where it takes the declared persona's name ("Adjuster") when one exists -- is that the rule you
+     want, or should a derived actor carry no name at all? -->
+
+`describe-event-model` prints these as facts under each slice, in this order where a slice has them:
+
+```
+ChangeCourseCapacity  [Command]  <- Human via Http "Registrar changes the capacity"  (derived)
+  description: Changes how many students a course can take.
+  actor: Registrar [registrar]
+  command: ChangeCourseCapacity
+  decider: CourseState (DCB)
+  emits: CourseCapacityChanged
+  tags: CourseCapacityChanged [courseId]
+  boundary reads: CourseState (model) by courseId from CourseId
+  boundary query: courseId: CourseCreated, CourseCapacityChanged
+  refuses: "Capacity cannot be negative"; "Course is full"
+  handled by: ChangeCourseCapacityHandler.Handle
+  fields of ChangeCourseCapacity: CourseId: CourseId (tag courseId), Capacity: Int32
+  fields of CourseCapacityChanged: CourseId: CourseId (tag courseId), Capacity: Int32
+```
+
+`schedule:` shows a cron expression, an interval or the producer of a scheduled message; `external event:` names the
+event and the system it comes from; `untagged:` lists the projections a declaration marked as read without a tag.
+The boundary query folds in the events each read model applies (`Apply` methods), so it is the query the store
+would run, not only the slice's own append condition.
+
 Every `EventModelDefinition` subclass in the application's assemblies is registered for you (GH-4916), from the
 manifest JasperFx's source generator writes at compile time, so one definition per chapter needs no
 `AddEventModel<T>()` each. Definitions with no `Name` join the application's model. A definition you register
@@ -765,9 +814,14 @@ style, so the same code runs on the in-memory prototyping store, Marten, Polecat
 | any other role declared **by name** | a `public record` stub to give fields |
 | `--strong-typed-ids`, or `model.Aggregate<T>().IdentifiedBy<TId>()` | a `public readonly record struct TId(Guid Value) : IParsable<TId>` with a `System.Text.Json` converter that writes the bare Guid, threaded through the aggregate's `Id`, its commands, stream starts and queries; a declared identity wins over the flag, an aggregate class that already exists keeps its own `Id` (with a notice), and a `string` identity is a natural key the command carries |
 | a command or event declared **by name** | a command stub carries the stream it identifies as `Id`, or `{Aggregate}Id` each when it identifies several; an event carries ids only in a multi-stream or DCB slice |
+| `.Refuses("Course is full")` <Badge type="tip" text="7.0" /> | one guard per reason in the handler skeleton, the message in place: in an HTTP endpoint's `Validate`, `if (courseIsFull) return new ProblemDetails { Detail = "Course is full", Status = 400 };`; in a message handler's `Handle`, `if (courseIsFull) throw new InvalidOperationException("Course is full");`. Each `courseIsFull` is a local set to `false` with a TODO, because the rule is the one thing the model cannot say |
 
 Method bodies describe the shape to fill in and throw `NotImplementedException`, so a slice nobody has filled in yet
-never stops the rest of the application compiling. Guard reasons live in your specifications and are not scaffolded.
+never stops the rest of the application compiling. A guard is written only for a refusal the slice declares with
+`Refuses("...")` (GH-6006): the generated specification's `ThenRefusedWith("Course is full")` then binds to the
+`ProblemDetails` detail or the exception message on day one, and you replace the `false` with the rule. Guards go only
+into a skeleton the command writes; an existing handler is never touched, and the `refusal-guards` notice says how
+many were written and for which reasons.
 
 The command **never overwrites a file**. An implemented slice is not declared-only, so running it again is a no-op,
 and a file that already exists is reported and left alone. The report is one line per slice, written to be acted on
@@ -775,6 +829,7 @@ by a person or an agent:
 
 ```
 WROTE Features/Scheduling/ConfirmAppointment.cs -- ConfirmAppointment: scaffolded.
+WROTE Features/Scheduling/ConfirmAppointment.cs -- ConfirmAppointment: 1 guard(s) written for the declared refusals "Appointment is already confirmed" -- each refuses with its message in place as a ProblemDetails; the rule behind each is a TODO.
 EDIT src/Domain/Appointment.cs -- MyApp.Appointment (aggregate): the aggregate already exists, so it was not rewritten. Add these methods to it by hand: public void Apply(AppointmentConfirmed e).
 UNKNOWN BookAppointment: trigger Unknown -- no HTTP endpoint, message handler or gRPC service handles BookAppointmentRequest yet, and the declaration does not say which it will be. Declare .TriggeredBy(TriggerKind.Http) or .TriggeredBy(TriggerKind.MessageHandler) and run the scaffold again.
 ```

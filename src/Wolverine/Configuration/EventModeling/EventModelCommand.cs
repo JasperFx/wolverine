@@ -86,7 +86,7 @@ public static class WolverineEventModelExport
         string? serviceName = null, CancellationToken token = default)
     {
         var discovered = await EventModelDiscovery.DiscoverAsync(services, token).ConfigureAwait(false);
-        var aligned = EventModelSliceAlignment.AlignSliceNames(discovered);
+        var aligned = EventModelSliceAlignment.AlignActorNames(EventModelSliceAlignment.AlignSliceNames(discovered));
         var name = serviceName ?? services.GetService<WolverineOptions>()?.ServiceName ?? "Wolverine";
 
         return EventModelSetDescriptor.For(name, aligned);

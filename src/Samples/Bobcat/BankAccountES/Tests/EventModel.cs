@@ -205,6 +205,22 @@ public class EventModel(BankAccountHost app)
     }
 
     /// <summary>
+    /// wolverine#6005: two round-two roles the code fills on its own. The handler's XML documentation comment is the
+    /// slice's description, and the record types' fields are the model's shapes -- so a board imported over these
+    /// types has something to agree or disagree with, field by field.
+    /// </summary>
+    [BobcatSpec]
+    public async Task descriptions_and_fields_come_from_the_code()
+    {
+        await _model.AssembleEventModel();
+
+        _model.TheSliceIsDescribedAs("FreezeAccount", "The one message-handled slice in the sample");
+        _model.TheTypeHasTheFields("FreezeAccount", "AccountId, Reason");
+        _model.TheTypeHasTheFieldsIdentifiedBy("Account", "Id, ClientId, Currency, Balance, IsFrozen", "Id");
+        _model.TheTypeHasTheFields("FundsWithdrawn", "AccountId, Amount, NewBalance");
+    }
+
+    /// <summary>
     /// wolverine#6007: the same assembled model as a Mermaid <c>eventmodeling</c> diagram. The overlay's trigger
     /// labels become <c>ui</c> frames, the store's views point back at the command frames that emit what they
     /// fold, the specs' identities become <c>gwt</c> blocks, and the text is what the grammar takes.

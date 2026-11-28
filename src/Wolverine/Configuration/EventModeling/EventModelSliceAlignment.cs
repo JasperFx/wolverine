@@ -81,6 +81,58 @@ public static class EventModelSliceAlignment
         return changed ? current : descriptors;
     }
 
+    /// <summary>
+    ///     GH-6005 (jasperfx#1298). Give a derived slice's <see cref="ActorDescriptor" /> the name a lower rung
+    ///     declared for the same slice, keeping the derived roles. The code knows the roles an endpoint requires
+    ///     (<c>[Authorize(Roles = "dispatch")]</c>) and nothing about the persona ("Coordinator"), so the derived
+    ///     source names the actor by its roles; left there, the merge compared "dispatch [dispatch]" with
+    ///     "Coordinator [dispatch]" and reported a disagreement about a name nobody disputed. With the name
+    ///     aligned, the merge compares the roles -- which is the finding the role exists for.
+    /// </summary>
+    /// <remarks>
+    ///     Run after <see cref="AlignSliceNames" />, so the slices are matched by their final names. Only an actor
+    ///     on a higher rung takes a lower rung's name; two declarations are left to the merge.
+    /// </remarks>
+    public static IReadOnlyList<EventModelDescriptor> AlignActorNames(IReadOnlyList<EventModelDescriptor> descriptors)
+    {
+        if (descriptors.Count < 2) return descriptors;
+
+        var current = descriptors.ToArray();
+        var changed = false;
+
+        for (var i = 0; i < current.Length; i++)
+        {
+            var slices = current[i].Slices.ToList();
+            var touched = false;
+
+            for (var j = 0; j < slices.Count; j++)
+            {
+                var slice = slices[j];
+                if (slice.Actor is not { } actor) continue;
+                var rung = slice.Provenance ?? EventModelProvenance.Declared;
+
+                var declared = current
+                    .Where((_, index) => index != i)
+                    .SelectMany(x => x.Slices)
+                    .Where(x => string.Equals(x.Name, slice.Name, StringComparison.Ordinal) && x.Actor is not null)
+                    .Where(x => rung.Outranks(x.Provenance ?? EventModelProvenance.Declared))
+                    .Select(x => x.Actor!)
+                    .FirstOrDefault(x => !string.Equals(x.Name, actor.Name, StringComparison.Ordinal));
+
+                if (declared is null) continue;
+
+                slices[j] = slice with { Actor = new ActorDescriptor(declared.Name, actor.RequiredRoles) };
+                touched = true;
+            }
+
+            if (!touched) continue;
+            current[i] = current[i] with { Slices = slices };
+            changed = true;
+        }
+
+        return changed ? current : descriptors;
+    }
+
     /// <summary>What two slices on different rungs can agree on, most specific first.</summary>
     private static readonly Func<EventModelSliceDescriptor, JoinKey?>[] Joins =
     {

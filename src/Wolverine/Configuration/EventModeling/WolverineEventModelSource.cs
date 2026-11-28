@@ -1,8 +1,10 @@
+using JasperFx.Core;
 using JasperFx.Events.EventModeling;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Transports;
 
 namespace Wolverine.Configuration.EventModeling;
 
@@ -63,7 +65,8 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         // GH-4829: the domain policies the declared models carry decide each slice's Domain
         var domains = await EventModelSliceDomains.DeclaredAssignmentsAsync(services, token).ConfigureAwait(false);
 
-        return Describe(options, services.GetService<IGrpcEndpointManifest>(), domains);
+        // GH-6005: the store's tag registry, and reflection where the runtime can do it
+        return Describe(options, services.GetService<IGrpcEndpointManifest>(), domains, EventModelDerivation.For(services));
     }
 
     /// <summary>
@@ -91,14 +94,29 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     /// <param name="domains">The domain policies of the application's declared Event Models; see <see cref="EventModelSliceDomains.DeclaredAssignmentsAsync" />.</param>
     public static EventModelDescriptor Describe(WolverineOptions options, IGrpcEndpointManifest? grpc,
         IReadOnlyList<DomainAssignmentDescriptor> domains)
+        => Describe(options, grpc, domains, EventModelDerivation.Default);
+
+    /// <summary>
+    ///     Describe every message handler chain as an Event Model slice, with the store's tag registry, the
+    ///     reflected field shapes and the documentation comments that <paramref name="derivation" /> allows
+    ///     (GH-6005).
+    /// </summary>
+    /// <param name="options">The Wolverine options, with a compiled handler graph.</param>
+    /// <param name="grpc">The gRPC endpoint manifest, when <c>Wolverine.Grpc</c> is in play.</param>
+    /// <param name="domains">The domain policies of the application's declared Event Models; see <see cref="EventModelSliceDomains.DeclaredAssignmentsAsync" />.</param>
+    /// <param name="derivation">The store's registered tag types and the describe-time options; <see cref="EventModelDerivation.For" /> reads them off a built host.</param>
+    public static EventModelDescriptor Describe(WolverineOptions options, IGrpcEndpointManifest? grpc,
+        IReadOnlyList<DomainAssignmentDescriptor> domains, EventModelDerivation derivation)
     {
         var slices = new List<EventModelSliceDescriptor>();
         var aggregates = new List<AggregateDescriptor>();
         var aggregateNames = new HashSet<string>(StringComparer.Ordinal);
         var stickyEndpoints = new Dictionary<string, HashSet<Uri>>(StringComparer.Ordinal);
         var knownTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
+        var shapeTypes = new List<Type>();
+        var scheduledBy = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
-        foreach (var (chain, slice) in DescribedSlices(options, domains))
+        foreach (var (chain, slice) in DescribedSlices(options, domains, derivation))
         {
             slices.Add(slice);
 
@@ -125,14 +143,117 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
             {
                 if (aggregateNames.Add(aggregate.Type.FullName)) aggregates.Add(aggregate);
             }
+
+            // GH-6005: the types whose fields the model carries, and the messages this slice schedules
+            var seed = seedOf(chain);
+            shapeTypes.AddRange(EventModelRoles.ReferencedTypes(chain, seed));
+            foreach (var scheduled in EventModelRoles.ScheduledMessagesOf(chain, seed))
+            {
+                if (scheduled.FullName is not { } name) continue;
+                if (!scheduledBy.TryGetValue(name, out var producers)) scheduledBy[name] = producers = new List<string>();
+                if (!producers.Contains(slice.Name)) producers.Add(slice.Name);
+            }
         }
 
-        var model = new EventModelDescriptor(options.ServiceName, slices) { Aggregates = aggregates };
+        var model = new EventModelDescriptor(options.ServiceName, slices)
+        {
+            Aggregates = aggregates,
+            // GH-6005 (jasperfx#1297, #1299): the store's tag catalogue and the reflected shapes, model level
+            Tags = EventModelTags.Catalogue(derivation.TagTypes),
+            Shapes = derivation.ReflectShapes ? EventModelShapes.For(shapeTypes, derivation) : Array.Empty<TypeShapeDescriptor>()
+        };
+        model = ApplyScheduledMessages(model, scheduledBy);
         model = ApplyGrpcTriggers(model, grpc);
         model = ApplyExternalSystems(model, options, stickyEndpoints, knownTypes, includeInbound: true);
+        model = ApplyExternalEvents(model, options, stickyEndpoints);
 
         // GH-4425: stamped LAST, after every rewrite above, so none of them can drop it.
         return StampOrigin(FinishModel(model), SourceSubject);
+    }
+
+    private static EventModelSliceSeed seedOf(HandlerChain chain)
+    {
+        var handler = chain.Handlers.FirstOrDefault();
+        return new EventModelSliceSeed(EventModelRoles.DisplayNameFor(chain.MessageType),
+            TriggerKind.MessageHandler, null, chain.MessageType, handler?.HandlerType)
+        {
+            HandlerMethod = handler?.Method
+        };
+    }
+
+    /// <summary>
+    ///     GH-6005 (jasperfx#1298). A slice whose command another slice returns as a
+    ///     <see cref="ScheduledMessage{T}" /> or a <see cref="TimeoutMessage" /> is fired by the scheduler when
+    ///     that producer says, so its <see cref="EventModelSliceDescriptor.Schedule" /> is a named one -- named
+    ///     for the producer, because the delay is a value in the producer's body and is never read. A recurring
+    ///     cron registration on the same message already said when, and keeps its say.
+    /// </summary>
+    /// <param name="model">The model to annotate.</param>
+    /// <param name="scheduledBy">The slices scheduling each message type, by the type's full name.</param>
+    public static EventModelDescriptor ApplyScheduledMessages(EventModelDescriptor model,
+        IReadOnlyDictionary<string, List<string>> scheduledBy)
+    {
+        if (scheduledBy.Count == 0) return model;
+
+        var slices = model.Slices.Select(slice =>
+        {
+            if (slice.Schedule is not null || slice.CommandType?.FullName is not { } command) return slice;
+            if (!scheduledBy.TryGetValue(command, out var producers)) return slice;
+
+            // A slice scheduling its own command is a loop, which says nothing about when it first fires
+            var others = producers.Where(x => !string.Equals(x, slice.Name, StringComparison.Ordinal)).ToList();
+            if (others.Count == 0) return slice;
+
+            return slice with { Schedule = ScheduleDescriptor.Named($"scheduled by {string.Join(", ", others)}") };
+        }).ToList();
+
+        return model with { Slices = slices };
+    }
+
+    /// <summary>
+    ///     GH-6005 (jasperfx#1298). A consumed message that arrives on a listener outside this process -- a
+    ///     broker queue, never the local transport -- and that no slice in the model emits or publishes comes
+    ///     from an external system: the one the listener names with <c>.ExternalSystem("...")</c>, else the
+    ///     listener itself. Recorded on <see cref="EventModelSliceDescriptor.ExternalEvents" /> against the
+    ///     slice's command, which is the event it consumes, so a canvas draws it on the stream row under the
+    ///     external system's name instead of an aggregate.
+    /// </summary>
+    /// <param name="model">The model to annotate.</param>
+    /// <param name="options">The Wolverine options — the listeners come from <c>Transports.AllEndpoints()</c>.</param>
+    /// <param name="stickyEndpointsBySlice">Listener URIs each slice's chain is stuck to, by slice name. May be empty.</param>
+    public static EventModelDescriptor ApplyExternalEvents(EventModelDescriptor model, WolverineOptions options,
+        IReadOnlyDictionary<string, HashSet<Uri>>? stickyEndpointsBySlice = null)
+    {
+        var listeners = options.Transports.AllEndpoints()
+            .Where(x => x.IsListener && x.Uri.Scheme != TransportConstants.Local)
+            .OrderBy(x => x.Uri.ToString(), StringComparer.Ordinal)
+            .ToArray();
+        if (listeners.Length == 0) return model;
+
+        var produced = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var slice in model.Slices)
+        {
+            foreach (var type in slice.EmittedEvents.Concat(slice.PublishedMessages)) produced.Add(type.FullName);
+        }
+
+        var slices = model.Slices.Select(slice =>
+        {
+            if (slice.CommandType is not { } command || produced.Contains(command.FullName)) return slice;
+            if (slice.ExternalEvents.Any(x => EventModelSliceDescriptor.SameType(x.Event, command))) return slice;
+
+            var listener = listeners.FirstOrDefault(endpoint =>
+                (stickyEndpointsBySlice != null && stickyEndpointsBySlice.TryGetValue(slice.Name, out var uris) && uris.Contains(endpoint.Uri)) ||
+                (endpoint.MessageType != null && endpoint.MessageType.FullName == command.FullName));
+            if (listener is null) return slice;
+
+            var system = listener.ExternalSystemName.IsNotEmpty() ? listener.ExternalSystemName! : listener.EndpointName;
+            return slice with
+            {
+                ExternalEvents = slice.ExternalEvents.Concat(new[] { new ExternalEventDescriptor(command, system) }).ToList()
+            };
+        }).ToList();
+
+        return model with { Slices = slices };
     }
 
     /// <summary>
@@ -159,7 +280,7 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
 
     /// <summary>
     ///     A slice whose message type has a registered recurring (cron) schedule is triggered by the job
-    ///     scheduler, not an ad-hoc message publish — same treatment <see cref="EventModelRoles.ForHandlerChain" />
+    ///     scheduler, not an ad-hoc message publish — same treatment <see cref="EventModelRoles.ForHandlerChain(HandlerChain)" />
     ///     gives <see cref="TimeoutMessage" /> — and the trigger origin's label documents itself as the
     ///     cron expression, populated from the registration rather than invented as a parallel surface.
     /// </summary>
@@ -179,7 +300,10 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         return slice with
         {
             TriggerKind = TriggerKind.JobScheduler,
-            TriggerOrigin = slice.TriggerOrigin ?? new PublisherOrigin { Label = string.Join("; ", expressions) }
+            TriggerOrigin = slice.TriggerOrigin ?? new PublisherOrigin { Label = string.Join("; ", expressions) },
+            // GH-6005 (jasperfx#1298): the cadence itself, from the registration; several registrations of
+            // one message read as one cron schedule listing each expression
+            Schedule = ScheduleDescriptor.OnCron(string.Join("; ", expressions))
         };
     }
 
@@ -202,6 +326,10 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     /// </summary>
     internal static IEnumerable<(HandlerChain Chain, EventModelSliceDescriptor Slice)> DescribedSlices(
         WolverineOptions options, IReadOnlyList<DomainAssignmentDescriptor> domains)
+        => DescribedSlices(options, domains, EventModelDerivation.Default);
+
+    internal static IEnumerable<(HandlerChain Chain, EventModelSliceDescriptor Slice)> DescribedSlices(
+        WolverineOptions options, IReadOnlyList<DomainAssignmentDescriptor> domains, EventModelDerivation derivation)
     {
         foreach (var group in DescribedChains(options).GroupBy(x => x.MessageType))
         {
@@ -209,7 +337,7 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
             var members = chains.Select(chain =>
             {
                 var call = chain.Handlers.FirstOrDefault();
-                var slice = applyRecurringTrigger(EventModelRoles.ForHandlerChain(chain), chain.MessageType, options);
+                var slice = applyRecurringTrigger(EventModelRoles.ForHandlerChain(chain, derivation), chain.MessageType, options);
                 slice = EventModelSliceDomains.ApplyDomain(slice, call?.HandlerType, call?.Method, domains);
                 return (slice, call?.HandlerType.FullName, chain.Endpoints.FirstOrDefault()?.Uri);
             }).ToList();
@@ -472,7 +600,7 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     /// <remarks>
     ///     <para>
     ///         GH-4387: this is the evidence that lets the derived rung claim <c>Pattern</c> for a message
-    ///         handler, which <see cref="EventModelRoles.Describe" /> otherwise leaves unclaimed because a
+    ///         handler, which <see cref="EventModelRoles.Describe(IChain, EventModelSliceSeed)" /> otherwise leaves unclaimed because a
     ///         handler signature cannot tell a Command from an Automation. Here the <em>model</em> can:
     ///         nothing else in this application originates the message.
     ///     </para>
@@ -490,7 +618,7 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
     ///         <em>itself</em> is a loop, which says nothing about how the message first arrives.
     ///     </para>
     ///     <para>
-    ///         <b>A declared pattern is never promoted.</b> <see cref="EventModelRoles.Describe" /> leaves a
+    ///         <b>A declared pattern is never promoted.</b> <see cref="EventModelRoles.Describe(IChain, EventModelSliceSeed)" /> leaves a
     ///         message-handler slice's pattern unclaimed unless the handler declares one with
     ///         <c>[SlicePattern]</c> (GH-4395), so a pattern already on such a slice here is a declaration. It
     ///         answers the very question this rule infers -- a message another slice cascades may also arrive

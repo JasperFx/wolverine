@@ -37,7 +37,7 @@ public static class EventModelReport
     {
         filter ??= new EventModelReportFilter();
         return filter.Apply(model)
-            .Select(describe)
+            .Select(slice => describe(slice, model))
             .OrderBy(x => x.Domain == NoDomain).ThenBy(x => x.Domain, StringComparer.Ordinal)
             .ThenBy(x => x.Chapter == NoChapter).ThenBy(x => x.Chapter, StringComparer.Ordinal)
             .ToList();
@@ -126,7 +126,7 @@ public static class EventModelReport
         }
     }
 
-    private static SliceReport describe(EventModelSliceDescriptor slice)
+    private static SliceReport describe(EventModelSliceDescriptor slice, EventModelDescriptor model)
     {
         var heading = slice.Name;
         if (slice.Pattern is { } pattern) heading += $"  [{pattern}]";
@@ -141,6 +141,11 @@ public static class EventModelReport
         if (slice.Provenance is { } provenance) heading += $"  ({provenance.ToString().ToLowerInvariant()})";
 
         var facts = new List<string>();
+        // GH-6005 (jasperfx#1298): the prose first, then who, then when
+        if (slice.Description is { Length: > 0 } description) facts.Add($"description: {description}");
+        if (slice.Actor is { } actor) facts.Add($"actor: {actor}");
+        if (slice.Schedule is { } schedule) facts.Add($"schedule: {schedule}");
+        if (slice.Screen is { Length: > 0 } screen) facts.Add($"screen: {screen}");
         if (slice.CommandType is { } command) facts.Add($"command: {command.Name}");
         if (slice.StartsStream is { } started) facts.Add($"starts: the {started.Name} stream");
 
@@ -170,7 +175,29 @@ public static class EventModelReport
         }
 
         if (slice.ConsumedEvents.Count > 0) facts.Add($"on: {names(slice.ConsumedEvents)}");
+        foreach (var external in slice.ExternalEvents) facts.Add($"external event: {external.Event.Name} from {external.ExternalSystem}");
         if (slice.EmittedEvents.Count > 0) facts.Add($"emits: {names(slice.EmittedEvents)}");
+
+        // GH-6005 (jasperfx#1297): the consistency boundary, as the dcb.events per-command table reads --
+        // what the command reads and by which tag, the tags its events carry, and the query the reads imply
+        if (slice.EventTags.Count > 0)
+        {
+            facts.Add($"tags: {string.Join("; ", slice.EventTags.Select(x => $"{x.Event.Name} [{string.Join(", ", x.Tags)}]"))}");
+        }
+
+        if (slice.Reads.Count > 0)
+        {
+            facts.Add($"boundary reads: {string.Join("; ", slice.Reads.Select(read))}");
+            var query = model.BoundaryQueryFor(slice);
+            if (!query.IsEmpty)
+            {
+                facts.Add($"boundary query: {string.Join("; ", query.Terms.Select(x => $"{x.Tag}: {(x.EventTypes.Count == 0 ? "(no event types)" : names(x.EventTypes))}"))}");
+            }
+        }
+
+        if (slice.UntaggedProjections.Count > 0) facts.Add($"untagged: {names(slice.UntaggedProjections)}");
+        if (slice.RejectionReasons.Count > 0) facts.Add($"refuses: {string.Join("; ", slice.RejectionReasons.Select(x => $"\"{x}\""))}");
+
         if (slice.PublishedMessages.Count > 0) facts.Add($"publishes: {names(slice.PublishedMessages)}");
         if (slice.ReadsFrom.Count > 0) facts.Add($"reads: {names(slice.ReadsFrom)}");
         if (slice.ReadModelTypes.Count > 0) facts.Add($"produces: {names(slice.ReadModelTypes)}");
@@ -182,6 +209,17 @@ public static class EventModelReport
             : "handled by: nothing yet");
         foreach (var spec in slice.Specifications) facts.Add($"spec: {spec.Identity}");
 
+        // GH-6005 (jasperfx#1299): the fields of what the slice takes in, puts out and produces, when the
+        // model carries their shapes
+        foreach (var type in new[] { slice.CommandType }.OfType<TypeDescriptor>()
+                     .Concat(slice.EmittedEvents).Concat(slice.ReadModelTypes))
+        {
+            if (model.ShapeOf(type) is { Fields.Count: > 0 } shape)
+            {
+                facts.Add($"fields of {type.Name}: {string.Join(", ", shape.Fields.Select(field))}");
+            }
+        }
+
         // GH-4975: a Query that writes (jasperfx#1003) is computed, never stored, so it is read apart
         var hotspots = slice.Hotspots.Concat(slice.PatternViolations).Select(x => $"{x.Origin}: {x.Text}").ToList();
         return new SliceReport(slice.Domain is { Length: > 0 } domain ? domain : NoDomain,
@@ -190,4 +228,19 @@ public static class EventModelReport
     }
 
     private static string names(IReadOnlyList<TypeDescriptor> types) => string.Join(", ", types.Select(x => x.Name));
+
+    // "SubscriptionState (model) by courseId from CourseId"
+    private static string read(BoundaryReadDescriptor read)
+        => $"{read.Type.Name} ({read.Kind.ToString().ToLowerInvariant()}) by {read.Tag}{(read.Member is { Length: > 0 } member ? $" from {member}" : "")}";
+
+    // "Total: Decimal", then what reflection or a declaration marked it as: identity, tag courseId, generated, pii
+    private static string field(FieldDescriptor field)
+    {
+        var marks = new List<string>();
+        if (field.Identity) marks.Add("identity");
+        if (field.Tag is { Length: > 0 } tag) marks.Add($"tag {tag}");
+        if (field.Generated) marks.Add("generated");
+        if (field.Pii) marks.Add("pii");
+        return marks.Count == 0 ? field.ToString() : $"{field} ({string.Join(", ", marks)})";
+    }
 }

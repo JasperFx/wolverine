@@ -763,6 +763,16 @@ DCB is newer than the single-stream workflow and not every event store integrati
 `[DcbModel]` against a store that does not will tell you so at codegen time.
 :::
 
+#### What the Event Model reads off a DCB handler <Badge type="tip" text="7.0" />
+
+The derived [Event Model](/guide/command-line#what-the-derived-model-says-about-a-slice) describes a `[DcbModel]`
+slice's consistency boundary from the same facts the workflow runs on, and nothing more: the model type on the
+parameter, the presence of a `Load()` / `Before()` method returning an `EventTagQuery`, the command's members whose
+types the store registered with `RegisterTagType<T>()`, and the tags bound to the model with `ForAggregate<T>()`.
+The body of `Load()` is never read, so the query the model shows is the one implied by those facts. Mark a value the
+system generates with `[JasperFx.Generated]` and personal data with `[JasperFx.Pii]` on the member (or a record's
+positional parameter); the model's field shapes carry both flags, beside `[JasperFx.Identity]` for the identity.
+
 Identity resolution follows the same conventions as `[Entity]`, in this order: an explicit
 `[WriteModel("orderId")]`, then a member marked with `[JasperFx.Identity]` on the message, then a
 `[Model Type Name]Id` member, then `id`, then a single member of the model's strong typed id type.

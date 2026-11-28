@@ -273,6 +273,49 @@ public class EventModelSteps(BankAccountHost app)
         SpecAssert.Fact(names.Contains(eventName), $"The specs say {slice} consumes [{string.Join(", ", names)}], expected '{eventName}'.");
     }
 
+    /// <summary>
+    /// wolverine#6005: the slice's description is the handler's XML <c>&lt;summary&gt;</c>, read from the documentation
+    /// file beside the assembly; a derived fact, so a declaration need not repeat it.
+    /// </summary>
+    [Then("the {slice} slice is described as {text}")]
+    public void TheSliceIsDescribedAs(string slice, string text)
+    {
+        if (sliceNamed(slice) is not { } s) return;
+        SpecAssert.Fact(s.Description is not null && s.Description.StartsWith(text, StringComparison.Ordinal),
+            $"{slice}.Description is '{s.Description ?? "null"}', expected it to start with '{text}'.");
+        SpecAssert.Fact(s.ProvenanceFor(EventModelRole.Description) == EventModelProvenance.Derived,
+            $"{slice}.Description is claimed by {s.ProvenanceFor(EventModelRole.Description)?.ToString() ?? "nobody"}, expected Derived.");
+    }
+
+    /// <summary>
+    /// wolverine#6005: the fields of a modelled type, reflected off the record at describe time, written "A, B" in
+    /// declaration order; the identity field is marked so.
+    /// </summary>
+    [Then("the {type} type has the fields {fields}, identified by {identity}")]
+    public void TheTypeHasTheFieldsIdentifiedBy(string type, string fields, string identity)
+    {
+        if (TheTypeHasTheFields(type, fields) is not { } shape) return;
+        SpecAssert.Fact(shape.Find(identity)?.Identity == true, $"{type}.{identity} is not marked as the identity.");
+    }
+
+    /// <summary>
+    /// A command's <c>AccountId</c> names the stream the slice decides against, but the shape of the type alone does
+    /// not say so -- only a member named <c>Id</c> or for its own type (<c>AccountId</c> on <c>Account</c>) is the
+    /// identity, as the source generator reads it -- so a command or event is asserted by its fields only.
+    /// </summary>
+    [Then("the {type} type has the fields {fields}")]
+    public TypeShapeDescriptor? TheTypeHasTheFields(string type, string fields)
+    {
+        if (model() is not { } m) return null;
+        var shape = m.Shapes.FirstOrDefault(x => x.Type.Name == type);
+        if (!SpecAssert.Fact(shape is not null, $"No shape for '{type}'. Shapes: {string.Join(", ", m.Shapes.Select(x => x.Type.Name))}")) return null;
+
+        var names = string.Join(", ", shape!.Fields.Select(x => x.Name));
+        SpecAssert.Fact(names == fields, $"{type} has the fields [{names}], expected [{fields}].");
+        SpecAssert.Fact(shape.Provenance == EventModelProvenance.Derived, $"{type}'s shape is {shape.Provenance}, expected Derived.");
+        return shape;
+    }
+
     [Then("the {slice} slice reads from {type}")]
     public void TheSliceReadsFrom(string slice, string type)
     {

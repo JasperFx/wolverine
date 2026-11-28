@@ -6,6 +6,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using JasperFx.Events;
 using JasperFx.Events.EventModeling;
+using JasperFx.Events.Tags;
 using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
 using Wolverine.Runtime.Handlers;
@@ -15,7 +16,7 @@ namespace Wolverine.Configuration.EventModeling;
 /// <summary>
 ///     The non-derivable half of a slice — what the chain's <em>kind</em> knows and its handler
 ///     signature does not: the slice name, how the slice is triggered, the inbound command and the
-///     handler type. <see cref="EventModelRoles.Describe" /> derives everything else off the chain.
+///     handler type. <see cref="EventModelRoles.Describe(IChain, EventModelSliceSeed)" /> derives everything else off the chain.
 /// </summary>
 /// <param name="SliceName">Display name of the slice — also the merge key across sources (GH-3988).</param>
 /// <param name="TriggerKind">What starts the slice — a message handler, an HTTP request, a gRPC call.</param>
@@ -40,7 +41,7 @@ public sealed record EventModelSliceSeed(
     /// <summary>
     ///     The chain's response type, when it has one an HTTP resource, a gRPC response. A response is
     ///     never an emitted event or a published message, so it is excluded from the return values
-    ///     <see cref="EventModelRoles.Describe" /> classifies. Null for chains that have no response concept.
+    ///     <see cref="EventModelRoles.Describe(IChain, EventModelSliceSeed)" /> classifies. Null for chains that have no response concept.
     /// </summary>
     public Type? ResponseType { get; init; }
 
@@ -57,6 +58,13 @@ public sealed record EventModelSliceSeed(
     ///     (<see cref="EventModelSliceDescriptor.ReadsFrom" />) — GH-4975.
     /// </summary>
     public bool IsQuery { get; init; }
+
+    /// <summary>
+    ///     GH-6005 (jasperfx#1298). The authorization roles the trigger requires of whoever invokes it, read
+    ///     off the endpoint's authorization metadata by the source that knows the trigger (Wolverine.HTTP's
+    ///     <c>[Authorize(Roles = "...")]</c>). They become the slice's <see cref="EventModelSliceDescriptor.Actor" />.
+    /// </summary>
+    public IReadOnlyList<string> RequiredRoles { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>
@@ -111,6 +119,13 @@ public static class EventModelRoles
     ///     command is the message type itself.
     /// </summary>
     public static EventModelSliceDescriptor ForHandlerChain(HandlerChain chain)
+        => ForHandlerChain(chain, EventModelDerivation.Default);
+
+    /// <summary>
+    ///     Describe a message handler chain with the store's tag registry and the describe-time options in
+    ///     <paramref name="derivation" /> (GH-6005).
+    /// </summary>
+    public static EventModelSliceDescriptor ForHandlerChain(HandlerChain chain, EventModelDerivation derivation)
     {
         var triggerKind = chain.MessageType.CanBeCastTo<TimeoutMessage>()
             ? TriggerKind.JobScheduler
@@ -127,18 +142,60 @@ public static class EventModelRoles
             handler?.HandlerType)
         {
             HandlerMethod = handler?.Method
-        });
+        }, derivation);
     }
 
     /// <summary>
     ///     Derive the roles for any chain — message handler, HTTP endpoint, gRPC service — from its
     ///     handler calls, its tags and the supplied <paramref name="seed" />.
     /// </summary>
+    public static EventModelSliceDescriptor Describe(IChain chain, EventModelSliceSeed seed)
+        => Describe(chain, seed, EventModelDerivation.Default);
+
+    /// <summary>
+    ///     GH-6005. The messages a chain <em>schedules</em> rather than publishes outright: the <c>T</c> of every
+    ///     <see cref="ScheduledMessage{T}" /> it returns, and every <see cref="TimeoutMessage" /> it returns. The
+    ///     slice handling such a message is fired by the scheduler, which its
+    ///     <see cref="EventModelSliceDescriptor.Schedule" /> records.
+    /// </summary>
+    public static IReadOnlyList<Type> ScheduledMessagesOf(IChain chain, EventModelSliceSeed seed)
+        => derive(chain, seed, EventModelDerivation.Default).Roles.ScheduledMessages.ToList();
+
+    /// <summary>
+    ///     GH-6005. Every type a chain's slice names -- its command, the aggregates and models it loads, what it
+    ///     emits, publishes, reads and produces, and its response -- so the fields of each can be reflected into
+    ///     <see cref="EventModelDescriptor.Shapes" /> (jasperfx#1299).
+    /// </summary>
+    public static IReadOnlyList<Type> ReferencedTypes(IChain chain, EventModelSliceSeed seed)
+    {
+        var roles = derive(chain, seed, EventModelDerivation.Default).Roles;
+        var types = new List<Type>();
+
+        void add(Type? type)
+        {
+            if (type is not null && !types.Contains(type)) types.Add(type);
+        }
+
+        add(seed.CommandType);
+        foreach (var type in roles.AllTypes()) add(type);
+        if (seed.ResponseType is { } response && response != typeof(void)) add(readModelOf(response));
+
+        return types;
+    }
+
+    /// <summary>
+    ///     Derive the roles for any chain with the store's tag registry and the describe-time options in
+    ///     <paramref name="derivation" /> (GH-6005).
+    /// </summary>
+    public static EventModelSliceDescriptor Describe(IChain chain, EventModelSliceSeed seed, EventModelDerivation derivation)
+        => derive(chain, seed, derivation).Slice;
+
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "Handler, message and return types come from handler discovery, which already roots them; Closes() only reads interfaces. Diagnostic surface only.")]
     [UnconditionalSuppressMessage("Trimming", "IL2067",
         Justification = "Handler, message and return types come from handler discovery, which already roots them; Closes() only reads interfaces. Diagnostic surface only.")]
-    public static EventModelSliceDescriptor Describe(IChain chain, EventModelSliceSeed seed)
+    private static (EventModelSliceDescriptor Slice, RoleSet Roles) derive(IChain chain, EventModelSliceSeed seed,
+        EventModelDerivation derivation)
     {
         var roles = new RoleSet();
 
@@ -179,6 +236,25 @@ public static class EventModelRoles
             {
                 // Store / Insert / Update / Delete of a document: the slice *produces* that read model
                 roles.ReadModels.Add(type.GetGenericArguments()[0]);
+                continue;
+            }
+
+            // GH-6005. A DeliveryMessage<T> -- ScheduledMessage<T>, DelayedFor(), ToDestination() -- is a
+            // published T wrapped in delivery options, and a TimeoutMessage is itself the message, sent to
+            // this application on a delay. Both are ISendMyself, which the candidate test below rejects as
+            // "a return type", so they were invisible to the model. The scheduled ones are remembered apart,
+            // because the slice that handles one is fired by the scheduler.
+            if (genericArgumentOf(type, typeof(DeliveryMessage<>)) is { } delivered)
+            {
+                roles.PublishedMessages.Add(delivered);
+                if (genericArgumentOf(type, typeof(ScheduledMessage<>)) is not null) roles.ScheduledMessages.Add(delivered);
+                continue;
+            }
+
+            if (type.CanBeCastTo<TimeoutMessage>() && !type.IsAbstract)
+            {
+                roles.PublishedMessages.Add(type);
+                roles.ScheduledMessages.Add(type);
                 continue;
             }
 
@@ -263,7 +339,18 @@ public static class EventModelRoles
         // A trigger *label* is a naming concern ("Customer at the ATM"), which is exactly what the SDD
         // decisions reserve for declarations: the code cannot express it. Leaving the role unclaimed
         // means an overlay's label wins by default, because nothing else claims it.
-        return new EventModelSliceDescriptor(
+        //
+        // GH-6005 (jasperfx#1297, #1298). The consistency boundary, the actor and the descriptions below are
+        // read the same way as everything above: off the signature, the chain's tags, the store's registry
+        // and the XML documentation file. RejectionReasons is deliberately NOT claimed -- which guard refuses
+        // with what message is in the method body, and the derived rung never reads one.
+        var handlerType = seed.HandlerType ?? chain.HandlerCalls().FirstOrDefault()?.HandlerType;
+        var loadsByTags = handlerType is not null && hasTagQueryLoad(handlerType);
+        var reads = readsOf(seed, roles, derivation, loadsByTags);
+        var eventTags = eventTagsOf(roles, derivation, loadsByTags);
+        var (description, elementDescriptions) = descriptionsOf(seed, roles, derivation);
+
+        var slice = new EventModelSliceDescriptor(
             seed.SliceName,
             null,
             null,
@@ -283,7 +370,128 @@ public static class EventModelRoles
             // is what upstream expects: it renders as one element, not two, and the link computation needs
             // the produce side and the read side named separately to join them at all.
             ReadsFrom = roles.ReadsFrom.Select(TypeDescriptor.For).ToList(),
+            EventTags = eventTags,
+            Reads = reads,
+            // The actor is named by the roles it needs, because the code knows nothing else about who calls
+            // it; a declared persona ("Coordinator") is put back on by EventModelSliceAlignment.AlignActorNames,
+            // so the merge compares the roles, which are the finding, not the name.
+            Actor = seed.RequiredRoles.Count > 0 ? new ActorDescriptor(string.Join(", ", seed.RequiredRoles), seed.RequiredRoles) : null,
+            Description = description,
+            ElementDescriptions = elementDescriptions,
         };
+
+        return (slice, roles);
+    }
+
+    private static readonly string[] _tagQueryLoadMethodNames = ["Load", "LoadAsync", "Before", "BeforeAsync"];
+
+    /// <summary>
+    ///     Does the handler type declare the <c>Load()</c> / <c>Before()</c> method returning an
+    ///     <see cref="EventTagQuery" /> that the DCB workflow calls for its boundary? A signature fact: the
+    ///     method's body, which says <em>which</em> tags, is never read.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Handler types come from handler discovery, which already roots them. Diagnostic surface only.")]
+    private static bool hasTagQueryLoad(Type handlerType)
+        => handlerType.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
+            .Any(m => _tagQueryLoadMethodNames.Contains(m.Name) &&
+                      (m.ReturnType == typeof(EventTagQuery) ||
+                       m.ReturnType == typeof(Task<EventTagQuery>) ||
+                       m.ReturnType == typeof(ValueTask<EventTagQuery>)));
+
+    /// <summary>
+    ///     GH-6005 (jasperfx#1297). What the command reads before it decides, for a slice whose handler loads a
+    ///     boundary by tags: the <c>[DcbModel]</c> models (else the write aggregates a tag-loading
+    ///     <c>[DeciderFunction]</c> folds), each selected by every consistency tag the command carries -- a
+    ///     member whose type the store registered as a tag -- and by every tag the registry binds to the model
+    ///     that the command does not carry. The boundary query is computed from these upstream.
+    /// </summary>
+    private static IReadOnlyList<BoundaryReadDescriptor> readsOf(EventModelSliceSeed seed, RoleSet roles,
+        EventModelDerivation derivation, bool loadsByTags)
+    {
+        if (seed.CommandType is null || !loadsByTags) return Array.Empty<BoundaryReadDescriptor>();
+
+        var models = roles.AggregateKinds.Where(x => x.Value == AggregateKind.BoundaryModel).Select(x => x.Key).ToList();
+        if (models.Count == 0)
+        {
+            models = roles.AggregateKinds
+                .Where(x => x.Value is AggregateKind.WriteAggregate or AggregateKind.ConsistentAggregate)
+                .Select(x => x.Key)
+                .ToList();
+        }
+
+        if (models.Count == 0) return Array.Empty<BoundaryReadDescriptor>();
+
+        var members = EventModelTags.TagMembersOf(seed.CommandType, derivation);
+        var reads = new List<BoundaryReadDescriptor>();
+
+        foreach (var model in models)
+        {
+            var type = TypeDescriptor.For(model);
+            foreach (var (member, _, tag) in members)
+            {
+                reads.Add(new BoundaryReadDescriptor(BoundaryReadKind.Model, type, tag, member));
+            }
+
+            foreach (var registration in derivation.TagTypes.Where(x => x.AggregateType == model))
+            {
+                if (members.Any(x => x.TagType == registration.TagType)) continue;
+                reads.Add(new BoundaryReadDescriptor(BoundaryReadKind.Model, type, EventTagDescriptor.NameFor(registration.TagType)));
+            }
+        }
+
+        return reads;
+    }
+
+    /// <summary>
+    ///     GH-6005 (jasperfx#1297). The tags each emitted event carries. Read whenever the store has a tag
+    ///     registry, and for a DCB slice described without one (a host built with no store), where the
+    ///     strong-typed identifiers stand in, as they do for <c>scaffold</c>.
+    /// </summary>
+    private static IReadOnlyList<EmittedEventTags> eventTagsOf(RoleSet roles, EventModelDerivation derivation, bool loadsByTags)
+    {
+        var dcb = loadsByTags || roles.AggregateKinds.Values.Any(x => x == AggregateKind.BoundaryModel);
+        if (derivation.TagTypes.Count == 0 && !dcb) return Array.Empty<EmittedEventTags>();
+
+        return roles.EmittedEvents
+            .Select(e => new EmittedEventTags(TypeDescriptor.For(e), EventModelTags.TagsOf(e, derivation)))
+            .Where(x => x.Tags.Count > 0)
+            .ToList();
+    }
+
+    /// <summary>
+    ///     GH-6005 (jasperfx#1298). The slice's description is its handler type's <c>&lt;summary&gt;</c>, else its
+    ///     handler method's; each element's is its own type's. Prose the author wrote, read from the XML
+    ///     documentation file; nothing is composed.
+    /// </summary>
+    private static (string? Description, IReadOnlyList<ElementDescription> Elements) descriptionsOf(
+        EventModelSliceSeed seed, RoleSet roles, EventModelDerivation derivation)
+    {
+        if (!derivation.ReadDocComments) return (null, Array.Empty<ElementDescription>());
+
+        var description = seed.HandlerType is { } handler ? XmlDocComments.SummaryOf(handler) : null;
+        description ??= seed.HandlerMethod is { } method ? XmlDocComments.SummaryOf(method) : null;
+
+        var elements = new List<ElementDescription>();
+        var described = new HashSet<Type>();
+        foreach (var type in new[] { seed.CommandType }.OfType<Type>().Concat(roles.AllTypes()))
+        {
+            if (!described.Add(type)) continue;
+            if (XmlDocComments.SummaryOf(type) is { } text) elements.Add(new ElementDescription(TypeDescriptor.For(type), text));
+        }
+
+        return (description, elements);
+    }
+
+    /// <summary>The type argument of <paramref name="openType" /> as <paramref name="type" /> or one of its base types closes it, else null.</summary>
+    private static Type? genericArgumentOf(Type type, Type openType)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == openType) return current.GetGenericArguments()[0];
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -671,6 +879,17 @@ public static class EventModelRoles
         /// drawn from the read side, because a link needs a producer at one end and a reader at the other.
         /// </summary>
         public OrderedTypeSet ReadsFrom { get; } = new();
+
+        /// <summary>
+        /// GH-6005: the published messages the chain schedules rather than sends -- the T of a returned
+        /// <see cref="ScheduledMessage{T}" />, a returned <see cref="TimeoutMessage" /> -- so the slice handling
+        /// one can say the scheduler fires it.
+        /// </summary>
+        public OrderedTypeSet ScheduledMessages { get; } = new();
+
+        /// <summary>Every type the roles name, once each, for the shapes and the descriptions.</summary>
+        public IEnumerable<Type> AllTypes()
+            => Aggregates.Concat(EmittedEvents).Concat(PublishedMessages).Concat(ReadModels).Concat(ReadsFrom).Distinct();
 
         public void AddWrite(Type aggregateType, bool consistent)
         {
