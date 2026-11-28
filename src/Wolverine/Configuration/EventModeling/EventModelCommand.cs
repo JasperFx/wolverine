@@ -211,8 +211,36 @@ public class EventModelInput : NetCoreInput
     [FlagAlias("specs", true)]
     public List<string> SpecsFlag { get; set; } = new();
 
+    /// <summary>
+    ///     GH-6007: <c>json</c> (the default) writes the descriptor; <c>mermaid</c> writes a Mermaid
+    ///     <c>eventmodeling</c> diagram of it instead. See <see cref="EventModelMermaid" />.
+    /// </summary>
+    [Description("Output format: json (the default) or mermaid, a Mermaid eventmodeling diagram of the model")]
+    [FlagAlias("format", true)]
+    public string FormatFlag { get; set; } = JsonFormat;
+
+    /// <summary>
+    ///     GH-6007: where the output goes, whatever its format. <c>--json</c> keeps meaning the same for the JSON
+    ///     form; this is the flag that is not misnamed when the file is a diagram.
+    /// </summary>
+    [Description("Path of the file to write; defaults to event-model.json or event-model.mmd by --format, unless --url is given")]
+    [FlagAlias("output", 'o')]
+    public string? OutputFlag { get; set; }
+
     /// <summary>Where the Event Model goes when neither <c>--json</c> nor <c>--url</c> is supplied.</summary>
     public const string DefaultJsonFile = "event-model.json";
+
+    /// <summary>Where the diagram goes under <c>--format mermaid</c> when <c>--output</c> is not supplied.</summary>
+    public const string DefaultMermaidFile = "event-model.mmd";
+
+    public const string JsonFormat = "json";
+    public const string MermaidFormat = "mermaid";
+
+    /// <summary><c>--format mermaid</c>, in any casing.</summary>
+    internal bool IsMermaid => string.Equals(FormatFlag, MermaidFormat, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary><c>--format json</c> or no <c>--format</c> at all, in any casing.</summary>
+    internal bool IsJson => FormatFlag.IsEmpty() || string.Equals(FormatFlag, JsonFormat, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     ///     The file to write, or null when <c>--url</c> was given without <c>--json</c> and the descriptor
@@ -220,12 +248,44 @@ public class EventModelInput : NetCoreInput
     /// </summary>
     internal string? ResolveJsonPath()
     {
+        if (OutputFlag.IsNotEmpty())
+        {
+            return OutputFlag;
+        }
+
         if (JsonFlag.IsNotEmpty())
         {
             return JsonFlag;
         }
 
         return UrlFlag.IsEmpty() ? DefaultJsonFile : null;
+    }
+
+    /// <summary>The file the diagram goes to under <c>--format mermaid</c>: <c>--output</c> or the default.</summary>
+    internal string ResolveMermaidPath() => OutputFlag.IsNotEmpty() ? OutputFlag! : DefaultMermaidFile;
+
+    /// <summary>
+    ///     Why the flags do not go together, or null when they do. A monitor takes the JSON descriptor and
+    ///     nothing else, and <c>--json</c> names the JSON file, so neither has a meaning beside a diagram.
+    /// </summary>
+    internal string? Validate()
+    {
+        if (!IsJson && !IsMermaid)
+        {
+            return $"'{FormatFlag}' is not a format this command writes. Use --format {JsonFormat} or --format {MermaidFormat}.";
+        }
+
+        if (IsMermaid && UrlFlag.IsNotEmpty())
+        {
+            return "A monitor takes the JSON descriptor, so --url does not go with --format mermaid. Drop --url, or publish the JSON form.";
+        }
+
+        if (IsMermaid && JsonFlag.IsNotEmpty())
+        {
+            return "--json names the JSON file. With --format mermaid, name the diagram's file with --output.";
+        }
+
+        return null;
     }
 }
 
@@ -250,6 +310,7 @@ public class EventModelCommand : JasperFxAsyncCommand<EventModelInput>
     {
         Usage("Write the Event Model to event-model.json");
         Usage("Write the Event Model to the designated file").Arguments();
+        Usage("Write the Event Model as a Mermaid eventmodeling diagram to event-model.mmd").Arguments().ValidFlags(x => x.FormatFlag, x => x.OutputFlag!);
     }
 
     /// <summary>
@@ -261,6 +322,12 @@ public class EventModelCommand : JasperFxAsyncCommand<EventModelInput>
 
     public override async Task<bool> Execute(EventModelInput input)
     {
+        if (input.Validate() is { } problem)
+        {
+            Console.WriteLine(problem);
+            return false;
+        }
+
         Uri? monitor = null;
         if (input.UrlFlag.IsNotEmpty())
         {
@@ -330,6 +397,20 @@ public class EventModelCommand : JasperFxAsyncCommand<EventModelInput>
 
             var summary =
                 $"the Event Model '{model.Name}' ({model.Slices.Count} slices, {model.Aggregates.Count} aggregates)";
+
+            // GH-6007: the diagram instead of the descriptor. A file only; there is no monitor for it.
+            if (input.IsMermaid)
+            {
+                var mermaidPath = input.ResolveMermaidPath().ToFullPath();
+                if (Path.GetDirectoryName(mermaidPath) is { Length: > 0 } mermaidDirectory)
+                {
+                    Directory.CreateDirectory(mermaidDirectory);
+                }
+
+                await File.WriteAllTextAsync(mermaidPath, EventModelMermaid.Render(model));
+                Console.WriteLine($"Wrote {summary} as a Mermaid eventmodeling diagram to {mermaidPath}");
+                return true;
+            }
 
             if (jsonPath is not null)
             {

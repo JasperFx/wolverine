@@ -29,6 +29,15 @@ public class DescribeEventModelInput : NetCoreInput
     [Description("Paths to specification assemblies whose manifests link slices to their specifications")]
     [FlagAlias("specs", true)]
     public List<string> SpecsFlag { get; set; } = new();
+
+    /// <summary>
+    ///     GH-6007: the model as a Mermaid <c>eventmodeling</c> diagram on standard output instead of the report,
+    ///     for a terminal to pipe into a file or a clipboard. <c>--chapter</c>, <c>--domain</c> and
+    ///     <c>--hotspots-only</c> narrow the diagram the way they narrow the report.
+    /// </summary>
+    [Description("Write the model as a Mermaid eventmodeling diagram instead of the report")]
+    [FlagAlias("mermaid", true)]
+    public bool MermaidFlag { get; set; }
 }
 
 /// <summary>
@@ -78,6 +87,14 @@ public class DescribeEventModelCommand : JasperFxAsyncCommand<DescribeEventModel
             }
 
             var filter = new EventModelReportFilter(input.ChapterFlag, input.DomainFlag, input.HotspotsOnlyFlag);
+            if (input.MermaidFlag)
+            {
+                // The same narrowing as the report, applied to the model the diagram is drawn from
+                var narrowed = model with { Slices = filter.Apply(model).ToList() };
+                Console.Write(EventModelMermaid.Render(narrowed));
+                return true;
+            }
+
             if (Console.IsOutputRedirected)
             {
                 Console.Write(EventModelReport.Plain(model, filter));

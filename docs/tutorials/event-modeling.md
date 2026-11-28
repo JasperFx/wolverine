@@ -33,7 +33,7 @@ Event Modeling support cuts across most of the Critter Stack, so it's worth know
 | Wolverine | The model *derived* from your message handlers, HTTP endpoints and gRPC services, the `event-model`, `describe-event-model` and `scaffold` commands, the `write-specs` command (WolverineFx.Bobcat.EventModel) that writes a specification for every example on a board, and the `[Emits]` and `[SlicePattern]` attributes |
 | Marten, Polecat and Fisher | A *derived* View slice for every projection registered in the event store, with no extra configuration |
 | [Bobcat](https://bobcat.jasperfx.net) | `bobcat import-event-model` to turn an [eventmodelers.ai](https://eventmodelers.ai) board into C#, and the specification vocabulary (WolverineFx.Bobcat) that the generated specifications use to bind back to their slices |
-| [Stoat](https://stoat.jasperfx.net) | `stoat plan-from-model` to turn a model into a coordination plan, and the agents that work through that plan slice by slice |
+| [Stoat](https://stoat.jasperfx.net) | Coordination plans with a `slice` node per slice of the model, each bound to the specifications that prove it, and the agents that work through that plan slice by slice |
 | [CritterWatch](https://critterwatch.jasperfx.net/) | Renders the same Event Model live from a running service |
 
 ::: tip
@@ -589,22 +589,18 @@ specification and the scaffolded skeleton and writing the implementation in hous
 Stoat is a commercial JasperFx Software product, so you'll need a license to use it.
 :::
 
-If you're handing slices to AI agents as well as people, [Stoat](https://stoat.jasperfx.net) can turn the
-same board into a coordination plan. `stoat plan-from-model` runs Bobcat's own importer to write the same stubs,
-definitions and specifications described above, then imports a plan with one node per slice, each bound to the
-specification identities that prove it:
+If you're handing slices to AI agents as well as people, [Stoat](https://stoat.jasperfx.net) runs a coordination
+plan whose nodes can be the slices of the model. A `slice` node carries the slice's pattern and the
+`{Feature}/{Scenario}` identities of the specifications that prove it, and the node is done when those specifications
+are green. Nothing turns the board into a plan for you: you author the plan yourself, node by node over Stoat's MCP
+tools (`create_plan`, `add_plan_node`, `link_plan_nodes`) or in bulk as a YAML document handed to `import_plan`, naming
+the slices and the specification identities that `write-specs` wrote above.
 
-```bash
-stoat plan-from-model K9CRUSH.emlang.v3.yaml ./CritterCrush \
-  --plan crittercrush --model CritterCrush --namespace CritterCrush \
-  --chapter BookingAppointments VolunteeringAndHomeChecks
-```
-
-Dependencies only come from what the model states. An automation like `ProposeHomeCheckAppointment` depends on the slice
-its trigger names, while command and view slices arrange their own events in their specifications and can be built in
-parallel. `stoat run-plan` then works through the ready slices, and a slice is only done when its specifications are
-green. See [From an event model to a plan](https://stoat.jasperfx.net/guide/plan-from-model) and
-[The chapter runner](https://stoat.jasperfx.net/guide/run-plan) for the details.
+The dependencies are yours to state too, and the model is the guide. An automation like `ProposeHomeCheckAppointment`
+depends on the slice whose event triggers it, while command and view slices arrange their own events in their
+specifications and can be built in parallel. `stoat run-plan` then works through the ready slices. See
+[Plans and nodes](https://stoat.jasperfx.net/guide/plans) for the node kinds and the YAML schema, and
+[The chapter runner](https://stoat.jasperfx.net/guide/run-plan) for how it works a plan's slices.
 
 
 ## Checking the Model Against the Code
@@ -677,8 +673,9 @@ dotnet watch run -- event-model --url http://localhost:5527/api/event-model
 second form, under `dotnet watch`, republishes the model every time you recompile, which makes for a very tight design
 loop on Stoat's Event Model canvas at `http://localhost:5526/event-model`. If you don't use Stoat, Bobcat's free
 `bobcat ui` takes the same PUT at `http://localhost:5525/api/event-model`. Once the application is running for real, [CritterWatch](https://critterwatch.jasperfx.net/)
-renders the same model live from the running service. See [Exporting the Event Model](/guide/command-line#exporting-the-event-model)
-for everything else the export can do.
+renders the same model live from the running service. For a picture with no viewer at all, `event-model --format mermaid`
+writes the model as a Mermaid `eventmodeling` diagram that GitHub and most wikis render. See
+[Exporting the Event Model](/guide/command-line#exporting-the-event-model) for everything else the export can do.
 
 
 ## Summary
@@ -702,4 +699,4 @@ Hopefully that gives you a feel for how the pieces fit together. For the details
 | Spec identities and the gate | [Checking spec identities against the model](/guide/testing-with-bobcat#spec-identity-audit), [Spec Identities](https://bobcat.jasperfx.net/spec-identities) (Bobcat) |
 | `event-model`, `describe-event-model`, `[Emits]`, `[SlicePattern]`, domains | [Exporting the Event Model](/guide/command-line#exporting-the-event-model) |
 | `wolverine scaffold` | [Scaffolding Declared Slices](/guide/command-line#scaffolding-declared-slices) |
-| Plans and agents | [From an event model to a plan](https://stoat.jasperfx.net/guide/plan-from-model) (Stoat) |
+| Plans and agents | [Plans and nodes](https://stoat.jasperfx.net/guide/plans), [The chapter runner](https://stoat.jasperfx.net/guide/run-plan) (Stoat) |
