@@ -1,0 +1,177 @@
+{
+  "$schema": "https://dcb.events/schemas/model/v10.json",
+  "dcbModelVersion": "10.1",
+  "name": "Prevent record duplication",
+  "customTypeDefinitions": [
+    {
+      "name": "OrderId",
+      "schema": {
+        "type": "string"
+      },
+      "isTag": true
+    },
+    {
+      "name": "IdempotencyToken",
+      "schema": {
+        "type": "string"
+      },
+      "isTag": true
+    }
+  ],
+  "eventDefinitions": [
+    {
+      "name": "OrderPlaced",
+      "properties": [
+        {
+          "name": "orderId",
+          "propertyType": "OrderId",
+          "isOptional": false,
+          "isList": false
+        },
+        {
+          "name": "idempotencyToken",
+          "propertyType": "IdempotencyToken",
+          "isOptional": false,
+          "isList": false
+        }
+      ],
+      "tags": [
+        "orderId",
+        "idempotencyToken"
+      ]
+    }
+  ],
+  "entityDefinitions": [],
+  "projectionDefinitions": [
+    {
+      "name": "IdempotencyTokenWasUsed",
+      "tags": [
+        {
+          "name": "idempotencyToken",
+          "tagType": "IdempotencyToken"
+        }
+      ],
+      "valueType": "boolean",
+      "isList": false,
+      "initialValue": false,
+      "handlers": [
+        {
+          "event": "OrderPlaced",
+          "operation": "set",
+          "value": true
+        }
+      ]
+    }
+  ],
+  "commandDefinitions": [
+    {
+      "name": "PlaceOrder",
+      "properties": [
+        {
+          "name": "orderId",
+          "propertyType": "OrderId",
+          "isOptional": false,
+          "isList": false
+        },
+        {
+          "name": "idempotencyToken",
+          "propertyType": "IdempotencyToken",
+          "isOptional": false,
+          "isList": false
+        }
+      ],
+      "boundary": [
+        {
+          "alias": "tokenUsed",
+          "projection": "IdempotencyTokenWasUsed",
+          "tags": {
+            "idempotencyToken": {
+              "parameterName": "idempotencyToken"
+            }
+          }
+        }
+      ],
+      "conditions": [
+        {
+          "leftHandSide": {
+            "alias": "tokenUsed"
+          },
+          "predicate": "isFalse",
+          "rejection": "Order was already placed"
+        }
+      ],
+      "publishes": [
+        {
+          "name": "OrderPlaced",
+          "parameters": {
+            "orderId": {
+              "parameterName": "orderId"
+            },
+            "idempotencyToken": {
+              "parameterName": "idempotencyToken"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "scenarioDefinitions": [
+    {
+      "id": "dfa19590-4943-4267-883e-f5b93a235b5a",
+      "name": "Place order with previously used idempotency token",
+      "command": "PlaceOrder",
+      "given": [
+        {
+          "event": "OrderPlaced",
+          "data": {
+            "orderId": "o12345",
+            "idempotencyToken": "11111"
+          }
+        }
+      ],
+      "when": {
+        "arguments": {
+          "orderId": "o54321",
+          "idempotencyToken": "11111"
+        }
+      },
+      "then": {
+        "outcome": "rejected",
+        "events": [],
+        "rejection": "Order was already placed"
+      }
+    },
+    {
+      "id": "521c172d-9fd0-4b03-a76d-8137d069809b",
+      "name": "Place order with new idempotency token",
+      "command": "PlaceOrder",
+      "given": [
+        {
+          "event": "OrderPlaced",
+          "data": {
+            "orderId": "o12345",
+            "idempotencyToken": "11111"
+          }
+        }
+      ],
+      "when": {
+        "arguments": {
+          "orderId": "o54321",
+          "idempotencyToken": "22222"
+        }
+      },
+      "then": {
+        "outcome": "published",
+        "events": [
+          {
+            "type": "OrderPlaced",
+            "data": {
+              "orderId": "o54321",
+              "idempotencyToken": "22222"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -428,6 +428,46 @@ Every id a generated spec mints is `Guid.CreateVersion7()` rather than `Guid.New
 around, and random v4 Guids as stream ids fragment the event store's indexes.
 :::
 
+### What Each Example Becomes <Badge type="tip" text="7.0" />
+
+The writer reads Bobcat's *scenario model* of each example, which says what kind of thing every given, act and outcome
+is, and picks the specification's vocabulary from that. A command with an `apiEndpoint` on the board is posted at that
+route; a read model given as `context` is arranged directly with `GivenReadModel<T>`; a list read model's `examples`
+rows become `ThenDocuments<T>(Expect.InAnyOrder(...))` and `expectEmptyList` becomes `ThenNoReadModel<T>()`; a
+`generated` field is left out of the comparison; a tagged event carries `.Tagged(...)`; and a `Blocked` or
+`Informational` slice gets `[BobcatSpec(Pending = true)]`, so its specifications are reported skipped instead of red.
+The full table is in [the command-line guide](/guide/command-line#writing-specifications-from-a-board).
+
+The one thing a board rarely says is whether a command arrives over HTTP or as a message, and the specification has
+to agree with the skeleton `scaffold` writes for the slice. The `--acts` flag settles it. The default, `board`, uses the
+board's `apiEndpoint` when the command has one; otherwise a command a screen triggers is an HTTP endpoint at the route
+`scaffold` writes for it, and a command an automation triggers, or nothing triggers, is a message. `--acts http` makes
+every command an endpoint and `--acts message` makes every command a message, which is what `write-specs` wrote before
+7.0. The K9CRUSH board has no screens, so its specifications read the same either way; a board with screens writes its
+commands like this under the default:
+
+```csharp
+[BobcatFeature("AddItemToOrder")]
+[BobcatSlice(SliceType = typeof(AddItemToOrder))]
+public class add_item_to_order(AppFixture app) : KitchenHttpSpec(app)
+{
+    [Fact]
+    public async Task add_to_an_existing_order()
+    {
+        var theOrder = Guid.CreateVersion7(); // "order-123" in the model
+        await GivenEvents<Order>(theOrder, Specify<OrderStarted>().With(x => x.OrderId, theOrder));
+
+        // The board gives AddItemToOrder no apiEndpoint, so this is the route scaffold writes for it
+        await WhenPosted(Specify<AddItemToOrder>().With(x => x.OrderId, theOrder).With(x => x.Item, "margherita"), "/api/add-item-to-order");
+
+        ThenEvents(Specify<ItemAdded>().With(x => x.OrderId, theOrder).With(x => x.Item, "margherita"));
+    }
+}
+```
+
+`KitchenHttpSpec` is the second base class `TestSupport.cs` declares, over `WolverineHttpSpec` from
+`WolverineFx.Bobcat.Http`, which the generated spec project references alongside `WolverineFx.Bobcat`.
+
 ### How a Specification Binds to Its Slice
 
 There are two links between a specification and the model, and both are generated for you:

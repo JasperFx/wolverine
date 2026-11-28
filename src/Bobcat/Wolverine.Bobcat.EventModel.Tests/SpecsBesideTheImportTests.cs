@@ -92,11 +92,19 @@ public class SpecsBesideTheImportTests
         var board = EventModelersJsonReader.Read(Boards.Config);
         var model = EmlangImport.ToCurated(board, "Shop").Model;
 
+        // The Add Item slice has a screen (Cart Page), so --acts board makes its command an HTTP endpoint (GH-6004)
         var specs = EmlangSpecWriter.Write(board, model, "Shop");
 
         specs.Specs.ShouldBe(2);
-        code(specs).ShouldContain("ThenRefusedWith(\"Quantity over limit\");");
-        code(specs).ShouldContain("await WhenReceived(Specify<AddItem>().With(x => x.CartId, theCart).With(x => x.Quantity, 2));");
+        code(specs).ShouldContain("public class add_item(AppFixture app) : ShopHttpSpec(app)");
+        code(specs).ShouldContain("await WhenPosted(Specify<AddItem>().With(x => x.CartId, theCart).With(x => x.Quantity, 2), \"/api/add-item\");");
+        code(specs).ShouldContain("await ThenRefusedWithProblem(Specify<ProblemDetails>().With(x => x.Detail, \"Quantity over limit\"));");
+
+        // --acts message: what the writer always wrote
+        var messages = EmlangSpecWriter.Write(board, model, "Shop", null, null, null, ActStyle.Message);
+        code(messages).ShouldContain("public class add_item(AppFixture app) : ShopSpec(app)");
+        code(messages).ShouldContain("ThenRefusedWith(\"Quantity over limit\");");
+        code(messages).ShouldContain("await WhenReceived(Specify<AddItem>().With(x => x.CartId, theCart).With(x => x.Quantity, 2));");
     }
 
     // ---------------------------------------------------------------- StreamStartIdentityTests

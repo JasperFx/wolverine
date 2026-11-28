@@ -97,7 +97,7 @@ public sealed class SpecProjectWriterTests : IDisposable
         var csproj = XDocument.Parse(contentOf(result, "Shelter.Specs.csproj"));
         var packages = csproj.Descendants("PackageReference").ToDictionary(x => x.Attribute("Include")!.Value, x => x.Attribute("Version")?.Value);
         packages.Keys.ShouldBe(
-            ["xunit.v3", "Bobcat", "Bobcat.Xunit", "Bobcat.Generators", "WolverineFx.Bobcat", "Alba", "Microsoft.NET.Test.Sdk", "xunit.runner.visualstudio"],
+            ["xunit.v3", "Bobcat", "Bobcat.Xunit", "Bobcat.Generators", "WolverineFx.Bobcat", "WolverineFx.Bobcat.Http", "Alba", "Microsoft.NET.Test.Sdk", "xunit.runner.visualstudio"],
             ignoreOrder: true);
         packages["xunit.v3"].ShouldBe("4.0.2");
         packages["Bobcat"].ShouldBe("$(BobcatVersion)");
@@ -271,6 +271,7 @@ public sealed class SpecProjectWriterTests : IDisposable
         [
             "<PackageReference Include=\"Bobcat.Generators\" PrivateAssets=\"all\" />",
             "<PackageReference Include=\"WolverineFx.Bobcat\" />",
+            "<PackageReference Include=\"WolverineFx.Bobcat.Http\" />",
             "<PackageReference Include=\"Alba\" />"
         ]);
         result.Callouts.Single(x => x.Code == ImportCalloutCodes.SpecProjectMissingEventModelName).Fix

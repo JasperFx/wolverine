@@ -212,4 +212,147 @@ internal static class Boards
           ]
         }
         """;
+
+    /// <summary>
+    /// An EM Spec <c>config.json</c> in the shapes the platform's API reference and schema describe, after Bobcat's own
+    /// reader fixture (bobcat#846, <c>EventModelersJsonReaderTests.Rich</c>): a command with an <c>apiEndpoint</c>, a
+    /// generated and a tagged field, a linked copy of the event in a second slice, a list read model, scenarios with
+    /// <c>context</c>, an inline <c>QUERY</c>, <c>examples</c> rows, <c>expectEmptyList</c> and a <c>contextNote</c>,
+    /// slice status (Blocked, Informational), description and actors, and an automation slice (GH-6004).
+    /// </summary>
+    internal const string OrdersSpec =
+        """
+        {
+          "slices": [
+            {
+              "title": "Place Order",
+              "chapter": "Ordering",
+              "sliceType": "STATE_CHANGE",
+              "status": "Blocked",
+              "description": "An order needs at least one line.\nOrders over 1000 need approval.",
+              "actors": [ { "name": "Customer", "authRequired": true, "rolesRequired": ["buyer"] } ],
+              "aggregates": ["Order"],
+              "commands": [
+                { "id": "cmd-1", "linkedId": "cmd-1", "elementCopy": false, "title": "Place Order", "type": "COMMAND",
+                  "apiEndpoint": "POST /orders/{orderId}", "aggregate": "default",
+                  "fields": [
+                    { "name": "orderId", "type": "UUID", "idAttribute": true },
+                    { "name": "total", "type": "Number" } ] }
+              ],
+              "events": [
+                { "id": "evt-1", "linkedId": "evt-1", "elementCopy": false, "title": "Order Placed", "type": "EVENT", "aggregate": "Order",
+                  "fields": [
+                    { "name": "orderId", "type": "UUID", "idAttribute": true, "tag": true },
+                    { "name": "placedAt", "type": "DateTime", "generated": true },
+                    { "name": "total", "type": "Decimal" } ] }
+              ],
+              "readmodels": [],
+              "screens": [],
+              "processors": [],
+              "specifications": [
+                {
+                  "id": "spec-1",
+                  "title": "Places an order over the approval limit",
+                  "contextNote": "Approval is a manual step outside the system.",
+                  "context": [ { "id": "rm-limits", "title": "Approval Limits", "type": "SPEC_READMODEL",
+                                 "fields": [ { "name": "limit", "example": "1000" } ] } ],
+                  "given": [],
+                  "when": [ { "id": "cmd-1", "title": "Place Order", "type": "SPEC_COMMAND",
+                              "fields": [ { "name": "orderId", "example": "o-1" }, { "name": "total", "example": "1500" } ] } ],
+                  "then": [ { "id": "evt-copy", "title": "Order Placed (copy)", "type": "SPEC_EVENT",
+                              "fields": [ { "name": "orderId", "example": "o-1" }, { "name": "total", "example": "1500" } ] } ]
+                },
+                {
+                  "id": "spec-1b",
+                  "title": "Refuses an empty order",
+                  "given": [],
+                  "when": [ { "id": "cmd-1", "title": "Place Order", "type": "SPEC_COMMAND",
+                              "fields": [ { "name": "orderId", "example": "o-2" }, { "name": "total", "example": "0" } ] } ],
+                  "then": [],
+                  "expectError": true,
+                  "errorDescription": "An order needs at least one line"
+                }
+              ]
+            },
+            {
+              "title": "Open Orders",
+              "chapter": "Ordering",
+              "sliceType": "STATE_VIEW",
+              "status": "Done",
+              "aggregates": [],
+              "commands": [],
+              "events": [
+                { "id": "evt-copy", "linkedId": "evt-1", "elementCopy": true, "title": "Order Placed (copy)", "type": "EVENT", "aggregate": "default", "fields": [] }
+              ],
+              "readmodels": [
+                { "id": "rm-1", "linkedId": "rm-1", "elementCopy": false, "title": "Open Orders", "type": "READMODEL", "listElement": true,
+                  "fields": [ { "name": "orderId", "type": "UUID" }, { "name": "total", "type": "Decimal" } ] }
+              ],
+              "screens": [], "processors": [],
+              "specifications": [
+                {
+                  "id": "spec-2",
+                  "title": "Lists the open orders",
+                  "given": [ { "id": "evt-copy", "title": "Order Placed", "type": "SPEC_EVENT", "fields": [ { "name": "orderId", "example": "o-1" } ] } ],
+                  "when": [],
+                  "then": [ { "id": "rm-1", "title": "Open Orders", "type": "SPEC_READMODEL" } ],
+                  "examples": [ { "orderId": "o-1", "total": 1500 } ]
+                },
+                {
+                  "id": "spec-3",
+                  "title": "No open orders at the start",
+                  "given": [],
+                  "when": [],
+                  "then": [ { "id": "rm-1", "title": "Open Orders", "type": "SPEC_READMODEL" } ],
+                  "expectEmptyList": true,
+                  "examples": []
+                },
+                {
+                  "id": "spec-4",
+                  "title": "Asked for one customer",
+                  "given": [ { "id": "evt-copy", "title": "Order Placed", "type": "SPEC_EVENT" } ],
+                  "when": [ { "id": "rm-1", "title": "Open Orders", "type": "QUERY", "fields": [ { "name": "customerId", "example": "c-9" } ] } ],
+                  "then": [ { "id": "rm-1", "title": "Open Orders", "type": "SPEC_READMODEL", "fields": [ { "name": "total", "example": "1500" } ] } ]
+                }
+              ]
+            },
+            {
+              "title": "Send Confirmation",
+              "chapter": "Ordering",
+              "sliceType": "AUTOMATION",
+              "status": "Informational",
+              "description": "The confirmation is a courtesy; the order stands without it.",
+              "aggregates": ["Order"],
+              "processors": [ { "id": "proc-1", "title": "Order Placed Processor", "type": "PROCESSOR" } ],
+              "commands": [
+                { "id": "cmd-2", "linkedId": "cmd-2", "elementCopy": false, "title": "Send Confirmation", "type": "COMMAND", "aggregate": "default",
+                  "fields": [ { "name": "orderId", "type": "UUID", "idAttribute": true } ] }
+              ],
+              "events": [
+                { "id": "evt-2", "linkedId": "evt-2", "elementCopy": false, "title": "Confirmation Sent", "type": "EVENT", "aggregate": "Order",
+                  "fields": [ { "name": "orderId", "type": "UUID", "idAttribute": true } ] }
+              ],
+              "readmodels": [], "screens": [],
+              "specifications": [
+                {
+                  "id": "spec-5",
+                  "title": "Confirms a placed order",
+                  "given": [ { "id": "evt-1", "title": "Order Placed", "type": "SPEC_EVENT", "fields": [ { "name": "orderId", "example": "o-1" } ] } ],
+                  "when": [ { "id": "cmd-2", "title": "Send Confirmation", "type": "SPEC_COMMAND", "fields": [ { "name": "orderId", "example": "o-1" } ] } ],
+                  "then": [ { "id": "evt-2", "title": "Confirmation Sent", "type": "SPEC_EVENT", "fields": [ { "name": "orderId", "example": "o-1" } ] } ]
+                }
+              ]
+            }
+          ]
+        }
+        """;
+
+    /// <summary>
+    /// A dcb.events Playground model (bobcat#849), one of the nine Bobcat vendors: two commands' worth of scenarios over
+    /// tagged events, a rejection and an acceptance. Read from <c>Fixtures/dcb/</c>, where its licence sits beside it.
+    /// </summary>
+    internal static string Dcb => File.ReadAllText(Fixture("dcb", "prevent-record-duplication.dcb.json"));
+
+    private static string Fixture(string folder, string file, [System.Runtime.CompilerServices.CallerFilePath] string path = "")
+        => Path.Combine(Path.GetDirectoryName(path)!, "Fixtures", folder, file);
 }

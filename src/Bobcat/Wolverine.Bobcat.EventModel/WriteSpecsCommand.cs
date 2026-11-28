@@ -1,13 +1,19 @@
 using Bobcat.EventModel;
+using Bobcat.EventModel.Dcb;
 using Bobcat.EventModel.Emlang;
+using Bobcat.EventModel.Esdm;
 using JasperFx.CommandLine;
 
 namespace Wolverine.Bobcat.EventModel;
 
 public class WriteSpecsInput
 {
-    [Description("An eventmodelers.ai export (a board backup or config.json), or an emlang model (YAML)")]
+    [Description("An eventmodelers.ai export (a board backup or config.json), an emlang model (YAML), a dcb.events Playground model (JSON) or an ESDM document (YAML)")]
     public string FilePath { get; set; } = string.Empty;
+
+    [Description("How a command example's act is written: board (the default) uses the board's apiEndpoint when the command has one, else a screen-triggered command is an HTTP endpoint at the route scaffold writes and anything else is a message; http makes every command an HTTP endpoint; message makes every command a message received")]
+    [FlagAlias("acts", true)]
+    public string? ActsFlag { get; set; }
 
     [Description("Model name; defaults to the file name. It is the merge key, so it must match what the code-derived sources call the model")]
     [FlagAlias("model", 'm')]
@@ -115,16 +121,29 @@ public class WriteSpecsCommand : JasperFxAsyncCommand<WriteSpecsInput>
         // With --json nothing but the JSON reaches stdout, so a tool can parse it whole
         var run = new SpecRun(input.JsonFlag ? TextWriter.Null : Console.Out);
 
+        ActStyle acts;
+        try
+        {
+            acts = EmlangSpecWriter.ParseActs(input.ActsFlag);
+        }
+        catch (ArgumentException e)
+        {
+            await Console.Error.WriteLineAsync(e.Message.Replace(" (Parameter 'text')", ""));
+            return false;
+        }
+
         var model = EventModelFileSniffer.Sniff(text) switch
         {
             EventModelFileKind.Emlang or EventModelFileKind.EventModelersBoard or EventModelFileKind.EventModelersConfig
-                => write(input, text, run),
+                => write(input, text, run, acts),
+            EventModelFileKind.DcbPlayground or EventModelFileKind.Esdm => writeLowered(input, text, run, acts),
             EventModelFileKind.Curated => refuse(
                 $"{input.FilePath} is a curated event-model file, which is no longer an authoring format. Specifications are "
                 + "written from the eventmodelers.ai board export the model was imported from."),
             _ => refuse(
                 $"{input.FilePath} is not an emlang file. Expected a top-level `slices:` map, each slice a list of steps or a map "
-                + "of `steps:` and `tests:`. (An eventmodelers.ai export is a board backup or a config.json.)")
+                + "of `steps:` and `tests:`. (An eventmodelers.ai export is a board backup or a config.json; a dcb.events Playground "
+                + "model carries dcbModelVersion; ESDM documents carry an apiVersion under schema.esdm.io/.)")
         };
 
         if (model is null) return false;
@@ -161,7 +180,51 @@ public class WriteSpecsCommand : JasperFxAsyncCommand<WriteSpecsInput>
         return null;
     }
 
-    private static string? write(WriteSpecsInput input, string text, SpecRun run)
+    /// <summary>
+    /// A model a reader lowers itself -- a dcb.events Playground model, ESDM documents (bobcat#849/#850): no board to
+    /// segment, so the specifications are written from the curated model as the reader made it. <c>--aggregate</c>
+    /// and <c>--starts-stream</c> are the import's to apply, not this command's, and are reported as unapplied.
+    /// </summary>
+    private static string? writeLowered(WriteSpecsInput input, string text, SpecRun run, ActStyle acts)
+    {
+        var model = input.ModelFlag ?? EmlangImport.PascalName(Path.GetFileName(input.FilePath).Split('.')[0]);
+        var ns = input.NamespaceFlag ?? CSharpModelWriter.Identifiers.Sanitize(model);
+
+        EmlangImportResult result;
+        try
+        {
+            result = EventModelFileSniffer.Sniff(text) == EventModelFileKind.DcbPlayground
+                ? DcbPlaygroundReader.ToCurated(text, model, ns)
+                : EsdmReader.ToCurated(text, model, ns);
+        }
+        catch (EmlangFormatException e)
+        {
+            Console.Error.WriteLine($"Not readable: {e.Message}");
+            return null;
+        }
+
+        if (input.AggregateFlag.Count + input.StartsStreamFlag.Count > 0)
+        {
+            run.Out.WriteLine("⚠ --aggregate and --starts-stream apply when bobcat import-event-model reads this model; write-specs reads it as the reader lowered it.");
+        }
+
+        if (input.ChapterFlag.Count > 0)
+        {
+            var known = result.Model.Slices.Select(x => x.Chapter).OfType<string>().Where(x => x.Length > 0).Distinct(StringComparer.Ordinal).ToList();
+            var unknown = input.ChapterFlag.Where(x => !known.Contains(x, StringComparer.Ordinal)).ToList();
+            if (unknown.Count > 0)
+            {
+                Console.Error.WriteLine($"No chapter named {string.Join(", ", unknown.Select(x => $"'{x}'"))}. The model has: {string.Join(", ", known)}");
+                return null;
+            }
+
+            result.Model.Slices.RemoveAll(x => x.Chapter is not { } chapter || !input.ChapterFlag.Contains(chapter, StringComparer.Ordinal));
+        }
+
+        return writeAll(input, null, result, model, ns, run, acts, boardSlices: null);
+    }
+
+    private static string? write(WriteSpecsInput input, string text, SpecRun run, ActStyle acts)
     {
         EmlangBoard board;
         try
@@ -208,11 +271,19 @@ public class WriteSpecsCommand : JasperFxAsyncCommand<WriteSpecsInput>
 
         // The spec writer reads the chapters imported, never the ones left out
         board = result.Board ?? board;
+        var ns = input.NamespaceFlag ?? CSharpModelWriter.Identifiers.Sanitize(model);
+
+        return writeAll(input, board, result, model, ns, run, acts, boardSlices);
+    }
+
+    /// <summary>The stubs, the definitions, the specifications and the spec project, from a curated model and the board behind it when there is one.</summary>
+    private static string? writeAll(WriteSpecsInput input, EmlangBoard? board, EmlangImportResult result, string model, string ns, SpecRun run,
+        ActStyle acts, IReadOnlyList<string>? boardSlices)
+    {
         run.Callouts = result.Callouts;
         run.Report.AddRange(result.Report);
         foreach (var line in result.Report) run.Out.WriteLine(line);
 
-        var ns = input.NamespaceFlag ?? CSharpModelWriter.Identifiers.Sanitize(model);
         var specsNamespace = input.SpecsNamespaceFlag ?? ns + ".Specs";
 
         // One decision, handed to both writers (bobcat#512): the specifications declare identities as the typed
@@ -221,7 +292,7 @@ public class WriteSpecsCommand : JasperFxAsyncCommand<WriteSpecsInput>
             ? StrongTypedIds.For(result.Model, CSharpModelWriter.StubNames(result.Model))
             : StrongTypedIds.None;
 
-        var specs = EmlangSpecWriter.Write(board, result.Model, ns, specsNamespace, input.StoreFlag, identities);
+        var specs = EmlangSpecWriter.Write(board, result.Model, ns, specsNamespace, input.StoreFlag, identities, acts);
         var generated = CSharpModelWriter.Write(result.Model, ns, specs.Additions, perChapter: !input.SingleDefinitionFlag, identities);
 
         if (identities.Callouts.Count > 0)
