@@ -1,7 +1,9 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Middleware;
 using Wolverine.Persistence;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
@@ -179,14 +181,19 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     /// </summary>
     /// <param name="filter">If specified, limits the applicability of the middleware to certain message types</param>
     /// <typeparam name="T">The actual middleware type</typeparam>
-    void AddMiddleware<T>(Func<HandlerChain, bool>? filter = null);
+    void AddMiddleware<[DynamicallyAccessedMembers(MiddlewarePolicy.MiddlewareMembers)] T>(
+        Func<HandlerChain, bool>? filter = null);
 
     /// <summary>
     ///     Add Wolverine middleware to message handlers
     /// </summary>
-    /// <param name="middlewareType">The actual middleware type</param>
+    /// <param name="middlewareType">
+    ///     The actual middleware type. Its public constructor and methods are read by reflection, which the
+    ///     annotation keeps under Native AOT (GH-6013); pass a <c>typeof()</c> or an equally annotated <c>Type</c>.
+    /// </param>
     /// <param name="filter">If specified, limits the applicability of the middleware to certain message types</param>
-    void AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null);
+    void AddMiddleware([DynamicallyAccessedMembers(MiddlewarePolicy.MiddlewareMembers)] Type middlewareType,
+        Func<HandlerChain, bool>? filter = null);
 
     /// <summary>
     ///     For the purposes of interoperability with NServiceBus or MassTransit, register

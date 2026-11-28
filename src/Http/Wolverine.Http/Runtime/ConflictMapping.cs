@@ -162,7 +162,10 @@ public class ConflictProblemPolicy : IHttpPolicy
         var matching = chains.Where(_filter).ToArray();
         if (matching.Length == 0) return;
 
-        // The conflict middleware is only OnException handlers, which wrap the whole chain wherever it is applied
+        // The conflict middleware is only OnException handlers, which wrap the whole chain wherever it is applied.
+        // GH-6013: AddType's parameter is annotated for the trimmer, so this typeof() keeps the OnException methods
+        // in a native image. Moving the registration here from WolverineHttpOptions.AddMiddleware had dropped the
+        // annotation that GH-5195 put on that path, and every native Wolverine.Http app refused the type at startup.
         var middleware = new MiddlewarePolicy();
         middleware.AddType(typeof(ConcurrencyExceptionMiddleware));
         middleware.Apply(matching, rules, container);

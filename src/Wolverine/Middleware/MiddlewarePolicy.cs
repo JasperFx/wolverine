@@ -32,6 +32,19 @@ public class MiddlewarePolicy : IChainPolicy
     /// </summary>
     public const string OnExceptionFilterMethodName = "OnExceptionFilter";
 
+    /// <summary>
+    ///     GH-6013. The members <see cref="Application" /> reads off a middleware type by reflection: its public
+    ///     constructor (for a non-static middleware class) and its public methods, which is where the
+    ///     Before/After/Finally/OnException methods are found by name. Every <c>Type</c> that reaches
+    ///     <see cref="AddType" /> is annotated with these, so that under Native AOT the trimmer keeps them, and
+    ///     so that the trim analyzer refuses, at build time, any new registration path that forgets to. Without the
+    ///     annotation ILC keeps only what the pre-generated code calls, <c>GetMethods()</c> comes back empty, and a
+    ///     perfectly good middleware type is refused at startup as having no middleware methods -- which is what
+    ///     GH-5985 did to every native Wolverine.Http application.
+    /// </summary>
+    public const DynamicallyAccessedMemberTypes MiddlewareMembers =
+        DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicMethods;
+
     private readonly List<Application> _applications = [];
 
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
@@ -201,7 +214,8 @@ public class MiddlewarePolicy : IChainPolicy
         }
     }
 
-    public Application AddType(Type middlewareType, Func<IChain, bool>? filter = null)
+    public Application AddType([DynamicallyAccessedMembers(MiddlewareMembers)] Type middlewareType,
+        Func<IChain, bool>? filter = null)
     {
         filter ??= _ => true;
         var application = new Application(null, middlewareType, filter);
@@ -230,18 +244,13 @@ public class MiddlewarePolicy : IChainPolicy
         private readonly MethodInfo[] _onExceptions;
         private readonly MethodInfo[] _onExceptionFilters;
 
-        // GetConstructors / GetMethods walk over a runtime-resolved middleware
-        // type. Middleware is opt-in (registered explicitly via
-        // opts.Policies.AddMiddleware<T> or AddMiddleware(typeof(T))) — the
-        // user-provided type is statically rooted by the call site. A future
-        // chunk could propagate [DAM(PublicConstructors|PublicMethods)] up
-        // through MiddlewarePolicy.AddType + IPolicies.AddMiddleware<T> /
-        // AddMiddleware(Type) to make the requirement explicit, but that's a
-        // 3-hop public-API cascade scoped for the CloseAndBuildAs follow-up
-        // (#2769) rather than this small-file batch.
-        [UnconditionalSuppressMessage("Trimming", "IL2070",
-            Justification = "Middleware types are opt-in via opts.Policies.AddMiddleware; user-supplied types are statically rooted by the registration call site. See AOT guide.")]
-        public Application(IChain? chain, Type middlewareType, Func<IChain, bool> filter)
+        // GetConstructors / GetMethods walk over the middleware type, so the type has to arrive annotated with
+        // MiddlewareMembers: the IL2070 that used to be suppressed here on the grounds that "the registration
+        // call site roots the type" was wrong under Native AOT, where a typeof() roots the type and not its
+        // methods' reflection metadata. GH-6013 is what that cost; the annotation is what makes the requirement
+        // explicit and lets the trim analyzer enforce it on every path that reaches this constructor.
+        public Application(IChain? chain, [DynamicallyAccessedMembers(MiddlewareMembers)] Type middlewareType,
+            Func<IChain, bool> filter)
         {
             if (!middlewareType.IsPublic && !middlewareType.IsVisible)
             {

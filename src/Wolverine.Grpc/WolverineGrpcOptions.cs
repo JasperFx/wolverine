@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.ServiceModel;
 using Grpc.Core;
 using Microsoft.AspNetCore.Builder;
@@ -235,7 +236,8 @@ public sealed class WolverineGrpcOptions
     ///     <c>c => c is GrpcServiceChain g &amp;&amp; g.ProtoServiceName == "Greeter"</c>.
     /// </param>
     /// <typeparam name="T">The middleware class (looked up by convention for <c>Before</c>/<c>After</c>/<c>Finally</c> methods).</typeparam>
-    public void AddMiddleware<T>(Func<IChain, bool>? filter = null)
+    public void AddMiddleware<[DynamicallyAccessedMembers(MiddlewarePolicy.MiddlewareMembers)] T>(
+        Func<IChain, bool>? filter = null)
         => AddMiddleware(typeof(T), filter);
 
     /// <summary>
@@ -248,7 +250,8 @@ public sealed class WolverineGrpcOptions
     ///     proto-first, code-first, and hand-written. See
     ///     <see cref="AddMiddleware{T}(Func{IChain,bool}?)"/> for details.
     /// </param>
-    public void AddMiddleware(Type middlewareType, Func<IChain, bool>? filter = null)
+    public void AddMiddleware([DynamicallyAccessedMembers(MiddlewarePolicy.MiddlewareMembers)] Type middlewareType,
+        Func<IChain, bool>? filter = null)
     {
         Middleware.AddType(middlewareType, filter ?? IsGrpcChain);
     }

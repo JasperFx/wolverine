@@ -146,6 +146,22 @@ A handful of Wolverine APIs **require** runtime codegen by design. They carry `[
 
 If you publish AOT in `Dynamic` mode (the default), expect warnings from these surfaces -- they tell you what to migrate before you can ship a working AOT binary.
 
+### Middleware types <Badge type="tip" text="7.0" />
+
+Wolverine finds a middleware class's `Before` / `After` / `Finally` / `OnException` methods by reflection, and the
+trimmer keeps only the members something roots. Every `AddMiddleware<T>()` / `AddMiddleware(typeof(T))` overload
+(on `opts.Policies`, `ForMessagesOfType<T>()`, `WolverineHttpOptions` and `WolverineGrpcOptions`) annotates the type
+with `[DynamicallyAccessedMembers]`, so middleware registered that way, including the built-in 7.0 conflict and
+unknown-tenant mappings, survives a native publish without anything on your side. The exception is the
+`[Middleware(typeof(T))]` attribute: a `Type[]` argument cannot be annotated, so in a Native AOT application
+root each attribute-applied middleware type's public methods yourself, on any method the application compiles
+(the attribute goes on a constructor, field or method, not on the assembly):
+
+```csharp
+[DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods, typeof(MyMiddleware))]
+public static void RootMiddleware() { }
+```
+
 ## Cold-start side benefit
 
 Even without publishing AOT, `TypeLoadMode.Static` produces meaningful cold-start improvements: the host doesn't pay the per-handler Roslyn compile cost on first message. The [`CritterStackScalability`](https://github.com/JasperFx/CritterStackScalability) `coldstart wolverine` harness measures this against the V5.39.0 baseline.

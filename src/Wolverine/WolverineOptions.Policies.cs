@@ -228,7 +228,8 @@ public sealed partial class WolverineOptions : IPolicies
     }
 
 #pragma warning disable CS1066
-    void IPolicies.AddMiddleware(Type middlewareType, Func<HandlerChain, bool>? filter = null)
+    void IPolicies.AddMiddleware([DynamicallyAccessedMembers(MiddlewarePolicy.MiddlewareMembers)] Type middlewareType,
+        Func<HandlerChain, bool>? filter = null)
 #pragma warning restore CS1066
     {
         filter ??= _ => true;
@@ -245,7 +246,8 @@ public sealed partial class WolverineOptions : IPolicies
     }
 
 #pragma warning disable CS1066
-    void IPolicies.AddMiddleware<T>(Func<HandlerChain, bool>? filter = null)
+    void IPolicies.AddMiddleware<[DynamicallyAccessedMembers(MiddlewarePolicy.MiddlewareMembers)] T>(
+        Func<HandlerChain, bool>? filter = null)
 #pragma warning restore CS1066
     {
         this.As<IPolicies>().AddMiddleware(typeof(T), filter);

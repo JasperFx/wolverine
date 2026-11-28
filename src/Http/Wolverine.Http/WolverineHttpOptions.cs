@@ -775,7 +775,7 @@ public class WolverineHttpOptions
         // GH-5195: an explicit call replaces the 7.0 default mapping rather than adding a second one
         _unknownTenantMapping = true;
 
-        addBuiltInMiddleware(typeof(UnknownTenantMiddleware), filter);
+        AddMiddleware(typeof(UnknownTenantMiddleware), filter);
         Policies.Add(new UnknownTenantProblemPolicy(filter));
     }
 
@@ -792,16 +792,6 @@ public class WolverineHttpOptions
 
     // null = the 7.0 default decides, true = mapped explicitly, false = opted out
     private bool? _unknownTenantMapping;
-
-    // GH-5195: the conflict and unknown tenant middleware are registered on every application by default from 7.0,
-    // and MiddlewarePolicy finds their OnException methods by reflection. Under Native AOT the trimmer removes
-    // methods nothing references statically, so the annotation here roots their public methods.
-    private void addBuiltInMiddleware(
-        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] Type middlewareType,
-        Func<HttpChain, bool> filter)
-    {
-        AddMiddleware(middlewareType, filter);
-    }
 
     /// <summary>
     /// GH-5195. Settle the Wolverine.Http defaults that flipped in 7.0, once the user's configuration has run.
@@ -863,7 +853,8 @@ public class WolverineHttpOptions
     ///     type of the middleware type
     /// </summary>
     /// <param name="middlewareType"></param>
-    public void AddMiddlewareByMessageType(Type middlewareType)
+    public void AddMiddlewareByMessageType(
+        [DynamicallyAccessedMembers(MiddlewarePolicy.MiddlewareMembers)] Type middlewareType)
     {
         Middleware.AddType(middlewareType, chain => chain is HttpChain).MatchByMessageType = true;
     }
@@ -873,7 +864,8 @@ public class WolverineHttpOptions
     /// </summary>
     /// <param name="filter">If specified, limits the applicability of the middleware to certain message types</param>
     /// <typeparam name="T">The actual middleware type</typeparam>
-    public void AddMiddleware<T>(Func<HttpChain, bool>? filter = null)
+    public void AddMiddleware<[DynamicallyAccessedMembers(MiddlewarePolicy.MiddlewareMembers)] T>(
+        Func<HttpChain, bool>? filter = null)
     {
         AddMiddleware(typeof(T), filter);
     }
@@ -881,9 +873,14 @@ public class WolverineHttpOptions
     /// <summary>
     ///     Add Wolverine middleware to message handlers
     /// </summary>
-    /// <param name="middlewareType">The actual middleware type</param>
+    /// <param name="middlewareType">
+    ///     The actual middleware type. <c>MiddlewarePolicy</c> finds its Before/After/Finally/OnException methods by
+    ///     reflection, and under Native AOT the trimmer keeps only what is annotated, so the built-in 7.0 mappings
+    ///     (GH-5195) and user middleware alike come through here with the type annotated (GH-6013).
+    /// </param>
     /// <param name="filter">If specified, limits the applicability of the middleware to certain message types</param>
-    public void AddMiddleware(Type middlewareType, Func<HttpChain, bool>? filter = null)
+    public void AddMiddleware([DynamicallyAccessedMembers(MiddlewarePolicy.MiddlewareMembers)] Type middlewareType,
+        Func<HttpChain, bool>? filter = null)
     {
         Func<IChain, bool> chainFilter = c => c is HttpChain;
         if (filter != null)

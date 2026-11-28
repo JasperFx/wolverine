@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx.Core.Reflection;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
+using Wolverine.Middleware;
 using Wolverine.RateLimiting;
 using Wolverine.Runtime.Deduplication;
 using Wolverine.Runtime.Serialization.Encryption;
@@ -62,7 +64,8 @@ public class MessageTypePolicies<T>
     ///     type of the middleware type
     /// </summary>
     /// <param name="middlewareType"></param>
-    public MessageTypePolicies<T> AddMiddleware(Type middlewareType)
+    public MessageTypePolicies<T> AddMiddleware(
+        [DynamicallyAccessedMembers(MiddlewarePolicy.MiddlewareMembers)] Type middlewareType)
     {
         var policy = _parent.FindOrCreateMiddlewarePolicy();
 
@@ -75,7 +78,7 @@ public class MessageTypePolicies<T>
     ///     type of the middleware type
     /// </summary>
     /// <param name="middlewareType"></param>
-    public MessageTypePolicies<T> AddMiddleware<TMiddleware>()
+    public MessageTypePolicies<T> AddMiddleware<[DynamicallyAccessedMembers(MiddlewarePolicy.MiddlewareMembers)] TMiddleware>()
     {
         return AddMiddleware(typeof(TMiddleware));
     }
