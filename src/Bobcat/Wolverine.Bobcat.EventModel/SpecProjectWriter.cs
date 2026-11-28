@@ -122,6 +122,8 @@ public static class SpecProjectWriter
         ("Bobcat.Xunit", bobcat, false),
         ("Bobcat.Generators", bobcat, true),
         ("WolverineFx.Bobcat", wolverine, false),
+        // The HTTP acts (WhenPosted, WhenReading) and WolverineHttpSpec, the base of a specification over an endpoint (GH-6004)
+        ("WolverineFx.Bobcat.Http", wolverine, false),
         ("Alba", AlbaVersion, false),
         ("Microsoft.NET.Test.Sdk", TestSdkVersion, false),
         ("xunit.runner.visualstudio", XunitRunnerVisualStudioVersion, true)
@@ -392,7 +394,7 @@ public static class SpecProjectWriter
     private static void checkExistingProject(string csproj, string specs, string modelName, List<ImportCallout> callouts)
     {
         var text = File.ReadAllText(csproj);
-        foreach (var id in new[] { "xunit.v3", "Bobcat.Xunit", "Bobcat.Generators", "WolverineFx.Bobcat", "Alba" })
+        foreach (var id in new[] { "xunit.v3", "Bobcat.Xunit", "Bobcat.Generators", "WolverineFx.Bobcat", "WolverineFx.Bobcat.Http", "Alba" })
         {
             if (!Regex.IsMatch(text, $"Include=\"{Regex.Escape(id)}\"", RegexOptions.IgnoreCase))
             {

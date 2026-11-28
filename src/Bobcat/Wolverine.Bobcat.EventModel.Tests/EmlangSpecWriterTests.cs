@@ -59,11 +59,14 @@ public class EmlangSpecWriterTests
                 then:
         """;
 
-    private static (GeneratedSpecs Specs, CSharpModelWriter.Output Stubs) generate(string yaml)
+    // The Kitchen's Add item slice is triggered by a screen (t: Website / Menu), which the default --acts board reads as an
+    // HTTP endpoint (GH-6004). These tests are about the message form the writer always had, so they ask for it; the HTTP
+    // form is ScenarioModelSpecTests'.
+    private static (GeneratedSpecs Specs, CSharpModelWriter.Output Stubs) generate(string yaml, ActStyle acts = ActStyle.Message)
     {
         var board = EmlangReader.Read(yaml);
         var model = EmlangImport.ToCurated(board, "Kitchen").Model;
-        var specs = EmlangSpecWriter.Write(board, model, "Kitchen");
+        var specs = EmlangSpecWriter.Write(board, model, "Kitchen", null, null, null, acts);
         return (specs, CSharpModelWriter.Write(model, "Kitchen", specs.Additions));
     }
 
@@ -401,9 +404,9 @@ public class EmlangSpecWriterTests
     }
 
     [Fact]
-    public void an_automation_slice_says_what_triggers_it()
+    public void an_automation_slice_says_what_triggers_it_and_runs_the_trigger_in()
     {
-        code(
+        var code = EmlangSpecWriterTests.code(
             """
             slices:
               Send receipt:
@@ -415,9 +418,20 @@ public class EmlangSpecWriterTests
                   Sent:
                     when:
                       - c: Send receipt
+                        props:
+                          order id: order-1
                     then:
                       - e: Receipt sent
-            """).ShouldContain("// SendReceipt is an automation, triggered by \"Payment confirmed\"\n[BobcatFeature(\"SendReceipt\")]");
+            """);
+
+        code.ShouldContain("// SendReceipt is an automation, triggered by \"Payment confirmed\"\n[BobcatFeature(\"SendReceipt\")]");
+
+        // GH-6004: the example exercises the command, but the slice's act is the trigger coming in; the command is what
+        // it issued, and the events are appended by the cascade the trigger caused
+        code.ShouldContain("await WhenReceived(Specify<PaymentConfirmed>());");
+        code.ShouldContain("ThenMessageSent(Specify<SendReceipt>().With(x => x.OrderId, theOrder));");
+        code.ShouldContain("ThenCaused(Specify<ReceiptSent>());");
+        code.ShouldNotContain("ThenEvents(");
     }
 
     [Fact]
@@ -469,7 +483,7 @@ public class EmlangSpecWriterTests
     {
         var board = EmlangReader.Read(Kitchen);
         var model = EmlangImport.ToCurated(board, "Kitchen").Model;
-        var specs = EmlangSpecWriter.Write(board, model, "Kitchen", "Kitchen.Specs");
+        var specs = EmlangSpecWriter.Write(board, model, "Kitchen", "Kitchen.Specs", null, null, ActStyle.Message);
 
         // Slices take the board's chapter, which is the top-level slices: key
         var add = specs.Files.Single(x => x.Path == "AddItem/AddItemToOrder.cs");
@@ -488,6 +502,8 @@ public class EmlangSpecWriterTests
         usings.ShouldContain("global using Kitchen;");
         usings.ShouldContain("global using Kitchen.AddItem;");
         usings.ShouldContain("global using Wolverine.Bobcat;");
+        usings.ShouldContain("global using Wolverine.Bobcat.Http;");
+        usings.ShouldContain("global using Bobcat.Xunit;");
         usings.ShouldNotContain("System.Collections.Generic");
         specs.Files.Count.ShouldBe(4);
     }

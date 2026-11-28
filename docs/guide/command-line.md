@@ -782,3 +782,67 @@ UNKNOWN BookAppointment: trigger Unknown -- no HTTP endpoint, message handler or
 A stub type that already exists -- an aggregate or a view -- is never rewritten: `EDIT` names the file it is declared in
 and the exact `Apply` methods it is missing. And a command slice whose trigger neither the declaration nor the code
 reveals is reported as `UNKNOWN` rather than guessed.
+
+## Writing Specifications from a Board <Badge type="tip" text="7.0" />
+
+`write-specs` comes with the `WolverineFx.Bobcat.EventModel` package and writes one
+[WolverineFx.Bobcat](/guide/testing-with-bobcat) specification for every example on an Event Model, plus the spec
+project around them when the spec directory has none. It takes an eventmodelers.ai export (a board backup or a
+`config.json`), an emlang model, a dcb.events Playground model or an ESDM document, and it runs in the application,
+next to `scaffold`:
+
+```bash
+dotnet run -- write-specs board.json --out ./src/MyApp --store marten
+dotnet run -- write-specs board.json --acts http        # every command is an HTTP endpoint
+dotnet run -- write-specs board.json --acts message     # every command is a message received
+dotnet run -- write-specs board.json --json             # the run as JSON, every callout with a stable code
+```
+
+The [Event Modeling tutorial](/tutorials/event-modeling#generated-specifications) walks through the whole loop. This
+section is about what each example on the board becomes, which the command reads from Bobcat's scenario model of the
+example rather than from the kind of element it names.
+
+### Which act a command gets: `--acts`
+
+A board rarely says whether a command arrives over HTTP or as a message, and the specification has to agree with the
+skeleton `scaffold` writes for the same slice. `--acts` settles it:
+
+| `--acts` | What a command example's act becomes |
+| --- | --- |
+| `board` (the default) | The board's `apiEndpoint` when the command has one (`POST /orders/{orderId}` becomes `WhenPosted(command, HttpRoutes.Fill("/orders/{orderId}", theOrder))`). Otherwise the trigger decides: a command a screen triggers is an HTTP endpoint at the route `scaffold` writes for it (`/api/confirm-appointment`), and the specification says in a comment that the board's `apiEndpoint` field would have settled it; a command an automation triggers, or nothing on the board triggers, is `WhenReceived` |
+| `http` | Every command is an HTTP endpoint: the board's `apiEndpoint`, else the route `scaffold` writes |
+| `message` | Every command is `WhenReceived`, whatever the board says. This is what `write-specs` wrote before 7.0 |
+
+A slice whose act is an HTTP request or a query gets a feature class over `WolverineHttpSpec`, the second base class
+`TestSupport.cs` declares, so the spec project references `WolverineFx.Bobcat.Http` as well as `WolverineFx.Bobcat`.
+
+### What each part of an example becomes
+
+| On the board | In the specification |
+| --- | --- |
+| A given event | `GivenEvents<Aggregate>(id, ...)` on the stream the model declares or the import inferred, `GivenEventsOn` for a second stream, and `.Tagged(...)` for the tag values a DCB event carries |
+| A `context` read model (the state the command decides against) | `GivenReadModel<T>(...)`, one per document or row |
+| A clock the source states | `GivenTheTimeIs(...)` or `GivenTheDateIs(...)` |
+| A tenant the source states | Every store step runs through `ForTenant("...")` |
+| A message received or published | `WhenReceived(...)` or `WhenPublished(...)` |
+| An HTTP request | `WhenPosted` / `WhenPut` / `WhenPatched` / `WhenDeleted` with the body and the route, `WhenPostedTo` and its siblings when the route takes no body, `WhenReading<T>` for a GET |
+| An inline `QUERY` of a read model | `WhenReading<T>` at the route `scaffold` writes for the query, one route value per parameter |
+| Time advancing | `WhenTimePasses(TimeSpan...)` for a duration; a named timer fires as `WhenScheduledMessagesAreExecuted()` |
+| A foreign event entering a translation slice | `WhenPublished(...)` |
+| An automation slice's example | The trigger event is received, `ThenMessageSent(command)` checks the command it issued, and the events are checked with `ThenCaused(...)` since the cascade appended them |
+| An emitted event | `ThenEvents(...)`, `ThenEventsOn<Aggregate>` per stream when the command decides against several, `ThenStreamIsStartedWithEvents` when the act starts the stream; `.Tagged(...)` for its tags; a `generated` field is left out of the partial and the comment says so |
+| A read model as one document | `ThenReadModel<T>(id, ...)`, or `ThenSingleReadModel<T>` when the example names no identity |
+| A list read model's `examples` rows | `ThenDocuments<T>(Expect.InAnyOrder(...))`: the rows are the whole answer, in any order; a source that marks them as a subset gets `Expect.Containing` |
+| `expectEmptyList` | `ThenNoReadModel<T>()` |
+| A refusal | `ThenRefusedWith(reason, ...)` naming the values the reason mentions; a validation refusal is `ThenValidationFails`; under an HTTP act a refusal naming nothing is `ThenRefusedWithProblem(...)` and a not-found is `ThenNotFound()` |
+| A caused message | `ThenMessageSent(...)` or `ThenMessageScheduled(...)` |
+| An accepted command that appends nothing | `ThenTheActSucceeded()` and `ThenNoEvents()` |
+| A consistency boundary the source states | `ThenTheConsistencyBoundaryIs(EventTagQuery.For(...))`, with `ThenAConcurrentEventWouldConflict` and `ThenAConcurrentEventWouldNotConflict` for the events it names |
+| A `Blocked` or `Informational` slice | `[BobcatSpec(Pending = true)]` instead of `[Fact]`, so the specification is reported skipped rather than failing |
+| A `contextNote`, a slice description, an actor | Comments on the specification |
+
+A kind the writer has no form for is reported in the run's output, never guessed. The optional rule name a dcb.events
+or ESDM example carries is read but not yet written (JasperFx/bobcat#575).
+
+The command is additive: a specification file is written only when it does not exist, a second run adds a `[Fact]`
+for each new example to the class bound to its feature and changes nothing already there, and `--force` overwrites.

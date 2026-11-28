@@ -42,7 +42,8 @@ public sealed class WriteSpecsCommandTests : IDisposable
             ModelFlag = "Shelter",
             OutFlag = app,
             StoreFlag = "marten",
-            JsonFlag = extra.Contains("--json")
+            JsonFlag = extra.Contains("--json"),
+            ActsFlag = extra.FirstOrDefault(x => x.StartsWith("--acts=", StringComparison.Ordinal))?["--acts=".Length..]
         };
 
         return await new WriteSpecsCommand().Execute(input);
@@ -88,5 +89,41 @@ public sealed class WriteSpecsCommandTests : IDisposable
     public async Task a_missing_file_is_refused()
     {
         (await new WriteSpecsCommand().Execute(new WriteSpecsInput { FilePath = Path.Combine(_root, "nope.json") })).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task an_acts_value_that_is_not_board_http_or_message_is_refused()
+    {
+        (await run("--acts=grpc")).ShouldBeFalse();
+        Directory.Exists(specs).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task acts_http_writes_the_commands_as_endpoints()
+    {
+        (await run("--acts=http")).ShouldBeTrue();
+
+        File.ReadAllText(Path.Combine(specs, "Booking", "ConfirmAppointment.cs"))
+            .ShouldContain("await WhenPosted(Specify<ConfirmAppointment>().With(x => x.Id, theAppointment), \"/api/confirm-appointment\");");
+        File.ReadAllText(Path.Combine(specs, "Shelter.Specs.csproj")).ShouldContain("<PackageReference Include=\"WolverineFx.Bobcat.Http\"");
+    }
+
+    [Fact]
+    public async Task a_dcb_playground_model_is_read_as_the_reader_lowers_it()
+    {
+        var path = Path.Combine(_root, "duplication.dcb.json");
+        await File.WriteAllTextAsync(path, Boards.Dcb);
+        var app = Path.Combine(_root, "Duplication");
+        Directory.CreateDirectory(app);
+        await File.WriteAllTextAsync(Path.Combine(app, "Duplication.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk.Web\" />\n");
+
+        (await new WriteSpecsCommand().Execute(new WriteSpecsInput { FilePath = path, ModelFlag = "Duplication", OutFlag = app, StoreFlag = "marten" }))
+            .ShouldBeTrue();
+
+        var written = Directory.EnumerateFiles(Path.Combine(_root, "Duplication.Specs"), "*.cs", SearchOption.AllDirectories)
+            .Select(File.ReadAllText).ToList();
+        written.ShouldContain(x => x.Contains("[BobcatFeature(\"PlaceOrder\")]"));
+        written.ShouldContain(x => x.Contains("ThenRefusedWith(\"Order was already placed\");"));
+        File.Exists(Path.Combine(app, "Features", "PlaceOrder.cs")).ShouldBeTrue();
     }
 }
