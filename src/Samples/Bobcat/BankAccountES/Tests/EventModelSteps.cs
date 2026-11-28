@@ -32,6 +32,9 @@ public class EventModelSteps(BankAccountHost app)
     private IReadOnlyList<EventModelDescriptor> _models = [];
     private HotspotDescriptor? _disagreement;
 
+    /// <summary>The one assembled model, for the steps of another class to read; null until assembled.</summary>
+    internal EventModelDescriptor? AssembledModel => _models.Count == 1 ? _models[0] : null;
+
     private EventModelDescriptor? model()
     {
         if (_models.Count == 1) return _models[0];
@@ -372,4 +375,126 @@ public class EventModelSteps(BankAccountHost app)
 
     private static string describeHotspots(EventModelSliceDescriptor slice)
         => string.Join(" | ", slice.Hotspots.Select(h => $"{h.Origin}: {h.Text}"));
+}
+
+/// <summary>
+/// wolverine#6007: the assembled model as the Mermaid <c>eventmodeling</c> diagram <c>event-model --format mermaid</c>
+/// and <c>describe-event-model --mermaid</c> write. Rendered from the same four-source model the steps above
+/// assert on, so the diagram carries the overlay's trigger labels and the specs' bound identities, which a
+/// <c>dotnet run -- event-model</c> of the host alone cannot see.
+/// </summary>
+public class EventModelMermaidSteps(EventModelSteps model)
+{
+    private string _diagram = string.Empty;
+
+    [When("the assembled model is rendered as a Mermaid eventmodeling diagram")]
+    public void RenderAsMermaid()
+    {
+        if (model.AssembledModel is { } m)
+        {
+            _diagram = Wolverine.Configuration.EventModeling.EventModelMermaid.Render(m).ReplaceLineEndings("\n");
+        }
+    }
+
+    [Then("the diagram has the line {line}")]
+    public void TheDiagramHasTheLine(string line)
+        => SpecAssert.Fact(_diagram.Split('\n').Any(x => x.Trim() == line.Trim()),
+            $"No line '{line}' in the diagram:\n{_diagram}");
+
+    private IEnumerable<(string Kind, int Number, string Type, string Identifier, int[] Sources)> frames()
+    {
+        foreach (var line in _diagram.Split('\n').Select(x => x.Trim()).Where(x => x.StartsWith("tf ") || x.StartsWith("rf ")))
+        {
+            var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 4 || !int.TryParse(parts[1], out var number)) continue;
+            var sources = parts.Skip(4).Where(x => x != "->>").Select(int.Parse).ToArray();
+            yield return (parts[0], number, parts[2], parts[3], sources);
+        }
+    }
+
+    [Then("the diagram has a {type} frame for {identifier}")]
+    public void TheDiagramHasTheFrame(string type, string identifier)
+        => SpecAssert.Fact(frames().Any(f => f.Type == type && f.Identifier == identifier),
+            $"No '{type} {identifier}' frame in the diagram:\n{_diagram}");
+
+    /// <summary>One slice's frames are consecutive: a reset frame, then time frames that follow it by inference.</summary>
+    [Then("the frames {identifiers} follow each other")]
+    public void TheFramesOfTheSliceFollowEachOther(params string[] identifiers)
+    {
+        var all = frames().ToList();
+        var first = all.FindIndex(f => f.Identifier == identifiers[0]);
+        if (!SpecAssert.Fact(first >= 0, $"No frame for {identifiers[0]} in the diagram:\n{_diagram}")) return;
+
+        for (var i = 0; i < identifiers.Length; i++)
+        {
+            var frame = all.ElementAtOrDefault(first + i);
+            SpecAssert.Fact(frame.Identifier == identifiers[i] && frame.Kind == (i == 0 ? "rf" : "tf"),
+                $"Frame {i} after {identifiers[0]} should be a {(i == 0 ? "reset" : "time")} frame for {identifiers[i]}, but is '{frame.Kind} {frame.Number:00} {frame.Type} {frame.Identifier}'.");
+        }
+    }
+
+    /// <summary>A consuming slice's frame relates back to the frames that emitted every event it folds, in order.</summary>
+    [Then("the {type} {identifier} frame points back at the frames of {emitted}")]
+    public void TheFramePointsBackAtTheFramesOf(string type, string identifier, params string[] emitted)
+    {
+        var all = frames().ToList();
+        var frame = all.FirstOrDefault(f => f.Type == type && f.Identifier == identifier && f.Sources.Length > 0);
+        if (!SpecAssert.Fact(frame.Identifier is not null, $"No '{type} {identifier}' frame with relations in the diagram:\n{_diagram}")) return;
+
+        var expected = emitted.Select(e => all.First(f => f.Type == "evt" && f.Identifier == e).Number).OrderBy(x => x).ToArray();
+        SpecAssert.Fact(frame.Sources.SequenceEqual(expected),
+            $"'{type} {identifier}' points at [{string.Join(", ", frame.Sources)}], expected [{string.Join(", ", expected)}] for {string.Join(", ", emitted)}.");
+    }
+
+    [Then("there is a gwt block on the {identifier} frame saying {text}")]
+    public void TheDiagramHasAGwtBlockOnTheFrame(string identifier, string text)
+    {
+        var frame = frames().FirstOrDefault(f => f.Identifier == identifier);
+        if (!SpecAssert.Fact(frame.Identifier is not null, $"No frame for {identifier} in the diagram:\n{_diagram}")) return;
+
+        SpecAssert.Fact(_diagram.Split('\n').Any(x => x.Trim().StartsWith($"gwt {frame.Number:00} given ") && x.Contains(text)),
+            $"No 'gwt {frame.Number:00} given ... {text}' block in the diagram:\n{_diagram}");
+    }
+
+    /// <summary>
+    /// What the grammar at https://mermaid.js.org/syntax/eventmodeling.html demands of the text: one
+    /// <c>eventmodeling</c> header, frame numbers that are unique and at most three digits, every <c>->></c>
+    /// pointing at a frame that exists, every identifier <c>[_a-zA-Z][\w]*</c> per dotted segment, and every
+    /// entity type one of the five codes.
+    /// </summary>
+    [Then("the diagram is well-formed eventmodeling text")]
+    public void TheDiagramIsWellFormed()
+    {
+        var lines = _diagram.Split('\n').Select(x => x.Trim()).Where(x => x.Length > 0 && !x.StartsWith("%%")).ToList();
+        SpecAssert.Fact(lines.Contains("eventmodeling"), "The diagram has no 'eventmodeling' header.");
+
+        var frames = new HashSet<int>();
+        var identifier = new System.Text.RegularExpressions.Regex(@"^[_a-zA-Z]\w*(\.[_a-zA-Z]\w*)*$");
+        var types = new[] { "ui", "cmd", "evt", "rmo", "pcr" };
+
+        foreach (var line in lines.Where(x => x.StartsWith("tf ") || x.StartsWith("rf ")))
+        {
+            var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            SpecAssert.Fact(parts.Length >= 4, $"A frame line needs a number, a type and an identifier: '{line}'");
+            if (parts.Length < 4) continue;
+
+            SpecAssert.Fact(parts[1].Length <= 3 && int.TryParse(parts[1], out var number) && frames.Add(number),
+                $"Frame number '{parts[1]}' is not a unique number of at most three digits: '{line}'");
+            SpecAssert.Fact(types.Contains(parts[2]), $"'{parts[2]}' is not an entity type: '{line}'");
+            SpecAssert.Fact(identifier.IsMatch(parts[3]), $"'{parts[3]}' is not an identifier the grammar takes: '{line}'");
+
+            for (var i = 4; i < parts.Length; i += 2)
+            {
+                SpecAssert.Fact(parts[i] == "->>" && i + 1 < parts.Length && int.TryParse(parts[i + 1], out var target) && frames.Contains(target),
+                    $"A relation must be '->> <nn>' to an earlier frame: '{line}'");
+            }
+        }
+
+        foreach (var line in lines.Where(x => x.StartsWith("gwt ")))
+        {
+            var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            SpecAssert.Fact(int.TryParse(parts[1], out var frame) && frames.Contains(frame), $"gwt must name a frame that exists: '{line}'");
+            SpecAssert.Fact(parts[2] == "given" && parts.Contains("then"), $"gwt needs 'given' and 'then': '{line}'");
+        }
+    }
 }

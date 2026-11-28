@@ -8,7 +8,15 @@ namespace Wolverine.Configuration.EventModeling;
 /// <param name="Chapter">Only slices in this chapter.</param>
 /// <param name="Domain">Only slices in this domain.</param>
 /// <param name="HotspotsOnly">Only slices with an open question on them.</param>
-public sealed record EventModelReportFilter(string? Chapter = null, string? Domain = null, bool HotspotsOnly = false);
+public sealed record EventModelReportFilter(string? Chapter = null, string? Domain = null, bool HotspotsOnly = false)
+{
+    /// <summary>The slices of <paramref name="model" /> this filter keeps, in the model's order.</summary>
+    public IEnumerable<EventModelSliceDescriptor> Apply(EventModelDescriptor model)
+        => model.Slices
+            .Where(x => Chapter is null || string.Equals(x.Chapter, Chapter, StringComparison.OrdinalIgnoreCase))
+            .Where(x => Domain is null || string.Equals(x.Domain, Domain, StringComparison.OrdinalIgnoreCase))
+            .Where(x => !HotspotsOnly || x.Hotspots.Count > 0);
+}
 
 /// <summary>
 ///     GH-4917. An assembled Event Model as a person reads it: domain, then chapter, then each slice with its
@@ -28,10 +36,7 @@ public static class EventModelReport
     public static IReadOnlyList<SliceReport> Slices(EventModelDescriptor model, EventModelReportFilter? filter = null)
     {
         filter ??= new EventModelReportFilter();
-        return model.Slices
-            .Where(x => filter.Chapter is null || string.Equals(x.Chapter, filter.Chapter, StringComparison.OrdinalIgnoreCase))
-            .Where(x => filter.Domain is null || string.Equals(x.Domain, filter.Domain, StringComparison.OrdinalIgnoreCase))
-            .Where(x => !filter.HotspotsOnly || x.Hotspots.Count > 0)
+        return filter.Apply(model)
             .Select(describe)
             .OrderBy(x => x.Domain == NoDomain).ThenBy(x => x.Domain, StringComparer.Ordinal)
             .ThenBy(x => x.Chapter == NoChapter).ThenBy(x => x.Chapter, StringComparer.Ordinal)

@@ -21,6 +21,9 @@ namespace BankAccountES.Tests;
 public class EventModel(BankAccountHost app)
 {
     private readonly EventModelSteps _model = new(app);
+    private EventModelMermaidSteps? _mermaid;
+
+    private EventModelMermaidSteps mermaid => _mermaid ??= new EventModelMermaidSteps(_model);
 
     [BobcatSpec]
     public async Task four_sources_fold_into_one_provenance_stamped_model()
@@ -199,5 +202,26 @@ public class EventModel(BankAccountHost app)
         _model.ThereIsALink(EventModelLinkKind.EventConsumed, "WithdrawFunds", "Account", "FundsWithdrawn");
         _model.ThereIsALink(EventModelLinkKind.EventConsumed, "FreezeAccount", "Account", "AccountFrozen");
         _model.ThereIsALink(EventModelLinkKind.EventConsumed, "OpenAccount", "Account", "AccountOpened");
+    }
+
+    /// <summary>
+    /// wolverine#6007: the same assembled model as a Mermaid <c>eventmodeling</c> diagram. The overlay's trigger
+    /// labels become <c>ui</c> frames, the store's views point back at the command frames that emit what they
+    /// fold, the specs' identities become <c>gwt</c> blocks, and the text is what the grammar takes.
+    /// </summary>
+    [BobcatSpec]
+    public async Task the_model_renders_as_a_mermaid_eventmodeling_diagram()
+    {
+        await _model.AssembleEventModel();
+        mermaid.RenderAsMermaid();
+
+        mermaid.TheDiagramIsWellFormed();
+        mermaid.TheDiagramHasTheFrame("ui", "Account.CustomerAtTheTeller");
+        mermaid.TheDiagramHasTheFrame("cmd", "Account.DepositFunds");
+        mermaid.TheDiagramHasTheFrame("evt", "Account.FundsDeposited");
+        mermaid.TheFramesOfTheSliceFollowEachOther("Account.CustomerAtTheTeller", "Account.DepositFunds", "Account.FundsDeposited");
+        mermaid.TheFramePointsBackAtTheFramesOf("rmo", "Account.Account", "Account.AccountOpened", "Account.FundsDeposited", "Account.FundsWithdrawn", "Account.AccountFrozen");
+        mermaid.TheDiagramHasTheLine("%% spec: Bank Account Event Sourcing/deposit funds");
+        mermaid.TheDiagramHasAGwtBlockOnTheFrame("Account.DepositFunds", "when cmd DepositFunds then evt FundsDeposited");
     }
 }

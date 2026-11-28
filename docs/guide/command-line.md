@@ -394,6 +394,114 @@ dotnet run -- event-model --specs ../Orders.Specs/bin/Debug/net10.0/Orders.Specs
 Several spec assemblies go after a single `--specs`. A path that does not exist fails the command; an assembly
 with no manifest is reported and skipped.
 
+### Drawing the model as a Mermaid diagram <Badge type="tip" text="7.0" />
+
+`event-model --format mermaid` writes the same assembled model as a Mermaid
+[`eventmodeling`](https://mermaid.js.org/syntax/eventmodeling.html) diagram, which Mermaid 11.15 and later renders
+-- so GitHub, Vitepress and most wikis draw it without a viewer. `describe-event-model --mermaid` prints the same
+text to standard output, narrowed by `--chapter`, `--domain` and `--hotspots-only` the way the report is.
+
+```bash
+dotnet run -- event-model --format mermaid                        # writes event-model.mmd
+dotnet run -- event-model --format mermaid --output docs/orders.mmd
+dotnet run -- describe-event-model --mermaid --chapter BookingAppointments > booking.mmd
+```
+
+`--output` names the file for either format; `--json` keeps naming the JSON file. A monitor takes the JSON
+descriptor only, so `--url` does not go with `--format mermaid`.
+
+Each slice becomes a run of numbered frames by its pattern:
+
+| Pattern | Frames |
+|---------|--------|
+| Command | `ui` when the trigger has a label and a person can reach it (an HTTP route, a message), then `cmd`, then one `evt` per emitted event |
+| View | `rmo`, related back to the frames that emitted every event the view folds |
+| Automation | the events it consumes, `rmo` for each read model it reads, `pcr` for the handler, `cmd` when it sends a command, then its events |
+| Translation | the other system's `evt` in that system's lane, `pcr`, `cmd` when there is one, then the events it emits here |
+| Query | `ui` when labelled, then `rmo` for each read model it reads |
+
+A slice Wolverine could not give a pattern is drawn as a command. The dotted namespace on an identifier is the
+diagram's lane: the stream an event is appended to or the aggregate the slice decides against, and failing both the
+slice's domain. Every slice starts on a reset frame (`rf`), so one slice's last event does not flow into the next
+slice's trigger by inference; slices connect where one consumes an event another emitted, with `->>` back to the
+frame that emitted it, and producers are drawn before consumers (commands and translations, then automations, views
+and queries) so those relations always point backwards.
+
+Every bound specification becomes a `gwt` block on the slice's command frame, with the specification's identity as a
+comment above it and the slice's own shape as its given / when / then: the events its aggregate folds, the command,
+the events it emits. Specifications carry no bodies on the descriptor yet, so every block on one slice reads the
+same.
+
+What the grammar has no place for is not carried: hotspots, provenance, chapters, published messages and the URIs
+of external systems. A slice's chapter and domain appear only in the `%%` comment above its frames. Names are
+reduced to the grammar's identifiers deterministically -- `GET /api/accounts/{id}` becomes `GETApiAccountsId` and
+`Customer at the ATM` becomes `CustomerAtTheATM` -- and the model's name is the diagram's title, as YAML front
+matter.
+
+This is what the command writes for the `BankAccountES` sample in `src/Samples/Bobcat`, where the overlay in
+`Program.cs` labels every command's trigger:
+
+```mermaid
+---
+title: "BankAccount"
+---
+eventmodeling
+
+    %% OpenAccount (Command) in Banking
+    rf 01 ui Banking.EnrolledClientAsksForAnAccount
+    tf 02 cmd Banking.OpenAccount
+    tf 03 evt Account.AccountOpened
+
+    %% DepositFunds (Command) in Banking
+    rf 04 ui Account.CustomerAtTheTeller
+    tf 05 cmd Account.DepositFunds
+    tf 06 evt Account.FundsDeposited
+
+    %% WithdrawFunds (Command) in Banking
+    rf 07 ui Account.CustomerAtTheATM
+    tf 08 cmd Account.WithdrawFunds
+    tf 09 evt Account.FundsWithdrawn
+
+    %% EnrollClient (Command) in Banking
+    rf 10 ui Banking.NewCustomerWalksIn
+    tf 11 cmd Banking.EnrollClient
+    tf 12 evt Client.ClientEnrolled
+
+    %% UpdateClient (Command) in Banking
+    rf 13 ui Client.CustomerCorrectsTheirDetails
+    tf 14 cmd Client.UpdateClient
+    tf 15 evt Client.ClientUpdated
+
+    %% FreezeAccount (no pattern) in Banking
+    rf 16 ui Account.TheFraudDesk
+    tf 17 cmd Account.FreezeAccount
+    tf 18 evt Account.AccountFrozen
+    rf 19 evt Account.AccountFlagged ->> 17
+
+    %% Account (View)
+    rf 20 rmo Account ->> 03 ->> 06 ->> 09 ->> 18
+
+    %% Client (View)
+    rf 21 rmo Client ->> 12 ->> 15
+
+    %% AccountTransactions (View)
+    rf 22 rmo AccountTransactions ->> 03 ->> 06 ->> 09
+
+    %% GET /api/accounts/{accountId}/transactions (Query)
+    rf 23 rmo AccountTransactions
+
+    %% GET /api/accounts/{id} (Query)
+    rf 24 rmo Account
+
+    %% GET /api/clients/{clientId}/accounts (Query)
+    rf 25 rmo Account
+
+    %% GET /api/clients/{id} (Query)
+    rf 26 rmo Client
+```
+
+With a spec assembly on `--specs`, every slice a specification binds to also gets a `gwt` block per specification.
+
 ### Publishing to a monitor
 
 `--url` PUTs the assembled descriptor to a monitor instead of writing it to a file, which collapses the
